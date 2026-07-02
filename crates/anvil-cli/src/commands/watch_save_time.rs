@@ -440,7 +440,9 @@ pub(crate) fn render_daemon_verdict_plain<W: Write>(
     for diag in &response.diagnostics {
         let severity = match diag.severity {
             Severity::Info => "info",
-            Severity::Warning => "warn",
+            // Unknown severity (newer producer) renders as warn, matching
+            // the envelope-spec forward-compat treatment (ADR-096).
+            Severity::Warning | Severity::Unknown => "warn",
             Severity::Error => "error",
         };
         let line = diag.location.line.map_or_else(
@@ -1138,6 +1140,45 @@ mod tests {
             coverage: Coverage::Certified,
             check_families: vec![anvil_intercept_proto::protocol::CheckFamily::Antipattern],
         }
+    }
+
+    #[test]
+    fn verdict_exit_code_treats_unknown_severity_as_non_blocking() {
+        use anvil_kernel_types::Diagnostic;
+        use anvil_kernel_types::diagnostics::{
+            Category, DiagnosticSource, KnownMode, Location, Mode,
+        };
+
+        let diag = |sev| {
+            Diagnostic::new(
+                "diag-x",
+                sev,
+                "summary",
+                Location {
+                    file: "src/a.ts".into(),
+                    line: Some(1),
+                    column: None,
+                    end_line: None,
+                    end_column: None,
+                },
+                Category::Antipattern,
+                DiagnosticSource {
+                    rule_id: "r".into(),
+                    source_module: "m".into(),
+                },
+                Mode::known(KnownMode::SaveTime),
+            )
+        };
+        let mut resp = clean_response();
+
+        // ADR-096: an `Unknown` severity is treated as a warning, so it keeps a
+        // zero (non-blocking) exit code — exactly like `Warning`/`Info`. Only
+        // `Error` is non-zero.
+        resp.diagnostics = vec![diag(Severity::Unknown)];
+        assert_eq!(verdict_exit_code(&resp), 0);
+
+        resp.diagnostics = vec![diag(Severity::Error)];
+        assert_eq!(verdict_exit_code(&resp), 1);
     }
 
     fn client_with(

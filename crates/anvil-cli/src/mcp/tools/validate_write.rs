@@ -571,7 +571,9 @@ pub(crate) fn diagnostic_summary(diagnostics: &[Diagnostic]) -> Value {
     for diagnostic in diagnostics {
         match diagnostic.severity {
             Severity::Error => error += 1,
-            Severity::Warning => warning += 1,
+            // Unknown severity (newer producer) counts as a warning per
+            // the envelope-spec forward-compat rule (ADR-096).
+            Severity::Warning | Severity::Unknown => warning += 1,
             Severity::Info => info += 1,
         }
     }

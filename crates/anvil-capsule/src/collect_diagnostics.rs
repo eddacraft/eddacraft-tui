@@ -151,11 +151,13 @@ fn diagnostic_to_result(diag: &Diagnostic) -> SarifResult {
 /// Map diagnostic [`Severity`] to a SARIF result [`Level`].
 ///
 /// `Info` is SARIF `note` (the spec's lowest non-suppressed level);
-/// `Warning`/`Error` map straight across.
+/// `Warning`/`Error` map straight across. An `Unknown` severity (from a
+/// newer producer) is treated as `warning` per the envelope spec's
+/// forward-compat rule (ADR-096).
 fn severity_to_level(severity: Severity) -> Level {
     match severity {
         Severity::Info => Level::Note,
-        Severity::Warning => Level::Warning,
+        Severity::Warning | Severity::Unknown => Level::Warning,
         Severity::Error => Level::Error,
     }
 }

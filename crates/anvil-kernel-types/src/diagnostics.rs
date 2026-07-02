@@ -27,12 +27,27 @@ pub const DIAGNOSTIC_SCHEMA_VERSION: &str = "anvil.diagnostic.v1";
 /// Rule severity. Deliberately separate from the control decision
 /// (`allow`/`warn`/`block`/`interrupt`); the daemon owns severity →
 /// decision mapping.
+///
+/// Forward-compatible per the envelope spec ("subscribers MUST treat
+/// unknown `severity` values as `warning` … rather than dropping"):
+/// deserialising a value this consumer does not recognise yields
+/// [`Severity::Unknown`] instead of failing the whole `Diagnostic`
+/// parse, and consumers treat `Unknown` as a warning (ADR-096). This
+/// `#[serde(other)]` arm mirrors the forward-compat fallback on
+/// `MirrorPath` and `AssuranceState` (ADR-085); the sibling [`Mode`]
+/// reaches the same tolerance a different way — an untagged
+/// `Known | Unknown(String)` shape, not `#[serde(other)]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Severity {
     Info,
     Warning,
     Error,
+    /// A `severity` value a newer producer emitted that this consumer
+    /// does not recognise. Surfaced (treated as `warning`), never
+    /// dropped.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Enforcement decision vocabulary shared by control surfaces. This is
@@ -59,9 +74,16 @@ impl ControlDecision {
     }
 }
 
-/// Coarse routing/filtering grouping for diagnostics. Closed list per
-/// the spec — new values require a spec amendment before producers
-/// emit them.
+/// Coarse routing/filtering grouping for diagnostics. Spec-defined
+/// producers emit one of the named values; the wire type is
+/// forward-compatible so a consumer running an older spec can still
+/// surface a diagnostic from a newer producer that introduces an
+/// additional category (envelope spec: "subscribers MUST treat …
+/// unknown `category` values as `other` … rather than dropping").
+/// Unrecognised values deserialise to [`Category::Unknown`] instead of
+/// failing the parse; a consumer that routes by category would treat it
+/// as [`Category::Other`] (no such routing consumer exists today —
+/// `category` is carried, not switched on) (ADR-096).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Category {
@@ -73,6 +95,11 @@ pub enum Category {
     CommandSafety,
     Architecture,
     Other,
+    /// A `category` value a newer producer emitted that this consumer
+    /// does not recognise. Surfaced (a category-routing consumer would
+    /// treat it as [`Category::Other`]), never dropped.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Known mode values. Spec-defined producers emit one of these; the
@@ -466,10 +493,16 @@ mod tests {
     }
 
     #[test]
-    fn diagnostic_schema_unknown_severity_value_fails() {
-        // Closed enum — unknown variants are a parse error at this layer.
-        // Forward-compat mapping (treat unknown severity as warning) is
-        // a consumer policy applied above this type.
+    fn diagnostic_schema_unknown_severity_value_round_trips_as_unknown() {
+        // Envelope spec: subscribers MUST treat unknown `severity` values
+        // as `warning` rather than dropping the diagnostic (ADR-096). A
+        // newer producer's `severity: "fatal"` must deserialise the whole
+        // Diagnostic (not error out) with `severity == Unknown`; consumers
+        // apply the warning treatment. Mirrors the `Mode` unknown round-trip.
+        let severity: Severity =
+            serde_json::from_value(json!("fatal")).expect("unknown severity deserialises");
+        assert_eq!(severity, Severity::Unknown);
+
         let payload = json!({
             "schema_version": "anvil.diagnostic.v1",
             "id": "diag_x",
@@ -480,7 +513,24 @@ mod tests {
             "source": { "rule_id": "r", "source_module": "m" },
             "mode": "gate"
         });
-        let result: Result<Diagnostic, _> = serde_json::from_value(payload);
-        assert!(result.is_err());
+        let diag: Diagnostic =
+            serde_json::from_value(payload).expect("diagnostic with unknown severity parses");
+        assert_eq!(diag.severity, Severity::Unknown);
+        // `Unknown` serialises to the `"unknown"` tag and round-trips back.
+        assert_eq!(serde_json::to_value(Severity::Unknown).unwrap(), "unknown");
+        assert_eq!(
+            serde_json::from_value::<Severity>(json!("unknown")).unwrap(),
+            Severity::Unknown
+        );
+    }
+
+    #[test]
+    fn diagnostic_schema_unknown_category_value_round_trips_as_unknown() {
+        // Envelope spec: unknown `category` values are surfaced (routed as
+        // `other`), never dropped (ADR-096).
+        let category: Category =
+            serde_json::from_value(json!("quantum")).expect("unknown category deserialises");
+        assert_eq!(category, Category::Unknown);
+        assert_eq!(serde_json::to_value(Category::Unknown).unwrap(), "unknown");
     }
 }

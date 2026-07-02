@@ -315,7 +315,12 @@ version once if forced.
 
 Subscribers MUST treat unknown `severity` values as `warning`,
 unknown `category` values as `other`, and unknown `mode` values as
-"render and pass through" rather than dropping.
+"render and pass through" rather than dropping. Implemented by the
+`#[serde(other)] Unknown` arm on `Severity`/`Category` and the
+`Known | Unknown(String)` shape on `Mode` in
+`anvil_kernel_types::diagnostics` (ADR-096); an unrecognised value
+deserialises to the tolerant variant instead of failing the whole
+`Diagnostic` parse.
 
 ## Coordination Rules
 
@@ -366,12 +371,19 @@ Concretely:
 
 ## Open Questions
 
-1. **Should `category` be open-ended or closed?** Closed (current
+1. **Should `category` be open-ended or closed?** ~~Closed (current
    draft) gives subscribers a fixed routing table; open lets new
    rule families ship without spec amendments. The closed list
    mirrors how `NotificationClass` works today, which has held up
    under change. Defaulting to closed; reopen if rule-family churn
-   proves it wrong.
+   proves it wrong.~~ **Resolved (ADR-096, #2243): open at the
+   consumer.** `Category` (and `Severity`) carry a `#[serde(other)]
+   Unknown` arm, so an unrecognised value deserialises to `Unknown`
+   and is routed as `other`/treated as `warning` rather than failing
+   the parse — implementing the MUST above. The Category list here
+   remains the declared set producers emit from; the tolerance is a
+   consumer-side forward-compat guarantee, not a licence to emit
+   undeclared categories.
 2. **Should `id` be a ULID or a hash?** ULID gives global
    uniqueness and trivial sort-by-time; a content hash
    (rule_id + file + line + content fragment) gives natural

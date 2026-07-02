@@ -13,12 +13,17 @@
 //! | ------- | ---------------------------- | ------------- | ----------------- |
 //! | `block` | Any `error`                  | `block`       | `do-not-write`    |
 //! | `block` | Mix of `error` and lower     | `block`       | `do-not-write`    |
-//! | `block` | Only `warning` / `info`      | `warn`        | (none)            |
+//! | `block` | Only `warning`/`info`/unknown | `warn`       | (none)            |
 //! | `block` | None                         | `allow`       | (none)            |
 //! | `warn`  | Any (any severity)           | `warn`        | (none)            |
 //! | `warn`  | None                         | `allow`       | (none)            |
 //! | `off`   | Any (any severity)           | `allow`       | (none)            |
 //! | `off`   | None                         | `allow`       | (none)            |
+//!
+//! An `Unknown` severity (a value a newer producer emitted; ADR-096) is
+//! treated as a warning here: it is not an `error`, so in `block` mode it
+//! warns rather than blocking — surfaced, never silently allowed, never
+//! over-blocked on a value this consumer cannot interpret.
 //!
 //! The mixed-severity row makes the `any(Error)` short-circuit explicit:
 //! in `block` mode, a single `error` rejects the write even when other
@@ -276,6 +281,30 @@ mod tests {
         assert_eq!(
             decision_for(&diagnostics, EnforcementMode::Block),
             ControlDecision::Warn
+        );
+    }
+
+    #[test]
+    fn block_mode_warns_on_unknown_severity_only() {
+        // ADR-096: an `Unknown` severity (newer producer) is treated as a
+        // warning — in block mode it warns, never blocks (it is not `Error`)
+        // and never silently allows. Pins the equality-check behaviour so a
+        // future refactor to an exhaustive match cannot regress it.
+        let diagnostics = [diagnostic(Severity::Unknown)];
+        assert_eq!(
+            decision_for(&diagnostics, EnforcementMode::Block),
+            ControlDecision::Warn
+        );
+    }
+
+    #[test]
+    fn block_mode_still_blocks_when_error_accompanies_unknown() {
+        // An `Error` alongside an `Unknown` still blocks — `Unknown` does not
+        // mask a genuine error.
+        let diagnostics = [diagnostic(Severity::Unknown), diagnostic(Severity::Error)];
+        assert_eq!(
+            decision_for(&diagnostics, EnforcementMode::Block),
+            ControlDecision::Block
         );
     }
 

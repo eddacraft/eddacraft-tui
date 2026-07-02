@@ -431,7 +431,15 @@ pub fn from_midedit_response(
     let rules_violated: Vec<String> = response
         .diagnostics
         .iter()
-        .filter(|d| matches!(d.severity, Severity::Error | Severity::Warning))
+        // `Unknown` (newer-producer severity) counts as a violation — it is
+        // treated as a warning everywhere in this file (ADR-096), so its rule
+        // id must appear in `rules_violated` alongside `warning_count`.
+        .filter(|d| {
+            matches!(
+                d.severity,
+                Severity::Error | Severity::Warning | Severity::Unknown
+            )
+        })
         .map(|d| d.source.rule_id.clone())
         .collect();
 
@@ -508,7 +516,15 @@ pub fn from_validate_paths(
         .collect();
     let rules_violated: Vec<String> = diagnostics
         .iter()
-        .filter(|d| matches!(d.severity, Severity::Error | Severity::Warning))
+        // `Unknown` (newer-producer severity) counts as a violation — it is
+        // treated as a warning everywhere in this file (ADR-096), so its rule
+        // id must appear in `rules_violated` alongside `warning_count`.
+        .filter(|d| {
+            matches!(
+                d.severity,
+                Severity::Error | Severity::Warning | Severity::Unknown
+            )
+        })
         .map(|d| d.source.rule_id.clone())
         .collect();
 
@@ -549,7 +565,9 @@ fn enforcement_for(diagnostics: &[Diagnostic]) -> Enforcement {
     for diag in diagnostics {
         let level = match diag.severity {
             Severity::Error => Enforcement::Blocking,
-            Severity::Warning => Enforcement::Warning,
+            // Unknown severity (newer producer) → warning, per the
+            // envelope-spec forward-compat rule (ADR-096).
+            Severity::Warning | Severity::Unknown => Enforcement::Warning,
             Severity::Info => Enforcement::Informational,
         };
         if level_rank(level) > level_rank(worst) {
@@ -573,7 +591,8 @@ fn counts_for(diagnostics: &[Diagnostic]) -> (u32, u32) {
     for diag in diagnostics {
         match diag.severity {
             Severity::Error => violations += 1,
-            Severity::Warning => warnings += 1,
+            // Unknown severity counts as a warning (ADR-096).
+            Severity::Warning | Severity::Unknown => warnings += 1,
             Severity::Info => {}
         }
     }
@@ -2677,6 +2696,23 @@ mod tests {
         let obs = from_midedit_response(&ctx, &resp).expect("observation");
         let violated = obs.rules_violated.expect("rules_violated present");
         assert_eq!(violated, vec!["warn-1".to_string(), "err-1".to_string()]);
+    }
+
+    #[test]
+    fn rules_violated_includes_unknown_severity() {
+        // ADR-096: an `Unknown` severity is treated as a warning throughout
+        // this file (it counts in `warning_count` and drives `enforcement`),
+        // so its rule id must also appear in `rules_violated` — not silently
+        // dropped like `Info`.
+        let ctx = sample_ctx();
+        let resp = response_with(vec![
+            make_diag("info-1", Severity::Info),
+            make_diag("unknown-1", Severity::Unknown),
+            make_diag("err-1", Severity::Error),
+        ]);
+        let obs = from_midedit_response(&ctx, &resp).expect("observation");
+        let violated = obs.rules_violated.expect("rules_violated present");
+        assert_eq!(violated, vec!["unknown-1".to_string(), "err-1".to_string()]);
     }
 
     #[test]

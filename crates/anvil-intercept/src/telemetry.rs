@@ -552,16 +552,24 @@ pub(crate) fn delivered_envelope_for_decision(
 pub(crate) fn midedit_decision_class(diagnostics: &[Diagnostic]) -> ControlDecision {
     let mut worst = ControlDecision::Allow;
     for diagnostic in diagnostics {
-        let class = match diagnostic.severity {
-            Severity::Error => ControlDecision::Block,
-            Severity::Warning => ControlDecision::Warn,
-            Severity::Info => ControlDecision::Allow,
-        };
+        let class = midedit_severity_class(diagnostic.severity);
         if midedit_class_rank(class) > midedit_class_rank(worst) {
             worst = class;
         }
     }
     worst
+}
+
+/// Map a diagnostic severity to its mid-edit control class. An `Unknown`
+/// severity (emitted by a newer producer) is treated as `warn` per the
+/// envelope spec's forward-compat rule — surfaced, never dropped
+/// (ADR-096).
+const fn midedit_severity_class(severity: Severity) -> ControlDecision {
+    match severity {
+        Severity::Error => ControlDecision::Block,
+        Severity::Warning | Severity::Unknown => ControlDecision::Warn,
+        Severity::Info => ControlDecision::Allow,
+    }
 }
 
 /// Ordering for the mid-edit advisory vocabulary. `Interrupt` is not
@@ -585,14 +593,18 @@ fn midedit_lead_diagnostic(
     diagnostics: &[Diagnostic],
     decision: ControlDecision,
 ) -> Option<&Diagnostic> {
-    let target = match decision {
-        ControlDecision::Block => Severity::Error,
-        ControlDecision::Warn => Severity::Warning,
-        ControlDecision::Allow | ControlDecision::Interrupt => return None,
-    };
+    if matches!(
+        decision,
+        ControlDecision::Allow | ControlDecision::Interrupt
+    ) {
+        return None;
+    }
+    // Match on the mapped control class (not the raw severity) so an
+    // `Unknown`-severity diagnostic — which classifies as `warn` — is
+    // still eligible to lead a `warn` decision (ADR-096).
     diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.severity == target)
+        .find(|diagnostic| midedit_severity_class(diagnostic.severity) == decision)
 }
 
 /// RTAI-007: build the `anvil.notification.v1` mirror envelope for one
@@ -944,6 +956,20 @@ mod midedit_telemetry {
         fn is_authorised(&self, _subscriber: &SubscriberId, _originating_session_id: &str) -> bool {
             false
         }
+    }
+
+    #[test]
+    fn unknown_severity_classifies_as_warn_not_block_or_drop() {
+        // ADR-096: a `severity` value a newer producer emitted deserialises
+        // to `Severity::Unknown`; the mid-edit classifier must treat it as
+        // `warn` (surfaced), never silently drop it to `allow` or escalate
+        // it to `block`.
+        let decision = midedit_decision_class(&[diag(
+            "anvil.reasoning.ai-999",
+            Severity::Unknown,
+            "src/x.rs",
+        )]);
+        assert_eq!(decision, ControlDecision::Warn);
     }
 
     #[test]
