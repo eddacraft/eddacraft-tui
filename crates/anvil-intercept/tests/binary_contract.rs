@@ -87,7 +87,9 @@ fn help_flag_stdout_carries_no_trace_record() {
     let out = Command::new(ANVIL_INTERCEPT_BIN)
         .arg("--help")
         .env_remove("ANVIL_TRACE_SINK")
-        .env_remove("ANVIL_LOG")
+        // Force an INFO filter so an accidental subscriber install
+        // reliably emits a JSON record regardless of message wording.
+        .env("ANVIL_LOG", "info")
         .env_remove("RUST_LOG")
         .output()
         .expect("failed to spawn anvil-intercept");
@@ -100,7 +102,7 @@ fn help_flag_stdout_carries_no_trace_record() {
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        !stdout.contains("tracing subscriber installed"),
+        !stdout.contains("\"timestamp\"") && !stdout.contains("anvil_intercept"),
         "`--help` stdout must not contain a trace record: {stdout}"
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
