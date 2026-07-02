@@ -1268,7 +1268,7 @@ archive.
 
 ### CIB-051: `anvil start --verify --format` is silently ignored
 
-- **Status:** Draft
+- **Status:** Merged 2026-07-02 via PR #3078
 - **Intent:** `anvil start --verify` computes `read_only = args.verify ||
   global.json` and the `--format <ext>` first-run config write
   (`pre_write_anvil_config`) is gated on `!read_only`, so
