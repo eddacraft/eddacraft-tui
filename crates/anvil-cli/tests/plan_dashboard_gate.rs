@@ -73,6 +73,51 @@ fn plan_dashboard_opens_with_dev_override() {
     );
 }
 
+/// CIB-052: under `--json` the closed-gate refusal envelope is structured
+/// output and must land on **stdout** per the stream policy
+/// (`docs/guides/cli-output-streams.md`) — the same contract as the admin
+/// auth-error envelope it mirrors — with the existing exit code and no
+/// JSON on stderr.
+#[test]
+fn plan_dashboard_json_refusal_envelope_lands_on_stdout() {
+    let output = plan_dashboard()
+        .arg("--json")
+        .output()
+        .expect("failed to invoke anvil binary");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_AUTH_REQUIRED),
+        "exit code must stay EXIT_AUTH_REQUIRED: stdout=\n{stdout}\nstderr=\n{stderr}",
+    );
+
+    let envelope: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|err| {
+        panic!(
+            "expected the refusal JSON envelope on stdout ({err}): \
+             stdout=\n{stdout}\nstderr=\n{stderr}"
+        )
+    });
+    assert_eq!(
+        envelope["error"], "authentication_required",
+        "unexpected envelope shape: stdout=\n{stdout}",
+    );
+    assert!(
+        envelope["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("internal-developer")),
+        "envelope detail must explain the surface is internal-developer-only: \
+         stdout=\n{stdout}",
+    );
+
+    assert!(
+        !stderr.contains("\"error\""),
+        "stderr must carry no JSON envelope under --json: stderr=\n{stderr}",
+    );
+}
+
 #[test]
 fn plan_dashboard_opens_with_admin_key() {
     let output = plan_dashboard()

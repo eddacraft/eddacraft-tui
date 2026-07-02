@@ -47,7 +47,12 @@ fn refuse_dashboard(global: &GlobalArgs) -> anyhow::Error {
     let detail = "`anvil plan dashboard` is an internal-developer surface. Set \
          ANVIL_DEV=1 for local development, or set ANVIL_ADMIN_KEY.";
     if global.json {
-        eprintln!(
+        // CIB-052: the envelope only exists under `--json`, and structured
+        // output belongs on stdout (stream policy,
+        // `docs/guides/cli-output-streams.md`) — same contract CIB-049
+        // applied to the main pre-dispatch auth gate. Exit-code routing is
+        // unchanged (`AuthRequired` → `EXIT_AUTH_REQUIRED`).
+        println!(
             "{}",
             serde_json::json!({
                 "error": "authentication_required",

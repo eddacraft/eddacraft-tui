@@ -69,6 +69,13 @@ All notable changes to anvil are documented here.
 - **Auth and `whoami` output are clearer.** Auth-required output stream
   handling, `whoami` state, and credential-source reporting are aligned for
   human and JSON consumers.
+- **`admin` and `plan dashboard` `--json` auth errors moved to stdout.** When
+  `anvil admin …` cannot resolve an admin credential, or the gated
+  `anvil plan dashboard` surface refuses access, the structured
+  `authentication_required` envelope under `--json` is now written to **stdout**
+  (previously stderr), per the CLI output-stream policy and matching the main
+  auth wall. Plain-text messages stay on stderr and exit codes are unchanged;
+  scripts that read these envelopes from stderr should switch to stdout.
 
 ## [0.8.2-beta] — 2026-06-22 — Daemon Lifecycle Polish
 

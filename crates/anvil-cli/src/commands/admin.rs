@@ -405,7 +405,12 @@ fn read_1password_reference(reference: &str) -> Result<String> {
 
 fn print_auth_required(json: bool, detail: &str) {
     if json {
-        eprintln!(
+        // CIB-052: the envelope only exists under `--json`, and structured
+        // output belongs on stdout (stream policy,
+        // `docs/guides/cli-output-streams.md`) — same contract CIB-049
+        // applied to the main pre-dispatch auth gate. Exit-code routing is
+        // unchanged (`AuthRequired` → `EXIT_AUTH_REQUIRED`).
+        println!(
             "{}",
             serde_json::json!({
                 "error": "authentication_required",
