@@ -3596,7 +3596,7 @@ archive.
 
 ### CIB-132: Precise SSL detection in `admin-key-manage`
 
-- **Status:** Draft
+- **Status:** Merged 2026-07-02 via PR #3079
 - **Intent:** Replace the naive connection-string substring match that disables
   SSL in `infra/scripts/admin-key-manage.mjs` with precise parameter parsing,
   and align the documented create-output field name with what the script emits.
