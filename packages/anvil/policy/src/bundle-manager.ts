@@ -38,6 +38,41 @@ const DEFAULT_CACHE_DIR = join(homedir(), '.anvil', 'policy-cache', 'bundles');
 const DEFAULT_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
+ * Prefix for environment variables that may be referenced as bundle
+ * credentials. Bundle config is workspace-controlled input, so credential
+ * references are confined to an operator-owned namespace — otherwise a
+ * malicious config could name any process secret (e.g. `GITHUB_TOKEN`) and
+ * exfiltrate it in the Authorization header of a download it also controls.
+ */
+const BUNDLE_AUTH_ENV_PREFIX = 'ANVIL_BUNDLE_';
+
+/**
+ * Operator-owned escape hatch: a comma-separated list of additional
+ * environment variable names that may be referenced as bundle credentials.
+ * Only the process environment (operator-controlled) can set this, so a
+ * workspace bundle config cannot widen its own credential access.
+ *
+ * Despite carrying the credential prefix, this variable can never itself be
+ * referenced as a credential (self-allowlisting included): its value
+ * enumerates the operator's other trusted credential names, which must not
+ * be sendable to a config-controlled URL.
+ */
+const BUNDLE_AUTH_ENV_ALLOWLIST_VAR = 'ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST';
+
+/**
+ * Suffix for the operator-owned host binding of a bundle credential. When
+ * `<CREDENTIAL_ENV>_HOST` is set, the credential is only ever attached to
+ * requests whose host matches the binding (hostname, `host:port`, or an
+ * origin URL), so a config-controlled URL cannot redirect it elsewhere.
+ *
+ * The suffix is reserved: credential env names may never end in `_HOST`
+ * (the allowlist cannot lift this), otherwise a credential named
+ * `ANVIL_BUNDLE_FOO_HOST` would silently double as the host binding for
+ * `ANVIL_BUNDLE_FOO`.
+ */
+const BUNDLE_AUTH_HOST_BINDING_SUFFIX = '_HOST';
+
+/**
  * Authentication configuration for bundle downloads
  */
 export interface BundleAuthConfig {
@@ -45,9 +80,17 @@ export interface BundleAuthConfig {
   type: 'basic' | 'bearer';
   /** Username for basic auth */
   username?: string;
-  /** Environment variable name containing the password for basic auth */
+  /**
+   * Environment variable name containing the password for basic auth.
+   * Must start with `ANVIL_BUNDLE_` or be listed in the operator-owned
+   * `ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST` environment variable.
+   */
   password_env?: string;
-  /** Environment variable name containing the token for bearer auth */
+  /**
+   * Environment variable name containing the token for bearer auth.
+   * Must start with `ANVIL_BUNDLE_` or be listed in the operator-owned
+   * `ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST` environment variable.
+   */
   token_env?: string;
 }
 
@@ -159,6 +202,7 @@ export class BundleManager {
     if (config.bundles) {
       for (const bundle of config.bundles) {
         this.assertSafeBundleName(bundle.name);
+        this.assertSafeBundleAuth(bundle.auth);
         this.bundles.set(bundle.name, bundle);
       }
     }
@@ -207,6 +251,7 @@ export class BundleManager {
    */
   addBundle(config: BundleConfig): void {
     this.assertSafeBundleName(config.name);
+    this.assertSafeBundleAuth(config.auth);
     this.bundles.set(config.name, config);
   }
 
@@ -551,22 +596,144 @@ export class BundleManager {
   }
 
   /**
-   * Build authorization header from auth config
+   * Reject auth configurations that reference environment variables outside
+   * the trusted credential namespace. Bundle config is workspace-controlled,
+   * so an unrestricted `password_env`/`token_env` lets a malicious config
+   * select any process secret (e.g. `GITHUB_TOKEN`) and exfiltrate it to a
+   * config-controlled URL. Only operator-owned names are accepted: the
+   * `ANVIL_BUNDLE_` prefix, or an explicit entry in the operator-owned
+   * `ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST` environment variable.
    */
-  private buildAuthHeader(auth: BundleAuthConfig): string | null {
+  private assertSafeBundleAuth(auth: BundleAuthConfig | undefined): void {
+    if (!auth) {
+      return;
+    }
+    if (auth.password_env) {
+      this.assertAuthorisedAuthEnvName(auth.password_env);
+    }
+    if (auth.token_env) {
+      this.assertAuthorisedAuthEnvName(auth.token_env);
+    }
+  }
+
+  private assertAuthorisedAuthEnvName(envName: string): void {
+    // A whitespace-padded name would validate as one name but read a
+    // different `process.env` key when the header is built; refuse it
+    // outright rather than silently trimming.
+    if (envName !== envName.trim()) {
+      throw new Error(
+        `Bundle auth environment variable ${JSON.stringify(envName)} is not authorised for ` +
+          `bundle credentials: names must not contain leading or trailing whitespace.`
+      );
+    }
+
+    // The allowlist variable carries the credential prefix but can never be
+    // used as a credential itself (self-allowlisting included): its value
+    // enumerates the operator's other trusted credential names, which must
+    // not be sendable to a config-controlled URL.
+    if (envName === BUNDLE_AUTH_ENV_ALLOWLIST_VAR) {
+      throw new Error(
+        `Bundle auth environment variable "${BUNDLE_AUTH_ENV_ALLOWLIST_VAR}" is not authorised ` +
+          `for bundle credentials: the allowlist variable itself can never be used as a credential.`
+      );
+    }
+
+    // Names ending in the host-binding suffix are reserved, otherwise a
+    // credential named `ANVIL_BUNDLE_FOO_HOST` would silently double as the
+    // host binding for `ANVIL_BUNDLE_FOO`. The allowlist cannot lift this.
+    if (envName.endsWith(BUNDLE_AUTH_HOST_BINDING_SUFFIX)) {
+      throw new Error(
+        `Bundle auth environment variable ${JSON.stringify(envName)} is not authorised for ` +
+          `bundle credentials: names ending in "${BUNDLE_AUTH_HOST_BINDING_SUFFIX}" are ` +
+          `reserved for operator-declared host bindings.`
+      );
+    }
+
+    if (envName.startsWith(BUNDLE_AUTH_ENV_PREFIX)) {
+      return;
+    }
+    const allowlist = (process.env[BUNDLE_AUTH_ENV_ALLOWLIST_VAR] || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+    if (allowlist.includes(envName)) {
+      return;
+    }
+    throw new Error(
+      `Bundle auth environment variable ${JSON.stringify(envName)} is not authorised for ` +
+        `bundle credentials: names must start with "${BUNDLE_AUTH_ENV_PREFIX}" or be listed ` +
+        `in the operator-owned ${BUNDLE_AUTH_ENV_ALLOWLIST_VAR} environment variable.`
+    );
+  }
+
+  /**
+   * Enforce the operator-declared host binding for a credential, if one is
+   * set. `<CREDENTIAL_ENV>_HOST` lives in the process environment, which a
+   * workspace bundle config cannot modify — so even an authorised credential
+   * cannot be sent to an attacker-chosen URL when the operator has bound it
+   * to its intended bundle host. The error never includes the secret value.
+   */
+  private assertCredentialBoundToHost(envName: string, requestUrl: URL): void {
+    const bindingVar = `${envName}${BUNDLE_AUTH_HOST_BINDING_SUFFIX}`;
+    const binding = process.env[bindingVar];
+    if (!binding) {
+      return;
+    }
+
+    let bound: URL;
+    try {
+      // Accept a bare hostname, `host:port`, or a full origin URL.
+      bound = new URL(binding.includes('://') ? binding : `https://${binding}`);
+    } catch {
+      // Fail closed: an unparseable binding must not degrade into "send the
+      // credential anywhere".
+      throw new Error(
+        `Bundle auth credential ${envName} has an unparseable host binding in ${bindingVar}: ` +
+          `expected a hostname, host:port, or origin URL. Refusing to send the credential.`
+      );
+    }
+
+    const hostnameMatches = bound.hostname.toLowerCase() === requestUrl.hostname.toLowerCase();
+    const requestPort = requestUrl.port || (requestUrl.protocol === 'https:' ? '443' : '80');
+    const portMatches = !bound.port || bound.port === requestPort;
+    if (!hostnameMatches || !portMatches) {
+      throw new Error(
+        `Bundle auth credential ${envName} is bound to host "${bound.host}" via ${bindingVar} ` +
+          `and will not be sent to "${requestUrl.host}".`
+      );
+    }
+  }
+
+  /**
+   * Build authorization header from auth config. The request URL is required
+   * so credentials can be checked against their operator-declared host
+   * binding before they are attached.
+   */
+  private buildAuthHeader(auth: BundleAuthConfig, requestUrl: URL): string | null {
     if (auth.type === 'basic') {
       const username = auth.username || '';
       const passwordEnv = auth.password_env || '';
-      const password = passwordEnv ? process.env[passwordEnv] || '' : '';
+      let password = '';
+      if (passwordEnv) {
+        // Defence in depth: addBundle/the constructor already validate, but
+        // never read an unauthorised or host-unbound credential here either.
+        this.assertAuthorisedAuthEnvName(passwordEnv);
+        this.assertCredentialBoundToHost(passwordEnv, requestUrl);
+        password = process.env[passwordEnv] || '';
+      }
       const credentials = Buffer.from(`${username}:${password}`).toString('base64');
       return `Basic ${credentials}`;
     }
 
     if (auth.type === 'bearer') {
       const tokenEnv = auth.token_env || '';
-      const token = tokenEnv ? process.env[tokenEnv] || '' : '';
-      if (token) {
-        return `Bearer ${token}`;
+      if (tokenEnv) {
+        this.assertAuthorisedAuthEnvName(tokenEnv);
+        this.assertCredentialBoundToHost(tokenEnv, requestUrl);
+        const token = process.env[tokenEnv] || '';
+        if (token) {
+          return `Bearer ${token}`;
+        }
       }
     }
 
@@ -595,9 +762,12 @@ export class BundleManager {
         ...headers,
       };
 
-      // Add authentication header if configured
+      // Add authentication header if configured. buildAuthHeader throws when
+      // the credential env name is unauthorised or the credential is bound to
+      // a different host; a throw here rejects the promise before any request
+      // is made, so the credential never reaches the wire.
       if (auth) {
-        const authHeader = this.buildAuthHeader(auth);
+        const authHeader = this.buildAuthHeader(auth, parsedUrl);
         if (authHeader) {
           requestHeaders['Authorization'] = authHeader;
         }

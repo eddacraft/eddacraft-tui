@@ -130,12 +130,12 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
   });
 
   it('does not forward auth or caller credential headers to a cross-origin redirect target', async () => {
-    process.env.ANVIL_TEST_BUNDLE_TOKEN = 'super-secret-token';
+    process.env.ANVIL_BUNDLE_TEST_TOKEN = 'super-secret-token';
     try {
       manager.addBundle({
         name: 'xo',
         url: `http://127.0.0.1:${portA}/cross-origin`,
-        auth: { type: 'bearer', token_env: 'ANVIL_TEST_BUNDLE_TOKEN' },
+        auth: { type: 'bearer', token_env: 'ANVIL_BUNDLE_TEST_TOKEN' },
         // Arbitrary caller-supplied headers that commonly carry credentials.
         headers: { 'X-Api-Key': 'secret-api-key', Cookie: 'session=abc123' },
       });
@@ -146,7 +146,7 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
       expect(atB?.apiKey).toBeUndefined();
       expect(atB?.cookie).toBeUndefined();
     } finally {
-      delete process.env.ANVIL_TEST_BUNDLE_TOKEN;
+      delete process.env.ANVIL_BUNDLE_TEST_TOKEN;
     }
   });
 
@@ -158,12 +158,12 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
   });
 
   it('preserves auth and caller headers on a same-origin redirect', async () => {
-    process.env.ANVIL_TEST_BUNDLE_TOKEN = 'super-secret-token';
+    process.env.ANVIL_BUNDLE_TEST_TOKEN = 'super-secret-token';
     try {
       manager.addBundle({
         name: 'so',
         url: `http://127.0.0.1:${portA}/same-origin`,
-        auth: { type: 'bearer', token_env: 'ANVIL_TEST_BUNDLE_TOKEN' },
+        auth: { type: 'bearer', token_env: 'ANVIL_BUNDLE_TEST_TOKEN' },
         headers: { 'X-Api-Key': 'secret-api-key' },
       });
       await manager.downloadBundle('so');
@@ -172,7 +172,7 @@ describe('BundleManager — redirect hardening (issue #1826)', () => {
       expect(atSame?.authorization).toBe('Bearer super-secret-token');
       expect(atSame?.apiKey).toBe('secret-api-key');
     } finally {
-      delete process.env.ANVIL_TEST_BUNDLE_TOKEN;
+      delete process.env.ANVIL_BUNDLE_TEST_TOKEN;
     }
   });
 });
