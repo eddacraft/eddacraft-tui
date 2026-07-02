@@ -2770,7 +2770,7 @@ archive.
 
 ### CIB-106: Windows `ANVIL_HOME` named-pipe endpoint re-root
 
-- **Status:** Proposed 2026-06-27
+- **Status:** Merged 2026-07-02 via PR #3083
 - **Intent:** Complete the Windows half of DISTRIB-006 side-by-side daemon
   coexistence by deriving the intercept named-pipe endpoint from the active
   install root when `ANVIL_HOME` is set.
