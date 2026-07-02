@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 83/132  |
+| CIB | —     | In Progress | 94/134  |
 
 ## Purpose
 
@@ -486,7 +486,7 @@ archive.
 
 ### CIB-027: Define a lightweight review path for cross-repo implementation work
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2271
 - **Intent:** Give agents a first-class pre-PR review surface when implementation
   work happens in a downstream or sibling repository where Anvil's `/council`
   command is not available.
@@ -762,7 +762,7 @@ archive.
 
 ### CIB-035: drift-check crashes on invalid release records instead of staying advisory
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-02 via PR #2241
 - **Intent:** Keep `scripts/aps/drift-check.mjs` true to the warnings-over-blocks
   / exit-0 architecture principle when handed a malformed input, so a bad release
   record degrades to an advisory finding rather than an uncaught crash.
@@ -820,7 +820,7 @@ archive.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2295
 - **Intent:** Let docs/plans-path PRs merge — the `main` ruleset must resolve
   required status checks that currently report a duplicate `success`+`skipped`
   pair under one name.
@@ -949,7 +949,7 @@ archive.
 
 ### CIB-042: Synthetic health check on the public installer URL
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-16 via PR #2679
 - **Intent:** Catch a broken `install.eddacraft.ai` installer proactively
   instead of waiting for a user to report a 404.
 - **Expected Outcome:** A post-publish probe in the `announce` job of
@@ -973,7 +973,7 @@ archive.
 
 ### CIB-043: Set `--latest=false` on the eddacraft-tui anvil-001 release
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-16 via PR #2679
 - **Intent:** Stop library (`eddacraft-tui-v*`) releases from contending for the
   GitHub "Latest" pointer on the private `anvil-001` repo, so the CLI release is
   always uncontested as Latest there.
@@ -1501,7 +1501,7 @@ archive.
 
 ### CIB-059: quickstart leads with the ungated `anvil welcome` demo
 
-- **Status:** In Progress (PR pending; quickstart reordered per ADR-080)
+- **Status:** Merged 2026-06-22 via PR #2873
 - **Intent:** the quickstart fronts "2. Authenticate" before "3. Take a
   Path" and never says `anvil welcome` runs without logging in — it hides
   the ADR-080 ungated demo surface from exactly the invite-less users it
@@ -1747,7 +1747,7 @@ archive.
 
 ### CIB-067: production email failures are silent — Resend key probe on /health
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-12 via PR #2568
 - **Intent:** a revoked Resend API key produced a ~15-day production email
   outage (no invites, no OTP codes, no waitlist confirmations) that no
   surface reported — email senders are best-effort by design and
@@ -1786,7 +1786,7 @@ archive.
 
 ### CIB-068: invite/OTP email copy — install step, lowercase brand, larger prose
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-12 via PR #2569
 - **Intent:** operator review of the first real invite + OTP sends
   (2026-06-12, after the CIB-067 key replacement) found the invite assumes
   anvil is already installed, both subjects capitalise the brand
@@ -1814,7 +1814,7 @@ archive.
 
 ### CIB-069: invite email copy v2 — operator-supplied structure
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-12 via PR #2570
 - **Intent:** the operator reviewed the live CIB-068 invite and supplied a
   restructured body (2026-06-12): lead with the beta guide and an install
   options page, then quick-install commands per platform, then sign-in,
@@ -1841,7 +1841,7 @@ archive.
 
 ### CIB-070: `anvil admin auth set key` — store the admin key without per-shell export
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-13 via PR #2577
 - **Intent:** the admin key has only two resolution paths today — the
   `ANVIL_ADMIN_KEY` env var or a 1Password reference (`anvil admin auth set
   1password`). Operators without the 1Password CLI must `export
@@ -2826,8 +2826,8 @@ archive.
 
 ### CIB-103: GCTX cursor fingerprint hardening (HMAC) — decision
 
-- **Status:** In Progress
-- **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Proposed):**
+- **Status:** Merged 2026-06-24 via PR #2903
+- **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Accepted):**
   option **(b)** — keep the reproducible FNV-1a filter fingerprint; do **not** add
   an HMAC now. The opaque keyset cursor is a server-minted *seek position*, not an
   authorisation token: a forged cursor only reseeks within the caller's own
@@ -3610,3 +3610,74 @@ archive.
   medium / confirmed-bug SSL-substring + low / contract-mismatch field name);
   `plans/reviews/2026-07-02-clawpatch-triage.md`.
 - **Confidence:** high.
+
+### CIB-133: Gate the first-week insights nudge under `project_writes_gated` in `status` and `watch`
+
+- **Status:** Proposed
+- **Re-filed:** 2026-07-02 — originally filed as CIB-105; that entry was
+  removed by an accidental stale-base revert (`e57a65fdf`, 2026-06-26) and the
+  CIB-105 id was subsequently reused by the 2026-06-27 deepsec intake. Body
+  restored verbatim from the pre-revert state; the work was never implemented
+  (`first_week_insights_hint` still takes no gate parameter).
+- **Intent:** Stop `anvil status` and `anvil watch` from reading-and-recording
+  the real project's first-week-nudge state under a gated `ANVIL_HOME`
+  (DISTRIB-006 / ADR-060). Both call `first_week_insights_hint` ungated today, so
+  a candidate / side-by-side install burns the real install's once-per-week
+  marker (and writes `.anvil/insights-hint.json` into the real project).
+- **Expected Outcome:** All three nudge surfaces (`status`, `watch`, `welcome`)
+  honour the gate uniformly. The cleanest shape is to thread the gate into the
+  canonical function — `first_week_insights_hint(root, now, project_writes_gated)`
+  returning `None` with no read and no write when gated — and drop INSIGHTS-005's
+  `welcome`-specific `welcome_insights_hint` wrapper, so no surface can regress by
+  forgetting the guard.
+- **Files:** `crates/anvil-cli/src/insights/first_week_hint.rs`,
+  `crates/anvil-cli/src/commands/status.rs`,
+  `crates/anvil-cli/src/commands/watch.rs`,
+  `crates/anvil-cli/src/commands/welcome.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil` — a gated-root test per surface
+  asserts the nudge is suppressed and `.anvil/insights-hint.json` is not written;
+  the existing INSIGHTS-004/-005 in-window tests still pass.
+- **Identified From:** INSIGHTS-005 pre-PR Council (PR #2957) — code-reviewer
+  MINOR + NIT: `status.rs` and `watch.rs` call the hint ungated; `welcome.rs` is
+  the correct reference but its gate is surface-specific boilerplate for a
+  universal concern.
+- **Coordinates with:** INSIGHTS-004 (PR #2226, the hint mechanism), INSIGHTS-005
+  (PR #2957, the welcome wiring + gated wrapper this would absorb).
+- **Confidence:** high — small and additive; the gating logic already exists in
+  `welcome.rs` and just needs lifting into the canonical function with the two
+  call sites updated.
+
+### CIB-134: Widen the rustdoc `-D warnings` gate to the whole workspace (clear the pre-existing all-features cascade)
+
+- **Status:** Draft
+- **Re-filed:** 2026-07-02 — originally filed as CIB-106; that entry was
+  removed by an accidental stale-base revert (`e57a65fdf`, 2026-06-26) and the
+  CIB-106 id was subsequently reused by the 2026-06-27 Windows named-pipe
+  intake. Body restored verbatim from the pre-revert state.
+- **Intent:** Extend the CIB-030 PR-side rustdoc gate from `eddacraft-tui` to
+  the whole workspace so a rustdoc regression in any crate fails at PR review,
+  once the pre-existing all-features rustdoc errors are cleared.
+- **Expected Outcome:**
+  `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features` is
+  green on `main`, and the `rust.yml` `doc` job is widened from
+  `-p eddacraft-tui` to `--workspace`.
+- **Known failures (2026-06-27, `main` @ 45c0e9edd):**
+  - `eddacraft-anvil-kernel-types`: `parse_str` doc links the private
+    `enforce_depth_cap`; `protection_claim` doc links the private
+    `ProtectionClaimRaw` (`rustdoc::private_intra_doc_links`).
+  - `eddacraft-anvil-config`: unresolved intra-doc link
+    `crate::watch_event::tests::error_code_wire_strings_are_pascal_case_and_pinned`
+    (links a `#[cfg(test)]` item).
+  - unresolved link to `tree_sitter::Node::byte_range` — a dependency item, not
+    resolvable under `--no-deps`; convert to a code span.
+- **Validation:** the widened workspace doc build is green with `-D warnings`; a
+  deliberately broken intra-doc link in any crate fails the `doc` job.
+- **Identified From:** CIB-030 completion (PR #2967) — the
+  `--workspace --all-features -D warnings` probe surfaced six pre-existing
+  rustdoc errors outside CIB-030's `eddacraft-tui` scope.
+- **Files:** `crates/anvil-kernel-types/`, `crates/anvil-config/`, the crate
+  carrying the `tree_sitter::Node::byte_range` link, and
+  `.github/workflows/rust.yml` (`-p eddacraft-tui` → `--workspace`).
+- **Coordinates with:** CIB-030 (the `eddacraft-tui`-scoped gate this widens).
+- **Confidence:** medium — the six known errors are small fixes, but the full
+  all-features surface may surface more once those clear.
