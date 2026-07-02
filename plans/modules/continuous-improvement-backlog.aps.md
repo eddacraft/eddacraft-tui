@@ -3237,7 +3237,7 @@ archive.
 
 ### CIB-120: Pin release-time installers and signing-job supply-chain inputs
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-02 via PR #3077
 - **Intent:** Close active deepsec P2 supply-chain findings where release or
   signing jobs execute unpinned installer scripts before using release authority or
   private signing keys.
