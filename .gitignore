@@ -111,6 +111,7 @@ docs/analysis/claude-code-safety-net-review.md
 !.claude/skills/dependabot/**
 !.claude/skills/planning-council/
 !.claude/skills/anvil-opportunity-assessment/
+!.claude/skills/anvil-developer-functions/
 !.claude/skills/aps-loop/
 !.claude/skills/aps-probe/
 !.claude/skills/aps-gate-policy/
