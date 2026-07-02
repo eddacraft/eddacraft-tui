@@ -431,7 +431,25 @@ fn request_daemon_diagnostics(
     let response = read_capped_response_line(&mut reader)?;
     eprintln!("anvil-mcp: received daemon validation response");
 
-    let response: JsonRpcScanBufferResponse = serde_json::from_str(&response).map_err(|err| {
+    parse_scan_buffer_response(&response)
+}
+
+/// Parse and translate a daemon `scan_buffer` reply line into diagnostics, or a
+/// **fail-closed** failure.
+///
+/// This is the MCP client's own translation layer, deliberately decoupled from
+/// the daemon's response struct (B3). Unlike the daemon's fine-grained mid-edit
+/// contract (`crates/anvil-intercept/tests/midedit_contract.rs`: distinct
+/// `-32602` / `-32001` / `-32000` / `-32002` variants), it collapses **every**
+/// JSON-RPC error — and every shape violation — into a single failure: the MCP
+/// pre-write surface never needs to distinguish daemon error variants, only to
+/// fail **closed** (upstream → `block`) rather than silent-pass. A success
+/// reply is returned verbatim; a truncated one is a distinct (also-blocking)
+/// failure. Pinned by tests so this daemon-error → block translation can never
+/// silently regress to a pass (#1737 / RTAI-006 fitness).
+#[cfg(unix)]
+fn parse_scan_buffer_response(line: &str) -> Result<Vec<Diagnostic>, DaemonRequestError> {
+    let response: JsonRpcScanBufferResponse = serde_json::from_str(line).map_err(|err| {
         eprintln!("anvil-mcp: daemon validation response parse failed: {err}");
         DAEMON_FAILURE
     })?;
@@ -1123,5 +1141,111 @@ mod tests {
             result.is_none(),
             "MLP2-075: no daemon bound must produce None (honest fallback), got {result:?}",
         );
+    }
+
+    // --- #1737 / RTAI-006: MCP pre-write fail-closed translation ------------
+    //
+    // `crates/anvil-intercept/tests/midedit_contract.rs` pins the daemon's
+    // fine-grained mid-edit contract (distinct -32602/-32001/-32000/-32002
+    // error variants). The MCP pre-write client has its own translation layer
+    // that intentionally collapses every daemon error into a single
+    // block-inducing failure — an agent needs "could not validate → block", not
+    // the specific code. These tests pin that translation directly on the wire
+    // reply so a daemon-error → block path can never silently regress to a pass
+    // (the coverage the never-built `anvil-rmcp` consumer was meant to give).
+    // `Err(DaemonRequestError::Failure(_))` is the fail-closed outcome the
+    // upstream `validate_pre_write` maps to `decision: block`.
+
+    #[cfg(unix)]
+    fn success_reply(diagnostics_json: &str, truncated: bool) -> String {
+        format!(
+            r#"{{"jsonrpc":"2.0","id":"{id}","result":{{"version":{ver},"diagnostics":{diags},"truncated":{trunc}}}}}"#,
+            id = super::DAEMON_REQUEST_ID,
+            ver = super::SCAN_BUFFER_RESULT_VERSION,
+            diags = diagnostics_json,
+            trunc = truncated,
+        )
+    }
+
+    #[cfg(unix)]
+    fn error_reply(code: i64, message: &str) -> String {
+        format!(
+            r#"{{"jsonrpc":"2.0","id":"{id}","error":{{"code":{code},"message":"{message}"}}}}"#,
+            id = super::DAEMON_REQUEST_ID,
+        )
+    }
+
+    #[cfg(unix)]
+    fn is_fail_closed(result: &Result<Vec<super::Diagnostic>, super::DaemonRequestError>) -> bool {
+        matches!(result, Err(super::DaemonRequestError::Failure(_)))
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn every_daemon_jsonrpc_error_variant_fails_closed_to_block() {
+        // The exact error codes the daemon mid-edit contract pins. Each must
+        // collapse to a blocking failure on the MCP path — never Ok (a pass).
+        for (code, message) in [
+            (-32602, "Invalid params"),
+            (-32001, "Scan timed out"),
+            (-32000, "Server busy"),
+            (-32002, "Cross-session rejection"),
+            (-32603, "Internal error"),
+        ] {
+            let reply = error_reply(code, message);
+            let result = super::parse_scan_buffer_response(&reply);
+            assert!(
+                is_fail_closed(&result),
+                "daemon JSON-RPC error {code} must fail closed (block), not pass",
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn clean_daemon_success_reply_parses_to_diagnostics() {
+        let reply = success_reply("[]", false);
+        let diagnostics =
+            super::parse_scan_buffer_response(&reply).expect("a clean success reply must parse");
+        assert!(
+            diagnostics.is_empty(),
+            "an empty-diagnostics success reply yields no findings"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn truncated_success_reply_fails_closed() {
+        // A truncated scan is not a clean pass — it blocks (distinct failure).
+        let reply = success_reply("[]", true);
+        assert!(
+            is_fail_closed(&super::parse_scan_buffer_response(&reply)),
+            "a truncated daemon reply must fail closed, not pass as clean",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn malformed_and_shape_violating_replies_fail_closed() {
+        // Non-JSON, both-result-and-error, neither, and a mismatched id all
+        // fail closed rather than being interpreted as a pass.
+        let both = format!(
+            r#"{{"jsonrpc":"2.0","id":"{id}","result":{{"version":{ver},"diagnostics":[],"truncated":false}},"error":{{"code":-32000,"message":"x"}}}}"#,
+            id = super::DAEMON_REQUEST_ID,
+            ver = super::SCAN_BUFFER_RESULT_VERSION,
+        );
+        let neither = format!(r#"{{"jsonrpc":"2.0","id":"{}"}}"#, super::DAEMON_REQUEST_ID);
+        let wrong_id = r#"{"jsonrpc":"2.0","id":"someone-else","result":{"version":1,"diagnostics":[],"truncated":false}}"#;
+        for reply in [
+            "not json at all".to_string(),
+            both,
+            neither,
+            wrong_id.to_string(),
+        ] {
+            assert!(
+                is_fail_closed(&super::parse_scan_buffer_response(&reply)),
+                "malformed/shape-violating reply must fail closed: {reply}",
+            );
+        }
     }
 }
