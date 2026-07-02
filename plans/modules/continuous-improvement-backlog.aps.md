@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 81/127  |
+| CIB | —     | In Progress | 81/132  |
 
 ## Purpose
 
@@ -3519,4 +3519,94 @@ archive.
 - **Identified From:** Public-doc review after `v0.8.2-beta` showing stale release
   baseline, missing GCTX MCP context docs, stale Python support copy, and
   conflicting daemon-stop guidance.
+- **Confidence:** high.
+
+### CIB-128: Parse `anvil-intercept` CLI before installing daemon tracing
+
+- **Status:** Draft
+- **Intent:** Let clap handle help/version/usage exits before the daemon tracing
+  subscriber is installed, so `--help`/`--version` never emit a trace record or
+  create a trace sink.
+- **Expected Outcome:** `anvil-intercept --help` with tracing configured prints
+  the clap help banner to stdout with empty stderr and no trace-sink file
+  created; tracing init stays immediately before the foreground daemon path.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept` (extend
+  `tests/binary_contract.rs` to reject pre-help tracing output).
+- **Files:** `crates/anvil-intercept/src/main.rs`,
+  `crates/anvil-intercept/tests/binary_contract.rs`.
+- **Identified From:** clawpatch 2026-07-02 triage
+  (`fnd_sig-feat-cli-command-43c5f1e5c2`, low / contract-mismatch);
+  `plans/reviews/2026-07-02-clawpatch-triage.md`.
+- **Confidence:** high.
+
+### CIB-129: Cover the `anvil-rayon-init` half-cores pool cap with a test
+
+- **Status:** Draft
+- **Intent:** Add regression coverage for the half-cores global rayon pool cap,
+  which is currently untested even though `cap_threads` was factored out as a
+  pure function specifically to be unit-testable.
+- **Expected Outcome:** a unit test pins `cap_threads == (num_cpus / 2).max(1)`
+  across representative core counts; optionally a subprocess/integration smoke
+  asserts `init_global()` applies the cap before any `par_iter`.
+- **Validation:** `cargo test -p eddacraft-anvil-rayon-init`.
+- **Files:** `crates/anvil-rayon-init/src/lib.rs`.
+- **Identified From:** clawpatch 2026-07-02 triage
+  (`fnd_sig-feat-library-8a1266b4d7`, low / test-gap);
+  `plans/reviews/2026-07-02-clawpatch-triage.md`.
+- **Confidence:** high.
+
+### CIB-130: Rust test-hardening batch (2026-07-02 clawpatch tail)
+
+- **Status:** Draft
+- **Intent:** Burn down the low-severity Rust test-hygiene tail from the
+  2026-07-02 clawpatch scan (assertions that pass for the wrong reason plus two
+  confirmed test-harness bugs), the same pattern as the CLAWP #1740 batch.
+- **Expected Outcome:** the two confirmed-bugs fixed — (a) `status_render.rs`
+  fixture-update is single-owner/deterministic and only `ANVIL_UPDATE_FIXTURES=1`
+  enables rewriting; (b) `langtail_external_validation.rs` includes
+  `total.panics` in the not-cleanly-parsed rate and printed breakdown — and each
+  strengthened test-gap assertion proven non-vacuous against a deliberate mutant.
+- **Validation:** `cargo test -p eddacraft-anvil` and per touched crate; full
+  item list via
+  `jq -r '.items[] | select((.evidence[0].path|startswith("crates/")) and .status=="open" and (.evidence[0].path|contains("/tests/"))) | "\(.evidence[0].path)\t\(.title)"' plans/audits/2026-07-02-clawpatch-periodic-scan.json`.
+- **Files:** `crates/anvil-cli/tests/status_render.rs`,
+  `crates/anvil-kernel/tests/langtail_external_validation.rs`, plus the test-gap
+  tail enumerated in `plans/audits/2026-07-02-clawpatch-periodic-scan.json`.
+- **Identified From:** clawpatch 2026-07-02 triage (63 test-gap + 2 confirmed-bug
+  in `crates/**/tests/`); `plans/reviews/2026-07-02-clawpatch-triage.md`.
+- **Confidence:** medium.
+
+### CIB-131: Harden dogfood FP classifier path handling
+
+- **Status:** Draft
+- **Intent:** Stop `scripts/dogfood/external-fp/classify.py` from accepting
+  warning file paths that escape the checked-out repository, and make the
+  worksheet build tolerate an absent output directory.
+- **Expected Outcome:** paths resolving outside the repo root are rejected or
+  normalised (no traversal); the worksheet build creates its output directory
+  when missing instead of failing.
+- **Validation:** manual dogfood run of `classify.py` against a repo-escaping
+  warning path and an absent output dir; add a focused unit test if the harness
+  supports it.
+- **Files:** `scripts/dogfood/external-fp/classify.py`.
+- **Identified From:** clawpatch 2026-07-02 triage (`classify.py`
+  medium / confirmed-bug path-escape + low / confirmed-bug output-dir-absent);
+  `plans/reviews/2026-07-02-clawpatch-triage.md`.
+- **Confidence:** high.
+
+### CIB-132: Precise SSL detection in `admin-key-manage`
+
+- **Status:** Draft
+- **Intent:** Replace the naive connection-string substring match that disables
+  SSL in `infra/scripts/admin-key-manage.mjs` with precise parameter parsing,
+  and align the documented create-output field name with what the script emits.
+- **Expected Outcome:** SSL is disabled only when the connection string
+  genuinely requests it (parsed, not substring-matched); the documented output
+  field and the emitted field agree (`hashed_key` vs `hashedKey`).
+- **Validation:** run `admin-key-manage.mjs` against `sslmode`-varied connection
+  strings and confirm SSL toggling plus the emitted output field.
+- **Files:** `infra/scripts/admin-key-manage.mjs`.
+- **Identified From:** clawpatch 2026-07-02 triage (`admin-key-manage.mjs`
+  medium / confirmed-bug SSL-substring + low / contract-mismatch field name);
+  `plans/reviews/2026-07-02-clawpatch-triage.md`.
 - **Confidence:** high.
