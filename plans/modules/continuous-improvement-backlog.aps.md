@@ -3698,6 +3698,10 @@ archive.
   the untrusted-stack resource count, mirroring `untrusted-stack.test.ts`.
 - **Files:** `infra/src/dns/eddacraft-ai.ts`, `infra/index.ts`,
   `infra/Pulumi.dev.yaml` (resource-group config split, if taken).
+- **Validation:** a Pulumi-mock test with stack `dev` asserts zero DNS
+  `RecordSet` resources are registered (mirroring
+  `untrusted-stack.test.ts`), and the `prod`-stack sibling asserts the
+  records are still defined; full infra vitest suite stays green.
 - **Identified From:** CIB-119 pre-merge review (PR #3086) — same
   cross-stack-resource-ownership class as CIB-119's own findings, but outside
   its Files list; pre-existing, not introduced by that PR.
