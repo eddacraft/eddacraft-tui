@@ -67,28 +67,35 @@ GH issue before re-running); `severity: high` findings are enumerated for the
 council to triage in Gate B (they do not auto-block, but each needs an explicit
 ship / fix / defer verdict).
 
-## Gate B — release-tier council
+## Gate B — release council
 
-A multi-persona [`council`](../../.claude/commands/council.md) review at the
-**`release` tier** over the union of (a) Gate A's findings and (b) the full
-release diff `<prior-tag>..<candidate-sha>`. All reviewer personas participate
-(plus `security-analyst` if security-tagged findings exist); the judge produces
-a ship / fix / defer verdict per finding plus an overall release-diff verdict.
+A multi-persona [`council`](../../.claude/commands/council.md) review over the
+release diff `<prior-tag>..<candidate-sha>`, reading Gate A's findings alongside
+it. The judge produces a ship / fix / defer verdict per finding plus an overall
+release-diff verdict.
+
+**"Release tier" is an operator convention, not a `/council` flag:** run the
+**`full`** pack (all reviewer roles, including `security-analyst`) in **batch**
+mode, and treat the [human gate](#human-gate) +
+[defer-don't-block](#triage-defer-dont-block-by-default) as the release-specific
+additions. `/council`'s own tiers are `quick | mini | full`; there is no
+`release` tier and no `--findings`/`--tier`/`--output` flags. This is the
+**full** case — patch tags may use a smaller pack, see
+[Full vs focused](#full-vs-focused).
 
 Author the two artefacts **from the templates** (never by copying the prior
-tag's file):
+tag's file), run the council over the diff, then synthesise its findings into
+the output artefact by hand (the council does not write the artefact):
 
 ```bash
 cp plans/reviews/release-council/TEMPLATE-input.md \
    plans/reviews/release-council/$(date +%Y-%m-%d)-<tag>-pre-tag-input.md
 cp plans/reviews/release-council/TEMPLATE.md \
    plans/reviews/release-council/$(date +%Y-%m-%d)-<tag>-pre-tag.md
-# fill the {{placeholders}} in both, then run the council:
-/council \
-  --target diff:<prior-tag>..<candidate-sha> \
-  --findings plans/audits/<date>-clawpatch-<tag>.json \
-  --tier release \
-  --output plans/reviews/release-council/$(date +%Y-%m-%d)-<tag>-pre-tag.md
+# fill the {{placeholders}} in both, then run a full-pack council over the diff:
+/council full <prior-tag>..<candidate-sha>
+# read Gate A's plans/audits/<date>-clawpatch-<tag>.json as findings input, then
+# record verdicts + the human gate in the -pre-tag.md artefact.
 ```
 
 **Pass criteria.** Every Gate A finding has an explicit council verdict; the

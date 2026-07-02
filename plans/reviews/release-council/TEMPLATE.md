@@ -7,18 +7,20 @@ tag's artefact — copy THIS file:
 
 then fill every {{placeholder}}. Process: docs/runbooks/release-process.md.
 Placeholders: {{tag}} {{date}} {{prior_tag}} {{candidate_sha}}
-{{candidate_sha_short}} {{diff_scope}}=<prior_tag>..<candidate_sha>
-{{prior_council_file}} {{prior_council_session}}. Update THIS template to
-propagate a change to all future tags.
+{{candidate_sha_short}} {{diff_scope}}=<prior_tag>..<candidate_sha> {{tier}}
+{{pack}} {{council_session}} {{prior_council_file}} {{prior_council_session}}.
+Update THIS template to propagate a change to all future tags.
 -->
 
 # {{tag}} pre-tag release council — {{date}}
 
 - **Candidate SHA:** `{{candidate_sha}}` (`{{candidate_sha_short}}`), frozen on `release/{{tag}}`
 - **Release diff:** `{{diff_scope}}`
-- **Prior tag / council:** `{{prior_tag}}` — `{{prior_council_file}}`
 - **Tier:** {{tier}} (full | focused — see the input brief's rationale)
-- **Sweep report:** `plans/audits/{{date}}-clawpatch-{{tag}}.json`
+- **Council session:** `{{council_session}}` ({{pack}} pack, batch mode)
+- **Findings input (Gate A sweep):** `plans/audits/{{date}}-clawpatch-{{tag}}.json`
+- **Operator brief:** `plans/reviews/release-council/{{date}}-{{tag}}-pre-tag-input.md`
+- **Prior tag / council:** `{{prior_tag}}` — `{{prior_council_file}}` (session `{{prior_council_session}}`)
 
 ## Reviewer outputs (artefacts)
 
