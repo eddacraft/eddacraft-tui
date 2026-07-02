@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 81/132  |
+| CIB | —     | In Progress | 83/132  |
 
 ## Purpose
 
@@ -279,7 +279,7 @@ archive.
 
 ### CIB-016: Name "current posture vs new regression" in baseline output
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2270
 - **Intent:** `anvil baseline` + `cutoff_commit` already
   distinguish first-scan posture from new regressions mechanically.
   The UX doesn't name that distinction. Adding the phrasing turns
@@ -563,7 +563,7 @@ archive.
 
 ### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-27 via PR #2967 (PR-side `-D warnings` gate; publish-side `--all-features` gate merged 2026-06-16 via PR #2682)
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
   step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating

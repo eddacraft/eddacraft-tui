@@ -5,7 +5,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| INSEC | —     | In Progress | 0/8      |
+| INSEC | —     | In Progress | 6/8      |
 
 **Last reviewed:** 2026-06-18 (created on operator direction after ADR-087 was
 accepted. Realises the syntactic-smell subset of the sec-context triage
