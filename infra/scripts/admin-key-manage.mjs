@@ -14,12 +14,36 @@
 //   2 — database error
 
 import crypto from 'node:crypto';
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { Client } from 'pg';
 
-const action = process.argv[2];
-if (action !== 'create' && action !== 'revoke') {
-  console.error('usage: admin-key-manage.mjs <create|revoke>');
-  process.exit(1);
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1']);
+
+// Decide the `pg` ssl option from the connection string. SSL stays on (with
+// certificate verification) unless the string genuinely requests otherwise:
+// an explicit `sslmode=disable`, or — absent any `sslmode` — a loopback
+// hostname. Anything unparseable or unrecognised keeps SSL on rather than
+// silently downgrading to plaintext.
+export function sslConfigFor(databaseUrl) {
+  let url;
+  try {
+    url = new URL(databaseUrl);
+  } catch {
+    return { rejectUnauthorized: true };
+  }
+  const sslmode = url.searchParams.get('sslmode');
+  if (sslmode !== null) {
+    return sslmode.toLowerCase() === 'disable' ? undefined : { rejectUnauthorized: true };
+  }
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return LOOPBACK_HOSTNAMES.has(hostname) ? undefined : { rejectUnauthorized: true };
+}
+
+// Create-action stdout contract: snake_case `hashed_key`, matching the
+// `admin_keys` column name used throughout the runbooks.
+export function createOutputLine(id, hashedKey) {
+  return JSON.stringify({ id, hashed_key: hashedKey }) + '\n';
 }
 
 function req(name) {
@@ -31,100 +55,116 @@ function req(name) {
   return v;
 }
 
-const databaseUrl = req('DATABASE_URL');
-const pepper = req('ADMIN_KEY_PEPPER');
-const bearer = req('BEARER_HEX');
-const actorEmail = req('ACTOR_EMAIL');
-const note = process.env['NOTE'] ?? '';
-const changeActor = req('CHANGE_ACTOR');
-const commitSha = req('COMMIT_SHA');
+// Only run the effectful CLI body when executed directly, so the helpers
+// above stay importable from tests. argv[1] is realpath'd because
+// import.meta.url reflects the resolved module path while argv[1] keeps the
+// literal invocation path — without it, a symlinked invocation silently no-ops.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  await main();
+}
 
-const hashedKey = crypto.createHmac('sha256', pepper).update(bearer).digest('hex');
+async function main() {
+  const action = process.argv[2];
+  if (action !== 'create' && action !== 'revoke') {
+    console.error('usage: admin-key-manage.mjs <create|revoke>');
+    process.exit(1);
+  }
 
-const client = new Client({
-  connectionString: databaseUrl,
-  ssl: databaseUrl.includes('localhost') ? undefined : { rejectUnauthorized: true },
-});
+  const databaseUrl = req('DATABASE_URL');
+  const pepper = req('ADMIN_KEY_PEPPER');
+  const bearer = req('BEARER_HEX');
+  const actorEmail = req('ACTOR_EMAIL');
+  const note = process.env['NOTE'] ?? '';
+  const changeActor = req('CHANGE_ACTOR');
+  const commitSha = req('COMMIT_SHA');
 
-try {
-  await client.connect();
-  await client.query('BEGIN');
+  const hashedKey = crypto.createHmac('sha256', pepper).update(bearer).digest('hex');
 
-  if (action === 'create') {
-    // Idempotent: if a live row for this actor already exists with the same
-    // hash, no-op; if a different hash exists for the same actor, refuse —
-    // that means two concurrent provisions and needs operator review.
-    const existing = await client.query(
-      `SELECT id, hashed_key, revoked_at FROM admin_keys
-       WHERE actor_email = $1 AND revoked_at IS NULL
-       ORDER BY created_at DESC LIMIT 1`,
-      [actorEmail]
-    );
-    if (existing.rows.length > 0 && existing.rows[0].hashed_key !== hashedKey) {
-      throw new Error(
-        `active admin_keys row already exists for ${actorEmail} with a different hash; ` +
-          `revoke it first or re-use the same bearer`
+  const client = new Client({
+    connectionString: databaseUrl,
+    ssl: sslConfigFor(databaseUrl),
+  });
+
+  try {
+    await client.connect();
+    await client.query('BEGIN');
+
+    if (action === 'create') {
+      // Idempotent: if a live row for this actor already exists with the same
+      // hash, no-op; if a different hash exists for the same actor, refuse —
+      // that means two concurrent provisions and needs operator review.
+      const existing = await client.query(
+        `SELECT id, hashed_key, revoked_at FROM admin_keys
+         WHERE actor_email = $1 AND revoked_at IS NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        [actorEmail]
       );
+      if (existing.rows.length > 0 && existing.rows[0].hashed_key !== hashedKey) {
+        throw new Error(
+          `active admin_keys row already exists for ${actorEmail} with a different hash; ` +
+            `revoke it first or re-use the same bearer`
+        );
+      }
+
+      let id;
+      if (existing.rows.length > 0 && existing.rows[0].hashed_key === hashedKey) {
+        id = existing.rows[0].id;
+      } else {
+        const inserted = await client.query(
+          `INSERT INTO admin_keys (hashed_key, actor_email, note)
+           VALUES ($1, $2, $3)
+           RETURNING id`,
+          [hashedKey, actorEmail, note]
+        );
+        id = inserted.rows[0].id;
+
+        await client.query(
+          `INSERT INTO admin_keys_audit
+             (admin_key_id, action, change_actor, pulumi_commit_sha, note)
+           VALUES ($1, 'created', $2, $3, $4)`,
+          [id, changeActor, commitSha, note || 'iac-provisioned']
+        );
+      }
+
+      await client.query('COMMIT');
+      process.stdout.write(createOutputLine(id, hashedKey));
+      process.exit(0);
     }
 
-    let id;
-    if (existing.rows.length > 0 && existing.rows[0].hashed_key === hashedKey) {
-      id = existing.rows[0].id;
-    } else {
-      const inserted = await client.query(
-        `INSERT INTO admin_keys (hashed_key, actor_email, note)
-         VALUES ($1, $2, $3)
+    if (action === 'revoke') {
+      const row = await client.query(
+        `UPDATE admin_keys SET revoked_at = now()
+         WHERE actor_email = $1 AND hashed_key = $2 AND revoked_at IS NULL
          RETURNING id`,
-        [hashedKey, actorEmail, note]
+        [actorEmail, hashedKey]
       );
-      id = inserted.rows[0].id;
-
-      await client.query(
-        `INSERT INTO admin_keys_audit
-           (admin_key_id, action, change_actor, pulumi_commit_sha, note)
-         VALUES ($1, 'created', $2, $3, $4)`,
-        [id, changeActor, commitSha, note || 'iac-provisioned']
-      );
+      if (row.rows.length > 0) {
+        await client.query(
+          `INSERT INTO admin_keys_audit
+             (admin_key_id, action, change_actor, pulumi_commit_sha, note)
+           VALUES ($1, 'revoked', $2, $3, $4)`,
+          [row.rows[0].id, changeActor, commitSha, 'iac-revoked']
+        );
+      }
+      // Missing row on revoke is not an error — the infra may have been
+      // rolled back before the key was ever inserted.
+      await client.query('COMMIT');
+      process.stdout.write(JSON.stringify({ revoked: row.rows.length }) + '\n');
+      process.exit(0);
     }
-
-    await client.query('COMMIT');
-    process.stdout.write(JSON.stringify({ id, hashedKey }) + '\n');
-    process.exit(0);
-  }
-
-  if (action === 'revoke') {
-    const row = await client.query(
-      `UPDATE admin_keys SET revoked_at = now()
-       WHERE actor_email = $1 AND hashed_key = $2 AND revoked_at IS NULL
-       RETURNING id`,
-      [actorEmail, hashedKey]
-    );
-    if (row.rows.length > 0) {
-      await client.query(
-        `INSERT INTO admin_keys_audit
-           (admin_key_id, action, change_actor, pulumi_commit_sha, note)
-         VALUES ($1, 'revoked', $2, $3, $4)`,
-        [row.rows[0].id, changeActor, commitSha, 'iac-revoked']
-      );
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // swallow — the original error is what matters
     }
-    // Missing row on revoke is not an error — the infra may have been
-    // rolled back before the key was ever inserted.
-    await client.query('COMMIT');
-    process.stdout.write(JSON.stringify({ revoked: row.rows.length }) + '\n');
-    process.exit(0);
-  }
-} catch (err) {
-  try {
-    await client.query('ROLLBACK');
-  } catch {
-    // swallow — the original error is what matters
-  }
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(2);
-} finally {
-  try {
-    await client.end();
-  } catch {
-    // ignore
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(2);
+  } finally {
+    try {
+      await client.end();
+    } catch {
+      // ignore
+    }
   }
 }
