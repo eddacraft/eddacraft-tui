@@ -61,5 +61,10 @@ harness = false
 name = "walk_discovery"
 harness = false
 
+# CIB-006: validate_write full pipeline vs risk-tier safelist wall time.
+[[bench]]
+name = "validate_write_tier"
+harness = false
+
 [lints]
 workspace = true

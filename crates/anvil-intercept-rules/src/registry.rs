@@ -68,6 +68,37 @@ pub enum RegistryDecision {
     Interrupt(InterruptReason),
 }
 
+/// CIB-006: recorded reason for a rule skipped by the touched-node
+/// predicate during a scoped evaluation. Exported so callers (and
+/// tests) surface the exact wording rather than restating it.
+pub const TOUCHED_NODE_SKIP_REASON: &str = "rule declares a content input that does not overlap the touched node (no scoped content available)";
+
+/// CIB-006: outcome of a touched-node-scoped evaluation — see
+/// [`RuleRegistry::diagnostics_scoped_to_touched_node`].
+#[derive(Debug)]
+pub struct ScopedEvaluation {
+    /// Canonical diagnostics from every overlapping rule, in
+    /// registration order. Unlike [`RuleRegistry::diagnostics`], the
+    /// scoped path does not short-circuit on the first firing rule.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Cached ids of the rules whose declared inputs overlapped the
+    /// touched node and were therefore invoked, in registration order.
+    pub fired_rule_ids: Vec<String>,
+    /// Rules whose declared inputs did not overlap the touched node,
+    /// each with a recorded reason so the caller can surface the skip.
+    pub skipped: Vec<ScopedRuleSkip>,
+}
+
+/// CIB-006: a rule skipped during a touched-node-scoped evaluation,
+/// with the reason recorded for the caller's audit trail.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedRuleSkip {
+    /// Cached id of the skipped rule.
+    pub rule_id: String,
+    /// Why the rule did not fire.
+    pub reason: String,
+}
+
 /// Errors surfaced by the registry's mutating API.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RegistryError {
@@ -342,6 +373,67 @@ impl RuleRegistry {
             }
         }
         observe_only
+    }
+
+    /// CIB-006: evaluate `input` — already scoped to a single touched
+    /// node's content by the caller — firing only rules whose declared
+    /// inputs overlap the touched node per
+    /// [`RuleInput::overlaps_touched_node`]. Rules that do not overlap
+    /// are skipped with a recorded reason instead of silently.
+    ///
+    /// Differences from [`Self::diagnostics`]:
+    ///
+    /// - **No short-circuit.** Every overlapping rule fires regardless
+    ///   of earlier findings, so the risk-tier audit trail is complete.
+    ///   The scoped input is a single node's content, so evaluating
+    ///   everything stays cheap.
+    /// - **Explicit skips.** A content-bearing rule with no scoped
+    ///   content is recorded in [`ScopedEvaluation::skipped`] with
+    ///   [`TOUCHED_NODE_SKIP_REASON`] rather than silently allowed.
+    ///
+    /// Panic isolation and rule-id normalisation match the standard
+    /// paths: a panicking rule is caught (and still counted as fired —
+    /// its inputs overlapped and it was invoked), and diagnostics carry
+    /// the registry's cached rule id.
+    #[must_use]
+    pub fn diagnostics_scoped_to_touched_node(
+        &self,
+        input: &RuleInput<'_>,
+        mode: &Mode,
+    ) -> ScopedEvaluation {
+        let mut outcome = ScopedEvaluation {
+            diagnostics: Vec::new(),
+            fired_rule_ids: Vec::new(),
+            skipped: Vec::new(),
+        };
+        for entry in &self.rules {
+            let cached_id = entry.id.as_str();
+            if !input.overlaps_touched_node(entry.rule.needs_content()) {
+                outcome.skipped.push(ScopedRuleSkip {
+                    rule_id: cached_id.to_owned(),
+                    reason: TOUCHED_NODE_SKIP_REASON.to_owned(),
+                });
+                continue;
+            }
+            outcome.fired_rule_ids.push(cached_id.to_owned());
+            let Ok(mut diagnostics) =
+                catch_unwind(AssertUnwindSafe(|| entry.rule.diagnostics(input, mode)))
+            else {
+                eprintln!(
+                    "anvil-intercept-rules: rule {cached_id:?} panicked during scoped \
+                     diagnostics; treating as no diagnostics (rule contract violation)",
+                );
+                continue;
+            };
+            for diagnostic in &mut diagnostics {
+                if diagnostic.source.rule_id != cached_id {
+                    diagnostic.source.rule_id.clear();
+                    diagnostic.source.rule_id.push_str(cached_id);
+                }
+            }
+            outcome.diagnostics.extend(diagnostics);
+        }
+        outcome
     }
 }
 
@@ -841,6 +933,101 @@ mod tests {
         ])
         .expect("no dups");
         assert_eq!(registry.rule_ids(), vec!["alpha", "beta", "gamma"]);
+    }
+
+    // ----- CIB-006: touched-node-scoped evaluation. -------------------
+
+    fn scoped_input<'a>(path: &'a Path, content: Option<&'a [u8]>) -> RuleInput<'a> {
+        RuleInput {
+            path,
+            change_kind: ChangeKind::Modified,
+            content,
+        }
+    }
+
+    /// CIB-006: the scoped evaluation fires every overlapping rule and
+    /// does NOT short-circuit on the first finding — the audit trail
+    /// on the risk-tiered path must be complete, and the scoped input
+    /// is small enough that evaluating everything is cheap.
+    #[test]
+    fn scoped_evaluation_fires_all_overlapping_rules_without_short_circuit() {
+        let registry = RuleRegistry::with_rules(vec![
+            Box::new(StubRule::new(
+                "first",
+                RuleDecision::interrupt("first", "first fired"),
+            )),
+            Box::new(StubRule::new(
+                "second",
+                RuleDecision::interrupt("second", "second fired"),
+            )),
+        ])
+        .expect("no dups");
+
+        let path = PathBuf::from("config.json");
+        let outcome = registry.diagnostics_scoped_to_touched_node(
+            &scoped_input(&path, Some(b"\"value\"")),
+            &Mode::Unknown("pre-write".to_string()),
+        );
+
+        assert_eq!(outcome.fired_rule_ids, vec!["first", "second"]);
+        assert!(outcome.skipped.is_empty());
+        assert_eq!(
+            outcome.diagnostics.len(),
+            2,
+            "both interrupts must surface — no enforce-mode short-circuit on the scoped path",
+        );
+    }
+
+    /// CIB-006: a rule whose declared inputs do not overlap the
+    /// touched node is skipped with a recorded reason — never
+    /// silently, so the validator response can surface the skip.
+    #[test]
+    fn scoped_evaluation_records_skip_for_content_rule_without_scoped_content() {
+        let registry = RuleRegistry::with_rules(vec![
+            Box::new(StubRule::new("path-rule", RuleDecision::allow())),
+            Box::new(StubRule::new("content-rule", RuleDecision::allow()).needing_content()),
+        ])
+        .expect("no dups");
+
+        let path = PathBuf::from("config.json");
+        let outcome = registry.diagnostics_scoped_to_touched_node(
+            &scoped_input(&path, None),
+            &Mode::Unknown("pre-write".to_string()),
+        );
+
+        assert_eq!(outcome.fired_rule_ids, vec!["path-rule"]);
+        assert_eq!(
+            outcome.skipped,
+            vec![ScopedRuleSkip {
+                rule_id: "content-rule".to_string(),
+                reason: TOUCHED_NODE_SKIP_REASON.to_string(),
+            }],
+        );
+        assert!(outcome.diagnostics.is_empty());
+    }
+
+    /// CIB-006: panic isolation holds on the scoped path — a
+    /// misbehaving rule is caught, and the remaining rules still fire.
+    #[test]
+    fn scoped_evaluation_isolates_panicking_rule() {
+        let registry = RuleRegistry::with_rules(vec![
+            Box::new(PanickingRule),
+            Box::new(StubRule::new(
+                "after",
+                RuleDecision::interrupt("after", "after still ran"),
+            )),
+        ])
+        .expect("no dups");
+
+        let path = PathBuf::from("config.json");
+        let outcome = registry.diagnostics_scoped_to_touched_node(
+            &scoped_input(&path, Some(b"\"value\"")),
+            &Mode::Unknown("pre-write".to_string()),
+        );
+
+        assert_eq!(outcome.fired_rule_ids, vec!["panicking", "after"]);
+        assert_eq!(outcome.diagnostics.len(), 1);
+        assert_eq!(outcome.diagnostics[0].source.rule_id, "after");
     }
 
     #[test]

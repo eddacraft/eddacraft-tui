@@ -39,7 +39,10 @@ pub use config::{
 pub use path_deny::{PathDenyConfig, PathDenyError, PathDenyListRule};
 pub use reasoning::LaunchReasoningPatternRule;
 pub use regex_content::{RegexContentConfig, RegexContentError, RegexContentRule};
-pub use registry::{RegistryDecision, RegistryError, RegistryMode, RuleRegistry};
+pub use registry::{
+    RegistryDecision, RegistryError, RegistryMode, RuleRegistry, ScopedEvaluation, ScopedRuleSkip,
+    TOUCHED_NODE_SKIP_REASON,
+};
 pub use secret::SecretDetectionRule;
 
 /// The kind of file change being evaluated. Mirrors the kernel watcher's
@@ -70,6 +73,38 @@ pub struct RuleInput<'a> {
     /// this is `None` — content-bearing checks are not run on missing
     /// content.
     pub content: Option<&'a [u8]>,
+}
+
+impl RuleInput<'_> {
+    /// CIB-006: touched-node predicate for risk-tiered validation.
+    ///
+    /// Answers whether a rule with the given `needs_content`
+    /// declaration has at least one declared input that overlaps a
+    /// change confined to a single touched node, where `self` is the
+    /// node-scoped input built for that change (path preserved,
+    /// `content` reduced to the touched node's content).
+    ///
+    /// - **Path-input rules** (`needs_content == false`) always
+    ///   overlap: however small the change, it is still a write to
+    ///   `self.path`, so a rule keyed on path or change kind (for
+    ///   example a path deny-list) must keep firing on the tiered
+    ///   path. Skipping it could skip a check that catches a real
+    ///   risk.
+    /// - **Content-input rules** overlap when the scoped content is
+    ///   present. When the caller could not materialise the touched
+    ///   node's content, the rule is reported as non-overlapping so
+    ///   the caller records an explicit skip (with a reason) instead
+    ///   of relying on the silent content-skip inside
+    ///   [`RuleRegistry::evaluate`].
+    ///
+    /// The predicate is deliberately conservative: it can only answer
+    /// `false` when the rule would have no input at all to evaluate.
+    /// It must never be used to drop a rule that could produce a new
+    /// finding from the touched node.
+    #[must_use]
+    pub fn overlaps_touched_node(&self, needs_content: bool) -> bool {
+        !needs_content || self.content.is_some()
+    }
 }
 
 /// The decision a rule produces for a single [`RuleInput`].
@@ -398,6 +433,37 @@ mod tests {
     #[should_panic(expected = "1-based")]
     fn interrupt_at_with_zero_line_panics() {
         let _ = RuleDecision::interrupt_at("secret-detection", "potential secret", 0);
+    }
+
+    /// CIB-006: the touched-node predicate never excludes a rule whose
+    /// declared inputs include the path — every change, however small,
+    /// is still a write to that path, so path-scoped rules (e.g. a
+    /// path deny-list) must keep firing on the risk-tiered path.
+    #[test]
+    fn touched_node_predicate_path_rules_always_overlap() {
+        let path = PathBuf::from("config.json");
+        let with_content = input_for(&path, Some(b"\"value\""));
+        let without_content = input_for(&path, None);
+
+        assert!(with_content.overlaps_touched_node(false));
+        assert!(
+            without_content.overlaps_touched_node(false),
+            "a path-input rule must overlap even when no scoped content exists",
+        );
+    }
+
+    /// CIB-006: content-input rules overlap the touched node only when
+    /// the scoped content was materialised. The `false` answer lets a
+    /// caller record an explicit skip (with a reason) instead of the
+    /// silent content-skip inside the registry loop.
+    #[test]
+    fn touched_node_predicate_content_rules_require_scoped_content() {
+        let path = PathBuf::from("config.json");
+        let with_content = input_for(&path, Some(b"\"value\""));
+        let without_content = input_for(&path, None);
+
+        assert!(with_content.overlaps_touched_node(true));
+        assert!(!without_content.overlaps_touched_node(true));
     }
 
     #[test]

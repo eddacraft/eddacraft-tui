@@ -1,8 +1,11 @@
 use std::fs;
 use std::io::Read as _;
+use std::num::NonZeroU32;
 use std::path::{Component, Path, PathBuf};
 
 use anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS;
+use anvil_intercept::enforcement::default_rule_registry;
+use anvil_intercept_rules::{ChangeKind, RuleInput, ScopedEvaluation};
 use anvil_kernel_types::diagnostics::ControlDecision;
 use anvil_kernel_types::protection_claim::ProtectionClaim;
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
@@ -179,42 +182,29 @@ fn call_with_validation_client(
     // is "if you write the same patch against the same base, this is
     // the result we validated".
     let mut request = request;
-    // Materialise only when content is missing, a patch was supplied,
-    // AND the operation actually consumes content. Delete and rename
-    // do not require post-image content, so a patch field on those
-    // operations is correlation metadata only — reading the on-disk
-    // file there would scan content that is about to disappear and
-    // could block the operation on findings in soon-to-be-removed
-    // bytes (Copilot review, 2026-05-18).
-    if request.content.is_none()
-        && request.patch_text.is_some()
-        && request.operation.requires_content()
-    {
-        match materialise_patch_content(
-            &request.workspace_root,
+    // CIB-006: pre-image retained when the post-image was materialised
+    // from a patch, so the risk-tier safelist can structurally diff the
+    // change. `None` on every other content path (full content,
+    // preview, no content) — those always take the full tier.
+    let materialised_original = match materialise_patch_if_needed(&mut request, enforcement_mode) {
+        Ok(original) => original,
+        Err(payload) => return payload,
+    };
+
+    // CIB-006: risk-tiered validation. A patch-materialised update is
+    // matched against the documented safelist of trivial change shapes
+    // BEFORE the full pipeline runs; a hit is served by the scoped
+    // embedded evaluation and never reaches the daemon. Everything
+    // else falls through to the unchanged full pipeline below.
+    if let Some(original) = materialised_original.as_deref()
+        && matches!(request.operation, Operation::Update)
+        && let Some(hit) = safelist_match(
             &request.relative_path,
-            request.patch_text.as_deref().expect("checked above"),
-        ) {
-            Ok(post_image) => {
-                request.content = Some(post_image);
-            }
-            Err(problem) => {
-                return tool_result(&problem_payload(
-                    problem,
-                    Some(&request.relative_path),
-                    enforcement_mode,
-                ));
-            }
-        }
-        // Re-run the post-content input checks (size, NUL) now that
-        // we have materialised content.
-        if let Some(problem) = request.input_problem() {
-            return tool_result(&problem_payload(
-                problem,
-                Some(&request.relative_path),
-                enforcement_mode,
-            ));
-        }
+            original,
+            request.content.as_deref().expect("materialised above"),
+        )
+    {
+        return tool_result(&tiered_validation_payload(&request, &hit, enforcement_mode));
     }
 
     let mut backend = ValidationBackend::Embedded;
@@ -275,7 +265,7 @@ fn call_with_validation_client(
 
     let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
 
-    tool_result(&validation_payload(
+    let mut payload = validation_payload(
         &request.relative_path,
         &diagnostics,
         backend,
@@ -284,7 +274,80 @@ fn call_with_validation_client(
         enforcement_mode,
         request.partial_scan,
         protection_claim.as_ref(),
-    ))
+    );
+    // CIB-006: surface the tier taken so callers can audit. Every path
+    // through this arm ran (or intentionally skipped, for content-free
+    // operations) the FULL pipeline; the recorded reason says why the
+    // safelist did not serve the request.
+    let full_tier_reason = if materialised_original.is_some() {
+        // A patch was materialised but the safelist matcher declined —
+        // multi-node change, structural change, non-JSON target, or a
+        // value the conservative screens refused.
+        "patch-not-safelisted"
+    } else if request.partial_scan {
+        "preview"
+    } else if request.content.is_some() {
+        "full-content"
+    } else {
+        // Delete/rename: no post-image content exists to tier.
+        "no-content"
+    };
+    payload["tier"] = json!({
+        "decision": "full",
+        "reason": full_tier_reason,
+    });
+    tool_result(&payload)
+}
+
+/// CIB-005: apply the caller's patch to the on-disk file in memory
+/// when — and only when — the request has no content, carries a patch,
+/// AND the operation actually consumes content. Delete and rename do
+/// not require post-image content, so a patch field on those
+/// operations is correlation metadata only — reading the on-disk file
+/// there would scan content that is about to disappear and could block
+/// the operation on findings in soon-to-be-removed bytes (Copilot
+/// review, 2026-05-18).
+///
+/// On success the post-image is stored on `request.content` and the
+/// retained pre-image is returned (`None` when no materialisation was
+/// needed) for the CIB-006 safelist diff. Failures — unreadable
+/// target, patch mismatch, or a post-image that fails the input checks
+/// (size, NUL) — return the ready-to-send error result.
+fn materialise_patch_if_needed(
+    request: &mut ValidateWriteRequest,
+    enforcement_mode: EnforcementMode,
+) -> Result<Option<String>, Value> {
+    if request.content.is_some()
+        || request.patch_text.is_none()
+        || !request.operation.requires_content()
+    {
+        return Ok(None);
+    }
+
+    match materialise_patch_content(
+        &request.workspace_root,
+        &request.relative_path,
+        request.patch_text.as_deref().expect("checked above"),
+    ) {
+        Ok(materialised) => {
+            request.content = Some(materialised.post_image);
+            // Re-run the post-content input checks (size, NUL) now
+            // that we have materialised content.
+            if let Some(problem) = request.input_problem() {
+                return Err(tool_result(&problem_payload(
+                    problem,
+                    Some(&request.relative_path),
+                    enforcement_mode,
+                )));
+            }
+            Ok(Some(materialised.original))
+        }
+        Err(problem) => Err(tool_result(&problem_payload(
+            problem,
+            Some(&request.relative_path),
+            enforcement_mode,
+        ))),
+    }
 }
 
 fn tool_result(payload: &Value) -> Value {
@@ -1014,16 +1077,26 @@ fn workspace_escape_problem() -> ToolProblem {
     )
 }
 
+/// CIB-005: the in-memory result of applying a patch to the on-disk
+/// file. CIB-006 keeps the pre-image alongside the post-image so the
+/// risk-tier safelist can structurally diff the change.
+struct MaterialisedPatch {
+    /// The on-disk content the patch was applied against.
+    original: String,
+    /// The post-image produced by applying the patch in memory.
+    post_image: String,
+}
+
 /// CIB-005: materialise the post-image of a patch against the
-/// on-disk file. Returns the post-image content if the patch applies
-/// cleanly; otherwise a structured `ToolProblem` whose code
+/// on-disk file. Returns the pre- and post-image content if the patch
+/// applies cleanly; otherwise a structured `ToolProblem` whose code
 /// distinguishes "file missing/unreadable" from "patch context did
 /// not match disk". The on-disk file is never written.
 fn materialise_patch_content(
     workspace_root: &Path,
     relative_path: &str,
     patch_text: &str,
-) -> Result<String, ToolProblem> {
+) -> Result<MaterialisedPatch, ToolProblem> {
     let absolute = workspace_root.join(relative_path);
 
     // Cap the on-disk read at `MAX_PROPOSED_CONTENT_BYTES` (the same
@@ -1088,12 +1161,359 @@ fn materialise_patch_content(
         ));
     }
 
-    apply_unified_diff(&original, patch_text).map_err(|_| {
+    let post_image = apply_unified_diff(&original, patch_text).map_err(|_| {
         ToolProblem::new(
             "patch-apply-failed",
             "Validate-write could not apply the supplied patch to the current on-disk content (context mismatch or unsupported diff shape).",
         )
+    })?;
+    Ok(MaterialisedPatch {
+        original,
+        post_image,
     })
+}
+
+// ---------------------------------------------------------------------
+// CIB-006: risk-tiered validation for trivial edits.
+// ---------------------------------------------------------------------
+
+/// CIB-006: the documented safelist of trivial change shapes.
+///
+/// # What the safelist does
+///
+/// Even with patch-mode (CIB-005) in place, full pipeline validation is
+/// overkill for genuinely trivial changes. When a patch-materialised
+/// update matches a safelist entry, the validator serves it embedded —
+/// the daemon round-trip is skipped (that is the speedup). What is
+/// NEVER skipped is coverage: the whole-file secret scan still runs
+/// over the complete post-image, and the remaining rules run scoped to
+/// the touched node (rules whose declared inputs do not overlap the
+/// node are skipped with a recorded reason). The tier taken (`full`
+/// vs `safelist`) is always surfaced in the response `tier` object so
+/// callers can audit the decision.
+///
+/// # Safelist criteria (initial entries)
+///
+/// - **`json-single-string-value`** — a single string-value rename
+///   inside a JSON file at a stable path. All of the following must
+///   hold, checked deterministically against the pre-/post-images:
+///   1. the target path has a `.json` extension;
+///   2. pre- and post-image both parse as JSON;
+///   3. structurally, exactly ONE string leaf differs — no key
+///      add/remove/rename, no array length change, no type change, no
+///      change to any non-string leaf;
+///   4. textually, the images have the same line count and exactly ONE
+///      line differs (this pins the touched node to a concrete line
+///      and rejects reformat-plus-edit patches).
+///
+///   A new value that looks like a secret still matches the shape —
+///   and is then caught by the fast path's whole-file secret scan and
+///   blocked with the same redaction as the full path (adversarial
+///   review 2026-07-02: the earlier raw regex pre-screen here was
+///   redundant with, and weaker than, that scan).
+///
+/// # Out-of-safelist behaviour
+///
+/// Everything else — full-content payloads, previews, create (the
+/// safelist is update-only), delete/rename, non-JSON targets,
+/// multi-node or structural changes, unparsable JSON — runs the full
+/// pipeline unchanged, and the response records why (`tier.reason`).
+///
+/// # Growth policy
+///
+/// The safelist is data-driven (add a [`SafelistEntry`] here), but the
+/// policy decision of which shapes are "safe enough" to skim carries
+/// real under-validation risk: new entries need explicit sign-off (see
+/// CIB-006's confidence note) before the list grows beyond what this
+/// documentation describes. A safelist hit must NEVER skip a check
+/// that could catch a real risk on a non-trivial edit — when in doubt,
+/// a matcher must decline and let the full pipeline run.
+const RISK_TIER_SAFELIST: &[SafelistEntry] = &[SafelistEntry {
+    id: JSON_SINGLE_STRING_VALUE_ENTRY_ID,
+    matcher: match_json_single_string_value,
+}];
+
+const JSON_SINGLE_STRING_VALUE_ENTRY_ID: &str = "json-single-string-value";
+
+/// One documented safelist entry: a stable id (surfaced in the
+/// response `tier.safelistEntry`) plus a deterministic matcher.
+struct SafelistEntry {
+    id: &'static str,
+    matcher: fn(relative_path: &str, original: &str, post_image: &str) -> Option<SafelistHit>,
+}
+
+/// A successful safelist match: which entry matched, where the touched
+/// node lives, and the node-scoped content the overlapping rules run
+/// against.
+struct SafelistHit {
+    entry_id: &'static str,
+    /// RFC 6901 JSON Pointer of the touched node.
+    json_pointer: String,
+    /// 1-based line of the touched node in the post-image.
+    line: NonZeroU32,
+    /// The touched post-image line — the only content the edit
+    /// introduced (the matcher guarantees every other byte of the
+    /// post-image is already on disk unchanged).
+    scoped_content: String,
+}
+
+/// CIB-006: match the change against [`RISK_TIER_SAFELIST`] in order;
+/// first hit wins. `None` means the full pipeline must run. The table
+/// is authoritative for the surfaced entry id — a matcher cannot
+/// misreport which entry it implements.
+fn safelist_match(relative_path: &str, original: &str, post_image: &str) -> Option<SafelistHit> {
+    RISK_TIER_SAFELIST.iter().find_map(|entry| {
+        (entry.matcher)(relative_path, original, post_image).map(|mut hit| {
+            hit.entry_id = entry.id;
+            hit
+        })
+    })
+}
+
+/// Matcher for [`JSON_SINGLE_STRING_VALUE_ENTRY_ID`] — see the
+/// criteria documented on [`RISK_TIER_SAFELIST`]. Every check is
+/// deterministic; any doubt declines the match.
+fn match_json_single_string_value(
+    relative_path: &str,
+    original: &str,
+    post_image: &str,
+) -> Option<SafelistHit> {
+    // 1. JSON files only.
+    if !Path::new(relative_path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+    {
+        return None;
+    }
+
+    // 4 (checked early because it is the cheapest disqualifier):
+    // textual discipline — same line count, exactly one differing line.
+    let old_lines: Vec<&str> = original.split('\n').collect();
+    let new_lines: Vec<&str> = post_image.split('\n').collect();
+    if old_lines.len() != new_lines.len() {
+        return None;
+    }
+    let mut touched_idx: Option<usize> = None;
+    for (idx, (old_line, new_line)) in old_lines.iter().zip(&new_lines).enumerate() {
+        if old_line != new_line {
+            if touched_idx.is_some() {
+                // Multi-line change — not a single-node edit.
+                return None;
+            }
+            touched_idx = Some(idx);
+        }
+    }
+    // A byte-identical post-image is not a rename; nothing to tier.
+    let touched_idx = touched_idx?;
+
+    // 2. Both sides must parse as JSON.
+    let old_value: Value = serde_json::from_str(original).ok()?;
+    let new_value: Value = serde_json::from_str(post_image).ok()?;
+
+    // 3. Structural diff: exactly one string leaf differs, everything
+    // else (keys, array lengths, types, non-string leaves) identical.
+    let mut pointer = String::new();
+    let mut touched_pointer: Option<String> = None;
+    single_string_value_diff(&old_value, &new_value, &mut pointer, &mut touched_pointer).ok()?;
+    let json_pointer = touched_pointer?;
+
+    // No secret pre-screen here (adversarial review 2026-07-02): a raw
+    // regex pass over the touched line duplicated — without the shared
+    // SCAN-002 line-length guard — the whole-file secret scan the
+    // tiered path runs over the complete post-image anyway. Secret
+    // handling lives in `tiered_validation_payload`, not the matcher.
+    let touched_line = new_lines[touched_idx];
+    let line = u32::try_from(touched_idx)
+        .ok()
+        .and_then(|idx| idx.checked_add(1))
+        .and_then(NonZeroU32::new)?;
+    Some(SafelistHit {
+        entry_id: JSON_SINGLE_STRING_VALUE_ENTRY_ID,
+        json_pointer,
+        line,
+        scoped_content: touched_line.to_string(),
+    })
+}
+
+/// Recursive structural diff for the `json-single-string-value`
+/// matcher. Records the RFC 6901 pointer of the single differing
+/// string leaf in `found`; returns `Err(())` the moment the change is
+/// disqualified (key add/remove, array length change, type change,
+/// non-string leaf change, or a second differing leaf).
+fn single_string_value_diff(
+    old: &Value,
+    new: &Value,
+    pointer: &mut String,
+    found: &mut Option<String>,
+) -> Result<(), ()> {
+    match (old, new) {
+        (Value::Object(old_map), Value::Object(new_map)) => {
+            if old_map.len() != new_map.len() {
+                return Err(());
+            }
+            for (key, old_child) in old_map {
+                // A missing key here is a key rename/remove (lengths
+                // already matched, so an addition pairs with it).
+                let new_child = new_map.get(key).ok_or(())?;
+                let saved_len = pointer.len();
+                pointer.push('/');
+                pointer.push_str(&escape_json_pointer_token(key));
+                single_string_value_diff(old_child, new_child, pointer, found)?;
+                pointer.truncate(saved_len);
+            }
+            Ok(())
+        }
+        (Value::Array(old_items), Value::Array(new_items)) => {
+            if old_items.len() != new_items.len() {
+                return Err(());
+            }
+            for (idx, (old_child, new_child)) in old_items.iter().zip(new_items).enumerate() {
+                let saved_len = pointer.len();
+                pointer.push('/');
+                pointer.push_str(&idx.to_string());
+                single_string_value_diff(old_child, new_child, pointer, found)?;
+                pointer.truncate(saved_len);
+            }
+            Ok(())
+        }
+        (Value::String(old_str), Value::String(new_str)) => {
+            if old_str != new_str {
+                if found.is_some() {
+                    // Second differing leaf — multi-node change.
+                    return Err(());
+                }
+                *found = Some(pointer.clone());
+            }
+            Ok(())
+        }
+        // Any other pairing: identical is fine, different (including a
+        // type change) disqualifies.
+        (old_other, new_other) => {
+            if old_other == new_other {
+                Ok(())
+            } else {
+                Err(())
+            }
+        }
+    }
+}
+
+/// RFC 6901 token escaping: `~` -> `~0`, `/` -> `~1`.
+fn escape_json_pointer_token(token: &str) -> String {
+    token.replace('~', "~0").replace('/', "~1")
+}
+
+/// CIB-006: the rule registry the safelist fast path evaluates.
+///
+/// This MUST stay identical to the registry the embedded full path
+/// uses (`EnforcementPipeline::default()`, which wraps
+/// `default_rule_registry()`); the
+/// `safelist_registry_matches_enforcement_default` test trips if the
+/// seams drift. INTR-007: workspace-configured registries
+/// (`registry_from_workspace`) are wired nowhere on the MCP pre-write
+/// path today — when they are wired into the enforcement seam, this
+/// fast path must resolve the SAME workspace registry, not stay pinned
+/// to the static default.
+fn tiered_rule_registry() -> anvil_intercept_rules::RuleRegistry {
+    default_rule_registry()
+}
+
+/// CIB-006: build the response for a safelist hit.
+///
+/// The actual contract (corrected per adversarial review 2026-07-02):
+/// a safelist hit skips the DAEMON round-trip — it does NOT skip
+/// whole-file secret coverage. The MCP pre-write path validates the
+/// entire post-image on the full tier, so the fast tier must match
+/// that coverage for secrets:
+///
+/// 1. **Whole-file secret scan** — the same embedded
+///    `SecretDetectionRule` the full path's enforcement pipeline
+///    registers (with its shared SCAN-002 line-length guard) runs over
+///    the COMPLETE post-image, so a secret on an untouched line is
+///    caught exactly as on the full path, at its real line.
+/// 2. **Touched-node-scoped evaluation** — the remaining registry
+///    rules (the launch reasoning pattern today) run against the
+///    touched node's content only; rules whose declared inputs do not
+///    overlap the node are recorded in `tier.skippedRules` with their
+///    reason.
+///
+/// The registry seam is pinned by
+/// `safelist_registry_matches_enforcement_default`; see
+/// [`tiered_rule_registry`] for the INTR-007 coupling note.
+fn tiered_validation_payload(
+    request: &ValidateWriteRequest,
+    hit: &SafelistHit,
+    enforcement_mode: EnforcementMode,
+) -> Value {
+    let mode = Mode::Unknown(PRE_WRITE_MODE.to_string());
+    let registry = tiered_rule_registry();
+    let path = Path::new(&request.relative_path);
+
+    // (1) Whole-file secret coverage over the complete post-image.
+    // Diagnostics keep their real line numbers — no remap.
+    let post_image = request
+        .content
+        .as_deref()
+        .expect("safelist hits require materialised content");
+    let full_input = RuleInput {
+        path,
+        change_kind: ChangeKind::Modified,
+        content: Some(post_image.as_bytes()),
+    };
+    let mut diagnostics =
+        anvil_intercept_rules::SecretDetectionRule::default().diagnostics(&full_input, &mode);
+
+    // (2) Scoped evaluation of the registry against the touched node.
+    let scoped_input = RuleInput {
+        path,
+        change_kind: ChangeKind::Modified,
+        content: Some(hit.scoped_content.as_bytes()),
+    };
+    let scoped: ScopedEvaluation =
+        registry.diagnostics_scoped_to_touched_node(&scoped_input, &mode);
+
+    // The scoped buffer is a single post-image line, so rules report
+    // line 1 (or none); remap onto the touched node's real line so the
+    // diagnostics point at the file location the caller will write.
+    // (A scoped secret finding duplicates the whole-file scan's; the
+    // dedupe inside `normalise_response_diagnostics` collapses it.)
+    let mut scoped_diagnostics = scoped.diagnostics;
+    for diagnostic in &mut scoped_diagnostics {
+        if diagnostic.location.line.is_some() {
+            diagnostic.location.line = Some(hit.line.get());
+        }
+    }
+    diagnostics.extend(scoped_diagnostics);
+    let diagnostics = normalise_response_diagnostics(&diagnostics, ValidationBackend::Embedded);
+
+    // The decision still flows through the enforcement-mode policy —
+    // a scoped finding warns or blocks exactly as it would on the full
+    // path (warnings over blocks; the tier changes scope, not policy).
+    let mut payload = validation_payload(
+        &request.relative_path,
+        &diagnostics,
+        ValidationBackend::Embedded,
+        DaemonStatus::NotWired,
+        None,
+        enforcement_mode,
+        false,
+        None,
+    );
+    payload["tier"] = json!({
+        "decision": "safelist",
+        "safelistEntry": hit.entry_id,
+        "touchedNode": {
+            "jsonPointer": hit.json_pointer,
+            "line": hit.line.get(),
+        },
+        "firedRules": scoped.fired_rule_ids,
+        "skippedRules": scoped
+            .skipped
+            .iter()
+            .map(|skip| json!({ "ruleId": skip.rule_id, "reason": skip.reason }))
+            .collect::<Vec<_>>(),
+    });
+    payload
 }
 
 /// Minimal unified-diff applier covering the shapes agents commonly
@@ -1385,6 +1805,10 @@ mod tests {
                     "daemonStatus": "not-wired",
                     "path": "src/example.ts",
                     "enforcementMode": "block",
+                },
+                "tier": {
+                    "decision": "full",
+                    "reason": "full-content",
                 }
             })
         );
@@ -1905,6 +2329,446 @@ mod tests {
             "expected allow, got payload: {payload}"
         );
         assert_eq!(payload["summary"]["total"], 0);
+        // CIB-006: the original beta-tester shape (one-string JSON
+        // rename at a stable path) is exactly the seeded safelist
+        // entry, so the tiered path serves it.
+        assert_eq!(
+            payload["tier"]["decision"], "safelist",
+            "the incident shape must take the risk-tiered path, got: {payload}"
+        );
+    }
+
+    // ----- CIB-006: risk-tiered validation for trivial edits. ---------
+
+    /// Standard four-line JSON fixture used by the CIB-006 tests.
+    /// Layout (1-indexed): line 2 holds the `name` value.
+    const CIB006_FIXTURE: &str = "{\n  \"name\": \"old-name\",\n  \"version\": \"1.0.0\"\n}\n";
+
+    fn seed_cib006_fixture(workspace: &std::path::Path, file_name: &str, body: &str) {
+        let target = workspace.join(file_name);
+        fs::create_dir_all(target.parent().expect("parent dir")).expect("fixture dir created");
+        fs::write(&target, body).expect("seed fixture");
+    }
+
+    /// CIB-006: a single-string JSON value rename at a stable path
+    /// matches the seeded safelist entry, short-circuits the full
+    /// pipeline, and surfaces the tier taken (plus the touched node
+    /// and the fired/skipped rule audit trail) in the response.
+    ///
+    /// The fixture daemon is wired to `OperationalFailure`, which the
+    /// full path escalates to a hard `block`. An `allow` here is
+    /// therefore proof the daemon was never consulted on the tiered
+    /// path — not merely that the scan came back clean.
+    #[test]
+    fn safelist_hit_json_single_string_value_fast_paths() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+        let daemon = FixtureDaemon {
+            outcome: DaemonValidationOutcome::OperationalFailure(ValidationBackendFailure {
+                code: "validation-backend-unavailable",
+                message: "anvil could not validate the proposed write.",
+                retriable: true,
+            }),
+        };
+
+        let payload = parse_payload(&call_with_validation_client(
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &FixedEnforcement(EnforcementMode::Block),
+        ));
+
+        assert_eq!(
+            payload["decision"], "allow",
+            "safelist hit must not consult the daemon, got: {payload}"
+        );
+        assert_eq!(payload["tier"]["decision"], "safelist");
+        assert_eq!(payload["tier"]["safelistEntry"], "json-single-string-value");
+        assert_eq!(payload["tier"]["touchedNode"]["jsonPointer"], "/name");
+        assert_eq!(payload["tier"]["touchedNode"]["line"], 2);
+        assert_eq!(
+            payload["tier"]["firedRules"],
+            json!(["secret-detection", "AI-001"]),
+            "every default rule overlaps a content node and must keep firing"
+        );
+        assert_eq!(payload["tier"]["skippedRules"], json!([]));
+        assert_eq!(payload["correlation"]["backend"], "embedded");
+        assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
+    }
+
+    /// CIB-006 adversarial review (coverage narrowing): the safelist
+    /// path must NOT narrow whole-file secret coverage. The full path
+    /// validates the entire reconstructed post-image, so a secret
+    /// sitting on an UNTOUCHED line blocks there — the fast path must
+    /// surface the same diagnostic (at its real line) and block per
+    /// enforcement mode, while still serving the safelist tier.
+    #[test]
+    fn safelist_hit_still_scans_whole_file_for_secrets() {
+        let workspace = tempdir().expect("workspace exists");
+        // Pre-existing secret on line 3; the edit touches line 2 only.
+        seed_cib006_fixture(
+            workspace.path(),
+            "config.json",
+            "{\n  \"name\": \"old-name\",\n  \"token\": \"ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n}\n",
+        );
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["tier"]["decision"], "safelist",
+            "the edit shape itself is safelisted, got: {payload}"
+        );
+        assert_eq!(
+            payload["decision"], "block",
+            "an untouched-line secret must still block on the fast path, got: {payload}"
+        );
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+        assert_eq!(
+            payload["diagnostics"][0]["location"]["line"], 3,
+            "whole-file diagnostics keep their real line (no touched-node remap)"
+        );
+        assert!(
+            !serde_json::to_string(&payload)
+                .expect("payload serialises")
+                .contains("ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            "secret redaction applies on the tiered path too"
+        );
+    }
+
+    /// CIB-006 adversarial review (registry coupling): the safelist
+    /// fast path must evaluate the SAME registry as the embedded
+    /// enforcement default. This trap fails loudly if either seam
+    /// drifts — including when the default registry legitimately gains
+    /// a rule (forcing a decision about its tiered coverage). INTR-007:
+    /// when workspace-configured registries are wired into enforcement,
+    /// `tiered_rule_registry` must resolve the same workspace registry.
+    #[test]
+    fn safelist_registry_matches_enforcement_default() {
+        let tiered = super::tiered_rule_registry();
+        let enforcement = anvil_intercept::enforcement::default_rule_registry();
+        assert_eq!(
+            tiered.rule_ids(),
+            enforcement.rule_ids(),
+            "CIB-006: the safelist fast path and the embedded full path must never \
+             evaluate different rule sets",
+        );
+        // The whole-file coverage rule on the tiered path must be one
+        // of the enforcement rules, or coverage silently forks.
+        let secret_rule = anvil_intercept_rules::SecretDetectionRule::default();
+        let secret_id = anvil_intercept_rules::InterceptRule::rule_id(&secret_rule).to_string();
+        assert!(
+            enforcement.rule_ids().contains(&secret_id.as_str()),
+            "whole-file secret coverage must use a rule the enforcement default registers",
+        );
+    }
+
+    /// CIB-006 review: create/delete/rename operations never
+    /// safelist-match, even with a `.json` patch attached. The
+    /// safelist is update-only by construction; delete/rename never
+    /// materialise content at all.
+    #[test]
+    fn near_miss_non_update_operations_take_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+        let rename_patch = "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n";
+
+        // create + patch on an existing file materialises, but the
+        // safelist is gated to update.
+        let create = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "create",
+                "patch": rename_patch
+            }),
+        );
+        assert_eq!(
+            create["tier"],
+            json!({ "decision": "full", "reason": "patch-not-safelisted" }),
+            "create must not safelist-match, got: {create}"
+        );
+
+        // delete/rename + patch never materialise (patch is
+        // correlation metadata only) and cannot safelist-match.
+        for operation in ["delete", "rename"] {
+            let payload = call_payload(
+                workspace.path(),
+                &json!({
+                    "path": "config.json",
+                    "operation": operation,
+                    "patch": rename_patch
+                }),
+            );
+            assert_eq!(
+                payload["tier"],
+                json!({ "decision": "full", "reason": "no-content" }),
+                "{operation} must not safelist-match, got: {payload}"
+            );
+        }
+    }
+
+    /// CIB-006 review: the matcher judges the materialised images, not
+    /// the patch text, so a MULTI-HUNK patch whose net effect is one
+    /// differing line is still a single-node edit and safelists. The
+    /// second hunk here removes and re-adds an identical line (net
+    /// zero); the whole-file secret scan still covers every byte.
+    #[test]
+    fn multi_hunk_patch_with_single_net_line_change_safelist_matches() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(
+            workspace.path(),
+            "config.json",
+            "{\n  \"name\": \"old-name\",\n  \"version\": \"1.0.0\",\n  \"kind\": \"demo\"\n}\n",
+        );
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n@@ -4 +4 @@\n-  \"kind\": \"demo\"\n+  \"kind\": \"demo\"\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["tier"]["decision"], "safelist",
+            "net single-line change must safelist regardless of hunk count, got: {payload}"
+        );
+        assert_eq!(payload["tier"]["touchedNode"]["jsonPointer"], "/name");
+        assert_eq!(payload["tier"]["touchedNode"]["line"], 2);
+        assert_eq!(payload["decision"], "allow");
+    }
+
+    /// CIB-006 review: a CRLF-terminated JSON file behaves like its LF
+    /// twin — the line-wise textual check compares `\r`-suffixed lines
+    /// consistently on both sides, serde treats `\r` as whitespace,
+    /// and the rename still pins to the right node and line.
+    #[test]
+    fn crlf_file_single_value_rename_safelist_matches() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(
+            workspace.path(),
+            "config.json",
+            "{\r\n  \"name\": \"old-name\",\r\n  \"version\": \"1.0.0\"\r\n}\r\n",
+        );
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\r\n+  \"name\": \"new-name\",\r\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["tier"]["decision"], "safelist",
+            "CRLF endings must not break the matcher, got: {payload}"
+        );
+        assert_eq!(payload["tier"]["touchedNode"]["jsonPointer"], "/name");
+        assert_eq!(payload["tier"]["touchedNode"]["line"], 2);
+        assert_eq!(payload["decision"], "allow");
+    }
+
+    /// CIB-006: the tier decision is surfaced on the full path too, so
+    /// callers can audit which tier served every response.
+    #[test]
+    fn full_path_surfaces_tier_decision_for_full_content() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["tier"],
+            json!({ "decision": "full", "reason": "full-content" })
+        );
+    }
+
+    /// CIB-006 near-miss: a patch that changes TWO string values is a
+    /// multi-node change and must take the full pipeline.
+    #[test]
+    fn near_miss_multi_node_change_takes_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2,2 +2,2 @@\n-  \"name\": \"old-name\",\n-  \"version\": \"1.0.0\"\n+  \"name\": \"new-name\",\n+  \"version\": \"2.0.0\"\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["tier"],
+            json!({ "decision": "full", "reason": "patch-not-safelisted" }),
+            "a multi-node change must fall through, got: {payload}"
+        );
+        assert_eq!(payload["decision"], "allow");
+    }
+
+    /// CIB-006 near-miss: renaming a KEY (even with the value kept)
+    /// is a structural change and must take the full pipeline.
+    #[test]
+    fn near_miss_key_rename_takes_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"title\": \"old-name\",\n"
+            }),
+        );
+
+        assert_eq!(payload["tier"]["decision"], "full");
+        assert_eq!(payload["tier"]["reason"], "patch-not-safelisted");
+    }
+
+    /// CIB-006 near-miss: the safelist entry is JSON-only. A one-line
+    /// value change in a non-JSON file must take the full pipeline.
+    #[test]
+    fn near_miss_non_json_file_takes_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(
+            workspace.path(),
+            "config.yaml",
+            "name: old-name\nversion: 1.0.0\n",
+        );
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.yaml",
+                "operation": "update",
+                "patch": "--- a/config.yaml\n+++ b/config.yaml\n@@ -1 +1 @@\n-name: old-name\n+name: new-name\n"
+            }),
+        );
+
+        assert_eq!(payload["tier"]["decision"], "full");
+        assert_eq!(payload["tier"]["reason"], "patch-not-safelisted");
+    }
+
+    /// CIB-006 guard: a new value that looks like a secret is still a
+    /// safelist-shaped edit, but the fast path's whole-file secret
+    /// scan catches it — the safelist never masks the secret scan.
+    /// The diagnostic is redacted exactly as on the full path.
+    ///
+    /// (Adversarial review 2026-07-02: the earlier raw regex
+    /// pre-screen in the matcher was dropped as redundant with — and
+    /// weaker than — the whole-file scan, which carries the shared
+    /// SCAN-002 line-length guard.)
+    #[test]
+    fn secret_looking_value_still_blocks_on_safelist_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n"
+            }),
+        );
+
+        assert_eq!(payload["tier"]["decision"], "safelist");
+        assert_eq!(
+            payload["decision"], "block",
+            "the fast path must still block a secret-looking value, got: {payload}"
+        );
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+        assert!(
+            !serde_json::to_string(&payload)
+                .expect("payload serialises")
+                .contains("ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            "the raw secret must never appear in the response"
+        );
+    }
+
+    /// CIB-006 near-miss: a value changing TYPE (string to number) is
+    /// a structural change and must take the full pipeline.
+    #[test]
+    fn near_miss_value_type_change_takes_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": 42,\n"
+            }),
+        );
+
+        assert_eq!(payload["tier"]["decision"], "full");
+        assert_eq!(payload["tier"]["reason"], "patch-not-safelisted");
+    }
+
+    /// CIB-006 near-miss: adding a key is a structural change and must
+    /// take the full pipeline.
+    #[test]
+    fn near_miss_key_addition_takes_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(workspace.path(), "config.json", CIB006_FIXTURE);
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2,2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"old-name\",\n+  \"extra\": \"added\",\n"
+            }),
+        );
+
+        assert_eq!(payload["tier"]["decision"], "full");
+        assert_eq!(payload["tier"]["reason"], "patch-not-safelisted");
+    }
+
+    /// CIB-006 near-miss: a `.json` file whose on-disk content is not
+    /// valid JSON cannot be structurally diffed and must take the full
+    /// pipeline.
+    #[test]
+    fn near_miss_invalid_json_takes_full_path() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(
+            workspace.path(),
+            "config.json",
+            "{ not valid json: old-name\n",
+        );
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -1 +1 @@\n-{ not valid json: old-name\n+{ not valid json: new-name\n"
+            }),
+        );
+
+        assert_eq!(payload["tier"]["decision"], "full");
+        assert_eq!(payload["tier"]["reason"], "patch-not-safelisted");
     }
 
     /// CIB-005 / adversarial review: a pure-insertion hunk of the
@@ -2612,6 +3476,12 @@ mod tests {
 
         assert_eq!(payload["decision"], "allow");
         assert_eq!(payload["correlation"]["partialScan"], true);
+        // CIB-006: preview-based partial validation is a full-tier
+        // response with its own recorded reason.
+        assert_eq!(
+            payload["tier"],
+            json!({ "decision": "full", "reason": "preview" })
+        );
     }
 
     #[test]
