@@ -38,12 +38,14 @@ env:
   PULUMI_STACK_UP: prod
 
 jobs:
-  # Check if Azure infrastructure secrets are configured
+  # Check if Azure infrastructure secrets are configured. Gated to push only:
+  # it exists solely to gate the trusted `up` job, and evaluating the ARM
+  # secrets in pull_request-triggered runs would contradict the preview job's
+  # credential-free contract (CIB-136) even though no PR code is checked out.
   check-secrets:
     name: Check Azure Secrets
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
+    if: github.event_name == 'push'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     outputs:
       azure-configured: ${{ steps.check.outputs.configured }}
     steps:

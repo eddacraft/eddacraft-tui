@@ -23,11 +23,12 @@ fi
 
 tmp="${file}.ci-stripped"
 
-# Drop the top-level `backend:` key and every line indented beneath it
-# (including blank lines within the block). A nested `backend:` under another
-# key is intentionally left alone — only the project-level backend pins state.
+# Drop the top-level `backend:` key (quoted or unquoted) and every line
+# indented beneath it (including blank lines within the block). A nested
+# `backend:` under another key is intentionally left alone — only the
+# project-level backend pins state.
 awk '
-  /^backend:/          { skip = 1; next }
+  /^["'\'']?backend["'\'']?[[:space:]]*:/ { skip = 1; next }
   skip == 1 && /^$/     { next }
   skip == 1 && /^[[:space:]]/ { next }
   { skip = 0; print }
@@ -35,10 +36,11 @@ awk '
 mv "${tmp}" "${file}"
 
 # Fail-fast belt-and-braces. grep exits 0 on a match, so a match here means the
-# strip did NOT remove the backend and we must refuse the preview. The second
-# check catches reformats the first misses (e.g. a quoted `"backend":` key)
-# where the azblob state URL would otherwise survive.
-if grep -q '^backend:' "${file}"; then
+# strip did NOT remove the backend and we must refuse the preview. The first
+# check refuses ANY surviving top-level backend key — quoted or unquoted,
+# whatever the URL scheme; the second independently catches an azblob state
+# URL surviving anywhere in the file.
+if grep -Eq "^[\"']?backend[\"']?[[:space:]]*:" "${file}"; then
   echo "::error::backend block still present in ${file} after strip — refusing credential-free preview" >&2
   exit 1
 fi

@@ -72,19 +72,43 @@ grep -q '^backend:' "${inline}" && fail 'case3: inline backend survived the stri
 grep -q 'azblob://' "${inline}" && fail 'case3: azblob URL survived inline strip'
 grep -q '^runtime:' "${inline}" || fail 'case3: dropped key after inline backend'
 
-# --- Case 4: a reformat the awk pattern misses MUST trip the assertion ---------
-# A quoted top-level key `"backend":` is valid YAML but is not matched by the
-# `^backend:` awk rule, so the azblob URL survives — the fail-fast must fire.
+# --- Case 4: quoted top-level key strips cleanly (any URL scheme) ------------
+# `"backend":` is valid YAML; the strip must remove it — including when the
+# backend is NOT azblob, where only the key assertion (not the azblob catch)
+# stands between a reformat and the preview reconnecting to remote state.
 quoted=$(make_yaml quoted \
   'name: anvil-iac' \
   '"backend":' \
-  '  url: azblob://pulumi-state')
+  '  url: s3://some-other-remote-state')
 
-if bash "${stripper}" "${quoted}" 2>"${tmp_dir}/quoted.err"; then
-  fail 'case4: expected non-zero exit when the backend could not be stripped'
+bash "${stripper}" "${quoted}"
+grep -Eq '^["'"'"'"]?backend' "${quoted}" && fail 'case4: quoted backend survived the strip'
+grep -q 's3://' "${quoted}" && fail 'case4: remote state URL survived the strip'
+grep -q '^name: anvil-iac' "${quoted}" || fail 'case4: dropped unrelated top-level key'
+
+# --- Case 4b: single-quoted key strips cleanly --------------------------------
+squoted=$(make_yaml squoted \
+  "name: anvil-iac" \
+  "'backend':" \
+  "  url: azblob://pulumi-state" \
+  "runtime:" \
+  "  name: nodejs")
+
+bash "${stripper}" "${squoted}"
+grep -q 'backend' "${squoted}" && fail 'case4b: single-quoted backend survived the strip'
+grep -q '^runtime:' "${squoted}" || fail 'case4b: dropped key after backend'
+
+# --- Case 4c: a reformat the awk pattern misses MUST trip an assertion --------
+# A root-level flow mapping keeps the whole document on one line starting with
+# `{`, which the line-oriented awk cannot strip — the azblob fail-fast fires.
+flowroot=$(make_yaml flowroot \
+  '{ "backend": { url: "azblob://pulumi-state" }, name: anvil-iac }')
+
+if bash "${stripper}" "${flowroot}" 2>"${tmp_dir}/flowroot.err"; then
+  fail 'case4c: expected non-zero exit when the backend could not be stripped'
 fi
-grep -q 'refusing credential-free preview' "${tmp_dir}/quoted.err" ||
-  fail 'case4: missing fail-fast error message'
+grep -q 'refusing credential-free preview' "${tmp_dir}/flowroot.err" ||
+  fail 'case4c: missing fail-fast error message'
 
 # --- Case 5: missing file fails closed ----------------------------------------
 if bash "${stripper}" "${tmp_dir}/does-not-exist.yaml" 2>/dev/null; then
