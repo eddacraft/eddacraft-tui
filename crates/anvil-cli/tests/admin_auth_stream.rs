@@ -46,6 +46,7 @@ fn run_admin_list_unauthenticated(json: bool) -> Output {
         .env("XDG_CONFIG_HOME", home.path().join("xdg"))
         .env_remove("ANVIL_ADMIN_KEY")
         .env_remove("ANVIL_DEV")
+        .env("ANVIL_LOG", "off")
         .env("ANVIL_SKIP_WELCOME", "1")
         .env("ANVIL_NO_PROMPT", "1");
     cmd.output().expect("failed to invoke anvil binary")
