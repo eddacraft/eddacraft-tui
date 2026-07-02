@@ -1367,7 +1367,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |
 | `byteorder` | 1.5.0 | MIT License | https://github.com/BurntSushi/byteorder |
 | `globset` | 0.4.18 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/globset |
-| `ignore` | 0.4.26 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/ignore |
+| `ignore` | 0.4.27 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/ignore |
 | `memchr` | 2.8.2 | MIT License | https://github.com/BurntSushi/memchr |
 | `termcolor` | 1.4.1 | MIT License | https://github.com/BurntSushi/termcolor |
 | `walkdir` | 2.5.0 | MIT License | https://github.com/BurntSushi/walkdir |
