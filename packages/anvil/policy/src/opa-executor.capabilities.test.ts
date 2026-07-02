@@ -298,6 +298,28 @@ describe('OPAExecutor capabilities restriction (CIB-108)', () => {
     expect(result.error).toContain('http.send');
     expect(result.error).toMatch(/not permitted/);
   });
+
+  it('surfaces stderr when opa test exits non-zero without JSON output', async () => {
+    // A denied built-in in a test file makes `opa test` fail compilation:
+    // non-zero exit, compile error on stderr, empty stdout. The runner must
+    // report the stderr detail, not a bare JSON parse error.
+    const binary = join(tempDir, platform() === 'win32' ? 'opa.cmd' : 'opa');
+    writeScript(binary, deniedBuiltinErrorScript());
+
+    const testFile = join(tempDir, 'exfil_test.rego');
+    writeFileSync(testFile, 'package test\n\ntest_exfil { true }\n');
+
+    const executor = new OPAExecutor(binary, { timeout: 5000 });
+    const result = await executor.runTests(
+      [policy('test_policy', 'package anvil.policies.test_policy')],
+      [testFile]
+    );
+
+    expect(result.passed).toBe(0);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0]).toContain('http.send');
+    expect(result.errors[0]).toMatch(/not permitted/);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -404,7 +404,18 @@ export class OPAExecutor {
         }
       );
 
-      const results = JSON.parse(spawnResult.stdout);
+      let results: Array<{ name?: string; fail?: boolean; error?: { message?: string } }>;
+      try {
+        results = JSON.parse(spawnResult.stdout);
+      } catch (parseError) {
+        if (spawnResult.code !== 0) {
+          // `opa test` failed before producing JSON — e.g. a denied built-in
+          // fails compilation under --capabilities (CIB-108). Surface the
+          // stderr detail rather than a bare JSON parse error.
+          throw new Error(this.describeEvalFailure(spawnResult), { cause: parseError });
+        }
+        throw parseError;
+      }
       const details: Array<{ name: string; passed: boolean; message?: string }> = [];
       let passed = 0;
       let failed = 0;

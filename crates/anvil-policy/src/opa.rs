@@ -421,23 +421,70 @@ impl OpaExecutor {
     /// remove the denied built-ins and empty `allow_net` as defence in
     /// depth (an empty allowlist denies every host even if a
     /// network-capable built-in slipped through).
+    ///
+    /// Uses the same drain-then-`wait_timeout` strategy as `evaluate`: this
+    /// runs (memoised) on the default gate path, so a hung binary must fail
+    /// closed within the executor timeout instead of stalling the gate, and
+    /// the capabilities document is large enough to fill an OS pipe buffer.
     fn derive_restricted_capabilities(&self) -> Result<String, String> {
-        let output = Command::new(&self.binary_path)
+        let mut child = Command::new(&self.binary_path)
             .args(["capabilities", "--current"])
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|e| e.to_string())?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        let mut stdout_handle = child
+            .stdout
+            .take()
+            .expect("stdout is piped above; take() is called once");
+        let mut stderr_handle = child
+            .stderr
+            .take()
+            .expect("stderr is piped above; take() is called once");
+        let stdout_reader = std::thread::spawn(move || -> std::io::Result<Vec<u8>> {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut stdout_handle, &mut buf)?;
+            Ok(buf)
+        });
+        let stderr_reader = std::thread::spawn(move || -> std::io::Result<Vec<u8>> {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut stderr_handle, &mut buf)?;
+            Ok(buf)
+        });
+
+        let timeout = std::time::Duration::from_millis(self.timeout_ms);
+        let Some(status) = child.wait_timeout(timeout).map_err(|e| e.to_string())? else {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return Err(format!(
+                "opa capabilities timed out after {}ms",
+                self.timeout_ms
+            ));
+        };
+
+        let stdout_bytes = stdout_reader
+            .join()
+            .map_err(|e| format!("stdout reader thread panicked: {e:?}"))?
+            .map_err(|e| e.to_string())?;
+        let stderr_bytes = stderr_reader
+            .join()
+            .map_err(|e| format!("stderr reader thread panicked: {e:?}"))?
+            .map_err(|e| e.to_string())?;
+
+        if !status.success() {
+            let stderr = String::from_utf8_lossy(&stderr_bytes);
             let stderr = stderr.trim();
             return Err(if stderr.is_empty() {
-                format!("opa capabilities exited with status {}", output.status)
+                format!("opa capabilities exited with status {status}")
             } else {
                 stderr.to_string()
             });
         }
 
-        let mut capabilities: serde_json::Value = serde_json::from_slice(&output.stdout)
+        let mut capabilities: serde_json::Value = serde_json::from_slice(&stdout_bytes)
             .map_err(|e| format!("opa capabilities returned invalid JSON: {e}"))?;
 
         let Some(builtins) = capabilities
@@ -1080,6 +1127,43 @@ fi
         assert!(
             msg.contains("capabilities subcommand unsupported"),
             "expected underlying stderr detail, got {msg:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn capabilities_derivation_times_out_on_hanging_binary() {
+        // The derivation runs (memoised) on the default gate path, so a hung
+        // binary must fail closed within the executor timeout rather than
+        // stalling the gate indefinitely. `exec` for the same pipe-holding
+        // reason as evaluate_times_out_on_hanging_binary.
+        let dir = tempfile::TempDir::new().unwrap();
+        let script = write_fake_opa_script(
+            dir.path(),
+            "fake_opa_caps_hang",
+            "if [ \"$1\" = \"capabilities\" ]; then\n\
+             \x20 exec sleep 30\n\
+             fi\n\
+             echo '{\"result\":[]}'\n",
+        );
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(200));
+        let start = std::time::Instant::now();
+        let err = executor
+            .evaluate(&[], &serde_json::json!({}))
+            .expect_err("hung capabilities derivation must fail closed");
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(10),
+            "derivation must respect the executor timeout, took {:?}",
+            start.elapsed()
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("refusing to evaluate"),
+            "expected fail-closed wording, got {msg:?}"
+        );
+        assert!(
+            msg.contains("timed out"),
+            "expected timeout detail, got {msg:?}"
         );
     }
 
