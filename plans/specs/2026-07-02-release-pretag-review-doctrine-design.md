@@ -106,11 +106,11 @@ if a future tag's runbook collapses to "see release-process.md plus N additions"
 
 ### 2. The two pre-tag review gates (promoted, tag-agnostic)
 
-- **Gate A — adversarial sweep.** A whole-repo adversarial review of the release
-  window, output committed as durable JSON under `plans/audits/`. Critical
-  findings auto-block; highs are enumerated for the council to triage. Bound to
-  the **current** sweep mechanism, not the v0.7.0 clawpatch commands verbatim
-  (see [D3](#d3--adversarial-sweep-mechanism)).
+- **Gate A — adversarial sweep (`clawpatch`).** The operator's `claw-sweep` over
+  the release window, output committed as durable JSON under `plans/audits/`.
+  Critical findings auto-block; highs are enumerated for the council to triage.
+  This is the live tool, carried forward as-is from the v0.7.0 §1 doctrine (see
+  [D3](#d3--adversarial-sweep-mechanism)).
 - **Gate B — council review.** A multi-persona `release`-tier council over the
   union of (a) Gate A's findings and (b) the full release diff
   `<prior-tag>..<candidate-sha>`. Judge produces a ship / fix / defer verdict per
@@ -212,15 +212,18 @@ runbook · (B) a `.claude/skills/release-process/` skill.
 **Recommendation: 1 now** (delivers Josh's ask cheaply); defer 2.
 
 ### D3 — Adversarial-sweep mechanism
-The v0.7.0 doctrine ran `clawpatch` (`claw-sweep`) via the release engineer's
-shell aliases. The clawpatch **finding tracker** was archived (CIB-039); it is
-unclear the `clawpatch` **tool** is still the intended pre-tag sweep vs the newer
-`code-review` skill **RELEASE tier** / `/code-review ultra` (multi-agent cloud
-review). **Open question for sign-off:** which mechanism is Gate A?
-**Recommendation:** bind Gate A to the **`code-review` RELEASE tier** (current,
-maintained, produces a reviewable artefact) and treat clawpatch as an optional
-additional sweep only if still run. This avoids resurrecting a possibly-retired
-command block.
+**Gate A is `clawpatch`** — the operator still runs it (`claw-sweep` / `claw-map`
+per the v0.7.0 doctrine); it is the live adversarial-sweep tool, not retired.
+(Only the *per-release finding tracker* `plans/archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`
+was archived, via CIB-039, once that release's CLAWP-001…065 findings were all
+dispositioned — normal lifecycle for a finding tracker, unrelated to the tool.)
+**Recommendation:** keep Gate A = clawpatch, exactly as the v0.7.0 §1 doctrine
+described it (full `claw-sweep`, JSON report committed under `plans/audits/`,
+critical → block, high → council triage). **Open question (optional):** whether to
+*also* run the newer `code-review` RELEASE tier / `/code-review ultra` as a
+complementary lens alongside clawpatch, or keep Gate A clawpatch-only. Default:
+clawpatch-only, matching current practice — add the second lens only if the
+operator wants it.
 
 ### D4 — Which tags require the gate
 Once §2.5 removes the re-cut tax, "which tags" stops being a cost question —
@@ -267,8 +270,9 @@ to skip patch tags (cost) no longer applies.
   to a full-window re-sweep (e.g. an operator re-runs the whole council out of
   caution), the pain returns. The delta-only re-review + carry-forward capsule
   must be the *documented default*, and the runbook must state it explicitly.
-- **Tooling drift:** binding Gate A to `code-review` RELEASE tier assumes that
-  skill is the maintained adversarial-review surface; confirm before RELORCH-A.
+- **Correction (2026-07-02):** an earlier draft wrongly implied clawpatch might
+  be retired — it conflated the archived *v0.7.0-beta finding tracker* (CIB-039)
+  with the tool. clawpatch is live and in use; Gate A stays clawpatch (D3).
 - **plans/ formatting:** these artefacts live under `plans/` (excluded from
   oxfmt); the templates must still pass `docs:check`/APS lint if placed where
   those gates run.
