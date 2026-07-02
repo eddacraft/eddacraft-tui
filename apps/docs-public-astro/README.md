@@ -1,9 +1,9 @@
 # docs-public-astro (SPIKE — not for production)
 
-A throwaway **Astro 7 + Starlight 0.41** rebuild of [`apps/docs-public`](../docs-public)
-(Docusaurus), scoped to the **APS section only**, built to de-risk a full
-Docusaurus → Astro migration before committing to it. Sits alongside the
-Docusaurus app so the two can be diffed directly.
+A throwaway **Astro 7 + Starlight 0.41** rebuild of
+[`apps/docs-public`](../docs-public) (Docusaurus), scoped to the **APS section
+only**, built to de-risk a full Docusaurus → Astro migration before committing
+to it. Sits alongside the Docusaurus app so the two can be diffed directly.
 
 > Migration context and the Path A vs Path B decision live in the PR
 > description. This README is the "what the spike proves" record.
@@ -22,9 +22,9 @@ pipeline are the stable default in 7), 9 APS pages + Pagefind index in ~2.4s:
 2. **Routing parity** — pages emit at `/aps/<...>/` directory URLs, matching the
    prefix the shell proxy rewrites to this upstream.
 3. **The asset-path sharp edge is handled** — `build.assets: 'assets'`
-   (`astro.config.mjs`) forces hashed assets under `/assets/` instead of
-   Astro's default `/_astro/`, so they fall under a prefix the shell proxy
-   matcher already forwards. Verified: `dist/` has no `_astro/`, and built pages
+   (`astro.config.mjs`) forces hashed assets under `/assets/` instead of Astro's
+   default `/_astro/`, so they fall under a prefix the shell proxy matcher
+   already forwards. Verified: `dist/` has no `_astro/`, and built pages
    reference `/assets/*.css|js`.
 4. **Search, scoped to public content** — Pagefind builds from this app's output
    only. Because the app contains public APS content alone, the index is
@@ -46,8 +46,8 @@ pipeline are the stable default in 7), 9 APS pages + Pagefind index in ~2.4s:
   plugin + `@astrojs/rss` (Atom is manual). Decision deferred.
 - **Theme parity** — uses Starlight defaults. Navbar/footer/custom CSS from
   `docs-public` not reproduced.
-- **The private app** (`anvil-docs-private`, the gated `/anvil/*` upstream) — out
-  of scope; Path A migrates it the same way as a second step.
+- **The private app** (`anvil-docs-private`, the gated `/anvil/*` upstream) —
+  out of scope; Path A migrates it the same way as a second step.
 - **`docs:check` / DOCGOV** — unchanged; it globs `docs/**`, framework-agnostic.
 
 ## Run it
