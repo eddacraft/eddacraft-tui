@@ -140,20 +140,21 @@ anvil start
 ```
 
 `anvil start` is the activation entrypoint. It runs `anvil init` if needed,
-baselines the repo, wires detected Cursor and Claude Code MCP entries (writing
-the matching `~/.cursor/mcp.json` or `~/.claude.json` config), and ends in one
-literal protection state. Pass `--all-mcp-clients` or set
-`ANVIL_ALL_MCP_CLIENTS=1` to configure every supported client even if it was not
-detected. In the current release window, an interactive terminal also
-auto-starts the per-user save-time daemon (Linux and macOS) and reports the
-result on a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to
-suppress that auto-start — a daemon already running is still reused — and note
-`--verify` never starts a daemon. The protection state is one of:
+baselines the repo, wires MCP entries for the MCP-capable editors it detects
+(currently Cursor and Claude Code, writing the matching `~/.cursor/mcp.json` or
+`~/.claude.json` config), and ends in one literal protection state. Pass
+`--all-mcp-clients` or set `ANVIL_ALL_MCP_CLIENTS=1` to configure every
+supported client even if it was not detected. In the current release window, an
+interactive terminal also auto-starts the per-user save-time daemon (Linux and
+macOS) and reports the result on a `daemon:` line; pass `--no-daemon` (or set
+`ANVIL_NO_DAEMON=1`) to suppress that auto-start — a daemon already running is
+still reused — and note `--verify` never starts a daemon. The protection state
+is one of:
 
 - `protecting` — MCP pre-write validation is live
-- `ready_restart_required` — config is wired, restart Cursor/Claude Code to pick
-  it up, or follow the daemon repair hint if the daemon is unreachable,
-  unenforced, stale, or all-quarantined
+- `ready_restart_required` — config is wired, restart your editor to pick it up,
+  or follow the daemon repair hint if the daemon is unreachable, unenforced,
+  stale, or all-quarantined
 - `watching` — save-time watch fallback active (MCP could not attach)
 - `needs_action` — repair hint provided
 - `unsupported` — repo language profile is out of scope for this release
@@ -205,10 +206,10 @@ the finding anvil raises in your own repo — follow
 
 ## 5. Connect Your AI Editor (MCP)
 
-`anvil start` already wires MCP entries for detected Cursor and Claude Code
-installs. To finish the connection:
+`anvil start` already wires MCP entries for the MCP-capable editors it detects
+(currently Cursor and Claude Code). To finish the connection:
 
-1. Restart Cursor or Claude Code so it picks up the new MCP entry.
+1. Restart your editor so it picks up the new MCP entry.
 2. Check that `anvil` appears in the editor's MCP server list.
 3. Ask the AI to make a change you know is wrong — the `anvil_validate_write`
    tool should refuse it before the write lands.
