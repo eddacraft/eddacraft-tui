@@ -79,16 +79,26 @@ function mockGithubUpstream(spec: { status?: number; json?: unknown } = {}) {
 }
 
 let ipCounter = 0;
-/** Unique per-test source IP so the per-IP limiter never bleeds across tests. */
+/**
+ * Unique per-test source IP so the per-IP limiter never bleeds across tests.
+ * The limiter now IP-shape-validates its key (CIB-140), so the value must stay
+ * a valid IPv4 — spread the counter across two octets rather than overflowing
+ * the last one past 255.
+ */
 function freshIp(): string {
   ipCounter += 1;
-  return `192.0.2.${ipCounter}`;
+  const third = Math.floor(ipCounter / 250) % 256;
+  const fourth = (ipCounter % 250) + 1; // 1..250, never 0 or >255
+  return `192.0.${third}.${fourth}`;
 }
 
+// The per-IP limiter keys on the Vercel-established client identity, not the
+// client-suppliable `x-forwarded-for` (CIB-140). Drive it via `x-real-ip`,
+// which is the header Vercel's edge sets to the observed client IP.
 function start(body: unknown, ip = freshIp()) {
   return app.request('/auth/github-device/start', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip },
+    headers: { 'Content-Type': 'application/json', 'x-real-ip': ip },
     body: JSON.stringify(body),
   });
 }
@@ -295,6 +305,32 @@ describe('POST /auth/github-device/start', () => {
       expect(eleventh.status).toBe(429);
     });
 
+    it('cannot be evaded by rotating a spoofed multi-hop X-Forwarded-For (CIB-140)', async () => {
+      mockGithubUpstream();
+      // Same Vercel-established identity (x-real-ip) every time, but each
+      // request forges a different two-hop X-Forwarded-For prefix. The limiter
+      // must key on the trusted identity, so the spoofed chain buys no extra
+      // budget and the 11th request is still rejected.
+      const trustedIp = '198.51.100.88';
+      const spoof = (n: number) => `evil-${n}, 203.0.113.${n}`;
+
+      const request = (n: number) =>
+        app.request('/auth/github-device/start', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-real-ip': trustedIp,
+            'x-forwarded-for': spoof(n),
+          },
+          body: JSON.stringify({}),
+        });
+
+      for (let i = 0; i < 10; i++) {
+        expect((await request(i)).status).toBe(200);
+      }
+      expect((await request(99)).status).toBe(429);
+    });
+
     // The route mounts globalRateLimiter({ max: 60 }); exhausting that
     // module-level instance here would be order-dependent across the suite.
     // Instead prove the middleware's cross-IP shared budget on a fresh
@@ -399,7 +435,9 @@ function mockGithubPollUpstream(tokenJson?: unknown) {
 function poll(body: unknown, ip = freshIp()) {
   return app.request('/auth/github-device/poll', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip },
+    // See `start`: the limiter keys on `x-real-ip` (Vercel-established), not
+    // the spoofable `x-forwarded-for` (CIB-140).
+    headers: { 'Content-Type': 'application/json', 'x-real-ip': ip },
     body: JSON.stringify(body),
   });
 }
