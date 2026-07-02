@@ -50,7 +50,7 @@ function resolveChangeActor(): string {
 // CIB-119: admin keys are rows in the PRODUCTION database, written via a
 // local command with the production connection string in its environment.
 // Only the trusted prod stack may define them; untrusted stacks (for example
-// the PR-preview `dev` stack) provision nothing and read no secrets here.
+// the PR-preview `ci-preview` stack) provision nothing and read no secrets here.
 function defineAdminKeys(): PerOperatorAdminKey[] {
   const databaseUrl = getSecret('anvil-api-database-url');
   const pepper = getSecret('admin-key-pepper');

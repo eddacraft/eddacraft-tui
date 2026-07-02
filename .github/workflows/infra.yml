@@ -30,7 +30,11 @@ permissions:
   pull-requests: write
 
 env:
-  PULUMI_STACK_PREVIEW: dev
+  # CIB-136: PR previews run an untrusted, synthetic stack against a throwaway
+  # local Pulumi backend. `ci-preview` is not `prod`, so the stack-trust gating
+  # in infra/src/*.ts (CIB-119) keeps every production secret and resource out
+  # of the PR-controlled preview.
+  PULUMI_STACK_PREVIEW: ci-preview
   PULUMI_STACK_UP: prod
 
 jobs:
@@ -57,11 +61,28 @@ jobs:
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
 
   preview:
-    name: Pulumi Preview
-    needs: check-secrets
+    name: Pulumi Preview (untrusted — validates, does not diff prod)
+    # CIB-136: the preview runs PR-controlled code (pnpm lifecycle scripts and
+    # the Pulumi program itself). It therefore carries NO Azure login, NO Key
+    # Vault fetch and NONE of the production Pulumi/ARM/Vercel/Storage secrets.
+    # The ONLY credential reachable by PR code here is the job's own ephemeral
+    # GITHUB_TOKEN (contents: read, pull-requests: write) used to post the
+    # preview comment — pre-existing and repo-scoped, but not "no secrets at
+    # all". It is deliberately decoupled from `check-secrets` (which gates the
+    # trusted `up` job) because it no longer needs any Azure credential to run.
+    #
+    # TRADEOFF (CIB-119 security model, completed by CIB-136): the preview runs
+    # against an untrusted synthetic stack, and on an untrusted stack every
+    # production resource is gated off at source (keyvault reads become markers;
+    # vercel / signing / admin-keys / DNS define nothing). So `pulumi preview`
+    # here registers ZERO resources and always reports "no changes". This step
+    # validates that the Pulumi program loads and constructs cleanly WITHOUT any
+    # credential — it does NOT and CANNOT diff production resources. Real infra
+    # changes are only planned/applied by the trusted `up` job after merge. This
+    # is intentional: PR-controlled code must never be trusted with prod state.
     if: >-
-      needs.check-secrets.outputs.azure-configured == 'true' && github.event_name == 'pull_request'
-      && github.event.pull_request.head.repo.full_name == github.repository
+      github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name ==
+      github.repository
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
@@ -81,39 +102,47 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Azure Login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          creds:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
-
-      - name: Fetch Vercel token from Key Vault
+      - name: Prepare credential-free preview backend
+        # The preview must not touch the production azblob Pulumi state (that
+        # would need the storage-account key, a secret we must keep away from PR
+        # code). Instead we point Pulumi at a throwaway local backend and a
+        # synthetic untrusted stack. Because that stack is not `prod`, the
+        # CIB-119 gating in infra/src/*.ts resolves every secret to an
+        # `<untrusted-stack-secret:...>` marker and defines no production
+        # resource, so the preview runs with zero credentials.
         run: |
-          VERCEL_TOKEN=$(az keyvault secret show --vault-name kv-iac-anvil --name vercel-token --query value -o tsv)
-          echo "::add-mask::$VERCEL_TOKEN"
-          echo "VERCEL_TOKEN=$VERCEL_TOKEN" >> "$GITHUB_ENV"
+          # Drop the committed azblob backend pin so the local login is honoured
+          # (only edits the ephemeral CI checkout). The helper fails closed if
+          # the backend or its azblob URL survives the strip — see
+          # scripts/ci/strip-pulumi-backend.sh and its fixture test.
+          bash scripts/ci/strip-pulumi-backend.sh infra/Pulumi.yaml
+          # Ephemeral, non-secret passphrase for the local backend's secrets
+          # provider. This is NOT the production PULUMI_CONFIG_PASSPHRASE — the
+          # synthetic stack lives only on this runner's filesystem and is
+          # discarded when the job ends.
+          echo "PULUMI_CONFIG_PASSPHRASE=ci-preview-not-a-secret" >> "$GITHUB_ENV"
 
-      - name: Pulumi Preview
+      - name: Pulumi Preview (untrusted stack, no production secrets)
         uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7.0.0
         with:
           command: preview
           stack-name: ${{ env.PULUMI_STACK_PREVIEW }}
           work-dir: infra
-          cloud-url: azblob://pulumi-state
+          # Throwaway local backend — no azblob, so no storage-account key.
+          cloud-url: file://~
+          # Create the synthetic untrusted stack on first run.
+          upsert: true
           comment-on-pr: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          # This step executes the PR-controlled Pulumi program. The one
+          # credential it can reach is the ephemeral GITHUB_TOKEN below
+          # (contents: read, pull-requests: write), needed to post the preview
+          # comment — pre-existing and repo-scoped. No Azure, Vercel or
+          # production Pulumi credentials reach this job. The local backend's
+          # passphrase set in the previous step is a non-secret throwaway, not
+          # the production one.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
-          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
-          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-          VERCEL_API_TOKEN: ${{ env.VERCEL_TOKEN }}
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
   up:
     name: Pulumi Up

@@ -59,7 +59,7 @@ export async function readSecretValue(secretName: string): Promise<string> {
 }
 
 // CIB-119: secret reads are gated by stack trust. Untrusted stacks (for
-// example the `dev` stack used for PR previews) never contact Key Vault;
+// example the `ci-preview` stack used for PR previews) never contact Key Vault;
 // they resolve to an explicit marker so nothing downstream can mistake the
 // value for a live credential.
 export function getSecret(secretName: string): pulumi.Output<string> {

@@ -22,7 +22,11 @@ describe('DNS resources', () => {
         },
       },
       'test-project',
-      'test-stack',
+      // CIB-136: DNS is gated to the trusted `prod` stack (it reads/writes the
+      // live Azure DNS zone). The provisioning assertions below must therefore
+      // run under `prod`; untrusted-stack gating is covered by
+      // untrusted-stack.test.ts.
+      'prod',
       false
     );
 

@@ -299,6 +299,7 @@ jobs:
           pnpm test:ci-drift-integration
           pnpm test:ci-workflow-contracts
           pnpm test:ci-mirror-hardening
+          pnpm test:ci-infra-preview-strip
           pnpm test:aps-index
           pnpm test:release-sign-artefacts
           pnpm test:wt-cleanup-sweep

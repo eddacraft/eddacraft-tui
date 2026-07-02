@@ -1,7 +1,8 @@
 // CIB-119: single source of truth for which Pulumi stacks are trusted to
 // read production secrets and define production resources.
 //
-// The CI PR preview runs the `dev` stack with PR-controlled code, so it must
+// The CI PR preview runs an untrusted `ci-preview` stack with PR-controlled
+// code (CIB-136), so it must
 // never receive live secret values or define resources whose physical names
 // collide with production (Vercel projects, the signing account, admin-key
 // rows in the production database). Only stacks named here are trusted;
