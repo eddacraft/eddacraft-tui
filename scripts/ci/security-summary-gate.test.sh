@@ -32,23 +32,22 @@ cleanup() {
 trap cleanup EXIT
 
 # extract_script <workflow.yml> — print the summary job's github-script body.
+# Node + the repo's `yaml` package (same toolchain as the other CI fixture
+# tests, e.g. fast-pr-validation.test.sh) so the test needs no PyYAML.
 extract_script() {
-  python3 - "$1" <<'PY'
-import sys
-import yaml
+  NODE_PATH="${repo_root}/node_modules" node - "$1" <<'JS'
+const fs = require('fs');
+const yaml = require('yaml');
 
-wf = yaml.safe_load(open(sys.argv[1]))
-summary = wf["jobs"]["summary"]
-script = None
-for step in summary.get("steps", []):
-    if "github-script" in step.get("uses", ""):
-        script = step["with"]["script"]
-        break
-if script is None:
-    sys.stderr.write("could not find github-script step in summary job\n")
-    sys.exit(2)
-sys.stdout.write(script)
-PY
+const wf = yaml.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const steps = (wf.jobs && wf.jobs.summary && wf.jobs.summary.steps) || [];
+const step = steps.find((s) => typeof s.uses === 'string' && s.uses.includes('github-script'));
+if (!step || !step.with || typeof step.with.script !== 'string') {
+  process.stderr.write('could not find github-script step in summary job\n');
+  process.exit(2);
+}
+process.stdout.write(step.with.script);
+JS
 }
 
 # run_gate <script-body-file> — for each fixture, print "NAME<TAB>PASS|FAIL"
