@@ -4249,7 +4249,7 @@ archive.
 
 ### CIB-155: Make Security Summary fail when its security scan jobs fail
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3103
 - **Intent:** "Security Summary" is a required ruleset context, but its job
   runs `if: always()` and its `actions/github-script` step never calls
   `core.setFailed` based on the scan results — its conclusion is decoupled
