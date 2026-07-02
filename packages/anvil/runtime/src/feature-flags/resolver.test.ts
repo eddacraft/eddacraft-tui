@@ -266,7 +266,43 @@ describe('resolveFlag', () => {
       expect(resolveFlag(flag, ctx).variant).toBe('enabled');
     });
 
-    it('segment operator resolves to default variant with unimplemented_operator reason', () => {
+    // CIB-117: segment acts as string equality, reconciled with the Rust
+    // kernel resolver (C-011) and docs/guides/feature-flag-reference.md.
+    it('segment operator matches when the attribute equals the value (Rust parity)', () => {
+      const flag = booleanFlag({
+        targeting: [
+          {
+            conditions: [{ attribute: 'cohort', operator: 'segment', value: 'beta-testers' }],
+            variant: 'enabled',
+          },
+        ],
+      });
+      const ctx = prodContext({
+        audience: { cohort: 'beta-testers' },
+      } as Partial<EvaluationContext>);
+      const result = resolveFlag(flag, ctx);
+      expect(result.variant).toBe('enabled');
+      expect(result.reason).toBe('targeting_match');
+    });
+
+    it('segment operator does not match when the attribute differs', () => {
+      const flag = booleanFlag({
+        targeting: [
+          {
+            conditions: [{ attribute: 'cohort', operator: 'segment', value: 'beta-testers' }],
+            variant: 'enabled',
+          },
+        ],
+      });
+      const ctx = prodContext({
+        audience: { cohort: 'general' },
+      } as Partial<EvaluationContext>);
+      const result = resolveFlag(flag, ctx);
+      expect(result.variant).toBe('disabled');
+      expect(result.reason).toBe('default');
+    });
+
+    it('segment operator does not match when the attribute is missing', () => {
       const flag = booleanFlag({
         targeting: [
           {
@@ -277,7 +313,43 @@ describe('resolveFlag', () => {
       });
       const result = resolveFlag(flag, prodContext());
       expect(result.variant).toBe('disabled');
-      expect(result.reason).toBe('unimplemented_operator');
+      expect(result.reason).toBe('default');
+    });
+
+    it('segment operator does not coerce-match a numeric value (single string values only)', () => {
+      const flag = booleanFlag({
+        targeting: [
+          {
+            conditions: [{ attribute: 'cohort', operator: 'segment', value: 42 }],
+            variant: 'enabled',
+          },
+        ],
+      });
+      const ctx = prodContext({
+        audience: { cohort: '42' },
+      } as Partial<EvaluationContext>);
+      const result = resolveFlag(flag, ctx);
+      expect(result.variant).toBe('disabled');
+      expect(result.reason).toBe('default');
+    });
+
+    it('segment operator does not match a set value (single values only, Rust parity)', () => {
+      const flag = booleanFlag({
+        targeting: [
+          {
+            conditions: [
+              { attribute: 'cohort', operator: 'segment', value: ['beta-testers', 'alpha'] },
+            ],
+            variant: 'enabled',
+          },
+        ],
+      });
+      const ctx = prodContext({
+        audience: { cohort: 'beta-testers' },
+      } as Partial<EvaluationContext>);
+      const result = resolveFlag(flag, ctx);
+      expect(result.variant).toBe('disabled');
+      expect(result.reason).toBe('default');
     });
 
     it('missing audience attribute does not match', () => {

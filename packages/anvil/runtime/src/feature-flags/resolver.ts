@@ -19,7 +19,6 @@ export type ResolutionReason =
   | 'default'
   | 'error'
   | 'disabled'
-  | 'unimplemented_operator'
   | 'invalid_override_fallthrough';
 
 export interface ResolutionDetails<T = unknown> {
@@ -109,7 +108,6 @@ export function resolveFlag(
   }
 
   // 3. Targeting rules
-  let hasUnimplementedOperator = false;
   if (flag.targeting) {
     for (const rule of flag.targeting) {
       if (evaluateRule(rule, context)) {
@@ -123,18 +121,10 @@ export function resolveFlag(
           };
         }
       }
-      // C-018: detect if any rule failed due to unimplemented operator
-      if (rule.conditions.some((c) => c.operator === 'segment')) {
-        hasUnimplementedOperator = true;
-      }
     }
   }
 
   // 4. Manifest default
-  // C-018: surface unimplemented operator so callers/telemetry can observe it
-  if (hasUnimplementedOperator) {
-    return resolveDefault(flag, 'unimplemented_operator');
-  }
   return resolveDefault(flag, 'default');
 }
 
@@ -200,8 +190,12 @@ function evaluateCondition(condition: TargetingCondition, context: EvaluationCon
     case 'percentage':
       return evaluatePercentage(context.targetingKey, Number(condition.value));
     case 'segment':
-      // C-018: segment is reserved for future segment lookup — always false
-      return false;
+      // CIB-117: segment acts as string equality, reconciled with the Rust
+      // kernel resolver (C-011) and docs/guides/feature-flag-reference.md;
+      // reserved for a future segment lookup. Only single string values
+      // match — no coercion — mirroring the Rust ConditionValue::Single arm.
+      if (actual === undefined) return false;
+      return typeof condition.value === 'string' && actual === condition.value;
     default:
       return false;
   }

@@ -147,6 +147,91 @@ describe('State File Operations', () => {
       expect(retrieved?.status).toBe('locked');
       expect(retrieved?.locked_by).toBe('testuser');
     });
+
+    // CIB-117: concurrent read-modify-write updates must not lose records.
+    // All calls are launched in the same tick so every unfenced writer would
+    // read the same initial snapshot and the last write would win.
+    it('concurrent updates for different tasks preserve every record', async () => {
+      const taskIds = Array.from({ length: 25 }, (_, i) => `RACE-${String(i).padStart(3, '0')}`);
+
+      await Promise.all(
+        taskIds.map((taskId) =>
+          updateTaskState(tempDir, taskId, {
+            status: 'locked',
+            locked_at: '2025-12-17T10:00:00.000Z',
+            locked_by: taskId,
+          })
+        )
+      );
+
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks).sort()).toEqual(taskIds);
+      for (const taskId of taskIds) {
+        expect(state.tasks[taskId]?.locked_by).toBe(taskId);
+      }
+    });
+
+    it('reaps an abandoned state file lock so a crashed writer cannot wedge updates', async () => {
+      // Simulate a writer that crashed mid-update: its lock file is left
+      // behind with an old mtime.
+      const lockPath = `${getStateFilePath(tempDir)}.lock`;
+      await fs.mkdir(dirname(lockPath), { recursive: true });
+      await fs.writeFile(lockPath, 'crashed-holder-token');
+      const past = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath, past, past);
+
+      await updateTaskState(tempDir, 'REAP-001', {
+        status: 'locked',
+        locked_at: '2025-12-17T10:00:00.000Z',
+        locked_by: 'reaper',
+      });
+
+      const state = await readStateFile(tempDir);
+      expect(state.tasks['REAP-001']?.locked_by).toBe('reaper');
+      // The lock must be released again after the update.
+      await expect(fs.access(lockPath)).rejects.toThrow();
+    });
+
+    it('multiple contenders racing to reap an abandoned lock preserve every record', async () => {
+      const lockPath = `${getStateFilePath(tempDir)}.lock`;
+      await fs.mkdir(dirname(lockPath), { recursive: true });
+      await fs.writeFile(lockPath, 'crashed-holder-token');
+      const past = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath, past, past);
+
+      const taskIds = Array.from(
+        { length: 10 },
+        (_, i) => `REAPRACE-${String(i).padStart(2, '0')}`
+      );
+      await Promise.all(
+        taskIds.map((taskId) =>
+          updateTaskState(tempDir, taskId, {
+            status: 'locked',
+            locked_at: '2025-12-17T10:00:00.000Z',
+            locked_by: taskId,
+          })
+        )
+      );
+
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks).sort()).toEqual(taskIds);
+    });
+
+    it('concurrent updates to the same task apply a single winner without corruption', async () => {
+      await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          updateTaskState(tempDir, 'SAME-001', {
+            status: 'locked',
+            locked_at: '2025-12-17T10:00:00.000Z',
+            locked_by: `writer-${i}`,
+          })
+        )
+      );
+
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks)).toEqual(['SAME-001']);
+      expect(state.tasks['SAME-001']?.status).toBe('locked');
+    });
   });
 
   describe('getStateFilePath / getExecutionsDir', () => {

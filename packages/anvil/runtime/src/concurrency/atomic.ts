@@ -205,6 +205,36 @@ export interface FileLockHandle {
 }
 
 /**
+ * Build a lock handle whose release verifies ownership before unlinking
+ * (CIB-117 fencing token).
+ *
+ * If a stale-lock reaper stole this lock while the holder was paused (GC
+ * pause, disk stall) and a new holder re-created it, the on-disk content no
+ * longer matches what this holder wrote — release then becomes a no-op
+ * instead of deleting the new holder's live lock. A small read→unlink window
+ * remains, but the token check shrinks the exposure from "any time after
+ * theft" to microseconds.
+ */
+function createLockHandle(lockPath: string, content: string): FileLockHandle {
+  return {
+    path: lockPath,
+    release: async () => {
+      try {
+        const current = await fs.readFile(lockPath, 'utf-8');
+        if (current !== content) {
+          debug(`Lock theft detected — not releasing ${lockPath} (held by another writer)`);
+          return;
+        }
+        await fs.unlink(lockPath);
+        debug(`Lock released: ${lockPath}`);
+      } catch (error) {
+        debug(`Lock release failed: ${lockPath}`, error);
+      }
+    },
+  };
+}
+
+/**
  * Acquire a file lock (blocks until acquired or timeout)
  */
 export async function acquireFileLock(
@@ -224,17 +254,7 @@ export async function acquireFileLock(
 
       debug(`Lock acquired: ${lockPath}`);
 
-      return {
-        path: lockPath,
-        release: async () => {
-          try {
-            await fs.unlink(lockPath);
-            debug(`Lock released: ${lockPath}`);
-          } catch (error) {
-            debug(`Lock release failed: ${lockPath}`, error);
-          }
-        },
-      };
+      return createLockHandle(lockPath, content);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
         // Unexpected error
@@ -267,17 +287,7 @@ export async function tryAcquireFileLock(
 
     debug(`Lock acquired: ${lockPath}`);
 
-    return {
-      path: lockPath,
-      release: async () => {
-        try {
-          await fs.unlink(lockPath);
-          debug(`Lock released: ${lockPath}`);
-        } catch (error) {
-          debug(`Lock release failed: ${lockPath}`, error);
-        }
-      },
-    };
+    return createLockHandle(lockPath, content);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
       return null;

@@ -251,7 +251,14 @@ export async function readStateFile(projectRoot: string): Promise<StateFile> {
 }
 
 /**
- * Write the state file, creating directories if needed
+ * Write the state file, creating directories if needed.
+ *
+ * NOTE (CIB-117): this is an *unfenced* whole-file replacement primitive —
+ * atomic against torn reads (temp file + rename) but last-write-wins. Do not
+ * build read-modify-write sequences on it directly, or concurrent writers can
+ * silently drop each other's task records. Use {@link updateTaskState} (which
+ * serialises the read-modify-write via `withStateFileLock`) for per-task
+ * updates, or wrap new multi-step mutations in the same lock.
  */
 export async function writeStateFile(projectRoot: string, state: StateFile): Promise<void> {
   const statePath = getStateFilePath(projectRoot);
@@ -279,6 +286,146 @@ export async function writeStateFile(projectRoot: string, state: StateFile): Pro
   }
 }
 
+// ----------------------------------------------------------------------------
+// State file write fencing (CIB-117)
+// ----------------------------------------------------------------------------
+
+/** How long to keep retrying for the state-file lock before failing. */
+const STATE_LOCK_TIMEOUT_MS = 5_000;
+
+/** Delay between state-file lock retries. */
+const STATE_LOCK_RETRY_MS = 5;
+
+/**
+ * Age after which a state-file lock is considered abandoned by a crashed
+ * holder and may be reaped. A live holder keeps it only for one
+ * read-modify-write of state.json.
+ */
+const STATE_LOCK_STALE_MS = 10_000;
+
+/**
+ * Run `fn` while holding an exclusive lock on the state file (CIB-117).
+ *
+ * `writeStateFile` is atomic against torn reads (temp file + rename) but
+ * last-write-wins, so unfenced read-modify-write updates can silently drop
+ * concurrently written task records. This helper serialises writers:
+ *
+ * 1. Create `state.json.lock` with O_EXCL — kernel-level atomicity means
+ *    exactly one writer (in this or any other process) holds it at a time.
+ *    The lock content is a unique fencing token for this holder.
+ * 2. On EEXIST, retry with a short delay until {@link STATE_LOCK_TIMEOUT_MS}.
+ *    A lock older than {@link STATE_LOCK_STALE_MS} was abandoned by a crashed
+ *    holder and is reaped via an atomic rename-aside, so exactly one
+ *    contender wins the reap even under contention. Only ENOENT (lock
+ *    released/reaped between attempts) is treated as benign; other
+ *    stat/rename failures are rethrown rather than silently retried.
+ * 3. The lock is removed in a `finally`, but only after verifying the on-disk
+ *    token still matches this holder's (fencing): if a reaper stole the lock
+ *    while this holder was paused past the stale threshold and a new holder
+ *    re-created it, release becomes a no-op instead of deleting the new
+ *    holder's live lock.
+ */
+async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): Promise<T> {
+  const statePath = getStateFilePath(projectRoot);
+  const lockPath = `${statePath}.lock`;
+  const token = randomBytes(16).toString('hex');
+  await fs.mkdir(dirname(statePath), { recursive: true });
+
+  const deadline = Date.now() + STATE_LOCK_TIMEOUT_MS;
+
+  for (;;) {
+    let fd: import('node:fs/promises').FileHandle | undefined;
+    try {
+      // 'wx' = O_CREAT | O_EXCL — fails with EEXIST if the lock exists
+      fd = await fs.open(lockPath, 'wx');
+      await fd.writeFile(token);
+      await fd.close();
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        // Clean up only if this process created the file (fd was assigned).
+        if (fd) {
+          await fd.close().catch(() => {});
+          await fs.unlink(lockPath).catch(() => {});
+        }
+        throw new StateError(
+          `Failed to acquire state file lock: ${error instanceof Error ? error.message : String(error)}`,
+          lockPath
+        );
+      }
+    }
+
+    // Lock exists — inspect the holder.
+    let heldSinceMs: number;
+    try {
+      const stats = await fs.stat(lockPath);
+      heldSinceMs = stats.mtime.getTime();
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Released between attempts — retry the O_EXCL create.
+        if (Date.now() >= deadline) {
+          throw new StateError(
+            `Timed out waiting for state file lock after ${STATE_LOCK_TIMEOUT_MS}ms`,
+            lockPath
+          );
+        }
+        continue;
+      }
+      throw new StateError(
+        `Failed to inspect state file lock: ${statError instanceof Error ? statError.message : String(statError)}`,
+        lockPath
+      );
+    }
+
+    if (Date.now() - heldSinceMs > STATE_LOCK_STALE_MS) {
+      // Abandoned lock — rename-aside is atomic, so only one reaper wins;
+      // losers get ENOENT and simply retry the O_EXCL create.
+      try {
+        const reapPath = `${lockPath}.${randomBytes(4).toString('hex')}.reaped`;
+        await fs.rename(lockPath, reapPath);
+        await fs.unlink(reapPath).catch(() => {});
+      } catch (reapError) {
+        if ((reapError as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw new StateError(
+            `Failed to reap stale state file lock: ${reapError instanceof Error ? reapError.message : String(reapError)}`,
+            lockPath
+          );
+        }
+        // Lost the reap race — another contender removed it; retry.
+      }
+      continue;
+    }
+
+    if (Date.now() >= deadline) {
+      throw new StateError(
+        `Timed out waiting for state file lock after ${STATE_LOCK_TIMEOUT_MS}ms ` +
+          `(lock held since ${new Date(heldSinceMs).toISOString()})`,
+        lockPath
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, STATE_LOCK_RETRY_MS));
+  }
+
+  try {
+    return await fn();
+  } finally {
+    try {
+      // Fencing check: only delete the lock if it still carries our token.
+      const current = await fs.readFile(lockPath, 'utf-8');
+      if (current === token) {
+        await fs.unlink(lockPath);
+      } else {
+        process.stderr.write(
+          `Warning: state file lock at ${lockPath} was taken over by another writer; leaving it in place\n`
+        );
+      }
+    } catch {
+      // Already released or reaped — nothing to do.
+    }
+  }
+}
+
 /**
  * Get the state of a specific task
  */
@@ -292,15 +439,21 @@ export async function getTaskState(
 
 /**
  * Update the state of a specific task
+ *
+ * The read-modify-write is fenced by the state-file lock (CIB-117) so
+ * concurrent updates — including updates for *different* tasks — cannot
+ * overwrite each other's records.
  */
 export async function updateTaskState(
   projectRoot: string,
   taskId: string,
   taskState: TaskState
 ): Promise<void> {
-  const state = await readStateFile(projectRoot);
-  state.tasks[taskId] = taskState;
-  await writeStateFile(projectRoot, state);
+  await withStateFileLock(projectRoot, async () => {
+    const state = await readStateFile(projectRoot);
+    state.tasks[taskId] = taskState;
+    await writeStateFile(projectRoot, state);
+  });
 }
 
 // ============================================================================

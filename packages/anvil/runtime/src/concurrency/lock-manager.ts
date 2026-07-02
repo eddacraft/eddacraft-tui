@@ -7,7 +7,7 @@
 
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   LockFileSchema,
   type LockFile,
@@ -25,11 +25,19 @@ import {
   unlinkSafe,
   sleepWithJitter,
   tryAcquireFileLock,
+  type FileLockHandle,
 } from './atomic.js';
 import { createAgentInfo } from './agent.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('lock');
+
+/**
+ * Age after which a `.creating` sentinel is considered abandoned by a crashed
+ * writer and may be reaped (CIB-117). A live writer holds the sentinel only
+ * for the duration of a couple of small file operations.
+ */
+const SENTINEL_STALE_MS = 30_000;
 
 // ============================================================================
 // Lock Manager
@@ -153,26 +161,20 @@ export class LockManager {
 
       if (now > expiresAt) {
         debug(`Lock expired, taking over: ${lockKey}`);
-        return this.forceAcquire(lockPath, type, resource, reason, timeoutMs, existingLock);
+        return this.forceAcquire(lockPath, type, resource, reason, timeoutMs, acquireFromStale);
       }
 
       // Check if holder is stale
       if (acquireFromStale && (await this.isHolderStale(existingLock.lock))) {
         debug(`Lock holder is stale, taking over: ${lockKey}`);
-        return this.forceAcquire(lockPath, type, resource, reason, timeoutMs, existingLock);
+        return this.forceAcquire(lockPath, type, resource, reason, timeoutMs, acquireFromStale);
       }
 
       // Lock is held by another active agent
       return {
         acquired: false,
         error: `Lock held by ${existingLock.lock.agentId}`,
-        heldBy: {
-          agentId: existingLock.lock.agentId,
-          agentType: existingLock.lock.agentType,
-          acquiredAt: existingLock.lock.acquiredAt,
-          expiresAt: existingLock.lock.expiresAt,
-          pid: existingLock.lock.pid,
-        },
+        heldBy: this.heldByInfo(existingLock),
       };
     }
 
@@ -208,15 +210,7 @@ export class LockManager {
     return {
       acquired: false,
       error: `Lock acquisition timed out after ${waitTimeoutMs}ms`,
-      heldBy: existingLock
-        ? {
-            agentId: existingLock.lock.agentId,
-            agentType: existingLock.lock.agentType,
-            acquiredAt: existingLock.lock.acquiredAt,
-            expiresAt: existingLock.lock.expiresAt,
-            pid: existingLock.lock.pid,
-          }
-        : undefined,
+      heldBy: existingLock ? this.heldByInfo(existingLock) : undefined,
     };
   }
 
@@ -419,8 +413,7 @@ export class LockManager {
     timeoutMs: number
   ): Promise<LockAcquisitionResult> {
     // Use O_EXCL sentinel to prevent two agents both creating the lock
-    const sentinelPath = `${lockPath}.creating`;
-    const sentinel = await tryAcquireFileLock(sentinelPath, this.agent.id);
+    const sentinel = await this.acquireCreationSentinel(lockPath);
 
     if (!sentinel) {
       // Another agent is creating the lock right now — read what they wrote
@@ -429,13 +422,7 @@ export class LockManager {
         return {
           acquired: false,
           error: `Lock acquired by another agent: ${existingLock.lock.agentId}`,
-          heldBy: {
-            agentId: existingLock.lock.agentId,
-            agentType: existingLock.lock.agentType,
-            acquiredAt: existingLock.lock.acquiredAt,
-            expiresAt: existingLock.lock.expiresAt,
-            pid: existingLock.lock.pid,
-          },
+          heldBy: this.heldByInfo(existingLock),
         };
       }
       return {
@@ -451,13 +438,7 @@ export class LockManager {
         return {
           acquired: false,
           error: `Lock acquired by another agent: ${raceCheck.lock.agentId}`,
-          heldBy: {
-            agentId: raceCheck.lock.agentId,
-            agentType: raceCheck.lock.agentType,
-            acquiredAt: raceCheck.lock.acquiredAt,
-            expiresAt: raceCheck.lock.expiresAt,
-            pid: raceCheck.lock.pid,
-          },
+          heldBy: this.heldByInfo(raceCheck),
         };
       }
 
@@ -536,6 +517,24 @@ export class LockManager {
 
   /**
    * Force acquire a lock (taking over from expired/stale holder)
+   *
+   * Takeover protocol (CIB-117) — single-winner and crash-safe:
+   *
+   * 1. Acquire the O_EXCL `.creating` sentinel (shared with {@link createLock})
+   *    so at most one agent may write this lock file at a time.
+   *    `atomicWriteJson` is temp-file + rename — atomic against torn reads but
+   *    last-write-wins, so it cannot fence concurrent takeovers by itself.
+   * 2. Under the sentinel, RE-READ the lock file and re-verify the takeover
+   *    precondition (expired, or stale holder when permitted) against the
+   *    freshest state. A concurrent taker that won between our unfenced read
+   *    and our sentinel acquisition leaves a fresh record — we back off
+   *    instead of overwriting it.
+   * 3. Only then write the new record; the sentinel is released afterwards.
+   *
+   * Sentinels abandoned by a crashed holder are reaped after
+   * {@link SENTINEL_STALE_MS} via an atomic rename-aside (see
+   * {@link acquireCreationSentinel}), so a crash mid-takeover cannot wedge the
+   * lock permanently.
    */
   private async forceAcquire(
     lockPath: string,
@@ -543,47 +542,145 @@ export class LockManager {
     resource: string,
     reason: string | undefined,
     timeoutMs: number,
-    existingLock: LockFile
+    acquireFromStale: boolean
   ): Promise<LockAcquisitionResult> {
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + timeoutMs);
+    const sentinel = await this.acquireCreationSentinel(lockPath);
 
-    const lock: LockRecord = {
-      type,
-      resource,
-      agentId: this.agent.id,
-      agentType: this.agent.type,
-      pid: this.agent.pid,
-      acquiredAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      reason,
-      renewCount: 0,
-    };
+    if (!sentinel) {
+      // Another agent is mid-takeover (or mid-creation) — back off.
+      const current = await this.readLock(lockPath);
+      return {
+        acquired: false,
+        error: current
+          ? `Lock takeover contended; held by ${current.lock.agentId}`
+          : 'Lock takeover in progress by another agent',
+        heldBy: current ? this.heldByInfo(current) : undefined,
+      };
+    }
 
-    const lockFile: LockFile = {
-      version: '1.0.0',
-      lock,
-      history: [
-        ...existingLock.history,
-        {
-          agentId: existingLock.lock.agentId,
-          acquiredAt: existingLock.lock.acquiredAt,
-          releasedAt: now.toISOString(),
-          reason: 'Force-released (expired/stale)',
-        },
-      ],
-    };
+    try {
+      // Re-verify the takeover precondition against the freshest state.
+      const current = await this.readLock(lockPath);
 
-    await atomicWriteJson(lockPath, lockFile);
+      if (current) {
+        if (current.lock.agentId === this.agent.id) {
+          // We already own it (e.g. a concurrent call from this agent won).
+          return this.renewLock(lockPath, current, reason);
+        }
 
-    const lockKey = this.getLockKey(type, resource);
-    this.heldLocks.set(lockKey, lock);
+        const nowMs = Date.now();
+        const expired = nowMs > new Date(current.lock.expiresAt).getTime();
+        const stale = !expired && acquireFromStale && (await this.isHolderStale(current.lock));
 
-    debug(`Lock force-acquired: ${lockKey}`);
+        if (!expired && !stale) {
+          // A concurrent taker won and wrote a fresh record — do not overwrite.
+          return {
+            acquired: false,
+            error: `Lock held by ${current.lock.agentId}`,
+            heldBy: this.heldByInfo(current),
+          };
+        }
+      }
 
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + timeoutMs);
+
+      const lock: LockRecord = {
+        type,
+        resource,
+        agentId: this.agent.id,
+        agentType: this.agent.type,
+        pid: this.agent.pid,
+        acquiredAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        reason,
+        renewCount: 0,
+      };
+
+      const lockFile: LockFile = {
+        version: '1.0.0',
+        lock,
+        history: current
+          ? [
+              ...current.history,
+              {
+                agentId: current.lock.agentId,
+                acquiredAt: current.lock.acquiredAt,
+                releasedAt: now.toISOString(),
+                reason: 'Force-released (expired/stale)',
+              },
+            ]
+          : [],
+      };
+
+      await atomicWriteJson(lockPath, lockFile);
+
+      const lockKey = this.getLockKey(type, resource);
+      this.heldLocks.set(lockKey, lock);
+
+      debug(`Lock force-acquired: ${lockKey}`);
+
+      return {
+        acquired: true,
+        lock,
+      };
+    } finally {
+      await sentinel.release();
+    }
+  }
+
+  /**
+   * Acquire the O_EXCL `.creating` sentinel that fences all writers of a
+   * lock file (creation and takeover share it).
+   *
+   * If the sentinel already exists but is older than {@link SENTINEL_STALE_MS}
+   * its holder crashed mid-write; it is reaped via an atomic rename-aside so
+   * that exactly one contender wins the reap even under contention, then the
+   * O_EXCL create is retried once.
+   *
+   * The sentinel content is a unique fencing token (agent id + UUID): if this
+   * holder is itself reaped while paused past the stale threshold, its
+   * release() sees a token mismatch and becomes a no-op instead of deleting
+   * the next holder's live sentinel (see createLockHandle in atomic.ts).
+   */
+  private async acquireCreationSentinel(lockPath: string): Promise<FileLockHandle | null> {
+    const sentinelPath = `${lockPath}.creating`;
+    const token = `${this.agent.id}:${randomUUID()}`;
+
+    const handle = await tryAcquireFileLock(sentinelPath, token);
+    if (handle) {
+      return handle;
+    }
+
+    try {
+      const stats = await fs.stat(sentinelPath);
+      if (Date.now() - stats.mtime.getTime() < SENTINEL_STALE_MS) {
+        return null; // Held by a live writer — back off.
+      }
+
+      // Abandoned sentinel: rename-aside is atomic, so only one reaper
+      // succeeds; losers get ENOENT and simply retry the O_EXCL create.
+      const reapPath = `${sentinelPath}.${randomUUID().slice(0, 8)}.reaped`;
+      await fs.rename(sentinelPath, reapPath);
+      await unlinkSafe(reapPath);
+      debug(`Reaped abandoned sentinel: ${sentinelPath}`);
+    } catch {
+      // Sentinel released or reaped by someone else between our attempts.
+    }
+
+    return tryAcquireFileLock(sentinelPath, token);
+  }
+
+  /**
+   * Build the `heldBy` summary for a lock file
+   */
+  private heldByInfo(lockFile: LockFile): NonNullable<LockAcquisitionResult['heldBy']> {
     return {
-      acquired: true,
-      lock,
+      agentId: lockFile.lock.agentId,
+      agentType: lockFile.lock.agentType,
+      acquiredAt: lockFile.lock.acquiredAt,
+      expiresAt: lockFile.lock.expiresAt,
+      pid: lockFile.lock.pid,
     };
   }
 

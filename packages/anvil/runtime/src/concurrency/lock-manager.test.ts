@@ -7,9 +7,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  utimesSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { LockManager } from './lock-manager.js';
 import { atomicWriteJson, readJsonSafe, tryAcquireFileLock, unlinkSafe } from './atomic.js';
 import type { AgentInfo } from './types.js';
@@ -238,6 +246,130 @@ describe('LockManager', () => {
       } finally {
         await safeCleanup(freshDir);
       }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Takeover fencing (CIB-117)
+  // -----------------------------------------------------------------------
+
+  describe('expired/stale lock takeover fencing (CIB-117)', () => {
+    /** Compute the lock file path the manager uses for a given type:resource. */
+    function lockPathFor(workspaceRoot: string, type: string, resource: string): string {
+      const hash = createHash('sha256').update(`${type}:${resource}`).digest('hex').slice(0, 16);
+      return join(workspaceRoot, '.anvil', 'locks', `${hash}.lock`);
+    }
+
+    async function makeExpiredLock(workspaceRoot: string): Promise<string> {
+      const mgrStale = makeLockManager(workspaceRoot, makeAgent('agent-stale'), SHORT_TIMEOUT_MS);
+      await mgrStale.acquire({ type: 'action', resource: 'gate' });
+      await new Promise((r) => setTimeout(r, SHORT_TIMEOUT_MS + 50));
+      return lockPathFor(workspaceRoot, 'action', 'gate');
+    }
+
+    it('does not take over an expired lock while another takeover is in flight (sentinel held)', async () => {
+      const lockPath = await makeExpiredLock(tmpDir);
+
+      // Simulate another agent mid-takeover: it holds the O_EXCL creation
+      // sentinel but has not yet written the new lock record. This injects
+      // the read→write interleaving deterministically.
+      const sentinelPath = `${lockPath}.creating`;
+      writeFileSync(sentinelPath, 'agent-other');
+
+      const mgrB = makeLockManager(tmpDir, makeAgent('agent-b'), 60_000);
+      const result = await mgrB.acquire({ type: 'action', resource: 'gate' });
+
+      expect(result.acquired).toBe(false);
+
+      // The in-flight agent finishes (releases the sentinel) — now B can win.
+      unlinkSync(sentinelPath);
+      const retry = await mgrB.acquire({ type: 'action', resource: 'gate' });
+      expect(retry.acquired).toBe(true);
+      expect(retry.lock!.agentId).toBe('agent-b');
+    });
+
+    it('exactly one of many concurrent takeover attempts on an expired lock wins', async () => {
+      await makeExpiredLock(tmpDir);
+
+      const contenders = Array.from({ length: 8 }, (_, i) =>
+        makeLockManager(tmpDir, makeAgent(`agent-${i}`), 60_000)
+      );
+      const results = await Promise.all(
+        contenders.map((mgr) => mgr.acquire({ type: 'action', resource: 'gate' }))
+      );
+
+      const winners = results.filter((r) => r.acquired);
+      expect(winners).toHaveLength(1);
+    });
+
+    it('re-verifies the takeover precondition under the sentinel (no overwrite of a fresh lock)', async () => {
+      const lockPath = await makeExpiredLock(tmpDir);
+
+      // Agent B wins the takeover.
+      const mgrB = makeLockManager(tmpDir, makeAgent('agent-b'), 60_000);
+      const resultB = await mgrB.acquire({ type: 'action', resource: 'gate' });
+      expect(resultB.acquired).toBe(true);
+
+      // Agent C also saw the expired lock, but by the time it enters the
+      // fenced section the lock is fresh again — it must back off.
+      const mgrC = makeLockManager(tmpDir, makeAgent('agent-c'), 60_000);
+      const resultC = await mgrC.acquire({ type: 'action', resource: 'gate' });
+      expect(resultC.acquired).toBe(false);
+      expect(resultC.heldBy?.agentId).toBe('agent-b');
+
+      const onDisk = JSON.parse(readFileSync(lockPath, 'utf-8')) as {
+        lock: { agentId: string };
+      };
+      expect(onDisk.lock.agentId).toBe('agent-b');
+    });
+
+    it('releases the sentinel after a successful takeover', async () => {
+      const lockPath = await makeExpiredLock(tmpDir);
+
+      const mgrB = makeLockManager(tmpDir, makeAgent('agent-b'), 60_000);
+      const result = await mgrB.acquire({ type: 'action', resource: 'gate' });
+
+      expect(result.acquired).toBe(true);
+      expect(existsSync(`${lockPath}.creating`)).toBe(false);
+    });
+
+    it('reaps an abandoned takeover sentinel so a crash cannot wedge the lock', async () => {
+      const lockPath = await makeExpiredLock(tmpDir);
+
+      // A crashed agent left the sentinel behind long ago.
+      const sentinelPath = `${lockPath}.creating`;
+      writeFileSync(sentinelPath, 'agent-crashed');
+      const past = new Date(Date.now() - 120_000);
+      utimesSync(sentinelPath, past, past);
+
+      const mgrB = makeLockManager(tmpDir, makeAgent('agent-b'), 60_000);
+      const result = await mgrB.acquire({ type: 'action', resource: 'gate' });
+
+      expect(result.acquired).toBe(true);
+      expect(result.lock!.agentId).toBe('agent-b');
+    });
+
+    it('stale-holder (dead pid) takeover is also single-winner', async () => {
+      // Lock held by a dead process, not yet expired.
+      // pid 2147483647 is above pid_max on Linux, so it can never be alive.
+      const mgrDead = makeLockManager(tmpDir, {
+        id: 'agent-dead',
+        type: 'claude',
+        pid: 2147483647,
+      });
+      // Write the lock record directly so pid is the dead one.
+      await mgrDead.acquire({ type: 'action', resource: 'gate', timeoutMs: 60_000 });
+
+      const contenders = Array.from({ length: 8 }, (_, i) =>
+        makeLockManager(tmpDir, makeAgent(`agent-${i}`), 60_000)
+      );
+      const results = await Promise.all(
+        contenders.map((mgr) =>
+          mgr.acquire({ type: 'action', resource: 'gate', acquireFromStale: true })
+        )
+      );
+
+      expect(results.filter((r) => r.acquired)).toHaveLength(1);
     });
   });
 

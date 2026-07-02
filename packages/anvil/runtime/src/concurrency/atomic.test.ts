@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -237,6 +237,40 @@ describe('file lock operations', () => {
 
       expect(handle).not.toBeNull();
       await handle!.release();
+    });
+
+    // CIB-117: fencing token — a holder whose lock was reaped (stale-threshold
+    // theft) must not delete the new holder's live lock on release.
+    it('release is a no-op when the lock was stolen and re-acquired by another holder', async () => {
+      const lockPath = join(tmpDir, 'fence.lock');
+
+      const slowHolder = await tryAcquireFileLock(lockPath, 'token-a');
+      expect(slowHolder).not.toBeNull();
+
+      // A reaper decides the slow holder is stale and steals the lock,
+      // then a new holder acquires it.
+      unlinkSync(lockPath);
+      const newHolder = await tryAcquireFileLock(lockPath, 'token-b');
+      expect(newHolder).not.toBeNull();
+
+      // The slow holder wakes up and releases — the new holder's lock
+      // must survive.
+      await slowHolder!.release();
+      expect(existsSync(lockPath)).toBe(true);
+      expect(readFileSync(lockPath, 'utf-8')).toBe('token-b');
+
+      // The rightful holder can still release it.
+      await newHolder!.release();
+      expect(existsSync(lockPath)).toBe(false);
+    });
+
+    it('release still removes the lock when content matches (normal path)', async () => {
+      const lockPath = join(tmpDir, 'fence-normal.lock');
+      const handle = await tryAcquireFileLock(lockPath, 'token-only-holder');
+      expect(handle).not.toBeNull();
+
+      await handle!.release();
+      expect(existsSync(lockPath)).toBe(false);
     });
   });
 
