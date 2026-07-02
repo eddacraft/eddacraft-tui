@@ -331,6 +331,76 @@ fn baseline_new_identity_refused_under_gate_leaves_project_id() {
 }
 
 #[test]
+fn anvil_home_flag_takes_precedence_over_env_var() {
+    // #1726 acceptance: "`--anvil-home <path>` flag overrides the env var when
+    // both are set." Set ANVIL_HOME to one prefix in the environment AND pass
+    // `--anvil-home` pointing at a *different* prefix; `status --json` must
+    // report the flag's prefix as the resolved install_root, proving the flag
+    // wins over the env.
+    let project = tempdir().expect("project dir");
+    let env_home = tempdir().expect("env anvil home");
+    let flag_home = tempdir().expect("flag anvil home");
+    let flag_arg = flag_home.path().to_str().expect("utf8 flag path");
+
+    // `run_status_json`'s `Some(..)` sets ANVIL_HOME on the child env; the extra
+    // `--anvil-home` arg supplies the competing flag value.
+    let (_ok, stdout) = run_status_json(
+        project.path(),
+        Some(env_home.path()),
+        &["--anvil-home", flag_arg],
+    );
+
+    let status: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("status --json must emit valid JSON ({e}); got: {stdout}"));
+    let install_root = status["install_root"].as_str().unwrap_or_else(|| {
+        panic!("status --json must carry install_root when ANVIL_HOME/--anvil-home is set; got: {stdout}")
+    });
+    assert_eq!(
+        Path::new(install_root),
+        flag_home.path(),
+        "the --anvil-home flag must win over the ANVIL_HOME env var",
+    );
+    assert_ne!(
+        Path::new(install_root),
+        env_home.path(),
+        "the env-var prefix must not be the resolved root when the flag is also set",
+    );
+}
+
+#[test]
+fn anvil_home_pointing_at_a_nonexistent_path_is_used_as_is() {
+    // #1726 acceptance names a "fallback when the path doesn't exist" case. The
+    // resolver has no such fallback by design: any non-blank ANVIL_HOME is taken
+    // verbatim (state is created under it on first write) rather than silently
+    // reverting to the platform default. Pin that so a future "helpfully fall
+    // back to default" change is a conscious one — a silent revert would send a
+    // candidate's writes to the prod install the operator was trying to avoid.
+    let project = tempdir().expect("project dir");
+    let nonexistent = project.path().join("does").join("not").join("exist");
+    assert!(
+        !nonexistent.exists(),
+        "precondition: the prefix does not exist yet"
+    );
+
+    let (ok, stdout) = run_status_json(project.path(), Some(nonexistent.as_path()), &[]);
+    assert!(
+        ok,
+        "status must succeed under a not-yet-created ANVIL_HOME; got: {stdout}"
+    );
+
+    let status: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("status --json must emit valid JSON ({e}); got: {stdout}"));
+    let install_root = status["install_root"].as_str().unwrap_or_else(|| {
+        panic!("status --json must report the resolved install_root; got: {stdout}")
+    });
+    assert_eq!(
+        Path::new(install_root),
+        nonexistent.as_path(),
+        "a non-existent ANVIL_HOME is used verbatim, not replaced by the default",
+    );
+}
+
+#[test]
 fn anvil_home_flag_gates_like_env_var_via_reexec() {
     // The `--anvil-home` flag (which triggers the re-exec round-trip) must
     // deliver the same gating as setting ANVIL_HOME in the environment.
@@ -480,4 +550,119 @@ fn uninstall_refused_under_gated_anvil_home_when_project_has_dot_anvil() {
         dot_anvil.join("keep.txt").exists(),
         "the real project's .anvil/ must not be removed under the gate"
     );
+}
+
+// --- Two-daemon coexistence (#1726 acceptance: concurrent daemons per prefix) ---
+//
+// Unix-only: the coexistence claim is about the per-prefix Unix **socket**
+// (`<ANVIL_HOME>/intercept.sock`) and PID file. Windows IPC uses named pipes
+// (no socket file), so its coexistence is a separate concern out of scope here.
+
+/// Kill-on-drop guard so a failing assertion never leaks a live daemon.
+#[cfg(unix)]
+struct DaemonChild(std::process::Child);
+
+#[cfg(unix)]
+impl Drop for DaemonChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(unix)]
+fn spawn_intercept_daemon(anvil_home: &Path) -> DaemonChild {
+    use std::process::Stdio;
+    let child = Command::new(ANVIL_BIN)
+        .args(["intercept", "start", "--foreground"])
+        .env("ANVIL_HOME", anvil_home)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_DISABLE_UPDATE_HINT", "1")
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn anvil intercept start --foreground");
+    DaemonChild(child)
+}
+
+#[cfg(unix)]
+fn wait_for_socket(path: &Path, attempts: u32) -> bool {
+    for _ in 0..attempts {
+        if path.exists() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    path.exists()
+}
+
+#[cfg(unix)]
+#[test]
+fn two_daemons_under_different_anvil_home_prefixes_coexist() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+
+    // #1726 acceptance: "A second daemon under a different ANVIL_HOME can run
+    // concurrently without socket clash." Each prefix derives its own
+    // intercept.sock / intercept.pid (ADR-060 §1 re-root + ADR-036 keying), so
+    // two candidate daemons coexist — while the single-instance rule still
+    // holds *within* a prefix.
+    let home_a = tempdir().expect("anvil home a");
+    let home_b = tempdir().expect("anvil home b");
+    std::fs::set_permissions(home_a.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    std::fs::set_permissions(home_b.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+
+    let mut daemon_a = spawn_intercept_daemon(home_a.path());
+    let mut daemon_b = spawn_intercept_daemon(home_b.path());
+
+    let sock_a = home_a.path().join("intercept.sock");
+    let sock_b = home_b.path().join("intercept.sock");
+    assert!(
+        wait_for_socket(&sock_a, 60),
+        "daemon A must bind its socket under prefix A"
+    );
+    assert!(
+        wait_for_socket(&sock_b, 60),
+        "daemon B must bind its socket under prefix B"
+    );
+    assert_ne!(
+        sock_a, sock_b,
+        "the two prefixes derive distinct socket paths"
+    );
+
+    // Both alive at once — no single-instance collision across distinct prefixes.
+    assert!(
+        daemon_a.0.try_wait().unwrap().is_none(),
+        "daemon A must stay alive alongside B"
+    );
+    assert!(
+        daemon_b.0.try_wait().unwrap().is_none(),
+        "daemon B must stay alive alongside A"
+    );
+
+    // The single-instance rule still holds *within* a prefix: a third daemon
+    // under prefix A is refused (PID lock). `--foreground` normally blocks, but
+    // a refused start exits immediately, so `output()` returns promptly.
+    let dup = Command::new(ANVIL_BIN)
+        .args(["intercept", "start", "--foreground"])
+        .env("ANVIL_HOME", home_a.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_DISABLE_UPDATE_HINT", "1")
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn duplicate daemon under prefix A");
+    assert!(
+        !dup.status.success(),
+        "a second daemon under the SAME prefix must be refused"
+    );
+    let dup_err = String::from_utf8_lossy(&dup.stderr);
+    assert!(
+        dup_err.contains("already running") || dup_err.contains("PID file is locked"),
+        "duplicate-under-same-prefix refusal must explain the single-instance lock; got: {dup_err}"
+    );
+
+    // Guards kill both daemons on drop.
+    let _ = (&mut daemon_a, &mut daemon_b);
 }
