@@ -833,14 +833,26 @@ jobs:
     timeout-minutes: 45
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
+    # CIB-156: also run on a FAILED classifier (result != 'success') so the
+    # fail-fast step below fails this gate closed instead of silently skipping
+    # it. The fail-closed clause is deliberately kept INSIDE the
+    # release/hotfix-PR-or-push-to-main trigger context: a release-PR author
+    # must not be able to skip the cross-platform gate by tampering with or
+    # inducing a failure in the classifier, but an ordinary feature PR that
+    # trips the classifier already goes red via the lint/typecheck/unit-tests
+    # guards, so we do not spin this heavy macOS+Windows matrix up on every
+    # classifier hiccup. On a successful classifier `result != 'success'` is
+    # false, so normal `source-changed` gating is unchanged.
     if: |
-      needs.detect-changes.outputs.source-changed == 'true' &&
-      (
+      always() && (
         (github.event_name == 'pull_request' && github.base_ref == 'main' &&
           github.event.pull_request.head.repo.full_name == github.repository &&
           (startsWith(github.head_ref, 'release/') ||
            startsWith(github.head_ref, 'hotfix/'))) ||
         (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      ) && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.source-changed == 'true'
       )
     strategy:
       fail-fast: false
@@ -855,6 +867,13 @@ jobs:
     # Azure Login step only.
 
     steps:
+      # CIB-156: fail closed when change detection failed. Runs as the first
+      # step of every matrix leg, short-circuiting before the unguarded
+      # checkout/setup below; skipped on a normal successful run.
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -896,12 +915,27 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: github.event_name != 'pull_request' && needs.detect-changes.outputs.source-changed == 'true'
+    # CIB-156: also run on a FAILED classifier so the fail-fast step below fails
+    # this job closed rather than silently skipping it. The fail-closed clause
+    # stays scoped to non-PR events (this job never runs on `pull_request`), so
+    # PR gating is unchanged. On a successful classifier `result != 'success'`
+    # is false and normal `source-changed` gating is unchanged.
+    if: |
+      always() && github.event_name != 'pull_request' && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.source-changed == 'true'
+      )
     # Azure credentials are passed as a single input to setup-workspace
     # rather than as job-scope env vars, to limit their visibility to the
     # Azure Login step only.
 
     steps:
+      # CIB-156: fail closed when change detection failed (short-circuits the
+      # unguarded checkout/setup below; skipped on a normal successful run).
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 

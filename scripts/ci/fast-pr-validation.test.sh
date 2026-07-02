@@ -128,4 +128,76 @@ assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddac
 assert_not_contains "${ci_workflow}" '--coverage --coverage.reporter=json-summary --coverage.reporter=text'
 assert_not_contains "${ci_workflow}" 'name: coverage-report-22.x'
 
+# CIB-156: structural (not literal-grep) assertions that the fail-closed
+# classifier guard applied in CIB-137 is present — with the correct NESTING —
+# on the two residual consumer jobs (`test-release-gate`, `build`). The guard is
+# only sound if the fail-closed clause is AND'd AFTER the job's original
+# trigger-context, i.e. `always() && (<trigger>) && (result != 'success' ||
+# <source>)`. Substring checks cannot pin that: a regression that OR'd the
+# fail-closed clause ACROSS the trigger context (making the heavy cross-platform
+# matrix run on ANY feature-PR classifier hiccup) would still contain both
+# `always()` and `result != 'success'` as substrings. So we assert a STRICT
+# whitespace-normalised template match against the exact expected `if`, built
+# from a per-job trigger-context string (stored verbatim here — a deliberate
+# change to a job's trigger MUST fail this test and force an update) plus the
+# shared fail-closed tail. We also pin the fail-fast first step positionally.
+FAILCLOSED_TAIL="( needs.detect-changes.result != 'success' || needs.detect-changes.outputs.source-changed == 'true' )"
+# Verbatim original trigger-context of each job (whitespace-normalised form).
+TRELEASE_TRIGGER="( (github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) || (github.event_name == 'push' && github.ref == 'refs/heads/main') )"
+BUILD_TRIGGER="github.event_name != 'pull_request'"
+EXPECTED_RELEASE_IF="always() && ${TRELEASE_TRIGGER} && ${FAILCLOSED_TAIL}"
+EXPECTED_BUILD_IF="always() && ${BUILD_TRIGGER} && ${FAILCLOSED_TAIL}"
+
+assert_fail_closed_guard() {
+  local workflow="$1"
+  local job="$2"
+  local expected_if="$3"
+  NODE_PATH="${repo_root}/node_modules" node "${guard_checker}" "${workflow}" "${job}" "${expected_if}"
+}
+
+guard_checker_dir="$(mktemp -d)"
+trap 'rm -rf "${guard_checker_dir}"' EXIT
+guard_checker="${guard_checker_dir}/fail-closed-guard-check.cjs"
+cat >"${guard_checker}" <<'NODE'
+const fs = require('node:fs');
+const yaml = require('yaml');
+const [file, jobName, expectedIf] = process.argv.slice(2);
+const RESULT_GUARD = "needs.detect-changes.result != 'success'";
+const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
+const fail = (m) => {
+  console.error(`[${file} / ${jobName}] ${m}`);
+  process.exit(1);
+};
+const doc = yaml.parse(fs.readFileSync(file, 'utf8'));
+const job = doc.jobs && doc.jobs[jobName];
+if (!job) fail('job not found');
+if (typeof job.if !== 'string') fail('job `if` is not a scalar string');
+// STRICT template match: pins `always() && (<trigger>) && (<fail-closed>)`.
+// This rejects an OR-across regression (fail-closed clause hoisted into the
+// trigger context) that independent substring checks would pass.
+const actual = norm(job.if);
+const expected = norm(expectedIf);
+if (actual !== expected) {
+  fail(`job \`if\` does not match the expected fail-closed template.\n  expected: ${expected}\n  actual:   ${actual}`);
+}
+// Positionally pin the fail-fast first step (short-circuits before the
+// unguarded checkout/setup on a failed classifier; runs per matrix leg).
+const steps = Array.isArray(job.steps) ? job.steps : [];
+const first = steps[0];
+if (!first) fail('job has no steps');
+if (first.name !== 'Fail when change detection failed') {
+  fail(`first step must be the fail-fast guard, got ${JSON.stringify(first.name)}`);
+}
+if (typeof first.if !== 'string' || norm(first.if) !== RESULT_GUARD) {
+  fail(`fail-fast step must be conditioned on \`${RESULT_GUARD}\`, got ${JSON.stringify(first.if)}`);
+}
+if (typeof first.run !== 'string' || first.run.trim() !== 'exit 1') {
+  fail(`fail-fast step must \`run: exit 1\`, got ${JSON.stringify(first.run)}`);
+}
+console.log(`[${file} / ${jobName}] fail-closed guard structural checks passed`);
+NODE
+
+assert_fail_closed_guard "${ci_workflow}" test-release-gate "${EXPECTED_RELEASE_IF}"
+assert_fail_closed_guard "${ci_workflow}" build "${EXPECTED_BUILD_IF}"
+
 echo 'fast PR validation workflow checks passed'
