@@ -4275,7 +4275,7 @@ archive.
 
 ### CIB-156: Add fail-closed classifier guards to test-release-gate and build
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3102
 - **Intent:** `ci.yml`'s `test-release-gate` and `build` jobs consume
   `needs.detect-changes.outputs.*` without the `always() &&
   (result != 'success' || ...)` guard the other consumers gained in CIB-137,
