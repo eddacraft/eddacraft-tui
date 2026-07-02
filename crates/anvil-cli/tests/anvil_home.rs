@@ -576,6 +576,10 @@ fn spawn_intercept_daemon(anvil_home: &Path) -> DaemonChild {
     let child = Command::new(ANVIL_BIN)
         .args(["intercept", "start", "--foreground"])
         .env("ANVIL_HOME", anvil_home)
+        // Pin HOME/USERPROFILE to the prefix so no home-dir lookup can reach
+        // host-scoped paths — same hermetic hygiene as the other helpers.
+        .env("HOME", anvil_home)
+        .env("USERPROFILE", anvil_home)
         .env("ANVIL_DEV", "1")
         .env("ANVIL_DISABLE_UPDATE_HINT", "1")
         .env_remove("ANVIL_TOUCH_PROJECT_STATE")
@@ -648,8 +652,11 @@ fn two_daemons_under_different_anvil_home_prefixes_coexist() {
     let dup = Command::new(ANVIL_BIN)
         .args(["intercept", "start", "--foreground"])
         .env("ANVIL_HOME", home_a.path())
+        .env("HOME", home_a.path())
+        .env("USERPROFILE", home_a.path())
         .env("ANVIL_DEV", "1")
         .env("ANVIL_DISABLE_UPDATE_HINT", "1")
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
         .stdin(Stdio::null())
         .output()
         .expect("spawn duplicate daemon under prefix A");
