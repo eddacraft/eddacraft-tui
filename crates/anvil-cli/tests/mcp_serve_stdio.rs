@@ -956,7 +956,7 @@ fn mcp_serve_stdio_tools_call_gate_planless_mode_scans_target_files() {
     std::fs::write(src.join("clean.ts"), "export const value = 1;\n")
         .expect("clean fixture is writable");
 
-    let mut child = spawn_mcp_server_in(workspace.path());
+    let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -1237,7 +1237,7 @@ fn mcp_serve_stdio_tools_call_suppress_inserts_comment_in_workspace_file() {
     std::fs::create_dir_all(&src).expect("src dir exists");
     std::fs::write(src.join("a.ts"), "const x: any = 1;\n").expect("fixture written");
 
-    let mut child = spawn_mcp_server_in(workspace.path());
+    let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -1305,7 +1305,7 @@ fn mcp_serve_stdio_tools_call_suppress_rejects_workspace_outside_server_root() {
     std::fs::create_dir_all(&foreign_src).expect("foreign src dir exists");
     std::fs::write(foreign_src.join("a.ts"), ORIGINAL).expect("foreign fixture written");
 
-    let mut child = spawn_mcp_server_in(server_root.path());
+    let mut child = spawn_mcp_server_with_dev_bypass_in(server_root.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -1368,7 +1368,7 @@ fn mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown() {
     std::fs::create_dir_all(&src).expect("src dir exists");
     std::fs::write(src.join("a.ts"), "const x: any = 1;\n").expect("fixture written");
 
-    let mut child = spawn_mcp_server_in(workspace.path());
+    let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -1420,6 +1420,83 @@ fn mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown() {
     assert!(on_disk.contains("const x: unknown = 1;"));
 }
 
+// CIB-144: without credentials (and without the dev bypass) the mutating
+// tools must return the shared auth-required envelope over the wire and must
+// not touch the workspace. HOME/XDG are pinned to an empty tempdir so the
+// test cannot silently authenticate via a developer's real credentials —
+// the exact trap that made this contract change look green locally while
+// failing on CI.
+#[test]
+fn mcp_serve_stdio_tools_call_fix_requires_auth_without_credentials() {
+    let workspace = tempfile::tempdir().expect("workspace exists");
+    let empty_home = tempfile::tempdir().expect("empty home exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(src.join("a.ts"), "const x: any = 1;\n").expect("fixture written");
+
+    let mut child = spawn_mcp_server_unauthenticated_in(workspace.path(), empty_home.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 33,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_fix",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "filePath": "src/a.ts",
+                        "warningId": "AP-003",
+                        "line": 1
+                    }
+                }
+            })
+        )
+        .expect("failed to send fix tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after unauthenticated fix call; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("fix response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    assert_eq!(parsed["jsonrpc"], "2.0");
+    assert_eq!(parsed["id"], 33);
+    assert_eq!(
+        parsed["result"]["isError"], false,
+        "auth-required is not a tool error (agents must not abort)"
+    );
+
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["schemaVersion"], "anvil.mcp.auth-required.v1");
+    assert_eq!(payload["decision"], "gateUnavailable");
+    assert_eq!(payload["safeDefault"], "allow-with-warning");
+    assert_eq!(payload["tool"], "anvil_fix");
+    assert!(
+        payload.get("fixed").is_none(),
+        "auth envelope must not carry the tool's success payload"
+    );
+
+    let on_disk =
+        std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+    assert_eq!(
+        on_disk, "const x: any = 1;\n",
+        "unauthenticated fix must not write"
+    );
+}
+
 // CLAWP-024: `anvil_fix` also mutates files, so it must enforce the same
 // workspace-root containment guard as `anvil_suppress`. The server starts in
 // one tempdir while `workspaceRoot` points at a sibling tempdir outside the
@@ -1433,7 +1510,7 @@ fn mcp_serve_stdio_tools_call_fix_rejects_workspace_outside_server_root() {
     std::fs::create_dir_all(&foreign_src).expect("foreign src dir exists");
     std::fs::write(foreign_src.join("a.ts"), ORIGINAL).expect("foreign fixture written");
 
-    let mut child = spawn_mcp_server_in(server_root.path());
+    let mut child = spawn_mcp_server_with_dev_bypass_in(server_root.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
 
@@ -1828,6 +1905,48 @@ fn spawn_mcp_server_in(cwd: &Path) -> Child {
         .arg("mcp")
         .arg("serve")
         .arg("--stdio")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("failed to spawn anvil mcp serve --stdio")
+}
+
+/// CIB-144: `anvil_fix` / `anvil_suppress` / `anvil_gate` authenticate by
+/// default, so side-effect tests exercising their behaviour spawn the server
+/// with the dev bypass — mirroring the existing `validate_write`/`apply_patch`
+/// stdio tests. The unauthenticated envelope contract has its own test
+/// (`mcp_serve_stdio_tools_call_fix_requires_auth_without_credentials`).
+fn spawn_mcp_server_with_dev_bypass_in(cwd: &Path) -> Child {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.current_dir(cwd)
+        .arg("--no-tui")
+        .arg("mcp")
+        .arg("serve")
+        .arg("--stdio")
+        .env("ANVIL_DEV", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("failed to spawn anvil mcp serve --stdio")
+}
+
+/// Spawn without the dev bypass AND with credential discovery pinned to an
+/// empty home, so the test behaves identically on CI (no credentials) and a
+/// developer machine with a real `anvil auth login` session.
+fn spawn_mcp_server_unauthenticated_in(cwd: &Path, empty_home: &Path) -> Child {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.current_dir(cwd)
+        .arg("--no-tui")
+        .arg("mcp")
+        .arg("serve")
+        .arg("--stdio")
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .env("HOME", empty_home)
+        .env("USERPROFILE", empty_home)
+        .env("XDG_CONFIG_HOME", empty_home.join("config"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
