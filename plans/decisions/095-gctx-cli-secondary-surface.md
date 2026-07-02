@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted 2026-07-02 (owner)
 
 ## Date
 
@@ -90,7 +90,7 @@ into the Decision and Consequences below.
    **non-goal we decline to build *for*, not something the CLI can technically
    prevent** — nothing distinguishes an agent's `Bash` invocation of `anvil gctx …`
    from a human's, so the reconstruct-via-CLI concern is an **owner-accepted
-   residual**, not a closed hole; and (ii) that residual applies only to the
+   residual** (B2, accepted 2026-07-02), not a closed hole; and (ii) that residual applies only to the
    **enumerable** verbs — an agent looping
    `Bash → anvil gctx {search_symbols,find_callers,find_dependents}` is functionally
    the `tools/call` back-door CIB-091d closed (the per-session egress ceiling is
@@ -153,7 +153,7 @@ into the Decision and Consequences below.
      bound to the caller), so a flapping cold graph can never flip a gate's
      PASS/FAIL (the Deterministic principle).
 
-6. **Egress ceiling — resolved, pending owner sign-off.** `GRAPH_EGRESS_SPENT`
+6. **Egress ceiling — owner-settled (B1).** `GRAPH_EGRESS_SPENT`
    exists to bound what a *remote LLM provider* can reconstruct through an MCP
    session (CIB-091d) — the identical threat model behind skipping
    `redact_workspace_root` for CLI in §4 ("irrelevant once output goes to the
@@ -189,10 +189,13 @@ into the Decision and Consequences below.
    CE-1 — the reason `symbol_context` is excluded at v1, §5), or (ii) the daemon
    becomes **multi-principal / remotely shared** (no longer same-uid-local — e.g. a
    shared CI or remote-host daemon), at which point the "caller already has `cat`
-   access" premise no longer holds. *(Resolved 2026-07-01 by Claude during
-   concurrent review; Morgan/owner should confirm before Accept.)*
+   access" premise no longer holds. *(Owner-settled 2026-07-02 — B1: option (b)
+   for v1 (no aggregate bound for the two bounded-report verbs); option (a) — a
+   daemon-side, per-uid, persistent byte accumulator, not a `RpsBucket` tweak — is
+   a hard pre-promotion gate for the three enumerable verbs, together with the
+   revisit trigger above.)*
 
-7. **Pagination for the enumerable verbs — resolved, pending owner sign-off.**
+7. **Pagination for the enumerable verbs — owner-settled.**
    `anvil kindling` already establishes the house pattern for exactly this
    shape: `collect_daemon_rows` (`crates/anvil-cli/src/commands/kindling.rs:93`)
    auto-pages a keyset-cursor RPC to exhaustion inside the command, capped by a
@@ -207,10 +210,9 @@ into the Decision and Consequences below.
    bounds the *caller*: a non-MCP agent can still reconstruct the graph across
    many invocations with varying filters even if each individual call is
    internally bounded. §6 and §7 are the same promotion gate — resolve and
-   implement together before these three verbs reach the CLI. *(Resolved
-   2026-07-01 by Claude during concurrent review, building on the pagination
-   gap originally flagged in this slot; Morgan/owner should confirm before
-   Accept.)*
+   implement together before these three verbs reach the CLI. *(Owner-settled
+   2026-07-02 — auto-page-to-exhaustion with no raw `--cursor`, landing together
+   with the §6 egress counter as the single enumerable-verb promotion gate.)*
 
 ## Rationale
 
