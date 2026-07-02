@@ -37,9 +37,11 @@ does not understate what has already been assessed. In every case the verdict is
 the same shape — **decline the codebase/dependency, clean-room the primitive** —
 so the `status` below reflects the borrow, not the upstream project.
 
-- **source repo + link:** `clay-good/proxilion` + `clay-good/provenance` —
-  https://github.com/clay-good/proxilion ·
-  https://github.com/clay-good/provenance
+- **source repo + link:** `clay-good/proxilion` —
+  https://github.com/clay-good/proxilion
+  - **related repo:** `clay-good/provenance` —
+    https://github.com/clay-good/provenance (the PIC half of the paired
+    nomination)
   - **what to borrow/adopt:** nothing at code level — PIC's cross-session
     attribution invariants noted as framing only
   - **adopt type:** borrow-pattern
