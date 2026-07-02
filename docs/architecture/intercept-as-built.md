@@ -298,12 +298,14 @@ retries to escalate against the connection cap.
 ### 4.5 `intercept status` cross-platform shape
 
 The CLI's `query_daemon_status` has Unix and Windows branches
-(`intercept.rs:77-148`). Both speak the same wire shape, and `--json` returns
-the same `DaemonStatusV1` on either OS. The Unix arm connects to the UDS path
-resolved by `validate_socket_path_for_client`. The Windows arm connects to the
-pipe resolved by `anvil_intercept::ipc::resolve_pipe_name` (install-root aware
-since CIB-106; see §15) via `connect_owner_only_pipe_client` and runs through
-`query_daemon_status_windows_at` (`intercept.rs:143-148`, `:170+`). The
+(`intercept.rs:375-381` Unix, `:620-624` Windows). Both speak the same wire
+shape, and `--json` returns the same `DaemonStatusV1` on either OS. The Unix arm
+connects to the UDS path resolved by `validate_socket_path_for_client`. The
+Windows arm connects to the pipe resolved by
+`anvil_intercept::ipc::resolve_pipe_name` (install-root aware since CIB-106; see
+§15) via `connect_owner_only_pipe_client` and runs through
+`query_daemon_status_windows_at` (`intercept.rs:647`; the connect/write/read
+logic lives in `query_daemon_status_windows_at_with_timeout`, `:655+`). The
 hard-fail-on-Windows error message that earlier drafts of the runbook quoted is
 no longer in the code. The remaining Windows gap is **MCP-side only**
 (`correlation.daemonStatus` always `not-wired`); see §12 and §16 gap 9 for the

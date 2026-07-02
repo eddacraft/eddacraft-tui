@@ -49,7 +49,7 @@ pub enum ClientError {
     JsonRpc(String),
     #[error("daemon response had no `result` field: {0}")]
     MissingResult(String),
-    #[error("daemon socket path could not be resolved: {0}")]
+    #[error("daemon endpoint (socket path or pipe name) could not be resolved: {0}")]
     SocketPath(String),
 }
 
