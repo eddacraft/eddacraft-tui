@@ -420,8 +420,16 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
           `Warning: state file lock at ${lockPath} was taken over by another writer; leaving it in place\n`
         );
       }
-    } catch {
-      // Already released or reaped — nothing to do.
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Already released or reaped — nothing to do.
+      } else {
+        // Unexpected I/O failure: the lock file may linger until the
+        // stale reap; surface it so operators aren't left guessing.
+        process.stderr.write(
+          `Warning: failed to release state file lock at ${lockPath}: ${String(error)}\n`
+        );
+      }
     }
   }
 }
