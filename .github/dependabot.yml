@@ -5,6 +5,16 @@ updates:
     target-branch: 'main'
     schedule:
       interval: 'weekly'
+    # pnpm 11 (pinned via packageManager) enforces a default 24h
+    # minimumReleaseAge supply-chain check — `pnpm install
+    # --frozen-lockfile` refuses any lockfile entry published within
+    # the last 24h. Without a cooldown, Dependabot proposes bumps
+    # within hours of publish, so every CI job that installs deps
+    # fails at that one step on open (see PR #3071). 2 days gives
+    # margin over pnpm's 24h window for CI run lag and multi-package
+    # groups spanning several publish times.
+    cooldown:
+      default-days: 2
     groups:
       production-dependencies:
         dependency-type: 'production'
