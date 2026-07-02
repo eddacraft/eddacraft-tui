@@ -136,7 +136,7 @@ archive.
 
 ### CIB-006: Risk-tiered validation for trivial edits
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-02 via PR #3091
 - **Intent:** Even with patch-mode (CIB-005) in place, full pipeline
   validation is overkill for genuinely trivial changes. Add a lightweight
   validator tier so a defined safelist of change shapes short-circuits the
