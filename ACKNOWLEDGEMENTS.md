@@ -1392,7 +1392,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `console` | 0.16.3 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
 | `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
-| `tree-sitter` | 0.26.9 | MIT License | https://github.com/tree-sitter/tree-sitter |
+| `tree-sitter` | 0.26.10 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.12.1 | MIT License | https://github.com/BurntSushi/bstr |
 | `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
 | `crossbeam-deque` | 0.8.6 | MIT License | https://github.com/crossbeam-rs/crossbeam |
