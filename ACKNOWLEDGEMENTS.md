@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 342 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 343 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1251,8 +1251,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `email_address` | 0.2.9 | MIT License | https://github.com/johnstonskj/rust-email_address.git |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
-| `jsonschema` | 0.46.6 | MIT License | https://github.com/Stranger6667/jsonschema |
-| `referencing` | 0.46.6 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema` | 0.46.9 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `referencing` | 0.46.9 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
@@ -1271,6 +1271,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
 | `chrono` | 0.4.45 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
+| `jsonschema-regex` | 0.46.9 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
 | `minisign-verify` | 0.2.5 | MIT License | https://github.com/jedisct1/rust-minisign-verify |
 | `num-cmp` | 0.1.0 | MIT License | https://github.com/lifthrasiir/num-cmp |
