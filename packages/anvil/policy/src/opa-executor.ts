@@ -178,6 +178,29 @@ export interface OPAExecutorConfig {
 const DEFAULT_QUERY = 'data.anvil.policies';
 const DEFAULT_TIMEOUT = 30000;
 
+/**
+ * Network-capable and runtime-sensitive OPA built-ins removed from the
+ * capabilities profile used for every evaluation (CIB-108).
+ *
+ * Workspace policies are untrusted input; these built-ins would let a policy
+ * make outbound requests (`http.send`), resolve DNS (`net.lookup_ip_addr`),
+ * or read the daemon's process environment (`opa.runtime`) from developer and
+ * CI machines.
+ */
+export const OPA_DENIED_BUILTINS: ReadonlySet<string> = new Set([
+  'http.send',
+  'net.lookup_ip_addr',
+  'opa.runtime',
+]);
+
+/**
+ * Error prefix used when the restricted capabilities profile cannot be
+ * derived. Evaluation fails closed rather than running unrestricted.
+ */
+const CAPABILITIES_FAILURE =
+  'Failed to derive a restricted OPA capabilities profile; ' +
+  'refusing to evaluate policies without built-in restrictions';
+
 interface SpawnResult {
   stdout: string;
   stderr: string;
@@ -245,6 +268,8 @@ export class OPAExecutor {
   private readonly timeout: number;
   private readonly includeRawOutput: boolean;
   private readonly query: string;
+  /** Memoised restricted capabilities JSON, derived once per executor. */
+  private restrictedCapabilities?: Promise<string>;
 
   constructor(binaryPath: string, config: OPAExecutorConfig = {}) {
     this.binaryPath = binaryPath;
@@ -369,10 +394,15 @@ export class OPAExecutor {
 
     try {
       await this.setupTempDirectory(tempDir, policies, undefined, testFiles);
+      const capabilitiesPath = await this.writeCapabilitiesFile(tempDir);
 
-      const spawnResult = await spawnAsync(this.binaryPath, ['test', tempDir, '--format', 'json'], {
-        timeout: this.timeout,
-      });
+      const spawnResult = await spawnAsync(
+        this.binaryPath,
+        ['test', tempDir, '--capabilities', capabilitiesPath, '--format', 'json'],
+        {
+          timeout: this.timeout,
+        }
+      );
 
       const results = JSON.parse(spawnResult.stdout);
       const details: Array<{ name: string; passed: boolean; message?: string }> = [];
@@ -449,10 +479,22 @@ export class OPAExecutor {
 
   private async runOPA(tempDir: string): Promise<unknown> {
     const inputPath = join(tempDir, 'input.json');
+    const capabilitiesPath = await this.writeCapabilitiesFile(tempDir);
 
     const result = await spawnAsync(
       this.binaryPath,
-      ['eval', '--data', tempDir, '--input', inputPath, '--format', 'json', this.query],
+      [
+        'eval',
+        '--data',
+        tempDir,
+        '--input',
+        inputPath,
+        '--capabilities',
+        capabilitiesPath,
+        '--format',
+        'json',
+        this.query,
+      ],
       {
         timeout: this.timeout,
         maxBuffer: 10 * 1024 * 1024,
@@ -460,10 +502,105 @@ export class OPAExecutor {
     );
 
     if (result.code !== 0) {
-      throw new Error(result.stderr || `OPA eval failed with code ${result.code}`);
+      throw new Error(this.describeEvalFailure(result));
     }
 
     return JSON.parse(result.stdout);
+  }
+
+  /**
+   * Derive the restricted capabilities profile from the configured binary
+   * (`opa capabilities --current`), so the profile always matches the
+   * installed OPA version, with the denied built-ins removed and `allow_net`
+   * emptied as defence in depth. Fails closed: any derivation failure aborts
+   * evaluation instead of falling back to unrestricted built-ins.
+   */
+  private getRestrictedCapabilities(): Promise<string> {
+    this.restrictedCapabilities ??= this.deriveRestrictedCapabilities();
+    return this.restrictedCapabilities;
+  }
+
+  private async deriveRestrictedCapabilities(): Promise<string> {
+    let result: SpawnResult;
+    try {
+      result = await spawnAsync(this.binaryPath, ['capabilities', '--current'], {
+        timeout: this.timeout,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'unknown error';
+      throw new Error(`${CAPABILITIES_FAILURE}: ${detail}`, { cause: error });
+    }
+
+    if (result.code !== 0) {
+      const detail = result.stderr.trim() || `opa capabilities exited with code ${result.code}`;
+      throw new Error(`${CAPABILITIES_FAILURE}: ${detail}`);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(result.stdout);
+    } catch (error) {
+      throw new Error(`${CAPABILITIES_FAILURE}: opa capabilities returned invalid JSON`, {
+        cause: error,
+      });
+    }
+
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${CAPABILITIES_FAILURE}: unexpected opa capabilities output`);
+    }
+
+    const capabilities = parsed as { builtins?: unknown; allow_net?: unknown };
+    if (!Array.isArray(capabilities.builtins)) {
+      throw new Error(`${CAPABILITIES_FAILURE}: opa capabilities output has no builtins list`);
+    }
+
+    capabilities.builtins = capabilities.builtins.filter(
+      (builtin) => !OPA_DENIED_BUILTINS.has(String((builtin as { name?: unknown })?.name))
+    );
+    // Defence in depth: even if a network-capable built-in slipped through,
+    // an empty allowlist denies every host.
+    capabilities.allow_net = [];
+
+    return JSON.stringify(capabilities);
+  }
+
+  /**
+   * Write the restricted capabilities profile next to (not inside) the temp
+   * directory: `--data <tempDir>` and `opa test <tempDir>` load every JSON
+   * file in the directory into the data document.
+   */
+  private capabilitiesPathFor(tempDir: string): string {
+    return `${tempDir}-capabilities.json`;
+  }
+
+  private async writeCapabilitiesFile(tempDir: string): Promise<string> {
+    const capabilities = await this.getRestrictedCapabilities();
+    const capabilitiesPath = this.capabilitiesPathFor(tempDir);
+    await writeFile(capabilitiesPath, capabilities, 'utf-8');
+    return capabilitiesPath;
+  }
+
+  /**
+   * Map an eval failure to a message; a policy that requires a denied
+   * built-in gets an explicit "not permitted" explanation instead of a bare
+   * compiler error.
+   */
+  private describeEvalFailure(result: SpawnResult): string {
+    const detail = result.stderr || `OPA eval failed with code ${result.code}`;
+    const denied = [...OPA_DENIED_BUILTINS].find(
+      (name) =>
+        detail.includes(`undefined function ${name}`) ||
+        result.stdout.includes(`undefined function ${name}`)
+    );
+    if (denied) {
+      return (
+        `Policy requires the OPA built-in "${denied}", which is not permitted: ` +
+        `network-capable and runtime-sensitive built-ins are disabled during ` +
+        `policy evaluation (CIB-108). ${detail}`
+      );
+    }
+    return detail;
   }
 
   /**
@@ -670,10 +807,11 @@ export class OPAExecutor {
    */
   private async cleanupTempDirectory(tempDir: string): Promise<void> {
     try {
+      const { rm } = await import('node:fs/promises');
       if (existsSync(tempDir)) {
-        const { rm } = await import('node:fs/promises');
         await rm(tempDir, { recursive: true, force: true });
       }
+      await rm(this.capabilitiesPathFor(tempDir), { force: true });
     } catch {
       // Ignore cleanup errors
     }

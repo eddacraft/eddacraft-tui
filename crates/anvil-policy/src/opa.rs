@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use wait_timeout::ChildExt;
@@ -56,10 +57,24 @@ pub struct TestDetail {
     pub message: Option<String>,
 }
 
+/// Network-capable and runtime-sensitive OPA built-ins removed from the
+/// capabilities profile used for every evaluation (CIB-108).
+///
+/// Workspace policies (`.anvil/policies/*.rego`) are untrusted input; these
+/// built-ins would let a policy make outbound requests (`http.send`), resolve
+/// DNS (`net.lookup_ip_addr`), or read the process environment
+/// (`opa.runtime`) from developer and CI machines.
+pub const OPA_DENIED_BUILTINS: [&str; 3] = ["http.send", "net.lookup_ip_addr", "opa.runtime"];
+
 #[derive(Debug, thiserror::Error)]
 pub enum OpaError {
     #[error("OPA binary not found: {0}")]
     BinaryNotFound(String),
+    #[error(
+        "failed to derive a restricted OPA capabilities profile; \
+         refusing to evaluate policies without built-in restrictions: {0}"
+    )]
+    CapabilitiesDerivation(String),
     #[error("OPA execution failed: {0}")]
     Execution(String),
     #[error("I/O error: {0}")]
@@ -93,6 +108,11 @@ pub struct OpaExecutor {
     binary_path: String,
     timeout_ms: u64,
     query: String,
+    /// Memoised restricted capabilities JSON (CIB-108), derived once per
+    /// executor from `opa capabilities --current` so the profile always
+    /// matches the installed binary version. Stores the failure too so a
+    /// broken binary fails closed consistently instead of being re-probed.
+    restricted_capabilities: OnceLock<Result<String, String>>,
 }
 
 impl OpaExecutor {
@@ -101,6 +121,7 @@ impl OpaExecutor {
             binary_path: binary_path.unwrap_or("opa").to_string(),
             timeout_ms: timeout_ms.unwrap_or(30_000),
             query: "data.anvil.policies".to_string(),
+            restricted_capabilities: OnceLock::new(),
         }
     }
 
@@ -146,12 +167,22 @@ impl OpaExecutor {
         let input_str = serde_json::to_string_pretty(input)?;
         std::fs::write(&input_path, &input_str)?;
 
+        // CIB-108: restrict built-ins on every eval. The profile lives in
+        // `input_dir`, NOT `policy_dir` — `--data <dir>` loads every JSON
+        // file in the directory into the data document, while `--input` only
+        // reads the single file passed.
+        let capabilities_json = self.restricted_capabilities()?;
+        let capabilities_path = input_dir.path().join("capabilities.json");
+        std::fs::write(&capabilities_path, capabilities_json)?;
+
         let mut child = Command::new(&self.binary_path)
             .arg("eval")
             .arg("--data")
             .arg(policy_dir.path())
             .arg("--input")
             .arg(&input_path)
+            .arg("--capabilities")
+            .arg(&capabilities_path)
             .arg("--format")
             .arg("json")
             .arg(&self.query)
@@ -228,6 +259,11 @@ impl OpaExecutor {
 
         if !status.success() {
             let stderr = String::from_utf8_lossy(&stderr_bytes).to_string();
+            let stdout_text = String::from_utf8_lossy(&stdout_bytes);
+            // CIB-108: a policy that needs a denied built-in fails to
+            // compile against the restricted capabilities profile; give the
+            // operator an actionable message instead of a bare type error.
+            let error = denied_builtin_error(&stderr, &stdout_text).unwrap_or(stderr);
             return Ok(OpaResult {
                 success: false,
                 violations: Vec::new(),
@@ -236,7 +272,7 @@ impl OpaExecutor {
                     execution_time_ms: elapsed,
                     opa_version,
                 },
-                error: Some(stderr),
+                error: Some(error),
             });
         }
 
@@ -292,7 +328,23 @@ impl OpaExecutor {
     }
 
     pub fn run_tests(&self, policy_dir: &Path, verbose: bool) -> Result<TestResult, OpaError> {
-        let mut args = vec!["test", "--format", "json"];
+        // CIB-108: `opa test <dir>` executes untrusted rego too, so the same
+        // restricted capabilities profile applies. It is written to its own
+        // temp dir because `opa test` loads every file in `policy_dir`
+        // (including JSON) as data/policies.
+        let capabilities_json = self.restricted_capabilities()?;
+        let capabilities_dir = tempfile::TempDir::new()?;
+        let capabilities_path = capabilities_dir.path().join("capabilities.json");
+        std::fs::write(&capabilities_path, capabilities_json)?;
+        let capabilities_str = capabilities_path.to_string_lossy();
+
+        let mut args = vec![
+            "test",
+            "--capabilities",
+            &capabilities_str,
+            "--format",
+            "json",
+        ];
         if verbose {
             args.push("-v");
         }
@@ -317,7 +369,9 @@ impl OpaExecutor {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            if !stderr.is_empty() {
+            if let Some(mapped) = denied_builtin_error(&stderr, &stdout) {
+                errors.push(mapped);
+            } else if !stderr.is_empty() {
                 errors.push(stderr.to_string());
             }
         }
@@ -350,6 +404,58 @@ impl OpaExecutor {
             errors,
             details,
         })
+    }
+
+    /// Restricted capabilities profile for this executor (CIB-108),
+    /// memoised on first use. Fails closed: any derivation failure aborts
+    /// evaluation rather than falling back to unrestricted built-ins.
+    fn restricted_capabilities(&self) -> Result<&str, OpaError> {
+        self.restricted_capabilities
+            .get_or_init(|| self.derive_restricted_capabilities())
+            .as_deref()
+            .map_err(|e| OpaError::CapabilitiesDerivation(e.clone()))
+    }
+
+    /// Derive the profile from the configured binary (`opa capabilities
+    /// --current`) so it always matches the installed OPA version, then
+    /// remove the denied built-ins and empty `allow_net` as defence in
+    /// depth (an empty allowlist denies every host even if a
+    /// network-capable built-in slipped through).
+    fn derive_restricted_capabilities(&self) -> Result<String, String> {
+        let output = Command::new(&self.binary_path)
+            .args(["capabilities", "--current"])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = stderr.trim();
+            return Err(if stderr.is_empty() {
+                format!("opa capabilities exited with status {}", output.status)
+            } else {
+                stderr.to_string()
+            });
+        }
+
+        let mut capabilities: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .map_err(|e| format!("opa capabilities returned invalid JSON: {e}"))?;
+
+        let Some(builtins) = capabilities
+            .get_mut("builtins")
+            .and_then(serde_json::Value::as_array_mut)
+        else {
+            return Err("opa capabilities output has no builtins list".to_string());
+        };
+
+        builtins.retain(|builtin| {
+            builtin
+                .get("name")
+                .and_then(serde_json::Value::as_str)
+                .is_none_or(|name| !OPA_DENIED_BUILTINS.contains(&name))
+        });
+        capabilities["allow_net"] = serde_json::json!([]);
+
+        Ok(capabilities.to_string())
     }
 
     fn extract_violations(
@@ -523,6 +629,26 @@ fn parse_violation_item(
             fingerprint: None,
         },
     }
+}
+
+/// CIB-108: map an OPA compile error caused by a denied built-in to an
+/// actionable message. Returns `None` when the failure is unrelated to the
+/// capabilities restriction.
+fn denied_builtin_error(stderr: &str, stdout: &str) -> Option<String> {
+    let denied = OPA_DENIED_BUILTINS.iter().find(|name| {
+        let needle = format!("undefined function {name}");
+        stderr.contains(&needle) || stdout.contains(&needle)
+    })?;
+    let detail = if stderr.trim().is_empty() {
+        stdout
+    } else {
+        stderr
+    };
+    Some(format!(
+        "policy requires the OPA built-in \"{denied}\", which is not permitted: \
+         network-capable and runtime-sensitive built-ins are disabled during \
+         policy evaluation (CIB-108). {detail}"
+    ))
 }
 
 fn normalise_severity(s: &str) -> String {
@@ -824,8 +950,18 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         // `exec` so the shell is replaced by `sleep` — otherwise killing the
         // child (the shell) leaves `sleep` holding the stdout/stderr pipes and
-        // the reader threads block until `sleep` naturally exits.
-        let script = write_fake_opa_script(dir.path(), "fake_opa_hang", "exec sleep 30\n");
+        // the reader threads block until `sleep` naturally exits. The
+        // `capabilities` branch answers instantly so the CIB-108 derivation
+        // step succeeds and the hang is exercised on the eval call itself.
+        let script = write_fake_opa_script(
+            dir.path(),
+            "fake_opa_hang",
+            "if [ \"$1\" = \"capabilities\" ]; then\n\
+             \x20 echo '{\"builtins\":[{\"name\":\"eq\"}]}'\n\
+             \x20 exit 0\n\
+             fi\n\
+             exec sleep 30\n",
+        );
         let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(200));
         let err = executor
             .evaluate(&[], &serde_json::json!({}))
@@ -836,6 +972,142 @@ mod tests {
         }
     }
 
+    /// Fake `opa` for the CIB-108 capabilities tests: serves a capabilities
+    /// document containing the denied built-ins, then REQUIRES a
+    /// `--capabilities <file>` argument on eval/test calls and fails unless
+    /// the denied built-ins were filtered out and `allow_net` was emptied.
+    #[cfg(unix)]
+    const ENFORCING_FAKE_OPA: &str = r#"if [ "$1" = "capabilities" ]; then
+  echo '{"builtins":[{"name":"eq"},{"name":"count"},{"name":"http.send"},{"name":"net.lookup_ip_addr"},{"name":"opa.runtime"}]}'
+  exit 0
+fi
+if [ "$1" = "version" ]; then
+  echo 'Version: 0.0.0-fake'
+  exit 0
+fi
+caps=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--capabilities" ]; then caps="$arg"; fi
+  prev="$arg"
+done
+if [ -z "$caps" ] || [ ! -f "$caps" ]; then
+  echo "invoked without --capabilities" >&2
+  exit 1
+fi
+for denied in http.send net.lookup_ip_addr opa.runtime; do
+  if grep -q "\"$denied\"" "$caps"; then
+    echo "denied built-in $denied still present in capabilities" >&2
+    exit 1
+  fi
+done
+if ! grep -q '"allow_net":\[\]' "$caps"; then
+  echo "allow_net not emptied in capabilities" >&2
+  exit 1
+fi
+if [ "$1" = "test" ]; then
+  echo '[]'
+else
+  echo '{"result":[]}'
+fi
+"#;
+
+    #[cfg(unix)]
+    #[test]
+    fn evaluate_passes_restricted_capabilities_to_opa() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let script = write_fake_opa_script(dir.path(), "fake_opa_caps", ENFORCING_FAKE_OPA);
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(5_000));
+        let result = executor
+            .evaluate(&[], &serde_json::json!({}))
+            .expect("evaluate ok");
+        assert!(
+            result.success,
+            "eval must be invoked with a restricted --capabilities file; error={:?}",
+            result.error
+        );
+        assert!(
+            result.error.is_none(),
+            "unexpected error: {:?}",
+            result.error
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_tests_passes_restricted_capabilities_to_opa() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let script = write_fake_opa_script(dir.path(), "fake_opa_caps_test", ENFORCING_FAKE_OPA);
+        let policy_dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            policy_dir.path().join("example_test.rego"),
+            "package test\n\ntest_ok { true }\n",
+        )
+        .unwrap();
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(5_000));
+        let result = executor
+            .run_tests(policy_dir.path(), false)
+            .expect("run_tests ok");
+        assert!(
+            result.errors.is_empty(),
+            "opa test must be invoked with a restricted --capabilities file; errors={:?}",
+            result.errors
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evaluate_fails_closed_when_capabilities_cannot_be_derived() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let script = write_fake_opa_script(
+            dir.path(),
+            "fake_opa_no_caps",
+            "if [ \"$1\" = \"capabilities\" ]; then\n\
+             \x20 echo 'capabilities subcommand unsupported' >&2\n\
+             \x20 exit 1\n\
+             fi\n\
+             echo '{\"result\":[]}'\n",
+        );
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(5_000));
+        let err = executor
+            .evaluate(&[], &serde_json::json!({}))
+            .expect_err("derivation failure must fail closed, not run unrestricted");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("refusing to evaluate"),
+            "expected fail-closed wording, got {msg:?}"
+        );
+        assert!(
+            msg.contains("capabilities subcommand unsupported"),
+            "expected underlying stderr detail, got {msg:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evaluate_reports_denied_builtin_clearly() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let script = write_fake_opa_script(
+            dir.path(),
+            "fake_opa_denied",
+            "if [ \"$1\" = \"capabilities\" ]; then\n\
+             \x20 echo '{\"builtins\":[{\"name\":\"eq\"}]}'\n\
+             \x20 exit 0\n\
+             fi\n\
+             echo '1 error occurred: policy.rego:4: rego_type_error: undefined function http.send' >&2\n\
+             exit 2\n",
+        );
+        let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(5_000));
+        let result = executor
+            .evaluate(&[], &serde_json::json!({}))
+            .expect("denied builtin surfaces as OpaResult error, not a hard Err");
+        assert!(!result.success);
+        let msg = result.error.as_deref().unwrap_or("");
+        assert!(msg.contains("http.send"), "got {msg:?}");
+        assert!(msg.contains("not permitted"), "got {msg:?}");
+        assert!(msg.contains("CIB-108"), "got {msg:?}");
+    }
+
     #[cfg(unix)]
     #[test]
     fn evaluate_propagates_stderr_on_nonzero_exit() {
@@ -843,7 +1115,11 @@ mod tests {
         let script = write_fake_opa_script(
             dir.path(),
             "fake_opa_fail",
-            "echo 'boom: parse error' >&2\nexit 2\n",
+            "if [ \"$1\" = \"capabilities\" ]; then\n\
+             \x20 echo '{\"builtins\":[{\"name\":\"eq\"}]}'\n\
+             \x20 exit 0\n\
+             fi\n\
+             echo 'boom: parse error' >&2\nexit 2\n",
         );
         let executor = OpaExecutor::new(Some(script.to_str().unwrap()), Some(5_000));
         let result = executor

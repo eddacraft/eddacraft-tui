@@ -12,6 +12,49 @@ import { join } from 'node:path';
 import { tmpdir, platform } from 'node:os';
 import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
+/**
+ * Minimal capabilities document served by mock binaries for
+ * `opa capabilities --current` (CIB-108). Content only needs to be parseable
+ * and carry a builtins list; enforcement itself is covered by
+ * opa-executor.capabilities.test.ts.
+ */
+const MOCK_CAPABILITIES = '{"builtins":[{"name":"eq"},{"name":"count"},{"name":"http.send"}]}';
+
+/**
+ * Build a mock `opa` script that answers the `capabilities` subcommand and
+ * echoes `outputJson` for every other invocation (eval/test).
+ */
+function mockOpaScript(outputJson: string): string {
+  if (platform() === 'win32') {
+    return [
+      '@echo off',
+      'if "%1"=="capabilities" goto caps',
+      `echo ${outputJson}`,
+      'exit /b 0',
+      ':caps',
+      `echo ${MOCK_CAPABILITIES}`,
+      'exit /b 0',
+      '',
+    ].join('\r\n');
+  }
+  return [
+    '#!/bin/sh',
+    'if [ "$1" = "capabilities" ]; then',
+    `  echo '${MOCK_CAPABILITIES}'`,
+    '  exit 0',
+    'fi',
+    `echo '${outputJson}'`,
+    '',
+  ].join('\n');
+}
+
+function writeMockOpa(path: string, outputJson: string): void {
+  writeFileSync(path, mockOpaScript(outputJson));
+  if (platform() !== 'win32') {
+    chmodSync(path, 0o755);
+  }
+}
+
 describe('OPAExecutor', () => {
   let executor: OPAExecutor;
   let tempDir: string;
@@ -24,15 +67,7 @@ describe('OPAExecutor', () => {
 
     // Create a mock OPA binary that returns valid JSON
     mockBinaryPath = join(tempDir, platform() === 'win32' ? 'opa.cmd' : 'opa');
-    const mockScript =
-      platform() === 'win32'
-        ? '@echo off\necho {"result":[{"expressions":[{"value":{}}]}]}'
-        : '#!/bin/sh\necho \'{"result":[{"expressions":[{"value":{}}]}]}\'';
-
-    writeFileSync(mockBinaryPath, mockScript);
-    if (platform() !== 'win32') {
-      chmodSync(mockBinaryPath, 0o755);
-    }
+    writeMockOpa(mockBinaryPath, '{"result":[{"expressions":[{"value":{}}]}]}');
 
     executor = new OPAExecutor(mockBinaryPath, {
       timeout: 5000,
@@ -166,15 +201,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(violationBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(violationBinary, 0o755);
-      }
+      writeMockOpa(violationBinary, outputJson);
 
       const violationExecutor = new OPAExecutor(violationBinary);
       const result = await violationExecutor.evaluate(mockPolicies, mockInput);
@@ -207,15 +234,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(violationsBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(violationsBinary, 0o755);
-      }
+      writeMockOpa(violationsBinary, outputJson);
 
       const violationsExecutor = new OPAExecutor(violationsBinary);
       const result = await violationsExecutor.evaluate(mockPolicies, mockInput);
@@ -254,15 +273,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(violationBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(violationBinary, 0o755);
-      }
+      writeMockOpa(violationBinary, outputJson);
 
       const violationExecutor = new OPAExecutor(violationBinary);
       const result = await violationExecutor.evaluate(mockPolicies, mockInput);
@@ -294,15 +305,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(denyBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(denyBinary, 0o755);
-      }
+      writeMockOpa(denyBinary, outputJson);
 
       const denyExecutor = new OPAExecutor(denyBinary);
       const result = await denyExecutor.evaluate(mockPolicies, mockInput);
@@ -330,15 +333,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(deniesBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(deniesBinary, 0o755);
-      }
+      writeMockOpa(deniesBinary, outputJson);
 
       const deniesExecutor = new OPAExecutor(deniesBinary);
       const result = await deniesExecutor.evaluate(mockPolicies, mockInput);
@@ -365,15 +360,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(warnBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(warnBinary, 0o755);
-      }
+      writeMockOpa(warnBinary, outputJson);
 
       const warnExecutor = new OPAExecutor(warnBinary);
       const result = await warnExecutor.evaluate(mockPolicies, mockInput);
@@ -404,15 +391,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(warningsBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(warningsBinary, 0o755);
-      }
+      writeMockOpa(warningsBinary, outputJson);
 
       const warningsExecutor = new OPAExecutor(warningsBinary);
       const result = await warningsExecutor.evaluate(mockPolicies, mockInput);
@@ -442,15 +421,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(violationBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(violationBinary, 0o755);
-      }
+      writeMockOpa(violationBinary, outputJson);
 
       const fingerprintExecutor = new OPAExecutor(violationBinary);
       const result = await fingerprintExecutor.evaluate(mockPolicies, mockInput);
@@ -492,15 +463,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(violationBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(violationBinary, 0o755);
-      }
+      writeMockOpa(violationBinary, outputJson);
 
       const consistentExecutor = new OPAExecutor(violationBinary);
       const result = await consistentExecutor.evaluate(mockPolicies, mockInput);
@@ -530,15 +493,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(securityBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(securityBinary, 0o755);
-      }
+      writeMockOpa(securityBinary, outputJson);
 
       const securityPolicy: LoadedPolicy = {
         name: 'security_check',
@@ -572,15 +527,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(archBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(archBinary, 0o755);
-      }
+      writeMockOpa(archBinary, outputJson);
 
       const archPolicy: LoadedPolicy = {
         name: 'architecture_boundary',
@@ -614,15 +561,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(coverageBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(coverageBinary, 0o755);
-      }
+      writeMockOpa(coverageBinary, outputJson);
 
       const coveragePolicy: LoadedPolicy = {
         name: 'coverage_min',
@@ -656,15 +595,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(customBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(customBinary, 0o755);
-      }
+      writeMockOpa(customBinary, outputJson);
 
       const customPolicy: LoadedPolicy = {
         name: 'my_custom_policy',
@@ -702,15 +633,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(msgBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(msgBinary, 0o755);
-      }
+      writeMockOpa(msgBinary, outputJson);
 
       const msgExecutor = new OPAExecutor(msgBinary);
       const result = await msgExecutor.evaluate(mockPolicies, mockInput);
@@ -741,15 +664,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(docBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(docBinary, 0o755);
-      }
+      writeMockOpa(docBinary, outputJson);
 
       const docExecutor = new OPAExecutor(docBinary);
       const result = await docExecutor.evaluate(mockPolicies, mockInput);
@@ -837,15 +752,7 @@ violation[msg] {
         tempDir,
         platform() === 'win32' ? 'opa-badjson.cmd' : 'opa-badjson'
       );
-      const script =
-        platform() === 'win32'
-          ? '@echo off\necho {invalid json}'
-          : '#!/bin/sh\necho "{invalid json}"';
-
-      writeFileSync(badJsonBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(badJsonBinary, 0o755);
-      }
+      writeMockOpa(badJsonBinary, '{invalid json}');
 
       const badJsonExecutor = new OPAExecutor(badJsonBinary);
       const result = await badJsonExecutor.evaluate(mockPolicies, mockInput);
@@ -894,15 +801,7 @@ violation[msg] {
         tempDir,
         platform() === 'win32' ? 'opa-malformed.cmd' : 'opa-malformed'
       );
-      const script =
-        platform() === 'win32'
-          ? '@echo off\necho {"unexpected":"structure"}'
-          : '#!/bin/sh\necho \'{"unexpected":"structure"}\'';
-
-      writeFileSync(malformedBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(malformedBinary, 0o755);
-      }
+      writeMockOpa(malformedBinary, '{"unexpected":"structure"}');
 
       const malformedExecutor = new OPAExecutor(malformedBinary);
       const result = await malformedExecutor.evaluate(mockPolicies, mockInput);
@@ -925,15 +824,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(emptyExprBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(emptyExprBinary, 0o755);
-      }
+      writeMockOpa(emptyExprBinary, outputJson);
 
       const emptyExprExecutor = new OPAExecutor(emptyExprBinary);
       const result = await emptyExprExecutor.evaluate(mockPolicies, mockInput);
@@ -959,15 +850,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(nonObjValBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(nonObjValBinary, 0o755);
-      }
+      writeMockOpa(nonObjValBinary, outputJson);
 
       const nonObjValExecutor = new OPAExecutor(nonObjValBinary);
       const result = await nonObjValExecutor.evaluate(mockPolicies, mockInput);
@@ -992,15 +875,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(nonObjBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(nonObjBinary, 0o755);
-      }
+      writeMockOpa(nonObjBinary, outputJson);
 
       const nonObjExecutor = new OPAExecutor(nonObjBinary);
       const result = await nonObjExecutor.evaluate(mockPolicies, mockInput);
@@ -1030,15 +905,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(badViolBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(badViolBinary, 0o755);
-      }
+      writeMockOpa(badViolBinary, outputJson);
 
       const badViolExecutor = new OPAExecutor(badViolBinary);
       const result = await badViolExecutor.evaluate(mockPolicies, mockInput);
@@ -1070,15 +937,7 @@ violation[msg] {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(arrayViolBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(arrayViolBinary, 0o755);
-      }
+      writeMockOpa(arrayViolBinary, outputJson);
 
       const arrayViolExecutor = new OPAExecutor(arrayViolBinary);
       const result = await arrayViolExecutor.evaluate(mockPolicies, mockInput);
@@ -1249,15 +1108,7 @@ test_example {
         },
       ]);
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(testBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(testBinary, 0o755);
-      }
+      writeMockOpa(testBinary, outputJson);
 
       const testExecutor = new OPAExecutor(testBinary);
       const testFiles = [join(tempDir, 'test.rego')];
@@ -1330,15 +1181,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(denyBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(denyBinary, 0o755);
-      }
+      writeMockOpa(denyBinary, outputJson);
 
       const denyPolicy: LoadedPolicy = {
         name: 'deny_policy',
@@ -1374,15 +1217,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(warnBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(warnBinary, 0o755);
-      }
+      writeMockOpa(warnBinary, outputJson);
 
       const warnPolicy: LoadedPolicy = {
         name: 'warn_policy',
@@ -1419,15 +1254,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(scopeBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(scopeBinary, 0o755);
-      }
+      writeMockOpa(scopeBinary, outputJson);
 
       const scopePolicy: LoadedPolicy = {
         name: 'scope_check',
@@ -1464,15 +1291,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(qualityBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(qualityBinary, 0o755);
-      }
+      writeMockOpa(qualityBinary, outputJson);
 
       const qualityPolicy: LoadedPolicy = {
         name: 'lint_rules',
@@ -1509,15 +1328,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(complianceBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(complianceBinary, 0o755);
-      }
+      writeMockOpa(complianceBinary, outputJson);
 
       const compliancePolicy: LoadedPolicy = {
         name: 'compliance_check',
@@ -1556,15 +1367,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(errorBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(errorBinary, 0o755);
-      }
+      writeMockOpa(errorBinary, outputJson);
 
       const errorExecutor = new OPAExecutor(errorBinary);
       const result = await errorExecutor.evaluate(mockPolicies, mockInput);
@@ -1597,15 +1400,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(warnBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(warnBinary, 0o755);
-      }
+      writeMockOpa(warnBinary, outputJson);
 
       const warnExecutor = new OPAExecutor(warnBinary);
       const result = await warnExecutor.evaluate(mockPolicies, mockInput);
@@ -1632,15 +1427,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(infoBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(infoBinary, 0o755);
-      }
+      writeMockOpa(infoBinary, outputJson);
 
       const infoExecutor = new OPAExecutor(infoBinary);
       const result = await infoExecutor.evaluate(mockPolicies, mockInput);
@@ -1669,15 +1456,7 @@ test_example {
         ],
       });
 
-      const script =
-        platform() === 'win32'
-          ? `@echo off\necho ${outputJson}`
-          : `#!/bin/sh\necho '${outputJson}'`;
-
-      writeFileSync(invalidBinary, script);
-      if (platform() !== 'win32') {
-        chmodSync(invalidBinary, 0o755);
-      }
+      writeMockOpa(invalidBinary, outputJson);
 
       const invalidExecutor = new OPAExecutor(invalidBinary);
       const result = await invalidExecutor.evaluate(mockPolicies, mockInput);

@@ -10,7 +10,7 @@ export type { OPABinaryConfig, BinaryInfo } from './opa-binary-manager.js';
 export { PolicyLoader } from './policy-loader.js';
 export type { LoadedPolicy, PolicyDiscoveryResult, PolicyLoaderConfig } from './policy-loader.js';
 
-export { OPAExecutor } from './opa-executor.js';
+export { OPAExecutor, OPA_DENIED_BUILTINS } from './opa-executor.js';
 export type {
   OPAInput,
   PolicyViolation,
