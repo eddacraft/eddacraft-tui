@@ -3729,7 +3729,7 @@ archive.
 
 ### CIB-137: Make required-check classification tamper-resistant to PR-controlled code
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3098
 - **Intent:** `detect-changes`'s classification is computed entirely from code checked out at the PR's own head (`ci.yml:52-59` checks out the default `pull_request` ref, then `uses: ./.github/actions/detect-changes`, itself PR-controlled). The composite action shells out to `scripts/ci/classify-changes.sh` (`.github/actions/detect-changes/action.yml:182`) and derives every `*-required` gate (`lint-required`, `typecheck-required`, `unit-tests-required`, `dependency-audit-required`, etc., `action.yml:227-272`) purely from that PR-editable script's output. A PR that edits `.github/actions/detect-changes/action.yml` or `scripts/ci/classify-changes.sh` to always report `docs-only`/no required checks makes `ci.yml`'s per-job skip conditions (e.g. `ci.yml:449-457`, `ci.yml:529-536`) short-circuit to a passing filler conclusion for every required-check name, without lint/typecheck/tests/dependency-audit ever running on that same PR.
 - **Expected Outcome:** The composite action and script that decide which required checks run are resolved from a trusted ref (PR base SHA or `main`) rather than the PR's own head, so PR-controlled edits to the classifier cannot suppress required checks on that same PR.
 - **Files:** `.github/actions/detect-changes/action.yml`, `scripts/ci/classify-changes.sh`.
@@ -4246,3 +4246,55 @@ archive.
 - **Confidence:** high — the fix is an additive counter/cap with no
   behavioural change below the new budget; the only judgement call is
   picking a default ceiling generous enough for real multi-root workflows.
+
+### CIB-155: Make Security Summary fail when its security scan jobs fail
+
+- **Status:** Ready
+- **Intent:** "Security Summary" is a required ruleset context, but its job
+  runs `if: always()` and its `actions/github-script` step never calls
+  `core.setFailed` based on the scan results — its conclusion is decoupled
+  from whether `semgrep`/`dependency-audit`/`secret-scan`/`license-check`
+  passed, failed, or were wrongly skipped. A red scan therefore cannot block
+  a merge through the one security context branch protection actually
+  requires. Surfaced by the CIB-137 verification review (PR #3098), which
+  hardened the four scan jobs but could not reach this decoupling.
+- **Expected Outcome:** the summary job fails (via `core.setFailed` or a
+  preceding guard step) when any needed scan job resolves to `failure`, and
+  treats the scans' `result` values alongside `needs.detect-changes` in the
+  same `always()`/`result != 'success'` fail-closed pattern; scheduled/
+  dispatch full-sweep behaviour unchanged.
+- **Files:** `.github/workflows/security.yml` (summary job).
+- **Validation:** a fixture/dry-run showing a forced scan-job failure turns
+  "Security Summary" red (merge-blocking), while an all-green run and a
+  schedule-triggered sweep stay green; existing PR-comment output unchanged.
+- **Identified From:** CIB-137 verification review, 2026-07-03 (PR #3098).
+- **Coordinates with:** CIB-137 (trusted classifier, merged), the security.yml
+  fail-closed guards landed there.
+- **Confidence:** high — a contained conditional/step change in one job, with
+  the guard pattern already proven on the sibling jobs.
+
+### CIB-156: Add fail-closed classifier guards to test-release-gate and build
+
+- **Status:** Ready
+- **Intent:** `ci.yml`'s `test-release-gate` and `build` jobs consume
+  `needs.detect-changes.outputs.*` without the `always() &&
+  (result != 'success' || ...)` guard the other consumers gained in CIB-137,
+  so a classifier failure silently skips them. Neither is a required context
+  today (release-gate only fires for `release/*`/`hotfix/*`-headed PRs;
+  `build` excludes `pull_request`), so this is a narrower residual: an
+  internal contributor on a release/hotfix PR could suppress the
+  cross-platform Release Gate via classifier tampering or induced failure.
+- **Expected Outcome:** both jobs adopt the uniform fail-closed pattern
+  (fail-fast first step on `needs.detect-changes.result != 'success'`),
+  keeping their existing trigger/branch conditions otherwise unchanged.
+- **Files:** `.github/workflows/ci.yml` (`test-release-gate`, `build`).
+- **Validation:** the structural assertions in
+  `scripts/ci/fast-pr-validation.test.sh` extended to pin the guard on both
+  jobs; YAML parse + fixture suite green; normal-path skipping behaviour
+  demonstrably unchanged for a docs-only PR.
+- **Identified From:** CIB-137 verification review completeness sweep,
+  2026-07-03 (PR #3098).
+- **Coordinates with:** CIB-137 (same guard pattern, merged); CIB-139
+  (release-path tag trust, decision-gated).
+- **Confidence:** high — mechanical replication of a pattern applied five
+  times in CIB-137.
