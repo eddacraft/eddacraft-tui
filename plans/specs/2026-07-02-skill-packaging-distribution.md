@@ -4,9 +4,10 @@
 
 Date: 2026-07-02
 Module: `SKPKG` (SKPKG-001)
-Status: Draft — **Parked 2026-07-02**, see the module's `## Notes`. Two
-self-review defects below are flagged but intentionally left unfixed while
-parked; fix before requesting owner review on resume.
+Status: Draft — **Parked 2026-07-02**, see the module's `## Notes`. Review
+defects (self-review + Copilot PR review on #3072) have been fixed below;
+still needs a fresh re-verification of "What already exists" against
+`eddacraft-skills` current state before owner review on resume.
 Coordinates with:
 [`plans/modules/skill-packaging-distribution.aps.md`](../modules/skill-packaging-distribution.aps.md),
 [`plans/modules/skill-discovery-observability.aps.md`](../modules/skill-discovery-observability.aps.md),
@@ -83,14 +84,25 @@ wired to a customer-reachable distribution channel:
      the org boundary, and per ADR-018 (below) it should not be widened to.
 
 4. **A binary-distribution precedent already exists for reaching *into* a
-   customer's repo**: `anvil mcp install --client <cursor|claude-code>`
+   customer's machine**: `anvil mcp install --client <cursor|claude-code>`
    (`crates/anvil-cli/src/commands/mcp.rs`) ships inside the closed `anvil`
-   binary and writes MCP server config into the *customer's* project
-   (`.cursor/mcp.json`, `.claude.json`). No source disclosure, no access to
-   any eddacraft-internal repo required — the customer just runs their
-   already-installed `anvil` binary. This is the one piece of the puzzle that
-   is genuinely customer-reachable today, and it only covers MCP server
-   wiring, not skill files, and only 2 of the catalogue's 4 declared targets.
+   binary and writes MCP server config for the customer. **Correction (caught
+   in review): its default target is the user's home directory, not the
+   project** — `McpInstallArgs.workspace` defaults to
+   `default_client_config_root()`, which resolves to `user_home_dir()`
+   (`crates/anvil-cli/src/commands/mcp_config.rs:217-219`); writing into the
+   project directory requires the caller to pass `--workspace` explicitly.
+   No source disclosure, no access to any eddacraft-internal repo required —
+   the customer just runs their already-installed `anvil` binary. This is the
+   one piece of the puzzle that is genuinely customer-reachable today, and it
+   only covers MCP server wiring, not skill files. Its target-harness
+   coverage is also narrower than the catalogue's: `McpClient` is
+   `{cursor, claude-code}` — of which only `claude-code` overlaps with the
+   catalogue's declared targets (`{claude, opencode, openclaw}` +
+   `install.sh`'s `codex`); `cursor` isn't a catalogue target at all. §1's
+   proposal needs to pick an install scope (home vs. project — see the new
+   Open Question OQ-5) rather than assume "customer's project" the way an
+   earlier draft of this spec did.
 
 So the actual gap is narrow: **there is no customer-reachable path from "a
 skill exists in the catalogue with `targets: {…}` declared" to "the skill is
@@ -110,20 +122,25 @@ Two lifecycle stages, kept distinct:
 - **Distribution artefact (new)**: the customer-facing package embedded in
   the `anvil` binary at build time (e.g. `include_str!`/`rust-embed` over the
   per-harness emitted output, or over the canonical `SKILL.md` if a
-  build-time emission step is added — see Open Question OQ-1) and
-  materialised into the customer's project by a new `anvil skill install`
+  build-time emission step is added — see the new Open Question OQ-6) and
+  materialised into the customer's machine by a new `anvil skill install`
   subcommand, sibling to `anvil mcp install`:
 
   ```text
   anvil skill install --client claude-code   # writes .claude/skills/anvil-developer-functions/
-  anvil skill install --client cursor        # writes cursor-shaped equivalent, if one exists
+  anvil skill install --client claude-code --workspace .   # project-scoped, mirrors mcp install's override
   anvil skill list                           # what's bundled in this anvil version, per target
   ```
 
   This reuses the exact pattern `anvil mcp install` already established:
-  binary-embedded content, `--client` selection, writes to the customer's
-  working directory, no network call, no catalogue-repo access. It is the
-  smallest change that closes the gap identified above.
+  binary-embedded content, `--client` selection, and — per the correction in
+  finding 4 above — the same **home-directory-by-default, `--workspace`-to-
+  override-to-project** scope, not an assumed project-write. No network
+  call, no catalogue-repo access. Whether a *skill* (as opposed to MCP
+  config) should default the other way — project-scoped, since a skill file
+  is more naturally something a team shares via version control — is exactly
+  the kind of call this design shouldn't make unilaterally; logged as Open
+  Question OQ-5.
 
 - **Customer-facing manifest**: don't reuse the full `skill.meta.json` shape
   as-is on the customer's machine — `origin`, `localChanges`, and catalogue
@@ -218,7 +235,7 @@ one design doc's opinion. Logged as SKPKG-002 (below).
 by `anvil skill install` is none of these — it didn't arrive by hand-editing,
 symlinking, or copying; it was written by the `anvil` binary from embedded
 content. Recommend extending `SourceInfo.type` with a fourth value,
-`"anvil-bundled"` (naming TBD — see OQ-3), so `/skill-inventory` can tell a
+`"anvil-bundled"` (naming TBD — see OQ-4), so `/skill-inventory` can tell a
 customer "this skill shipped with your `anvil` install" apart from one they
 or a teammate authored. This is a one-field addition to an existing schema,
 not a fork — flagged back to the SKOBS module (SKOBS-002 is still Draft, not
@@ -247,10 +264,23 @@ rather than silently resolved:
   targets stay independent enums?
 - **OQ-4 (SKPKG-005):** Land the `SourceInfo.type: "anvil-bundled"` addition
   (§5) with the SKOBS module owner before SKOBS-002 goes Ready.
+- **OQ-5 (SKPKG-006):** `anvil mcp install` defaults to the user's home
+  directory (finding 4) and treats project-scoping as an explicit
+  `--workspace` override. Should `anvil skill install` default the same way,
+  or default to project-scoped instead — a skill file is more naturally
+  something a team commits and shares than per-user MCP client config is?
+  Affects whether installed skills are gitignored-local or team-visible by
+  default, and how SKOBS's machine/user/project scope model sees them.
+- **OQ-6 (SKPKG-007):** Does embedding skill content in the `anvil` binary
+  require a new build-time step that pulls `code-env`'s already-emitted
+  per-harness output into the build, or does it embed the canonical
+  `SKILL.md` directly and defer per-harness adaptation to install time? Not
+  resolved here — flagged for whoever scopes the `anvil skill install`
+  implementation.
 
 ## Decision
 
 Not yet ratified — this spec is Draft pending owner review, particularly of
 §4 (IP boundary) and OQ-1/OQ-2. On acceptance, SKPKG-001 moves to Done and
-SKPKG-002..005 (from Open Questions) get filed as Draft work items in the
+SKPKG-002..007 (from Open Questions) get filed as Draft work items in the
 SKPKG module.

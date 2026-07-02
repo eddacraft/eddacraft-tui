@@ -74,10 +74,13 @@ the design before any implementation work is scoped.
 
 - **Status:** Blocked — parked 2026-07-02 (owner: new work landing in the
   `eddacraft-skills` catalogue repo changes the ground this design stands on;
-  see `## Notes`). Design doc drafted and self-reviewed but not yet sent for
-  owner sign-off; two review-found defects (broken OQ-3/OQ-4 cross-reference,
-  overstated `anvil mcp install` target-overlap claim) are noted but not
-  fixed while parked — fix on resume, before requesting review.
+  see `## Notes`). Design doc drafted; self-review + a Copilot PR review on
+  #3072 found three defects (broken OQ-3/OQ-4 cross-reference; an overstated
+  `anvil mcp install` target-overlap claim; a wrong claim that `anvil mcp
+  install` defaults to writing into the customer's project — it defaults to
+  the user's home directory, `--workspace` is the override), all fixed in the
+  spec, plus two new Open Questions filed as SKPKG-006/007 as a result. Not
+  yet sent for owner sign-off.
 - **Intent:** Produce a design document that answers how
   `anvil-developer-functions` (and future customer-facing skills) get
   packaged, versioned, and distributed so they work across multiple agent
@@ -165,6 +168,35 @@ the design before any implementation work is scoped.
   change (comment or commit co-sign)
 - **Confidence:** medium
 
+### SKPKG-006: Decide install scope — home directory vs project
+
+- **Status:** Draft
+- **Intent:** Decide whether `anvil skill install` defaults to the user's
+  home directory (mirroring `anvil mcp install`'s default) or defaults to
+  project-scoped, given a skill file is more naturally something a team
+  commits and shares than per-user MCP client config.
+- **Expected Outcome:** A decided default install scope, recorded in `##
+  Decisions`, with the effect on SKOBS's machine/user/project scope model
+  named.
+- **Files:** `crates/anvil-cli/src/commands/mcp.rs`,
+  `crates/anvil-cli/src/commands/mcp_config.rs`
+- **Dependencies:** SKPKG-001
+- **Validation:** Decision recorded in `## Decisions`
+- **Confidence:** medium
+
+### SKPKG-007: Decide the build-time content-embedding mechanism
+
+- **Status:** Draft
+- **Intent:** Decide whether `anvil skill install`'s embedded content comes
+  from a new build-time step that pulls `code-env`'s already-emitted
+  per-harness output into the `anvil` build, or embeds the canonical
+  `SKILL.md` directly and defers per-harness adaptation to install time.
+- **Expected Outcome:** A decided embedding mechanism, recorded in `##
+  Decisions`, that the eventual implementation work item can build against.
+- **Dependencies:** SKPKG-001
+- **Validation:** Decision recorded in `## Decisions`
+- **Confidence:** low
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
@@ -187,7 +219,7 @@ design spec surfaced; this section fills in as each is resolved)_
   distribution channel. Proposes a new `anvil skill install --client <target>`
   CLI subcommand, sibling to the existing `anvil mcp install`, that embeds
   skill content in the closed `anvil` binary (ADR-018-aligned, no catalogue
-  access required). Surfaces four follow-on decisions as SKPKG-002..005.
+  access required). Surfaces six follow-on decisions as SKPKG-002..007.
 
 ## Notes
 
