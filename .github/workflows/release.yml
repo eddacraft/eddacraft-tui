@@ -186,12 +186,42 @@ jobs:
             echo "::error::vars.ANVIL_MINISIGN_PUBLIC_KEY is still the committed development fallback. Generate a real keypair before releasing."
             exit 1
           fi
+      # CIB-120: install rustup from a pinned, checksum-verified rustup-init
+      # release instead of piping https://sh.rustup.rs to sh. The archive URLs
+      # under static.rust-lang.org/rustup/archive/ are immutable, so the pinned
+      # checksums cannot drift; any mismatch fails the job before the build
+      # runs. To update: bump RUSTUP_VERSION to the version published in
+      # https://static.rust-lang.org/rustup/release-stable.toml and refresh
+      # each checksum from
+      # https://static.rust-lang.org/rustup/archive/<version>/<target>/rustup-init.sha256
       - name: Install Rust non-interactively if not already installed
         if: ${{ matrix.container }}
         run: |
+          set -euo pipefail
           if ! command -v cargo > /dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+            RUSTUP_VERSION="1.29.0"
+            arch="$(uname -m)"
+            case "${arch}" in
+              x86_64)
+                RUSTUP_TARGET="x86_64-unknown-linux-gnu"
+                RUSTUP_SHA256="4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+                ;;
+              aarch64)
+                RUSTUP_TARGET="aarch64-unknown-linux-gnu"
+                RUSTUP_SHA256="9732d6c5e2a098d3521fca8145d826ae0aaa067ef2385ead08e6feac88fa5792"
+                ;;
+              *)
+                echo "::error::CIB-120: no pinned rustup-init checksum for architecture ${arch} — add one before building in this container."
+                exit 1
+                ;;
+            esac
+            curl --proto '=https' --tlsv1.2 -sSf --retry 3 -o rustup-init \
+              "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${RUSTUP_TARGET}/rustup-init"
+            echo "${RUSTUP_SHA256}  rustup-init" | sha256sum -c -
+            chmod +x rustup-init
+            ./rustup-init -y
+            rm -f rustup-init
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           fi
       - name: Install dist
         run: ${{ matrix.install_dist.run }}

@@ -82,7 +82,9 @@ shipped binary.
 > **Note:** `allow-dirty = ["ci"]` in `dist-workspace.toml` preserves these
 > manual edits to `release.yml` across `dist generate` runs. If a future
 > `dist init` clobbers them, restore the env block and the preflight step
-> (search for `DISTRIB-001 preflight` in this file).
+> (search for `DISTRIB-001 preflight` in this file), and also the pinned,
+> checksum-verified rustup-init install in the same job (search for
+> `CIB-120` in `release.yml`).
 
 ### 5. Securely wipe the local copy
 

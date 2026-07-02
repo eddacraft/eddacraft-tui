@@ -67,7 +67,13 @@ jobs:
           fi
 
       - name: Install rsign (minisign in Rust)
-        run: cargo install rsign2 --locked
+        # CIB-120: pin the exact crate version so the signing job cannot be
+        # fed a newer, unreviewed rsign2 release at install time. cargo
+        # verifies the downloaded crate tarball against the checksum recorded
+        # in the sparse registry index, and `--locked` pins its dependency
+        # tree to the published lockfile.
+        # To update: vet the new release, then bump the `=X.Y.Z` pin.
+        run: cargo install rsign2 --version =0.6.6 --locked
 
       - name: Materialise signing key
         env:
