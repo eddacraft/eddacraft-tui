@@ -97,7 +97,10 @@ describe('untrusted stack gating (CIB-119)', () => {
     expect(keyResources).toHaveLength(0);
   });
 
-  it('registers no cloud resources at all on an untrusted stack', () => {
+  it('registers no cloud resources from the gated modules on an untrusted stack', () => {
+    // Scoped to the modules imported above (vercel/signing/admin-keys/
+    // keyvault) — infra/index.ts still imports DNS resources
+    // unconditionally; that residual gap is tracked as CIB-135.
     // Component-resource shells (anvil:*) would be acceptable, but nothing
     // above registers even those — the definitions are gated at source.
     expect(resources).toHaveLength(0);
