@@ -81,15 +81,18 @@ function mockGithubUpstream(spec: { status?: number; json?: unknown } = {}) {
 let ipCounter = 0;
 /**
  * Unique per-test source IP so the per-IP limiter never bleeds across tests.
- * The limiter now IP-shape-validates its key (CIB-140), so the value must stay
- * a valid IPv4 — spread the counter across two octets rather than overflowing
- * the last one past 255.
+ * The limiter IP-shape-validates its key (CIB-140), so the value must stay a
+ * valid IPv4, and we stay inside the RFC 5737 documentation blocks
+ * (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) so test identities are
+ * never real, routable addresses: 3 blocks x 250 hosts = 750 distinct IPs.
  */
+const DOC_IP_BLOCKS = ['192.0.2', '198.51.100', '203.0.113'] as const;
+
 function freshIp(): string {
   ipCounter += 1;
-  const third = Math.floor(ipCounter / 250) % 256;
+  const block = DOC_IP_BLOCKS[Math.floor(ipCounter / 250) % DOC_IP_BLOCKS.length];
   const fourth = (ipCounter % 250) + 1; // 1..250, never 0 or >255
-  return `192.0.${third}.${fourth}`;
+  return `${block}.${fourth}`;
 }
 
 // The per-IP limiter keys on the Vercel-established client identity, not the

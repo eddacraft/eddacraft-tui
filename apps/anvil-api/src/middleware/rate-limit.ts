@@ -38,8 +38,11 @@ const MAX_IP_TEXT_LENGTH = 45;
  * anything containing a comma (a multi-hop chain we cannot attribute to a
  * single trusted hop — see trust-boundary note); require `node:net`'s `isIP`
  * to recognise it as IPv4 or IPv6. Non-IP-shaped input falls through to the
- * shared sentinel, which is what stops an unbounded-key memory DoS on
- * deployments where these headers are client-controlled.
+ * shared sentinel, so garbage strings can never become bucket keys. Note the
+ * limit of this guard: where these headers are client-controlled (non-Vercel
+ * deployments), a caller can still rotate VALID IP literals to mint distinct
+ * keys — the real boundary is running behind a trusted edge (see the
+ * residual-risks note below).
  */
 function asTrustedIp(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
@@ -56,10 +59,10 @@ function asTrustedIp(raw: string | undefined): string | undefined {
  * TRUST BOUNDARY — Vercel request headers.
  *
  *   - `x-real-ip` (PRIMARY): Vercel's own first-party SDK keys on this header
- *     and this header ONLY. `@vercel/functions`'s `ipAddress()` reads
- *     `IP_HEADER_NAME = 'x-real-ip'` and nothing else (see
- *     node_modules/@vercel/functions/headers.js in this repo). It is the
- *     single strongest signal of the edge-observed client IP, so we prefer it.
+ *     and this header ONLY. The `@vercel/functions` package's `ipAddress()`
+ *     helper reads `IP_HEADER_NAME = 'x-real-ip'` and nothing else (verified
+ *     against `@vercel/functions` 3.7.1). It is the single strongest signal
+ *     of the edge-observed client IP, so we prefer it.
  *   - `x-vercel-forwarded-for` (SECONDARY): a platform-prefixed variant, used
  *     ONLY as a single opaque IP fallback. We do NOT split it or read any
  *     "rightmost hop" — that chain-position trust model is UNVERIFIED (the
@@ -83,9 +86,11 @@ function asTrustedIp(raw: string | undefined): string | undefined {
  *     over trusting a spoofable value.
  *   - On NON-Vercel deployments these headers are fully client-controlled. The
  *     app's own `dev` script runs under `wrangler`, where nothing sets or
- *     strips them. IP-shape validation + the shared sentinel are the only
- *     backstop there: a caller can still pin a chosen IP, but cannot mint
- *     unbounded fresh keys or escape into a per-request bucket.
+ *     strips them. There a caller can rotate VALID IP literals to mint
+ *     distinct bucket keys and defeat the throttle (and grow the store until
+ *     the window sweep evicts them); the IP-shape validation only blocks
+ *     non-IP / comma-bearing / over-length garbage. Per-client limiting is
+ *     only meaningful behind a trusted edge that owns these headers.
  *
  * REGRESSION TRAP: only ever key on a header the platform OVERWRITES with the
  * edge-observed client IP. Never re-introduce chain-splitting or trust a
