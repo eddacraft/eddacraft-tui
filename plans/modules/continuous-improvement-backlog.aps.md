@@ -3523,7 +3523,7 @@ archive.
 
 ### CIB-128: Parse `anvil-intercept` CLI before installing daemon tracing
 
-- **Status:** Draft
+- **Status:** Merged 2026-07-02 via PR #3076
 - **Intent:** Let clap handle help/version/usage exits before the daemon tracing
   subscriber is installed, so `--help`/`--version` never emit a trace record or
   create a trace sink.
