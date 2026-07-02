@@ -1389,7 +1389,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `ratatui` | 0.30.2 | MIT License | https://github.com/ratatui/ratatui |
 | `same-file` | 1.0.6 | MIT License | https://github.com/BurntSushi/same-file |
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
-| `console` | 0.16.3 | MIT License | https://github.com/console-rs/console |
+| `console` | 0.16.4 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
 | `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `tree-sitter` | 0.26.10 | MIT License | https://github.com/tree-sitter/tree-sitter |
