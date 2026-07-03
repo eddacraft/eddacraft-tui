@@ -23,7 +23,8 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write # to dismiss the stale review label on new commits
+  pull-requests: read # read PR labels
+  issues: write # dismiss the stale review label via the issues labels API
 
 concurrency:
   group: council-gate-${{ github.event.pull_request.number || github.ref }}
@@ -50,10 +51,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Remove the label if present; ignore a 404 (label not applied).
+          # Fail CLOSED: if the label is present and we cannot prove it was
+          # removed, block the PR rather than let a stale review ride in.
           if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
             echo "New commits pushed — dismissing stale '$GATE_LABEL' label; a fresh review is required."
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/${GATE_LABEL}" >/dev/null || true
+            # A 404 ("Label does not exist") means it is already gone (fine);
+            # any other failure is fatal so we never silently keep the label.
+            if ! gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/${GATE_LABEL}" >/dev/null 2>err.txt; then
+              if ! grep -qi 'does not exist' err.txt; then
+                echo "::error::Could not dismiss stale '$GATE_LABEL' label — failing closed."
+                cat err.txt
+                exit 1
+              fi
+            fi
+            # Confirm removal; if it somehow remains, fail closed.
+            if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+              echo "::error::'$GATE_LABEL' still present after dismissal — failing closed."
+              exit 1
+            fi
           fi
 
       - name: Gate protected-path changes on Council review
