@@ -6437,11 +6437,37 @@ mod tests {
         );
     }
 
+    /// True when this environment reports `peer_pid`'s `/proc/<pid>/exe` as
+    /// this test binary — i.e. the foreign read was aliased to the reader
+    /// (issue #3130). An unreadable exe is NOT aliased: the gate fails
+    /// closed on it, which the downgrade assertions already cover.
+    #[cfg(target_os = "linux")]
+    fn peer_exe_reads_as_ours(peer_pid: u32) -> bool {
+        let Ok(ours) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+            return false;
+        };
+        let Ok(peer) = std::fs::read_link(format!("/proc/{peer_pid}/exe")) else {
+            return false;
+        };
+        let peer = std::fs::canonicalize(&peer).unwrap_or(peer);
+        peer == ours
+    }
+
     /// CIB-150: an activation-spine claim whose authenticated peer is a
     /// real same-UID process running a DIFFERENT binary (not the daemon's
     /// `anvil` executable) is downgraded to a live session. Pins the
     /// `/proc/<peer_pid>/exe` vs daemon `current_exe` authorisation gate
     /// on the platform where it is enforced.
+    ///
+    /// The premise — the helper's exe reads back as not-this-binary — is
+    /// verified per-read rather than via the once-per-process
+    /// [`foreign_exe_reads_faithful`] probe: the sandboxed CI runner's
+    /// aliasing is time-varying (issue #3130; runs 28678325176 red vs an
+    /// earlier green on identical code), so a faithful probe result does
+    /// not prove the gate's own read was faithful. When either the pre- or
+    /// post-dispatch read aliases to this binary the premise cannot hold
+    /// and the test skips (`[SKIP]` on stderr is surfaced by nextest's
+    /// `success-output = "immediate"`).
     #[cfg(target_os = "linux")]
     #[test]
     fn dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded() {
@@ -6455,6 +6481,16 @@ mod tests {
             .spawn()
             .expect("spawn a non-anvil helper process");
         let peer_pid = child.id();
+        if peer_exe_reads_as_ours(peer_pid) {
+            eprintln!(
+                "[SKIP] dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded: \
+                 this environment aliases foreign /proc/<pid>/exe reads to the reader's \
+                 binary (issue #3130); the non-anvil-peer premise cannot hold here"
+            );
+            let _ = child.kill();
+            let _ = child.wait();
+            return;
+        }
         let worktree = tempfile::tempdir().expect("worktree tempdir");
         let recorder = Arc::new(RecordingDispatcher::default());
         let dispatcher = Arc::new(Arc::clone(&recorder));
@@ -6470,10 +6506,22 @@ mod tests {
             lineage: None,
         };
         let result = dispatch_command(&command, &dispatcher, Some(peer_pid), None);
+        // Re-check while the helper is still alive: a faithful pre-read
+        // does not prove the gate's own read (inside dispatch) was
+        // faithful on a runner with time-varying aliasing.
+        let aliased_after = peer_exe_reads_as_ours(peer_pid);
         // Reap the helper regardless of the assertion outcome.
         let _ = child.kill();
         let _ = child.wait();
         result.expect("a non-anvil peer's durable claim is downgraded, not rejected");
+        if aliased_after {
+            eprintln!(
+                "[SKIP] dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded: \
+                 foreign /proc/<pid>/exe read aliased to the reader's binary after \
+                 dispatch (issue #3130); the gate may have seen an 'anvil' peer"
+            );
+            return;
+        }
         let calls = recorder.calls();
         let forwarded = match calls.as_slice() {
             [RecordedCall::Register { agent_tag, .. }] => {
