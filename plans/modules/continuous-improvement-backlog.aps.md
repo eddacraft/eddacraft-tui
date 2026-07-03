@@ -4552,7 +4552,15 @@ archive.
 
 ### CIB-168: Add a stop verb for the auto-started intercept daemon
 
-- **Status:** Ready
+- **Status:** Done — already shipped on main before pickup (verified
+  2026-07-04)
+- **Summary:** `anvil intercept stop` landed via PR #2781 (V060F-002) and was
+  extended by PR #2958 (ACTMO-008/017): Unix sends SIGTERM so the daemon
+  flushes fence state and exits, Windows stops the daemon and clears the PID
+  file, and unsupported platforms bail with honest Ctrl+C guidance
+  (`commands/intercept.rs`). The user-journey finding reproduced on the
+  shipped 0.8.2-beta binary, which predates the ACTMO spine — no code change
+  needed on main.
 - **Intent:** `anvil start` auto-spawns the per-user daemon (ADR-082
   "activation is consent"), but `anvil intercept` offers only `start` /
   `status` / `unblock` (verified live on 0.8.2-beta and in
