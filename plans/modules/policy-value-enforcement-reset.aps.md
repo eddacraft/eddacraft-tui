@@ -2,10 +2,10 @@
 
 | ID       | Type      | Owner | Priority | Status   | Progress |
 | -------- | --------- | ----- | -------- | -------- | -------- |
-| POLRESET | Conductor | —     | high     | Proposed | 0/10     |
+| POLRESET | Conductor | —     | high     | In Progress | 0/10     |
 
-**Last reviewed:** 2026-07-02 (operator request to reset policy planning around
-real policy value and save-time enforcement).
+**Last reviewed:** 2026-07-04 (POLRESET-001 design gate landed as ADR-097 via
+planning council plan-18c47503).
 
 ## Purpose
 
@@ -101,12 +101,15 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-001: Policy value and enforcement design gate
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Produce the accepted ADR/spec that resets policy module boundaries,
   first-slice scope, and enforcement semantics.
 - **Expected Outcome:** A decision record pins the Rego-first path, validation
   before load, exception requirements, pre-write boundary, and `warn` / `fence` /
   `interrupt` mapping.
+- **Decision Record:** [ADR-097 — Policy Enforcement Reset Gate](../decisions/097-policy-enforcement-reset-gate.md),
+  produced via planning council plan-18c47503 (operator-ratified all gate
+  questions). Ratifies ADR-015 as bookkeeping.
 - **Validation:** `pnpm adr:check` and `pnpm aps:active-lint`
 - **Dependencies:** ADR 002, ADR 015, ADR 037, ADR 040
 - **Coordinates with:** OPAE, POLVAL, CPOL, IORISK, EXCEPT, ACTAX, OPAG
@@ -114,7 +117,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-002: Policy pack validation foundation
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Retarget POLVAL to the Rust/regorus path and promote its first wave
   when the design gate lands.
 - **Expected Outcome:** Pack metadata, manifests, tests, CLI validation, and gate
@@ -128,7 +131,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-003: OPAE product-contract reset
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Replace OPAE's stale broad wishlist with first-wave policy
   authoring, loading, install, guidance, and enforcement-routing contracts.
 - **Expected Outcome:** OPAE exposes only the contracts needed for policy value and
@@ -140,7 +143,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-004: Deterministic policy context and risk vocabulary
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Ensure policy evaluation receives deterministic changed-code,
   workflow, graph, and risk context before enforcement routing is attempted.
 - **Expected Outcome:** CPOL and IORISK provide reusable input contracts for
@@ -159,7 +162,7 @@ modules named by each `Coordinates with` field.
 - **Expected Outcome:** Valid exceptions suppress only matching findings; use is
   recorded and invalid/expired/revoked exceptions degrade or fail safely.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_verify` and
-  `cargo test -p eddacraft-anvil-l4 -- exceptions`
+  `cargo test -p eddacraft-anvil-policy -- exception`
 - **Dependencies:** EXCEPT-005, EXCEPT-006, EXCEPT-007
 - **Coordinates with:** EXCEPT-004..009, OPAE-007
 - **Confidence:** high
@@ -186,7 +189,7 @@ modules named by each `Coordinates with` field.
   regorus, emits remediation-first guidance, and can be exercised in report-only
   CI.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- starter_policy_pack`
-  and `opa test policies/eval/`
+  and `opa test policies/fixtures/`
 - **Dependencies:** POLRESET-002, POLRESET-003, POLRESET-006
 - **Coordinates with:** CPACKS, OPAE-004, OPAE-008
 - **Confidence:** medium
@@ -219,7 +222,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-010: Enterprise policy backlog reset
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Reclassify hierarchy, lifecycle, reporting, federation, compliance,
   and agent-governance modules as post-first-slice expansion until their
   prerequisites are real.
