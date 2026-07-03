@@ -4103,28 +4103,13 @@ archive.
 
 ### CIB-151: Verify on-disk state before trusting a wire-declared delete/rename
 
-- **Status:** In Progress
-- **Intent:** Close the bypass where a client's self-declared `ChangeKindWire`
-  (`Deleted`/`Renamed`) suppresses the guarded read and antipattern content
-  scan even when the path still holds live, unscanned bytes on disk.
-- **Expected Outcome:** `validate_paths` no longer gates the guarded read and
-  antipattern scan purely on the client's claimed change kind; a path that
-  still resolves to readable content is read and scanned regardless of the
-  claimed kind, and only an actually-vanished path is treated as
-  content-free.
-- **Files:** `crates/anvil-intercept/src/validate_paths.rs`.
-- **Validation:** Daemon test proving a path declared `Deleted`/`Renamed` but
-  still present with live bytes on disk is still guarded-read and
-  antipattern-scanned (and cannot silently evade a blocking finding);
-  existing `change_has_bytes`/`per_path_outcome` coverage-cap and taxonomy
-  tests continue to pass.
-- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
-  decomposition readiness pass 2026-07-02.
-- **Coordinates with:** DSV-005/006 save-time verdict assembly, the
-  antipattern check family, `CertifyStale` taxonomy.
-- **Confidence:** high — the bypass is a single conditional
-  (`change_has_bytes`); the main risk is the added read cost for legitimate
-  delete/rename traffic, which is bounded by the existing parse-size cap.
+- **Status:** Merged 2026-07-03 via PR #3115
+- **Summary:** `validate_paths` now reads on-disk bytes and antipattern-scans a
+  path even when the client declares it `Deleted`/`Renamed`, so long as the
+  path still resolves to readable content; only an actually-vanished path is
+  treated as content-free, closing the `change_has_bytes` bypass. Oversized
+  paths preserve their delete/rename `StaleReason`. Follow-up CIB-159 filed for
+  the rename-source scan gap.
 
 ### CIB-152: Serialise the fence store's load-mutate-save cycle
 
