@@ -3833,7 +3833,7 @@ archive.
 
 ### CIB-142: Atomic OTP attempt limiting and a dedicated waitlist abuse throttle
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3112
 - **Intent:** Remove the check-then-increment race on OTP verification
   attempts and add a dedicated throttle to the public waitlist signup
   endpoint, which today relies only on the shared (and spoofable) global
