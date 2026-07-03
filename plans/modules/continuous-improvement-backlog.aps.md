@@ -4616,26 +4616,20 @@ archive.
 
 ### CIB-171: Fix welcome TUI navigation scopes and init-summary honesty
 
-- **Status:** In Progress
-- **Intent:** Three navigation/copy traps in the welcome flow: (a) from any
-  hub sub-surface `q` exits the whole program while `Esc` returns to the menu,
-  yet footers advertise "esc/q quit" as equivalent (`welcome.rs:1155-1324`);
-  (b) `Esc` on the discovery results screen advances into the tutorial instead
-  of backing out (`welcome.rs:407-413` treats `Back` as continue); (c) the
-  init-complete landing hardcodes `Config: .anvilrc` even when the wizard
-  wrote `.anvil.yaml`/`.json`/`.toml` (`welcome.rs:328`,
-  `init_complete.rs:41`).
-- **Expected Outcome:** Footer copy matches actual scope (or `q` backs out one
-  level in sub-surfaces); `Esc` on discovery returns to the caller rather than
-  advancing; the init summary names the file actually written.
-- **Files:** `crates/anvil-cli/src/commands/welcome.rs`,
-  `crates/anvil-tui/src/surfaces/onboarding/init_complete.rs`,
-  `crates/anvil-tui/src/surfaces/welcome/`.
-- **Validation:** `cargo test -p anvil-tui` + `-p eddacraft-anvil welcome`;
-  manual TUI walk: hub → audit → Esc returns to hub, q behaviour matches
-  footer.
-- **Identified From:** User-journey pass 2026-07-04 (finding 10).
-- **Confidence:** high — all three are localised.
+- **Status:** Merged 2026-07-04 via PR #3131
+- **Summary:** Three welcome-flow navigation/copy traps fixed. (a) `Esc` on the
+  discovery results screen now backs out to the hub instead of advancing into
+  the tutorial — exit classification extracted into a testable
+  `discovery_outcome` helper (Back → back-out) and pinned with a unit test.
+  (b) The init summary names the file actually written: the wizard always
+  writes a single `.anvilrc` (format is the serialisation inside it), so the
+  format-select labels no longer promise unwritten `.anvil.yaml/.json/.toml`
+  files, a `CONFIG_FILE_NAME` constant is the single source of the name, and
+  `generate_config` exposes the written path so the landing summary is derived,
+  not hardcoded. (c) Hub sub-surface footers (gate/audit/doctor) read the
+  honest "esc menu / q quit anvil" via an `embedded()` flag threaded into the
+  surface states; standalone-command footer copy is unchanged. Snapshots
+  updated.
 
 ### CIB-172: Windows variant for the first-run smoke recipe
 
