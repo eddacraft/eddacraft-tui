@@ -89,6 +89,7 @@ before gate evaluation so policies do not fail silently.
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_metadata`
 - **Confidence:** high
+- **Status:** Done — `cargo test -p eddacraft-anvil-policy-engine -- policy_metadata` passes (14 tests green).
 
 ### POLVAL-002: Policy pack manifest loader
 

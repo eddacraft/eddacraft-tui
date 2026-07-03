@@ -25,6 +25,7 @@ pub mod builtins;
 pub mod coverage;
 pub mod determinism;
 pub mod input;
+pub mod pack;
 pub mod result;
 pub mod trace;
 

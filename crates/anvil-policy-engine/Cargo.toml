@@ -41,6 +41,10 @@ regorus = { workspace = true, features = [
 ] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# POLVAL: pack manifests and per-policy metadata are authored in YAML, mirroring
+# the `.anvil/policies` config format loaded by `anvil-policy`. Already in the
+# workspace tree, so this adds no new shipped crate.
+serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 # CIB-017: warn! on abnormal engine conditions (a caught panic, a poisoned
 # lock). Already in the binary's dependency tree via anvil-cli, so this adds no
