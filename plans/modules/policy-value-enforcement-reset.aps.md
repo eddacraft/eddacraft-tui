@@ -131,7 +131,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-003: OPAE product-contract reset
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-04 via PR #3136
 - **Intent:** Replace OPAE's stale broad wishlist with first-wave policy
   authoring, loading, install, guidance, and enforcement-routing contracts.
 - **Expected Outcome:** OPAE exposes only the contracts needed for policy value and

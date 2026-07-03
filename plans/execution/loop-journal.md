@@ -470,3 +470,16 @@ never with feature work.
   (expansion scope)/OPAG/AGOV/ACTAX; ORGHIER priority high→low.
 - Checkpoints raised: none.
 - Next: POLRESET-003 (OPAE reconcile), then POLRESET-002 (POLVAL first wave).
+
+## Cycle — 2026-07-04 (POLRESET-003)
+
+- Item: POLRESET-003 — OPAE product-contract reset
+- Outcome: done (PR #3136)
+- Validation: `pnpm aps:active-lint` 108 clean; `pnpm aps:index:check` clean.
+- Review: contract reconciliation under accepted ADR-098 (fast path).
+- Plan changes: OPAE-001 Done (satisfied by ADR-098); ADR-098 binding notes
+  on OPAE-003 (PR-B repoint), OPAE-006 (off-daemon + fail-open budget),
+  OPAE-007 (ControlDecision + kill switch + EXCEPT-006 gate); OPAE module
+  Draft→Proposed; In-Scope OPA stance now CI-tooling-only.
+- Checkpoints raised: none.
+- Next: POLRESET-002 (POLVAL first wave — implementation already staged).
