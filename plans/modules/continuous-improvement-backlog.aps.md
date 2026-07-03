@@ -4438,31 +4438,17 @@ archive.
 
 ### CIB-162: Human-render daemon-attestation skip warnings in `anvil start`
 
-- **Status:** In Progress
-- **Intent:** Every `anvil start` where the daemon does not attest the
-  worktree prints one or two raw JSON tracing lines
-  (`{"timestamp":…,"level":"WARN",…"activation: daemon attestation
-  skipped"…}`) mid-flow without `--verbose` — `daemon_evidence.rs:222-244`
-  deliberately emits at `warn` (council 2026-05-22 visibility hardening), the
-  CLI default filter is `warn`, and the subscriber is JSON-format
-  (`crates/anvil-observability/src/lib.rs:145`), so the human activation surface is
-  interrupted by machine JSONL that reads as a crash.
-- **Expected Outcome:** The attestation-skip signal stays visible on the human
-  surface but is rendered as human copy (folded into the existing `daemon:` /
-  `meaning:` lines or an equivalent indented line); JSONL emission remains for
-  `ANVIL_LOG`-driven and file-sink consumers. `anvil start` / `--verify` human
-  output contains no raw JSON tracing lines at default log level.
-- **Files:** `crates/anvil-cli/src/activation/daemon_evidence.rs`,
-  `crates/anvil-cli/src/activation/render.rs`,
-  `crates/anvil-observability/src/lib.rs` (only if the fix is format-side).
-- **Validation:** `cargo test -p eddacraft-anvil activation` plus a live
-  `anvil start` transcript in a repo with no attesting daemon showing zero
-  `{"timestamp"` lines on stdout/stderr at default filter.
-- **Identified From:** User-journey pass 2026-07-04
-  (`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`, finding 1);
-  reproduced live on 0.8.2-beta and present on main.
-- **Confidence:** high — the emit sites and formatter are already located; the
-  open question is only which human line carries the copy.
+- **Status:** Merged 2026-07-04 via PR #3129
+- **Summary:** Every `emit_skip_event` arm in `daemon_evidence.rs` demoted from
+  `warn!` to `tracing::info!`, so the four operator-actionable skip reasons no
+  longer surface as raw `{"timestamp":…,"level":"WARN"…}` JSONL mid-flow on the
+  human `anvil start` / `--verify` surface (`info` sits below the default
+  `warn` filter; JSONL still flows to `ANVIL_LOG=info` and file-sink
+  consumers). Operator visibility stays owned by `render::daemon_evidence_label`,
+  which folds every `DaemonAttestation` state into the human `daemon:` /
+  `meaning:` lines. Tests pin no `{"timestamp"` line on stdout/stderr at the
+  default filter (`tests/start.rs`, both surfaces), every skip reason at INFO,
+  and non-empty human copy for every attestation state.
 
 ### CIB-163: Stop `anvil start` printing init's "Next: run `anvil start`"
 
