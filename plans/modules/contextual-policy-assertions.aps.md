@@ -32,10 +32,10 @@ richer runtime context while preserving Anvil policy-pack semantics.
 
 ### CPOL-001: Define assertion schema
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Create a schema for contextual policy assertions.
 - **Expected Outcome:** Assertions support scoped conditions and outcomes.
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_schema` — 18 passed (schema in `crates/anvil-policy-engine/src/context/assertion.rs`; fail-closed serde, per-field validation, pack severity reuse).
 
 ### CPOL-002: Implement context adapters
 

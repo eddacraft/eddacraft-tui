@@ -22,6 +22,7 @@ use thiserror::Error;
 const DEFAULT_EVAL_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub mod builtins;
+pub mod context;
 pub mod coverage;
 pub mod determinism;
 pub mod input;
