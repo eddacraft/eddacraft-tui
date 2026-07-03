@@ -4507,7 +4507,16 @@ archive.
 
 ### CIB-166: One next-step arbiter per `anvil start` ending
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-04 via PR #3137
+- **Summary:** The diagnostic block's `next:` repair hint is the single
+  arbiter: when it renders, it owns the ending and the closing `Next:` line
+  is suppressed (`ending_next_step_line` gate in `commands/start.rs`,
+  `has_repair_hint` exposed from `activation::render`); the closing line
+  prints only at `Protecting`, where there is nothing to repair. Inline init
+  already defers to the activation ending (CIB-163, #3125). An
+  exactly-one-owner sweep pins the invariant across all six protection
+  states, plus a regression test for the reproduced daemon-hint-vs-watch
+  contradiction.
 - **Intent:** A single first-run printed three competing instructions: init's
   "Next: run `anvil start`…" (`init.rs:440-451`), the diagnostic's "next:
   start the intercept daemon with `anvil intercept start --foreground`…"
