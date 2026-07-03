@@ -162,7 +162,8 @@ pub enum AdmissionModeFile {
     /// First-touch adopt (default).
     #[default]
     Open,
-    /// Confinement: only allow-listed roots (+ primary) are admitted.
+    /// Confinement: only the configured allow-listed roots are admitted
+    /// (CIB-149: no implicit primary; an empty allow-list admits nothing).
     Allowlist,
 }
 
@@ -398,9 +399,9 @@ impl Confinement {
 
     /// The number of operator allow entries (exact + prefix). Used by the
     /// `anvil status` surface to render `confined: N` in `Allowlist` mode
-    /// (DSV-007 Task 17). The connection's implicitly-admitted primary root is
-    /// not counted — this is the *configured* allow-list size, not the effective
-    /// admitted-root count for any one connection.
+    /// (DSV-007 Task 17). This is the *configured* allow-list size and, since
+    /// CIB-149, also the full set of admissible roots — `Allowlist` mode has no
+    /// implicit primary, so a count of `0` means no root is admitted.
     #[must_use]
     pub fn allow_count(&self) -> usize {
         self.exact.len() + self.prefixes.len()

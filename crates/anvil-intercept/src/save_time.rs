@@ -17,12 +17,12 @@
 //! Each verb authorises its `workspace_root` against the connection's
 //! [`AdmittedRoots`] set before touching any byte: the set is built once per
 //! connection from the operator [`Confinement`] (open by default; allowlist when
-//! confined). In open mode it first-touch-adopts each root; in allowlist mode
-//! the implicitly-admitted primary is the daemon-verified worktree the
-//! authenticated peer is registered against — resolved at connection setup from
-//! the durable session registry via the peer's PID lineage (CIB-149), never a
-//! first-named wire root — so an unverified root is admitted only when it matches
-//! an operator allow entry. All reads go through the held
+//! confined). In open mode it first-touch-adopts each root; in allowlist mode it
+//! admits **exactly** the operator's configured allow entries and nothing else
+//! (CIB-149: there is no implicit primary — a client-declared worktree, whether
+//! named first on the wire or in a `RegisterSession` frame, is never folded into
+//! the admitted set; an empty allow-list admits nothing). A root is admitted only
+//! when it matches an operator allow entry. All reads go through the held
 //! [`WorkspaceAnchor`], so a refused root never reaches the filesystem and an
 //! admitted root cannot be retargeted after admission (security C2/C3 — see
 //! [`crate::workspace_admission`]).
@@ -3156,7 +3156,10 @@ fn authorise_root<'f>(
     let set = admitted.get_or_insert_with(|| confinement.to_admitted_roots());
     set.authorise(root)
         .map_err(SaveTimeError::Io)?
-        .ok_or(SaveTimeError::NotAdmitted)
+        .ok_or_else(|| SaveTimeError::NotAdmitted {
+            root: root.to_path_buf(),
+            allow_entries: confinement.allow_count(),
+        })
 }
 
 #[cfg(test)]
@@ -3705,7 +3708,7 @@ mod tests {
         // pre-CIB-149 bypass. With no matching allow entry it is refused outright.
         let refused = status(&mut conn, &unlisted);
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unlisted first-named root must be refused: {refused:?}",
         );
         // An explicitly allow-listed root is still admitted via the policy.
@@ -3741,7 +3744,7 @@ mod tests {
         // list, and a RegisterSession grants no implicit admission.
         let refused = status(&mut conn, &registered);
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "a client-declared RegisterSession worktree must NOT be admitted \
              in allowlist mode: {refused:?}",
         );
@@ -3890,7 +3893,7 @@ mod tests {
 
         let refused = conn.witness_append(&witness_request(unlisted.path(), "c1"));
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unadmitted root must be refused: {refused:?}",
         );
     }
@@ -4054,7 +4057,7 @@ mod tests {
         // A different, unlisted root is refused.
         let refused = conn.search_symbols(&gctx_request(unlisted.path()));
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unadmitted root must be refused: {refused:?}",
         );
     }
@@ -4491,7 +4494,7 @@ mod tests {
             .expect("an allow-listed root is admitted");
         let refused = conn.find_dependents(&dependents_request(unlisted.path(), "a.ts", None));
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unadmitted root must be refused: {refused:?}",
         );
     }
@@ -4711,7 +4714,7 @@ mod tests {
             .expect("an allow-listed root is admitted");
         let refused = conn.impact_of_change(&impact_request(unlisted.path(), &["a.ts"]));
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unadmitted root must be refused: {refused:?}",
         );
     }
@@ -4870,7 +4873,7 @@ mod tests {
             .expect("an allow-listed root is admitted");
         let refused = conn.affected_tests(&affected_tests_request(unlisted.path(), &["a.ts"]));
         assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unadmitted root must be refused: {refused:?}",
         );
     }

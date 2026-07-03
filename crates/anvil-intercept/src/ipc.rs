@@ -67,7 +67,18 @@ use crate::save_time::{SaveTimeConn, SaveTimeState};
 pub enum SaveTimeError {
     /// The root is not admitted on this connection (allowlist refusal, or a
     /// root that no longer resolves). Maps to a `workspace-not-admitted` reply.
-    NotAdmitted,
+    ///
+    /// The carried `root`/`allow_entries` are for the **server-side** warn only
+    /// (an operator's everyday Allowlist diagnostic) and are never placed on the
+    /// wire — the reply stays a static, path-free `workspace-not-admitted`
+    /// (N5 / CIB-091b: no path detail leaves the daemon).
+    NotAdmitted {
+        /// The refused workspace root (server-side log only).
+        root: PathBuf,
+        /// Configured allow-entry count at refusal time (`0` ⇒ empty allow-list,
+        /// fail-closed).
+        allow_entries: usize,
+    },
     /// The admitted root's anchor could not be opened. Maps to an internal error.
     Io(std::io::Error),
 }
@@ -3716,13 +3727,23 @@ fn save_time_result<T: serde::Serialize>(
                 json!({"error": err.to_string()}),
             ),
         },
-        Err(SaveTimeError::NotAdmitted) => {
+        Err(SaveTimeError::NotAdmitted {
+            root,
+            allow_entries,
+        }) => {
             // A refusal is operationally meaningful (allowlist wall or a
             // vanished root) — surface it so an operator can diagnose a
-            // `workspace-not-admitted` reply without reading the wire.
+            // `workspace-not-admitted` reply without reading the wire. The
+            // refused path + allow-entry count + remediation hint go to the
+            // SERVER log only; the wire reply below stays static and path-free
+            // (N5 / CIB-091b — no path detail leaves the daemon).
             tracing::warn!(
                 target: "anvil_intercept::save_time",
-                "save-time verb refused: workspace not admitted",
+                workspace_root = %root.display(),
+                allow_entries,
+                "save-time verb refused: workspace not admitted \
+                 (allowlist mode admits only configured allow entries; \
+                 run `anvil workspace allow <root>` to admit it)",
             );
             jsonrpc_request_error(
                 response_id,
@@ -7186,7 +7207,7 @@ mod tests {
         assert!(
             matches!(
                 status(&mut conn, registered.path()),
-                Err(SaveTimeError::NotAdmitted)
+                Err(SaveTimeError::NotAdmitted { .. })
             ),
             "a registered-but-unlisted worktree must NOT be implicitly admitted \
              (the relocated CIB-149 bypass is closed)",
@@ -7194,7 +7215,7 @@ mod tests {
         assert!(
             matches!(
                 status(&mut conn, unlisted.path()),
-                Err(SaveTimeError::NotAdmitted)
+                Err(SaveTimeError::NotAdmitted { .. })
             ),
             "an unlisted, unregistered root is refused",
         );
