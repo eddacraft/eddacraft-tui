@@ -76,6 +76,18 @@ startup, and continued beta-reliability polish.
   window's beta-signal fixes (auth output on stderr, format handling, Nx graph
   exclusions for docs tooling, RELEASE-PLAN formatting).
 
+### Security
+
+- **Allowlist confinement now admits only your configured allow entries.** In
+  `allowlist` mode the intercept daemon previously also served each connection's
+  declared "primary check-in root" implicitly. Because that root is
+  client-declared and not daemon-attested, it allowed a same-uid caller to have
+  an unlisted workspace served. `allowlist` mode now admits **exactly** the
+  roots you add with `anvil workspace allow`, and nothing else; an empty
+  allow-list admits no roots (fail-closed). `open` mode (the default) is
+  unchanged. If you rely on `allowlist` mode, add the roots you want served
+  before upgrading (CIB-149).
+
 ### Upgrade notes
 
 - **Warm-start snapshots rebuild once after upgrading.** Persistence warm-start

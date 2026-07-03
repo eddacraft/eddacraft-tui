@@ -493,18 +493,19 @@ reads live — no restart is required.
 
 ```bash
 anvil workspace list                      # Show the current mode and allow entries
-anvil workspace mode allowlist            # Only serve admitted roots (plus each
-                                          # connection's primary check-in root)
+anvil workspace mode allowlist            # Only serve the configured allow
+                                          # entries (empty list admits nothing)
 anvil workspace allow /path/to/repo       # Admit one root (exact match)
 anvil workspace allow /srv/work --prefix  # Admit an entire subtree
 anvil workspace deny /path/to/repo        # Remove an allow entry
 anvil workspace mode open                 # Back to first-touch adopt (the default)
 ```
 
-In `allowlist` mode an empty allow-list still serves each connection's primary
-check-in root, so confinement never locks you out of the repository you are
-working in. `anvil status` shows `· confined: <N>` next to the save-time line
-when the daemon is in allowlist mode.
+In `allowlist` mode the daemon admits **exactly** the configured allow entries
+and nothing implicit — an empty allow-list admits no roots (fail-closed), so add
+the roots you want served with `anvil workspace allow <path>` before switching a
+shared machine into allowlist mode. `anvil status` shows `· confined: <N>` next
+to the save-time line when the daemon is in allowlist mode.
 
 ### Register a worktree on every startup
 
@@ -528,6 +529,13 @@ it starts, before accepting connections. Entries whose directory is gone are
 skipped and reported. There is **no filesystem scan** — only the exact paths you
 list are touched.
 
+> **Registration does not grant admission.** In `allowlist` mode a registered
+> worktree (including one in `register_on_start`) is **not** implicitly admitted
+> — admission is decided solely by the allow entries. If you want a registered
+> worktree served under confinement, add it with `anvil workspace allow <path>`
+> too (`anvil workspace register --all --persist` persists the exact allow-list
+> entries, keeping the two sets aligned).
+
 > **Format version & downgrade safety.** Writing a `register_on_start` entry
 > bumps the config to format `version: 2`. A daemon **newer than or equal to**
 > the one that wrote the file reads it; a daemon that encounters a config at a
@@ -541,11 +549,11 @@ list are touched.
 > The one direction that is **not** safe is downgrading the Anvil **binary**
 > below the version that wrote a `version: 2` file: a pre-`register_on_start`
 > daemon does not understand `version: 2` and fails the whole config closed — in
-> `allowlist` mode it then admits only each connection's primary root until you
-> either upgrade Anvil again or remove the `register_on_start` key by hand. This
-> only affects machines where you both used `--persist` and rolled the binary
-> back; new schema additions from here on are handled by the forward-compat rule
-> above and never trigger it.
+> `allowlist` mode it then admits **no** roots until you either upgrade Anvil
+> again or remove the `register_on_start` key by hand. This only affects
+> machines where you both used `--persist` and rolled the binary back; new
+> schema additions from here on are handled by the forward-compat rule above and
+> never trigger it.
 
 ### Auto-register newly-created worktrees
 

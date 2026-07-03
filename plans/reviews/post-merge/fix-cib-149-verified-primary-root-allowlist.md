@@ -1,35 +1,44 @@
-# Post-merge test plan — CIB-149 verified primary root for Allowlist confinement
+# Post-merge test plan — CIB-149 fail-closed Allowlist confinement
 
 Branch: `fix/cib-149-verified-primary-root-allowlist`
 Item: CIB-149 — Stop treating an unverified first wire root as the confinement
 primary
-Council: blocking findings on the first pass (in-connection-only primary was
-unreachable for one-shot production connections; no two-connection test)
-remediated in the second commit.
+Merged: 2026-07-03 via PR #3117
+
+> **Design note.** An earlier pass of this work explored a *verified primary
+> root* (resolving the connection's primary worktree from the daemon
+> `SessionRegistry` via the peer's PID lineage). That approach was **abandoned**:
+> under ADR-061 §7 a client-declared worktree can never be daemon-attested
+> across the editor/MCP path, so no implicit primary is sound. The shipped fix is
+> **fail-closed by removal** — `Allowlist` mode admits exactly the operator's
+> configured allow entries and nothing implicit. This document describes that
+> final design; ignore any lingering references to a "verified primary" (see
+> CIB-161 for the doc/CLI reconciliation follow-up).
 
 ## What / why
 
-In Allowlist confinement mode the connection's implicitly-admitted primary root
-was seeded from the first `workspace_root` a wire request named, letting a
-same-uid client self-declare its way past the operator allow list.
+In Allowlist confinement mode the daemon previously admitted an implicit
+"primary check-in root" seeded from the first `workspace_root` a wire request
+named, letting a same-uid client self-declare its way past the operator allow
+list.
 
-The fix seeds a dedicated `SaveTimeConn::verified_primary` at connection setup
-from the durable `SessionRegistry` via the authenticated peer's PID lineage
-(`worktree_for_lineage(peer_pid)` — the same anti-PID-reuse anchor the
-write-time spoof cross-check uses), threaded through
-`Confinement::to_admitted_roots` into `save_time::authorise_root`. The
-`/proc` lineage walk is gated on `Confinement::is_allowlist()`; no verified
-primary means allow-entries-only (fail-closed). Open-mode first-touch seeding
-is unchanged.
+The fix removes the implicit primary entirely. `Confinement::to_admitted_roots`
+in `Allowlist` mode now builds the admitted set from the configured
+`exact + prefixes` allow entries only and takes **no path argument**;
+`verified_primary`, `set_verified_primary`, `Confinement::is_allowlist`, and
+`ipc::seed_save_time_verified_primary` are removed. A registered or first-named
+worktree is **not** admitted unless it has an explicit allow entry; an empty
+allow-list admits nothing (fail-closed). Open-mode first-touch adoption is
+unchanged.
 
 Touched:
 
-- `crates/anvil-intercept/src/confinement.rs` — `to_admitted_roots` takes an
-  optional verified primary; `is_allowlist()` helper
-- `crates/anvil-intercept/src/ipc.rs` — `seed_save_time_verified_primary`
-  called from the accept loop; registry-across-connections test
-- `crates/anvil-intercept/src/save_time.rs` — `verified_primary` field,
-  `authorise_root` seeding, unit tests
+- `crates/anvil-intercept/src/confinement.rs` — `to_admitted_roots` builds the
+  admitted set from allow entries only (no verified-primary parameter)
+- `crates/anvil-intercept/src/ipc.rs` — implicit-primary seeding removed from
+  the accept loop; `RegisterSession.worktree` retained for telemetry only
+- `crates/anvil-intercept/src/save_time.rs` — `verified_primary` field removed;
+  `authorise_root` admits allow entries only
 
 ## Gate commands run (pre-PR, all green)
 
@@ -40,31 +49,31 @@ cargo test -p eddacraft-anvil-intercept
 pnpm run format:check
 ```
 
-Results: fmt exit 0; clippy exit 0 (no warnings); full crate suite green
-including the new cases
-(`confinement::tests::allowlist_without_verified_primary_admits_only_allow_entries`,
-`save_time::tests::allowlist_without_session_refuses_first_named_unlisted_root`,
-`save_time::tests::allowlist_session_bound_worktree_is_primary_not_first_named_root`,
-`ipc::tests::verified_primary_resolves_from_registry_across_connections`);
-oxfmt clean on 1412 files.
+The shipped regression tests assert the fail-closed contract and genuinely fail
+on the pre-fix code:
+
+- `confinement::tests::allowlist_empty_admits_nothing`
+- `save_time::tests::allowlist_registered_session_worktree_is_not_admitted`
+- `ipc::tests::registered_worktree_is_not_implicitly_admitted_in_allowlist`
 
 ## Post-merge verification
 
-1. Confirm the four new tests run green in the standard CI suite on `main`
-   (push-event `rust-tests` job).
+1. Confirm the three regression tests above run green in the standard CI suite
+   on `main` (push-event `rust-tests` job).
 2. Live-daemon spot check (Linux box, quiet environment): start the daemon in
-   Allowlist confinement mode, register a worktree from an agent session
-   (lineage-registered, MLP2-025 path), then issue a save-time verb from a
-   fresh one-shot connection in that lineage — the registered worktree must be
-   admitted as the implicit primary. From a shell **outside** that lineage,
-   the same verb naming an unlisted root must be refused (`NotAdmitted`).
-3. Confirm the default (open) posture shows no behaviour change and no `/proc`
-   lineage walk at connection setup (gated on `is_allowlist()`).
+   Allowlist confinement mode and register a worktree from an agent session
+   (lineage-registered, MLP2-025 path). Issue a save-time verb naming that
+   registered-but-unlisted worktree — it must be refused (`NotAdmitted`),
+   because registration does not grant admission. Then `anvil workspace allow`
+   that root and confirm the same verb now succeeds. An empty allow-list admits
+   no root at all.
+3. Confirm the default (open) posture shows no behaviour change.
 
-## Known limitation (by design, logged as follow-up)
+## Follow-up (CIB-161)
 
-Activation-path registrations (`anvil workspace register`) send no PID
-lineage, so `worktree_for_lineage` cannot resolve them; those worktrees need
-explicit allow entries. Extending the implicit primary to non-lineage
-registrations needs a peer→worktree binding that does not exist yet (separate
-design/ADR if operators ask for it).
+The operator-facing surface, public docs, and this evidence artifact originally
+described the abandoned verified-primary design. CIB-161 reconciles the CLI
+strings, `docs/public/anvil/operations/config.md`, the CHANGELOG, the refusal
+diagnostic, and the stale code doc comments with the shipped fail-closed
+contract. The ADR-061 §7 amendment recording the fail-closed decision is a
+separate governance PR needing owner sign-off.
