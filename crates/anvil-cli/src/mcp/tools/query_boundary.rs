@@ -92,12 +92,13 @@ fn query_payload(arguments: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .ok_or_else(|| "targetFile is required".to_string())?;
 
-    if source_file.is_empty() {
-        return Err("sourceFile must not be empty".to_string());
-    }
-    if target_file.is_empty() {
-        return Err("targetFile must not be empty".to_string());
-    }
+    // Lexically normalise both inputs to the same workspace-relative form the
+    // validator's scan produces, and reject anchored/escaping shapes. Without
+    // this, `./src/x.ts`, `src//x.ts`, or backslash separators fail to match
+    // any layer glob and fall through to the "unassigned-layer, allowed by
+    // default" verdict — a representation trick that bypasses boundary policy.
+    let source_file = normalise_relative_path("sourceFile", source_file)?;
+    let target_file = normalise_relative_path("targetFile", target_file)?;
 
     let (server_root, workspace_path) =
         validate_workspace_root(Path::new(workspace_root), &server_root)?;
@@ -119,10 +120,77 @@ fn query_payload(arguments: &Value) -> Result<Value, String> {
 
     Ok(resolve_query(
         &baseline,
-        source_file,
-        target_file,
+        &source_file,
+        &target_file,
         &workspace_str,
     ))
+}
+
+/// Lexically normalise a caller-supplied workspace-relative path so it matches
+/// the same clean form the `anvil-architecture` validator sees from a scan
+/// (which produces forward-slash, `./`-free, single-separator relative paths).
+///
+/// This is purely lexical — no filesystem access — because the tool is
+/// read-only and the referenced files may not exist. Normalisation:
+///
+/// - converts `\` to `/` (Windows-style inputs evaluate like their
+///   forward-slash form),
+/// - drops `.` segments (collapsing a leading `./`),
+/// - collapses runs of `/` and any trailing `/`.
+///
+/// Rejected with a structured error (matching the containment posture
+/// `fix.rs`/`suppress.rs` apply) rather than falling through to the
+/// unassigned-allowed verdict:
+///
+/// - embedded NUL,
+/// - absolute or rooted paths (`/...`, UNC `\\...`) and Windows drive
+///   prefixes (`C:\...`, `C:/...`, drive-relative `C:foo`),
+/// - any `..` component,
+/// - empty after normalisation.
+fn normalise_relative_path(field: &str, raw: &str) -> Result<String, String> {
+    if raw.contains('\0') {
+        return Err(format!("{field} must not contain NUL characters"));
+    }
+
+    // Windows-style separators evaluate like their forward-slash form. This is
+    // unconditional (not host-gated), so on POSIX a caller-supplied name that
+    // literally contains a backslash is split into segments rather than kept as
+    // one. That is a deliberate trade-off: the risk being closed is a
+    // representation trick reaching the fail-open unassigned verdict, and the
+    // failure direction here is conservative (a mis-split path tends toward a
+    // stricter match or unassigned, never a concealed bypass).
+    let unified = raw.replace('\\', "/");
+
+    // Windows drive prefixes (`C:\foo`, `C:/foo`, drive-relative `C:foo`) are
+    // absolute-ish anchors that `join` would escape the workspace with; reject
+    // them lexically so behaviour is host-OS independent.
+    let bytes = unified.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return Err(format!("{field} must be a workspace-relative path"));
+    }
+
+    // A leading `/` (including UNC `\\server`, now `//server`) is rooted.
+    if unified.starts_with('/') {
+        return Err(format!("{field} must be a workspace-relative path"));
+    }
+
+    let mut segments: Vec<&str> = Vec::new();
+    for segment in unified.split('/') {
+        if segment == ".." {
+            return Err(format!("{field} must not escape the workspace via \"..\""));
+        }
+        // Empty segments come from `//` runs and trailing `/`; `.` is a no-op
+        // current-directory reference. Both are dropped.
+        if !segment.is_empty() && segment != "." {
+            segments.push(segment);
+        }
+    }
+
+    let normalised = segments.join("/");
+    if normalised.is_empty() {
+        return Err(format!("{field} must not be empty"));
+    }
+    Ok(normalised)
 }
 
 fn no_baseline_payload(workspace_str: &str) -> Value {
@@ -363,6 +431,31 @@ mod tests {
         workspace
     }
 
+    /// Layers whose globs are **anchored** (no leading `**/`), so an
+    /// unnormalised `./`, `//`, or `\` input fails to match. This makes the
+    /// normalisation load-bearing: with the raw string these paths would fall
+    /// through to `unassigned-layer`; only after normalisation do they resolve.
+    fn anchored_layers() -> Layers {
+        let mut layers: Layers = BTreeMap::new();
+        layers.insert(
+            "domain".into(),
+            Layer {
+                patterns: vec!["src/domain/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers
+    }
+
+    fn workspace_with_anchored_baseline() -> tempfile::TempDir {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let baseline = sample_baseline(anchored_layers());
+        save_baseline(workspace.path(), &baseline).expect("baseline persists");
+        workspace
+    }
+
     #[test]
     fn descriptor_advertises_required_fields() {
         let descriptor = descriptor();
@@ -587,5 +680,139 @@ mod tests {
             serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(payload["allowed"], true);
         assert_eq!(payload["reason"], "boundary-ok");
+    }
+
+    // --- CIB-148: path normalisation before layer matching ----------------
+
+    /// Helper: resolve a `(source, target)` pair against the anchored baseline.
+    fn query_anchored(source: &str, target: &str) -> Value {
+        let workspace = workspace_with_anchored_baseline();
+        let result = call(&json!({
+            "sourceFile": source,
+            "targetFile": target,
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], false);
+        serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn normalises_leading_dot_slash_to_same_layer() {
+        // Baseline: raw `src/domain/x.ts` -> `domain`.
+        let plain = query_anchored("src/domain/a.ts", "src/domain/b.ts");
+        assert_eq!(plain["sourceLayer"], "domain");
+        // `./`-prefixed inputs must resolve identically, not fall through to
+        // `unassigned-layer`.
+        let dotted = query_anchored("./src/domain/a.ts", "./src/domain/b.ts");
+        assert_eq!(dotted["reason"], "same-layer");
+        assert_eq!(dotted["sourceLayer"], "domain");
+        assert_eq!(dotted["targetLayer"], "domain");
+    }
+
+    #[test]
+    fn normalises_redundant_separators_to_same_layer() {
+        let doubled = query_anchored("src//domain/a.ts", "src/domain//b.ts");
+        assert_eq!(doubled["reason"], "same-layer");
+        assert_eq!(doubled["sourceLayer"], "domain");
+        assert_eq!(doubled["targetLayer"], "domain");
+    }
+
+    #[test]
+    fn normalises_backslash_separators_to_same_layer() {
+        let back = query_anchored("src\\domain\\a.ts", "src\\domain\\b.ts");
+        assert_eq!(back["reason"], "same-layer");
+        assert_eq!(back["sourceLayer"], "domain");
+        assert_eq!(back["targetLayer"], "domain");
+    }
+
+    #[test]
+    fn rejects_parent_dir_escape_rather_than_allowing() {
+        let workspace = workspace_with_anchored_baseline();
+        let result = call(&json!({
+            "sourceFile": "../escape.ts",
+            "targetFile": "src/domain/b.ts",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            payload["error"],
+            "sourceFile must not escape the workspace via \"..\""
+        );
+        // Crucially, the escaping input must NOT produce an allow verdict.
+        assert!(payload.get("allowed").is_none());
+    }
+
+    #[test]
+    fn rejects_absolute_source_rather_than_allowing() {
+        let workspace = workspace_with_anchored_baseline();
+        let result = call(&json!({
+            "sourceFile": "/abs/path.ts",
+            "targetFile": "src/domain/b.ts",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            payload["error"],
+            "sourceFile must be a workspace-relative path"
+        );
+        assert!(payload.get("allowed").is_none());
+    }
+
+    #[test]
+    fn rejects_windows_drive_target_rather_than_allowing() {
+        let workspace = workspace_with_anchored_baseline();
+        let result = call(&json!({
+            "sourceFile": "src/domain/a.ts",
+            "targetFile": "C:\\Windows\\system32\\evil.ts",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            payload["error"],
+            "targetFile must be a workspace-relative path"
+        );
+        assert!(payload.get("allowed").is_none());
+    }
+
+    #[test]
+    fn wellformed_unmatched_path_stays_unassigned_allowed() {
+        // A genuinely unmatched-but-well-formed path keeps the by-design
+        // fail-open posture: only representation tricks are being closed.
+        let workspace = workspace_with_anchored_baseline();
+        let result = call(&json!({
+            "sourceFile": "docs/readme.md",
+            "targetFile": "src/domain/b.ts",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], false);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["allowed"], true);
+        assert_eq!(payload["reason"], "unassigned-layer");
+        assert!(payload["sourceLayer"].is_null());
+        assert_eq!(payload["targetLayer"], "domain");
+    }
+
+    #[test]
+    fn empty_after_normalisation_is_rejected_as_empty() {
+        // `./` normalises to nothing — the extended emptiness check catches it
+        // with the same message shape as a literal empty string.
+        let workspace = workspace_with_anchored_baseline();
+        let result = call(&json!({
+            "sourceFile": "./",
+            "targetFile": "src/domain/b.ts",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["error"], "sourceFile must not be empty");
+        assert!(payload.get("allowed").is_none());
     }
 }
