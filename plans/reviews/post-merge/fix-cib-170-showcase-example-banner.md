@@ -1,6 +1,6 @@
 # Post-merge test plan — CIB-170 showcase example banner in discovery
 
-PR: #NNN
+PR: #3127
 Branch: `fix/cib-170-showcase-example-banner`
 APS: CIB-170
 Merged: <!-- filled by cleanup agent -->
