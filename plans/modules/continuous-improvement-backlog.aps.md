@@ -4103,7 +4103,7 @@ archive.
 
 ### CIB-151: Verify on-disk state before trusting a wire-declared delete/rename
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close the bypass where a client's self-declared `ChangeKindWire`
   (`Deleted`/`Renamed`) suppresses the guarded read and antipattern content
   scan even when the path still holds live, unscanned bytes on disk.

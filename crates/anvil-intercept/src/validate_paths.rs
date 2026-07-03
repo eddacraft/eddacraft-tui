@@ -206,11 +206,16 @@ pub fn content_hash(bytes: &[u8]) -> String {
     out
 }
 
-/// Whether a wire change has on-disk bytes the daemon should read + hash.
-/// `Deleted` and `Renamed` carry no readable content (cf. [`EvaluatedPath`]).
-fn change_has_bytes(change: &ChangeKindWire) -> bool {
-    matches!(change, ChangeKindWire::Created | ChangeKindWire::Modified)
-}
+// CIB-151: the daemon no longer decides whether to read + hash a path from the
+// client's self-declared `ChangeKindWire`. A `Deleted`/`Renamed` claim used to
+// suppress the guarded read (and so the antipattern content scan) via a
+// `change_has_bytes` gate, letting a path that still held live, unscanned bytes
+// on disk silently evade a blocking finding. `per_path_outcome` now attempts
+// `read_guarded` for every change kind and lets on-disk reality decide: `Ok`
+// bytes flow through the parse-size cap into hash + scan, while a genuinely
+// vanished (or guard-rejected) path returns content-free. Certifiability is
+// still taxonomy-driven — `Deleted`/`Renamed` remain non-certifiable with
+// `StaleReason::Deleted`/`Renamed` regardless of what was read.
 
 /// The coverage diagnostic emitted when a file exceeds the parse-size `DoS` cap
 /// (Task 11). It is a *coverage notice*, not a finding: the antipattern family
@@ -426,29 +431,31 @@ where
     let ctx = ChangeCtx::for_path(&desc.path, false);
     let taxonomy = taxonomy_reason(&canonical, &ctx);
 
-    // Read guarded bytes + daemon hash for content-bearing changes, enforcing
-    // the parse-size DoS cap (Task 11) before any parse/scan/hash work. Two
-    // layers: the *read* is already bounded to
+    // Read guarded bytes + daemon hash for every change kind (CIB-151),
+    // enforcing the parse-size DoS cap (Task 11) before any parse/scan/hash
+    // work. The read is attempted regardless of the client's self-declared
+    // `ChangeKindWire`: on-disk reality — not the wire claim — decides whether
+    // there are bytes to hash and scan, so a path declared `Deleted`/`Renamed`
+    // that still resolves to live content cannot suppress the antipattern scan.
+    // Two layers still bound the read: the *read* itself is capped at
     // `path_safety::MAX_GUARDED_READ_BYTES` (a file beyond the hard memory
     // ceiling is refused at the read), and this softer `max_parse_bytes` cap
     // skips the *super-linear* parse + antipattern scan for a file that read OK
     // but is still too big to scan — detected on its read length and skipped
     // (never parsed, scanned, or hashed) with a coverage diagnostic.
     let mut oversized: Option<usize> = None;
-    let (content_h, scanned) = if change_has_bytes(&desc.change) {
-        match read_guarded(&desc.path) {
-            Ok(bytes) if bytes.len() > caps.max_parse_bytes => {
-                oversized = Some(bytes.len());
-                (None, None)
-            }
-            Ok(bytes) => (Some(content_hash(&bytes)), Some((desc.path.clone(), bytes))),
-            // A read failure (gone, symlink rejected by the openat2 guard, or
-            // over the guarded-read ceiling) is a staleness signal, not
-            // certifiable.
-            Err(_) => (None, None),
+    let (content_h, scanned) = match read_guarded(&desc.path) {
+        Ok(bytes) if bytes.len() > caps.max_parse_bytes => {
+            oversized = Some(bytes.len());
+            (None, None)
         }
-    } else {
-        (None, None)
+        Ok(bytes) => (Some(content_hash(&bytes)), Some((desc.path.clone(), bytes))),
+        // A read failure (genuinely vanished, symlink rejected by the openat2
+        // guard, or over the guarded-read ceiling) is content-free: no hash, no
+        // bytes to scan. This is the only path that yields `(None, None)` now —
+        // an actually-vanished `Deleted`/`Renamed` path stays content-free,
+        // while one that still reads is scanned like any other change.
+        Err(_) => (None, None),
     };
 
     let evaluated = EvaluatedPath {
@@ -1185,5 +1192,113 @@ mod tests {
         assert_eq!(resp.evaluated[0].content_hash, None);
         assert_eq!(resp.coverage, Coverage::Partial);
         assert_eq!(resp.workspace_assurance.reason, Some(StaleReason::Deleted));
+    }
+
+    #[test]
+    fn deleted_declared_path_with_live_bytes_is_read_hashed_and_scanned() {
+        // CIB-151: a client may declare a path `Deleted` while the file still
+        // holds live, unscanned bytes on disk. The daemon must not let the
+        // self-declared wire kind suppress the guarded read — it reads, hashes,
+        // and antipattern-scans the bytes regardless, so a blocking finding
+        // cannot be silently evaded. The taxonomy (`Deleted` ⇒ non-certifiable)
+        // is unchanged.
+        let bytes = b"const result = eval(userInput);".to_vec();
+        let expected = content_hash(&bytes);
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/live.ts".to_string(), bytes.clone())]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc("src/live.ts", ChangeKindWire::Deleted, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &DosCaps::default(),
+            },
+        );
+
+        // Read + hashed despite the `Deleted` claim.
+        assert_eq!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some(expected.as_str()),
+            "a Deleted-declared path that still reads live bytes must be daemon-hashed"
+        );
+        // The blocking antipattern (AP-008 eval, Error severity) in the live
+        // bytes surfaces a finding rather than being evaded.
+        assert!(
+            resp.diagnostics
+                .iter()
+                .any(|d| d.category == Category::Antipattern && d.id == "AP-008"),
+            "the blocking antipattern in the live bytes must surface a finding: {:?}",
+            resp.diagnostics
+        );
+        // Taxonomy is unchanged: a `Deleted` change stays non-certifiable.
+        assert_eq!(resp.coverage, Coverage::Partial);
+        assert_eq!(resp.workspace_assurance.reason, Some(StaleReason::Deleted));
+    }
+
+    #[test]
+    fn renamed_declared_path_with_live_bytes_is_read_hashed_and_scanned() {
+        // CIB-151 (rename twin of the above): a `Renamed` wire kind must not
+        // suppress the guarded read either. A path that still resolves to live
+        // bytes is read, hashed, and antipattern-scanned; the `Renamed`
+        // taxonomy stays non-certifiable.
+        let bytes = b"const result = eval(userInput);".to_vec();
+        let expected = content_hash(&bytes);
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/live.ts".to_string(), bytes.clone())]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc(
+                "src/live.ts",
+                ChangeKindWire::Renamed {
+                    from: "src/old.ts".to_string(),
+                },
+                None,
+            )]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &DosCaps::default(),
+            },
+        );
+
+        assert_eq!(
+            resp.evaluated[0].content_hash.as_deref(),
+            Some(expected.as_str()),
+            "a Renamed-declared path that still reads live bytes must be daemon-hashed"
+        );
+        assert!(
+            resp.diagnostics
+                .iter()
+                .any(|d| d.category == Category::Antipattern && d.id == "AP-008"),
+            "the blocking antipattern in the live bytes must surface a finding: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(resp.coverage, Coverage::Partial);
+        assert_eq!(resp.workspace_assurance.reason, Some(StaleReason::Renamed));
     }
 }

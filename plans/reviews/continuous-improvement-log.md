@@ -1837,3 +1837,11 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When a same-uid trust boundary must distinguish "our binary" from "a neighbour", exe-path equality via `/proc/<pid>/exe` is a cheap, fail-closed check that unit-tests cleanly in-process.
 - **Follow-up:** Non-Linux platforms downgrade every wire durable claim (no portable peer-exe reader yet) — durable membership there relies on the in-process `register_on_start` path, same caveat as `verify_lineage_claim`.
 
+### 2026-07-03 — claude
+
+- **Task:** CIB-151 — stop trusting a client's `ChangeKindWire` (`Deleted`/`Renamed`) to suppress the guarded read + antipattern scan in `validate_paths`.
+- **Outcome:** `per_path_outcome` now attempts `read_guarded` for every change kind; a path declared deleted/renamed but still holding live bytes is read, hashed, and scanned (a blocking AP-008 finding can no longer be evaded), while a genuinely vanished path stays content-free. Taxonomy-driven staleness (`Deleted`/`Renamed` non-certifiable) unchanged. Removed the `change_has_bytes` gate; 2 new TDD tests, existing coverage green.
+- **Friction:** Crate package name is `eddacraft-anvil-intercept`, not the `anvil-intercept` in the plan's `cargo test -p` command — `-p anvil-intercept` fails to match.
+- **Improvement:** Resolve the real Cargo package name (`grep '^name' Cargo.toml`) before running `-p` commands lifted from a plan; the manifest name and directory name diverge here.
+- **Follow-up:** none
+
