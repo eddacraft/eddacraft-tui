@@ -1769,3 +1769,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When tightening an implicit-admission source, grep the whole test module for the old permissive assumption ("implicitly admitted primary") before running — several unrelated tests lean on it.
 - **Follow-up:** none
 
+### 2026-07-03 — claude (CIB-149 Council remediation)
+
+- **Task:** Address blocking Council findings on CIB-149: the verified primary was sourced from an in-connection `RegisterSession` (`originating_session.worktree`), but real clients open a fresh one-shot connection per RPC — so register and verb never share a socket and the implicit-primary admission was permanently unreachable in production; and no test exercised the real two-connection topology.
+- **Outcome:** Added a dedicated `SaveTimeConn::verified_primary` seeded at connection setup from the durable `SessionRegistry` via the authenticated peer's PID lineage (`worktree_for_lineage(peer_pid)`, the same anti-PID-reuse anchor the spoof cross-check uses) through a new `ipc::seed_save_time_verified_primary` helper the accept-loop calls. Reachable across connections; gated on `Confinement::is_allowlist()` to skip the `/proc` walk on the default open posture; in-connection `RegisterSession` still seeds it too. New ipc-level test drives the real topology: one connection registers the worktree, a *separate* verb connection (no in-connection register) resolves it as the primary, while an unregistered peer gets only the allow entries.
+- **Worked:** `worktree_for_lineage(peer_pid)` was already the reviewed production resolver (`spoof_block_response`), so applying it to confinement is an existing mechanism, not a new trust model — kept the fix in-scope.
+- **Failed:** Inserting the helper between a pre-existing `#[allow(clippy::too_many_lines)]` and `handle_connection` silently re-attached the allow to the helper, so `handle_connection` tripped `-D warnings`; moved the attribute back onto the function.
+- **Friction:** `handle_connection` sits right at clippy's line budget — a multi-line call statement (rustfmt-wrapped) costs enough lines to matter; passing the `Option`s straight into the helper kept the call site to one statement.
+- **Improvement:** When adding a free fn just above an existing one, check whether the insertion point splits an attribute from its target item.
+- **Follow-up:** Activation/`anvil workspace register` sends no lineage, so `worktree_for_lineage` is empty for those worktrees — the implicit primary covers MLP2-025 lineage-registered agents; non-lineage registrations must use explicit allow entries. If operators need the implicit primary for activation-registered worktrees, that needs a peer→worktree binding that does not exist yet (separate design/ADR).
+
+

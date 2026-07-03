@@ -397,6 +397,16 @@ impl Confinement {
         self.mode
     }
 
+    /// `true` when this confinement is in `Allowlist` mode — the only mode in
+    /// which the connection's daemon-verified primary root matters (CIB-149).
+    /// `Open` mode first-touch-adopts every named root and ignores the primary,
+    /// so the IPC accept-loop uses this to skip the peer-lineage resolution on
+    /// the default open posture (avoiding a `/proc` walk per connection).
+    #[must_use]
+    pub fn is_allowlist(&self) -> bool {
+        matches!(self.mode, AdmissionModeFile::Allowlist)
+    }
+
     /// The number of operator allow entries (exact + prefix). Used by the
     /// `anvil status` surface to render `confined: N` in `Allowlist` mode
     /// (DSV-007 Task 17). The connection's implicitly-admitted primary root is
