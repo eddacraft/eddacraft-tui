@@ -7,8 +7,7 @@ import {
   findUserByEmail,
   countActiveOtpCodes,
   insertOtpCode,
-  findActiveOtpCodes,
-  incrementOtpAttemptsBatch,
+  registerActiveOtpAttempts,
   consumeOtpCode,
 } from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
@@ -92,6 +91,14 @@ authOtp.post('/request', zValidator('json', requestSchema), async (c) => {
  *
  * Exchange a 6-digit OTP code for a JWT licence and refresh token.
  * Returns identical error shapes for all failure modes (anti-enumeration).
+ *
+ * ACKNOWLEDGED RESIDUAL (self-lockout DoS): an unauthenticated caller who knows
+ * only a victim's email can exhaust the victim's active codes (via /request)
+ * and burn MAX_ATTEMPTS wrong guesses against them, locking OTP login for that
+ * mailbox until the codes expire (OTP_EXPIRY_SECONDS). This is inherent to any
+ * max-attempts scheme and is pre-existing — the CIB-142 fix only makes the cap
+ * race-free, it does not (and cannot) remove the lockout primitive. GitHub
+ * device-flow remains an unaffected alternative sign-in path.
  */
 authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
   debug('POST /auth/otp/verify');
@@ -107,23 +114,29 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
     return c.json(INVALID_CODE_ERROR, 400);
   }
 
-  // Find active OTP codes for this user (unconsumed, unexpired)
-  const activeCodes = await findActiveOtpCodes(sql, user.id);
+  // Atomically register this verification attempt against every active
+  // (unconsumed, unexpired) code that is still below MAX_ATTEMPTS, and get
+  // back only the codes eligible for comparison. The increment and the
+  // below-cap guard are a SINGLE conditional UPDATE, evaluated BEFORE the code
+  // comparison, so N concurrent guesses cannot all read a stale attempts count
+  // and slip past the cap (CIB-142). A code already at the cap is not returned,
+  // so its hash is never compared — the guess is rejected without evaluating
+  // the code.
+  const eligibleCodes = await registerActiveOtpAttempts(sql, user.id, MAX_ATTEMPTS);
 
-  if (activeCodes.length === 0) {
-    debug('no active otp codes', { userId: user.id });
+  if (eligibleCodes.length === 0) {
+    // Either no active codes exist, or every active code has hit the attempt
+    // cap. Both collapse to the same anti-enumeration error (and neither
+    // reveals which, nor evaluates any code).
+    debug('no eligible otp codes', { userId: user.id });
     return c.json(INVALID_CODE_ERROR, 400);
   }
 
   const submittedHash = hashOtp(code);
-  const match = activeCodes.find((row) => row.code_hash === submittedHash);
+  const match = eligibleCodes.find((row) => row.code_hash === submittedHash);
 
-  // Check if any code has exceeded max attempts, or no match found
-  if (!match || match.attempts >= MAX_ATTEMPTS) {
-    // Increment attempts on all active codes
-    const activeIds = activeCodes.map((row) => row.id);
-    await incrementOtpAttemptsBatch(sql, activeIds);
-    debug('otp verify failed', { userId: user.id, reason: match ? 'max_attempts' : 'no_match' });
+  if (!match) {
+    debug('otp verify failed', { userId: user.id, reason: 'no_match' });
     return c.json(INVALID_CODE_ERROR, 400);
   }
 

@@ -4,6 +4,7 @@ import { getClient } from '../db/client.js';
 import { upsertWaitlistEntry } from '../db/queries.js';
 import { sendWaitlistConfirmation, sendWaitlistAdminNotification } from '../lib/email.js';
 import { addToWaitlistAudience } from '../lib/audience.js';
+import { waitlistEmailThrottle } from '../middleware/waitlist-throttle.js';
 
 export const waitlist = new Hono();
 
@@ -55,8 +56,22 @@ waitlist.post('/', async (c) => {
       return c.json({ error: 'Invalid email format' }, 400);
     }
 
+    const normalisedEmail = trimmedEmail.toLowerCase();
+
+    // Per-email abuse throttle, independent of source IP. The global limiter
+    // (rateLimiter, CIB-140) keys on the Vercel client IP and cannot stop
+    // signup abuse / email-bombing of one mailbox from many IPs; this closes
+    // that gap by throttling repeated submissions for the same address.
+    // Successful and failed submissions both count. Best-effort / in-memory,
+    // consistent with the global limiter's posture (see waitlist-throttle.ts).
+    const throttle = waitlistEmailThrottle.consume(normalisedEmail);
+    if (throttle.limited) {
+      c.res.headers.set('Retry-After', String(throttle.retryAfterSeconds));
+      return c.json({ error: 'Too many requests, please try again later' }, 429);
+    }
+
     const sql = getClient();
-    const entry = await upsertWaitlistEntry(sql, trimmedEmail.toLowerCase());
+    const entry = await upsertWaitlistEntry(sql, normalisedEmail);
 
     const isNewSignup = entry.is_new;
     let emailSent = false;

@@ -11,8 +11,7 @@ vi.mock('../db/queries.js', () => ({
   findUserByEmail: vi.fn(),
   countActiveOtpCodes: vi.fn(),
   insertOtpCode: vi.fn(),
-  findActiveOtpCodes: vi.fn(),
-  incrementOtpAttemptsBatch: vi.fn(),
+  registerActiveOtpAttempts: vi.fn(),
   consumeOtpCode: vi.fn(),
   insertRefreshToken: vi.fn(),
   findActiveScopesForUser: vi.fn(),
@@ -33,9 +32,8 @@ vi.mock('../lib/token.js', async (importOriginal) => {
 import {
   consumeOtpCode,
   countActiveOtpCodes,
-  findActiveOtpCodes,
+  registerActiveOtpAttempts,
   findUserByEmail,
-  incrementOtpAttemptsBatch,
   insertOtpCode,
   insertRefreshToken,
   findActiveScopesForUser,
@@ -94,9 +92,8 @@ beforeEach(() => {
   vi.mocked(hashToken).mockImplementation((input: string) => `hash:${input}`);
   vi.mocked(findUserByEmail).mockResolvedValue(null);
   vi.mocked(countActiveOtpCodes).mockResolvedValue(0);
-  vi.mocked(findActiveOtpCodes).mockResolvedValue([]);
+  vi.mocked(registerActiveOtpAttempts).mockResolvedValue([]);
   vi.mocked(insertOtpCode).mockResolvedValue(makeOtpCodeRow());
-  vi.mocked(incrementOtpAttemptsBatch).mockResolvedValue(undefined);
   vi.mocked(consumeOtpCode).mockResolvedValue(true);
   vi.mocked(insertRefreshToken).mockResolvedValue(makeRefreshTokenRow());
   vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
@@ -264,7 +261,7 @@ describe('POST /auth/otp/verify', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(findActiveOtpCodes)).not.toHaveBeenCalled();
+    expect(vi.mocked(registerActiveOtpAttempts)).not.toHaveBeenCalled();
   });
 
   it('returns the same error shape for a suspended user', async () => {
@@ -274,12 +271,12 @@ describe('POST /auth/otp/verify', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(findActiveOtpCodes)).not.toHaveBeenCalled();
+    expect(vi.mocked(registerActiveOtpAttempts)).not.toHaveBeenCalled();
   });
 
   it('returns the same error shape when no active codes exist', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(findActiveOtpCodes).mockResolvedValue([]);
+    vi.mocked(registerActiveOtpAttempts).mockResolvedValue([]);
 
     const res = await post('/auth/otp/verify', {
       email: 'active@example.com',
@@ -288,34 +285,16 @@ describe('POST /auth/otp/verify', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(incrementOtpAttemptsBatch)).not.toHaveBeenCalled();
-  });
-
-  it('increments attempts on all active codes when the submitted code does not match', async () => {
-    vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(findActiveOtpCodes).mockResolvedValue([
-      makeCode({ id: 'otp-a', code_hash: 'hash:999999' }),
-      makeCode({ id: 'otp-b', code_hash: 'hash:888888' }),
-    ]);
-
-    const res = await post('/auth/otp/verify', {
-      email: 'active@example.com',
-      code: SUBMITTED_CODE,
-    });
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(incrementOtpAttemptsBatch)).toHaveBeenCalledWith(expect.anything(), [
-      'otp-a',
-      'otp-b',
-    ]);
     expect(vi.mocked(consumeOtpCode)).not.toHaveBeenCalled();
   });
 
-  it('locks out a matching code once MAX_ATTEMPTS is reached', async () => {
+  it('registers the attempt atomically and rejects when the submitted code does not match', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(findActiveOtpCodes).mockResolvedValue([
-      makeCode({ id: 'otp-locked', code_hash: SUBMITTED_HASH, attempts: 3 }),
+    // registerActiveOtpAttempts has already incremented + filtered by cap; it
+    // returns the eligible (below-cap) codes for comparison. None match here.
+    vi.mocked(registerActiveOtpAttempts).mockResolvedValue([
+      makeCode({ id: 'otp-a', code_hash: 'hash:999999', attempts: 1 }),
+      makeCode({ id: 'otp-b', code_hash: 'hash:888888', attempts: 1 }),
     ]);
 
     const res = await post('/auth/otp/verify', {
@@ -325,17 +304,38 @@ describe('POST /auth/otp/verify', () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(incrementOtpAttemptsBatch)).toHaveBeenCalledWith(expect.anything(), [
-      'otp-locked',
-    ]);
+    // The route drives the cap through the single atomic query, keyed by user
+    // and MAX_ATTEMPTS — not a separate read-then-write increment.
+    expect(vi.mocked(registerActiveOtpAttempts)).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      3
+    );
+    expect(vi.mocked(consumeOtpCode)).not.toHaveBeenCalled();
+  });
+
+  it('rejects a code at MAX_ATTEMPTS without evaluating it (atomic cap excludes it)', async () => {
+    vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
+    // A code already at the cap fails the `attempts < max` predicate, so the
+    // atomic UPDATE never returns it — the correct hash is never handed back
+    // for comparison, so the guess cannot be evaluated even though it matches.
+    vi.mocked(registerActiveOtpAttempts).mockResolvedValue([]);
+
+    const res = await post('/auth/otp/verify', {
+      email: 'active@example.com',
+      code: SUBMITTED_CODE,
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
     expect(vi.mocked(consumeOtpCode)).not.toHaveBeenCalled();
     expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
   });
 
   it('returns the same error shape when consume races against another request', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(findActiveOtpCodes).mockResolvedValue([
-      makeCode({ id: 'otp-race', code_hash: SUBMITTED_HASH }),
+    vi.mocked(registerActiveOtpAttempts).mockResolvedValue([
+      makeCode({ id: 'otp-race', code_hash: SUBMITTED_HASH, attempts: 1 }),
     ]);
     // Simulate concurrent verification: atomic consume reports 0 rows
     // because the sibling request already consumed the code.
@@ -353,8 +353,8 @@ describe('POST /auth/otp/verify', () => {
 
   it('issues a licence and refresh token on the happy path', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(findActiveOtpCodes).mockResolvedValue([
-      makeCode({ id: 'otp-match', code_hash: SUBMITTED_HASH }),
+    vi.mocked(registerActiveOtpAttempts).mockResolvedValue([
+      makeCode({ id: 'otp-match', code_hash: SUBMITTED_HASH, attempts: 1 }),
     ]);
     vi.mocked(consumeOtpCode).mockResolvedValue(true);
 
@@ -383,8 +383,8 @@ describe('POST /auth/otp/verify', () => {
 
   it('preserves graded scopes in the issued licence', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(findActiveOtpCodes).mockResolvedValue([
-      makeCode({ id: 'otp-match', code_hash: SUBMITTED_HASH }),
+    vi.mocked(registerActiveOtpAttempts).mockResolvedValue([
+      makeCode({ id: 'otp-match', code_hash: SUBMITTED_HASH, attempts: 1 }),
     ]);
     vi.mocked(findActiveScopesForUser).mockResolvedValue(['preview', 'beta']);
 
@@ -399,6 +399,61 @@ describe('POST /auth/otp/verify', () => {
     const claims = decodeJwt(body.license) as { scopes?: string[] };
     expect(claims.scopes).toEqual(['preview', 'beta']);
     expect(vi.mocked(findActiveScopesForUser)).toHaveBeenCalledWith(expect.anything(), 'user-1');
+  });
+
+  // CONTRACT TEST — NOT a real concurrency proof.
+  //
+  // The query layer is fully mocked in this suite (no Postgres harness exists
+  // in anvil-api's tests — see queries.test.ts, which uses a `vi.fn()` sql).
+  // The ATOMICITY of the increment (that at most MAX_ATTEMPTS guesses can ever
+  // be incremented under N concurrent callers) is a single-statement
+  // PostgreSQL row-lock guarantee, argued from SQL semantics in the
+  // `registerActiveOtpAttempts` docstring — it is NOT, and cannot be, proven
+  // by a single-threaded JS mock (a closure that re-implements the cap check
+  // can never fail even if the SQL were wrong).
+  //
+  // What this test DOES prove is the route-level property we own: the route
+  // delegates the cap entirely to the atomic claim and evaluates ONLY the rows
+  // the claim returns. Here the mock models the claim's CONTRACT — return
+  // below-cap rows, withhold capped rows — and we assert the route makes no
+  // independent cap decision: it never evaluates or consumes a code the claim
+  // did not hand back, no matter how many requests arrive.
+  it('route only evaluates codes the atomic claim returns (delegates the cap; contract)', async () => {
+    const MAX_ATTEMPTS = 3;
+    const REQUESTS = 20;
+
+    vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
+
+    // The claim's contract: increment-and-return while below the cap, withhold
+    // once at the cap. `returnedForComparison` counts rows the route was
+    // actually given to compare.
+    const claim = { attempts: 0 };
+    let returnedForComparison = 0;
+    let maxAttemptsSeen = -1;
+    vi.mocked(registerActiveOtpAttempts).mockImplementation(
+      async (_sql, _userId, maxAttempts: number) => {
+        maxAttemptsSeen = maxAttempts;
+        if (claim.attempts >= maxAttempts) return []; // capped: withheld
+        claim.attempts += 1;
+        returnedForComparison += 1;
+        // Deliberately a NON-matching hash so no request ever consumes.
+        return [makeCode({ id: 'otp-1', code_hash: 'hash:999999', attempts: claim.attempts })];
+      }
+    );
+
+    const results = await Promise.all(
+      Array.from({ length: REQUESTS }, () =>
+        post('/auth/otp/verify', { email: 'active@example.com', code: SUBMITTED_CODE })
+      )
+    );
+
+    // Route passes the cap to the atomic layer (never re-derives it) …
+    expect(maxAttemptsSeen).toBe(MAX_ATTEMPTS);
+    // … evaluates ONLY the rows the claim returned (nothing beyond the cap) …
+    expect(returnedForComparison).toBe(MAX_ATTEMPTS);
+    // … rejects every wrong guess and consumes nothing.
+    expect(results.every((r) => r.status === 400)).toBe(true);
+    expect(vi.mocked(consumeOtpCode)).not.toHaveBeenCalled();
   });
 
   it.each([

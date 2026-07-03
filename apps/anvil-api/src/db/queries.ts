@@ -450,14 +450,46 @@ export async function insertOtpCode(
   return OtpCodeSchema.parse(r[0]);
 }
 
-export async function findActiveOtpCodes(sql: NeonClient, userId: string): Promise<OtpCode[]> {
+/**
+ * Atomically register a verification attempt against a user's active OTP
+ * codes and return only the codes still eligible for comparison.
+ *
+ * The attempt counter is incremented and the below-cap guard is applied in a
+ * SINGLE `UPDATE ... WHERE attempts < $max RETURNING` statement. Because the
+ * read of `attempts`, the cap check, and the write happen inside one
+ * statement, there is no check-then-increment window: concurrent
+ * verifications serialise on each row's write lock, so at most `maxAttempts`
+ * guesses are ever incremented — and therefore ever returned for code
+ * comparison — per code. This is the fix for the CIB-142 race, where the old
+ * find-then-increment flow let N concurrent guesses all read the same stale
+ * `attempts` snapshot and slip past the cap.
+ *
+ * A code that has already reached the cap fails the `attempts < $max`
+ * predicate, so it is neither incremented nor returned; its `code_hash` is
+ * never handed back to the caller and the guess is rejected WITHOUT the code
+ * being evaluated.
+ *
+ * Atomicity note: the Neon serverless driver issues each tagged-template call
+ * as its own autocommit statement over HTTP. A single `UPDATE` is atomic under
+ * PostgreSQL read-committed semantics — a concurrent updater blocks on the row
+ * lock and re-evaluates `attempts < $max` against the freshly committed value,
+ * never against a stale snapshot. Same single-statement primitive as
+ * `consumeOtpCode` and `claimGithubDevicePoll` above.
+ */
+export async function registerActiveOtpAttempts(
+  sql: NeonClient,
+  userId: string,
+  maxAttempts: number
+): Promise<OtpCode[]> {
   const r = rows(
     await sql`
-    SELECT * FROM otp_codes
+    UPDATE otp_codes
+    SET attempts = attempts + 1
     WHERE user_id = ${userId}
       AND consumed_at IS NULL
       AND expires_at > now()
-    ORDER BY created_at DESC
+      AND attempts < ${maxAttempts}
+    RETURNING *
   `
   );
   return z.array(OtpCodeSchema).parse(r);
@@ -857,18 +889,6 @@ export async function countActiveOtpCodes(sql: NeonClient, userId: string): Prom
   `
   );
   return z.coerce.number().parse(r[0]?.count ?? 0);
-}
-
-/**
- * Increment attempt counters on multiple OTP codes at once.
- * Used when an incorrect code is submitted — all active codes get incremented.
- */
-export async function incrementOtpAttemptsBatch(sql: NeonClient, ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  await sql`
-    UPDATE otp_codes SET attempts = attempts + 1
-    WHERE id = ANY(${ids})
-  `;
 }
 
 // ---------------------------------------------------------------------------

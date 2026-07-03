@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { waitlist } from '../routes/waitlist.js';
+import { waitlistEmailThrottle } from '../middleware/waitlist-throttle.js';
 
 const waitlistMocks = vi.hoisted(() => ({
   getClient: vi.fn(),
@@ -40,6 +41,9 @@ function request(path: string, body: BodyInit, headers: HeadersInit = {}) {
 describe('waitlist routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the shared per-email throttle so submissions in one test don't
+    // spend another test's budget (the throttle store is process-wide).
+    waitlistEmailThrottle.reset();
     process.env['DATABASE_URL'] = 'postgres://waitlist-test';
     process.env['WAITLIST_RESEND_ADMIN_TOKEN'] = 'waitlist-secret';
     delete process.env['WAITLIST_PAUSED'];
@@ -254,6 +258,91 @@ describe('waitlist routes', () => {
       expect(response.status).toBe(503);
       expect(await response.json()).toEqual({ error: 'Service unavailable' });
       expect(waitlistMocks.getClient).not.toHaveBeenCalled();
+    });
+
+    describe('per-email abuse throttle', () => {
+      // The shared throttle default is 3 submissions per email per window.
+      const THROTTLE_MAX = 3;
+
+      function existingEntry(email: string) {
+        return [{ id: 1, email, created_at: '2026-03-14T00:00:00.000Z', is_new: false }];
+      }
+
+      it('throttles repeated submissions for the same email independent of source IP', async () => {
+        waitlistMocks.sql.mockResolvedValue(existingEntry('bombme@example.com'));
+
+        const statuses: number[] = [];
+        for (let i = 0; i < THROTTLE_MAX + 2; i++) {
+          const response = await request(
+            '/waitlist',
+            JSON.stringify({ email: 'bombme@example.com' }),
+            {
+              'Content-Type': 'application/json',
+              // A different, valid client IP on every request: the per-email
+              // throttle must fire regardless of source IP.
+              'x-real-ip': `203.0.113.${i + 1}`,
+            }
+          );
+          statuses.push(response.status);
+        }
+
+        // First THROTTLE_MAX pass; every submission after the cap is 429.
+        expect(statuses.slice(0, THROTTLE_MAX)).toEqual([200, 200, 200]);
+        expect(statuses.slice(THROTTLE_MAX)).toEqual([429, 429]);
+      });
+
+      it('returns the shared limiter error shape and a Retry-After header when throttled', async () => {
+        waitlistMocks.sql.mockResolvedValue(existingEntry('bombme@example.com'));
+
+        let last: Response | undefined;
+        for (let i = 0; i < THROTTLE_MAX + 1; i++) {
+          last = await request('/waitlist', JSON.stringify({ email: 'bombme@example.com' }), {
+            'Content-Type': 'application/json',
+          });
+        }
+
+        expect(last?.status).toBe(429);
+        expect(await last?.json()).toEqual({ error: 'Too many requests, please try again later' });
+        expect(Number(last?.headers.get('Retry-After'))).toBeGreaterThan(0);
+      });
+
+      it('does not throttle submissions for different emails', async () => {
+        waitlistMocks.sql.mockResolvedValue(existingEntry('someone@example.com'));
+
+        const statuses: number[] = [];
+        for (let i = 0; i < THROTTLE_MAX + 2; i++) {
+          const response = await request(
+            '/waitlist',
+            JSON.stringify({ email: `person${i}@example.com` }),
+            { 'Content-Type': 'application/json' }
+          );
+          statuses.push(response.status);
+        }
+
+        expect(statuses.every((s) => s === 200)).toBe(true);
+      });
+
+      it('shares one bucket across case and whitespace variants of the same email', async () => {
+        waitlistMocks.sql.mockResolvedValue(existingEntry('person@example.com'));
+
+        const variants = [
+          'person@example.com',
+          'Person@Example.com',
+          '  PERSON@example.com  ',
+          'person@example.com',
+        ];
+
+        const statuses: number[] = [];
+        for (const email of variants) {
+          const response = await request('/waitlist', JSON.stringify({ email }), {
+            'Content-Type': 'application/json',
+          });
+          statuses.push(response.status);
+        }
+
+        // Three variants map to one bucket (cap 3); the fourth is throttled.
+        expect(statuses).toEqual([200, 200, 200, 429]);
+      });
     });
   });
 
