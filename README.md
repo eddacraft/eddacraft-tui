@@ -632,7 +632,7 @@ The repository has several GitHub Actions workflows:
 - **napi.yml** — NAPI/native binding canary workflow.
 - **labeler.yml** — Automatic PR labelling based on changed paths.
 
-A reusable **anvil Check** GitHub Action (that is the action's declared name) is
+A reusable **Anvil Check** GitHub Action (that is the action's declared name) is
 also provided at `.github/actions/anvil-check/` for running anvil analysis in
 your own workflows.
 

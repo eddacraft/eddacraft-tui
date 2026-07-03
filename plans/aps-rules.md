@@ -86,7 +86,7 @@ Actions translate work item intent into **observable checkpoints**. They are NOT
 ### 1. Create authentication middleware
 
 - **Checkpoint:** Middleware created in src/middleware/auth.ts that:
-  - Extracts JWT from Authorisation header
+  - Extracts JWT from Authorization header
   - Validates token using jsonwebtoken library
   - Decodes payload and extracts user ID
   - Attaches user object to request context

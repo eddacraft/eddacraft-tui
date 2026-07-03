@@ -232,7 +232,7 @@ Rules:
    expected.
 7. CI remains the validation authority for release readiness.
 
-## Cross-Cutting Modules (Conductor)
+## Cross-Cutting Modules
 
 Cross-cutting modules coordinate work that touches multiple domains without
 owning a single product surface. Such modules must:
