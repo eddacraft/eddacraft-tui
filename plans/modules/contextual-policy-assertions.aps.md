@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status |
 | ---- | ------ | ------ |
-| CPOL | @aneki | Ready  |
+| CPOL | @aneki | In Progress |
 
 **Last reviewed:** 2026-07-04 (POLRESET-004 retarget under ADR-098).
 

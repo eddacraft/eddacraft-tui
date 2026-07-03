@@ -2,7 +2,7 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| IORISK | @aneki | Ready |
+| IORISK | @aneki | In Progress |
 
 **Last reviewed:** 2026-07-04 (POLRESET-004 retarget under ADR-098).
 
