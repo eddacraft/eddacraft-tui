@@ -834,18 +834,27 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
 /// `anvil hooks install` path: prefer a detected Husky directory, otherwise
 /// write Anvil-managed file-mode hooks under `.git/hooks/`. Existing unmanaged
 /// hooks are preserved by [`install_hook`]'s non-force skip semantics.
-pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<()> {
+///
+/// CIB-164: returns whether **both** the commit and push hooks are actually
+/// anvil-managed after the call, so the first-run `verify:` block can claim
+/// L3/L4 hook coverage only when it is real. A non-Git directory, a missing
+/// `.git/hooks/` after a partial install, or a pre-existing *unmanaged* hook
+/// (which [`install_hook`] refuses to overwrite without `--force`) all yield
+/// `false` — the `.git`-exists heuristic previously used at the call site
+/// over-claimed in every one of those cases.
+pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<bool> {
     // A non-Git directory has nowhere to install commit/push hooks, and that is
     // an expected, benign state — not an error. Returning `Err` here makes the
     // activation orchestrator print "could not install git hooks (Not a Git
     // repository)", which is misleading noise outside a repo (Copilot review).
-    // Treat it as a silent no-op instead.
+    // Treat it as a silent no-op instead — and report `false` so the caller does
+    // not claim hook coverage it never installed.
     if !workspace_root.join(".git").exists() {
         tracing::debug!(
             workspace = %workspace_root.display(),
             "activation: skipping git hook install — not a Git repository",
         );
-        return Ok(());
+        return Ok(false);
     }
     let git_dir = resolve_git_dir(workspace_root)?;
     let hooks_dir = {
@@ -862,7 +871,12 @@ pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<(
 
     let _ = install_hook(&hooks_dir, "pre-commit", PRE_COMMIT_HOOK, false)?;
     let _ = install_hook(&hooks_dir, "pre-push", PRE_PUSH_HOOK, false)?;
-    Ok(())
+    // Honest coverage check: the two hooks are only active if both files now
+    // exist AND carry the anvil marker. `install_hook` skips (without error) a
+    // pre-existing unmanaged hook, so a `created`/`updated`/`skipped` action does
+    // not on its own prove anvil owns the hook — read the disk state back.
+    Ok(is_anvil_managed(&hooks_dir.join("pre-commit"))
+        && is_anvil_managed(&hooks_dir.join("pre-push")))
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1292,6 +1306,61 @@ mod tests {
         let result = install_hook(dir.path(), "pre-commit", PRE_COMMIT_HOOK, false).unwrap();
         assert_eq!(result.action, "skipped");
         assert!(result.message.contains("already installed"));
+    }
+
+    /// CIB-164: on a fresh Git repo both hooks are written and marked, so
+    /// the honest coverage bool is `true` — the first-run `verify:` block may
+    /// claim L3/L4 hook coverage.
+    #[test]
+    fn install_activation_hooks_silent_reports_true_on_fresh_git_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+
+        let installed = install_activation_hooks_silent(dir.path()).unwrap();
+        assert!(
+            installed,
+            "a fresh Git repo must report both hooks anvil-managed"
+        );
+        assert!(is_anvil_managed(&dir.path().join(".git/hooks/pre-commit")));
+        assert!(is_anvil_managed(&dir.path().join(".git/hooks/pre-push")));
+    }
+
+    /// CIB-164: outside a Git repo there is nowhere to install hooks. The
+    /// call is a benign no-op (not an error) but must report `false` so the
+    /// caller does not claim coverage it never installed — the exact
+    /// over-claim reproduced on 0.8.2-beta with an empty `.git/hooks/`.
+    #[test]
+    fn install_activation_hooks_silent_reports_false_outside_git_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let installed = install_activation_hooks_silent(dir.path()).unwrap();
+        assert!(
+            !installed,
+            "a non-Git directory must report no hook coverage"
+        );
+    }
+
+    /// CIB-164: a pre-existing *unmanaged* hook is preserved (not
+    /// overwritten), so anvil does not own commit-time coverage. The bool
+    /// must be `false` even though the push hook installs cleanly.
+    #[test]
+    fn install_activation_hooks_silent_reports_false_when_a_hook_is_unmanaged() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git/hooks")).unwrap();
+        std::fs::write(
+            dir.path().join(".git/hooks/pre-commit"),
+            "#!/bin/sh\necho custom",
+        )
+        .unwrap();
+
+        let installed = install_activation_hooks_silent(dir.path()).unwrap();
+        assert!(
+            !installed,
+            "an unmanaged pre-commit hook means anvil does not own coverage"
+        );
+        assert!(
+            !is_anvil_managed(&dir.path().join(".git/hooks/pre-commit")),
+            "the user's unmanaged hook must be left untouched"
+        );
     }
 
     #[test]

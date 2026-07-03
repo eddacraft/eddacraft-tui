@@ -106,6 +106,12 @@ pub enum SkipReason {
 #[derive(Debug, Clone, Default)]
 pub struct InstallReport {
     pub per_client: BTreeMap<McpClientId, InstallOutcome>,
+    /// CIB-164: whether `anvil start` actually installed anvil-managed
+    /// commit + push hooks this run (both files present and marker-tagged).
+    /// The first-run `verify:` block reads this instead of a `.git`-exists
+    /// heuristic so it never claims L3/L4 hook coverage it did not install.
+    /// Defaults to `false` (read-only / write-gated / skipped paths).
+    pub hooks_active: bool,
 }
 
 impl InstallReport {
@@ -293,7 +299,14 @@ pub fn install_for_clients(
         };
         per_client.insert(candidate.id, outcome);
     }
-    InstallReport { per_client }
+    InstallReport {
+        per_client,
+        // CIB-164: the hook-coverage bool is decided by the orchestrator
+        // (which owns the hook-install step), not the MCP install path; it
+        // is stamped onto the report there. `install_for_clients` never
+        // installs hooks, so the honest default here is `false`.
+        hooks_active: false,
+    }
 }
 
 /// Probe each registered client's config paths and produce one

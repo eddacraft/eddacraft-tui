@@ -4472,7 +4472,7 @@ archive.
 
 ### CIB-164: Make the `verify:` block honest about active layers
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** The first-run `verify:` block over-claims on three axes:
   "L3/L4 commit + push hooks" is gated only on `.git` existing
   (`start.rs:412`) while `install_activation_hooks_silent` discards per-hook

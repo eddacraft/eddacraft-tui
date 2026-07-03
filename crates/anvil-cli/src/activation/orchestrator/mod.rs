@@ -249,13 +249,27 @@ fn run_with_home_and_registration(
     // project state, so it follows the same gated-write posture as the rest of
     // activation. Failure is non-fatal: MCP and daemon-backed save-time
     // validation can still run, and the operator gets an explicit warning.
-    if !project_writes_gated && let Err(e) = hooks::install_activation_hooks_silent(root) {
-        tracing::warn!(
-            error = %e,
-            "orchestrator: failed to install activation git hooks; continuing without",
-        );
-        eprintln!("anvil: could not install git hooks ({e}); continuing");
-    }
+    //
+    // CIB-164: capture whether the two hooks are *actually* anvil-managed after
+    // the call so the first-run `verify:` block claims L3/L4 hook coverage only
+    // when it is real. A write-gated posture, a failed install, or a
+    // pre-existing unmanaged hook all yield `false` here — replacing the old
+    // `.git`-exists heuristic that over-claimed in every one of those cases.
+    let hooks_active = if project_writes_gated {
+        false
+    } else {
+        match hooks::install_activation_hooks_silent(root) {
+            Ok(active) => active,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "orchestrator: failed to install activation git hooks; continuing without",
+                );
+                eprintln!("anvil: could not install git hooks ({e}); continuing");
+                false
+            }
+        }
+    };
 
     // Step 1b — write `.anvil/baseline.json` if absent (LAUNCH-010).
     // The baseline captures the set of antipattern + secret findings
@@ -324,7 +338,7 @@ fn run_with_home_and_registration(
     // and atomic writes; failures are folded into the report rather
     // than propagated, so the orchestrator always returns a final
     // diagnostic the user can act on.
-    let install_report = match mcp_install_policy {
+    let mut install_report = match mcp_install_policy {
         McpInstallPolicy::Skip => InstallReport::default(),
         McpInstallPolicy::Install => match std::env::current_exe() {
             Ok(exe) => {
@@ -343,6 +357,9 @@ fn run_with_home_and_registration(
             }
         },
     };
+    // CIB-164: carry the honest hook-coverage bool alongside the MCP report so
+    // the render path claims L3/L4 only when the hooks are really installed.
+    install_report.hooks_active = hooks_active;
 
     // Step 3 — final probe. The diagnostic absorbs the install side
     // effects (e.g. tiers should now read `RestartRequired` for the

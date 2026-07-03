@@ -406,11 +406,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 activation::state::ProtectionState::Error
             )
         {
-            // Hooks are installed by the orchestrator only when writes are
-            // allowed and the workspace is a Git repo; mirror that so the
-            // recipe does not claim hook coverage it did not install.
-            let hooks_active = !project_writes_gated && root.join(".git").exists();
-            print!("{}", render_first_run_recipe(&diagnostic, hooks_active));
+            // CIB-164: the recipe claims L3/L4 hook coverage only when the
+            // orchestrator actually installed anvil-managed hooks this run.
+            // The old `.git`-exists heuristic over-claimed on a failed install,
+            // a write-gated posture, or a pre-existing unmanaged hook — on
+            // shipped 0.8.2-beta the claim printed with an empty `.git/hooks/`.
+            print!(
+                "{}",
+                render_first_run_recipe(&diagnostic, install_report.hooks_active)
+            );
         }
         // ADOPT-003 — print the auto-detected AI tool summary after
         // the diagnostic block. Suppressed when nothing was
@@ -849,10 +853,18 @@ const RECIPE_LINES: &[&str] = &[
 /// Strictly `LiveValidation` — at `RestartRequired` the copy "is live" would
 /// contradict the restart instruction the diagnostic block just printed.
 fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str {
+    // CIB-164: on an all-languages-unsupported repo the closing line must not
+    // recommend `anvil watch` — the watcher would produce no findings on
+    // out-of-scope files, contradicting the `unsupported` verdict two lines up.
+    // This arm takes precedence over the watch fallback but sits below the live
+    // MCP / daemon claims (an attested worktree is honestly protected regardless
+    // of the smoke-test language coverage).
     if diag.mcp_pre_write_live() {
         "  Next: MCP pre-write protection is live; run `anvil status` to see posture any time."
     } else if diag.daemon_attestation.attests_worktree() {
         "  Next: daemon-backed save-time validation is armed; run `anvil intercept status` to inspect the daemon."
+    } else if diag.all_languages_unsupported {
+        "  Next: no supported languages detected here yet — anvil has nothing to validate in this repo, so there is no save-time step to run."
     } else {
         "  Next: run `anvil watch` to validate files as you save."
     }
@@ -865,8 +877,16 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active
     out.push_str("\nverify:\n");
     let _ = writeln!(out, "  state: {}", diag.protection_state().label());
     out.push_str("  active layers:\n");
-    if diag.mcp_pre_write_wired_or_live() {
+    // CIB-164: L0 is only "active" once an MCP client is producing live
+    // validation. At `RestartRequired`/`RestartHandshakeVerified` the entry is
+    // wired but explicitly not attached — listing a bare "L0 mcp pre-write"
+    // under "active layers" over-claims (the diagnostic block one section up
+    // already tells the user to restart). Label the wired-only case as pending
+    // so the layer line agrees with the state instead of contradicting it.
+    if diag.mcp_pre_write_live() {
         out.push_str("    - L0 mcp pre-write\n");
+    } else if diag.mcp_pre_write_wired_or_live() {
+        out.push_str("    - L0 mcp pre-write (pending — restart required)\n");
     }
     if diag.daemon_attestation.attests_worktree() {
         out.push_str("    - L2 daemon-backed save-time\n");
@@ -879,6 +899,18 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active
     // over-claim coverage (Copilot review).
     if hooks_active {
         out.push_str("    - L3/L4 commit + push hooks (via `anvil start`)\n");
+    }
+    // CIB-164: the `.ts` smoke recipe asserts a `secret-detection` finding on a
+    // TypeScript file. On an all-languages-unsupported repo that file is out of
+    // scope — running the recipe would produce no finding, contradicting the
+    // `unsupported` verdict above. Suppress the recipe and say so honestly
+    // rather than hand the user steps that cannot pass.
+    if diag.all_languages_unsupported {
+        out.push_str(
+            "  recipe: none — no supported languages detected in this repo, so the \
+             smoke test would report no finding.\n",
+        );
+        return out;
     }
     let _ = writeln!(
         out,
@@ -1108,6 +1140,73 @@ mod tests {
         assert!(
             !no_hooks.contains("L3/L4 commit + push hooks"),
             "non-Git / gated render must NOT claim hook coverage: {no_hooks}"
+        );
+    }
+
+    /// CIB-164 (L0 honesty): a wired-but-not-live MCP client
+    /// (`RestartRequired`) is one restart from live, not attached. The
+    /// `verify:` block must label it as pending rather than list a bare
+    /// active "L0 mcp pre-write" line that contradicts the restart
+    /// instruction the diagnostic block prints one section up.
+    #[test]
+    fn first_run_recipe_marks_wired_but_not_live_mcp_as_pending() {
+        use activation::diagnostic::{McpClientId, McpTier};
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        diag.config = activation::diagnostic::ConfigStatus::Valid;
+        diag.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        let rendered = render_first_run_recipe(&diag, false);
+        assert!(
+            rendered.contains("L0 mcp pre-write (pending — restart required)"),
+            "wired-but-not-live MCP must be labelled pending: {rendered}"
+        );
+        assert!(
+            !rendered.contains("- L0 mcp pre-write\n"),
+            "wired-only MCP must NOT print a bare active L0 line: {rendered}"
+        );
+    }
+
+    /// CIB-164 (unsupported honesty): on an all-languages-unsupported repo
+    /// the `.ts` smoke recipe would produce no finding, contradicting the
+    /// `unsupported` verdict. The recipe lines must be suppressed and
+    /// replaced with an honest "none" note.
+    #[test]
+    fn first_run_recipe_suppresses_smoke_recipe_when_unsupported() {
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        diag.config = activation::diagnostic::ConfigStatus::Valid;
+        diag.all_languages_unsupported = true;
+        let rendered = render_first_run_recipe(&diag, false);
+        assert!(
+            rendered.contains("recipe: none"),
+            "unsupported render must state the recipe is unavailable: {rendered}"
+        );
+        for line in RECIPE_LINES {
+            assert!(
+                !rendered.contains(line),
+                "unsupported render must NOT emit the .ts smoke line {line:?}: {rendered}"
+            );
+        }
+        assert!(
+            !rendered.contains("try this now"),
+            "unsupported render must not invite the smoke test: {rendered}"
+        );
+    }
+
+    /// CIB-164 (unsupported honesty): the closing next-step line must stop
+    /// recommending `anvil watch` when no supported language is present —
+    /// the watcher would report nothing, contradicting the verdict.
+    #[test]
+    fn next_step_does_not_recommend_watch_when_all_languages_unsupported() {
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        diag.all_languages_unsupported = true;
+        let line = start_next_step_line(&diag);
+        assert!(
+            !line.contains("anvil watch"),
+            "unsupported repo must not recommend `anvil watch`: {line}"
+        );
+        assert!(
+            line.contains("no supported languages"),
+            "unsupported next step must name the coverage gap honestly: {line}"
         );
     }
 

@@ -1869,3 +1869,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When a diagnostic signal must stay operator-visible but off the human stdout surface, own visibility in the render/format layer and keep the tracing event below the default filter — don't promote the tracing level to force visibility, which leaks raw JSONL into human output under a JSON subscriber.
 - **Follow-up:** `canonicalise_for_activation` still emits `warn!` on a canonicalisation failure (a genuine rare error, out of CIB-162 scope); anvil-cli additionally carries pre-existing broken intra-doc links (not rustdoc-gated for this crate).
 
+### 2026-07-04 — claude
+
+- **Task:** CIB-164 — make the first-run `verify:` block honest about active layers (hooks over-claim, wired-not-live L0, unsupported-repo recipe/watch contradiction).
+- **Outcome:** `install_activation_hooks_silent` now returns `Result<bool>` (both hooks actually anvil-managed on disk, read back via `is_anvil_managed`); the orchestrator captures it and stamps `InstallReport.hooks_active`, which `render_first_run_recipe` reads instead of the old `.git`-exists heuristic. `render_first_run_recipe` splits `mcp_pre_write_live()` (active `L0 mcp pre-write`) from wired-only (`RestartRequired`→`L0 mcp pre-write (pending — restart required)`), and on `all_languages_unsupported` suppresses the `.ts` smoke recipe (`recipe: none …`). `start_next_step_line` gained an unsupported arm that no longer recommends `anvil watch`. 6 new tests (3 hooks.rs, 3 start.rs).
+- **Worked:** Threading the honest bool through the already-returned `InstallReport` avoided touching every orchestrator call-site signature; reading hook state back off disk (not trusting the `created/updated/skipped` action) correctly reports `false` when a pre-existing *unmanaged* hook blocks anvil coverage.
+- **Failed:** none.
+- **Friction:** `anvil start`'s manual transcript is auth-gated in the agent shell (`Authentication required`), so the "no L3/L4 in a non-Git dir" check was validated via the unit test that proves the orchestrator threads `hooks_active=false` outside a repo, not a live transcript.
+- **Improvement:** Honesty predicates should read back the durable artefact (marker on disk) rather than an install-action enum — "skipped" conflates "already ours" with "someone else's, left alone", and only the former is coverage.
+- **Follow-up:** CIB-166 (one next-step arbiter) still needs the diagnostic `next:` and closing `Next:` to be reconciled; this change only removed the unsupported-repo `anvil watch` contradiction from the closing line.
+
