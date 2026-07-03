@@ -7,7 +7,13 @@
 //! - [`pipeline`] — the [`Scanner`](pipeline::Scanner) contract and the
 //!   deterministic [`ScannerChain`](pipeline::ScannerChain) executor
 //!   (IORISK-002).
+//! - [`guidance`] — findings → posture-driven guidance (IORISK-003).
 
+pub mod guidance;
 pub mod pipeline;
 
+pub use guidance::{
+    EnforcementPosture, RiskGuidance, RiskGuidanceCode, blocks_under, decision_under,
+    guidance_for_finding, guidance_for_findings, guidance_for_report,
+};
 pub use pipeline::{IoDirection, IoPayload, ScanReport, Scanner, ScannerChain, ScannerError};

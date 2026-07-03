@@ -45,9 +45,10 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 - **Dependencies:** IORISK-001
 
 ### IORISK-003: Integrate risk findings with policy outputs
+- **Status:** Done
 - **Intent:** Map IO findings to policy outcomes and remediation actions.
 - **Expected Outcome:** Findings appear in unified guidance and CI summaries.
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- io_risk_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- io_risk_guidance` — 8 passed (`crates/anvil-policy-engine/src/io_risk/guidance.rs`; posture-driven `decision_under`/`blocks_under` over a shared `EnforcementPosture`, warnings-first default per ADR-002, blocking never stored on the guidance). Folds in the CPOL `context/guidance.rs` correction: dropped the band-derived stored `blocking` field for the same posture-parameterised shape.
 - **Dependencies:** IORISK-002
 
 ## Execution

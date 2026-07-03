@@ -7,25 +7,37 @@
 //! ## Alignment with pack validation (reuse, not parallel invention)
 //!
 //! Guidance follows the [`crate::pack::validator::ValidationIssue`] conventions
-//! — a stable kebab-case code, an [`IssueSeverity`] Error/Warning axis, clean
-//! serde round-trip, and optional fields skip-serialised. It **reuses**
-//! [`IssueSeverity`] (the "does this block" axis) and
-//! [`PolicySeverity`] (the declared band) directly rather than cloning them.
+//! — a stable kebab-case code, a human `message`, remediation-first
+//! `remediation`, clean serde round-trip, and optional fields skip-serialised.
+//! It **reuses** [`PolicySeverity`] (the declared band) directly rather than
+//! cloning it.
 //!
 //! It does **not** reuse [`crate::pack::validator::ValidationIssue`] wholesale,
 //! nor its [`crate::pack::IssueCode`] enum: `IssueCode` is a closed set of *pack
 //! structure* problems (missing policy file, duplicate id, …). Folding
 //! assertion-violation codes into it would conflate two domains — the same
-//! reason `validator.rs` keeps a dedicated `IssueSeverity` rather than reusing
-//! `PolicySeverity`. So [`GuidanceCode`] is a sibling enum in the shared style,
-//! and the blocking axis is derived from the assertion's declared band.
+//! reason `validator.rs` keeps a dedicated severity axis. So [`GuidanceCode`] is
+//! a sibling enum in the shared style.
+//!
+//! ## Blocking is posture-driven, not band-driven
+//!
+//! Whether a violation *blocks* is **not** stored on the guidance and **not**
+//! hard-derived from the declared band. The band describes the assertion; the
+//! enforcement layer decides under a requested [`EnforcementPosture`].
+//! [`decision_under`] / [`blocks_under`] expose that mapping as a function of
+//! `(severity, posture)`, defaulting to warnings-first
+//! ([`EnforcementPosture::Warn`], ADR-002). This shares the exact posture shape
+//! (and the [`EnforcementPosture`] type) with [`crate::io_risk::guidance`], so
+//! the "does it block" decision stays with the posture-owning caller.
 
 use serde::{Deserialize, Serialize};
 
+use anvil_kernel_types::diagnostics::ControlDecision;
+
 use crate::context::adapters::{AssertionContext, AssertionEvaluation, Violation, evaluate};
 use crate::context::assertion::{Assertion, AssertionCondition};
+use crate::io_risk::guidance::EnforcementPosture;
 use crate::pack::PolicySeverity;
-use crate::pack::validator::IssueSeverity;
 
 /// Stable, machine-readable classification of an assertion violation.
 ///
@@ -63,22 +75,19 @@ impl GuidanceCode {
 
 /// A remediation-first explanation of a single assertion violation.
 ///
-/// Mirrors [`crate::pack::validator::ValidationIssue`]: a stable [`code`], a
-/// blocking axis, an attribution, a human-readable `message`, and
-/// remediation-first `remediation`. Optional attribution fields are
-/// skip-serialised when absent.
+/// Mirrors [`crate::pack::validator::ValidationIssue`]: a stable [`code`], an
+/// attribution, a human-readable `message`, and remediation-first
+/// `remediation`. Optional attribution fields are skip-serialised when absent.
 ///
-/// [`severity`](Self::severity) carries the assertion's declared band;
-/// [`blocking`](Self::blocking) is the derived Error/Warning axis (see
-/// [`blocking_for`]).
+/// Deliberately carries **no** blocking flag: whether it blocks is computed on
+/// demand from [`severity`](Self::severity) and a caller-supplied
+/// [`EnforcementPosture`] via [`AssertionGuidance::decision_under`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssertionGuidance {
     /// Stable machine-readable code for the violated condition kind.
     pub code: GuidanceCode,
     /// The assertion's declared severity band (reused pack vocabulary).
     pub severity: PolicySeverity,
-    /// Whether this violation blocks, on the pack Error/Warning axis (ADR-002).
-    pub blocking: IssueSeverity,
     /// The id of the violated assertion.
     pub assertion_id: String,
     /// The offending changed path, when the condition names one.
@@ -93,19 +102,45 @@ pub struct AssertionGuidance {
     pub rationale: Option<String>,
 }
 
-/// Map a declared [`PolicySeverity`] band onto the Error/Warning blocking axis.
-///
-/// Per ADR-002 (warnings over blocks, exit 0 by default) only the top band
-/// blocks: [`PolicySeverity::Critical`] → [`IssueSeverity::Error`]; every lower
-/// band is advisory ([`IssueSeverity::Warning`]).
-#[must_use]
-pub fn blocking_for(severity: PolicySeverity) -> IssueSeverity {
-    match severity {
-        PolicySeverity::Critical => IssueSeverity::Error,
-        PolicySeverity::Low | PolicySeverity::Medium | PolicySeverity::High => {
-            IssueSeverity::Warning
-        }
+impl AssertionGuidance {
+    /// The control decision for this guidance under a posture. Posture-driven,
+    /// never stored (see the [module docs](self)).
+    #[must_use]
+    pub fn decision_under(&self, posture: EnforcementPosture) -> ControlDecision {
+        decision_under(self.severity, posture)
     }
+
+    /// Whether this guidance blocks under a posture.
+    #[must_use]
+    pub fn blocks_under(&self, posture: EnforcementPosture) -> bool {
+        blocks_under(self.severity, posture)
+    }
+}
+
+/// Map a declared [`PolicySeverity`] band to a [`ControlDecision`] under a
+/// posture.
+///
+/// Under [`EnforcementPosture::Warn`] every violation is
+/// [`ControlDecision::Warn`] (ADR-002, warnings over blocks). Under
+/// [`EnforcementPosture::Enforce`] the high bands
+/// ([`PolicySeverity::High`]/[`PolicySeverity::Critical`]) block; lower bands
+/// stay advisory. Shares [`EnforcementPosture`] with
+/// [`crate::io_risk::guidance`].
+#[must_use]
+pub fn decision_under(severity: PolicySeverity, posture: EnforcementPosture) -> ControlDecision {
+    match posture {
+        EnforcementPosture::Warn => ControlDecision::Warn,
+        EnforcementPosture::Enforce => match severity {
+            PolicySeverity::High | PolicySeverity::Critical => ControlDecision::Block,
+            PolicySeverity::Low | PolicySeverity::Medium => ControlDecision::Warn,
+        },
+    }
+}
+
+/// Whether a violation of this declared band blocks under a posture.
+#[must_use]
+pub fn blocks_under(severity: PolicySeverity, posture: EnforcementPosture) -> bool {
+    matches!(decision_under(severity, posture), ControlDecision::Block)
 }
 
 /// Build guidance for a violation of `assertion`.
@@ -141,7 +176,6 @@ fn from_violation(assertion: &Assertion, violation: &Violation) -> AssertionGuid
     AssertionGuidance {
         code: GuidanceCode::for_condition(&violation.condition),
         severity: assertion.outcome,
-        blocking: blocking_for(assertion.outcome),
         assertion_id: assertion.id.clone(),
         path: violation.offending_path.clone(),
         message: format!("assertion `{}` failed: {}", assertion.id, violation.detail),
@@ -237,8 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn assertion_guidance_severity_band_is_carried_and_blocking_axis_derived() {
-        // Critical blocks (Error); every lower band is advisory (Warning).
+    fn assertion_guidance_blocking_is_posture_driven_not_band_derived() {
         let critical = assess(
             &assertion(
                 PolicySeverity::Critical,
@@ -249,8 +282,23 @@ mod tests {
             &AssertionContext::from_parts(WorkflowPhase::Manual, [], []),
         )
         .expect("violation");
+        // The band is carried, but blocking is not stored on the guidance.
         assert_eq!(critical.severity, PolicySeverity::Critical);
-        assert_eq!(critical.blocking, IssueSeverity::Error);
+        let json = serde_json::to_value(&critical).expect("serialise");
+        assert!(
+            json.get("blocking").is_none(),
+            "blocking must not be stored on the guidance: {json}"
+        );
+
+        // Default posture is warnings-first: nothing blocks (ADR-002).
+        assert!(!critical.blocks_under(EnforcementPosture::default()));
+        assert_eq!(
+            critical.decision_under(EnforcementPosture::Warn),
+            ControlDecision::Warn
+        );
+        // Enforce blocks the high bands, warns the lower ones — same guidance,
+        // different posture, different decision.
+        assert!(critical.blocks_under(EnforcementPosture::Enforce));
 
         let medium = assess(
             &assertion(
@@ -262,8 +310,7 @@ mod tests {
             &AssertionContext::from_parts(WorkflowPhase::Manual, [], []),
         )
         .expect("violation");
-        assert_eq!(medium.severity, PolicySeverity::Medium);
-        assert_eq!(medium.blocking, IssueSeverity::Warning);
+        assert!(!medium.blocks_under(EnforcementPosture::Enforce));
     }
 
     #[test]

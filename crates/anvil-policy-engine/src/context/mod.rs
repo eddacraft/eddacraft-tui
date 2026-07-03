@@ -23,4 +23,6 @@ pub use assertion::{
     Assertion, AssertionCondition, AssertionError, AssertionScope, ChangeKind,
     ChangedPathCountSpec, Comparison, ConfigKey, ConfigMatch, PathGlob, WorkflowPhase,
 };
-pub use guidance::{AssertionGuidance, GuidanceCode, assess, blocking_for, guidance_for};
+pub use guidance::{
+    AssertionGuidance, GuidanceCode, assess, blocks_under, decision_under, guidance_for,
+};
