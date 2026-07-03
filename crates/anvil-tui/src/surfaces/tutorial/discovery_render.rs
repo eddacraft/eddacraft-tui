@@ -852,8 +852,12 @@ mod tests {
             rendered.contains("your scan found no issues"),
             "showcase banner should reassure the scan found no real issues: {rendered}"
         );
-        assert!(
-            rendered.contains("EXAMPLE"),
+        // Two showcase findings are seeded above, so a correct render carries an
+        // EXAMPLE badge on *every* row — assert the count, not mere presence, so a
+        // regression that drops the badge on one row still fails the test.
+        assert_eq!(
+            rendered.matches("EXAMPLE").count(),
+            2,
             "each showcase row should carry a distinct EXAMPLE badge: {rendered}"
         );
     }
