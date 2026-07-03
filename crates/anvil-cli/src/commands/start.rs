@@ -461,9 +461,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     match watch_decision {
         WatchDecision::NotRequested => {
             // UJ-001: plain endings name the single next step; JSON and
-            // read-only (--verify) surfaces stay byte-identical.
-            if !global.json && !read_only {
-                println!("{}", start_next_step_line(&diagnostic));
+            // read-only (--verify) surfaces stay byte-identical. CIB-166:
+            // when the diagnostic block printed a `next:` repair hint, that
+            // hint owns the ending and no closing line prints.
+            if !global.json
+                && !read_only
+                && let Some(line) = ending_next_step_line(&diagnostic)
+            {
+                println!("{line}");
             }
             Ok(())
         }
@@ -847,11 +852,31 @@ const RECIPE_LINES: &[&str] = &[
     "    3. rm .anvil-smoke-test.ts when done",
 ];
 
+/// CIB-166: one next-step arbiter per ending. The diagnostic block's `next:`
+/// repair hint (rendered by `activation::render_human`) and the closing
+/// `Next:` line used to compute their next steps independently, so a single
+/// first-run printout could tell the user to start the intercept daemon and
+/// then close with "run `anvil watch`". When the diagnostic printed a repair
+/// hint, that hint owns the ending; the closing line prints only when there
+/// is nothing to repair.
+fn ending_next_step_line(diag: &activation::ActivationDiagnostic) -> Option<&'static str> {
+    if activation::has_repair_hint(diag) {
+        None
+    } else {
+        Some(start_next_step_line(diag))
+    }
+}
+
 /// UJ-001: the single next-step line for a plain `anvil start` ending. Honest
 /// about redundancy: when MCP pre-write is live, watch would be a no-op (the
 /// `NoOpRedundant` axis), so the next step is the status surface instead.
-/// Strictly `LiveValidation` — at `RestartRequired` the copy "is live" would
-/// contradict the restart instruction the diagnostic block just printed.
+///
+/// CIB-166: gated by [`ending_next_step_line`], and `repair_hint` returns a
+/// hint for every state except `Protecting`, so only the live-MCP arm is
+/// reachable from `run()` today. The other arms are kept deliberately as the
+/// honest fallback should `repair_hint` ever stop being total — a wrong
+/// static "protection is live" claim is worse than a redundant branch — and
+/// their copy stays pinned by the direct unit tests below.
 fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str {
     // CIB-164: on an all-languages-unsupported repo the closing line must not
     // recommend `anvil watch` — the watcher would produce no findings on
@@ -967,6 +992,115 @@ mod tests {
         diag.config = activation::diagnostic::ConfigStatus::Valid;
         diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Enforced;
         diag
+    }
+
+    fn restart_required_diagnostic() -> activation::ActivationDiagnostic {
+        use activation::diagnostic::{McpClientId, McpTier};
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        diag.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        diag
+    }
+
+    // CIB-166: one next-step arbiter per ending — the closing `Next:` line
+    // defers to the diagnostic block's `next:` repair hint.
+
+    #[test]
+    fn ending_has_exactly_one_next_step_owner() {
+        // The closing line prints iff the rendered diagnostic carries no
+        // `next:` hint, so an ending never issues two competing instructions
+        // (and never zero). The fixture set must reach every
+        // `ProtectionState` variant — asserted below — per the CIB-166
+        // validation note ("agreement across states").
+        let unsupported_diagnostic = || {
+            let mut diag = synth_diagnostic(activation::state::ProtectionState::Unsupported);
+            diag.all_languages_unsupported = true;
+            diag
+        };
+        let error_diagnostic = || {
+            let mut diag = synth_diagnostic(activation::state::ProtectionState::Error);
+            diag.last_error = Some("synthetic activation failure".into());
+            diag
+        };
+        // CIB-164 caveat interplay: `ReadyRestartRequired` is reachable with
+        // `all_languages_unsupported` (MCP secrets validation is
+        // language-agnostic); the repair hint owns that ending too. The old
+        // closing "no supported languages" note is intentionally dropped
+        // there — the hint's restart guidance never recommends `anvil watch`,
+        // so no contradiction remains.
+        let restart_required_unsupported = || {
+            let mut diag = restart_required_diagnostic();
+            diag.all_languages_unsupported = true;
+            diag
+        };
+
+        let fixtures = [
+            synth_diagnostic(activation::state::ProtectionState::Protecting),
+            synth_diagnostic(activation::state::ProtectionState::Watching),
+            synth_diagnostic(activation::state::ProtectionState::NeedsAction),
+            daemon_attested_diagnostic(),
+            restart_required_diagnostic(),
+            restart_required_unsupported(),
+            unsupported_diagnostic(),
+            error_diagnostic(),
+        ];
+        let mut states_seen = std::collections::BTreeSet::new();
+        for diag in &fixtures {
+            states_seen.insert(format!("{:?}", diag.protection_state()));
+            let hint_printed = activation::render_human(diag).contains("\n  next: ");
+            let closing = ending_next_step_line(diag);
+            assert!(
+                hint_printed != closing.is_some(),
+                "exactly one surface owns the {:?} ending (diagnostic hint printed: \
+                 {hint_printed}, closing line: {closing:?})",
+                diag.protection_state(),
+            );
+        }
+        assert_eq!(
+            states_seen.len(),
+            6,
+            "sweep must cover every ProtectionState variant, saw: {states_seen:?}",
+        );
+    }
+
+    #[test]
+    fn closing_watch_line_defers_to_daemon_repair_hint() {
+        // The reproduced CIB-166 contradiction: at `ready_restart_required`
+        // with the daemon unreachable, the diagnostic says "start the
+        // intercept daemon with `anvil intercept start --foreground`" and the
+        // ending closed with "Next: run `anvil watch`".
+        let mut diag = restart_required_diagnostic();
+        diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
+        assert_eq!(
+            diag.protection_state(),
+            activation::state::ProtectionState::ReadyRestartRequired,
+            "fixture must land on the reproduced state",
+        );
+        let rendered = activation::render_human(&diag);
+        assert!(
+            rendered.contains("anvil intercept start --foreground"),
+            "diagnostic owns the ending with the daemon repair hint, got: {rendered}",
+        );
+        assert_eq!(
+            ending_next_step_line(&diag),
+            None,
+            "closing line must defer to the diagnostic's repair hint",
+        );
+    }
+
+    #[test]
+    fn closing_line_owns_ending_when_nothing_to_repair() {
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        assert!(
+            !activation::render_human(&diag).contains("\n  next: "),
+            "protecting renders no repair hint",
+        );
+        let line = ending_next_step_line(&diag)
+            .expect("with nothing to repair the closing line owns the ending");
+        assert!(
+            line.contains("anvil status"),
+            "protecting ending points at the status surface, got: {line}",
+        );
     }
 
     // UJ-001: a plain `anvil start` ending names the single next step.

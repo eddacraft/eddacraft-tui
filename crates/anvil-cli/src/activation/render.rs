@@ -908,6 +908,15 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
     }
 }
 
+/// CIB-166: one next-step arbiter per `anvil start` ending. `true` means
+/// [`render_human`] printed a `next:` repair hint for the diagnostic's current
+/// state, and that hint owns the ending — callers must not print a competing
+/// closing `Next:` line. `false` means there is nothing to repair
+/// (`Protecting`), so the closing line owns the ending.
+pub fn has_repair_hint(d: &ActivationDiagnostic) -> bool {
+    repair_hint(d.protection_state(), d).is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::diagnostic::{

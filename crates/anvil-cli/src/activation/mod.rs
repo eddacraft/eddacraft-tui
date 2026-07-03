@@ -35,4 +35,6 @@ pub mod state;
 pub use diagnostic::{ActivationDiagnostic, verify};
 #[allow(unused_imports)] // contract surface for downstream PRs
 pub use language_profile::{CoverageTier, LanguageProfileEntry, RepoLanguageProfile, profile_repo};
-pub use render::{render_human, render_human_verbose, render_human_with_install, render_json};
+pub use render::{
+    has_repair_hint, render_human, render_human_verbose, render_human_with_install, render_json,
+};
