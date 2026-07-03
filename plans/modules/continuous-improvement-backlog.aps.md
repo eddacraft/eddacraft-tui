@@ -4612,23 +4612,13 @@ archive.
 
 ### CIB-170: Make showcase findings unmistakably examples in discovery
 
-- **Status:** In Progress
-- **Intent:** On a clean repo the discovery surface substitutes curated fake
-  findings distinguished only by an inline `[Example]` title prefix
-  (`showcase.rs:18-64`); `discovery_render.rs` has no showcase special-casing,
-  so users see severity-badged findings at plausible paths
-  (`src/services/auth.rs:42` "Hard-coded API key detected") and can believe
-  their repo leaks a key.
-- **Expected Outcome:** Showcase mode is visually distinct: a banner or panel
-  title ("Example findings — your scan found no issues"), and/or a distinct
-  badge per row; the `[Example]` prefix stays for copy robustness.
-- **Files:** `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`,
-  `crates/anvil-tui/src/surfaces/tutorial/showcase.rs`,
-  `crates/anvil-cli/src/commands/welcome.rs` (plumb a showcase flag).
-- **Validation:** `cargo test -p anvil-tui discovery` snapshot showing the
-  showcase banner; clean-repo welcome transcript.
-- **Identified From:** User-journey pass 2026-07-04 (finding 9).
-- **Confidence:** high.
+- **Status:** Merged 2026-07-04 via PR #3127
+- **Summary:** Showcase discovery findings are now unmistakably examples: an
+  `is_showcase` flag on `ScanResults` (preserved through `filter_by_domain`,
+  set at both `welcome.rs` showcase fallbacks) makes `render_findings_list`
+  swap the panel title for an "Example findings — your scan found no issues"
+  banner and prefix each row with a reversed `EXAMPLE` badge; real-scan renders
+  are unchanged and the inline `[Example]` prefix is kept for copy robustness.
 
 ### CIB-171: Fix welcome TUI navigation scopes and init-summary honesty
 
