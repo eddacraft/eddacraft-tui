@@ -7,6 +7,8 @@
 
 pub mod manifest;
 pub mod metadata;
+pub mod validator;
 
 pub use manifest::{ManifestError, PackManifest, PolicyEntry, load_manifest};
 pub use metadata::{MetadataError, PolicyMetadata, PolicySeverity, ensure_unique_ids};
+pub use validator::{IssueCode, IssueSeverity, ValidationIssue, ValidationReport, validate_pack};

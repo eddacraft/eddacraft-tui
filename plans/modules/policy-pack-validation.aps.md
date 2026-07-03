@@ -115,6 +115,7 @@ before gate evaluation so policies do not fail silently.
 - **Dependencies:** POLVAL-002
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_pack_validator`
 - **Confidence:** high
+- **Status:** Done — `cargo test -p eddacraft-anvil-policy-engine -- policy_pack_validator` passes (7 tests green).
 
 ### POLVAL-004: Policy test enforcement
 
