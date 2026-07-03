@@ -4048,7 +4048,7 @@ archive.
 
 ### CIB-148: Normalise source/target paths in anvil_query_boundary before policy evaluation
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3111
 - **Intent:** `anvil_query_boundary` matches `sourceFile`/`targetFile`
   directly against layer glob patterns with only an emptiness check
   (`crates/anvil-cli/src/mcp/tools/query_boundary.rs:86-100`); unassigned
@@ -4298,3 +4298,36 @@ archive.
   (release-path tag trust, decision-gated).
 - **Confidence:** high — mechanical replication of a pattern applied five
   times in CIB-137.
+
+### CIB-157: Consolidate the three MCP path-safety implementations
+
+- **Status:** Ready
+- **Intent:** `crates/anvil-cli/src/mcp/tools/` now has three independent
+  "is this a safe workspace-relative path" checks: `shared.rs`'s
+  `Component`-based `collect_relative_files`, `suppress.rs`'s
+  `Component::Prefix`-based check, and CIB-148's byte-level
+  `normalise_relative_path` in `query_boundary.rs`. `shared.rs`'s module doc
+  explicitly exists "to stop per-tool copies from drifting apart", yet they
+  now use different reject semantics. The CIB-148 review also confirmed
+  empirically that on a Linux build target `Component::Prefix` never parses
+  for Windows-style input (`C:\foo`, `\\server\share` become a single
+  `Normal` component), so `suppress.rs`'s comment claiming those forms parse
+  to `Component::Prefix` "on every platform" is inaccurate — the byte-level
+  check in `query_boundary.rs` is actually the more correct model.
+- **Expected Outcome:** a single shared, host-OS-independent path-safety
+  helper (lexical normalise + reject `..`/absolute/drive/NUL) that all three
+  MCP tools call; the misleading `Component::Prefix` cross-platform comment in
+  `suppress.rs` corrected or removed. No behavioural change to the currently
+  correct verdicts — this is a consolidation/accuracy fix.
+- **Files:** `crates/anvil-cli/src/mcp/tools/{shared.rs,suppress.rs,fix.rs,query_boundary.rs}`.
+- **Validation:** the shared helper carries the union of the current tests
+  (drive/UNC/`..`/NUL/`./`/`//`/backslash); each tool's existing containment
+  and boundary tests stay green; a test pins that Windows-style absolute forms
+  are rejected on the Linux target (guarding against the `Component::Prefix`
+  no-op).
+- **Identified From:** CIB-148 adversarial review, 2026-07-03 (PR #3111).
+- **Coordinates with:** CIB-145 (fix/suppress TOCTOU, in flight — shares these
+  files; sequence after it merges to avoid churn), CIB-148 (merged).
+- **Confidence:** medium — mechanically clear, but touches three live
+  security-sensitive checks, so it needs careful test parity and should land
+  after CIB-145 settles the same files.
