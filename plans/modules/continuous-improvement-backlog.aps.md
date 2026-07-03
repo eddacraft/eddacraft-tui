@@ -4391,6 +4391,51 @@ archive.
   each needs a native runner to verify and the macOS/Windows faithful-read
   guard has no reference implementation yet.
 
+### CIB-161: Reconcile the allowlist doc/CLI/diagnostic surface with fail-closed CIB-149
+
+- **Status:** In Progress — fix in flight on branch
+  `fix/cib-161-allowlist-doc-cli-reconcile` (PR #3120).
+- **Intent:** CIB-149 (PR #3117) removed the implicit "primary check-in root"
+  admission from `Allowlist` mode — the daemon now admits exactly the operator's
+  configured allow entries (empty ⇒ nothing, fail-closed). The admission code is
+  correct and stays as-is, but the operator-facing surface still describes the
+  removed mechanism: the `anvil workspace` CLI text and clap help promise "plus
+  each connection's primary root", the public config docs promise an empty
+  allow-list "still serves each connection's primary check-in root so
+  confinement never locks you out", the checked-in post-merge test plan describes
+  the abandoned verified-primary design and cites non-existent tests, the refusal
+  path logs no actionable diagnostic, and stale code doc comments still reference
+  the implicit primary. No `[Unreleased]` CHANGELOG entry recorded the
+  security-relevant behaviour change.
+- **Expected Outcome:** every operator-facing description of `Allowlist` mode
+  states the fail-closed contract (only configured allow entries are admitted; an
+  empty list admits nothing; add roots with `anvil workspace allow <path>`); the
+  refusal path emits a **server-side** warn carrying the refused `workspace_root`,
+  the allow-entry count, and a remediation hint, while the wire reply stays
+  static and path-free (N5 / CIB-091b); the post-merge test plan reflects the
+  shipped fail-closed design and cites real tests; a `[Unreleased]` CHANGELOG
+  Security entry records the change. No admission/confinement logic changes.
+- **Files:** `crates/anvil-cli/src/commands/workspace.rs`;
+  `docs/public/anvil/operations/config.md`; `CHANGELOG.md`;
+  `plans/reviews/post-merge/fix-cib-149-verified-primary-root-allowlist.md`;
+  `crates/anvil-intercept/src/{ipc.rs,save_time.rs,confinement.rs}` (doc comments
+  + one server-side log line only).
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib`, clippy, and
+  fmt stay green; the existing CIB-149 regression tests
+  (`allowlist_empty_admits_nothing`,
+  `allowlist_registered_session_worktree_is_not_admitted`,
+  `registered_worktree_is_not_implicitly_admitted_in_allowlist`) are unchanged;
+  `pnpm run format:check` clean on the edited `.md` files.
+- **Identified From:** CIB-149 post-merge council review, 2026-07-04 (evidence:
+  `plans/reviews/post-merge/cib-149-post-merge-council-review.md`).
+- **Coordinates with:** CIB-149 (merged, PR #3117). The ADR-061 §7 amendment
+  recording the fail-closed decision and the path-scoped `council-gate.sh` wiring
+  are deferred as a separate governance PR needing owner sign-off (not in scope
+  here).
+- **Confidence:** high — mechanical doc/CLI-string/diagnostic corrections with a
+  single behaviour-preserving server-side log-enrichment change; no admission
+  logic touched.
+
 ### CIB-162: Human-render daemon-attestation skip warnings in `anvil start`
 
 - **Status:** Ready

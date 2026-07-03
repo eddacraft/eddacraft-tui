@@ -517,7 +517,7 @@ restarts if it is in the `register_on_start` list:
 
 ```bash
 anvil workspace register /path/to/repo --persist   # register now AND on every startup
-anvil workspace register --all --persist           # persist every exact allow-list entry
+anvil workspace register --all --persist           # register allow-listed worktrees; --persist records register_on_start
 anvil workspace unregister /path/to/repo --persist  # stop re-registering it on startup
 anvil workspace list                                # shows allow entries, live registry,
                                                     # and the register_on_start set
@@ -533,8 +533,9 @@ list are touched.
 > worktree (including one in `register_on_start`) is **not** implicitly admitted
 > — admission is decided solely by the allow entries. If you want a registered
 > worktree served under confinement, add it with `anvil workspace allow <path>`
-> too (`anvil workspace register --all --persist` persists the exact allow-list
-> entries, keeping the two sets aligned).
+> too. `register --all --persist` records successfully registered worktree roots
+> in `register_on_start` (re-registration intent); it does not modify allow
+> entries — add those separately with `anvil workspace allow <path>` if needed.
 
 > **Format version & downgrade safety.** Writing a `register_on_start` entry
 > bumps the config to format `version: 2`. A daemon **newer than or equal to**

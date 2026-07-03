@@ -3743,7 +3743,9 @@ fn save_time_result<T: serde::Serialize>(
                 allow_entries,
                 "save-time verb refused: workspace not admitted \
                  (allowlist mode admits only configured allow entries; \
-                 run `anvil workspace allow <root>` to admit it)",
+                 if the path still exists, run `anvil workspace allow <root>` \
+                 to admit it; if the path no longer resolves, verify the \
+                 client-named root)",
             );
             jsonrpc_request_error(
                 response_id,
