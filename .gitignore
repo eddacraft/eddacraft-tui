@@ -87,6 +87,7 @@ docs/analysis/claude-code-safety-net-review.md
 !.claude/hooks/tdd-guard.sh
 !.claude/hooks/on-agent-stop.sh
 !.claude/hooks/session-start.sh
+!.claude/hooks/council-protected-paths
 .claude/council/
 .claude/agent-bus/
 .claude/settings.json
