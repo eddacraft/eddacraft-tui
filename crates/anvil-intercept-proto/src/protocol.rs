@@ -638,9 +638,15 @@ pub struct EvaluatedPath {
     /// Root-relative path that was evaluated.
     pub path: String,
     /// Hash of the bytes the daemon actually read under the openat2 guard.
-    /// `None` for `Deleted` and `Renamed` (the `from` side) entries: those
-    /// have no daemon-readable bytes, so there is no content to hash. A
-    /// `Created`/`Modified` entry always carries `Some(_)`.
+    /// Presence is decided by **on-disk reality, not the wire change kind**
+    /// (CIB-151): the daemon attempts a guarded read for every change kind, so
+    /// any path that still resolves to readable bytes carries `Some(_)` — even
+    /// one the client declared `Deleted` or `Renamed` (its file may still exist
+    /// on disk). `None` means there were no daemon-readable bytes to hash: the
+    /// path is genuinely gone, was rejected by the openat2 guard, exceeded the
+    /// guarded-read ceiling, or was skipped as oversized past the parse-size
+    /// cap. The `Deleted`/`Renamed` taxonomy still governs certifiability
+    /// (those stay non-certifiable) independent of whether a hash is present.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub content_hash: Option<String>,
 }
@@ -1857,8 +1863,10 @@ mod tests {
         assert_eq!(assurance.reason, Some(StaleReason::Unknown));
     }
 
-    /// `EvaluatedPath.content_hash` is `None` for entries with no readable
-    /// bytes (deleted / renamed-from), and skip-serialises when absent.
+    /// `EvaluatedPath.content_hash` is `None` for entries with no daemon-
+    /// readable bytes (genuinely gone / guard-rejected / oversized-skipped —
+    /// not merely a `Deleted`/`Renamed` wire kind, cf. CIB-151), and
+    /// skip-serialises when absent.
     #[test]
     fn evaluated_path_omits_hash_when_absent() {
         let deleted = EvaluatedPath {

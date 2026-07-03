@@ -452,9 +452,12 @@ where
         Ok(bytes) => (Some(content_hash(&bytes)), Some((desc.path.clone(), bytes))),
         // A read failure (genuinely vanished, symlink rejected by the openat2
         // guard, or over the guarded-read ceiling) is content-free: no hash, no
-        // bytes to scan. This is the only path that yields `(None, None)` now —
-        // an actually-vanished `Deleted`/`Renamed` path stays content-free,
-        // while one that still reads is scanned like any other change.
+        // bytes to scan. Aside from the oversized branch above — which also
+        // yields `(None, None)` but flags `oversized` and emits a coverage
+        // diagnostic — this is the only remaining path to a content-free
+        // outcome: an actually-vanished `Deleted`/`Renamed` path stays
+        // content-free, while one that still reads is scanned like any other
+        // change.
         Err(_) => (None, None),
     };
 
@@ -464,13 +467,18 @@ where
     };
 
     // Oversized: skipped before parse/scan. It cannot be certified (the warm
-    // cache never saw its symbols) and carries a coverage diagnostic.
+    // cache never saw its symbols) and carries a coverage diagnostic. Now that
+    // the guarded read runs for every change kind (CIB-151), a `Deleted`/
+    // `Renamed` path that still exists on disk but is oversized reaches here —
+    // so prefer its taxonomy `StaleReason` (`Deleted`/`Renamed`) and only fall
+    // back to `CrossFileResolutionNeeded` for a plain oversized `ContentModify`,
+    // keeping staleness taxonomy-driven.
     if let Some(size) = oversized {
         return PathOutcome {
             evaluated,
             scanned: None,
             graph_certified: false,
-            stale_reason: Some(StaleReason::CrossFileResolutionNeeded),
+            stale_reason: taxonomy.or(Some(StaleReason::CrossFileResolutionNeeded)),
             diagnostic: Some(oversized_diagnostic(&desc.path, size, caps.max_parse_bytes)),
         };
     }
@@ -1300,5 +1308,60 @@ mod tests {
         );
         assert_eq!(resp.coverage, Coverage::Partial);
         assert_eq!(resp.workspace_assurance.reason, Some(StaleReason::Renamed));
+    }
+
+    #[test]
+    fn oversized_deleted_declared_path_keeps_deleted_stale_reason() {
+        // CIB-151 edge: with the guarded read now running for every change
+        // kind, a `Deleted`-declared path that still exists on disk but is
+        // oversized reaches the oversized early-return. That return must still
+        // report the taxonomy `StaleReason::Deleted`, not the generic
+        // `CrossFileResolutionNeeded` fallback — staleness stays taxonomy-driven.
+        let big = vec![b'x'; 64]; // 64 bytes, past the cap below
+        let reads: HashMap<String, Vec<u8>> =
+            HashMap::from([("src/huge.ts".to_string(), big.clone())]);
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let caps = DosCaps {
+            max_parse_bytes: 16,
+            ..DosCaps::default()
+        };
+        let resp = validate_paths(
+            &request(vec![desc("src/huge.ts", ChangeKindWire::Deleted, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &caps,
+            },
+        );
+        // Oversized ⇒ skipped before parse/scan (no hash, coverage diagnostic).
+        assert_eq!(
+            resp.evaluated[0].content_hash, None,
+            "oversized ⇒ not hashed"
+        );
+        assert!(
+            resp.diagnostics
+                .iter()
+                .any(|d| d.id == PARSE_SIZE_CAP_RULE_ID),
+            "oversized emits the parse-size-cap coverage diagnostic"
+        );
+        // …but the staleness cause is the taxonomy `Deleted`, not the fallback.
+        assert_eq!(
+            resp.workspace_assurance.reason,
+            Some(StaleReason::Deleted),
+            "an oversized Deleted path keeps its taxonomy StaleReason"
+        );
+        assert_eq!(resp.coverage, Coverage::Partial);
     }
 }
