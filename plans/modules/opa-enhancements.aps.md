@@ -2,10 +2,10 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| OPAE | —     | high     | Draft  | 0/9      |
+| OPAE | —     | high     | Proposed | 0/9      |
 
-**Last reviewed:** 2026-07-02 (reset under
-[`POLRESET`](./policy-value-enforcement-reset.aps.md)).
+**Last reviewed:** 2026-07-04 (POLRESET-003: contracts reconciled with
+ADR-098, the accepted POLRESET-001 design gate).
 
 > **Reset note:** the old OPAE plan mixed a broad "delightful OPA" wishlist,
 > retired TypeScript paths, natural-language generation, policy debugging,
@@ -27,8 +27,10 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 ## In Scope
 
 - User policy pack discovery and loading through `crates/anvil-policy`.
-- Regorus-backed evaluation through `crates/anvil-policy-engine`; Go OPA remains
-  reference/parity tooling only.
+- Regorus-backed evaluation through `crates/anvil-policy-engine`. Go OPA
+  survives only as CI reference/parity tooling (`opa test policies/fixtures/`,
+  regal lint, and the poleng-parity bench); the Rust OPA-subprocess path is
+  removed under ADR-098 AD-1's replace-then-delete sequence.
 - Local policy library/install UX for starter packs.
 - Remediation-first policy result and guidance contract.
 - Deterministic save-time/pre-write policy input adapter over changed-code and
@@ -99,7 +101,11 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-001: Policy authoring reset ADR/spec
 
-- **Status:** Proposed
+- **Status:** Done — satisfied by ADR-098 (PR #3121, the POLRESET-001 design
+  gate): Rego-first path (AD-1/AD-2), pack admission fail-fast-before-eval
+  (AD-4), save-time/pre-write boundary (AD-4), exception requirement (AD-6),
+  and deferred surfaces (AD-7) are all pinned there. No separate OPAE ADR is
+  needed.
 - **Intent:** Pin the first-slice policy product contract and explicitly defer the
   old OPAE wishlist.
 - **Expected Outcome:** ADR/spec records the Rego-first path, pack admission,
@@ -126,6 +132,13 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   facade.
 - **Expected Outcome:** User-authored Rego reaches regorus through the same facade
   as bundled packs; Go OPA remains reference/parity only.
+- **Note (ADR-098 AD-1):** OPAE-003 is PR-B of the OPA replace-then-delete
+  sequence. Its scope includes repointing `anvil gate`'s `run_check_policy`
+  (`gate.rs:1736`, today the OPA-subprocess path with no regorus backing) and
+  `anvil policy list/explain` / `builtin_policies()` onto the facade, gated on
+  eval-regression parity evidence. That repoint slice may start ahead of
+  OPAE-002/POLVAL-004 per the gate's sequencing note; PR-C (mechanical deletion
+  of the OPA modules) lands only after it.
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- user_policy_eval`
 - **Dependencies:** OPAE-002, POLVAL-004
 - **Confidence:** high
@@ -158,6 +171,12 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   evaluation at save-time/pre-write boundaries.
 - **Expected Outcome:** Policy evaluation can consume changed paths, graph facts,
   config, and workflow context without whole-repo rescans on the hot path.
+- **Note (ADR-098 AD-4/AD-5):** slice 1 runs policy on existing off-daemon
+  surfaces only (MCP `anvil_validate_write`, `anvil gate`, CI); no `policy`
+  check-family joins the daemon's `validate_paths` hot path, and
+  `daemon_dep_boundary.rs` forbids `regorus`/`anvil-policy*` on the daemon.
+  Pre-write evaluation carries a tight fail-open budget (timeout degrades to
+  warn + log, never blocks the write).
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_prewrite_input`
 - **Dependencies:** OPAE-003, CPOL-002, POLRESET-004
 - **Confidence:** medium
@@ -168,6 +187,12 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Intent:** Map policy outcomes to Anvil's existing enforcement vocabulary.
 - **Expected Outcome:** Explicit policy modes can route to `warn`, `fence`, or
   `interrupt`; default behaviour remains warnings-first.
+- **Note (ADR-098 AD-3/AD-5/AD-6):** routing targets the unified kernel-types
+  `ControlDecision` vocabulary (gains `Fence` + `#[serde(other)] Unknown`; one
+  shared posture type replaces the daemon/MCP enum pair; veto projection is
+  action-time, not parse-time). The rule trait stays binary Allow|Interrupt.
+  Blocking modes require the `ANVIL_POLICY_ENFORCEMENT` out-of-band kill
+  switch and are hard-gated on EXCEPT-006 verdict-aware exception wiring.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept-rules -- policy_routing`
 - **Dependencies:** OPAE-005, OPAE-006, EXCEPT-006, POLRESET-006
 - **Confidence:** medium
