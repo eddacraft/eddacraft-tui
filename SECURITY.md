@@ -1,6 +1,6 @@
 # Security Policy
 
-Anvil takes the security of its tooling and the code it protects seriously. This
+anvil takes the security of its tooling and the code it protects seriously. This
 policy explains how to report a vulnerability, which versions receive fixes, and
 how quickly we respond.
 
@@ -29,7 +29,7 @@ shipped.
 
 ## Supported versions
 
-Anvil is pre-1.0 and ships as dated beta releases. Security fixes target the
+anvil is pre-1.0 and ships as dated beta releases. Security fixes target the
 **latest released version on `main`**; there is no back-porting to older betas.
 Run a current release to stay covered.
 
@@ -60,8 +60,8 @@ issue.
 
 ## Scope
 
-This policy covers the Anvil codebase in this repository and its released
+This policy covers the anvil codebase in this repository and its released
 artefacts. Dependency vulnerabilities are continuously scanned (see the
 [dependency-audit posture](docs/guides/dependency-audit-posture.md)); report a
 vulnerability in a third-party dependency to that project as well, and to us if
-it affects Anvil's shipped behaviour.
+it affects anvil's shipped behaviour.

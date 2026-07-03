@@ -154,7 +154,7 @@ irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-
 
 If the installer fails with
 `The process cannot access the file ... because it is being used by another process`,
-an Anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
+an anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
 `anvil mcp serve` process) and retry.
 
 ## Release Status
@@ -320,7 +320,7 @@ Archived integrations retained for historical context:
 | `crates/anvil-run`             | Wrapped agent launcher and session registration ingress            |
 | `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)            |
 | `crates/anvil-witness`         | Hash-chained witness log writer, rollover, manifest, and verifier  |
-| `crates/eddacraft-tui`         | Shared TUI component primitives used by Anvil TUI surfaces         |
+| `crates/eddacraft-tui`         | Shared TUI component primitives used by anvil TUI surfaces         |
 | `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph             |
 | `crates/workspace-hack`        | Hakari-managed feature unifier for build times                     |
 
@@ -632,7 +632,7 @@ The repository has several GitHub Actions workflows:
 - **napi.yml** — NAPI/native binding canary workflow.
 - **labeler.yml** — Automatic PR labelling based on changed paths.
 
-A reusable **Anvil Check** GitHub Action (that is the action's declared name) is
+A reusable **anvil Check** GitHub Action (that is the action's declared name) is
 also provided at `.github/actions/anvil-check/` for running anvil analysis in
 your own workflows.
 

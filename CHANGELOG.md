@@ -12,7 +12,7 @@ engineering maintenance are recorded in the
 > since `v0.8.2-beta`; the version, date, and final scope are set at the next
 > release.
 
-This is the **assistant-facing graph** window: Anvil's resident code graph
+This is the **assistant-facing graph** window: anvil's resident code graph
 becomes something an AI assistant can query over MCP — symbols, dependencies,
 callers, and change impact — alongside Python project support, new
 infrastructure-hygiene scan surfaces, on-device usage insights, smoother daemon
@@ -20,7 +20,7 @@ startup, and continued beta-reliability polish.
 
 ### Added
 
-- **Assistant graph context over MCP.** Anvil's MCP server now exposes a
+- **Assistant graph context over MCP.** anvil's MCP server now exposes a
   read-only, identity-only view of your codebase's graph to AI assistants
   (Claude Code, Cursor): `anvil_search_symbols`, `anvil_find_dependents`,
   `anvil_find_callers`, `anvil_impact_of_change`, and `anvil_affected_tests`,
@@ -31,7 +31,7 @@ startup, and continued beta-reliability polish.
   source; sensitive paths and secrets are filtered before any text leaves the
   daemon. See the new
   [AI Context Delivery guide](docs/guides/ai-context-delivery.md).
-- **Python project support.** Anvil now parses and analyses Python alongside
+- **Python project support.** anvil now parses and analyses Python alongside
   JS/TS and Rust — an anti-pattern catalogue, entry-point detection, and
   layer/boundary enforcement — and the save-time graph lifts Python call edges.
   A further wave of tail languages reaches first-tier parsing.
@@ -104,7 +104,7 @@ retired (email OTP stays available with `--otp`).
 ### Changed
 
 - **`anvil auth login` now signs in via GitHub by default.** The CLI drives the
-  GitHub Device Authorisation Grant brokered by the Anvil API
+  GitHub Device Authorisation Grant brokered by the anvil API
   ([ADR-066](./plans/decisions/066-github-device-flow-cli-auth.md),
   GHCLIAUTH-006): open the shown URL on any device and enter the code — no email
   prompt, no local browser, works headless over SSH/tmux. The previous
@@ -115,7 +115,7 @@ retired (email OTP stays available with `--otp`).
 
 ## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
-The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving
+The first minor since `v0.7.0-beta`, earned on architecture: anvil starts moving
 save-time governance off per-save cold-spawned `check` and onto the persistent
 intercept daemon that validates deltas
 ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)). The
@@ -151,7 +151,7 @@ ships the next dashboard surface.
   dashboard too: when no saved gate-summary spec exists, `anvil dashboard`
   serves the embedded spec as a zero-write built-in, and a saved spec —
   init-seeded or user-customised — always shadows it (UJ-009).
-- **First-run adoption hint.** Anvil surfaces a first-week adoption signal hint
+- **First-run adoption hint.** anvil surfaces a first-week adoption signal hint
   to help new projects find their footing (INSIGHTS-004).
 - **Tracked exception-store foundation.** Policy exceptions now have a tracked
   `anvil/exceptions/store.json` storage path with legacy
@@ -161,11 +161,11 @@ ships the next dashboard surface.
 - **Portable review capsules (`anvil capsule`).** New
   `anvil capsule create --range <base>..<head> --out <dir>`, `verify`, and
   `explain` commands package a commit range's governance evidence into a
-  file-first **Anvil Review Capsule**. Capsules carry commit/range metadata,
+  file-first **anvil Review Capsule**. Capsules carry commit/range metadata,
   policy/rules/baseline digests, verbatim witness-chain evidence, SARIF
   diagnostics, and an `anvil.capsule.v1` SHA-256 digest manifest
   ([ADR-074](./plans/decisions/074-review-capsule-v0-format.md)), so a reviewer,
-  auditor, or supplier can verify the range locally without trusting Anvil
+  auditor, or supplier can verify the range locally without trusting anvil
   Cloud. `inspect`, JSON CI output, tamper-test hardening, retention/prune
   policy, and applied-exception collection remain follow-up work
   (GITGOV-004/-005/-006/-007/-008/-009/-010).
@@ -256,18 +256,18 @@ ships the next dashboard surface.
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 
 A distribution and stability patch on the `v0.7.3-beta` slate. The headline is
-an `ANVIL_HOME` install-root override that lets a development or candidate Anvil
+an `ANVIL_HOME` install-root override that lets a development or candidate anvil
 run beside a production install without colliding on state. It also lands a
 watch CPU fix that keeps per-save checks scoped to what actually changed, plus
 Windows daemon hardening and a few CLI correctness fixes.
 
 ### Added
 
-- **`ANVIL_HOME` / `--anvil-home` install-root override.** Anvil now resolves a
+- **`ANVIL_HOME` / `--anvil-home` install-root override.** anvil now resolves a
   single install root from the `--anvil-home` flag or the `ANVIL_HOME`
   environment variable, re-rooting the daemon socket, PID file, stored
   credentials, and all durable project-state writes underneath it. This lets a
-  development or candidate Anvil run side-by-side with a production install
+  development or candidate anvil run side-by-side with a production install
   without sharing or clobbering state. `anvil status --json` now reports
   `install_root` and `project_writes_gated`, so the active root and its
   write-gating are observable, and the project-mutating commands (`config`,
@@ -304,14 +304,14 @@ Windows daemon hardening and a few CLI correctness fixes.
 ## [0.7.3-beta] — 2026-05-31 — Surfacing the Signal
 
 A product-surface release: native read-only TUI dashboards, SARIF 2.1.0 findings
-export on the scan commands, and new `anvil insights` views make Anvil's
+export on the scan commands, and new `anvil insights` views make anvil's
 existing signal visible and exportable.
 
 ### Added
 
 - **SARIF 2.1.0 output** for the finding-emitting commands. `anvil check`,
   `anvil gate`, and `anvil audit` accept `--format sarif` and emit the GitHub
-  Code Scanning subset of SARIF 2.1.0, so Anvil findings can be uploaded to Code
+  Code Scanning subset of SARIF 2.1.0, so anvil findings can be uploaded to Code
   Scanning (and other SARIF tools) without a per-command adapter. `check`'s
   `@anvil-ignore`-suppressed findings render under `suppressions[]`. The new
   `--format <auto|tui|plain|json|sarif>` flag on these commands is the canonical
@@ -524,7 +524,7 @@ hints when something blocks promotion.
   rejected by the freshness gate instead of permanently passing it. NTP step
   adjustments and VM-clock drift between the daemon and the workstation remain
   tolerated. Workstations whose system clock is itself attacker-controlled
-  remain outside Anvil's threat model.
+  remain outside anvil's threat model.
 
 ### Security
 
@@ -603,7 +603,7 @@ hints when something blocks promotion.
   verification over a commit range, replacing the previous `anvil hook pre-push`
   reuse for CI and GitHub Action consumers.
 - **`anvil intercept unblock --acknowledge-cascade`.** When five fences fire on
-  the same worktree within sixty seconds, Anvil engages a
+  the same worktree within sixty seconds, anvil engages a
   `degraded:fence-cascade` mode and refuses new sessions until an operator
   acknowledges. Use the new flag to clear; `anvil status` surfaces `cascaded` /
   `cascade_since` and the engaged state survives daemon restart.
@@ -637,10 +637,10 @@ hints when something blocks promotion.
 - **`anvil start --format json|toml`.** Choose `.anvil.json` or `.anvil.toml` at
   adoption time. The default remains yaml, and all three formats round-trip
   through the same canonical representation.
-- **Hook coexistence with lefthook, husky, and pre-commit-framework.** Anvil
+- **Hook coexistence with lefthook, husky, and pre-commit-framework.** anvil
   hooks now install alongside the three dominant 2026 hook managers without
   conflict — registering as managed entries in the host manager's config rather
-  than overwriting `.git/hooks/`. Uninstall removes only Anvil's own entries.
+  than overwriting `.git/hooks/`. Uninstall removes only anvil's own entries.
 - **AI tool auto-detect.** `anvil start` auto-detects Claude Code, Cursor,
   Aider, Windsurf, and Codex installations without configuration, reports a
   short summary, and writes the inventory to
@@ -651,7 +651,7 @@ hints when something blocks promotion.
   at `docs/policies/editor-coexistence.md` plus a headless harness and CI gate
   cover `rust-analyzer`, `tsserver`, `pyright`, `ruff`, `prettier`, and `eslint`
   against Rust, TypeScript, and Python fixtures.
-- **Measured resource budget.** Anvil now publishes a documented resource
+- **Measured resource budget.** anvil now publishes a documented resource
   ceiling (CPU steady-state and peak RSS) measured on a reference repository,
   with a CI workflow that fails the build on regression.
 - **Release cadence and EOL policy.** `docs/policies/release-cadence.md`
@@ -668,9 +668,9 @@ hints when something blocks promotion.
   with an empty `surfaces` array rather than over-claiming coverage.
 - **`anvil baseline` writes project identity.** Baseline now mints
   `anvil/project-id` on first run (preserved on re-run) and pins `cutoff_commit`
-  into the canonical policy file in the same flow, so adopting Anvil into an
+  into the canonical policy file in the same flow, so adopting anvil into an
   existing repo no longer fails on a missing project identity.
-- **Config filename: `.anvilrc` → `.anvil.<ext>`.** Anvil discovers
+- **Config filename: `.anvilrc` → `.anvil.<ext>`.** anvil discovers
   `.anvil.yaml`, `.anvil.yml`, `.anvil.json`, and `.anvil.toml` first, falling
   back to legacy `.anvilrc` only when none are present. Run `anvil migrate` to
   convert an existing `.anvilrc` to the new filename.
@@ -828,11 +828,11 @@ breaking changes; the upgrade is drop-in for existing installs.
 
 ### Added
 
-- **`anvil uninstall` command.** Project-scoped removal of Anvil state
-  (`.anvil/`, `.anvilrc`, and Anvil-managed git hooks). Pass `--global` to also
-  remove user-level state (`~/.anvil/`), Anvil MCP entries from `~/.claude.json`
+- **`anvil uninstall` command.** Project-scoped removal of anvil state
+  (`.anvil/`, `.anvilrc`, and anvil-managed git hooks). Pass `--global` to also
+  remove user-level state (`~/.anvil/`), anvil MCP entries from `~/.claude.json`
   and `~/.cursor/mcp.json`, stored credentials, and the running daemon. The
-  Anvil binary itself is never removed — uninstall that with Homebrew, WinGet,
+  anvil binary itself is never removed — uninstall that with Homebrew, WinGet,
   Scoop, Cargo, or the installer path after cleaning state. Auth-bypass is built
   in so stuck installs can be cleaned without logging in.
 - **Refreshed beta and watch help.** `docs/public/anvil/beta-testing-guide.md`,
@@ -880,7 +880,7 @@ breaking changes; the upgrade is drop-in for existing installs.
   `The process cannot access the file ... because it is being used by another process`.
   The command now refuses cleanly on Windows and points to
   `winget upgrade --id eddacraft.anvil` or re-running the PowerShell installer,
-  with a note about closing editors running an Anvil MCP server. `--check` still
+  with a note about closing editors running an anvil MCP server. `--check` still
   works.
 - **`anvil update` now detects WinGet and Scoop installs** and prints the one
   command that will actually upgrade you (`winget upgrade --id eddacraft.anvil`
@@ -1012,7 +1012,7 @@ breaking changes; the upgrade is drop-in for existing installs.
   `anvil_validate_write` is always `not-wired` on Windows in this release; the
   daemon and `anvil intercept status` are wired, only the MCP correlation
   envelope on Windows is not. The narrower fix is tracked as a follow-up.
-- **Public docs refresh** — install, quickstart, and the broader public Anvil
+- **Public docs refresh** — install, quickstart, and the broader public anvil
   docs were aligned with the activation-first first-minute and the daemon-backed
   MCP path.
 
@@ -1103,7 +1103,7 @@ breaking changes; the upgrade is drop-in for existing installs.
   as key/value files so leaked values report the variable name and source line
 - **MCP config generator** — `anvil mcp-config` generates, verifies, and writes
   Claude Code, Cursor, Windsurf, and VS Code MCP server configuration
-- **API migration runner** — Anvil API deploys now have a first-party SQL
+- **API migration runner** — anvil API deploys now have a first-party SQL
   migration runner with dry-run support and drift detection
 
 ### Fixed
@@ -1631,7 +1631,7 @@ Patch release focused on npm publish/install reliability for
 
 ## [0.1.0] - 2026-02-21
 
-Initial pre-release of Anvil — the deterministic development automation platform
+Initial pre-release of anvil — the deterministic development automation platform
 that makes AI-generated code safe to merge by catching architecture boundary
 violations and anti-patterns at save time.
 

@@ -1,4 +1,4 @@
-# Anvil
+# anvil
 
 **For shared agent conventions (planning, commits, scope, code quality), see
 `@AGENTS.md`.**

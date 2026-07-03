@@ -1,4 +1,4 @@
-# Anvil Roadmap
+# anvil Roadmap
 
 **Last updated:** 2026-06-05 (fact-refresh — Horizon 0 and Horizon 1 marked
 shipped through `v0.7.4-beta`; `v0.8.0-beta` "The Save-Time Daemon" is the
@@ -11,7 +11,7 @@ a strategic pass)
 
 ## Mission
 
-Anvil makes AI-generated code safe to merge by catching architecture-boundary
+anvil makes AI-generated code safe to merge by catching architecture-boundary
 violations and AI escape-hatch anti-patterns at file-save time. Developers get
 actionable warnings before code leaves the file, with human-owned exceptions for
 intentional deviations.
@@ -22,14 +22,14 @@ time.**
 
 ## Posture
 
-- **Planless-first.** Anvil delivers value without requiring config or APS
+- **Planless-first.** anvil delivers value without requiring config or APS
   plans.
 - **Warnings over blocks.** Inform; let CI enforce if desired. Exit 0 by
   default.
 - **New edges only.** Baseline existing state; warn on new violations.
 - **Defense in depth.** Each surface contributes the strongest layer it can;
   layers compensate for one another's failure modes.
-- **Honest claim only.** Anvil never says "Protected" when a layer is
+- **Honest claim only.** anvil never says "Protected" when a layer is
   unverified. False confidence is the worst failure mode.
 - **Air-gapped by default.** Core operation requires no internet; cloud services
   are opt-in amplifiers, never foundations.
@@ -68,7 +68,7 @@ without thinking about it.
   framework, plain). Silent on success, terse on failure.
 - **L4 policy framework.** Per-branch rules with server-side fallback for
   unwitnessed commits; legacy acceptance via `cutoff_commit`.
-- **Baseline adoption.** Existing repos adopt Anvil without a wash of warnings.
+- **Baseline adoption.** Existing repos adopt anvil without a wash of warnings.
   Hard-pinned classes (`secrets`, `command-safety`) cannot be config-disabled.
 - **Multi-agent coordination.** Per-task fence isolation so one bad sub-agent
   doesn't cascade-fence a whole worktree. `AgentTag` composite session key.
@@ -148,10 +148,10 @@ or duplicated:
 - **Agent infrastructure** — provider-agnostic agent runtime + harness with
   zero-copy semantic graph access.
 - **Graph v2 substrate** — joined semantic / dependency / trust / control /
-  provenance graph. Anvil-first foundation; assistant context delivery becomes a
+  provenance graph. anvil-first foundation; assistant context delivery becomes a
   projection over it.
 - **Symbol-graph-driven effect prediction** — predict the effect of a change
-  against captured intent. Anvil's _original_ use case, sharpened by the graph
+  against captured intent. anvil's _original_ use case, sharpened by the graph
   substrate.
 - **Lineage & authorship confidence** — line-level human / AI / mixed
   attribution.
@@ -162,7 +162,7 @@ or duplicated:
 
 | Bet                          | Why it matters                                                                                          | Where it lives                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| **Witness chain + hooks**    | The load-bearing primitive that makes "Anvil protects this project" a defensible claim across machines. | Horizon 1                                   |
+| **Witness chain + hooks**    | The load-bearing primitive that makes "anvil protects this project" a defensible claim across machines. | Horizon 1                                   |
 | **Daemon + drivers**         | Mechanical validation at the surface where AI tools propose writes, without a Node sidecar.             | Horizon 0 (shipped) → Horizon 1 (always-on) |
 | **Real-time AI validation**  | Refuse the bad write before disk. The launch demo.                                                      | Horizon 0 (shipped)                         |
 | **Wrapped-launch ingress**   | Daemon-coordinated session lifecycle for shell-launched AI agents (Claude Code in tmux, etc.).          | Horizon 1                                   |
@@ -176,7 +176,7 @@ or duplicated:
 These are non-negotiable architectural commitments. Every horizon must trace
 back to one or more.
 
-1. **Deterministic, pre-commit.** Anvil catches violations before they land in
+1. **Deterministic, pre-commit.** anvil catches violations before they land in
    shared history.
 2. **Defense in depth.** L0 (mid-edit MCP) is best-effort; L2 / L3 / L4
    (save-time, pre-commit, pre-push) are mandatory deterministic gates; L5
@@ -189,7 +189,7 @@ back to one or more.
    anvil-managed files; nothing else required.
 6. **New edges only.** Existing state grandfathered at adoption time;
    security-class rules exempt.
-7. **Anvil cloud is opt-in.** Hosted services are amplifiers, never foundations.
+7. **anvil cloud is opt-in.** Hosted services are amplifiers, never foundations.
 8. **Air-gapped by default.** Core operation requires no internet.
 
 ## What this roadmap is NOT

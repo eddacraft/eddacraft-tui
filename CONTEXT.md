@@ -1,4 +1,4 @@
-# Anvil — Context Map
+# anvil — Context Map
 
 Fast orientation for humans and agents: **what we call things**, **where they
 live**, and **where to go next**. This is a map, not a manual — it links to the
@@ -14,7 +14,7 @@ authoritative source for each topic instead of restating it.
 If this file and a linked source disagree, the linked source wins — fix the
 pointer here.
 
-## What Anvil is
+## What anvil is
 
 A deterministic, zero-config governance tool for codebases: it watches saves and
 runs checks/policies, warning on **new** violations rather than blocking. Core
@@ -34,7 +34,7 @@ Terms you'll see everywhere, and what they actually mean:
 | **CIB**                                  | Continuous Improvement Backlog — the rolling small-improvement module.                                |
 | **Council**                              | Multi-persona code review (`/council quick\|mini\|full`), run before a PR.                            |
 | **kernel / checks / policy / intercept** | The four engine layers — see _Where things live_.                                                     |
-| **gate / audit / check / drift**         | Anvil CLI verbs; only `welcome`'s scan honours `.gitignore`, the rest use standard filters by design. |
+| **gate / audit / check / drift**         | anvil CLI verbs; only `welcome`'s scan honours `.gitignore`, the rest use standard filters by design. |
 | **kindling**                             | The published OSS integration glue (separate concern from the engine).                                |
 | **edda-stack**                           | The memory/persistence stack (SQLite-backed).                                                         |
 | **FLAGCAT**                              | The feature-flag catalogue (`flags/manifest.json` is the single definition).                          |
@@ -79,7 +79,7 @@ detail is in `docs/architecture/*-as-built.md`.
   module status. Read before any implementation work.
 - `plans/modules/` — active modules; `plans/archive/modules/` — completed.
 - [`plans/aps-rules.md`](plans/aps-rules.md) — APS format rules.
-- [`plans/project-context.md`](plans/project-context.md) — Anvil-specific
+- [`plans/project-context.md`](plans/project-context.md) — anvil-specific
   workflow, release, and docs-governance context.
 - [`plans/decisions/DECISION-LOG.md`](plans/decisions/DECISION-LOG.md) — ADR
   index; start here before proposing architecture changes.

@@ -9,7 +9,7 @@ These conventions apply to all agents working in this project.
 ## Planning — Anvil Plan Spec (APS)
 
 All multi-step work MUST use APS format. Read `plans/aps-rules.md` for portable
-APS rules and `plans/project-context.md` for Anvil-specific workflow, release,
+APS rules and `plans/project-context.md` for anvil-specific workflow, release,
 and documentation-governance context before writing or modifying any `.aps.md`
 file.
 
@@ -27,7 +27,7 @@ confusion.
   `plans/archive/modules/` (completed)
 - **Work item IDs:** `PREFIX-NNN` (3-digit zero-padded)
 - **Module schema statuses:** Proposed → Ready → In Progress → Done → Blocked
-- **Work item lifecycle extensions:** Anvil also allows `Merged` and
+- **Work item lifecycle extensions:** anvil also allows `Merged` and
   `Released/Shipped` in work-item `Status:` fields; see
   `plans/project-context.md#project-status-extensions`
 - **Wave-based** parallel execution for independent work items
@@ -76,7 +76,7 @@ that touches system boundaries, check existing decisions first:
 
 1. **Decision log:** `plans/decisions/DECISION-LOG.md` — condensed index of all
    ADRs with one-line summaries. Start here.
-2. **Scope guard:** `docs/vision/anvil-scope-guard.md` — defines what Anvil is
+2. **Scope guard:** `docs/vision/anvil-scope-guard.md` — defines what anvil is
    and isn't. Check before proposing new scope.
 3. **Architecture overview:** `docs/architecture/overview.md` — design
    philosophy (zero-config posture, deterministic, composable, safety by

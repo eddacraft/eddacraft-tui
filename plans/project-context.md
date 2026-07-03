@@ -18,16 +18,16 @@ local operating-model context here.
 - `plans/aps-rules.md` is the APS-managed rule surface: portable vocabulary,
   document shape, work-item rules, action-plan guidance, and canonical file
   layout.
-- `plans/project-context.md` is Anvil-owned context: Worktrunk branching,
+- `plans/project-context.md` is anvil-owned context: Worktrunk branching,
   Council review, release lifecycle prose, feature flags, documentation
   governance, and repository-specific validation.
 - `AGENTS.md` remains the top-level agent contract and links to both files.
 - Source code, schemas, tests, and generated artefacts remain implementation
   truth.
 
-## Anvil Lifecycle Narrative
+## anvil Lifecycle Narrative
 
-Anvil uses lifecycle prose in index commentary, release records, and closeout
+anvil uses lifecycle prose in index commentary, release records, and closeout
 notes. These labels are useful operational context, but they are not portable
 APS schema values:
 
@@ -49,17 +49,17 @@ APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Ship
 
 The canonical APS work item status vocabulary
 ([`plans/aps-rules.md#status-vocabulary`](aps-rules.md#status-vocabulary)) is the
-portable contract. Anvil locally extends that vocabulary with the lifecycle
+portable contract. anvil locally extends that vocabulary with the lifecycle
 labels above so a work item's `Status:` field can carry release evidence inline
 rather than tracking it in a separate field. The accepted extensions are:
 
 | Status | Origin | Maps to canonical | When to use |
 | ------ | ------ | ----------------- | ----------- |
 | `Proposed`, `Ready`, `In Progress`, `Done`, `Blocked` | Canonical APS | self | Default; any portable APS reader understands these. |
-| `Merged` | Anvil extension | `Done` | Integration target reached (PR merged), release inclusion not yet proven. |
-| `Released/Shipped` | Anvil extension | `Done` | Release record proves inclusion in a verified release. |
+| `Merged` | anvil extension | `Done` | Integration target reached (PR merged), release inclusion not yet proven. |
+| `Released/Shipped` | anvil extension | `Done` | Release record proves inclusion in a verified release. |
 | `Complete` | Legacy alias normalised to canonical | `Done` | Historical text; new modules should write `Done`, `Merged`, or `Released/Shipped`. |
-| `Archived` | Anvil extension (module-level prose) | `Done` | Module moved to `plans/archive/modules/`; not used in work-item `Status:` fields. |
+| `Archived` | anvil extension (module-level prose) | `Done` | Module moved to `plans/archive/modules/`; not used in work-item `Status:` fields. |
 
 Rules for using extensions:
 
@@ -85,7 +85,7 @@ Rules for using extensions:
 
 ## Repository Workflow
 
-Anvil work follows this lifecycle:
+anvil work follows this lifecycle:
 
 ```text
 APS (Ready) -> Worktrunk Branch -> Code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
@@ -137,7 +137,7 @@ concurrent same-module PRs do not collide on the count token. Write mode
 
 `scripts/aps/drift-check.mjs` still reconciles the stored count against the
 status-derived count using `DONE_PATTERNS` (canonical `Done`/`Complete` plus
-the Anvil extensions `Merged`/`Released/Shipped` — see
+the anvil extensions `Merged`/`Released/Shipped` — see
 [`#project-status-extensions`](#project-status-extensions)) and emits
 `aps-progress-mismatch` (module header) or `aps-index-progress-mismatch`
 (index row) as advisory warnings when the numbers diverge.
@@ -164,7 +164,7 @@ Rules:
 
 ## Execution Plans (`plans/execution/`)
 
-Action plans live under `plans/execution/`. Anvil follows the canonical
+Action plans live under `plans/execution/`. anvil follows the canonical
 `.actions.md` naming convention going forward; legacy `.steps.md` plans remain
 readable for historical context but are excluded from canonical active APS lint
 (`scripts/aps/active-lint.mjs`).
@@ -200,7 +200,7 @@ Agents update APS state as they work:
 
 ## Release Metadata Extensions
 
-Anvil work items may carry release metadata as project-specific prose fields:
+anvil work items may carry release metadata as project-specific prose fields:
 
 ```yaml
 changeType: fix | feature | docs | internal | breaking
@@ -216,7 +216,7 @@ validation:
 ```
 
 These fields are not portable APS schema fields. They are human and tooling
-conventions used by Anvil release workflows.
+conventions used by anvil release workflows.
 
 Rules:
 
@@ -232,7 +232,7 @@ Rules:
    expected.
 7. CI remains the validation authority for release readiness.
 
-## Cross-Cutting Modules
+## Cross-Cutting Modules (Conductor)
 
 Cross-cutting modules coordinate work that touches multiple domains without
 owning a single product surface. Such modules must:
@@ -297,7 +297,7 @@ work item.
 
 ## Test Infrastructure Summary
 
-Anvil tests are split across three stacks:
+anvil tests are split across three stacks:
 
 | Stack | Location | Runner |
 | ----- | -------- | ------ |
@@ -342,5 +342,4 @@ The `Authored-By:` trailer is added automatically; do not add it manually.
   `APSCAN` moves the repository toward canonical APS terms.
 - Historical archive content remains historical unless a future item explicitly
   reopens it.
-- Anvil remains planless-first as product posture; APS governs repository work,
-  not user prerequisites.
+- APS governs repository work,not user prerequisites.

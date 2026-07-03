@@ -1,4 +1,4 @@
-# Contributing to Anvil
+# Contributing to anvil
 
 | Type              | Authority | Owner  | Status | Freshness                                                                               |
 | ----------------- | --------- | ------ | ------ | --------------------------------------------------------------------------------------- |
@@ -8,7 +8,7 @@
 | -------------------------------------------------------------------- | --------------------------- |
 | `docs/guides/worktree-policy.md`, `docs/policies/release-cadence.md` | Contributors and PR authors |
 
-Thank you for your interest in contributing to Anvil! This guide will help you
+Thank you for your interest in contributing to anvil! This guide will help you
 get started.
 
 ## Getting Started
@@ -108,7 +108,7 @@ pnpm test:coverage
 ### Running a candidate (`anvil-beta`) side-by-side with prod
 
 Use `scripts/dev/run-candidate.sh` to dogfood a pre-release candidate without
-uninstalling the production Anvil install. The script builds the current HEAD
+uninstalling the production anvil install. The script builds the current HEAD
 (or a specific git ref), stops the prod daemon so the candidate can bind the
 socket, symlinks the candidate as `~/.local/bin/anvil-beta`, and pre-creates an
 isolated scratch project under `/tmp/anvil-candidate-<sha>/`.

@@ -331,7 +331,7 @@ remain sequenced behind Graph V2 foundations.
 - **Rust default scan coverage.** `.rs` files are in the default
   antipattern/drift set. JS/TS-specific rules stay extension-restricted, while
   Rust deferred-debt checks and the Rust AST catalogue run on Rust surfaces.
-- **Dogfood acceptance.** The Rust T3 pass on Anvil's own crates covered 571
+- **Dogfood acceptance.** The Rust T3 pass on anvil's own crates covered 571
   files with no panics or parse skips and met the false-positive bar. Follow-on
   Rust catalogue expansions (`.clone()` hot-loop, serde flatten/secret-field
   shapes) are deferred rather than hidden in this release.
@@ -401,7 +401,7 @@ remain sequenced behind Graph V2 foundations.
 
 - A `json-render` tree renderer + spec parser drive spec-defined dashboards:
   layout (Stack/Grid/Card/Separator), data-display, and chart component maps;
-  responsive breakpoints; a generic `$data` binding pre-pass; Anvil domain
+  responsive breakpoints; a generic `$data` binding pre-pass; anvil domain
   components over `.anvil/` data context; a dashboard list with live previews;
   and a catalogue parity check against `@eddacraft/render`. The engine is
   hardened against malformed/hostile specs. The live gate-summary dashboard
@@ -461,7 +461,7 @@ scoped in this window but lands in `v0.8.0-beta`.
   resolver re-roots the daemon socket, PID file, stored credentials, and all
   durable project-state writes under one install root
   ([ADR-060](./plans/decisions/060-anvil-home-install-root-override.md),
-  Accepted), so a development or candidate Anvil can run beside a production
+  Accepted), so a development or candidate anvil can run beside a production
   install without sharing or clobbering state
   ([#1726](https://github.com/eddacraft/anvil-001/issues/1726)).
 - **Project-state writes are gated under the install root.** The state-mutating
@@ -629,7 +629,7 @@ attribution kit, and the `eddacraft-tui` reintegration.
 
 - **Canonical source mirror.** `eddacraft-tui` is imported at v0.2.2 as the
   canonical in-tree source (TUIR-002), consumers switch to the workspace path
-  crate (TUIR-003), and CI gates split between Anvil and the mirror (TUIR-006)
+  crate (TUIR-003), and CI gates split between anvil and the mirror (TUIR-006)
   with a mirror + crates.io publish workflow migrated onto a GitHub App
   (TUIR-004/-005).
   [ADR-050](./plans/decisions/050-eddacraft-tui-runner-and-cli-policy.md) scopes
@@ -1221,10 +1221,10 @@ track and are explicitly carved out of the protection claim.
 ### Git Hook Compatibility (GHOOK)
 
 - **Git 2.54 config-hook baseline** — compatibility policy added for native
-  `[hook.<name>]` execution, with Anvil end users kept on the existing Git 2.30+
+  `[hook.<name>]` execution, with anvil end users kept on the existing Git 2.30+
   floor unless they opt into config mode
 - **`anvil hooks --config` path** — install/uninstall can append and remove
-  Anvil-owned `hook.<event>.command` entries without touching foreign config or
+  anvil-owned `hook.<event>.command` entries without touching foreign config or
   file hooks
 - **Coexistence detection** — install, uninstall, status, doctor, onboarding,
   and tutorial surfaces detect file hooks, config hooks, third-party managers,
@@ -1393,7 +1393,7 @@ track and are explicitly carved out of the protection claim.
   `anvil-api`; per-operator key provisioning automated via Pulumi;
   send-migration uses a snapshot-token flow for atomicity; `--json` warning
   handling, AdminWriter hoist, stdout/stderr hygiene tightened
-- **Anvil-API route coverage** — route-level tests for `/session/refresh`
+- **anvil-API route coverage** — route-level tests for `/session/refresh`
   rotation (#777), auth-device flow (#665, #777), auth-otp flow (#672),
   auth-github callback (#787), waitlist + send-migration coverage gaps
 - **Admin contracts** — ISO-8601 offset enforced on `IsoTimestamp`; missing

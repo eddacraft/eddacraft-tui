@@ -86,7 +86,7 @@ Actions translate work item intent into **observable checkpoints**. They are NOT
 ### 1. Create authentication middleware
 
 - **Checkpoint:** Middleware created in src/middleware/auth.ts that:
-  - Extracts JWT from Authorization header
+  - Extracts JWT from Authorisation header
   - Validates token using jsonwebtoken library
   - Decodes payload and extracts user ID
   - Attaches user object to request context
@@ -124,7 +124,7 @@ Work items are **execution authority** — permission to make changes.
 
 Canonical values: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`.
 
-Accepted aliases (tools normalize these internally; do not rewrite your files):
+Accepted aliases (tools normalise these internally; do not rewrite your files):
 
 - `Proposed` → `Draft` (not yet actionable)
 - `Done` → `Complete` (terminal / compacted items)
