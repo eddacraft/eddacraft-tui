@@ -117,7 +117,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-002: Policy pack validation foundation
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-04 via PR #3138
 - **Intent:** Retarget POLVAL to the Rust/regorus path and promote its first wave
   when the design gate lands.
 - **Expected Outcome:** Pack metadata, manifests, tests, CLI validation, and gate

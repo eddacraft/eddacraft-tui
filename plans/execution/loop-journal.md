@@ -483,3 +483,21 @@ never with feature work.
   Draft→Proposed; In-Scope OPA stance now CI-tooling-only.
 - Checkpoints raised: none.
 - Next: POLRESET-002 (POLVAL first wave — implementation already staged).
+
+## Cycle — 2026-07-04 (POLRESET-002)
+
+- Item: POLRESET-002 — Policy pack validation foundation
+- Outcome: done (PR #3138; POLVAL-001..005 all Done)
+- Validation: `cargo test -p eddacraft-anvil-policy-engine` 86 lib + 1
+  integration green; `cargo test -p eddacraft-anvil -- policy_validate` 7
+  green; clippy/fmt/hakari clean; aps + docs indexes clean.
+- Review: pre-PR council review found 2 CONFIRMED criticals (symlink pack-dir
+  escape evaluated external content; Windows rooted-path join discards base
+  dir), 1 MAJOR (backtick raw-string discovery false positive fails healthy
+  packs), 2 minors — all fixed with regression tests before the PR opened.
+- Plan changes: POLVAL retargeted off the doomed OPA-era loader.rs/library.rs
+  into anvil-policy-engine/src/pack/ (ADR-098 AD-2 topology); POLVAL module
+  Draft→In Progress; gate preflight deferred to OPAE-003 PR-B.
+- Checkpoints raised: none.
+- Next: POLRESET-004 (CPOL/IORISK retarget + context contracts); 005/006
+  remain gated on EXCEPT-006 and OPAE-006/007.
