@@ -4530,7 +4530,7 @@ archive.
 
 ### CIB-167: Improve activation state comprehension for terminal-first users
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Terminal-first users park permanently on
   `ready_restart_required` with no editor to restart, and the MCP tier label
   `restart_handshake_verified` (`diagnostic.rs:87-96`) reads as success
@@ -4776,3 +4776,30 @@ archive.
 - **Validation:** `cargo test -p anvil-tui` compact-mode snapshots at 40x12.
 - **Identified From:** User-journey pass 2026-07-04 (finding 18).
 - **Confidence:** high — additive rendering only.
+
+### CIB-180: Decide whether MCP tier tokens should read as pending, not done
+
+- **Status:** Draft — needs an owner decision. The MCP tier labels
+  `restart_handshake_verified` and `server_startable` (`diagnostic.rs:87-96`)
+  are a rendered contract consumed by `--verify` scripts, so they were left
+  untouched by CIB-167 (which only added additive `meaning:` lines). Changing
+  them is a contract decision, not a copy tweak.
+- **Intent:** Under a restart-required headline, `restart_handshake_verified`
+  reads as success ("verified") when the state is still pending a restart; a
+  terminal-first user can misread the tier token as "done". The token names
+  describe what was probed, not that protection has graduated.
+- **Expected Outcome:** Per the decision, one of: (a) **rename** the tokens to
+  read as pending (e.g. `restart_handshake_seen`, `server_spawnable`) — a
+  breaking change to the `mcp[].tier` string contract that `--verify` consumers
+  parse, needing a deprecation window; (b) **gloss** them at render time only
+  (leave the machine token as-is, add a human-facing pending qualifier next to
+  the label in `render.rs`) — non-breaking but leaves the raw JSON token
+  ambiguous; or (c) **document** the tokens as observed-probe state (status
+  quo) and rely on the CIB-167 `meaning:` line to carry the pending nuance.
+- **Files:** `crates/anvil-cli/src/activation/diagnostic.rs`,
+  `crates/anvil-cli/src/activation/render.rs`.
+- **Validation:** per the chosen option — byte-stability review of `--verify`
+  output for any rename; render snapshot review for a gloss.
+- **Identified From:** CIB-167 (activation state comprehension); tier-vocabulary
+  question deferred to the owner as a rendered-contract decision.
+- **Confidence:** low — the fix is a contract decision the owner must make.

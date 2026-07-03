@@ -600,7 +600,21 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
                 "anvil has enough evidence to protect this worktree, but this view has not refreshed yet. Run `anvil start --verify` again to refresh the state."
             }
         }),
-        _ => None,
+        // CIB-167: terminal-first users park on states other than
+        // `ReadyRestartRequired`, so give each an additive plain-language
+        // `meaning:` line too. These arms are purely additive — the
+        // `ReadyRestartRequired` copy above is unchanged, so existing
+        // `--verify` output for that state stays byte-identical.
+        ProtectionState::NeedsAction => Some(
+            "anvil has not written an MCP config for this repository yet. Run `anvil start` to set it up, then run `anvil start --verify` to confirm the editor or agent attached.",
+        ),
+        ProtectionState::Unsupported => Some(
+            "None of the files anvil has seen use a language it can validate, so there is no further setup that would enable protection here. This is not an error — anvil simply has no rules for these file types yet, and coverage expands as language packs ship.",
+        ),
+        ProtectionState::Watching => Some(
+            "Save-time watch is the active fallback: anvil validates files after they are written to disk, which is weaker than MCP pre-write validation that can block a bad write before it lands. Wire an MCP client and run `anvil start --verify` to graduate to pre-write protection.",
+        ),
+        ProtectionState::Protecting | ProtectionState::Error => None,
     }
 }
 
@@ -1318,6 +1332,63 @@ mod tests {
                 && h.contains("anvil intercept start --foreground")
                 && h.contains("anvil start --verify"),
             "Unreachable render must explain the label and give copy-ready commands: {h}"
+        );
+    }
+
+    /// CIB-167: terminal-first users need a plain-language `meaning:`
+    /// line for the non-restart states too, not only
+    /// `ready_restart_required`. `NeedsAction` must explain that the MCP
+    /// config has not been written yet and name `anvil start`.
+    #[test]
+    fn needs_action_render_explains_meaning_in_plain_language() {
+        let d = empty();
+        assert_eq!(
+            d.protection_state(),
+            ProtectionState::NeedsAction,
+            "empty() must resolve to NeedsAction for this test to exercise that arm"
+        );
+        let h = render_human(&d);
+        assert!(
+            h.contains("meaning:") && h.contains("MCP config") && h.contains("anvil start"),
+            "NeedsAction render must explain the label in plain language and name `anvil start`: {h}"
+        );
+    }
+
+    /// CIB-167: `Unsupported` must give an honest no-action `meaning:`
+    /// line — no registry-supported languages were seen, so there is no
+    /// further setup, and this is explicitly not an error.
+    #[test]
+    fn unsupported_render_explains_meaning_as_honest_no_action() {
+        let d = unsupported();
+        assert_eq!(
+            d.protection_state(),
+            ProtectionState::Unsupported,
+            "unsupported() must resolve to Unsupported for this test to exercise that arm"
+        );
+        let h = render_human(&d);
+        assert!(
+            h.contains("meaning:") && h.contains("not an error") && h.contains("no rules"),
+            "Unsupported render must explain the label honestly with no false action: {h}"
+        );
+    }
+
+    /// CIB-167: `Watching` must explain in the `meaning:` line that
+    /// save-time watch is the active fallback and is weaker than MCP
+    /// pre-write validation, and name the verify command to graduate.
+    #[test]
+    fn watching_render_explains_meaning_as_weaker_fallback() {
+        let d = watching();
+        assert_eq!(
+            d.protection_state(),
+            ProtectionState::Watching,
+            "watching() must resolve to Watching for this test to exercise that arm"
+        );
+        let h = render_human(&d);
+        assert!(
+            h.contains("meaning:")
+                && h.contains("weaker than MCP pre-write validation")
+                && h.contains("anvil start --verify"),
+            "Watching render must explain the fallback is weaker than MCP pre-write validation: {h}"
         );
     }
 

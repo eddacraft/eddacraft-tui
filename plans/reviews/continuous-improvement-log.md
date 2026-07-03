@@ -1886,3 +1886,15 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When "the summary hardcodes X" is reported, trace the actual writer (`generate_config`) before trusting the reported literal — the honest fix was relabelling the picker, not the summary path.
 - **Follow-up:** none
 
+### 2026-07-04 — claude
+
+- **Task:** CIB-167 — terminal-first users only got a plain-language `meaning:` line on `ready_restart_required`; `needs_action`, `unsupported`, and `watching` never did, and the MCP tier tokens read as "done" under a restart-required headline.
+- **Outcome:** Added three additive arms to `state_explanation` in `activation/render.rs` (NeedsAction: MCP config not written yet, run `anvil start`; Unsupported: honest no-action, no registry-supported languages, explicitly not an error; Watching: save-time fallback is weaker than MCP pre-write validation, run `anvil start --verify` to graduate). The `ReadyRestartRequired` arm is untouched so `--verify` output for that state stays byte-identical. Tier tokens in `diagnostic.rs` were left as a rendered contract; the rename-vs-gloss-vs-document question is filed as Draft CIB-180 for the owner. TDD: 3 new render tests asserting each state emits a `meaning:` line with the expected plain-language substrings (proven red first).
+- **Worked:** The existing `state_explanation` → `writeln!("  meaning: …")` seam meant the fix was purely additive match arms; replacing the `_ => None` catch-all with explicit `NeedsAction`/`Unsupported`/`Watching` arms plus `Protecting | Error => None` keeps the compiler enforcing exhaustiveness if a new state is added.
+- **Failed:** none.
+- **Friction:** none — the `empty()`/`unsupported()`/`watching()` test helpers already resolve to the three target states, so the tests assert `protection_state()` first to pin that assumption.
+- **Improvement:** When copy must land for a subset of enum variants but a machine-facing token in the same area is a parse contract, split the additive human copy (ship now) from the token-vocabulary change (owner decision) into separate items rather than blocking the safe copy on the contract call.
+- **Follow-up:** CIB-180 (Draft) captures whether `restart_handshake_verified` / `server_startable` should be renamed, glossed at render time, or documented as observed-probe state.
+
+
+
