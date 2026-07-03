@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 121/158  |
+| CIB | —     | In Progress | 124/178  |
 
 ## Purpose
 
@@ -4390,3 +4390,380 @@ archive.
 - **Confidence:** medium — the per-OS peer-pid/image APIs are well-trodden, but
   each needs a native runner to verify and the macOS/Windows faithful-read
   guard has no reference implementation yet.
+
+### CIB-162: Human-render daemon-attestation skip warnings in `anvil start`
+
+- **Status:** Ready
+- **Intent:** Every `anvil start` where the daemon does not attest the
+  worktree prints one or two raw JSON tracing lines
+  (`{"timestamp":…,"level":"WARN",…"activation: daemon attestation
+  skipped"…}`) mid-flow without `--verbose` — `daemon_evidence.rs:222-244`
+  deliberately emits at `warn` (council 2026-05-22 visibility hardening), the
+  CLI default filter is `warn`, and the subscriber is JSON-format
+  (`anvil-observability/src/lib.rs:145`), so the human activation surface is
+  interrupted by machine JSONL that reads as a crash.
+- **Expected Outcome:** The attestation-skip signal stays visible on the human
+  surface but is rendered as human copy (folded into the existing `daemon:` /
+  `meaning:` lines or an equivalent indented line); JSONL emission remains for
+  `ANVIL_LOG`-driven and file-sink consumers. `anvil start` / `--verify` human
+  output contains no raw JSON tracing lines at default log level.
+- **Files:** `crates/anvil-cli/src/activation/daemon_evidence.rs`,
+  `crates/anvil-cli/src/activation/render.rs`,
+  `crates/anvil-observability/src/lib.rs` (only if the fix is format-side).
+- **Validation:** `cargo test -p eddacraft-anvil activation` plus a live
+  `anvil start` transcript in a repo with no attesting daemon showing zero
+  `{"timestamp"` lines on stdout/stderr at default filter.
+- **Identified From:** User-journey pass 2026-07-04
+  (`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`, finding 1);
+  reproduced live on 0.8.2-beta and present on main.
+- **Confidence:** high — the emit sites and formatter are already located; the
+  open question is only which human line carries the copy.
+
+### CIB-163: Stop `anvil start` printing init's "Next: run `anvil start`"
+
+- **Status:** Ready
+- **Intent:** When config is absent the orchestrator runs init inline
+  (`orchestrator/mod.rs:170-173`) and init's success block ends with "Next:
+  run `anvil start` to activate protection." (`init.rs:440-451`) — printed by
+  `anvil start` itself, telling the user to run the command they just ran.
+- **Expected Outcome:** Init invoked from the activation orchestrator prints a
+  called-from-start variant (or suppresses its next-step line entirely, since
+  the activation ending owns the next step); standalone `anvil init` keeps the
+  current copy.
+- **Files:** `crates/anvil-cli/src/commands/init.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil init` plus a fresh-repo
+  `anvil start` transcript with no "run `anvil start`" instruction in its own
+  output.
+- **Identified From:** User-journey pass 2026-07-04 (finding 2); reproduced
+  live.
+- **Confidence:** high.
+
+### CIB-164: Make the `verify:` block honest about active layers
+
+- **Status:** Ready
+- **Intent:** The first-run `verify:` block over-claims on three axes:
+  "L3/L4 commit + push hooks" is gated only on `.git` existing
+  (`start.rs:412`) while `install_activation_hooks_silent` discards per-hook
+  results (`hooks.rs:863-864`) — on shipped 0.8.2-beta the claim printed with
+  an empty `.git/hooks/`; "L0 mcp pre-write" is listed under "active layers"
+  at `ready_restart_required` (`start.rs:868-869`), where it is wired but
+  explicitly not attached; and on all-languages-unsupported repos the `.ts`
+  smoke recipe plus "Next: run `anvil watch`" contradict the `unsupported`
+  verdict two lines up.
+- **Expected Outcome:** The hooks line prints only when the hook install
+  actually succeeded; wired-but-not-live MCP is labelled as pending rather
+  than active (or the section is renamed to "layers"); the recipe and
+  watch-next line are suppressed or reworded when the diagnostic is
+  `unsupported`.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/hooks.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil start` (extend the pinned
+  `first_run_recipe_*` fixtures); manual transcript in a non-hook-installable
+  repo shows no L3/L4 claim.
+- **Identified From:** User-journey pass 2026-07-04 (finding 3); hook
+  over-claim reproduced live on 0.8.2-beta, gate condition confirmed on main.
+- **Confidence:** high — the honesty-contract precedent (daemon line) shows
+  the intended shape.
+
+### CIB-165: Default the GitHub Actions workflow picker to unticked
+
+- **Status:** Draft — needs an owner decision on the consent posture: the
+  picker currently pre-selects both workflows, and whether activation should
+  default to writing team-visible CI files (vs opt-in per workflow, vs a
+  separate `anvil ci install` step) is a product call, not mechanics.
+- **Intent:** Interactive `anvil start` shows "Install or enable GitHub
+  Actions workflows?" with PR validation and Nightly audit both pre-ticked
+  (`orchestrator/mod.rs:497-520`); Enter-through writes
+  `.github/workflows/anvil.yml` + `anvil-audit.yml` — the most repo-visible,
+  PR-triggering write activation performs, and the easiest to accept
+  accidentally.
+- **Expected Outcome:** Per the owner decision: default-unticked options, or a
+  distinct confirm step naming the files to be committed, so a hurried Enter
+  cannot silently add CI workflows to a shared repo.
+- **Files:** `crates/anvil-cli/src/activation/orchestrator/mod.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil orchestrator`; interactive
+  transcript showing Enter-through writes nothing under the new default.
+- **Identified From:** User-journey pass 2026-07-04 (finding 4); reproduced
+  live.
+- **Confidence:** high once the posture is decided.
+
+### CIB-166: One next-step arbiter per `anvil start` ending
+
+- **Status:** Ready
+- **Intent:** A single first-run printed three competing instructions: init's
+  "Next: run `anvil start`…" (`init.rs:440-451`), the diagnostic's "next:
+  start the intercept daemon with `anvil intercept start --foreground`…"
+  (`render.rs:757-761`), and the closing "Next: run `anvil watch`…"
+  (`start.rs:851-859`) — the closing line can directly contradict the
+  diagnostic's restart/daemon guidance. UJ-001's one-next-step-per-ending
+  intent is defeated by three surfaces each owning a "next" line.
+- **Expected Outcome:** One component owns the ending: the diagnostic `next:`
+  and the closing `Next:` never disagree (either the closing line derives from
+  the diagnostic's chosen next step or one of the two is dropped), and inline
+  init defers to the activation ending (CIB-163).
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/render.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil start_next_step` extended to
+  assert diagnostic-next and closing-next agreement across states.
+- **Identified From:** User-journey pass 2026-07-04 (finding 5); reproduced
+  live.
+- **Coordinates with:** CIB-163 (init line), CIB-164 (verify block honesty).
+- **Confidence:** medium — needs a small precedence design before mechanics.
+
+### CIB-167: Improve activation state comprehension for terminal-first users
+
+- **Status:** Ready
+- **Intent:** Terminal-first users park permanently on
+  `ready_restart_required` with no editor to restart, and the MCP tier label
+  `restart_handshake_verified` (`diagnostic.rs:87-96`) reads as success
+  directly under a restart-required headline. Only `ready_restart_required`
+  gets a `meaning:` line; `needs_action`, `unsupported`, and `watching` never
+  do (`render.rs:576-605`).
+- **Expected Outcome:** Additive `meaning:` lines for `needs_action`,
+  `unsupported`, and `watching`; a decision note (owner call, since the tier
+  vocabulary is a rendered contract consumed by `--verify` scripts) on
+  renaming or glossing `restart_handshake_verified` / `server_startable` so
+  tier tokens read as pending rather than done.
+- **Files:** `crates/anvil-cli/src/activation/render.rs`,
+  `crates/anvil-cli/src/activation/diagnostic.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil activation::render`; snapshot
+  updates reviewed for byte-stability impact on `--verify` consumers.
+- **Identified From:** User-journey pass 2026-07-04 (finding 6).
+- **Confidence:** medium — additive copy is safe; the label rename needs the
+  contract decision.
+
+### CIB-168: Add a stop verb for the auto-started intercept daemon
+
+- **Status:** Ready
+- **Intent:** `anvil start` auto-spawns the per-user daemon (ADR-082
+  "activation is consent"), but `anvil intercept` offers only `start` /
+  `status` / `unblock` (verified live on 0.8.2-beta and in
+  `commands/intercept.rs` on main). The only off switches are prevention
+  (`--no-daemon`) or `anvil uninstall --global`; a user who notices a new
+  background process has no discoverable way to stop it.
+- **Expected Outcome:** `anvil intercept stop` terminates the per-user daemon
+  cleanly (socket/PID cleanup included), prints an honest line about what
+  protection remains, and is named from the daemon lifecycle copy in
+  `anvil start` output where relevant.
+- **Files:** `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-intercept/src/` (shutdown IPC or signal path).
+- **Validation:** integration test: ensure → stop → probe shows no daemon;
+  `anvil intercept stop` with no daemon running exits cleanly with honest
+  copy.
+- **Identified From:** User-journey pass 2026-07-04 (finding 7); verified live
+  that no stop subcommand exists.
+- **Confidence:** medium — needs a clean-shutdown IPC or signal design on all
+  three platforms.
+
+### CIB-169: Reconcile `anvil start`'s exit-0-on-auth-required with `&&` chaining
+
+- **Status:** Draft — needs an owner decision: issue #1822 deliberately maps
+  auth-required to exit 0 for action commands ("expected state"), but the same
+  command exits non-zero on MCP install failure precisely so
+  `anvil start && next-step` cannot silently advance (`start.rs:436-449`).
+  The two contracts contradict; resolving which one wins (exit 3 for
+  auth-required on action commands, a `--strict` flag, or documented status
+  quo) is a contract decision.
+- **Intent:** `anvil start && deploy-assuming-protection` currently advances
+  past a completely unactivated repo because the auth wall exits 0
+  (`main.rs:523-524`).
+- **Expected Outcome:** Per the decision: either auth-required propagates a
+  non-zero exit on `start` (with the exit-code table in `--help` updated), or
+  the contract is kept and the auth-required message plus docs explicitly warn
+  about chaining.
+- **Files:** `crates/anvil-cli/src/main.rs`, help/exit-code docs.
+- **Validation:** `cargo test -p eddacraft-anvil auth` exit-code assertions;
+  scripted `anvil start && echo reached` transcript matching the decided
+  contract.
+- **Identified From:** User-journey pass 2026-07-04 (finding 8).
+- **Confidence:** high once decided — the remap is a single site.
+
+### CIB-170: Make showcase findings unmistakably examples in discovery
+
+- **Status:** Ready
+- **Intent:** On a clean repo the discovery surface substitutes curated fake
+  findings distinguished only by an inline `[Example]` title prefix
+  (`showcase.rs:18-64`); `discovery_render.rs` has no showcase special-casing,
+  so users see severity-badged findings at plausible paths
+  (`src/services/auth.rs:42` "Hard-coded API key detected") and can believe
+  their repo leaks a key.
+- **Expected Outcome:** Showcase mode is visually distinct: a banner or panel
+  title ("Example findings — your scan found no issues"), and/or a distinct
+  badge per row; the `[Example]` prefix stays for copy robustness.
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/showcase.rs`,
+  `crates/anvil-cli/src/commands/welcome.rs` (plumb a showcase flag).
+- **Validation:** `cargo test -p anvil-tui discovery` snapshot showing the
+  showcase banner; clean-repo welcome transcript.
+- **Identified From:** User-journey pass 2026-07-04 (finding 9).
+- **Confidence:** high.
+
+### CIB-171: Fix welcome TUI navigation scopes and init-summary honesty
+
+- **Status:** Ready
+- **Intent:** Three navigation/copy traps in the welcome flow: (a) from any
+  hub sub-surface `q` exits the whole program while `Esc` returns to the menu,
+  yet footers advertise "esc/q quit" as equivalent (`welcome.rs:1155-1324`);
+  (b) `Esc` on the discovery results screen advances into the tutorial instead
+  of backing out (`welcome.rs:407-413` treats `Back` as continue); (c) the
+  init-complete landing hardcodes `Config: .anvilrc` even when the wizard
+  wrote `.anvil.yaml`/`.json`/`.toml` (`welcome.rs:328`,
+  `init_complete.rs:41`).
+- **Expected Outcome:** Footer copy matches actual scope (or `q` backs out one
+  level in sub-surfaces); `Esc` on discovery returns to the caller rather than
+  advancing; the init summary names the file actually written.
+- **Files:** `crates/anvil-cli/src/commands/welcome.rs`,
+  `crates/anvil-tui/src/surfaces/onboarding/init_complete.rs`,
+  `crates/anvil-tui/src/surfaces/welcome/`.
+- **Validation:** `cargo test -p anvil-tui` + `-p eddacraft-anvil welcome`;
+  manual TUI walk: hub → audit → Esc returns to hub, q behaviour matches
+  footer.
+- **Identified From:** User-journey pass 2026-07-04 (finding 10).
+- **Confidence:** high — all three are localised.
+
+### CIB-172: Windows variant for the first-run smoke recipe
+
+- **Status:** Ready
+- **Intent:** `RECIPE_LINES` (`start.rs:840-844`) step 3 is
+  `rm .anvil-smoke-test.ts`, which fails in cmd.exe (`'rm' is not
+  recognized`); there is no `cfg!(windows)` branch, unlike the tutorial's
+  `mkdir` handling (`paths.rs:113-127`) which is the established pattern.
+- **Expected Outcome:** The recipe renders platform-appropriate commands
+  (`del` on Windows, `rm` elsewhere), mirroring the tutorial's platform
+  branch, with the pinned-fixture test updated per platform.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil first_run_recipe`; recipe
+  string contains no `rm` under `cfg!(windows)`.
+- **Identified From:** User-journey pass 2026-07-04 (finding 11).
+- **Confidence:** high — mechanical, modelled on the tutorial fix.
+
+### CIB-173: PATHEXT-aware editor detection on Windows
+
+- **Status:** Ready
+- **Intent:** `detect_agents.rs:148-199` tries only a bare name (if it already
+  has an extension) plus a `.exe` fallback on Windows; editor CLIs commonly
+  ship as `.cmd`/`.bat` shims, so installed editors are missed and their MCP
+  config is silently not written (default install is detection-gated). Already
+  noted in-code as a follow-up.
+- **Expected Outcome:** Detection consults `PATHEXT` (bounded to the standard
+  executable set — `.exe`, `.cmd`, `.bat`, `.com`) while keeping the
+  no-execute-bit false-match guard rationale documented at
+  `detect_agents.rs:185-186`.
+- **Files:** `crates/anvil-cli/src/activation/detect_agents.rs`.
+- **Validation:** unit tests with temp PATH dirs containing `.cmd` shims;
+  existing detection tests stay green.
+- **Identified From:** User-journey pass 2026-07-04 (finding 12); in-code
+  documented follow-up at `detect_agents.rs:148-151`.
+- **Confidence:** high.
+
+### CIB-174: Align daemon bind-timeout copy with the real ceiling
+
+- **Status:** Ready
+- **Intent:** The ensure-failure recovery copy says "the daemon did not become
+  ready within 10s" (`ensure.rs:322`, from `bind_timeout.as_secs()`), but an
+  in-flight probe can overrun by one `PROBE_TIMEOUT`, making the real ceiling
+  ~12s (`ensure.rs:346-347`, matching the `start.rs:283` comment).
+- **Expected Outcome:** The copy and the actual bound agree (either derive the
+  printed figure from `bind_timeout + probe_timeout` or clamp the wait to the
+  stated bound).
+- **Files:** `crates/anvil-intercept/src/ensure.rs`.
+- **Validation:** `cargo test -p anvil-intercept ensure`.
+- **Identified From:** User-journey pass 2026-07-04 (finding 13).
+- **Confidence:** high — one-line honesty fix.
+
+### CIB-175: Actionable watcher-failure guidance off Linux
+
+- **Status:** Ready
+- **Intent:** The inotify-headroom preflight is
+  `cfg(target_os = "linux")`-only (`capacity.rs:68-84`); on macOS/Windows a
+  watcher hard failure surfaces as a raw anyhow chain
+  (`starting kernel watcher: notify error: …`, `watch.rs:1566-1567`,
+  `watcher/mod.rs:46-47`) with no hint about cause or next step. Partial
+  registration failures (`WatchSetupDiagnostics`) can also silently drop
+  subtree coverage.
+- **Expected Outcome:** Watcher start failures render a human line naming the
+  likely cause per platform and a next step (retry, reduce scope, report), and
+  partial-registration exhaustion is surfaced rather than silent; Linux keeps
+  the existing preflight.
+- **Files:** `crates/anvil-cli/src/commands/watch.rs`,
+  `crates/anvil-kernel/src/watcher/mod.rs`,
+  `crates/anvil-cli/src/capacity.rs`.
+- **Validation:** unit test mapping a synthesised `notify` error to the human
+  copy; transcript on a watch-exhausted box shows the guidance.
+- **Identified From:** User-journey pass 2026-07-04 (finding 14).
+- **Confidence:** medium — per-platform failure taxonomy needs a small design.
+
+### CIB-176: Detect sh-less git before relying on `#!/bin/sh` hooks
+
+- **Status:** Ready
+- **Intent:** Activation-installed hooks are `#!/bin/sh` scripts
+  (`hooks.rs:72-92`). Under standard Git for Windows this works (bundled
+  MSYS sh), but a git lacking a bundled `sh` silently never executes them —
+  the L3/L4 layer vanishes with no signal. The in-script
+  `command -v anvil` degrade is good but never runs if `sh` itself is absent.
+- **Expected Outcome:** Hook install (or `anvil doctor`) detects whether hooks
+  can execute in the current git environment and reports honestly when they
+  cannot; the `verify:` layer line reflects it (coordinates with CIB-164).
+- **Files:** `crates/anvil-cli/src/commands/hooks.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`.
+- **Validation:** doctor check unit test with a simulated sh-less
+  environment; existing hook tests stay green.
+- **Identified From:** User-journey pass 2026-07-04 (finding 15).
+- **Coordinates with:** CIB-164 (layer-claim honesty).
+- **Confidence:** medium — detection heuristic needs care to avoid false
+  alarms on healthy Git for Windows.
+
+### CIB-177: Give bare `anvil` a first-run pointer instead of a 40-command dump
+
+- **Status:** Ready
+- **Intent:** Plain `anvil` fails clap parsing (required subcommand,
+  `main.rs:163-169`) and prints the full 40+-command help at exit 2;
+  `welcome`/`start` are buried mid-list, so the very first contact for a new
+  user is a wall of commands with no orientation.
+- **Expected Outcome:** Bare `anvil` (or the help template) leads with a short
+  orientation — e.g. an `about`/`before_help` line naming `anvil welcome`
+  (tour) and `anvil start` (activate) — without changing subcommand parsing or
+  exit-code contracts; CLIC-010 help-lint stays green.
+- **Files:** `crates/anvil-cli/src/main.rs`,
+  `crates/anvil-cli/src/help_layout.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil help`; `anvil` output names
+  welcome/start above the command list.
+- **Identified From:** User-journey pass 2026-07-04 (finding 16); reproduced
+  live.
+- **Confidence:** high.
+
+### CIB-178: Exclude anvil-generated artefacts from the language profile
+
+- **Status:** Ready
+- **Intent:** The activation language profile counts anvil's own writes: live
+  runs crept "(1 unclassified file)" → 4 → 6 as activation created
+  `.anvilrc`, `anvil/`, `plans/`, and workflow files — the tool inflates its
+  own "unclassified" noise and mildly erodes the diagnostic's credibility.
+- **Expected Outcome:** Known anvil-owned artefacts (`.anvilrc` /
+  `.anvil.<ext>`, `anvil/`, `.anvil/`, the planning dir it created, installed
+  workflow files) are excluded from the profile's unclassified count, or
+  grouped as an "anvil config" bucket.
+- **Files:** `crates/anvil-cli/src/activation/language_profile.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil language_profile` — fixture
+  repo where activation artefacts do not change the unclassified count across
+  two consecutive runs.
+- **Identified From:** User-journey pass 2026-07-04 (finding 17); reproduced
+  live across three consecutive runs.
+- **Confidence:** high.
+
+### CIB-179: Say something when welcome surfaces drop copy in small terminals
+
+- **Status:** Ready
+- **Intent:** In compact mode the welcome/onboarding surfaces silently drop
+  taglines and per-item descriptions (`welcome_render.rs:39-49`); the 80x24
+  hard gate (`compat.rs`) only guards `anvil watch --tui`, so a small-terminal
+  user gets a degraded menu with no hint that resizing restores context.
+- **Expected Outcome:** Compact mode shows a one-line unobtrusive hint
+  (e.g. "resize for descriptions") or the footer notes the truncation; no
+  hard gate is added to welcome (adaptive layout stays).
+- **Files:** `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs`,
+  `crates/anvil-tui/src/surfaces/welcome/render.rs`.
+- **Validation:** `cargo test -p anvil-tui` compact-mode snapshots at 40x12.
+- **Identified From:** User-journey pass 2026-07-04 (finding 18).
+- **Confidence:** high — additive rendering only.
