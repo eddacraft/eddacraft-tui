@@ -45,7 +45,8 @@ jobs:
           fetch-depth: 0 # need the base commit to diff the PR range
 
       - name: Dismiss stale review label on new commits
-        if: github.event.action == 'synchronize' && github.event.pull_request.head.repo.fork == false
+        if:
+          github.event.action == 'synchronize' && github.event.pull_request.head.repo.fork == false
         shell: bash
         run: |
           set -euo pipefail
