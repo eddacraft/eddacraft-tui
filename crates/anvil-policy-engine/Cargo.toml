@@ -16,6 +16,10 @@ name = "anvil_policy_engine"
 # no new shipped crate.
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 anyhow = { workspace = true }
+# CPOL assertion scope/condition path globs. The single workspace glob dialect
+# (also used by anvil-kernel's watcher, anvil-intercept-rules, and anvil-l4);
+# linear-time matching replaces a hand-rolled recursive matcher (ReDoS).
+globset = { workspace = true }
 # POLENG-009 determinism fence: drop regorus's `full-opa` bundle and enable only
 # the pure subset, removing the impure Rego stdlib builtin groups at the source
 # (`time` → time.now_ns, `uuid` → uuid.rfc4122, plus `http`/`net`/`opa-runtime`)

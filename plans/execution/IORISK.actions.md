@@ -4,7 +4,7 @@
 | ------ | ----------------------------------------------------------------------- |
 | Source | [../modules/io-risk-controls.aps.md](../modules/io-risk-controls.aps.md) |
 | Task   | IORISK-001..003 — taxonomy, scanner contracts, guidance integration      |
-| Status | In Progress                                                             |
+| Status | Done                                                                    |
 
 ## Actions
 

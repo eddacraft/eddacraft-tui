@@ -28,42 +28,22 @@ use anvil_kernel_types::io_risk::{Confidence, RiskCategory, RiskFinding, RiskSev
 use serde::{Deserialize, Serialize};
 
 use crate::io_risk::pipeline::ScanReport;
-
-/// The enforcement posture a caller applies when turning findings into
-/// decisions.
-///
-/// Shared by IO risk guidance and [`crate::context::guidance`]. The default is
-/// [`EnforcementPosture::Warn`] (ADR-002, warnings over blocks): nothing blocks
-/// until a caller opts into [`EnforcementPosture::Enforce`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum EnforcementPosture {
-    /// Warnings-first: every finding is advisory; nothing blocks (exit 0).
-    #[default]
-    Warn,
-    /// Enforce: high-signal findings block; lower bands stay advisory.
-    Enforce,
-}
+pub use crate::posture::EnforcementPosture;
+use crate::posture::decision_for_band;
 
 /// Map a [`RiskSeverity`] to a [`ControlDecision`] under a posture.
 ///
-/// Under [`EnforcementPosture::Warn`] every finding is [`ControlDecision::Warn`]
-/// (ADR-002). Under [`EnforcementPosture::Enforce`] only the high bands
-/// ([`RiskSeverity::High`]/[`RiskSeverity::Critical`]) block; lower bands stay
-/// advisory. An unrecognised (forward-compat) [`RiskSeverity::Unknown`] is
-/// treated as a warning, never escalated to a block (ADR-096) — a newer
+/// A thin adapter over the shared [`crate::posture`] rule: only the high bands
+/// ([`RiskSeverity::High`]/[`RiskSeverity::Critical`]) count as high-signal, so
+/// under [`EnforcementPosture::Enforce`] they block and lower bands warn; under
+/// [`EnforcementPosture::Warn`] everything warns (ADR-002). An unrecognised
+/// (forward-compat) [`RiskSeverity::Unknown`] is **not** high-signal, so it is
+/// treated as a warning and never escalated to a block (ADR-096) — a newer
 /// producer's band must not silently start blocking an older enforcement layer.
 #[must_use]
 pub fn decision_under(severity: RiskSeverity, posture: EnforcementPosture) -> ControlDecision {
-    match posture {
-        EnforcementPosture::Warn => ControlDecision::Warn,
-        EnforcementPosture::Enforce => match severity {
-            RiskSeverity::High | RiskSeverity::Critical => ControlDecision::Block,
-            RiskSeverity::Low | RiskSeverity::Medium | RiskSeverity::Unknown => {
-                ControlDecision::Warn
-            }
-        },
-    }
+    let high_or_critical = matches!(severity, RiskSeverity::High | RiskSeverity::Critical);
+    decision_for_band(high_or_critical, posture)
 }
 
 /// Whether a finding of this severity blocks under a posture.

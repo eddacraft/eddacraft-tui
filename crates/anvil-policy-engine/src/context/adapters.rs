@@ -16,9 +16,11 @@
 
 use std::collections::BTreeMap;
 
+use globset::{GlobBuilder, GlobMatcher};
+
 use crate::PolicyInput;
 use crate::context::assertion::{
-    Assertion, AssertionCondition, AssertionScope, ChangeKind, WorkflowPhase,
+    Assertion, AssertionCondition, AssertionError, AssertionScope, ChangeKind, WorkflowPhase,
 };
 
 /// A single changed path and the kind of change it underwent.
@@ -134,28 +136,37 @@ pub struct Violation {
 
 /// Evaluate an assertion against a context.
 ///
-/// Returns [`AssertionEvaluation::OutOfScope`] when the assertion's scope does
-/// not cover this context (see [`in_scope`]), otherwise evaluates every
-/// condition in declared order and returns [`AssertionEvaluation::Satisfied`] or
-/// the first [`Violation`]. Pure over its two arguments.
-#[must_use]
-pub fn evaluate(assertion: &Assertion, context: &AssertionContext) -> AssertionEvaluation {
+/// Validates `assertion` first ([`Assertion::validate`]): a malformed assertion
+/// — a blank glob, an uncompilable glob, empty conditions — is a fail-closed
+/// [`AssertionError`], not a weird runtime non-match. Otherwise returns
+/// [`AssertionEvaluation::OutOfScope`] when the assertion's scope does not cover
+/// this context (see [`in_scope`]), or evaluates every condition in declared
+/// order and returns [`AssertionEvaluation::Satisfied`] or the first
+/// [`Violation`]. Pure over its two arguments.
+pub fn evaluate(
+    assertion: &Assertion,
+    context: &AssertionContext,
+) -> Result<AssertionEvaluation, AssertionError> {
+    // Fail-closed boundary: validation compiles every glob, so the matching
+    // below operates only on known-good, linear-time patterns.
+    assertion.validate()?;
+
     if !in_scope(&assertion.scope, context) {
-        return AssertionEvaluation::OutOfScope;
+        return Ok(AssertionEvaluation::OutOfScope);
     }
 
     for (index, condition) in assertion.conditions.iter().enumerate() {
         if let Err(failure) = check_condition(condition, context) {
-            return AssertionEvaluation::Violated(Violation {
+            return Ok(AssertionEvaluation::Violated(Violation {
                 condition_index: index,
                 condition: condition.clone(),
                 detail: failure.detail,
                 offending_path: failure.offending_path,
-            });
+            }));
         }
     }
 
-    AssertionEvaluation::Satisfied
+    Ok(AssertionEvaluation::Satisfied)
 }
 
 /// Whether a scope covers a context.
@@ -165,6 +176,10 @@ pub fn evaluate(assertion: &Assertion, context: &AssertionContext) -> AssertionE
 /// at least one changed path matches one of the scope globs. An empty change set
 /// against a path-restricted scope is out of scope: there is nothing the
 /// assertion applies to.
+///
+/// Assumes the scope globs have been validated (compiled) — the normal path via
+/// [`evaluate`]. A glob that fails to compile here is conservatively treated as
+/// matching nothing.
 #[must_use]
 pub fn in_scope(scope: &AssertionScope, context: &AssertionContext) -> bool {
     let phase_ok = scope.phases.is_empty() || scope.phases.contains(&context.phase);
@@ -174,12 +189,15 @@ pub fn in_scope(scope: &AssertionScope, context: &AssertionContext) -> bool {
     if scope.paths.is_empty() {
         return true;
     }
-    context.changed_paths.iter().any(|changed| {
-        scope
-            .paths
-            .iter()
-            .any(|glob| glob_match(glob, &changed.path))
-    })
+    let matchers: Vec<GlobMatcher> = scope
+        .paths
+        .iter()
+        .filter_map(|glob| compile_glob(glob).ok())
+        .collect();
+    context
+        .changed_paths
+        .iter()
+        .any(|changed| matchers.iter().any(|m| m.is_match(&changed.path)))
 }
 
 /// A condition check failure: what failed and (optionally) the offending path.
@@ -189,17 +207,21 @@ struct ConditionFailure {
 }
 
 /// Check a single condition against the context, returning the failure detail
-/// when it does not hold.
+/// when it does not hold. Glob-bearing conditions compile their pattern once;
+/// callers reach this only after [`evaluate`] validated compilability.
 fn check_condition(
     condition: &AssertionCondition,
     context: &AssertionContext,
 ) -> Result<(), ConditionFailure> {
     match condition {
         AssertionCondition::ChangedPathsConfinedTo(spec) => {
+            let matcher = compile_glob(&spec.glob).ok();
+            // An uncompilable glob (unreachable post-validation) confines
+            // nothing, so every path is treated as escaping — fail closed.
             match context
                 .changed_paths
                 .iter()
-                .find(|c| !glob_match(&spec.glob, &c.path))
+                .find(|c| !matcher.as_ref().is_some_and(|m| m.is_match(&c.path)))
             {
                 None => Ok(()),
                 Some(escaping) => Err(ConditionFailure {
@@ -212,10 +234,11 @@ fn check_condition(
             }
         }
         AssertionCondition::ChangedPathsExclude(spec) => {
+            let matcher = compile_glob(&spec.glob).ok();
             match context
                 .changed_paths
                 .iter()
-                .find(|c| glob_match(&spec.glob, &c.path))
+                .find(|c| matcher.as_ref().is_some_and(|m| m.is_match(&c.path)))
             {
                 None => Ok(()),
                 Some(hit) => Err(ConditionFailure {
@@ -272,65 +295,21 @@ fn check_condition(
     }
 }
 
-/// Match a repo-relative path against a glob.
+/// Compile a repo-relative path glob into a matcher.
 ///
-/// Supports `**` (any run of characters, crossing `/`), `*` (any run within a
-/// single segment — never crosses `/`), and `?` (one non-`/` character);
-/// everything else is a literal. A leading `**/` matches zero or more leading
-/// directories, so `**/*.rs` matches both `a.rs` and `src/a.rs`. Pure and
-/// deterministic.
-#[must_use]
-pub fn glob_match(glob: &str, path: &str) -> bool {
-    let pattern: Vec<char> = glob.chars().collect();
-    let text: Vec<char> = path.chars().collect();
-    glob_rec(&pattern, &text)
-}
-
-fn glob_rec(pattern: &[char], text: &[char]) -> bool {
-    match pattern.split_first() {
-        None => text.is_empty(),
-        Some((&'*', rest)) if rest.first() == Some(&'*') => {
-            // `**`: collapse any run of stars, then match any prefix of `text`
-            // (including the empty prefix), crossing `/`.
-            let mut after = rest;
-            while after.first() == Some(&'*') {
-                after = &after[1..];
-            }
-            // `**/x` also matches with zero leading directories.
-            if after.first() == Some(&'/') && glob_rec(&after[1..], text) {
-                return true;
-            }
-            let mut i = 0;
-            loop {
-                if glob_rec(after, &text[i..]) {
-                    return true;
-                }
-                if i >= text.len() {
-                    return false;
-                }
-                i += 1;
-            }
-        }
-        Some((&'*', rest)) => {
-            // Single `*`: match any run within a segment; never cross `/`.
-            let mut i = 0;
-            loop {
-                if glob_rec(rest, &text[i..]) {
-                    return true;
-                }
-                if i >= text.len() || text[i] == '/' {
-                    return false;
-                }
-                i += 1;
-            }
-        }
-        Some((&'?', rest)) => {
-            matches!(text.split_first(), Some((&c, tail)) if c != '/' && glob_rec(rest, tail))
-        }
-        Some((&literal, rest)) => {
-            matches!(text.split_first(), Some((&c, tail)) if c == literal && glob_rec(rest, tail))
-        }
-    }
+/// Uses the single workspace glob dialect: `globset` with
+/// `literal_separator(true)`, so `*` and `?` do not cross `/` and only `**`
+/// spans directories — mirroring `anvil-kernel`'s watch pattern filter and the
+/// other repo-relative matchers (`anvil-intercept-rules`, `anvil-l4`).
+/// Linear-time matching (no catastrophic backtracking). Returns the
+/// `globset::Error` on an invalid pattern; callers surface it as a fail-closed
+/// [`AssertionError`] at the validation boundary rather than as a silent
+/// non-match.
+pub(crate) fn compile_glob(pattern: &str) -> Result<GlobMatcher, globset::Error> {
+    GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map(|glob| glob.compile_matcher())
 }
 
 #[cfg(test)]
@@ -352,6 +331,11 @@ mod tests {
             rationale: "r".into(),
             remediation: "fix".into(),
         }
+    }
+
+    /// Evaluate a well-formed assertion, unwrapping the validation boundary.
+    fn eval(assertion: &Assertion, context: &AssertionContext) -> AssertionEvaluation {
+        evaluate(assertion, context).expect("assertion_with builds valid assertions")
     }
 
     #[test]
@@ -416,7 +400,7 @@ mod tests {
             })],
         );
         let ctx = AssertionContext::from_parts(WorkflowPhase::Save, [], []);
-        assert_eq!(evaluate(&assertion, &ctx), AssertionEvaluation::OutOfScope);
+        assert_eq!(eval(&assertion, &ctx), AssertionEvaluation::OutOfScope);
     }
 
     #[test]
@@ -435,7 +419,7 @@ mod tests {
             [ChangedPath::new("src/a.rs", ChangeKind::Modified)],
             [],
         );
-        assert_eq!(evaluate(&assertion, &ctx), AssertionEvaluation::OutOfScope);
+        assert_eq!(eval(&assertion, &ctx), AssertionEvaluation::OutOfScope);
     }
 
     #[test]
@@ -451,7 +435,7 @@ mod tests {
             [],
             [("owner".to_string(), "team".to_string())],
         );
-        assert_eq!(evaluate(&assertion, &ctx), AssertionEvaluation::Satisfied);
+        assert_eq!(eval(&assertion, &ctx), AssertionEvaluation::Satisfied);
     }
 
     #[test]
@@ -475,7 +459,7 @@ mod tests {
             ],
             [("owner".to_string(), "team".to_string())],
         );
-        let AssertionEvaluation::Violated(v) = evaluate(&assertion, &ctx) else {
+        let AssertionEvaluation::Violated(v) = eval(&assertion, &ctx) else {
             panic!("expected a violation");
         };
         assert_eq!(v.condition_index, 1);
@@ -498,7 +482,7 @@ mod tests {
             ],
             [],
         );
-        let AssertionEvaluation::Violated(v) = evaluate(&assertion, &ctx) else {
+        let AssertionEvaluation::Violated(v) = eval(&assertion, &ctx) else {
             panic!("expected a violation");
         };
         assert_eq!(v.condition_index, 0);
@@ -525,7 +509,7 @@ mod tests {
             [],
         );
         // Two Added paths exceed the at-most-1 bound; Modified is not counted.
-        let AssertionEvaluation::Violated(v) = evaluate(&assertion, &ctx) else {
+        let AssertionEvaluation::Violated(v) = eval(&assertion, &ctx) else {
             panic!("expected a violation");
         };
         assert_eq!(v.condition_index, 0);
@@ -549,7 +533,7 @@ mod tests {
             [("signed".to_string(), "false".to_string())],
         );
         assert!(matches!(
-            evaluate(&assertion, &mismatch),
+            eval(&assertion, &mismatch),
             AssertionEvaluation::Violated(_)
         ));
 
@@ -559,7 +543,7 @@ mod tests {
             [],
         );
         assert!(matches!(
-            evaluate(&assertion, &missing),
+            eval(&assertion, &missing),
             AssertionEvaluation::Violated(_)
         ));
     }
@@ -589,27 +573,61 @@ mod tests {
             ],
             [],
         );
-        assert_eq!(
-            evaluate(&assertion, &forward),
-            evaluate(&assertion, &reversed)
-        );
-        assert_eq!(
-            evaluate(&assertion, &forward),
-            AssertionEvaluation::Satisfied
-        );
+        assert_eq!(eval(&assertion, &forward), eval(&assertion, &reversed));
+        assert_eq!(eval(&assertion, &forward), AssertionEvaluation::Satisfied);
+    }
+
+    /// Match helper over the compiled workspace glob dialect.
+    fn matches(glob: &str, path: &str) -> bool {
+        compile_glob(glob).expect("valid glob").is_match(path)
     }
 
     #[test]
     fn assertion_context_glob_matches_star_semantics() {
-        assert!(glob_match("src/*.rs", "src/a.rs"));
-        assert!(!glob_match("src/*.rs", "src/sub/a.rs"));
-        assert!(glob_match("src/**", "src/sub/a.rs"));
-        assert!(glob_match("**/*.rs", "a.rs"));
-        assert!(glob_match("**/*.rs", "src/deep/a.rs"));
-        assert!(glob_match("**/Cargo.lock", "crates/x/Cargo.lock"));
-        assert!(glob_match("Cargo.lock", "Cargo.lock"));
-        assert!(!glob_match("Cargo.lock", "Cargo.toml"));
-        assert!(glob_match("src/?.rs", "src/a.rs"));
-        assert!(!glob_match("src/?.rs", "src/ab.rs"));
+        // `*` and `?` do not cross `/`; only `**` spans directories
+        // (globset literal_separator(true) — the workspace dialect).
+        assert!(matches("src/*.rs", "src/a.rs"));
+        assert!(!matches("src/*.rs", "src/sub/a.rs"));
+        assert!(matches("src/**", "src/sub/a.rs"));
+        assert!(matches("**/*.rs", "a.rs"));
+        assert!(matches("**/*.rs", "src/deep/a.rs"));
+        assert!(matches("**/Cargo.lock", "crates/x/Cargo.lock"));
+        assert!(matches("Cargo.lock", "Cargo.lock"));
+        assert!(!matches("Cargo.lock", "Cargo.toml"));
+        assert!(matches("src/?.rs", "src/a.rs"));
+        assert!(!matches("src/?.rs", "src/ab.rs"));
+    }
+
+    #[test]
+    fn assertion_context_invalid_glob_is_validation_error_not_silent_nonmatch() {
+        // An unclosed character class is an invalid glob: evaluation must
+        // fail closed with InvalidGlob, not silently treat it as no-match.
+        let assertion = assertion_with(
+            AssertionScope::default(),
+            vec![AssertionCondition::ChangedPathsExclude(PathGlob {
+                glob: "src/[unclosed".into(),
+            })],
+        );
+        let ctx = AssertionContext::from_parts(
+            WorkflowPhase::Commit,
+            [ChangedPath::new("src/a.rs", ChangeKind::Modified)],
+            [],
+        );
+        assert!(matches!(
+            evaluate(&assertion, &ctx),
+            Err(AssertionError::InvalidGlob { .. })
+        ));
+    }
+
+    #[test]
+    fn assertion_context_pathological_glob_is_linear_not_redos() {
+        // The hand-rolled recursive matcher was exponential: `("a*"*n)+"b"`
+        // against `"a"*n` hung near n=40. globset is linear — this completes
+        // instantly (the test finishing at all is the assertion).
+        let n = 40;
+        let pattern = "a*".repeat(n) + "b";
+        let text = "a".repeat(n);
+        let matcher = compile_glob(&pattern).expect("valid glob");
+        assert!(!matcher.is_match(&text));
     }
 }

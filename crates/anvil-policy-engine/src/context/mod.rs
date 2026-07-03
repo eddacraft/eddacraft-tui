@@ -17,7 +17,7 @@ pub mod assertion;
 pub mod guidance;
 
 pub use adapters::{
-    AssertionContext, AssertionEvaluation, ChangedPath, Violation, evaluate, glob_match, in_scope,
+    AssertionContext, AssertionEvaluation, ChangedPath, Violation, evaluate, in_scope,
 };
 pub use assertion::{
     Assertion, AssertionCondition, AssertionError, AssertionScope, ChangeKind,

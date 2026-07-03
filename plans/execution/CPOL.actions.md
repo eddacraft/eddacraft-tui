@@ -4,7 +4,7 @@
 | ------ | ------------------------------------------------------------------------------------------------- |
 | Source | [../modules/contextual-policy-assertions.aps.md](../modules/contextual-policy-assertions.aps.md) |
 | Task   | CPOL-001..003 — assertion schema, context adapters, guidance                                      |
-| Status | In Progress                                                                                       |
+| Status | Done                                                                                              |
 
 ## Actions
 

@@ -35,9 +35,10 @@ use serde::{Deserialize, Serialize};
 use anvil_kernel_types::diagnostics::ControlDecision;
 
 use crate::context::adapters::{AssertionContext, AssertionEvaluation, Violation, evaluate};
-use crate::context::assertion::{Assertion, AssertionCondition};
-use crate::io_risk::guidance::EnforcementPosture;
+use crate::context::assertion::{Assertion, AssertionCondition, AssertionError};
 use crate::pack::PolicySeverity;
+pub use crate::posture::EnforcementPosture;
+use crate::posture::decision_for_band;
 
 /// Stable, machine-readable classification of an assertion violation.
 ///
@@ -120,21 +121,15 @@ impl AssertionGuidance {
 /// Map a declared [`PolicySeverity`] band to a [`ControlDecision`] under a
 /// posture.
 ///
-/// Under [`EnforcementPosture::Warn`] every violation is
-/// [`ControlDecision::Warn`] (ADR-002, warnings over blocks). Under
-/// [`EnforcementPosture::Enforce`] the high bands
-/// ([`PolicySeverity::High`]/[`PolicySeverity::Critical`]) block; lower bands
-/// stay advisory. Shares [`EnforcementPosture`] with
-/// [`crate::io_risk::guidance`].
+/// A thin adapter over the shared [`crate::posture`] rule: the high bands
+/// ([`PolicySeverity::High`]/[`PolicySeverity::Critical`]) count as high-signal,
+/// so under [`EnforcementPosture::Enforce`] they block and lower bands warn;
+/// under [`EnforcementPosture::Warn`] everything warns (ADR-002). The same rule
+/// and [`EnforcementPosture`] type back [`crate::io_risk::guidance`].
 #[must_use]
 pub fn decision_under(severity: PolicySeverity, posture: EnforcementPosture) -> ControlDecision {
-    match posture {
-        EnforcementPosture::Warn => ControlDecision::Warn,
-        EnforcementPosture::Enforce => match severity {
-            PolicySeverity::High | PolicySeverity::Critical => ControlDecision::Block,
-            PolicySeverity::Low | PolicySeverity::Medium => ControlDecision::Warn,
-        },
-    }
+    let high_or_critical = matches!(severity, PolicySeverity::High | PolicySeverity::Critical);
+    decision_for_band(high_or_critical, posture)
 }
 
 /// Whether a violation of this declared band blocks under a posture.
@@ -162,10 +157,14 @@ pub fn guidance_for(
 /// Evaluate `assertion` against `context` and, if violated, build its guidance.
 ///
 /// The convenience that ties CPOL-002 evaluation to CPOL-003 guidance in one
-/// call. Pure over its arguments.
-#[must_use]
-pub fn assess(assertion: &Assertion, context: &AssertionContext) -> Option<AssertionGuidance> {
-    guidance_for(assertion, &evaluate(assertion, context))
+/// call. Validates the assertion first (via [`evaluate`]); a malformed
+/// assertion is an [`AssertionError`], distinct from a well-formed assertion
+/// that simply was not violated (`Ok(None)`).
+pub fn assess(
+    assertion: &Assertion,
+    context: &AssertionContext,
+) -> Result<Option<AssertionGuidance>, AssertionError> {
+    Ok(guidance_for(assertion, &evaluate(assertion, context)?))
 }
 
 fn from_violation(assertion: &Assertion, violation: &Violation) -> AssertionGuidance {
@@ -224,7 +223,9 @@ mod tests {
 
     #[test]
     fn assertion_guidance_violation_produces_remediation_first_output() {
-        let guidance = assess(&confined(), &escaping_context()).expect("violation → guidance");
+        let guidance = assess(&confined(), &escaping_context())
+            .expect("valid assertion")
+            .expect("violation → guidance");
         assert_eq!(guidance.code, GuidanceCode::ChangedPathNotConfined);
         assert_eq!(guidance.assertion_id, "confine-to-src");
         assert_eq!(guidance.path.as_deref(), Some("scripts/deploy.sh"));
@@ -250,7 +251,11 @@ mod tests {
             )],
             [],
         );
-        assert!(assess(&confined(), &satisfied_ctx).is_none());
+        assert!(
+            assess(&confined(), &satisfied_ctx)
+                .expect("valid assertion")
+                .is_none()
+        );
 
         // Out of scope by phase.
         let scoped = assertion(
@@ -267,7 +272,11 @@ mod tests {
             ..scoped
         };
         let save_ctx = AssertionContext::from_parts(WorkflowPhase::Save, [], []);
-        assert!(assess(&scoped, &save_ctx).is_none());
+        assert!(
+            assess(&scoped, &save_ctx)
+                .expect("valid assertion")
+                .is_none()
+        );
     }
 
     #[test]
@@ -281,6 +290,7 @@ mod tests {
             ),
             &AssertionContext::from_parts(WorkflowPhase::Manual, [], []),
         )
+        .expect("valid assertion")
         .expect("violation");
         // The band is carried, but blocking is not stored on the guidance.
         assert_eq!(critical.severity, PolicySeverity::Critical);
@@ -309,6 +319,7 @@ mod tests {
             ),
             &AssertionContext::from_parts(WorkflowPhase::Manual, [], []),
         )
+        .expect("valid assertion")
         .expect("violation");
         assert!(!medium.blocks_under(EnforcementPosture::Enforce));
     }
@@ -353,8 +364,9 @@ mod tests {
             [("signed".to_string(), "false".to_string())],
         );
         for (condition, expected) in cases {
-            let guidance =
-                assess(&assertion(PolicySeverity::High, vec![condition]), &ctx).expect("violation");
+            let guidance = assess(&assertion(PolicySeverity::High, vec![condition]), &ctx)
+                .expect("valid assertion")
+                .expect("violation");
             assert_eq!(guidance.code, expected);
         }
     }
@@ -371,6 +383,7 @@ mod tests {
             ),
             &AssertionContext::from_parts(WorkflowPhase::Manual, [], []),
         )
+        .expect("valid assertion")
         .expect("violation");
 
         let json = serde_json::to_string(&guidance).expect("serialise");
@@ -384,7 +397,10 @@ mod tests {
     }
 
     #[test]
-    fn assertion_guidance_omits_blank_rationale() {
+    fn assertion_guidance_rejects_malformed_assertion_at_boundary() {
+        // assess validates first (via evaluate): a malformed assertion — here a
+        // blank rationale — is a boundary rejection, not runtime guidance with
+        // odd fields.
         let mut a = assertion(
             PolicySeverity::High,
             vec![AssertionCondition::ConfigPresent(ConfigKey {
@@ -392,11 +408,17 @@ mod tests {
             })],
         );
         a.rationale = "   ".into();
-        let guidance = assess(
+        let err = assess(
             &a,
             &AssertionContext::from_parts(WorkflowPhase::Manual, [], []),
         )
-        .expect("violation");
-        assert!(guidance.rationale.is_none());
+        .expect_err("blank rationale must be rejected");
+        assert!(matches!(
+            err,
+            AssertionError::MissingField {
+                field: "rationale",
+                ..
+            }
+        ));
     }
 }

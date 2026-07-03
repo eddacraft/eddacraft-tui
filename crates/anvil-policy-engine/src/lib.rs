@@ -28,6 +28,7 @@ pub mod determinism;
 pub mod input;
 pub mod io_risk;
 pub mod pack;
+pub mod posture;
 pub mod result;
 pub mod trace;
 

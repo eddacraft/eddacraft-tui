@@ -182,6 +182,17 @@ impl AssertionCondition {
             Self::ConfigPresent(spec) => blank_guard("key", &spec.key),
         }
     }
+
+    /// The path glob this condition matches on, if any. `None` for the config
+    /// and count conditions, which carry no glob.
+    pub(crate) fn path_glob(&self) -> Option<&str> {
+        match self {
+            Self::ChangedPathsConfinedTo(spec) | Self::ChangedPathsExclude(spec) => {
+                Some(spec.glob.as_str())
+            }
+            Self::ChangedPathCount(_) | Self::ConfigEquals(_) | Self::ConfigPresent(_) => None,
+        }
+    }
 }
 
 fn blank_guard(field: &'static str, value: &str) -> Result<(), &'static str> {
@@ -292,15 +303,30 @@ pub enum AssertionError {
         /// The blank field name.
         field: &'static str,
     },
+    /// A scope or condition path glob does not compile.
+    #[error("assertion `{assertion_id}` has an invalid glob `{pattern}` ({location}): {reason}")]
+    InvalidGlob {
+        /// The `id` of the offending assertion.
+        assertion_id: String,
+        /// Where the glob is (e.g. `scope path 0`, `condition 2`).
+        location: String,
+        /// The offending pattern.
+        pattern: String,
+        /// Why it failed to compile.
+        reason: String,
+    },
 }
 
 impl Assertion {
     /// Validate that every required field is present and non-blank, that at
-    /// least one condition is declared, and that no scope path or condition
-    /// field is blank.
+    /// least one condition is declared, that no scope path or condition field is
+    /// blank, and that every glob compiles.
     ///
     /// `id` is checked first so any subsequent error can cite it. Returns the
-    /// first failure in a deterministic field order.
+    /// first failure in a deterministic field order. Compiling every glob here
+    /// is the fail-closed boundary [`crate::context::evaluate`] relies on: an
+    /// uncompilable pattern is an [`AssertionError::InvalidGlob`], never a silent
+    /// non-match at evaluation time.
     pub fn validate(&self) -> Result<(), AssertionError> {
         let id = self.id.trim();
         if id.is_empty() {
@@ -327,6 +353,14 @@ impl Assertion {
                     index,
                 });
             }
+            if let Err(reason) = crate::context::adapters::compile_glob(path) {
+                return Err(AssertionError::InvalidGlob {
+                    assertion_id: id.to_string(),
+                    location: format!("scope path {index}"),
+                    pattern: path.clone(),
+                    reason: reason.to_string(),
+                });
+            }
         }
 
         if self.conditions.is_empty() {
@@ -341,6 +375,16 @@ impl Assertion {
                     assertion_id: id.to_string(),
                     index,
                     field,
+                });
+            }
+            if let Some(glob) = condition.path_glob()
+                && let Err(reason) = crate::context::adapters::compile_glob(glob)
+            {
+                return Err(AssertionError::InvalidGlob {
+                    assertion_id: id.to_string(),
+                    location: format!("condition {index}"),
+                    pattern: glob.to_string(),
+                    reason: reason.to_string(),
                 });
             }
         }

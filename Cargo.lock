@@ -1696,6 +1696,7 @@ dependencies = [
  "anyhow",
  "criterion",
  "eddacraft-anvil-kernel-types",
+ "globset",
  "insta",
  "regorus",
  "serde",
