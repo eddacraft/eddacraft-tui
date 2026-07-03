@@ -325,6 +325,12 @@
 | ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | --------------------------------------------------- | ------ |
 | [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/archive/modules/policy-engine.aps.md) | Draft  |
 
+## POLVAL
+
+| Document                                                               | Path                               | Type  | Authority     | Owner  | Status |
+| ---------------------------------------------------------------------- | ---------------------------------- | ----- | ------------- | ------ | ------ |
+| [Policy Pack Validation Guide](../../docs/guides/policy-validation.md) | `docs/guides/policy-validation.md` | Guide | Authoritative | POLVAL | Live   |
+
 ## RATS
 
 | Document                                                                        | Path                                           | Type     | Authority | Owner | Status |

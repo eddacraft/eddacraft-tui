@@ -6,6 +6,7 @@ use crate::GlobalArgs;
 
 mod eval;
 mod eval_regression;
+mod validate;
 
 #[derive(Debug, Args)]
 pub struct PolicyArgs {
@@ -41,11 +42,8 @@ enum PolicyCommand {
         /// Head policy file
         head: String,
     },
-    /// Validate policy configuration
-    Validate {
-        /// Policy file to validate
-        file: Option<String>,
-    },
+    /// Validate a policy pack: manifest, metadata, structure, and tests.
+    Validate(validate::ValidateArgs),
     /// Run policy tests
     Test {
         /// Test file or directory
@@ -80,13 +78,6 @@ struct PolicyExplanation {
 struct PolicyDiffResult {
     added: Vec<String>,
     removed: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct ValidationResult {
-    valid: bool,
-    errors: Vec<String>,
-    warnings: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -279,64 +270,7 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
                 }
             }
         }
-        PolicyCommand::Validate { file } => {
-            let path = file.as_deref().unwrap_or(".anvil/policy.yaml");
-            let mut errors = Vec::new();
-            let mut warnings = Vec::new();
-
-            if !std::path::Path::new(path).exists() {
-                errors.push(format!("Policy file not found: {path}"));
-            } else if std::path::Path::new(path)
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("rego"))
-            {
-                errors.push(format!(
-                    "Rego file validation requires OPA (not yet supported). \
-                     Use 'opa check {path}' directly."
-                ));
-            } else {
-                match anvil_policy::config::load_config(path) {
-                    Ok(config) => {
-                        if config.policies.is_empty() {
-                            warnings.push("Policy file contains no policies".to_string());
-                        }
-                    }
-                    Err(anvil_policy::config::ConfigError::Parse(msg)) => {
-                        errors.push(format!("Invalid policy config: {msg}"));
-                    }
-                    Err(e) => {
-                        errors.push(e.to_string());
-                    }
-                }
-            }
-
-            let result = ValidationResult {
-                valid: errors.is_empty(),
-                errors: errors.clone(),
-                warnings: warnings.clone(),
-            };
-
-            if global.json {
-                crate::output::json::print(&result)?;
-            } else {
-                crate::output::plain::blank();
-                if result.valid {
-                    crate::output::plain::success("Policy configuration is valid");
-                } else {
-                    crate::output::plain::error("Policy configuration has errors");
-                    for err in &errors {
-                        crate::output::plain::error(err);
-                    }
-                }
-                for w in &warnings {
-                    crate::output::plain::warn(w);
-                }
-            }
-
-            if !result.valid {
-                return Err(crate::output::AlreadyReported.into());
-            }
-        }
+        PolicyCommand::Validate(validate_args) => return validate::run(validate_args, global),
         PolicyCommand::Test { path, list_files } => {
             let test_path = path.as_deref().unwrap_or(".anvil/policies");
 
@@ -452,7 +386,7 @@ mod tests {
 
     #[test]
     fn args_parses_validate() {
-        let w = Wrapper::try_parse_from(["test", "validate"]).unwrap();
+        let w = Wrapper::try_parse_from(["test", "validate", "pack.yaml"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
 
@@ -570,19 +504,6 @@ mod tests {
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("line-a"));
         assert!(json.contains("line-b"));
-    }
-
-    #[test]
-    fn validation_result_serialises() {
-        let result = ValidationResult {
-            valid: false,
-            errors: vec!["err1".to_string()],
-            warnings: vec!["warn1".to_string()],
-        };
-        let json = serde_json::to_string(&result).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed["valid"], false);
-        assert_eq!(parsed["errors"][0], "err1");
     }
 
     #[test]

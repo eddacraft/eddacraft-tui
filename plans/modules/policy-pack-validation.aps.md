@@ -143,3 +143,4 @@ before gate evaluation so policies do not fail silently.
 - **Dependencies:** POLVAL-004
 - **Validation:** `cargo test -p eddacraft-anvil -- policy_validate`
 - **Confidence:** medium
+- **Status:** Done — `cargo test -p eddacraft-anvil -- policy_validate` passes (6 tests green). CLI command + `docs/guides/policy-validation.md` shipped; gate preflight deferred to the OPAE-003 PR-B gate repoint (not wired here).
