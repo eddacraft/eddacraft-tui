@@ -1595,7 +1595,12 @@ fn parse_subscriber_session_filter(value: &Value) -> Option<Vec<String>> {
 /// its lineage carries no registered ancestor (`None` match) — allowlist mode
 /// then admits only the operator allow entries, which is the fail-closed answer.
 /// `peer_pid` is `None` on platforms / kernels without a peer-credential read;
-/// that too yields no primary.
+/// that too yields no primary. Even when `peer_pid` is present, lineage
+/// resolution is Linux-only — [`SessionRegistry::worktree_for_lineage`] walks
+/// `/proc` for PID attribution — so on non-Linux targets no verified primary is
+/// resolved and `Allowlist` mode admits only the operator allow entries there.
+/// Implicit-primary admission is therefore effectively Linux-only; operators on
+/// other platforms must rely on explicit allow entries.
 #[cfg(any(unix, windows))]
 fn seed_save_time_verified_primary(
     conn: Option<&mut SaveTimeConn<'_>>,
