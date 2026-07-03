@@ -17,8 +17,11 @@
 //! Each verb authorises its `workspace_root` against the connection's
 //! [`AdmittedRoots`] set before touching any byte: the set is built once per
 //! connection from the operator [`Confinement`] (open by default; allowlist when
-//! confined), seeded with the first-named root as the primary check-in root, and
-//! grows on first contact in open mode. All reads go through the held
+//! confined). In open mode it first-touch-adopts each root; in allowlist mode
+//! the implicitly-admitted primary is the daemon-verified `RegisterSession`
+//! worktree (CIB-149) — never a first-named wire root — so an unverified root is
+//! admitted only when it matches an operator allow entry. All reads go through
+//! the held
 //! [`WorkspaceAnchor`], so a refused root never reaches the filesystem and an
 //! admitted root cannot be retargeted after admission (security C2/C3 — see
 //! [`crate::workspace_admission`]).
@@ -1120,9 +1123,10 @@ pub(crate) fn trace_machine_transition(
 /// owns this connection's [`AdmittedRoots`] set, built lazily on the first verb.
 pub struct SaveTimeConn<'a> {
     state: &'a SaveTimeState,
-    /// The admitted-root set, built once on the first verb (seeded with that
-    /// verb's root as the primary check-in root — the merged confinement
-    /// contract that `to_admitted_roots` is called once per connection).
+    /// The admitted-root set, built once on the first verb. In allowlist mode
+    /// the implicit primary is seeded from the daemon-verified
+    /// [`Self::originating_session`] worktree (CIB-149), not the first-named wire
+    /// root; `to_admitted_roots` is called once per connection.
     admitted: Option<AdmittedRoots>,
     originating_session: Option<OriginatingSession>,
     /// CE-6 per-session snippet byte ledger keyed on `(file, ByteRange)` (GCTX-022).
@@ -1192,7 +1196,14 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // Copy the shared-state reference so `state.*` reads stay disjoint from
         // the per-connection `self.admitted` field the held fd borrows.
         let state = self.state;
-        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         // Key on the *canonical* root so the assurance machine + warm cache key
         // on the same value `AdmittedRoots` admitted under — a symlinked or
         // non-canonical client root must not split state into two keys.
@@ -1295,7 +1306,14 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1319,7 +1337,14 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1366,7 +1391,14 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // Security: only an admitted root may have its chain extended (the same
         // gate as `validate_paths`). An auth/canonical failure is a transport-level
         // `Err`; the witness outcome itself rides in-band in the response.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
 
         let writer = match anvil_witness::WitnessWriter::open(
@@ -1498,7 +1530,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // connection's admitted-root set before any read. A hostile MCP client
         // can send an arbitrary or sibling-worktree root; this is the same gate
         // the save-time verbs use, and a refusal blocks the projection.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1563,7 +1602,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1626,7 +1672,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1692,7 +1745,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1740,7 +1800,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1803,7 +1870,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1870,7 +1944,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1933,7 +2014,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1983,7 +2071,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            &root,
+            self.originating_session
+                .as_ref()
+                .map(|s| s.worktree.as_path()),
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -3119,16 +3214,24 @@ fn canonical_root(root: &Path) -> Result<PathBuf, SaveTimeError> {
 }
 
 /// Authorise `root` against the connection's admitted set, building it on first
-/// contact (seeded with `root` as the primary check-in root). Returns the held
-/// read [`WorkspaceAnchor`]. Kept a free function over the `admitted` field (not
-/// a `&mut self` method) so the returned anchor's borrow stays disjoint from the
-/// caller's shared-state reads.
+/// contact. Returns the held read [`WorkspaceAnchor`]. Kept a free function over
+/// the `admitted` field (not a `&mut self` method) so the returned anchor's
+/// borrow stays disjoint from the caller's shared-state reads.
+///
+/// CIB-149: in `Allowlist` mode the implicitly-admitted primary is seeded from
+/// `verified_primary` — the daemon-verified `RegisterSession` worktree bound to
+/// the peer — **not** the first `root` a wire request happens to name. When no
+/// session is bound (`verified_primary` is `None`) allowlist mode admits only
+/// the operator allow entries, so a same-uid client cannot self-declare an
+/// unlisted root into the admitted set merely by naming it first. `Open` mode is
+/// unchanged: it first-touch-adopts `root` regardless of `verified_primary`.
 fn authorise_root<'f>(
     admitted: &'f mut Option<AdmittedRoots>,
     confinement: &Confinement,
     root: &Path,
+    verified_primary: Option<&Path>,
 ) -> Result<&'f WorkspaceAnchor, SaveTimeError> {
-    let set = admitted.get_or_insert_with(|| confinement.to_admitted_roots(root));
+    let set = admitted.get_or_insert_with(|| confinement.to_admitted_roots(verified_primary));
     set.authorise(root)
         .map_err(SaveTimeError::Io)?
         .ok_or(SaveTimeError::NotAdmitted)
@@ -3641,28 +3744,35 @@ mod tests {
         );
     }
 
-    /// In allowlist mode: the primary check-in root (first verb) is implicitly
-    /// admitted, an allow-listed (non-primary) root is admitted via the policy,
-    /// and an unlisted non-primary root is refused before any byte is read.
-    #[test]
-    fn allowlist_admits_listed_root_and_refuses_unlisted() {
-        let primary = tempfile::tempdir().expect("tempdir"); // not listed
-        let allowed = tempfile::tempdir().expect("tempdir"); // listed exact
-        let unlisted = tempfile::tempdir().expect("tempdir"); // not listed
+    /// Build an allowlist-mode state with a single exact allow entry for
+    /// `allowed`. Shared by the CIB-149 admission tests below.
+    fn allowlist_state(allowed: &Path) -> SaveTimeState {
         let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
             admission: crate::confinement::AdmissionModeFile::Allowlist,
             allow: vec![crate::confinement::AllowEntry {
-                path: allowed.path().to_path_buf(),
+                path: allowed.to_path_buf(),
                 kind: crate::confinement::MatchKind::Exact,
             }],
             ..Default::default()
         });
-        let state = SaveTimeState::new(
+        SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),
             AntipatternCheckConfig::default(),
             confinement,
-        );
+        )
+    }
+
+    /// CIB-149 (a): in allowlist mode with **no registered session**, a
+    /// connection cannot get an unlisted root implicitly admitted merely by
+    /// naming it first in a verb — it is refused with `NotAdmitted`. Only a root
+    /// that independently matches an operator allow entry is admitted.
+    #[test]
+    fn allowlist_without_session_refuses_first_named_unlisted_root() {
+        let allowed = tempfile::tempdir().expect("tempdir"); // listed exact
+        let unlisted = tempfile::tempdir().expect("tempdir"); // not listed
+        let state = allowlist_state(allowed.path());
         let mut conn = SaveTimeConn::new(&state);
+        // No set_originating_session: the peer has no daemon-verified worktree.
 
         let status = |conn: &mut SaveTimeConn, dir: &tempfile::TempDir| {
             conn.workspace_status(&WorkspaceStatusRequest {
@@ -3670,18 +3780,50 @@ mod tests {
             })
         };
 
-        // The first verb's root becomes the implicitly-admitted primary, even
-        // though it is not on the allow list.
-        status(&mut conn, &primary).expect("primary check-in root is implicitly admitted");
-        // An explicitly allow-listed root is admitted — the primary use case for
-        // allowlist mode (this exercises AdmittedRoots::authorise's allow path).
-        status(&mut conn, &allowed).expect("an allow-listed root is admitted");
-        // A root that is neither the primary nor on the allow list is refused.
+        // Naming an unlisted root FIRST no longer adopts it as the primary — the
+        // pre-CIB-149 bypass. With no verified session it is refused outright.
         let refused = status(&mut conn, &unlisted);
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
-            "an unlisted, non-primary root must be refused: {refused:?}",
+            "an unlisted first-named root must be refused with no bound session: {refused:?}",
         );
+        // An explicitly allow-listed root is still admitted via the policy.
+        status(&mut conn, &allowed).expect("an allow-listed root is admitted");
+    }
+
+    /// CIB-149 (b): with a `RegisterSession`-bound worktree, that worktree is the
+    /// implicitly-admitted primary, while an unlisted root named first on the
+    /// wire is still refused — the primary derives from the daemon-verified
+    /// session, not from whatever root a wire request happens to name first.
+    #[test]
+    fn allowlist_session_bound_worktree_is_primary_not_first_named_root() {
+        let allowed = tempfile::tempdir().expect("tempdir"); // listed exact
+        let registered = tempfile::tempdir().expect("tempdir"); // bound session worktree
+        let unlisted = tempfile::tempdir().expect("tempdir"); // not listed, not registered
+        let state = allowlist_state(allowed.path());
+        let mut conn = SaveTimeConn::new(&state);
+        // The peer's daemon-verified worktree (RegisterSession) is the registered
+        // dir — NOT any root a later verb names.
+        conn.set_originating_session("sess-A", registered.path());
+
+        let status = |conn: &mut SaveTimeConn, dir: &tempfile::TempDir| {
+            conn.workspace_status(&WorkspaceStatusRequest {
+                workspace_root: dir.path().to_string_lossy().into_owned(),
+            })
+        };
+
+        // Naming an unlisted root FIRST does not seed it as the primary: the
+        // admitted set is built from the verified session worktree, so the
+        // unlisted root is refused.
+        let refused = status(&mut conn, &unlisted);
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            "an unlisted first-named root must be refused when a session is bound: {refused:?}",
+        );
+        // The daemon-verified session worktree is the implicitly-admitted primary.
+        status(&mut conn, &registered).expect("the bound session worktree is the implicit primary");
+        // The operator allow entry is still admitted.
+        status(&mut conn, &allowed).expect("an allow-listed root is admitted");
     }
 
     // ---- MLP2-005 phase 2: witness append over the daemon RPC ----
@@ -3977,10 +4119,12 @@ mod tests {
             confinement,
         );
         let mut conn = SaveTimeConn::new(&state);
+        // CIB-149: the daemon-verified session worktree is the implicit primary.
+        conn.set_originating_session("sess-A", primary.path());
 
-        // The first verb's root is the implicitly-admitted primary.
+        // The verified session worktree is the implicitly-admitted primary.
         conn.search_symbols(&gctx_request(primary.path()))
-            .expect("primary root is implicitly admitted");
+            .expect("verified primary root is implicitly admitted");
         // A different, unlisted root is refused.
         let refused = conn.search_symbols(&gctx_request(unlisted.path()));
         assert!(
@@ -4412,8 +4556,10 @@ mod tests {
             confinement,
         );
         let mut conn = SaveTimeConn::new(&state);
+        // CIB-149: the daemon-verified session worktree is the implicit primary.
+        conn.set_originating_session("sess-A", primary.path());
         conn.find_dependents(&dependents_request(primary.path(), "a.ts", None))
-            .expect("primary root is implicitly admitted");
+            .expect("verified primary root is implicitly admitted");
         let refused = conn.find_dependents(&dependents_request(unlisted.path(), "a.ts", None));
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
@@ -4627,8 +4773,10 @@ mod tests {
             confinement,
         );
         let mut conn = SaveTimeConn::new(&state);
+        // CIB-149: the daemon-verified session worktree is the implicit primary.
+        conn.set_originating_session("sess-A", primary.path());
         conn.impact_of_change(&impact_request(primary.path(), &["a.ts"]))
-            .expect("primary root is implicitly admitted");
+            .expect("verified primary root is implicitly admitted");
         let refused = conn.impact_of_change(&impact_request(unlisted.path(), &["a.ts"]));
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
@@ -4781,8 +4929,10 @@ mod tests {
             confinement,
         );
         let mut conn = SaveTimeConn::new(&state);
+        // CIB-149: the daemon-verified session worktree is the implicit primary.
+        conn.set_originating_session("sess-A", primary.path());
         conn.affected_tests(&affected_tests_request(primary.path(), &["a.ts"]))
-            .expect("primary root is implicitly admitted");
+            .expect("verified primary root is implicitly admitted");
         let refused = conn.affected_tests(&affected_tests_request(unlisted.path(), &["a.ts"]));
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),

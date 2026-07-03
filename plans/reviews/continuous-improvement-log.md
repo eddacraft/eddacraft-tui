@@ -1759,3 +1759,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** This shared checkout had main advance ~7 commits from other concurrent agents between finding the stash and landing the fix — including one that needed its own clobber-recovery (`chore(aps): restore 11 CIB statuses clobbered by e57a65fdf`). Also found a second unrelated uncommitted change (`CONTEXT.md` casing edits) mid-flight; left untouched rather than swept into this commit.
 - **Improvement:** In a shared checkout, treat any uncommitted change you didn't make as load-bearing until proven otherwise — stash with a clear label, verify every factual claim against current state before landing it (state moves fast here), and never bundle an unrelated foreign uncommitted change into your own commit just because it's sitting in the same working tree.
 - **Follow-up:** none for this task; the `CONTEXT.md` edit is still uncommitted in this working tree for its owner to land separately.
+### 2026-07-03 — claude
+
+- **Task:** CIB-149 — stop treating an unverified first wire root as the `Allowlist` confinement primary; derive the implicit primary from the daemon-verified `RegisterSession` worktree instead.
+- **Outcome:** `Confinement::to_admitted_roots` now takes `Option<&Path>` (verified primary); `save_time::authorise_root` seeds allowlist admission from `originating_session.worktree`, falling back to allow-entries-only when no session is bound. Open-mode first-touch seeding unchanged. New unit + daemon tests (a) no-session refuses first-named unlisted root, (b) session-bound worktree is the primary while a first-named unlisted root is still refused.
+- **Worked:** Threading `self.originating_session.as_ref().map(|s| s.worktree.as_path())` at each `authorise_root` call site is a disjoint-field borrow, so it coexists with `&mut self.admitted` without cloning.
+- **Failed:** Four existing gctx `*_rejects_unadmitted_root` tests encoded the old bypass (first-named root as implicit primary with no session) — they broke and had to be re-based onto a bound `set_originating_session` to keep their C3/CE-8 intent.
+- **Friction:** Package name is `eddacraft-anvil-intercept` (not `anvil-intercept`); `cargo test -p anvil-intercept` fails to match.
+- **Improvement:** When tightening an implicit-admission source, grep the whole test module for the old permissive assumption ("implicitly admitted primary") before running — several unrelated tests lean on it.
+- **Follow-up:** none
+

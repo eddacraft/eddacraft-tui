@@ -360,9 +360,10 @@ impl Confinement {
     }
 
     /// The most restrictive posture: `Allowlist` mode with an empty allow set,
-    /// so [`Self::to_admitted_roots`] admits only the connection's primary
-    /// root. Returned by [`load_or_fail_closed`] when the config cannot be
-    /// trusted — fail closed, never open.
+    /// so [`Self::to_admitted_roots`] admits only the connection's
+    /// daemon-verified primary root (nothing at all when no session is bound).
+    /// Returned by [`load_or_fail_closed`] when the config cannot be trusted —
+    /// fail closed, never open.
     #[must_use]
     pub fn fail_closed() -> Self {
         Self {
@@ -410,23 +411,34 @@ impl Confinement {
     /// this confinement implies. The DSV-005 dispatch arm calls this once per
     /// connection to gate `validate_paths`.
     ///
-    /// - `Open`: a first-touch-adopt set (the allow list is irrelevant).
+    /// - `Open`: a first-touch-adopt set (the allow list — and the
+    ///   `verified_primary` — are irrelevant; any nameable root is adopted).
     /// - `Allowlist`: an `AllowPolicy` over the canonicalised exact + prefix
-    ///   allow roots, **plus the canonicalised `primary_root`** so the primary
-    ///   check-in root is admitted even with an empty allow list — *unless* it
-    ///   cannot be canonicalised (deleted mid-connection), in which case it is
-    ///   dropped with a `warn` and the connection is refused (safe). Allow
-    ///   entries that do not currently resolve are likewise dropped with a
-    ///   `warn` (they cannot match a real, openable root anyway); a
-    ///   filesystem-root prefix entry is ignored with a `warn` (it would admit
-    ///   everything — the write path rejects it, this guards hand-edited files).
+    ///   allow roots, **plus the canonicalised `verified_primary`** (when
+    ///   `Some`) so the connection's primary check-in root is admitted even with
+    ///   an empty allow list — *unless* it cannot be canonicalised (deleted
+    ///   mid-connection), in which case it is dropped with a `warn` and only the
+    ///   allow entries remain (safe). Allow entries that do not currently resolve
+    ///   are likewise dropped with a `warn` (they cannot match a real, openable
+    ///   root anyway); a filesystem-root prefix entry is ignored with a `warn`
+    ///   (it would admit everything — the write path rejects it, this guards
+    ///   hand-edited files).
+    ///
+    /// CIB-149: the implicit primary is a **daemon-verified** value — the
+    /// `RegisterSession` worktree bound to the authenticated peer — passed as
+    /// `Some(primary)`. It is deliberately *not* the first arbitrary
+    /// `workspace_root` a wire request happens to name (that would let a
+    /// same-uid client self-declare its way past the allow list). When no
+    /// session is bound (`None`), `Allowlist` mode admits the allow entries and
+    /// nothing else: an unverified root is refused unless it independently
+    /// matches an operator allow entry.
     // DSV-010b: served on both Unix and Windows now that `AdmittedRoots` holds a
     // platform-neutral `WorkspaceAnchor`; the body is pure path logic.
     #[cfg(any(unix, windows))]
     #[must_use]
     pub fn to_admitted_roots(
         &self,
-        primary_root: &Path,
+        verified_primary: Option<&Path>,
     ) -> crate::workspace_admission::AdmittedRoots {
         use crate::workspace_admission::{AdmittedRoots, AllowPolicy};
 
@@ -454,14 +466,20 @@ impl Confinement {
                     .iter()
                     .filter_map(|p| canonicalise(p, "exact"))
                     .collect();
-                // The primary check-in root is implicitly admitted.
-                match std::fs::canonicalize(primary_root) {
-                    Ok(primary) => exact.push(primary),
-                    Err(error) => tracing::warn!(
-                        path = %primary_root.display(), %error,
-                        "confinement: primary check-in root did not resolve — \
-                         allowlist mode will refuse this connection"
-                    ),
+                // CIB-149: the primary check-in root is implicitly admitted only
+                // when a daemon-verified source supplies it (the RegisterSession
+                // worktree bound to the peer). With no bound session there is no
+                // implicit primary — an unverified first-named wire root must
+                // match an operator allow entry to be admitted.
+                if let Some(primary_root) = verified_primary {
+                    match std::fs::canonicalize(primary_root) {
+                        Ok(primary) => exact.push(primary),
+                        Err(error) => tracing::warn!(
+                            path = %primary_root.display(), %error,
+                            "confinement: verified primary root did not resolve — \
+                             allowlist mode will admit only the allow entries"
+                        ),
+                    }
                 }
                 let prefixes: Vec<PathBuf> = self
                     .prefixes
@@ -1022,7 +1040,7 @@ mod tests {
 
         let primary = tempfile::tempdir().expect("tempdir");
         let other = tempfile::tempdir().expect("tempdir");
-        let mut roots = confinement.to_admitted_roots(primary.path());
+        let mut roots = confinement.to_admitted_roots(Some(primary.path()));
         assert!(
             roots.authorise(other.path()).expect("io").is_some(),
             "open mode auto-adopts an unlisted root"
@@ -1044,7 +1062,7 @@ mod tests {
             }],
             ..Default::default()
         });
-        let mut roots = confinement.to_admitted_roots(primary.path());
+        let mut roots = confinement.to_admitted_roots(Some(primary.path()));
 
         assert!(
             roots.authorise(allowed.path()).expect("io").is_some(),
@@ -1067,10 +1085,40 @@ mod tests {
             allow: Vec::new(),
             ..Default::default()
         });
-        let mut roots = confinement.to_admitted_roots(primary.path());
+        let mut roots = confinement.to_admitted_roots(Some(primary.path()));
         assert!(
             roots.authorise(primary.path()).expect("io").is_some(),
             "the primary check-in root is implicitly admitted"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn allowlist_without_verified_primary_admits_only_allow_entries() {
+        // CIB-149: with no daemon-verified primary (no bound session), allowlist
+        // mode must NOT implicitly admit any root — only the operator's allow
+        // entries. A root that would previously have been adopted as the primary
+        // is refused unless it independently matches an allow entry.
+        let allowed = tempfile::tempdir().expect("tempdir");
+        let unverified = tempfile::tempdir().expect("tempdir");
+
+        let confinement = Confinement::from_file(ConfinementConfigFile {
+            admission: AdmissionModeFile::Allowlist,
+            allow: vec![AllowEntry {
+                path: allowed.path().to_path_buf(),
+                kind: MatchKind::Exact,
+            }],
+            ..Default::default()
+        });
+        let mut roots = confinement.to_admitted_roots(None);
+
+        assert!(
+            roots.authorise(allowed.path()).expect("io").is_some(),
+            "an allow-listed root is still admitted with no verified primary"
+        );
+        assert!(
+            roots.authorise(unverified.path()).expect("io").is_none(),
+            "with no verified primary, an unlisted root is refused (no implicit primary)"
         );
     }
 
@@ -1091,7 +1139,7 @@ mod tests {
             }],
             ..Default::default()
         });
-        let mut roots = confinement.to_admitted_roots(primary.path());
+        let mut roots = confinement.to_admitted_roots(Some(primary.path()));
 
         assert!(
             roots.authorise(&child).expect("io").is_some(),
@@ -1123,7 +1171,7 @@ mod tests {
         assert_eq!(closed.mode(), AdmissionModeFile::Allowlist);
         let primary = tempfile::tempdir().expect("tempdir");
         let other = tempfile::tempdir().expect("tempdir");
-        let mut roots = closed.to_admitted_roots(primary.path());
+        let mut roots = closed.to_admitted_roots(Some(primary.path()));
         assert!(
             roots.authorise(primary.path()).expect("io").is_some(),
             "fail-closed still serves the primary root"

@@ -4077,7 +4077,7 @@ archive.
 
 ### CIB-149: Stop treating an unverified first wire root as the confinement primary
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close the Allowlist-confinement bypass where a same-uid client's
   first self-declared `workspace_root` becomes the connection's implicitly
   admitted primary root, regardless of the operator's allow list.
