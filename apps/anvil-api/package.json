@@ -37,9 +37,9 @@
     "@eddacraft/transactional": "workspace:*",
     "@hono/zod-validator": "^0.8.0",
     "@neondatabase/serverless": "^1.1.0",
-    "hono": "^4.12.25",
+    "hono": "^4.12.27",
     "jose": "^6.2.3",
-    "resend": "^6.13.0",
+    "resend": "^6.16.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
