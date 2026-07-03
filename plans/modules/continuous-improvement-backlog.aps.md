@@ -4353,7 +4353,7 @@ archive.
   Hakari churn, and it cannot be locally link-verified on this Linux box
   (needs a CI Windows runner).
 
-### CIB-159: Portable peer-exe check for durable-membership authorisation off Linux
+### CIB-160: Portable peer-exe check for durable-membership authorisation off Linux
 
 - **Status:** Draft — needs an owner decision on whether a per-OS peer-exe
   reader is worth building, or whether the fail-closed non-Linux posture (never
