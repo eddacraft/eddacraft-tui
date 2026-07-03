@@ -25,6 +25,25 @@ pub struct InitArgs {
 /// Schema version for generated `.anvilrc` files.
 const SCHEMA_VERSION: &str = "1.0.0";
 
+/// The single config filename anvil writes, regardless of the chosen
+/// serialisation format (the format is stored inside the file, not in its
+/// name). Callers that report the written file to the user derive their copy
+/// from this so the summary can never drift from what was actually created
+/// (CIB-171).
+pub(crate) const CONFIG_FILE_NAME: &str = ".anvilrc";
+
+/// Outcome of writing a fresh anvil config. Exposes the path actually written
+/// so callers (e.g. the welcome landing summary) can name the real file rather
+/// than a hardcoded literal (CIB-171).
+#[derive(Debug, Clone)]
+pub(crate) struct GeneratedConfig {
+    /// The config file that was written — always `CONFIG_FILE_NAME` under the
+    /// init root.
+    pub config_path: PathBuf,
+    /// Whether `.gitignore` was updated with anvil's entries.
+    pub gitignore_updated: bool,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AnvilConfig {
@@ -311,7 +330,10 @@ fn print_capacity_recommendation(root: &Path) {
     }
 }
 
-pub(crate) fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<bool> {
+pub(crate) fn generate_config(
+    config: &AnvilConfig,
+    root: &Path,
+) -> anyhow::Result<GeneratedConfig> {
     generate_config_with_force(config, root, false)
 }
 
@@ -319,7 +341,7 @@ pub(crate) fn generate_config_with_force(
     config: &AnvilConfig,
     root: &Path,
     force: bool,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<GeneratedConfig> {
     let content = match config.format.as_str() {
         "toml" => toml_serialise(config),
         "yaml" => yaml_serialise(config),
@@ -330,7 +352,7 @@ pub(crate) fn generate_config_with_force(
     // "directory missing" error if a caller passes a freshly-picked path.
     fs::create_dir_all(root)
         .with_context(|| format!("failed to create directory {}", root.display()))?;
-    let path = root.join(".anvilrc");
+    let path = root.join(CONFIG_FILE_NAME);
     if force {
         crate::util::atomic_write(&path, content.as_bytes()).context("failed to write .anvilrc")?;
     } else {
@@ -351,7 +373,10 @@ pub(crate) fn generate_config_with_force(
             .with_context(|| format!("failed to create {}/", config.planning_dir))?;
     }
 
-    Ok(gitignore_updated)
+    Ok(GeneratedConfig {
+        config_path: path,
+        gitignore_updated,
+    })
 }
 
 /// The example `gate-summary` dashboard spec seeded into `.anvil/dashboards/`.
@@ -464,7 +489,7 @@ fn success_message(planning_dir: &str, checks: &[String], invocation: InitInvoca
     let mut out = String::new();
     let _ = writeln!(out);
     let _ = writeln!(out, "anvil initialised successfully.");
-    let _ = writeln!(out, "  Config:    .anvilrc");
+    let _ = writeln!(out, "  Config:    {CONFIG_FILE_NAME}");
     let _ = writeln!(out, "  Plans:     {planning_dir}/");
     let _ = writeln!(out, "  Checks:    {}", checks.join(", "));
     if invocation == InitInvocation::Standalone {
@@ -705,6 +730,24 @@ mod tests {
 
         let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gitignore.lines().any(|l| l.trim() == ".anvil/"));
+    }
+
+    // CIB-171: generate_config exposes the path it actually wrote so the
+    // welcome landing summary names the real file rather than a literal.
+    #[test]
+    fn generate_config_reports_the_written_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = AnvilConfig::default();
+        config.format = "yaml".to_string();
+
+        let generated = generate_config(&config, dir.path()).expect("generate");
+
+        assert_eq!(generated.config_path, dir.path().join(CONFIG_FILE_NAME));
+        assert_eq!(
+            generated.config_path.file_name().and_then(|n| n.to_str()),
+            Some(CONFIG_FILE_NAME),
+        );
+        assert!(generated.config_path.exists());
     }
 
     #[test]

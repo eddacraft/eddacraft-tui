@@ -323,12 +323,21 @@ fn run_guided_init(
         config.checks.clone_from(&checks);
 
         match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(gitignore_updated) => {
+            Ok(generated) => {
+                // Name the file actually written (always `.anvilrc`) rather than
+                // a hardcoded literal, so the landing summary can never drift
+                // from what `generate_config` created (CIB-171).
+                let config_path = generated
+                    .config_path
+                    .file_name()
+                    .and_then(std::ffi::OsStr::to_str)
+                    .unwrap_or(crate::commands::init::CONFIG_FILE_NAME)
+                    .to_string();
                 let summary = onboarding::InitCompleteSummary {
-                    config_path: ".anvilrc".to_string(),
+                    config_path,
                     plans_dir: format!("{}/", config.planning_dir),
                     cache_dir: ".anvil/cache/".to_string(),
-                    gitignore_updated,
+                    gitignore_updated: generated.gitignore_updated,
                     checks_enabled: checks,
                 };
                 let mut landing = onboarding::InitCompleteState::new(summary);
