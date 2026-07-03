@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 343 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 344 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1315,6 +1315,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tokio` | 1.52.3 | MIT License | https://github.com/tokio-rs/tokio |
 | `simd-adler32` | 0.3.9 | MIT License | https://github.com/mcountryman/simd-adler32 |
 | `miniz_oxide` | 0.8.9 | MIT License | https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide |
+| `miniz_oxide` | 0.9.1 | MIT License | https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide |
 | `fdeflate` | 0.3.7 | MIT License | https://github.com/image-rs/fdeflate |
 | `image` | 0.25.10 | MIT License | https://github.com/image-rs/image |
 | `ident_case` | 1.0.1 | MIT License | https://github.com/TedDriggs/ident_case |
