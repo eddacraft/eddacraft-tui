@@ -53,12 +53,23 @@ pub enum IssueSeverity {
 pub enum IssueCode {
     /// A member's `.rego` source is absent under the pack directory.
     MissingPolicyFile,
-    /// A member has no sibling `*_test.rego` (advisory in this increment).
+    /// A member has no sibling `*_test.rego`. Advisory in [`validate_pack`]
+    /// (POLVAL-003); escalated to error-class under test enforcement
+    /// (POLVAL-004, [`crate::pack::enforce_tests`]).
     MissingTestFile,
     /// Two or more members share a policy id.
     DuplicatePolicyId,
     /// A member's metadata failed completeness validation.
     MetadataIncomplete,
+    /// A member's test file exists but declares no `test_*` rules
+    /// (POLVAL-004).
+    NoTestsDiscovered,
+    /// A discovered `test_*` rule failed — evaluated to false, was undefined,
+    /// or raised an evaluation error (POLVAL-004).
+    PolicyTestFailed,
+    /// A test file's package does not follow the `<name>_test` convention
+    /// (POLVAL-004). Advisory only; the tests still run.
+    TestPackageNaming,
 }
 
 /// A single structured validation issue.
@@ -212,7 +223,7 @@ fn duplicate_id_issues(manifest: &PackManifest) -> Vec<ValidationIssue> {
 
 /// The expected sibling test path for a policy: `foo.rego` → `foo_test.rego`
 /// in the same directory. Returns `None` for a path with no usable file stem.
-fn test_sibling(path: &Path) -> Option<PathBuf> {
+pub(crate) fn test_sibling(path: &Path) -> Option<PathBuf> {
     let stem = path.file_stem()?.to_str()?;
     let name = format!("{stem}_test.rego");
     Some(match path.parent() {
