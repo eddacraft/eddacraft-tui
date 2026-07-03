@@ -33,7 +33,9 @@ use crate::pack::PolicySeverity;
 ///
 /// The wire form is kebab-case (`save`/`commit`/`push`/`manual`). Variants are
 /// added, never renamed: the set is part of the authored-rule contract.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkflowPhase {
     /// Save-time evaluation (the editor/agent write path).
@@ -42,7 +44,10 @@ pub enum WorkflowPhase {
     Commit,
     /// Pre-push evaluation.
     Push,
-    /// Ad-hoc evaluation (`anvil policy eval`), outside a lifecycle hook.
+    /// Ad-hoc evaluation (`anvil policy eval`), outside a lifecycle hook. The
+    /// default: a neutral, out-of-band run rather than an assumed lifecycle
+    /// hook, so a defaulted [`crate::context::AssertionContext`] is honest.
+    #[default]
     Manual,
 }
 

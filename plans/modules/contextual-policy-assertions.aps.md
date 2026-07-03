@@ -39,10 +39,10 @@ richer runtime context while preserving Anvil policy-pack semantics.
 
 ### CPOL-002: Implement context adapters
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Populate assertions with workflow and runtime context.
 - **Expected Outcome:** Assertions evaluate with deterministic context payloads.
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_context`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_context` — 12 passed (`crates/anvil-policy-engine/src/context/adapters.rs`; ADR-040 D-2 pure transforms, normalised ordering, scope + condition evaluation reporting the first unmet condition).
 - **Dependencies:** CPOL-001
 
 ### CPOL-003: Add assertion guidance outputs
