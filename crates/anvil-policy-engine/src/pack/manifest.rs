@@ -85,8 +85,11 @@ pub enum ManifestError {
         /// The parser's message.
         message: String,
     },
-    /// A required pack-level field is absent or blank.
-    #[error("pack manifest is missing required field `{field}`; set a non-blank `{field}` value")]
+    /// A required pack-level field is blank. A field absent from the YAML
+    /// entirely fails deserialisation first and surfaces as
+    /// [`ManifestError::Parse`], which already names the missing field —
+    /// this variant covers the present-but-empty case that serde accepts.
+    #[error("pack manifest field `{field}` is blank; set a non-blank `{field}` value")]
     MissingField {
         /// The name of the missing field.
         field: &'static str,

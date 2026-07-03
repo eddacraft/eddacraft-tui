@@ -255,7 +255,9 @@ pub fn enforce_tests(report: &TestRunReport) -> Vec<ValidationIssue> {
                 code: IssueCode::MissingTestFile,
                 severity: IssueSeverity::Error,
                 policy_id: policy_id.clone(),
-                path: Some(member.policy_path.clone()),
+                // Point at the file the consumer must create, matching the
+                // validator's pre-enforcement warning shape.
+                path: test_sibling(&member.policy_path),
                 message: format!(
                     "policy `{}` has no sibling test file; tests are required",
                     member.policy_path.display()
@@ -592,6 +594,11 @@ policies:
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].code, IssueCode::MissingTestFile);
         assert_eq!(issues[0].severity, IssueSeverity::Error);
+        let expected = issues[0].path.as_ref().expect("expected sibling path");
+        assert!(
+            expected.to_string_lossy().ends_with("a_test.rego"),
+            "missing-test-file must point at the expected sibling, got {expected:?}"
+        );
     }
 
     #[test]
