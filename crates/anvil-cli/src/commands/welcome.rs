@@ -412,11 +412,30 @@ fn run_discovery(
 
     let exit = crate::tui::run_surface_in(terminal, &mut discovery, theme)?;
 
-    if exit == SurfaceExit::Quit && !discovery.wants_continue {
-        return Ok(None);
-    }
+    Ok(discovery_outcome(
+        exit,
+        discovery.wants_continue,
+        discovery.results,
+    ))
+}
 
-    Ok(discovery.results)
+/// Classify how the discovery surface exited into the caller's result.
+///
+/// `Esc` (`SurfaceExit::Back`) on the results/continue screen backs out to the
+/// caller rather than advancing into the tutorial — treating `Back` as
+/// "continue" was the CIB-171 navigation trap. Quitting without an explicit
+/// Enter-to-continue also backs out; only an explicit continue carries the
+/// scan results forward.
+fn discovery_outcome(
+    exit: SurfaceExit,
+    wants_continue: bool,
+    results: Option<anvil_tui::surfaces::tutorial::discovery::ScanResults>,
+) -> Option<anvil_tui::surfaces::tutorial::discovery::ScanResults> {
+    match exit {
+        SurfaceExit::Back => None,
+        SurfaceExit::Quit if !wants_continue => None,
+        _ => results,
+    }
 }
 
 /// Scan the current project for real secret and antipattern findings.
@@ -1497,6 +1516,24 @@ fn plain_welcome_message(prompts_sign_in: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // CIB-171: Esc on the discovery results/continue screen backs out to the
+    // hub caller rather than advancing into the tutorial.
+    #[test]
+    fn discovery_esc_backs_out_instead_of_continuing() {
+        use anvil_tui::surfaces::tutorial::discovery::ScanResults;
+        let results = || Some(ScanResults::default());
+
+        // Esc (Back) must not carry results forward — it returns None so the
+        // hub loop returns to the menu.
+        assert!(discovery_outcome(SurfaceExit::Back, false, results()).is_none());
+
+        // Quit without an explicit continue also backs out.
+        assert!(discovery_outcome(SurfaceExit::Quit, false, results()).is_none());
+
+        // Only an explicit Enter-to-continue advances into the tutorial.
+        assert!(discovery_outcome(SurfaceExit::Quit, true, results()).is_some());
+    }
 
     // UJ-001: every welcome exit — in either variant — carries the user
     // toward the daily-value `anvil start` path.

@@ -4616,7 +4616,7 @@ archive.
 
 ### CIB-171: Fix welcome TUI navigation scopes and init-summary honesty
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Three navigation/copy traps in the welcome flow: (a) from any
   hub sub-surface `q` exits the whole program while `Esc` returns to the menu,
   yet footers advertise "esc/q quit" as equivalent (`welcome.rs:1155-1324`);
