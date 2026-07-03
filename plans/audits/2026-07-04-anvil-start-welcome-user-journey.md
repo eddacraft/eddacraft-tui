@@ -83,7 +83,7 @@ example:
 twice per re-run, without `--verbose`. Present on `main` by design:
 `daemon_evidence.rs:222-244` emits at `warn` (post-ship hardening, council
 2026-05-22, so failures are not invisible), the CLI default filter is `warn`
-(`anvil-observability/src/lib.rs:75`), and the subscriber is JSON-format
+(`crates/anvil-observability/src/lib.rs:75`), and the subscriber is JSON-format
 (`lib.rs:145`). The visibility decision is right; the rendering is wrong for a
 human first-run surface — the same facts already exist as human copy in the
 diagnostic (`meaning:`/`next:` lines).

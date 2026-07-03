@@ -4400,7 +4400,7 @@ archive.
   skipped"…}`) mid-flow without `--verbose` — `daemon_evidence.rs:222-244`
   deliberately emits at `warn` (council 2026-05-22 visibility hardening), the
   CLI default filter is `warn`, and the subscriber is JSON-format
-  (`anvil-observability/src/lib.rs:145`), so the human activation surface is
+  (`crates/anvil-observability/src/lib.rs:145`), so the human activation surface is
   interrupted by machine JSONL that reads as a crash.
 - **Expected Outcome:** The attestation-skip signal stays visible on the human
   surface but is rendered as human copy (folded into the existing `daemon:` /
