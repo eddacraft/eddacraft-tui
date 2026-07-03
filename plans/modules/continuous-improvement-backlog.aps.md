@@ -3942,7 +3942,7 @@ archive.
 
 ### CIB-145: Harden anvil_fix against symlink-swap TOCTOU races
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3113
 - **Intent:** `anvil_fix`'s canonicalise-then-write sequence has a
   check-then-use window an attacker with concurrent filesystem access could
   exploit to redirect a write outside the workspace.
@@ -4331,3 +4331,36 @@ archive.
 - **Confidence:** medium — mechanically clear, but touches three live
   security-sensitive checks, so it needs careful test parity and should land
   after CIB-145 settles the same files.
+
+### CIB-158: Close the anvil_fix/anvil_suppress write TOCTOU on Windows
+
+- **Status:** Proposed — needs an owner decision on taking the `windows-sys`
+  dependency/Hakari-churn risk now versus deferring until the next
+  `windows-sys` bump lands, before the fd-path re-check can be wired.
+- **Intent:** CIB-145 (PR #3113) closed the symlink-swap TOCTOU on Linux and
+  macOS via a post-open fd→path re-check (`/proc/self/fd`, `fcntl F_GETPATH`)
+  but deferred the Windows equivalent. On Windows the narrow
+  canonicalise→open window stays open: unprivileged NTFS directory junctions
+  (`mklink /J`, no `SeCreateSymbolicLinkPrivilege`) are followed transparently
+  by `std::fs`, so an intermediate directory component can be swapped for a
+  junction pointing outside the workspace between the containment check and
+  the open. The wide read→write window is already closed on all platforms by
+  handle-pinning; this is only the narrow open-time residual.
+- **Expected Outcome:** `shared::handle_real_path` gains a
+  `#[cfg(windows)]` arm using `GetFinalPathNameByHandleW` to re-derive the
+  opened handle's real path and re-check workspace containment, mirroring the
+  Linux/macOS arms; the per-platform residual table in `shared.rs` updates to
+  show Windows intermediate/final-component swaps as blocked.
+- **Files:** `crates/anvil-cli/src/mcp/tools/shared.rs`, and whatever
+  `windows-sys` feature edge (`Win32_Storage_FileSystem`) the API needs
+  (mind the [[windows-sys-hakari-churn]] pin discipline).
+- **Validation:** a `#[cfg(windows)]` test proving an intermediate-component
+  junction swap between check and write is rejected; the existing Unix tests
+  stay green; `cargo hakari verify` clean after any windows-sys edge.
+- **Identified From:** CIB-145 adversarial review, 2026-07-03 (PR #3113).
+- **Coordinates with:** CIB-145 (merged), [[windows-sys-hakari-churn]]
+  (dependency-pin landmine), CIB-157 (path-safety consolidation — same files).
+- **Confidence:** medium — the API is a direct analogue of the shipped
+  Linux/macOS arms, but it requires a `windows-sys` edge that has a history of
+  Hakari churn, and it cannot be locally link-verified on this Linux box
+  (needs a CI Windows runner).
