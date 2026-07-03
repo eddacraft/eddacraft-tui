@@ -1,6 +1,6 @@
 # Post-merge: fix-cib-171-welcome-nav-scopes-init-summary
 
-PR: #NNN
+PR: #3131
 Branch: `fix/cib-171-welcome-nav-scopes-init-summary`
 APS: CIB-171
 Merged: <!-- filled by cleanup agent -->
