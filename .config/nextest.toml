@@ -5,7 +5,7 @@
 # external binary is absent) is surfaced in CI logs. Without this, nextest's
 # default swallows those lines on every green run and a contributor shipping
 # a regression that only such a suite would catch gets a silent green.
-# Originally motivated by the OPA real-binary suite (deleted under ADR-097
+# Originally motivated by the OPA real-binary suite (deleted under ADR-098
 # AD-1); kept so any future self-skipping suite stays visible.
 #
 # https://nexte.st/book/configuration.html

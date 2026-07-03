@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                                                                       |
 | ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-07-04 against ADR-097 (Rust OPA-subprocess suite removal), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
+| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-07-04 against ADR-098 (Rust OPA-subprocess suite removal), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -132,7 +132,7 @@ skips automatically when `opa` is not on `PATH` and `ANVIL_OPA_PATH` is unset.
 ### Rust legacy OPA executor (removed)
 
 The Rust OPA-subprocess integration suites (`opa_capabilities.rs`,
-`opa_real_binary.rs`) were deleted under ADR-097 AD-1 (PR-A of the
+`opa_real_binary.rs`) were deleted under ADR-098 AD-1 (PR-A of the
 OPA-to-regorus replace-then-delete sequence). The remaining OPA-subprocess
 modules in `crates/anvil-policy` are deleted in PR-C once the `anvil gate`
 policy check migrates to the regorus facade (OPAE-003).
@@ -153,7 +153,7 @@ The historical TypeScript gate-pipeline integration test moved under
 `anvil-archive/anvil-ts-scanner/` when the TypeScript scanner/runtime gate was
 retired. Current Go OPA real-binary coverage is the direct fixture suite and the
 TypeScript compatibility executor suite (the Rust legacy executor suite was
-deleted under ADR-097 AD-1). Current product-engine coverage is
+deleted under ADR-098 AD-1). Current product-engine coverage is
 `crates/anvil-policy-engine` plus the `anvil policy eval` CLI integration tests.
 
 ## OPA binary version
@@ -184,7 +184,7 @@ To bump:
    pinned version string appears in any file not in the allowlist, which is the
    canary against silent doc rot when this runbook rots.
 6. Run the direct OPA fixture suite plus the TS executor real-binary integration
-   suite locally (the Rust executor suite was deleted under ADR-097 AD-1).
+   suite locally (the Rust executor suite was deleted under ADR-098 AD-1).
 7. Note the bump in the relevant ADR / decision log entry if the version change
    is load-bearing for a policy.
 

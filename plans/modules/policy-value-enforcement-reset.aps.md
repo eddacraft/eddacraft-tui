@@ -4,7 +4,7 @@
 | -------- | --------- | ----- | -------- | -------- | -------- |
 | POLRESET | Conductor | —     | high     | In Progress | 0/10     |
 
-**Last reviewed:** 2026-07-04 (POLRESET-001 design gate landed as ADR-097 via
+**Last reviewed:** 2026-07-04 (POLRESET-001 design gate landed as ADR-098 via
 planning council plan-18c47503).
 
 ## Purpose
@@ -107,7 +107,7 @@ modules named by each `Coordinates with` field.
 - **Expected Outcome:** A decision record pins the Rego-first path, validation
   before load, exception requirements, pre-write boundary, and `warn` / `fence` /
   `interrupt` mapping.
-- **Decision Record:** [ADR-097 — Policy Enforcement Reset Gate](../decisions/097-policy-enforcement-reset-gate.md),
+- **Decision Record:** [ADR-098 — Policy Enforcement Reset Gate](../decisions/098-policy-enforcement-reset-gate.md),
   produced via planning council plan-18c47503 (operator-ratified all gate
   questions). Ratifies ADR-015 as bookkeeping.
 - **Validation:** `pnpm adr:check` and `pnpm aps:active-lint`

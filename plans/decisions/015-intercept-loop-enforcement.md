@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Accepted (ratified 2026-07-04 via planning council plan-18c47503 / ADR-097 bookkeeping; all constituent ADs were individually Accepted and shipped) |
+| Status | Accepted (ratified 2026-07-04 via planning council plan-18c47503 / ADR-098 bookkeeping; all constituent ADs were individually Accepted and shipped) |
 | Planning Council | plan-ba94d8a5 |
 | Prior Review | council-3695036e (18 findings: 7 critical, 11 major) |
 | Date | 2026-04-02 |

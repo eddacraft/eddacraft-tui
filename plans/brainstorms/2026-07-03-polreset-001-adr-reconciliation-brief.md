@@ -238,7 +238,7 @@ and is deliberately not covered here.
 
 ## 5. Suggested shape of the gate ADR
 
-A single ADR (next number per `pnpm adr:check` at time of writing: 097) with
+A single ADR (next number per `pnpm adr:check` at time of writing: 097; landed as ADR-098 after a numbering race) with
 decision sections mirroring D1–D8, in the ADR-015 multi-decision style
 (per-AD status), so partial acceptance is possible. It amends nothing in
 ADR-002/037/040; it consumes ADR-015's vocabulary and closes ADR-061 §6's

@@ -311,7 +311,7 @@ Change status to **Ready** when:
   `crates/anvil-policy/tests/opa_real_binary.rs` runs 7 cases (6 evaluate +
   1 `opa test`) and surfaced a latent stdio-pipe bug in
   `OpaExecutor::evaluate()` which was fixed in the same commit. (Suite later
-  deleted 2026-07-04 under ADR-097 AD-1 PR-A — OPA-to-regorus replacement;
+  deleted 2026-07-04 under ADR-098 AD-1 PR-A — OPA-to-regorus replacement;
   the record above stands as history.)
 
 #### TCOV-011: run opa test against fixture Rego files

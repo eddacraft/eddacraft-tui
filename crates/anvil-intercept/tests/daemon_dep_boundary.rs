@@ -132,7 +132,7 @@ fn ast_checks_crate_carries_tree_sitter_rust() {
     );
 }
 
-/// ADR-097 AD-4: policy evaluation stays off the resident daemon. Slice-1
+/// ADR-098 AD-4: policy evaluation stays off the resident daemon. Slice-1
 /// policy runs on off-daemon surfaces only (MCP pre-write, `anvil gate`, CI);
 /// the sole sanctioned future on-ramp is an ADR-067-style injected trait,
 /// which must arrive via a new ADR and an explicit edit to this list.
@@ -147,7 +147,7 @@ fn daemon_does_not_link_policy_engine() {
         for forbidden in DAEMON_POLICY_FORBIDDEN {
             assert!(
                 !tree.contains(forbidden),
-                "{package} must not link `{forbidden}` (ADR-097 AD-4: the \
+                "{package} must not link `{forbidden}` (ADR-098 AD-4: the \
                  policy engine stays off the resident daemon), but its normal \
                  dependency tree contains it:\n{tree}"
             );
