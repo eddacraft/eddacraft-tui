@@ -1786,3 +1786,45 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Outcome:** Rebased onto `origin/main`, gates green, merged via `--rebase`; CIB-149 status compacted to Merged with a one-line Summary.
 - **Follow-up:** none
 
+### 2026-07-03 — claude (CIB-149 relocated-bypass fix)
+
+- **Task:** Security review of PR #3117 found the fix RELOCATED the bypass rather
+  than closing it. The "daemon-verified primary" was sourced from the peer's
+  `RegisterSession` worktree (in-connection) / `worktree_for_lineage(peer_pid)`
+  (durable registry). Both are just the path a same-uid client passed to
+  `session.register`, stored verbatim — the daemon verifies only *who* the peer
+  is (its PID lineage), never that the *path* should be admitted. A same-uid
+  attacker could `RegisterSession { worktree: "/anything" }` then name `/anything`
+  in a save-time/GCTX verb and have it admitted past an empty Allowlist — the
+  exact CIB-149 class, moved one wire frame over. No genuinely daemon-attested
+  worktree source exists (nothing the connecting client cannot originate itself).
+- **Outcome:** Fail-closed. Removed the implicit primary entirely in `Allowlist`
+  mode: `Confinement::to_admitted_roots()` drops its `verified_primary` param and
+  admits ONLY the operator allow entries. Removed `SaveTimeConn::verified_primary`,
+  `set_verified_primary`, `Confinement::is_allowlist`, and
+  `ipc::seed_save_time_verified_primary` + its accept-loop call.
+  `set_originating_session` now records the session for telemetry correlation
+  ONLY (its worktree is client-supplied and no longer influences admission).
+  `Open` mode first-touch adoption is unchanged. Every root — including a
+  connection's own self-declared `RegisterSession` worktree — must independently
+  match an allow entry.
+- **Tests:** Replaced the bypass-encoding tests
+  (`allowlist_session_bound_worktree_is_primary_not_first_named_root`,
+  `verified_primary_resolves_from_registry_across_connections`) with regressions
+  asserting a registered-but-unlisted worktree is `NotAdmitted`
+  (`allowlist_registered_session_worktree_is_not_admitted`,
+  `registered_worktree_is_not_implicitly_admitted_in_allowlist`). Confinement
+  tests updated: empty Allowlist admits nothing (`allowlist_empty_admits_nothing`).
+  The four gctx `*_rejects_unadmitted_root` tests re-based onto an explicit allow
+  entry instead of the implicit primary. Proved fails-before/passes-after against
+  the pre-fix tree (pre-fix admitted the registered worktree; post-fix refuses).
+  `cargo test -p eddacraft-anvil-intercept --lib` = 880 passed; clippy + fmt clean.
+- **Lesson:** "daemon-verified" conflated peer-identity verification with
+  worktree-content authorisation. When an admission source is client-declared,
+  restricting *which* client-declared value is used does not make it verified —
+  fail closed and require an operator allow entry.
+- **Follow-up:** If a zero-config Allowlist workflow genuinely needs a
+  connection's own worktree auto-admitted, that requires a real daemon-attested
+  peer→worktree binding (a worktree tied to a process the daemon itself
+  spawned/attested), which does not exist today — separate design/ADR.
+

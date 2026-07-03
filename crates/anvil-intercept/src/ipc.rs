@@ -1579,46 +1579,6 @@ fn parse_subscriber_session_filter(value: &Value) -> Option<Vec<String>> {
 // Per-connection handler.
 // --------------------------------------------------------------------
 
-/// CIB-149: resolve the connection's daemon-verified confinement primary and
-/// seed it into the per-connection save-time context at connection setup. The
-/// primary is the worktree the authenticated peer (`peer_pid`) is registered
-/// against in the durable [`SessionRegistry`], found by walking the peer's PID
-/// lineage ([`SessionRegistry::worktree_for_lineage`]) — the same anti-PID-reuse
-/// anchor the write-time spoof cross-check uses to fence a worktree. Because the
-/// value comes from the durable registry rather than in-connection state, it is
-/// reachable even though real clients open a fresh one-shot connection per RPC
-/// (so a `RegisterSession` and a later save-time verb never share a socket): the
-/// verb connection resolves the primary from the peer's earlier registration.
-///
-/// Only `Allowlist` mode consults the primary, so the `/proc` lineage walk is
-/// skipped on the default open posture. No-op when the peer is unregistered or
-/// its lineage carries no registered ancestor (`None` match) — allowlist mode
-/// then admits only the operator allow entries, which is the fail-closed answer.
-/// `peer_pid` is `None` on platforms / kernels without a peer-credential read;
-/// that too yields no primary. Even when `peer_pid` is present, lineage
-/// resolution is Linux-only — [`SessionRegistry::worktree_for_lineage`] walks
-/// `/proc` for PID attribution — so on non-Linux targets no verified primary is
-/// resolved and `Allowlist` mode admits only the operator allow entries there.
-/// Implicit-primary admission is therefore effectively Linux-only; operators on
-/// other platforms must rely on explicit allow entries.
-#[cfg(any(unix, windows))]
-fn seed_save_time_verified_primary(
-    conn: Option<&mut SaveTimeConn<'_>>,
-    save_time: Option<&SaveTimeState>,
-    cross_check: Option<&CrossCheckContext>,
-    peer_pid: Option<u32>,
-) {
-    let (Some(conn), Some(state), Some(ctx)) = (conn, save_time, cross_check) else {
-        return;
-    };
-    if !state.confinement().is_allowlist() {
-        return;
-    }
-    if let Some(worktree) = peer_pid.and_then(|pid| ctx.registry.worktree_for_lineage(pid)) {
-        conn.set_verified_primary(&worktree);
-    }
-}
-
 #[allow(clippy::too_many_lines)]
 // INTD-016 layered budgets share a single connection loop; splitting obscures the per-frame ordering of RPS / size / parse checks.
 #[allow(clippy::too_many_arguments)] // MLP2-025b adds peer_pid + cross_check beside the existing dispatcher / scan_buffer / status / token / limits parameters; the chain is per-connection state, not bundleable without churn across every test caller.
@@ -1663,16 +1623,11 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     #[cfg(any(unix, windows))]
     let mut save_time_conn = save_time.as_deref().map(SaveTimeConn::new);
 
-    // CIB-149: seed the daemon-verified confinement primary from the durable
-    // registry via the authenticated peer (reachable across the one-shot
-    // connection-per-RPC topology; see `seed_save_time_verified_primary`).
-    #[cfg(any(unix, windows))]
-    seed_save_time_verified_primary(
-        save_time_conn.as_mut(),
-        save_time.as_deref(),
-        cross_check.as_ref(),
-        peer_pid,
-    );
+    // CIB-149: `Allowlist` mode has no implicit primary — the admitted-root set
+    // is exactly the operator's allow entries, built lazily on the first verb.
+    // A connection's own worktree (a client-declared `RegisterSession.worktree`
+    // or a registry-lineage match) is never auto-admitted, because the daemon
+    // only verifies the peer's identity, not that the path should be admitted.
 
     // MLP2-071 Phase 2: per-connection telemetry-subscriber state. When
     // `Some`, this connection has subscribed: the read loop drains its
@@ -6741,23 +6696,23 @@ mod tests {
         assert_eq!(result["evaluated"][0]["path"], "src/a.ts");
     }
 
-    /// CIB-149: the daemon-verified confinement primary is resolved from the
-    /// **durable registry** via the authenticated peer's PID lineage, NOT from an
-    /// in-connection `RegisterSession`. This exercises the real two-connection
-    /// topology the Council flagged: the registry is populated by one connection
-    /// (a launcher's `session.register`), and a *separate* save-time connection —
-    /// which never carries a `RegisterSession` frame — resolves that worktree as
-    /// its implicit primary at setup via [`seed_save_time_verified_primary`], the
-    /// exact call the accept-loop makes. A registered worktree is admitted in
-    /// allowlist mode even though it is not on the allow list; an unlisted,
-    /// unregistered root is still refused; and a peer with no registered lineage
-    /// gets no implicit primary (only the operator allow entries).
+    /// CIB-149 (relocated-bypass regression): a worktree a peer registered in the
+    /// **durable registry** is NOT implicitly admitted in allowlist mode. The
+    /// original CIB-149 fix sourced the "implicit primary" from the peer's
+    /// registry lineage (`worktree_for_lineage`), but that worktree is just the
+    /// path a same-uid client passed to `session.register` — the daemon only
+    /// verified *who* the peer is (its PID lineage), never that the *path* should
+    /// be admitted. Admitting it would relocate the very bypass CIB-149 closes to
+    /// the register frame. This asserts the fail-closed contract: only the
+    /// operator's allow entries are admitted; a registered-but-unlisted worktree
+    /// is refused exactly like any other unlisted root.
     ///
-    /// Linux-gated because the resolution walks the peer's `/proc` PID lineage,
-    /// mirroring `run_spoof_cross_check_matching_tag_falls_through`.
+    /// Linux-gated only for parity with the sibling lineage tests; the admission
+    /// path itself no longer walks `/proc` (there is no implicit primary to
+    /// resolve).
     #[cfg(target_os = "linux")]
     #[test]
-    fn verified_primary_resolves_from_registry_across_connections() {
+    fn registered_worktree_is_not_implicitly_admitted_in_allowlist() {
         use crate::confinement::{
             AdmissionModeFile, AllowEntry, Confinement, ConfinementConfigFile, MatchKind,
         };
@@ -6771,9 +6726,9 @@ mod tests {
         let registered = tempfile::tempdir().expect("registered worktree tempdir");
         let unlisted = tempfile::tempdir().expect("unlisted tempdir");
 
-        // A *different* connection registered the peer's worktree earlier. The
-        // registration carries a lineage anchor keyed on this test process's own
-        // pid so the `/proc` walk below can traverse it (mirrors the spoof tests).
+        // A same-uid peer registered its self-declared worktree earlier, with a
+        // lineage anchor keyed on this test process's own pid (so the registry
+        // lineage would resolve it, exactly as the relocated bypass relied on).
         let (ctx, _temp) = make_cross_check_context();
         let self_pid = std::process::id();
         let starttime =
@@ -6810,36 +6765,25 @@ mod tests {
             })
         };
 
-        // Connection A: the peer's credentials sit on the registered lineage. No
-        // in-connection `RegisterSession` is issued — the primary is seeded purely
-        // from the durable registry, exactly as the accept-loop does at setup.
+        // A fresh save-time connection is exactly what the accept-loop builds now
+        // — no primary is seeded from the registry lineage at all.
         let mut conn = SaveTimeConn::new(&state);
-        seed_save_time_verified_primary(Some(&mut conn), Some(&state), Some(&ctx), Some(self_pid));
-        status(&mut conn, registered.path())
-            .expect("registry-derived primary is admitted across connections");
+        assert!(
+            matches!(
+                status(&mut conn, registered.path()),
+                Err(SaveTimeError::NotAdmitted)
+            ),
+            "a registered-but-unlisted worktree must NOT be implicitly admitted \
+             (the relocated CIB-149 bypass is closed)",
+        );
         assert!(
             matches!(
                 status(&mut conn, unlisted.path()),
                 Err(SaveTimeError::NotAdmitted)
             ),
-            "an unlisted, unregistered root is still refused",
+            "an unlisted, unregistered root is refused",
         );
-        status(&mut conn, allowed.path()).expect("an allow-listed root is admitted");
-
-        // Connection B: an unregistered peer (pid 1 has no registered ancestor on
-        // its lineage). No primary is resolved, so allowlist mode admits only the
-        // operator allow entries — the registered worktree is refused here.
-        let mut ghost = SaveTimeConn::new(&state);
-        seed_save_time_verified_primary(Some(&mut ghost), Some(&state), Some(&ctx), Some(1));
-        assert!(
-            matches!(
-                status(&mut ghost, registered.path()),
-                Err(SaveTimeError::NotAdmitted)
-            ),
-            "with no registered lineage the worktree is not implicitly admitted",
-        );
-        status(&mut ghost, allowed.path())
-            .expect("an allow entry is still admitted for an unregistered peer");
+        status(&mut conn, allowed.path()).expect("an allow-listed root is still admitted");
     }
 
     /// Without save-time state wired the verb is not served — the arm replies
