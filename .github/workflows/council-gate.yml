@@ -1,0 +1,137 @@
+name: Council Gate
+
+# Server-side enforcement for the CIB-149 process guard: a PR that changes a
+# protected save-time auth/confinement surface must carry the `council:reviewed`
+# label (applied by a maintainer after running `/council`) before it can merge.
+# This is the merge-time backstop to the local `.claude/hooks/council-gate.sh`
+# hook — it holds even when an autonomous workflow bypasses local hooks (the
+# CIB-149 failure mode).
+#
+# The job ALWAYS runs (no top-level `paths:` filter) so it reports a status on
+# every PR and can be marked a required check without deadlocking PRs that do
+# not touch protected paths. When nothing protected changed, it passes at once.
+#
+# Stale-review safety: the label is dismissed automatically whenever new commits
+# are pushed (`synchronize`), so a recorded review must always cover the final
+# diff — a maintainer cannot label an early, benign revision and let later
+# commits ride in unreviewed.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write # to dismiss the stale review label on new commits
+
+concurrency:
+  group: council-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  council-gate:
+    name: Protected surfaces reviewed
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    env:
+      GATE_LABEL: council:reviewed
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # need the base commit to diff the PR range
+
+      - name: Dismiss stale review label on new commits
+        if: github.event.action == 'synchronize' && github.event.pull_request.head.repo.fork == false
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Remove the label if present; ignore a 404 (label not applied).
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+            echo "New commits pushed — dismissing stale '$GATE_LABEL' label; a fresh review is required."
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/${GATE_LABEL}" >/dev/null || true
+          fi
+
+      - name: Gate protected-path changes on Council review
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # No PR context (e.g. workflow_dispatch) — nothing to gate.
+          if [[ -z "${BASE_SHA:-}" || -z "${HEAD_SHA:-}" ]]; then
+            echo "No pull_request context; nothing to gate."
+            exit 0
+          fi
+
+          # Files introduced by the PR (three-dot = changes since the merge base).
+          mapfile -t changed < <(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          if (( ${#changed[@]} == 0 )); then
+            echo "No changed files detected."
+            exit 0
+          fi
+
+          # Protected globs = the repo's declared list + the guard's own config
+          # and this workflow (so the gate cannot be disabled without a review).
+          protected_globs=(
+            ".claude/hooks/council-protected-paths"
+            ".github/workflows/council-gate.yml"
+          )
+          list_file=".claude/hooks/council-protected-paths"
+          if [[ -f "$list_file" ]]; then
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              line="${line%%#*}"                        # strip trailing comment
+              line="${line#"${line%%[![:space:]]*}"}"   # ltrim
+              line="${line%"${line##*[![:space:]]}"}"   # rtrim
+              [[ -n "$line" ]] && protected_globs+=("$line")
+            done < "$list_file"
+          fi
+
+          path_is_protected() { # $1 = repo-relative path
+            local path="$1" glob
+            for glob in "${protected_globs[@]}"; do
+              if [[ "$glob" == */ && "$path" == "$glob"* ]]; then return 0; fi
+              # shellcheck disable=SC2053
+              if [[ "$path" == $glob ]]; then return 0; fi
+              if [[ "$path" == "$glob"/* ]]; then return 0; fi
+            done
+            return 1
+          }
+
+          hits=()
+          for f in "${changed[@]}"; do
+            [[ -z "$f" ]] && continue
+            if path_is_protected "$f"; then hits+=("$f"); fi
+          done
+
+          if (( ${#hits[@]} == 0 )); then
+            echo "✅ No protected auth/confinement surfaces changed — gate not required."
+            exit 0
+          fi
+
+          echo "This PR changes protected auth/confinement surfaces:"
+          printf '  - %s\n' "${hits[@]}"
+
+          # Re-read labels live (the event payload is stale after a dismissal).
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+            echo ""
+            echo "✅ '$GATE_LABEL' label present — Council review recorded for this diff."
+            exit 0
+          fi
+
+          echo ""
+          echo "❌ Protected surfaces changed without a recorded Council review."
+          echo "   These paths are the same-uid save-time trust boundary."
+          echo "   Run a full Council review (\`/council full $PR_NUMBER\`) and have a"
+          echo "   maintainer apply the '$GATE_LABEL' label. The label is dismissed"
+          echo "   automatically on new commits, so the review must cover the final diff."
+          if [[ "${IS_FORK:-false}" == "true" ]]; then
+            echo "   (Fork PR: the stale-label auto-dismiss step is skipped — a"
+            echo "    maintainer must confirm the label matches the final diff.)"
+          fi
+          exit 1
