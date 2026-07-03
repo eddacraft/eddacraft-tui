@@ -8,7 +8,7 @@
 # `CLAUDE_COUNCIL_GATE_OVERRIDE=i-reviewed-this` (loud, logged, never a default).
 #
 # Rationale: ADR-097 (allowlist confinement admits only explicit entries) and
-# `plans/reviews/post-merge/cib-149-post-merge-council-review.md` — CIB-149's
+# `plans/reviews/post-merge/fix-cib-149-verified-primary-root-allowlist.md` — CIB-149's
 # fail-closed fix self-corrected twice inside one autonomous run and then merged
 # past its own escalation recommendation; this list makes that structurally
 # harder for the trust surface it touched.
