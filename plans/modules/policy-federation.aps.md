@@ -7,7 +7,13 @@
 | ------ | ----- | -------- | ------ | -------- |
 | POLFED | —     | medium   | Draft  | 0/8      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Later enterprise
+> expansion; requires OPAE bundle primitives and lifecycle state that the
+> first slice does not build. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** POLFED should federate signed
 > Rego packs, lifecycle state, and pack metadata; evaluation remains the

@@ -4,7 +4,14 @@
 |----|-------|--------|
 | OPAG | @aneki | Proposed |
 
-**Last reviewed:** 2026-06-24 (policy-solution validation)
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Stays Proposed until
+> the save-time policy path ships and the agent surface is re-approved;
+> agent-facing tool-call interception additionally requires its own ADR per
+> ADR-098 AD-4 (pre-write boundary). Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Status correction (2026-06-24; reset 2026-07-02):** demoted Ready →
 > Proposed. OPAG depends on the policy product contracts now reset under

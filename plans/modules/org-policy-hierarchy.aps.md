@@ -5,9 +5,16 @@
 
 | ID   | Owner | Priority | Status |
 | ------- | ----- | -------- | ------ |
-| ORGHIER | —     | high     | Draft  |
+| ORGHIER | —     | low      | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Later enterprise
+> expansion; do not schedule until the first policy-value slice (POLVAL/OPAE
+> first-wave contracts) has shipped. Priority downgraded high → low
+> accordingly. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** hierarchy resolution should feed
 > the ADR-040/POLENG regorus runtime through `crates/anvil-policy`; "OPA"

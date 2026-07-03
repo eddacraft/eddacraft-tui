@@ -7,7 +7,12 @@
 | ----- | ----- | -------- | ------ |
 | POLLC | —     | medium   | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Later enterprise
+> expansion; requires ORGHIER and a shipped first policy-value slice. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** lifecycle state belongs above
 > the ADR-040/POLENG runtime. Promotion, canary, grace, and rollback metadata

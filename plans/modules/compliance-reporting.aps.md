@@ -7,7 +7,13 @@
 | ------ | ----- | -------- | ------ |
 | COMPLY | —     | medium   | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Later; requires proven
+> pack validation, starter packs, evidence semantics, and reporting
+> foundations (POLVAL, EVALCI) before any compliance claims. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** COMPLY should consume
 > regorus-backed policy outcomes (`anvil policy eval --json` v1, pack metadata,

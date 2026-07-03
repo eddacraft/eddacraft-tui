@@ -10,6 +10,13 @@
 **Last reviewed:** 2026-07-02 (reset under
 [`POLRESET`](./policy-value-enforcement-reset.aps.md)).
 
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Scoped: the first wave
+> (one high-signal starter pack, POLRESET-007) remains in-slice; everything
+> beyond it (broad OWASP/SOC 2/ISO/GDPR/AI packs) is post-first-slice
+> expansion. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+
 > **Reset note:** the previous CPACKS draft tried to author six broad compliance
 > packs (OWASP, SOC 2, ISO 27001, GDPR, NIST AI RMF, EU AI Act) against retired
 > TypeScript fixture paths. That looked valuable but created false-compliance

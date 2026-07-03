@@ -7,7 +7,13 @@
 | ----- | ----- | -------- | ------ |
 | AGOV  | —     | Medium   | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Later signal
+> producers — not first-slice prerequisites; schedule after the starter pack
+> and report-only policy CI exist. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** AGOV remains Draft. Its signal
 > producers should feed `crates/anvil-policy` / `crates/anvil-checks` and Rego

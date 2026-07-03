@@ -7,8 +7,14 @@
 | ----- | ----- | -------- | -------- |
 | ACTAX | —     | medium   | Proposed |
 
-**Last reviewed:** 2026-05-22
+**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
 
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
+> expansion — not a prerequisite for first policy value. Phase 2 (YAML
+> authoring tier + risk-score fusion) must not block the first Rego-backed
+> value slice; Phase D tool-call interception requires its own ADR per
+> ADR-098 AD-4. Coordinated by
+> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 > Inspired by [permit0](https://github.com/permit0-ai/permit0) (Apache 2.0).
 > Anvil already owns the engine (regorus / ADR-040), intercept loop (ADR-015),
 > pack architecture (ADR-027), and witness chain (ADR-037). This module adds
