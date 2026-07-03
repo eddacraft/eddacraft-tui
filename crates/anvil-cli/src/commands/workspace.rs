@@ -48,8 +48,8 @@ pub struct WorkspaceArgs {
 #[derive(Debug, Subcommand)]
 enum WorkspaceCommand {
     /// Set the daemon admission mode: `open` (first-touch adopt, the default)
-    /// or `allowlist` (only allow-listed roots, plus the primary check-in
-    /// root, are served).
+    /// or `allowlist` (only the configured allow entries are served; an empty
+    /// allow list admits nothing).
     Mode(ModeArgs),
     /// Add an allow entry. Exact by default; `--prefix` confines a whole
     /// subtree. Only consulted in `allowlist` mode.
@@ -331,11 +331,11 @@ fn run_mode(args: &ModeArgs) -> Result<()> {
     if file.admission == AdmissionModeFile::Allowlist {
         match file.allow.len() {
             0 => println!(
-                "Allowlist is empty — only each connection's primary check-in root \
-                 will be served."
+                "Allow list is empty — no roots are admitted (fail-closed). \
+                 Add a root with `anvil workspace allow <path>`."
             ),
             n => println!(
-                "{n} allow {} in effect (plus each connection's primary root).",
+                "{n} allow {} in effect; only those roots are admitted.",
                 if n == 1 { "entry" } else { "entries" }
             ),
         }
@@ -393,7 +393,10 @@ fn run_list() -> Result<()> {
     if file.allow.is_empty() {
         println!("Allow entries: (none)");
         if file.admission == AdmissionModeFile::Allowlist {
-            println!("  Only the primary check-in root of each connection is admitted.");
+            println!(
+                "  No roots are admitted (fail-closed). \
+                 Add a root with `anvil workspace allow <path>`."
+            );
         }
     } else {
         println!("Allow entries:");
