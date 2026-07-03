@@ -10,6 +10,11 @@ description = "Anvil policy engine — facade over regorus (ADR-040)"
 name = "anvil_policy_engine"
 
 [dependencies]
+# IORISK: the IO risk taxonomy (RiskFinding et al.) is the wire vocabulary the
+# scanner pipeline produces and the guidance layer consumes. It lives in the
+# dependency-light wire-types crate, already in this binary's tree, so this adds
+# no new shipped crate.
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 anyhow = { workspace = true }
 # POLENG-009 determinism fence: drop regorus's `full-opa` bundle and enable only
 # the pure subset, removing the impure Rego stdlib builtin groups at the source

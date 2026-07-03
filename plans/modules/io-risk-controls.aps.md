@@ -38,9 +38,10 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- io_risk_taxonomy` — 8 passed (`crates/anvil-kernel-types/src/io_risk.rs`; pure serde, `#[serde(other)]` forward-compat fallbacks per ADR-096, remediation-first `RiskFinding`, no new deps).
 
 ### IORISK-002: Implement scanner pipeline
+- **Status:** Done
 - **Intent:** Add scanner execution pipeline for pre/post model checks.
 - **Expected Outcome:** Input/output streams are evaluated through pluggable scanner chain.
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- io_scanner_pipeline`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- io_scanner_pipeline` — 7 passed (`crates/anvil-policy-engine/src/io_risk/pipeline.rs`; `Scanner` trait + deterministic `ScannerChain`, registration-order aggregation, no short-circuit, panic isolated to a separate `scanner_errors` channel).
 - **Dependencies:** IORISK-001
 
 ### IORISK-003: Integrate risk findings with policy outputs

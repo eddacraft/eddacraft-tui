@@ -26,6 +26,7 @@ pub mod context;
 pub mod coverage;
 pub mod determinism;
 pub mod input;
+pub mod io_risk;
 pub mod pack;
 pub mod result;
 pub mod trace;
