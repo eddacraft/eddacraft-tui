@@ -4896,6 +4896,103 @@ fn verify_report_process_starttime(
     }
 }
 
+/// CIB-150: the `claimed_agent_id` an activation-spine (durable
+/// membership) claim is rewritten to when the connection's authenticated
+/// peer is not entitled to register durable membership. Any value other
+/// than `ACTIVATION_SPINE_CLAIMED_AGENT_ID` makes
+/// `AgentTag::is_durable_membership` return `false`, so the downgraded
+/// session drops onto the ordinary live-lease path (per-worktree cap +
+/// heartbeat TTL) instead of the persisted, TTL-exempt membership set.
+const DOWNGRADED_ACTIVATION_SPINE_CLAIMED_AGENT_ID: &str = "unverified-activation-spine";
+
+/// CIB-150: authorise a wire `AgentTag` that claims durable worktree
+/// membership (an activation-spine `claimed_agent_id`) against the
+/// connection's authenticated peer before the daemon honours it.
+///
+/// Durable membership is persisted under `ANVIL_HOME`, exempt from the
+/// heartbeat TTL, and drawn from a separate `registered_worktree_cap`
+/// budget (ACTMO-014 / ADR-094). `AgentTag` is not authenticated
+/// identity: any same-UID process can mint one claiming the
+/// activation-spine id, so trusting the wire value verbatim would let an
+/// unprivileged neighbour consume the durable budget and pin persisted
+/// membership it never legitimately started (the trust-boundary gap
+/// `DeepSec` flagged, split from CIB-113).
+///
+/// The daemon and the activation spine (`anvil start`,
+/// `anvil workspace register`) are the *same* `anvil` binary, so the
+/// authorisation test mirrors [`verify_lineage_claim`]'s peer-derivation:
+/// on Linux the peer's `/proc/<peer_pid>/exe` is compared against the
+/// daemon's own canonicalised [`std::env::current_exe`]. A missing peer
+/// credential (legacy NDJSON wire, no `SO_PEERCRED`) or any non-Linux
+/// platform (no portable peer-exe reader yet) is treated as *not*
+/// authorised — matching the fail-closed, Linux-only posture of
+/// `verify_lineage_claim`.
+///
+/// Returns the tag to actually register: the caller's tag unchanged when
+/// it is not a durable claim or the peer is authorised; otherwise a
+/// **downgraded** copy whose `claimed_agent_id` no longer marks durable
+/// membership. The session still registers — as an ordinary live lease —
+/// rather than being rejected outright, so a benign mis-tagged client is
+/// not locked out (CIB-150 Expected Outcome). The daemon's in-process
+/// `register_on_start` path never routes through this dispatcher, so
+/// legitimate startup durable registration is untouched.
+fn verify_durable_membership_claim(
+    tag: &anvil_intercept_proto::session::AgentTag,
+    peer_pid: Option<u32>,
+) -> anvil_intercept_proto::session::AgentTag {
+    if !tag.is_durable_membership() || peer_authorised_for_durable_membership(peer_pid) {
+        return tag.clone();
+    }
+    tracing::debug!(
+        target: "anvil_intercept::ipc",
+        driver_id = %tag.driver_id,
+        claimed_agent_id = %tag.claimed_agent_id,
+        peer_pid = ?peer_pid,
+        "register-session durable-membership claim from an unauthorised peer downgraded to a live session (CIB-150)",
+    );
+    anvil_intercept_proto::session::AgentTag::new(
+        tag.driver_id.clone(),
+        DOWNGRADED_ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+        tag.pid_starttime,
+    )
+}
+
+/// CIB-150: `true` when the authenticated peer behind an IPC connection
+/// is entitled to register durable worktree membership — i.e. it is
+/// running the *same* `anvil` binary as the daemon (the CLI and daemon
+/// ship as one executable). On Linux this compares the peer's
+/// `/proc/<peer_pid>/exe` symlink target against the daemon's
+/// canonicalised `current_exe`. Fail-closed on every uncertainty: a
+/// missing peer pid, an unreadable peer or daemon exe path, or a
+/// non-Linux platform (no portable peer-exe reader yet) all return
+/// `false`.
+fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let Some(peer_pid) = peer_pid else {
+            return false;
+        };
+        let Ok(peer_exe) = std::fs::read_link(format!("/proc/{peer_pid}/exe")) else {
+            return false;
+        };
+        let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+            return false;
+        };
+        // `/proc/<pid>/exe` already resolves to the canonical target, but
+        // canonicalise defensively so both sides are normalised the same
+        // way; fall back to the raw link target if it no longer resolves
+        // (e.g. the binary was replaced on disk) — that simply fails the
+        // equality check, which is the safe answer.
+        let peer_exe = std::fs::canonicalize(&peer_exe).unwrap_or(peer_exe);
+        peer_exe == daemon_exe
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = peer_pid;
+        false
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 // MLP2-026 adds peer_pid + cross_check; the chain is per-connection state, not bundleable without churn across callers.
 #[allow(clippy::too_many_lines)] // MLP2-074 adds the ReportProcess arm; this is the canonical per-variant dispatch table and inlining keeps the routing visible at one glance.
@@ -4931,11 +5028,22 @@ fn dispatch_command<D: SessionDispatcher>(
                 Some(claim) => Some(verify_lineage_claim(claim, peer_pid)?),
                 None => None,
             };
+            // CIB-150: an activation-spine tag claims durable worktree
+            // membership (persisted, TTL-exempt, drawn from the separate
+            // `registered_worktree_cap`). Honour it only when the
+            // authenticated peer is the daemon's own `anvil` binary;
+            // otherwise downgrade to an ordinary live session before the
+            // registry keys durability off the tag, so a forged claim
+            // cannot consume the durable budget. The claim is downgraded,
+            // not rejected, so a benign mis-tagged client still registers.
+            let verified_tag = agent_tag
+                .as_ref()
+                .map(|tag| verify_durable_membership_claim(tag, peer_pid));
             dispatcher
                 .register(
                     session_id,
                     worktree,
-                    agent_tag.as_ref(),
+                    verified_tag.as_ref(),
                     verified_lineage.as_ref(),
                 )
                 .map_err(|err| err.to_string())?;
@@ -6155,6 +6263,201 @@ mod tests {
             recorder.calls().len(),
             2,
             "both dispatches must reach the registry",
+        );
+    }
+
+    // ----------------------------------------------------------------
+    // CIB-150: verify the wire `agent_tag` durable-membership claim
+    // before honouring it. Any same-UID IPC client can mint an
+    // `AgentTag` claiming the activation-spine `claimed_agent_id`; the
+    // daemon must only treat that as durable worktree membership when the
+    // authenticated peer is independently authorised (it runs the
+    // daemon's own `anvil` binary — CLI and daemon share one executable),
+    // mirroring the `verify_lineage_claim` peer-derivation. An
+    // unauthorised claim is DOWNGRADED to an ordinary live session, never
+    // rejected, so a benign mis-tagged client still registers.
+    // ----------------------------------------------------------------
+
+    /// CIB-150: a `register-session` frame carrying the activation-spine
+    /// `AgentTag` (durable worktree membership) over a connection with no
+    /// authenticated peer must NOT be honoured as durable membership. The
+    /// daemon cannot prove the caller is its own binary, so the claim is
+    /// downgraded to an ordinary live session (registered, but
+    /// non-durable) rather than rejected — a benign mis-tagged client
+    /// still registers. Platform-agnostic: a missing peer credential is
+    /// unauthorised on every platform.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_durable_claim_without_peer_credentials_is_downgraded() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let spine = AgentTag::new(
+            "anvil-start",
+            ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            1_700_000_000,
+        );
+        assert!(
+            spine.is_durable_membership(),
+            "fixture must claim durable membership",
+        );
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("forged-spine-no-peer"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: Some(spine),
+            lineage: None,
+        };
+        dispatch_command(&command, &dispatcher, None, None)
+            .expect("an unauthorised durable claim is downgraded, not rejected");
+        let calls = recorder.calls();
+        let forwarded = match calls.as_slice() {
+            [RecordedCall::Register { agent_tag, .. }] => {
+                agent_tag.clone().expect("a tag must still be forwarded")
+            }
+            other => panic!("expected single Register call, got {other:?}"),
+        };
+        assert!(
+            !forwarded.is_durable_membership(),
+            "an unauthorised activation-spine claim must be downgraded to a non-durable tag, got {forwarded:?}",
+        );
+    }
+
+    /// CIB-150: an activation-spine claim whose authenticated peer is a
+    /// real same-UID process running a DIFFERENT binary (not the daemon's
+    /// `anvil` executable) is downgraded to a live session. Pins the
+    /// `/proc/<peer_pid>/exe` vs daemon `current_exe` authorisation gate
+    /// on the platform where it is enforced.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID;
+
+        // A long-lived helper whose /proc/<pid>/exe is NOT this test
+        // binary, so the daemon's exe comparison must fail.
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn a non-anvil helper process");
+        let peer_pid = child.id();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let spine = AgentTag::new(
+            "anvil-start",
+            ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            1_700_000_000,
+        );
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("forged-spine-non-anvil-peer"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: Some(spine),
+            lineage: None,
+        };
+        let result = dispatch_command(&command, &dispatcher, Some(peer_pid), None);
+        // Reap the helper regardless of the assertion outcome.
+        let _ = child.kill();
+        let _ = child.wait();
+        result.expect("a non-anvil peer's durable claim is downgraded, not rejected");
+        let calls = recorder.calls();
+        let forwarded = match calls.as_slice() {
+            [RecordedCall::Register { agent_tag, .. }] => {
+                agent_tag.clone().expect("a tag must still be forwarded")
+            }
+            other => panic!("expected single Register call, got {other:?}"),
+        };
+        assert!(
+            !forwarded.is_durable_membership(),
+            "a non-anvil peer's activation-spine claim must be downgraded, got {forwarded:?}",
+        );
+    }
+
+    /// CIB-150: a legitimately authorised caller — the peer runs the same
+    /// `anvil` binary as the daemon (here the test process itself, whose
+    /// `/proc/<pid>/exe` equals the daemon's `current_exe`) — keeps its
+    /// durable activation-spine membership. Guards against the CIB-150
+    /// gate regressing genuine durable registration.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn dispatch_command_durable_claim_from_authorised_peer_persists() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let spine = AgentTag::new(
+            "anvil-start",
+            ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            1_700_000_000,
+        );
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("authorised-spine"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: Some(spine),
+            lineage: None,
+        };
+        dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect("an authorised durable claim must register");
+        let calls = recorder.calls();
+        let forwarded = match calls.as_slice() {
+            [RecordedCall::Register { agent_tag, .. }] => agent_tag.clone().expect("tag forwarded"),
+            other => panic!("expected single Register call, got {other:?}"),
+        };
+        assert!(
+            forwarded.is_durable_membership(),
+            "an authorised activation-spine claim must remain durable, got {forwarded:?}",
+        );
+        assert_eq!(
+            forwarded.claimed_agent_id, ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            "the daemon must forward the caller's activation-spine id unchanged",
+        );
+    }
+
+    /// CIB-150: repeated forged activation-spine claims from unauthorised
+    /// peers cannot exhaust the separate `registered_worktree_cap`. Each
+    /// forged claim is downgraded to a live session before the registry
+    /// keys durability off the tag, so the durable membership set stays
+    /// empty and a legitimate durable registration is never crowded out.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_forged_durable_claims_cannot_consume_registered_cap() {
+        use crate::registry::SessionRegistry;
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID;
+
+        // A tiny durable budget so a genuine over-run would be observable.
+        let registry = Arc::new(SessionRegistry::new().with_registered_worktree_cap(1));
+        // Keep the tempdirs alive for the whole test so their canonical
+        // paths stay resolvable when the registry reads them back.
+        let mut worktrees = Vec::new();
+        for i in 0..5 {
+            let wt = tempfile::tempdir().expect("worktree tempdir");
+            let spine = AgentTag::new(
+                "anvil-start",
+                ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+                1_700_000_000,
+            );
+            let command = IpcCommand::RegisterSession {
+                session_id: SessionId::new(format!("forged-{i}")),
+                worktree: wt.path().to_path_buf(),
+                agent_tag: Some(spine),
+                lineage: None,
+            };
+            // No authenticated peer → every claim is unauthorised and
+            // downgraded to an ordinary (distinct-worktree) live session.
+            dispatch_command(&command, &registry, None, None)
+                .expect("a downgraded live session registers without error");
+            worktrees.push(wt);
+        }
+        assert!(
+            registry.registered_worktrees().is_empty(),
+            "forged activation-spine claims must never enter the durable set: {:?}",
+            registry.registered_worktrees(),
         );
     }
 

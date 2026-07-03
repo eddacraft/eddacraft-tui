@@ -1827,4 +1827,13 @@ a backlog. Promote repeated friction or executable follow-up work to
   connection's own worktree auto-admitted, that requires a real daemon-attested
   peer→worktree binding (a worktree tied to a process the daemon itself
   spawned/attested), which does not exist today — separate design/ADR.
+### 2026-07-03 — claude
+
+- **Task:** CIB-150 — verify the wire `agent_tag` durable-membership claim before honouring it (close the trust gap where any same-uid IPC client mints an activation-spine `AgentTag` and consumes the persisted registered-worktree budget).
+- **Outcome:** Added `ipc::verify_durable_membership_claim` + `peer_authorised_for_durable_membership`; a durable (activation-spine) claim is honoured only when the peer runs the daemon's own binary (Linux `/proc/<peer_pid>/exe` == canonical `current_exe`), else downgraded to a non-durable tag before `dispatcher.register` — registered, not rejected. 4 new dispatch tests; registry.rs gained a trust-model doc note.
+- **Worked:** The daemon and CLI are one `anvil` binary, so the authorisation test mirrors `verify_lineage_claim` peer-derivation exactly; downgrade-not-reject keeps a benign mis-tagged client working. The in-process `register_on_start` path never crosses the dispatcher, so legitimate startup durable registration is untouched.
+- **Failed:** none.
+- **Friction:** In-process tests get authorisation "for free" — `std::process::id()` peer vs the test binary's `current_exe` both resolve to the same `/proc/self/exe`, so the authorised-persists guard and a spawned-`sleep` non-anvil peer cover both branches without a fixture daemon.
+- **Improvement:** When a same-uid trust boundary must distinguish "our binary" from "a neighbour", exe-path equality via `/proc/<pid>/exe` is a cheap, fail-closed check that unit-tests cleanly in-process.
+- **Follow-up:** Non-Linux platforms downgrade every wire durable claim (no portable peer-exe reader yet) — durable membership there relies on the in-process `register_on_start` path, same caveat as `verify_lineage_claim`.
 

@@ -726,6 +726,17 @@ impl SessionRegistry {
         let registered_cap = self.registered_worktree_cap;
         // ACTMO-014: an activation-spine tag marks durable membership, which is
         // TTL-exempt and persisted. Any other tag (or none) is a live lease.
+        //
+        // CIB-150 trust model: this predicate keys durability off the tag
+        // verbatim, but `AgentTag` is not authenticated identity — any
+        // same-UID process can mint the activation-spine `claimed_agent_id`.
+        // The IPC dispatch surface (`ipc::verify_durable_membership_claim`)
+        // is the trust boundary: it authorises a durable claim against the
+        // connection's authenticated peer (the peer must run the daemon's own
+        // `anvil` binary) and downgrades an unauthorised claim to a live tag
+        // *before* calling `register`. The daemon's in-process
+        // `register_on_start` path is already trusted (it does not cross the
+        // wire), so it may pass a durable tag directly.
         let durable = agent_tag.is_some_and(AgentTag::is_durable_membership);
 
         let (record, signal_registered) = {

@@ -4091,7 +4091,7 @@ archive.
 
 ### CIB-150: Verify the wire `agent_tag` claim before honouring durable membership
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close the trust-boundary gap where any same-uid IPC client can
   mint an `AgentTag` claiming `claimed_agent_id: "activation-spine"` and be
   treated as durable worktree membership, bypassing the live per-worktree cap
