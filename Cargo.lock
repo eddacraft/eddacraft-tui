@@ -1695,6 +1695,7 @@ version = "0.8.1-beta"
 dependencies = [
  "anyhow",
  "criterion",
+ "eddacraft-anvil-kernel-types",
  "insta",
  "regorus",
  "serde",
