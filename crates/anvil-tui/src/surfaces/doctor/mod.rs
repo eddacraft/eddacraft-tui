@@ -111,6 +111,11 @@ pub struct DoctorState {
     /// next user action so the banner is transient. `None` means no outcome
     /// to surface.
     pub last_fix_outcome: Option<FixOutcomeBanner>,
+    /// `true` when hosted inside the welcome hub. The hub keeps `q` as
+    /// "quit the whole program" and `esc` as "return to the menu", so the
+    /// footer must say so honestly rather than advertising `esc`/`q` as
+    /// equivalent (CIB-171). Standalone (`anvil doctor`) keeps `esc back`.
+    pub embedded: bool,
 }
 
 /// Display-friendly summary of a completed fix attempt — populated by the
@@ -134,7 +139,16 @@ impl DoctorState {
             wants_back: false,
             pending_fix: None,
             last_fix_outcome: None,
+            embedded: false,
         }
+    }
+
+    /// Mark the surface as hosted inside the welcome hub so the footer names
+    /// the honest scope of `q` (quit anvil) versus `esc` (menu) — CIB-171.
+    #[must_use]
+    pub fn embedded(mut self) -> Self {
+        self.embedded = true;
+        self
     }
 
     pub fn summary(&self) -> DiagnosticSummary {
@@ -188,10 +202,11 @@ impl crate::surface::Surface for DoctorState {
             .checks
             .get(self.selected)
             .is_some_and(|c| c.auto_fixable && c.status != CheckStatus::Pass);
-        if fixable {
-            "j/k navigate  enter expand  f fix  esc back  q quit"
-        } else {
-            "j/k navigate  enter expand  esc back  q quit"
+        match (self.embedded, fixable) {
+            (false, true) => "j/k navigate  enter expand  f fix  esc back  q quit",
+            (false, false) => "j/k navigate  enter expand  esc back  q quit",
+            (true, true) => "j/k navigate  enter expand  f fix  esc menu  q quit anvil",
+            (true, false) => "j/k navigate  enter expand  esc menu  q quit anvil",
         }
     }
 
@@ -265,6 +280,22 @@ mod tests {
                 },
             },
         ]
+    }
+
+    // CIB-171: standalone keeps "esc back  q quit"; hosted in the hub the
+    // footer names the honest scope — "esc menu  q quit anvil".
+    #[test]
+    fn embedded_footer_names_hub_scope() {
+        use crate::surface::Surface;
+        let standalone = DoctorState::new(sample_checks());
+        assert!(Surface::help_text(&standalone).ends_with("esc back  q quit"));
+
+        let embedded = DoctorState::new(sample_checks()).embedded();
+        assert!(embedded.embedded);
+        let footer = Surface::help_text(&embedded);
+        assert!(footer.contains("esc menu"), "got: {footer}");
+        assert!(footer.contains("q quit anvil"), "got: {footer}");
+        assert!(!footer.contains("esc back"), "got: {footer}");
     }
 
     #[test]

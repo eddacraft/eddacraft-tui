@@ -148,6 +148,10 @@ pub struct AuditState {
     pub should_quit: bool,
     pub wants_back: bool,
     pub pending_fix: Option<FixRequest>,
+    /// `true` when hosted inside the welcome hub, where `q` quits the whole
+    /// program and `esc` returns to the menu. The footer names that honest
+    /// scope rather than advertising `esc`/`q` as equivalent (CIB-171).
+    pub embedded: bool,
 }
 
 impl AuditState {
@@ -161,7 +165,16 @@ impl AuditState {
             should_quit: false,
             wants_back: false,
             pending_fix: None,
+            embedded: false,
         }
+    }
+
+    /// Mark the surface as hosted inside the welcome hub so the footer names
+    /// the honest scope of `q` (quit anvil) versus `esc` (menu) — CIB-171.
+    #[must_use]
+    pub fn embedded(mut self) -> Self {
+        self.embedded = true;
+        self
     }
 
     fn selected_issue_fix_request(&self) -> Option<FixRequest> {
@@ -257,23 +270,39 @@ impl crate::surface::Surface for AuditState {
     }
 
     fn help_text(&self) -> &'static str {
+        // In the hub `q` quits the whole program (not just this surface), so
+        // embedded footers say "q quit anvil"; at the base level `esc` returns
+        // to the menu ("esc menu") rather than the surface's own "esc back".
+        // Zoom/collapse keep their within-surface `esc` semantics (CIB-171).
+        let fixable = self.selected_issue_is_fixable();
         if self.zoomed {
-            if self.selected_issue_is_fixable() {
-                "j/k navigate  z unzoom  f fix  esc unzoom  q quit"
-            } else {
-                "j/k navigate  z unzoom  esc unzoom  q quit"
+            match (self.embedded, fixable) {
+                (false, true) => "j/k navigate  z unzoom  f fix  esc unzoom  q quit",
+                (false, false) => "j/k navigate  z unzoom  esc unzoom  q quit",
+                (true, true) => "j/k navigate  z unzoom  f fix  esc unzoom  q quit anvil",
+                (true, false) => "j/k navigate  z unzoom  esc unzoom  q quit anvil",
             }
         } else if self.expanded {
-            if self.selected_issue_is_fixable() {
-                "j/k navigate  h/l switch panel  f fix  esc collapse  q quit"
-            } else {
-                "j/k navigate  h/l switch panel  esc collapse  q quit"
+            match (self.embedded, fixable) {
+                (false, true) => "j/k navigate  h/l switch panel  f fix  esc collapse  q quit",
+                (false, false) => "j/k navigate  h/l switch panel  esc collapse  q quit",
+                (true, true) => "j/k navigate  h/l switch panel  f fix  esc collapse  q quit anvil",
+                (true, false) => "j/k navigate  h/l switch panel  esc collapse  q quit anvil",
             }
         } else {
-            if self.selected_issue_is_fixable() {
-                "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc back  q quit"
-            } else {
-                "j/k navigate  h/l switch panel  enter expand  z zoom  esc back  q quit"
+            match (self.embedded, fixable) {
+                (false, true) => {
+                    "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc back  q quit"
+                }
+                (false, false) => {
+                    "j/k navigate  h/l switch panel  enter expand  z zoom  esc back  q quit"
+                }
+                (true, true) => {
+                    "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc menu  q quit anvil"
+                }
+                (true, false) => {
+                    "j/k navigate  h/l switch panel  enter expand  z zoom  esc menu  q quit anvil"
+                }
             }
         }
     }
@@ -504,6 +533,27 @@ mod tests {
             <AuditState as crate::surface::Surface>::help_text(&state),
             "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc back  q quit"
         );
+    }
+
+    // CIB-171: hosted in the hub the base-level footer names the honest scope
+    // — "esc menu  q quit anvil"; zoom/collapse keep their within-surface esc
+    // but still say "q quit anvil".
+    #[test]
+    fn embedded_footer_names_hub_scope() {
+        use crate::surface::Surface;
+        let mut state = AuditState::new(sample_data()).embedded();
+        state.focused_panel = AuditPanel::Issues;
+        assert!(state.embedded);
+        assert_eq!(
+            Surface::help_text(&state),
+            "j/k navigate  h/l switch panel  enter expand  z zoom  esc menu  q quit anvil"
+        );
+
+        // Zoom keeps "esc unzoom" (within-surface) but q still quits anvil.
+        state.zoomed = true;
+        let footer = Surface::help_text(&state);
+        assert!(footer.contains("esc unzoom"), "got: {footer}");
+        assert!(footer.contains("q quit anvil"), "got: {footer}");
     }
 
     #[test]

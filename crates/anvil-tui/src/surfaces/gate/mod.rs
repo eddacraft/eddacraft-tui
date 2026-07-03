@@ -99,6 +99,10 @@ pub struct GateState {
     pub search_mode: bool,
     pub should_quit: bool,
     pub wants_back: bool,
+    /// `true` when hosted inside the welcome hub, where `q` quits the whole
+    /// program and `esc` returns to the menu. The footer names that honest
+    /// scope rather than advertising `esc`/`q` as equivalent (CIB-171).
+    pub embedded: bool,
 }
 
 impl GateState {
@@ -109,9 +113,19 @@ impl GateState {
     pub fn help_text(&self) -> &'static str {
         if self.search_mode {
             "type to search  esc cancel  enter confirm"
+        } else if self.embedded {
+            "j/k navigate  enter expand  / search  n/N failures  a/f/p/s/w filter  esc menu  q quit anvil"
         } else {
             "j/k navigate  enter expand  / search  n/N failures  a/f/p/s/w filter  esc back  q quit"
         }
+    }
+
+    /// Mark the surface as hosted inside the welcome hub so the footer names
+    /// the honest scope of `q` (quit anvil) versus `esc` (menu) — CIB-171.
+    #[must_use]
+    pub fn embedded(mut self) -> Self {
+        self.embedded = true;
+        self
     }
 
     pub fn new(result: GateResult) -> Self {
@@ -124,6 +138,7 @@ impl GateState {
             search_mode: false,
             should_quit: false,
             wants_back: false,
+            embedded: false,
         }
     }
 
@@ -318,6 +333,8 @@ impl crate::surface::Surface for GateState {
     fn help_text(&self) -> &'static str {
         if self.search_mode {
             "type to search  enter confirm  esc cancel"
+        } else if self.embedded {
+            "j/k navigate  enter expand  n/N next/prev fail  /search  a/p/f/w/s filter  esc menu  q quit anvil"
         } else {
             "j/k navigate  enter expand  n/N next/prev fail  /search  a/p/f/w/s filter  esc back  q quit"
         }
@@ -431,6 +448,30 @@ mod tests {
             duration_ms: 3200,
             timestamp: "2026-03-16T10:00:00Z".to_string(),
         }
+    }
+
+    // CIB-171: standalone keeps "esc back  q quit"; hosted in the hub the
+    // footer names the honest scope — "esc menu  q quit anvil".
+    #[test]
+    fn embedded_footer_names_hub_scope() {
+        use crate::surface::Surface;
+        let standalone = GateState::new(sample_result());
+        assert!(Surface::help_text(&standalone).ends_with("esc back  q quit"));
+
+        let embedded = GateState::new(sample_result()).embedded();
+        assert!(embedded.embedded);
+        let footer = Surface::help_text(&embedded);
+        assert!(footer.contains("esc menu"), "got: {footer}");
+        assert!(footer.contains("q quit anvil"), "got: {footer}");
+        assert!(!footer.contains("esc back"), "got: {footer}");
+
+        // Search-mode footer is unaffected in either scope.
+        let mut searching = GateState::new(sample_result()).embedded();
+        searching.search_mode = true;
+        assert_eq!(
+            Surface::help_text(&searching),
+            "type to search  enter confirm  esc cancel"
+        );
     }
 
     #[test]

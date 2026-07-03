@@ -443,7 +443,7 @@ fn discovery_outcome(
     match exit {
         SurfaceExit::Back => None,
         SurfaceExit::Quit if !wants_continue => None,
-        _ => results,
+        SurfaceExit::Quit => results,
     }
 }
 
@@ -1198,7 +1198,7 @@ fn run_welcome_hub(
             Some(QuickStartOption::RunGate) => {
                 crate::tui::draw_loading(terminal, "Gate", "Running quality checks...", theme)?;
                 let data = crate::commands::gate::collect_gate_data();
-                let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data);
+                let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data).embedded();
                 let sub_exit = crate::tui::run_surface_in(terminal, &mut gate_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
                     break;
@@ -1226,7 +1226,7 @@ fn run_welcome_hub(
             Some(QuickStartOption::RunAudit) => {
                 crate::tui::draw_loading(terminal, "Audit", "Scanning project...", theme)?;
                 let data = crate::commands::audit::collect_audit_data();
-                let mut audit_state = anvil_tui::surfaces::audit::AuditState::new(data);
+                let mut audit_state = anvil_tui::surfaces::audit::AuditState::new(data).embedded();
                 loop {
                     let sub_exit = crate::tui::run_surface_in(terminal, &mut audit_state, theme)?;
                     if let Some(request) = audit_state.pending_fix.take() {
@@ -1256,7 +1256,8 @@ fn run_welcome_hub(
             Some(QuickStartOption::RunDoctor) => {
                 crate::tui::draw_loading(terminal, "Doctor", "Running diagnostics...", theme)?;
                 let checks = crate::commands::doctor::collect_checks();
-                let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
+                let mut doctor_state =
+                    anvil_tui::surfaces::doctor::DoctorState::new(checks).embedded();
                 loop {
                     let _sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
                     if let Some(request) = doctor_state.pending_fix.take() {

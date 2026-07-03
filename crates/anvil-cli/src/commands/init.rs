@@ -737,8 +737,10 @@ mod tests {
     #[test]
     fn generate_config_reports_the_written_path() {
         let dir = tempfile::tempdir().unwrap();
-        let mut config = AnvilConfig::default();
-        config.format = "yaml".to_string();
+        let config = AnvilConfig {
+            format: "yaml".to_string(),
+            ..Default::default()
+        };
 
         let generated = generate_config(&config, dir.path()).expect("generate");
 
