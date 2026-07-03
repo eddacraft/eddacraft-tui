@@ -5,9 +5,18 @@
 
 | ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
-| POLVAL | —     | high     | Draft  |
+| POLVAL | —     | high     | Proposed |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-002 retarget under ADR-098).
+
+> **Retarget (POLRESET-002 / ADR-098, 2026-07-04):** pack admission code must
+> NOT extend `crates/anvil-policy`'s OPA-era `loader.rs`/`library.rs` — those
+> modules are deleted by ADR-098 AD-1 PR-C, and the crate itself ultimately
+> dissolves under AD-2. New pack metadata/manifest/validator/test-runner code
+> lives in the product-path crate, `crates/anvil-policy-engine` (`src/pack/`),
+> honouring ADR-040 D-2 validation-before-load at the facade boundary.
+> Validation targets updated from `-p eddacraft-anvil-policy` to
+> `-p eddacraft-anvil-policy-engine` accordingly.
 
 > **Policy-solution validation (2026-06-24):** POLVAL should validate packs for
 > the Rust/regorus policy path. Structural pack checks live in
@@ -73,48 +82,48 @@ before gate evaluation so policies do not fail silently.
 
 - **Intent:** Define required metadata fields for each policy and pack
 - **Expected Outcome:** Schema validates metadata and provides clear errors
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/pack/`
 - **Non-scope:** Policy execution logic
 - **Files:**
-  - `crates/anvil-policy/src/library.rs` (or new `metadata.rs`, including `#[cfg(test)]` unit tests)
+  - `crates/anvil-policy-engine/src/pack/metadata.rs` (new file, including `#[cfg(test)]` unit tests)
 - **Dependencies:** —
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_metadata`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_metadata`
 - **Confidence:** high
 
 ### POLVAL-002: Policy pack manifest loader
 
 - **Intent:** Standardise policy pack manifests and load them consistently
 - **Expected Outcome:** Pack metadata is parsed and attached to policy sets
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/pack/`
 - **Non-scope:** Validation rules
 - **Files:**
-  - `crates/anvil-policy/src/loader.rs` (extends manifest loader, including `#[cfg(test)]` unit tests)
+  - `crates/anvil-policy-engine/src/pack/manifest.rs` (new file — does NOT extend the doomed OPA-era `loader.rs`; including `#[cfg(test)]` unit tests)
 - **Dependencies:** POLVAL-001
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_pack_manifest`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_pack_manifest`
 - **Confidence:** high
 
 ### POLVAL-003: Policy pack validator
 
 - **Intent:** Validate pack structure, metadata completeness, and uniqueness
 - **Expected Outcome:** Validator returns issues with severity and guidance
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/pack/`
 - **Non-scope:** OPA execution
 - **Files:**
-  - `crates/anvil-policy/src/validator.rs` (new file, including `#[cfg(test)]` unit tests)
+  - `crates/anvil-policy-engine/src/pack/validator.rs` (new file, including `#[cfg(test)]` unit tests)
 - **Dependencies:** POLVAL-002
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_pack_validator`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_pack_validator`
 - **Confidence:** high
 
 ### POLVAL-004: Policy test enforcement
 
 - **Intent:** Require policy packs to include tests and pass validation
 - **Expected Outcome:** Missing or failing tests block pack validation
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/pack/`
 - **Non-scope:** Test authoring guidance
 - **Files:**
-  - `crates/anvil-policy/src/test_runner.rs` (new file, including `#[cfg(test)]` unit tests)
+  - `crates/anvil-policy-engine/src/pack/test_runner.rs` (new file — runs pack `*_test.rego` through the regorus facade, closing the gap that only Go OPA could execute pack tests; including `#[cfg(test)]` unit tests)
 - **Dependencies:** POLVAL-003
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_test_runner`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_test_runner`
 - **Confidence:** high
 
 ### POLVAL-005: CLI and gate integration
@@ -124,8 +133,8 @@ before gate evaluation so policies do not fail silently.
 - **Scope:** `crates/anvil-cli/src/commands/`, `crates/anvil-policy/src/`
 - **Non-scope:** IDE integration
 - **Files:**
-  - `crates/anvil-cli/src/commands/policy.rs` (validate subcommand, including colocated tests)
-  - `crates/anvil-policy/src/validator.rs` (gate preflight hooks)
+  - `crates/anvil-cli/src/commands/policy/` (replaces the `validate` stub that punts to `opa check`, including colocated tests)
+  - `crates/anvil-policy-engine/src/pack/validator.rs` (gate preflight hooks)
   - `docs/guides/policy-validation.md`
 - **Dependencies:** POLVAL-004
 - **Validation:** `cargo test -p eddacraft-anvil -- policy_validate`
