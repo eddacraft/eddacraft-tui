@@ -172,14 +172,18 @@ pub fn open_contained_ro_handle(resolved: &Path, workspace_root: &Path) -> Resul
 /// The contract is deliberately narrow: `resolved` MUST be the canonical
 /// path returned by a prior `canonicalize()` + `starts_with(workspace_root)`
 /// check (so its final component is a real file, never a symlink, at check
-/// time). Callers MUST then perform BOTH the read and any write through the
-/// returned handle (`rewind` + `set_len(0)` + `write_all`). Because a single
-/// open handle is pinned to one inode/file object for its whole lifetime, no
-/// path is re-resolved between the read and the write, so an attacker who
-/// swaps the target for a symlink in that window cannot redirect the write —
-/// it lands on the originally-opened inode (see the handle-pinning test).
-/// This wide read→write window is closed on **every** platform, including
-/// Windows, purely by handle-pinning.
+/// time). Callers MUST perform every filesystem operation on the target
+/// through a handle from this opener, never by re-touching the path string.
+/// Both access shapes do this: `anvil_suppress` reads and writes through one
+/// read-write handle, while `anvil_fix` reads through a read-only handle and,
+/// only if a change is needed, escalates to a second, independently-hardened
+/// read-write open (each open re-verifies containment, so the escalation adds
+/// no window). Because a single open handle is pinned to one inode/file object
+/// for its whole lifetime, no path is re-resolved between the read and the
+/// write within a handle, so an attacker who swaps the target for a symlink in
+/// that window cannot redirect the write — it lands on the originally-opened
+/// inode (see the handle-pinning test). This wide read→write window is closed
+/// on **every** platform, including Windows, purely by handle-pinning.
 ///
 /// The only residual is the *narrow* canonicalise→open window, where an
 /// attacker could swap a path component before we open. Per-platform status:
