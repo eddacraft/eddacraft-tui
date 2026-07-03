@@ -20,9 +20,9 @@
 > the latest promoted release: it is a Windows daemon-ensure hotfix cut for
 > smoke testing (ACTMO's Windows daemon-ensure chain, [#2937](https://github.com/eddacraft/anvil-001/issues/2937)),
 > deliberately not promoted as a headline window — so "latest" above
-> intentionally points at the older tag. Confirmed 2026-07-02 via the GitHub
-> API: `v0.8.2-beta` is `prerelease: true` and `GET /releases/latest` resolves
-> to `v0.8.1-beta`. The next window is **`v0.9.0-beta`** ("The Assistant-Facing
+> intentionally points at the older tag. `v0.8.2-beta` is marked as a GitHub
+> prerelease and was cut for Windows smoke testing, not as a promoted window. The
+> next window is **`v0.9.0-beta`** ("The Assistant-Facing
 > Graph", scoping in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)): ADR-075 defers
 > the assistant graph product — GCTX + multi-graph registry — and persistence
 > (ADR-061 Sub-phase B warm-start) to it. See
