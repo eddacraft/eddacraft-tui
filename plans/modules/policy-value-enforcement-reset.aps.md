@@ -222,7 +222,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-010: Enterprise policy backlog reset
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-04 via PR #3134
 - **Intent:** Reclassify hierarchy, lifecycle, reporting, federation, compliance,
   and agent-governance modules as post-first-slice expansion until their
   prerequisites are real.

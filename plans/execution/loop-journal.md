@@ -438,3 +438,35 @@ never with feature work.
 - Next: stop — GHCLIAUTH is fully dispositioned (11/11 Complete). The
   only follow-on is operational, not plan work: cut the next CLI tag so
   release-channel users receive the device-flow login.
+
+## Cycle — 2026-07-04 (POLRESET-001)
+
+- Item: POLRESET-001 — Policy value and enforcement design gate
+- Outcome: done (Merged via PR #3121)
+- Validation: `pnpm adr:check` 99/99 clean; `pnpm aps:active-lint` 108 clean;
+  `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary` 7/7
+  (two new guards: policy crates forbidden on the daemon + CLI positive
+  control). Planning council `plan-18c47503` converged (3 negotiations, all
+  consensus); Phase-4 review 2 approvals, 3 objections fixed.
+- Review: council + operator ratified every gate question; ADR-098 Accepted.
+- Plan changes: ADR-098 landed (renumbered 097→098 after a numbering race
+  with a sibling ADR mid-flight); ADR-015 ratified Proposed→Accepted;
+  POLRESET-002/003/004/010 → Ready; POLRESET-005/007 phantom validation
+  commands fixed; OPA test-file deletions (PR-A) rode the gate PR.
+- Checkpoints raised: none (operator answered all gates interactively).
+- Discoveries: `anvil gate check policy` is still the Go OPA subprocess with
+  no regorus backing (live wiring, dormant config) — replacement is OPAE-003
+  PR-B. CIB-150's non-anvil-peer test is flaky under dynamic /proc exe
+  aliasing — fixed via PR #3132, tracked in issue #3130.
+- Next: POLRESET-010.
+
+## Cycle — 2026-07-04 (POLRESET-010)
+
+- Item: POLRESET-010 — Enterprise policy backlog reset
+- Outcome: done (PR #3134)
+- Validation: `pnpm aps:active-lint` 108 clean; `pnpm aps:index:check` clean.
+- Review: docs-only reclassification under accepted ADR-098 AD-7 (fast path).
+- Plan changes: reset-posture notes on ORGHIER/POLLC/COMPLY/POLFED/CPACKS
+  (expansion scope)/OPAG/AGOV/ACTAX; ORGHIER priority high→low.
+- Checkpoints raised: none.
+- Next: POLRESET-003 (OPAE reconcile), then POLRESET-002 (POLVAL first wave).
