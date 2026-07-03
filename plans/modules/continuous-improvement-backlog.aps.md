@@ -4472,30 +4472,16 @@ archive.
 
 ### CIB-164: Make the `verify:` block honest about active layers
 
-- **Status:** In Progress
-- **Intent:** The first-run `verify:` block over-claims on three axes:
-  "L3/L4 commit + push hooks" is gated only on `.git` existing
-  (`start.rs:412`) while `install_activation_hooks_silent` discards per-hook
-  results (`hooks.rs:863-864`) — on shipped 0.8.2-beta the claim printed with
-  an empty `.git/hooks/`; "L0 mcp pre-write" is listed under "active layers"
-  at `ready_restart_required` (`start.rs:868-869`), where it is wired but
-  explicitly not attached; and on all-languages-unsupported repos the `.ts`
-  smoke recipe plus "Next: run `anvil watch`" contradict the `unsupported`
-  verdict two lines up.
-- **Expected Outcome:** The hooks line prints only when the hook install
-  actually succeeded; wired-but-not-live MCP is labelled as pending rather
-  than active (or the section is renamed to "layers"); the recipe and
-  watch-next line are suppressed or reworded when the diagnostic is
-  `unsupported`.
-- **Files:** `crates/anvil-cli/src/commands/start.rs`,
-  `crates/anvil-cli/src/commands/hooks.rs`.
-- **Validation:** `cargo test -p eddacraft-anvil start` (extend the pinned
-  `first_run_recipe_*` fixtures); manual transcript in a non-hook-installable
-  repo shows no L3/L4 claim.
-- **Identified From:** User-journey pass 2026-07-04 (finding 3); hook
-  over-claim reproduced live on 0.8.2-beta, gate condition confirmed on main.
-- **Confidence:** high — the honesty-contract precedent (daemon line) shows
-  the intended shape.
+- **Status:** Merged 2026-07-04 via PR #3126
+- **Summary:** The first-run `verify:` block no longer over-claims: the L3/L4
+  commit+push hooks line prints only when `install_activation_hooks_silent`
+  actually succeeded (per-hook results are now surfaced, not discarded), the
+  wired-but-unattached L0 mcp pre-write layer is labelled pending rather than
+  active, and the `.ts` smoke recipe plus "Next: run `anvil watch`" are
+  suppressed when the diagnostic verdict is `unsupported`. Fixed in
+  `start.rs`/`hooks.rs` with extended `first_run_recipe_*` fixtures
+  (`crates/anvil-cli/src/activation/orchestrator/{install,mod}.rs`,
+  `commands/start.rs`, `commands/hooks.rs`).
 
 ### CIB-165: Default the GitHub Actions workflow picker to unticked
 
