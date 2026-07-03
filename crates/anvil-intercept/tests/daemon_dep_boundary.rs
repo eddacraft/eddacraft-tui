@@ -131,3 +131,40 @@ fn ast_checks_crate_carries_tree_sitter_rust() {
          contains it:\n{tree}"
     );
 }
+
+/// ADR-097 AD-4: policy evaluation stays off the resident daemon. Slice-1
+/// policy runs on off-daemon surfaces only (MCP pre-write, `anvil gate`, CI);
+/// the sole sanctioned future on-ramp is an ADR-067-style injected trait,
+/// which must arrive via a new ADR and an explicit edit to this list.
+/// `eddacraft-anvil-policy` is a prefix of `eddacraft-anvil-policy-engine`,
+/// so the substring scan covers both crates in one entry.
+const DAEMON_POLICY_FORBIDDEN: &[&str] = &["regorus", "eddacraft-anvil-policy"];
+
+#[test]
+fn daemon_does_not_link_policy_engine() {
+    for package in ["eddacraft-anvil-intercept", "eddacraft-anvil-graph-cache"] {
+        let tree = normal_dep_tree(package);
+        for forbidden in DAEMON_POLICY_FORBIDDEN {
+            assert!(
+                !tree.contains(forbidden),
+                "{package} must not link `{forbidden}` (ADR-097 AD-4: the \
+                 policy engine stays off the resident daemon), but its normal \
+                 dependency tree contains it:\n{tree}"
+            );
+        }
+    }
+}
+
+#[test]
+fn cli_still_links_policy_engine() {
+    // Positive control: the CLI legitimately owns the regorus surface via the
+    // ADR-040 facade. If this regresses, `daemon_does_not_link_policy_engine`
+    // could pass for the wrong reason (regorus dropped from the workspace).
+    let tree = normal_dep_tree("eddacraft-anvil");
+    assert!(
+        tree.contains("eddacraft-anvil-policy-engine") && tree.contains("regorus"),
+        "eddacraft-anvil (the CLI) is expected to link the regorus policy \
+         facade (ADR-040), but its normal dependency tree no longer contains \
+         it:\n{tree}"
+    );
+}
