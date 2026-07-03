@@ -275,8 +275,14 @@ traversal on the hot path.
 - **Confinement mode (opt-in):** an operator may set workspace admission to
   `allowlist` (default `open`). In `allowlist` mode the daemon refuses any
   non-admitted root with a structured `workspace-not-admitted` code and disables
-  first-touch auto-adopt; the primary check-in root is implicitly admitted, the
-  allowlist governs additional roots. The allowlist and mode live in
+  first-touch auto-adopt; ~~the primary check-in root is implicitly admitted, the
+  allowlist governs additional roots~~ **[Amended by
+  [ADR-097](097-allowlist-admits-explicit-entries-only.md) (2026-07-04): the
+  implicit-primary rule was a same-uid confinement bypass (CIB-149) — a
+  connection's "primary" was derived from a client-declared wire value, so a
+  same-uid peer could self-admit any unlisted root by naming it. It is removed;
+  `allowlist` mode now admits only the explicit operator allow entries, and an
+  empty allow list admits nothing (fail-closed).]**. The allowlist and mode live in
   **operator-level** config (under `ANVIL_HOME`/XDG, owner-only) — never in a
   repo's `.anvil.yaml`, so the agent being confined cannot grant itself access —
   and are managed via `anvil workspace allow|deny|list|mode`, supporting exact
