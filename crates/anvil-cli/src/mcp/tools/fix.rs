@@ -21,15 +21,26 @@
 //! Safety contract matches `anvil_suppress`:
 //! - Workspace-relative path required, no `..` or absolute escapes.
 //! - Canonicalised path is re-verified to stay inside the workspace.
-//! - Same-process exclusive lock guards concurrent writes.
+//! - The read goes through a hardened read-only handle
+//!   ([`open_contained_ro_handle`]); only when a change is actually needed
+//!   does the write go through a second, independently-hardened read+write
+//!   handle ([`open_contained_rw_handle`]). Reading read-only keeps a no-op
+//!   fix from needing write permission; each hardened open is containment-
+//!   checked, so a symlink swapped in after the check cannot redirect the
+//!   write (closes the CIB-145 check-then-use / TOCTOU window).
+//! - Cross-process advisory lock (exclusive `create_new` sibling file)
+//!   guards concurrent writers on the same host.
 
 use std::fs::{self, OpenOptions};
-use std::io::Write as _;
+use std::io::{Read as _, Seek as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
+use crate::mcp::tools::shared::{
+    open_contained_ro_handle, open_contained_rw_handle, redact_workspace_root,
+    validate_workspace_root,
+};
 
 pub const TOOL_NAME: &str = "anvil_fix";
 
@@ -136,6 +147,7 @@ fn fix_payload(arguments: &Value) -> Result<Value, String> {
 
     apply_fix(
         &absolute,
+        &workspace_path,
         line,
         warning_id,
         transform,
@@ -335,6 +347,7 @@ fn char_byte_index(bytes: &[char], char_idx: usize) -> usize {
 
 fn apply_fix(
     path: &Path,
+    workspace_path: &Path,
     line_no: i64,
     warning_id: &str,
     transform: (&'static str, LineTransform),
@@ -351,7 +364,19 @@ fn apply_fix(
     ));
     let _lock = AcquiredLock::acquire(&lock_path)?;
 
-    let content = fs::read_to_string(path).map_err(|err| format!("filePath read failed: {err}"))?;
+    // Read through a hardened READ-ONLY handle first. A no-op fix (the
+    // pattern is not present on the target line) must not require write
+    // permission — opening read+write up front would regress a `fixed:false`
+    // result into a permission error on a read-only file. Each hardened open
+    // is independently containment-checked, so escalating to a read+write
+    // open below (only when a change is actually needed) preserves the
+    // check-then-use (TOCTOU) invariant.
+    let mut read_handle = open_contained_ro_handle(path, workspace_path)?;
+    let mut content = String::new();
+    read_handle
+        .read_to_string(&mut content)
+        .map_err(|err| format!("filePath read failed: {err}"))?;
+    drop(read_handle);
     let mut lines: Vec<String> = content.split('\n').map(String::from).collect();
 
     let line_idx =
@@ -378,7 +403,21 @@ fn apply_fix(
     };
 
     lines[line_idx].clone_from(&after);
-    fs::write(path, lines.join("\n")).map_err(|err| format!("filePath write failed: {err}"))?;
+    let new_content = lines.join("\n");
+    // A change is required: open a hardened read+write handle now and write
+    // through it. A read-only target correctly errors here — we genuinely
+    // cannot apply the fix. This second open is independently containment-
+    // checked, so the TOCTOU invariant holds across the read→write boundary.
+    let mut write_handle = open_contained_rw_handle(path, workspace_path)?;
+    write_handle
+        .rewind()
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    write_handle
+        .set_len(0)
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    write_handle
+        .write_all(new_content.as_bytes())
+        .map_err(|err| format!("filePath write failed: {err}"))?;
 
     Ok(json!({
         "fixed": true,
@@ -682,5 +721,109 @@ mod tests {
         let payload: Value =
             serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
         assert!(payload["error"].as_str().unwrap().contains("out of range"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn noop_fix_on_read_only_file_returns_unfixed_not_error() {
+        // Regression: a no-op fix (pattern absent) against a read-only file
+        // must return `fixed:false`, NOT a "Permission denied" error. The
+        // read goes through a read-only handle, so no write permission is
+        // required unless a change is actually applied.
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        // No `: any` on the line -> fixer returns None (no-op).
+        let file = write_fixture(workspace.path(), "src/a.ts", "const x: number = 1;\n");
+        let mut perms = std::fs::metadata(&file).expect("metadata").permissions();
+        perms.set_mode(0o444);
+        std::fs::set_permissions(&file, perms).expect("chmod 444");
+
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "AP-003",
+            "line": 1,
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(
+            result["isError"], false,
+            "no-op on a read-only file must not error"
+        );
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["fixed"], false);
+        assert!(payload["reason"].as_str().unwrap().contains("not found"));
+
+        // The file is untouched.
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("file readable"),
+            "const x: number = 1;\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlink_target_outside_workspace() {
+        // Parity with `anvil_suppress`: a workspace-relative path that resolves
+        // (at check time) to a symlink pointing outside the workspace must be
+        // rejected, not followed. Closes the CIB-145 test-parity gap.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let outside_dir = tempfile::tempdir_in(&cwd).expect("outside dir exists");
+        let outside_file = outside_dir.path().join("secret.txt");
+        std::fs::write(&outside_file, "shh").expect("outside file writes");
+
+        let link = workspace.path().join("escape.ts");
+        std::os::unix::fs::symlink(&outside_file, &link).expect("symlink created");
+
+        let result = call(&json!({
+            "filePath": "escape.ts",
+            "warningId": "AP-003",
+            "line": 1,
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["error"], "filePath resolves outside workspaceRoot");
+
+        // The outside file is untouched.
+        assert_eq!(
+            std::fs::read_to_string(&outside_file).expect("outside file readable"),
+            "shh"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fix_writes_only_the_in_workspace_target() {
+        // Functional guard (NOT a race proof — nothing is swapped here): a
+        // real fix rewrites the in-workspace file and never an unrelated file
+        // outside the workspace. The genuine post-open swap race proof lives
+        // in `shared::handle_write_pins_inode_against_post_open_symlink_swap`.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        write_fixture(workspace.path(), "src/a.ts", "const x: any = 1;\n");
+        let outside_dir = tempfile::tempdir_in(&cwd).expect("outside dir exists");
+        let victim = outside_dir.path().join("victim.txt");
+        std::fs::write(&victim, "DO NOT OVERWRITE").expect("victim writes");
+
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "AP-003",
+            "line": 1,
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], false);
+
+        // The real file was rewritten; the outside victim is untouched.
+        let on_disk =
+            std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+        assert!(on_disk.contains("const x: unknown = 1;"));
+        assert_eq!(
+            std::fs::read_to_string(&victim).expect("victim readable"),
+            "DO NOT OVERWRITE"
+        );
     }
 }

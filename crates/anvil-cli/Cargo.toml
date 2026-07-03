@@ -91,6 +91,11 @@ anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraf
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31", default-features = false, features = ["fs", "user"] }
+# CIB-145: `O_NOFOLLOW` for the symlink-swap-hardened file handle used by the
+# `anvil_fix` / `anvil_suppress` in-place writers. Already unified into the
+# workspace-hack (with `extra_traits`) and present in `Cargo.lock`, so this
+# direct edge adds no new crate.
+libc = "0.2"
 
 [dev-dependencies]
 # CIB-078: schema-stability snapshot pinning the `anvil policy eval` output

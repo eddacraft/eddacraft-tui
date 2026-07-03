@@ -1297,6 +1297,7 @@ dependencies = [
  "kindling-client",
  "kindling-server",
  "kindling-store",
+ "libc",
  "miette",
  "minisign",
  "minisign-verify",

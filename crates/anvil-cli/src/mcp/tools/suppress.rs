@@ -15,24 +15,31 @@
 //! - Validates `filePath` is workspace-relative, rejects `..` escapes
 //!   and absolute paths, canonicalises the joined path, and re-verifies
 //!   it stays inside the workspace (closing the symlink-target escape
-//!   vector that hit the RMCPF-010 reviewer).
+//!   vector that hit the RMCPF-010 reviewer). The subsequent read and
+//!   write both go through a single containment-checked file handle
+//!   ([`open_contained_rw_handle`]), so a symlink swapped in after the
+//!   check cannot redirect the write (CIB-145 check-then-use / TOCTOU
+//!   hardening).
 //! - Sanitises `reason` by replacing `\r\n` characters with a single
 //!   space and trimming, so the inserted comment cannot inject newlines
 //!   into source code.
 //! - Defaults `expiryDays` to 30; clamps to a sane range.
 //! - Inserts `// @anvil-ignore-until YYYY-MM-DD <warningId>: <reason>`
 //!   above the target line, preserving the target line's indent.
-//! - Uses a same-process file lock (atomic create-with-exclusive) to
-//!   prevent two concurrent suppression writes from interleaving.
+//! - Uses a cross-process advisory file lock (atomic create-with-exclusive
+//!   sibling file, same-host) to prevent two concurrent suppression writes
+//!   from interleaving.
 
 use std::fs::{self, OpenOptions};
-use std::io::Write as _;
+use std::io::{Read as _, Seek as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 
 use chrono::{Duration, Utc};
 use serde_json::{Value, json};
 
-use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
+use crate::mcp::tools::shared::{
+    open_contained_rw_handle, redact_workspace_root, validate_workspace_root,
+};
 
 pub const TOOL_NAME: &str = "anvil_suppress";
 
@@ -198,14 +205,16 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
     let absolute = canonicalise_inside_workspace(&workspace_path, file_path)?;
 
     let sanitised_reason = sanitise_reason(reason);
+    let expiry_str = expiry_date(expiry_days)?;
 
-    let expiry = Utc::now()
-        .checked_add_signed(Duration::days(expiry_days))
-        .ok_or_else(|| "expiry date overflow".to_string())?;
-    let expiry_str = expiry.format("%Y-%m-%d").to_string();
-
-    let outcome =
-        insert_suppression_comment(&absolute, line, warning_id, &sanitised_reason, &expiry_str)?;
+    let outcome = insert_suppression_comment(
+        &absolute,
+        &workspace_path,
+        line,
+        warning_id,
+        &sanitised_reason,
+        &expiry_str,
+    )?;
 
     let comment = outcome.comment;
     Ok(json!({
@@ -219,6 +228,15 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
         "backend": "embedded",
         "daemonStatus": "not-wired"
     }))
+}
+
+/// Compute the `YYYY-MM-DD` expiry date `expiry_days` from now, failing
+/// closed on arithmetic overflow rather than silently wrapping.
+fn expiry_date(expiry_days: i64) -> Result<String, String> {
+    let expiry = Utc::now()
+        .checked_add_signed(Duration::days(expiry_days))
+        .ok_or_else(|| "expiry date overflow".to_string())?;
+    Ok(expiry.format("%Y-%m-%d").to_string())
 }
 
 fn sanitise_reason(reason: &str) -> String {
@@ -253,15 +271,17 @@ struct SuppressOutcome {
 /// the target line, so it lines up visually with the warning's source).
 fn insert_suppression_comment(
     path: &Path,
+    workspace_path: &Path,
     line: i64,
     warning_id: &str,
     reason: &str,
     expiry_str: &str,
 ) -> Result<SuppressOutcome, String> {
-    // Same-process exclusive lock via `OpenOptions::create_new`. This is not
-    // a cross-machine flock — but for a same-host MCP server it stops two
-    // concurrent `tools/call` handlers from racing on the same file. The
-    // archived TS tool used the same shape.
+    // Cross-process advisory lock via `OpenOptions::create_new` on a sibling
+    // file: any process on this host that respects the lock is excluded, not
+    // just this process. It is not a cross-machine flock — but for a same-host
+    // MCP server it stops two concurrent `tools/call` handlers from racing on
+    // the same file. The archived TS tool used the same shape.
     let lock_path = path.with_extension(format!(
         "{}.lock",
         path.extension()
@@ -270,7 +290,13 @@ fn insert_suppression_comment(
     ));
     let _lock = AcquiredLock::acquire(&lock_path)?;
 
-    let content = fs::read_to_string(path).map_err(|err| format!("filePath read failed: {err}"))?;
+    // Open ONCE and read + write through the same handle so a symlink swapped
+    // in after `canonicalise_inside_workspace` cannot redirect the write.
+    let mut handle = open_contained_rw_handle(path, workspace_path)?;
+    let mut content = String::new();
+    handle
+        .read_to_string(&mut content)
+        .map_err(|err| format!("filePath read failed: {err}"))?;
     let mut lines: Vec<String> = content.split('\n').map(String::from).collect();
 
     let line_idx = usize::try_from(line - 1).map_err(|_| "line must fit in usize".to_string())?;
@@ -290,7 +316,15 @@ fn insert_suppression_comment(
     lines.insert(line_idx, comment.clone());
 
     let new_content = lines.join("\n");
-    fs::write(path, new_content).map_err(|err| format!("filePath write failed: {err}"))?;
+    handle
+        .rewind()
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    handle
+        .set_len(0)
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    handle
+        .write_all(new_content.as_bytes())
+        .map_err(|err| format!("filePath write failed: {err}"))?;
 
     Ok(SuppressOutcome { comment })
 }
@@ -653,5 +687,38 @@ mod tests {
         let payload: Value =
             serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(payload["error"], "filePath resolves outside workspaceRoot");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn suppress_writes_only_the_in_workspace_target() {
+        // Functional guard (NOT a race proof — nothing is swapped here): a
+        // real suppression is inserted into the in-workspace file and never an
+        // unrelated file outside the workspace. The genuine post-open swap
+        // race proof lives in
+        // `shared::handle_write_pins_inode_against_post_open_symlink_swap`.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        write_fixture(workspace.path(), "src/a.ts", "const x: any = 1;\n");
+        let outside_dir = tempfile::tempdir_in(&cwd).expect("outside dir exists");
+        let victim = outside_dir.path().join("victim.txt");
+        std::fs::write(&victim, "DO NOT OVERWRITE").expect("victim writes");
+
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "AP-003",
+            "line": 1,
+            "reason": "blocked",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], false);
+
+        let on_disk =
+            std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+        assert!(on_disk.contains("@anvil-ignore-until"));
+        assert_eq!(
+            std::fs::read_to_string(&victim).expect("victim readable"),
+            "DO NOT OVERWRITE"
+        );
     }
 }
