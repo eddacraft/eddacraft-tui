@@ -115,7 +115,7 @@ describe('createEmailThrottle', () => {
     expect(throttle.consume('target@example.com').limited).toBe(true);
   });
 
-  it('sheds the soonest-to-expire penalty on penalised-store overflow, keeping newer ones', () => {
+  it('sheds the oldest-promoted penalty (FIFO) on penalised-store overflow, keeping newer ones', () => {
     vi.useFakeTimers();
     try {
       // max: 2 → two submissions penalise. maxPenalisedKeys: 2 → the third
@@ -142,7 +142,7 @@ describe('createEmailThrottle', () => {
       vi.advanceTimersByTime(10);
 
       // C overflows the penalised store (size 2 >= maxPenalisedKeys): the
-      // soonest-to-expire / oldest penalty (A) is shed, B and C are kept.
+      // oldest-promoted penalty (A) is shed (FIFO); B and C are kept.
       penalise('c@example.com'); // penalised, resetAt = 60_020
 
       // A was the shed victim — its penalty is gone, so a single fresh

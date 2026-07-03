@@ -176,10 +176,15 @@ export function createEmailThrottle(opts?: EmailThrottleOptions): EmailThrottle 
         active.delete(key);
         if (!penalised.has(key) && penalised.size >= maxPenalisedKeys) {
           // Extreme distributed attack only: >= maxPenalisedKeys DISTINCT
-          // victims penalised at once. Shed the soonest-to-expire penalty
-          // (insertion order ≈ near-expiry) to keep memory bounded. Documented
-          // residual — reaching it requires penalising thousands of distinct
-          // mailboxes simultaneously, not a single-target bomb.
+          // victims penalised at once. Shed the oldest-promoted penalty in
+          // O(1) via Map insertion order (FIFO). This is a memory bound, not a
+          // precise expiry policy: because resetAt is fixed at bucket creation
+          // (not promotion), the oldest-promoted entry is not guaranteed to be
+          // the strict soonest-to-expire when buckets were created at different
+          // times — but it is close, and a true min-resetAt scan would restore
+          // the O(n)-per-insert cost this design removed. Documented residual —
+          // reaching it requires penalising thousands of distinct mailboxes
+          // simultaneously, not a single-target bomb.
           const oldestPenalised = penalised.keys().next().value;
           if (oldestPenalised !== undefined) penalised.delete(oldestPenalised);
         }
