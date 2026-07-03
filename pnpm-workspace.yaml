@@ -53,7 +53,7 @@ overrides:
   'undici': '>=7.24.0'
   'yauzl': '>=3.2.1'
   'diff': '^4.0.4'
-  'markdown-it': '^14.1.1'
+  'markdown-it': '^14.2.0'
   '@isaacs/brace-expansion': '^5.0.1'
   'cross-spawn': '^7.0.6'
   '@eddacraft/kindling-core': '0.1.2'
