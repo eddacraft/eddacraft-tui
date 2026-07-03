@@ -1231,7 +1231,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `idna_adapter` | 1.2.2 | MIT License | https://github.com/hsivonen/idna_adapter |
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
 | `ipnet` | 2.12.0 | MIT License | https://github.com/krisprice/ipnet |
-| `rand` | 0.10.1 | MIT License | https://github.com/rust-random/rand |
+| `rand` | 0.10.2 | MIT License | https://github.com/rust-random/rand |
 | `zerocopy-derive` | 0.8.52 | MIT License | https://github.com/google/zerocopy |
 | `zerocopy` | 0.8.52 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
