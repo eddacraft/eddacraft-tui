@@ -4612,7 +4612,7 @@ archive.
 
 ### CIB-170: Make showcase findings unmistakably examples in discovery
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** On a clean repo the discovery surface substitutes curated fake
   findings distinguished only by an inline `[Example]` title prefix
   (`showcase.rs:18-64`); `discovery_render.rs` has no showcase special-casing,

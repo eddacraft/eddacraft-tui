@@ -100,6 +100,12 @@ pub struct ScanResults {
     /// `ANVIL_SCAN_ALL` is set, because neither case can be honestly
     /// attributed to gitignore.
     pub files_skipped_by_ignore: usize,
+    /// CIB-170: true when these findings are curated showcase examples
+    /// substituted for a clean-repo (or scan-failure) result, not real
+    /// findings from the user's code. Drives a distinct "Example findings"
+    /// banner and per-row badge so a user never mistakes the demo secret at
+    /// `src/services/auth.rs:42` for a real leak in their own repo.
+    pub is_showcase: bool,
 }
 
 impl ScanResults {
@@ -147,6 +153,7 @@ impl ScanResults {
             duration_ms: self.duration_ms,
             truncated: self.truncated,
             files_skipped_by_ignore: self.files_skipped_by_ignore,
+            is_showcase: self.is_showcase,
         }
     }
 }
@@ -405,6 +412,7 @@ mod tests {
             duration_ms: 500,
             truncated: false,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         }
     }
 
@@ -849,6 +857,7 @@ mod tests {
             duration_ms: 300,
             truncated: false,
             files_skipped_by_ignore: 3,
+            is_showcase: true,
         }
     }
 
@@ -869,9 +878,14 @@ mod tests {
     fn filter_by_domain_preserves_files_skipped_by_ignore() {
         // SCAN-004: provenance must survive domain filtering — the skipped
         // count is a property of the scan, not of the findings subset.
+        // CIB-170: the showcase flag is likewise a property of the scan
+        // substitution, not the findings subset, so it must survive too —
+        // otherwise a domain-filtered showcase view would drop the "Example"
+        // framing and look like real findings.
         let results = make_mixed_findings();
         let filtered = results.filter_by_domain(TutorialPath::Architecture);
         assert_eq!(filtered.files_skipped_by_ignore, 3);
+        assert!(filtered.is_showcase);
     }
 
     #[test]

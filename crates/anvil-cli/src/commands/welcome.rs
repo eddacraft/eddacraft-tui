@@ -384,6 +384,10 @@ fn run_discovery(
                 // swap in showcase findings — the skipped files were still
                 // skipped, and hiding that would defeat SCAN-004.
                 files_skipped_by_ignore: results.files_skipped_by_ignore,
+                // CIB-170: mark the substituted findings as showcase examples
+                // so discovery renders the "Example findings" banner/badge and
+                // the user cannot mistake the demo secret for a real leak.
+                is_showcase: true,
             }
         }
         Ok(results) => results,
@@ -399,6 +403,8 @@ fn run_discovery(
                 duration_ms: 0,
                 truncated: false,
                 files_skipped_by_ignore: 0,
+                // CIB-170: scan-failure fallback is also showcase data.
+                is_showcase: true,
             }
         }
     };
@@ -903,6 +909,7 @@ fn scan_project_at(
         duration_ms,
         truncated,
         files_skipped_by_ignore,
+        is_showcase: false,
     }
 }
 

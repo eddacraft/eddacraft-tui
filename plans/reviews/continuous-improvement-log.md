@@ -1852,6 +1852,12 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Standalone `anvil init` can't be transcript-checked on this box — it hits the auth gate ("Authentication required"), whereas the read-only `anvil start` activation posture does not; the byte-identical standalone copy is proven by unit test instead of a live transcript.
 - **Improvement:** When suppressing one line of a shared render helper, an invocation enum threaded to the leaf beats a bool flag — it self-documents at every call site and a `starts_with` test cheaply pins "the two paths differ only by the suppressed tail".
 - **Follow-up:** CIB-166 (one next-step arbiter per `anvil start` ending) still owns reconciling the diagnostic `next:` and closing `Next:` lines; this change only removes init's competing line.
+- **Task:** CIB-170 — make clean-repo showcase findings unmistakably examples so a user cannot mistake the demo secret at `src/services/auth.rs:42` for a real leak.
+- **Outcome:** Added `is_showcase: bool` to `ScanResults` (preserved through `filter_by_domain`, defaulted false at every construction site, `true` at both `welcome.rs` showcase fallbacks); `render_findings_list` now swaps the panel title for an "Example findings — your scan found no issues" banner and prefixes each row with a distinct reversed `EXAMPLE` badge when the flag is set. Real-scan renders are unchanged. TDD: two new `discovery_render` tests (showcase framing present, real-scan framing absent) plus an extended `filter_by_domain` preservation assertion; proved red before implementing.
+- **Friction:** Crate package name is `eddacraft-anvil-tui`, not the plan's `-p anvil-tui`; the em-dash banner (~44 cols) clips the 50% left panel at 80 cols, so the render test uses a 140-col backend.
+- **Improvement:** Keep the `[Example]` title prefix in `showcase.rs` untouched — belt-and-braces copy robustness independent of the render-layer banner.
+- **Follow-up:** CIB-171 also edits `welcome.rs` (navigation/init-summary, different region) — sequence merges to avoid a conflict.
+
 
 ### 2026-07-04 — claude
 

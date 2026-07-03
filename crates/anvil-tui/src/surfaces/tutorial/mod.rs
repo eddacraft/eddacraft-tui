@@ -1388,6 +1388,7 @@ mod tests {
             duration_ms: 250,
             truncated: false,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         }
     }
 

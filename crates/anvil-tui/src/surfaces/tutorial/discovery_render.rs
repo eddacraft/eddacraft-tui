@@ -101,7 +101,14 @@ fn render_results(
     let panels =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
 
-    render_findings_list(frame, panels[0], &sorted, selected, theme);
+    render_findings_list(
+        frame,
+        panels[0],
+        &sorted,
+        selected,
+        results.is_showcase,
+        theme,
+    );
     render_finding_detail(frame, panels[1], &sorted, selected, results, theme);
 }
 
@@ -110,10 +117,17 @@ fn render_findings_list(
     area: Rect,
     sorted: &[&super::discovery::Finding],
     selected: usize,
+    is_showcase: bool,
     theme: &EddaCraftTheme,
 ) {
     let total = sorted.len();
-    let list_title = if total == 0 {
+    // CIB-170: when the findings are curated showcase examples (clean-repo or
+    // scan-failure fallback), replace the neutral "Findings" title with an
+    // unmistakable banner so the user cannot mistake the demo secret for a
+    // real leak in their own code.
+    let list_title = if is_showcase {
+        " Example findings — your scan found no issues ".to_string()
+    } else if total == 0 {
         " Findings ".to_string()
     } else {
         format!(" Findings ({}/{total}) ", selected + 1)
@@ -156,31 +170,50 @@ fn render_findings_list(
 
             let indicator = if is_selected { ">> " } else { "   " };
 
+            // CIB-170: prefix each showcase row with a distinct EXAMPLE badge so
+            // the example framing survives even if the panel title scrolls off or
+            // a row is copied out of context. Styled with the accent colour and
+            // reversed so it reads clearly as a label rather than a finding.
+            let example_badge = if is_showcase {
+                Some(Span::styled(
+                    "EXAMPLE ",
+                    Style::default()
+                        .fg(theme.accent())
+                        .add_modifier(Modifier::BOLD | Modifier::REVERSED),
+                ))
+            } else {
+                None
+            };
+
             if is_selected {
-                Line::from(vec![
-                    Span::styled(
-                        indicator,
-                        Style::default()
-                            .fg(theme.accent())
-                            .add_modifier(Modifier::BOLD),
-                    ),
+                let mut spans = vec![Span::styled(
+                    indicator,
+                    Style::default()
+                        .fg(theme.accent())
+                        .add_modifier(Modifier::BOLD),
+                )];
+                spans.extend(example_badge);
+                spans.extend([
                     Span::styled(format!("{badge:<5} "), badge_style),
                     Span::styled(format!("{location}  "), theme.highlighted()),
                     Span::styled(&f.title, theme.highlighted()),
-                ])
+                ]);
+                Line::from(spans)
             } else {
                 let loc_style = match f.severity {
                     FindingSeverity::Error => Style::default().fg(theme.error()),
                     FindingSeverity::Warning => Style::default().fg(theme.warning()),
                     FindingSeverity::Info => Style::default().fg(theme.muted()),
                 };
-                Line::from(vec![
-                    Span::styled(indicator, Style::default()),
+                let mut spans = vec![Span::styled(indicator, Style::default())];
+                spans.extend(example_badge);
+                spans.extend([
                     Span::styled(format!("{badge:<5} "), badge_style),
                     Span::styled(location, loc_style),
                     Span::styled("  ", Style::default()),
                     Span::styled(f.title.clone(), Style::default().fg(theme.fg())),
-                ])
+                ]);
+                Line::from(spans)
             }
         })
         .collect();
@@ -451,6 +484,7 @@ mod tests {
             duration_ms: 3200,
             truncated: false,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         let theme = EddaCraftTheme;
 
@@ -483,6 +517,7 @@ mod tests {
             duration_ms: 1500,
             truncated: false,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         // Advance to continue phase
         state.handle_key(Action::Select);
@@ -504,6 +539,7 @@ mod tests {
             duration_ms: 1500,
             truncated: true,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -544,6 +580,7 @@ mod tests {
             duration_ms: 900,
             truncated: false,
             files_skipped_by_ignore: 7,
+            is_showcase: false,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -580,6 +617,7 @@ mod tests {
             duration_ms: 900,
             truncated: false,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -630,6 +668,7 @@ mod tests {
             duration_ms: 1500,
             truncated: true,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         let theme = EddaCraftTheme;
 
@@ -669,6 +708,7 @@ mod tests {
             duration_ms: 1500,
             truncated: true,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -706,6 +746,7 @@ mod tests {
             duration_ms: 500,
             truncated: true,
             files_skipped_by_ignore: 0,
+            is_showcase: false,
         });
         state.handle_key(Action::Select);
         let theme = EddaCraftTheme;
@@ -763,6 +804,77 @@ mod tests {
             .map(ratatui::buffer::Cell::symbol)
             .collect();
         assert_ne!(s0, s1, "spinner should visually change between ticks");
+    }
+
+    fn render_showcase_results(is_showcase: bool) -> String {
+        // Wide backend so the left findings panel (50%) has room for the full
+        // "Example findings — your scan found no issues" banner title without
+        // clipping.
+        let backend = TestBackend::new(140, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: vec![
+                make_finding(FindingSeverity::Error, "Hard-coded API key detected"),
+                make_finding(FindingSeverity::Warning, "Broad exception swallow"),
+            ],
+            files_scanned: 0,
+            duration_ms: 0,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase,
+        });
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect()
+    }
+
+    #[test]
+    fn showcase_results_render_example_banner_and_badges() {
+        // CIB-170: on a clean repo discovery substitutes curated fake findings.
+        // They must be unmistakably examples — a banner in the list title and a
+        // distinct per-row "Example" badge — so the user never believes the demo
+        // secret is a real leak in their own code.
+        let rendered = render_showcase_results(true);
+        assert!(
+            rendered.contains("Example findings"),
+            "showcase list title should read `Example findings`: {rendered}"
+        );
+        assert!(
+            rendered.contains("your scan found no issues"),
+            "showcase banner should reassure the scan found no real issues: {rendered}"
+        );
+        assert!(
+            rendered.contains("EXAMPLE"),
+            "each showcase row should carry a distinct EXAMPLE badge: {rendered}"
+        );
+    }
+
+    #[test]
+    fn real_scan_results_have_no_example_framing() {
+        // The showcase framing must never leak into a real-scan render — a
+        // genuine finding at a real path must not be labelled an example.
+        let rendered = render_showcase_results(false);
+        assert!(
+            !rendered.contains("Example findings"),
+            "real-scan render must not show the showcase banner: {rendered}"
+        );
+        assert!(
+            !rendered.contains("EXAMPLE"),
+            "real-scan rows must not carry the EXAMPLE badge: {rendered}"
+        );
+        assert!(
+            rendered.contains("Findings"),
+            "real-scan list title should still read `Findings`: {rendered}"
+        );
     }
 
     #[test]
