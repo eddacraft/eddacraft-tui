@@ -45,16 +45,35 @@ impl Default for AnvilConfig {
     }
 }
 
+/// Who is running init, which decides whether init owns its closing next-step
+/// line. Standalone `anvil init` names the single next step (`anvil start`);
+/// init composed inside the activation orchestrator suppresses that line so the
+/// activation ending owns the one next step instead of telling the user to run
+/// the command they just ran (CIB-163, UJ-001 one-next-step intent).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum InitInvocation {
+    /// Direct `anvil init` — keeps the "Next: run `anvil start`" line.
+    Standalone,
+    /// Init run inline by `anvil start`'s orchestrator — drops the next-step
+    /// line; the activation ending owns it.
+    FromStart,
+}
+
 pub fn run(args: &InitArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let root = PathBuf::from(".");
-    run_in(args, global, &root)
+    run_in(args, global, &root, InitInvocation::Standalone)
 }
 
 /// Run the init flow against a specific root. Public to the crate so
 /// `activation::orchestrator` (LAUNCH-006) can compose init without going
 /// through the process-CWD-bound `run` entrypoint, which makes the
 /// orchestration unit-testable against a temp dir.
-pub(crate) fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<()> {
+pub(crate) fn run_in(
+    args: &InitArgs,
+    global: &GlobalArgs,
+    root: &Path,
+    invocation: InitInvocation,
+) -> anyhow::Result<()> {
     // DISTRIB-006 (ADR-060): `anvil init` (and the onboarding flow that composes
     // it) seeds `.anvilrc` + `.anvil/` — durable per-project config the production
     // binary reads. Refuse under a non-default ANVIL_HOME without
@@ -91,15 +110,15 @@ pub(crate) fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyho
         let json = serde_json::to_string_pretty(&config)?;
         println!("{json}");
     } else if global.no_tui || !std::io::stdout().is_terminal() {
-        run_plain(root, args.force)?;
+        run_plain(root, args.force, invocation)?;
     } else {
-        run_tui(root, args.force)?;
+        run_tui(root, args.force, invocation)?;
     }
 
     Ok(())
 }
 
-fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
+fn run_tui(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Result<()> {
     let available = default_available_checks();
     let state = InitState::new(available);
     let state = crate::tui::run_surface(state)?;
@@ -132,16 +151,16 @@ fn run_tui(root: &Path, force: bool) -> anyhow::Result<()> {
     };
 
     generate_config_with_force(&config, &init_root, force)?;
-    print_success(&config.planning_dir, &checks);
+    print_success(&config.planning_dir, &checks, invocation);
     print_capacity_recommendation(&init_root);
     print_post_init_analysis(&init_root);
     Ok(())
 }
 
-fn run_plain(root: &Path, force: bool) -> anyhow::Result<()> {
+fn run_plain(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Result<()> {
     let config = AnvilConfig::default();
     generate_config_with_force(&config, root, force)?;
-    print_success(&config.planning_dir, &config.checks);
+    print_success(&config.planning_dir, &config.checks, invocation);
     print_capacity_recommendation(root);
     print_post_init_analysis(root);
     Ok(())
@@ -431,13 +450,16 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
     Ok(true)
 }
 
-fn print_success(planning_dir: &str, checks: &[String]) {
-    print!("{}", success_message(planning_dir, checks));
+fn print_success(planning_dir: &str, checks: &[String], invocation: InitInvocation) {
+    print!("{}", success_message(planning_dir, checks, invocation));
 }
 
-/// The init closing block. Ends with a single next-step line (UJ-001) so the
-/// onboarding path never dead-ends.
-fn success_message(planning_dir: &str, checks: &[String]) -> String {
+/// The init closing block. Standalone `anvil init` ends with a single next-step
+/// line (UJ-001) so the onboarding path never dead-ends; init composed inside
+/// `anvil start` drops that line, because the activation ending owns the one
+/// next step and telling the user to run `anvil start` — the command they just
+/// ran — is misdirection (CIB-163).
+fn success_message(planning_dir: &str, checks: &[String], invocation: InitInvocation) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out);
@@ -445,8 +467,10 @@ fn success_message(planning_dir: &str, checks: &[String]) -> String {
     let _ = writeln!(out, "  Config:    .anvilrc");
     let _ = writeln!(out, "  Plans:     {planning_dir}/");
     let _ = writeln!(out, "  Checks:    {}", checks.join(", "));
-    let _ = writeln!(out);
-    let _ = writeln!(out, "  Next: run `anvil start` to activate protection.");
+    if invocation == InitInvocation::Standalone {
+        let _ = writeln!(out);
+        let _ = writeln!(out, "  Next: run `anvil start` to activate protection.");
+    }
     out
 }
 
@@ -497,10 +521,14 @@ mod tests {
         }
     }
 
-    // UJ-001: the init ending must name the single next step.
+    // UJ-001: the standalone init ending must name the single next step.
     #[test]
     fn init_success_names_anvil_start_as_next_step() {
-        let msg = success_message("plans", &["secret-detection".to_string()]);
+        let msg = success_message(
+            "plans",
+            &["secret-detection".to_string()],
+            InitInvocation::Standalone,
+        );
         let next = msg
             .lines()
             .find(|l| l.contains("Next:"))
@@ -509,6 +537,48 @@ mod tests {
             next.contains("anvil start"),
             "the init next step is `anvil start`, got: {next}",
         );
+    }
+
+    // CIB-163: init composed inside `anvil start` must not tell the user to run
+    // `anvil start` — the command they just ran. The activation ending owns the
+    // single next step (UJ-001), so init's closing next-step line is suppressed
+    // on the `FromStart` path while the standalone path is unchanged.
+    #[test]
+    fn init_from_start_suppresses_anvil_start_next_step() {
+        let msg = success_message(
+            "plans",
+            &["secret-detection".to_string()],
+            InitInvocation::FromStart,
+        );
+        assert!(
+            !msg.contains("Next:"),
+            "init run inline by `anvil start` must not print a next-step line (CIB-163):\n{msg}"
+        );
+        assert!(
+            !msg.contains("anvil start"),
+            "init run inline by `anvil start` must not instruct the user to run \
+             `anvil start` (CIB-163):\n{msg}"
+        );
+        // The rest of the success block (still-useful context) is unchanged.
+        assert!(
+            msg.contains("anvil initialised successfully."),
+            "the success confirmation is still printed on the FromStart path:\n{msg}"
+        );
+    }
+
+    // The standalone path stays byte-for-byte what it was: same content plus the
+    // next-step line the FromStart path drops.
+    #[test]
+    fn standalone_and_from_start_differ_only_by_next_step_line() {
+        let checks = ["secret-detection".to_string()];
+        let standalone = success_message("plans", &checks, InitInvocation::Standalone);
+        let from_start = success_message("plans", &checks, InitInvocation::FromStart);
+        assert!(
+            standalone.starts_with(&from_start),
+            "standalone output is the FromStart output plus a trailing next-step block:\n\
+             standalone:\n{standalone}\nfrom_start:\n{from_start}"
+        );
+        assert!(standalone.len() > from_start.len());
     }
 
     #[test]
@@ -522,7 +592,7 @@ mod tests {
     #[test]
     fn init_gitignores_anvil_runtime_tree_wholesale() {
         let dir = tempfile::tempdir().unwrap();
-        run_plain(dir.path(), false).expect("init");
+        run_plain(dir.path(), false, InitInvocation::Standalone).expect("init");
         let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(
             gi.lines().any(|l| l.trim() == ".anvil/"),
@@ -579,7 +649,7 @@ mod tests {
     #[test]
     fn seeds_gate_summary_dashboard() {
         let dir = tempfile::tempdir().unwrap();
-        run_plain(dir.path(), false).expect("init");
+        run_plain(dir.path(), false, InitInvocation::Standalone).expect("init");
         let spec = dir
             .path()
             .join(".anvil/dashboards/gate-summary.dashboard.json");
@@ -616,7 +686,7 @@ mod tests {
     fn creates_anvilrc_and_anvil_dir() {
         let dir = tempfile::tempdir().unwrap();
 
-        let result = run_plain(dir.path(), false);
+        let result = run_plain(dir.path(), false, InitInvocation::Standalone);
 
         assert!(result.is_ok());
         assert!(dir.path().join(".anvilrc").exists());
@@ -644,7 +714,7 @@ mod tests {
 
         let args = InitArgs { force: false };
         let global = no_tui_global();
-        let result = run_in(&args, &global, dir.path());
+        let result = run_in(&args, &global, dir.path(), InitInvocation::Standalone);
 
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
@@ -658,7 +728,7 @@ mod tests {
 
         let args = InitArgs { force: true };
         let global = no_tui_global();
-        let result = run_in(&args, &global, dir.path());
+        let result = run_in(&args, &global, dir.path(), InitInvocation::Standalone);
         assert!(result.is_ok());
 
         let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();

@@ -4466,7 +4466,7 @@ archive.
 
 ### CIB-163: Stop `anvil start` printing init's "Next: run `anvil start`"
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** When config is absent the orchestrator runs init inline
   (`orchestrator/mod.rs:170-173`) and init's success block ends with "Next:
   run `anvil start` to activate protection." (`init.rs:440-451`) — printed by

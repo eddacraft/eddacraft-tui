@@ -1845,3 +1845,11 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Resolve the real Cargo package name (`grep '^name' Cargo.toml`) before running `-p` commands lifted from a plan; the manifest name and directory name diverge here.
 - **Follow-up:** none
 
+### 2026-07-04 — claude
+
+- **Task:** CIB-163 — stop `anvil start` printing init's "Next: run `anvil start`" line when the orchestrator runs init inline.
+- **Outcome:** Threaded a small `InitInvocation::{Standalone, FromStart}` context from the call sites through `init::run_in → run_plain/run_tui → print_success → success_message`. `FromStart` (the `orchestrator/mod.rs` inline init step) drops the closing next-step line so the activation ending owns the single next step (UJ-001); standalone `anvil init` passes `Standalone` and is byte-for-byte unchanged. TDD: added `init_from_start_suppresses_anvil_start_next_step` (proved red by temporarily removing the conditional) plus `standalone_and_from_start_differ_only_by_next_step_line`, and pinned the existing UJ-001 test to `Standalone`. Fresh-repo `anvil start --no-tui` transcript now contains no "run `anvil start`".
+- **Friction:** Standalone `anvil init` can't be transcript-checked on this box — it hits the auth gate ("Authentication required"), whereas the read-only `anvil start` activation posture does not; the byte-identical standalone copy is proven by unit test instead of a live transcript.
+- **Improvement:** When suppressing one line of a shared render helper, an invocation enum threaded to the leaf beats a bool flag — it self-documents at every call site and a `starts_with` test cheaply pins "the two paths differ only by the suppressed tail".
+- **Follow-up:** CIB-166 (one next-step arbiter per `anvil start` ending) still owns reconciling the diagnostic `next:` and closing `Next:` lines; this change only removes init's competing line.
+

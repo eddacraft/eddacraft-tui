@@ -169,7 +169,12 @@ fn run_with_home_and_registration(
     let initial = verify_with_home(root, home);
     if matches!(initial.config, ConfigStatus::Absent) && !project_writes_gated {
         let args = init::InitArgs { force: false };
-        init::run_in(&args, global, root).context("init step of `anvil start` failed")?;
+        // Init runs inline here as a composition step of `anvil start`; the
+        // activation ending owns the single next step, so init must not print
+        // its own "Next: run `anvil start`" line — that would tell the user to
+        // re-run the command they are already inside (CIB-163).
+        init::run_in(&args, global, root, init::InitInvocation::FromStart)
+            .context("init step of `anvil start` failed")?;
     }
 
     // Step 1a — establish project identity (MLP-001 / A7.2).
