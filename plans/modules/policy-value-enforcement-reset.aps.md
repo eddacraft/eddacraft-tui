@@ -148,8 +148,8 @@ modules named by each `Coordinates with` field.
   workflow, graph, and risk context before enforcement routing is attempted.
 - **Expected Outcome:** CPOL and IORISK provide reusable input contracts for
   policy packs and save-time/pre-write evaluation.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_context` and
-  `cargo test -p eddacraft-anvil-policy -- io_risk_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_context`
+  and `cargo test -p eddacraft-anvil-policy-engine -- io_risk_guidance`
 - **Dependencies:** POLRESET-001
 - **Coordinates with:** CPOL-001..003, IORISK-001..003, ACTAX schema overlap
 - **Confidence:** medium

@@ -4,10 +4,13 @@
 | ---- | ------ | ------ |
 | CPOL | @aneki | Ready  |
 
-**Last reviewed:** 2026-05-25 (APSCAN-010 canonical-heading migration)
+**Last reviewed:** 2026-07-04 (POLRESET-004 retarget under ADR-098).
 
-> NOTE(post-rust): Validation commands updated from `pnpm nx test core` to
-> the Rust workspace equivalents in `crates/anvil-policy`.
+> **Retarget (POLRESET-004 / ADR-098, 2026-07-04):** assertion schema,
+> context adapters, and guidance live in the product-path crate,
+> `crates/anvil-policy-engine` (`src/context/`), alongside `PolicyInput` —
+> not in `crates/anvil-policy`, which dissolves under ADR-098 AD-2.
+> Validation targets updated accordingly.
 >
 > **Policy-solution validation (2026-06-24):** CPOL is still Ready when scoped
 > as deterministic context adapters and assertion guidance over
@@ -32,14 +35,14 @@ richer runtime context while preserving Anvil policy-pack semantics.
 - **Status:** Ready
 - **Intent:** Create a schema for contextual policy assertions.
 - **Expected Outcome:** Assertions support scoped conditions and outcomes.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_schema`
 
 ### CPOL-002: Implement context adapters
 
 - **Status:** Ready
 - **Intent:** Populate assertions with workflow and runtime context.
 - **Expected Outcome:** Assertions evaluate with deterministic context payloads.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_context`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_context`
 - **Dependencies:** CPOL-001
 
 ### CPOL-003: Add assertion guidance outputs
@@ -47,7 +50,7 @@ richer runtime context while preserving Anvil policy-pack semantics.
 - **Status:** Ready
 - **Intent:** Provide actionable failure explanations and fix guidance.
 - **Expected Outcome:** Assertion failures map to remediation-first outputs.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- assertion_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_guidance`
 - **Dependencies:** CPOL-002
 
 ## Execution

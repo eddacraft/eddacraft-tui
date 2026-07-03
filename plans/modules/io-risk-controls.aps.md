@@ -4,11 +4,14 @@
 |----|-------|--------|
 | IORISK | @aneki | Ready |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-04 (POLRESET-004 retarget under ADR-098).
 
-> NOTE(post-rust): Validation commands retargeted to the Rust workspace
-> (`crates/anvil-kernel-types` for taxonomy contracts, `crates/anvil-policy`
-> for scanner pipeline and findings integration).
+> **Retarget (POLRESET-004 / ADR-098, 2026-07-04):** taxonomy contracts stay
+> in `crates/anvil-kernel-types` (pure serde types); the scanner-contract
+> pipeline and guidance integration live in `crates/anvil-policy-engine`
+> (`src/io_risk/`) — not `crates/anvil-policy`, which dissolves under
+> ADR-098 AD-2. First slice ships the provider-agnostic contracts and chain
+> executor; concrete heavyweight scanners are later intake.
 >
 > **Policy-solution validation (2026-06-24):** IORISK remains Ready as a
 > producer/normaliser of findings that feed POLENG result semantics. Rego policy
@@ -36,15 +39,15 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 ### IORISK-002: Implement scanner pipeline
 - **Intent:** Add scanner execution pipeline for pre/post model checks.
 - **Expected Outcome:** Input/output streams are evaluated through pluggable scanner chain.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- io_scanner_pipeline`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- io_scanner_pipeline`
 - **Dependencies:** IORISK-001
 
 ### IORISK-003: Integrate risk findings with policy outputs
 - **Intent:** Map IO findings to policy outcomes and remediation actions.
 - **Expected Outcome:** Findings appear in unified guidance and CI summaries.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- io_risk_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- io_risk_guidance`
 - **Dependencies:** IORISK-002
 
 ## Execution
 
-Steps: [../execution/IORISK.steps.md](../execution/IORISK.steps.md)
+Action plan: [../execution/IORISK.actions.md](../execution/IORISK.actions.md)
