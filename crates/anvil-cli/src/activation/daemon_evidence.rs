@@ -209,38 +209,34 @@ impl SkipReason {
 }
 
 /// Emit the standard "activation: daemon attestation skipped" tracing
-/// event with the right level for `reason`. Post-ship hardening
-/// (council 2026-05-22): the default CLI tracing filter is `warn`, so
-/// `tracing::debug!` skip events were invisible to operators running
-/// `anvil start --verify` without `ANVIL_LOG=debug`. The success path
-/// emits `tracing::info!` (visible at `info`); the asymmetric silence
-/// on the failure paths produced the exact UX defect MLP2-051f was
-/// built to fix. Operator-actionable failures (daemon unreachable /
-/// worktree unenforced / stale heartbeat / all-surfaces quarantined)
-/// now emit at `warn`; transient states (`Warming`,
-/// `NoParticipatingSurface`) at `info`.
+/// event for `reason`, at `info` for every reason.
+///
+/// History: post-ship hardening (council 2026-05-22) promoted the
+/// operator-actionable failure arms (daemon unreachable / worktree
+/// unenforced / stale heartbeat / all-surfaces quarantined) from
+/// `tracing::debug!` up to `tracing::warn!` so an operator running
+/// `anvil start --verify` without `ANVIL_LOG=debug` could see the
+/// skip signal. But the CLI default tracing filter is `warn` and the
+/// subscriber is JSON-format, so those `warn!` events surfaced as raw
+/// `{"timestamp":…,"level":"WARN",…}` JSONL lines mid-flow on the human
+/// activation surface — reading as a crash (CIB-162, user-journey pass
+/// 2026-07-04).
+///
+/// Operator visibility for the skip signal is now owned by the render
+/// layer: `activation::render::daemon_evidence_label` folds every
+/// [`DaemonAttestation`] state (including all four skip reasons) into
+/// the human `daemon:` / `daemon-attestation:` / `meaning:` lines. This
+/// function therefore emits every reason at `info` — below the CLI
+/// default `warn` filter, so the human surface stays clean while the
+/// JSONL still flows to `ANVIL_LOG=info`-driven and file-sink consumers
+/// for support transcripts. Do NOT restore `warn!` here: it re-admits
+/// the raw JSONL onto the default human surface.
 fn emit_skip_event(reason: SkipReason, worktree_claim_state: Option<&'static str>) {
-    let reason_str = reason.as_str();
-    let claim = worktree_claim_state.unwrap_or("");
-    match reason {
-        SkipReason::DaemonUnreachable
-        | SkipReason::WorktreeUnenforced
-        | SkipReason::StaleHeartbeat
-        | SkipReason::AllSurfacesQuarantined => {
-            tracing::warn!(
-                reason = reason_str,
-                worktree_claim_state = claim,
-                "activation: daemon attestation skipped"
-            );
-        }
-        SkipReason::Warming | SkipReason::NoParticipatingSurface => {
-            tracing::info!(
-                reason = reason_str,
-                worktree_claim_state = claim,
-                "activation: daemon attestation skipped"
-            );
-        }
-    }
+    tracing::info!(
+        reason = reason.as_str(),
+        worktree_claim_state = worktree_claim_state.unwrap_or(""),
+        "activation: daemon attestation skipped"
+    );
 }
 
 /// Entry point invoked from [`crate::activation::diagnostic::verify_with_home`]
@@ -622,6 +618,65 @@ mod tests {
         );
         map.insert(McpClientId::Cursor, make_probe(McpTier::RestartRequired));
         map
+    }
+
+    /// CIB-162: every daemon-attestation skip event MUST emit below the
+    /// CLI default `warn` filter (`BinaryKind::Cli::default_filter` ==
+    /// `"warn"`), so the human `anvil start` / `--verify` surface is
+    /// never interrupted by raw JSONL. Operator visibility for the skip
+    /// signal is owned by the render layer (`daemon_evidence_label`),
+    /// not by the tracing warn stream. JSONL still flows to
+    /// `ANVIL_LOG=info`-driven and file-sink consumers. This pins the
+    /// four operator-actionable arms (daemon unreachable / worktree
+    /// unenforced / stale heartbeat / all-surfaces quarantined) — which
+    /// previously emitted at `warn` (council 2026-05-22) — down to
+    /// `info`, alongside the already-`info` transient arms.
+    #[test]
+    fn every_skip_reason_emits_at_or_below_info_not_warn() {
+        use std::sync::{Arc, Mutex};
+
+        use tracing::Level;
+        use tracing::subscriber::with_default;
+        use tracing_subscriber::layer::{Context, Layer};
+        use tracing_subscriber::prelude::*;
+
+        #[derive(Clone, Default)]
+        struct LevelCapture(Arc<Mutex<Vec<Level>>>);
+        impl<S: tracing::Subscriber> Layer<S> for LevelCapture {
+            fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<'_, S>) {
+                self.0
+                    .lock()
+                    .expect("level capture lock")
+                    .push(*event.metadata().level());
+            }
+        }
+
+        for reason in [
+            SkipReason::DaemonUnreachable,
+            SkipReason::WorktreeUnenforced,
+            SkipReason::StaleHeartbeat,
+            SkipReason::AllSurfacesQuarantined,
+            SkipReason::Warming,
+            SkipReason::NoParticipatingSurface,
+        ] {
+            let capture = LevelCapture::default();
+            let subscriber = tracing_subscriber::registry().with(capture.clone());
+            with_default(subscriber, || {
+                emit_skip_event(reason, Some("degraded_protection"));
+            });
+
+            let levels = capture.0.lock().expect("level capture lock").clone();
+            assert_eq!(
+                levels,
+                vec![Level::INFO],
+                "skip reason {reason:?} must emit exactly one INFO event so it stays \
+                 below the CLI default `warn` filter and off the human surface",
+            );
+            assert!(
+                !levels.contains(&Level::WARN),
+                "skip reason {reason:?} must NOT emit at WARN (CIB-162)",
+            );
+        }
     }
 
     #[test]

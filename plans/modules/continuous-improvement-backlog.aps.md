@@ -4438,7 +4438,7 @@ archive.
 
 ### CIB-162: Human-render daemon-attestation skip warnings in `anvil start`
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Every `anvil start` where the daemon does not attest the
   worktree prints one or two raw JSON tracing lines
   (`{"timestamp":…,"level":"WARN",…"activation: daemon attestation

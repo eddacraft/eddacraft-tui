@@ -102,6 +102,10 @@ libc = "0.2"
 # contract (docs/specs/policy-eval-output-v1.md). Test-only.
 insta = { workspace = true }
 temp-env = "0.3"
+# CIB-162: pin the daemon-attestation skip-event emission levels so they
+# stay below the CLI default `warn` filter (the human `anvil start`
+# surface must not be interrupted by raw JSONL). Test-only.
+tracing-subscriber = { workspace = true }
 tempfile = "3"
 wiremock = "0.6"
 which = "8"

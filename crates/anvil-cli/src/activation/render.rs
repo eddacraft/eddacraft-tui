@@ -1062,6 +1062,50 @@ mod tests {
         }
     }
 
+    /// CIB-162: the render layer owns operator visibility for the
+    /// daemon-attestation skip signal — the daemon-evidence tracing
+    /// site now emits every skip reason at `info` (below the CLI
+    /// default `warn` filter), so no raw JSONL reaches the human
+    /// surface. That trade only holds if EVERY [`DaemonAttestation`]
+    /// state has non-empty human copy here. Pin that `daemon_evidence_label`
+    /// never returns an empty string or a bare enum token for any
+    /// variant, so a future variant cannot silently lose its human line.
+    #[test]
+    fn every_daemon_attestation_state_has_human_copy() {
+        use super::super::daemon_evidence::DaemonAttestation;
+        // Exhaustive list — kept in sync with the enum by the match in
+        // `daemon_evidence_label` (compiler-enforced there); listing
+        // them here pins that each renders human prose.
+        for att in [
+            DaemonAttestation::NotProbed,
+            DaemonAttestation::Unreachable,
+            DaemonAttestation::Unenforced,
+            DaemonAttestation::StaleHeartbeat,
+            DaemonAttestation::AllSurfacesQuarantined,
+            DaemonAttestation::Warming,
+            DaemonAttestation::NoParticipatingSurface,
+            DaemonAttestation::Enforced,
+            DaemonAttestation::Promoted,
+        ] {
+            let label = daemon_evidence_label(att);
+            assert!(
+                !label.is_empty(),
+                "{att:?} must have non-empty human copy on the render layer"
+            );
+            // Human prose, never the raw `{:?}` enum token (which is a
+            // single CamelCase word with no spaces).
+            assert_ne!(
+                label,
+                format!("{att:?}"),
+                "{att:?} must render human copy, not the raw enum token"
+            );
+            assert!(
+                label.contains(' '),
+                "{att:?} human copy must be prose (contains a space), got: {label:?}"
+            );
+        }
+    }
+
     fn handshake_verified_diag(
         attestation: super::super::daemon_evidence::DaemonAttestation,
     ) -> ActivationDiagnostic {

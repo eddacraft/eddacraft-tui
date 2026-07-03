@@ -60,6 +60,14 @@ fn run_start_with_home(
         // Strip XDG so dirs::home_dir() doesn't resolve to a user
         // directory through XDG_CONFIG_HOME.
         .env_remove("XDG_CONFIG_HOME")
+        // CIB-162: pin the tracing filter to the CLI default (`warn`) by
+        // stripping any inherited `ANVIL_LOG` / `RUST_LOG` from the
+        // developer's shell. The default-filter human surface must not
+        // be interrupted by raw JSONL tracing lines; a leaked
+        // `ANVIL_LOG=info` would both re-admit those lines and make the
+        // skip-warning regression test non-hermetic.
+        .env_remove("ANVIL_LOG")
+        .env_remove("RUST_LOG")
         // DLIFE-003: pin the daemon socket/PID resolution to the per-test
         // tempdir so the daemon-ensure probe is deterministically isolated
         // from any real daemon on a developer box. The captured (non-TTY)
@@ -559,6 +567,52 @@ fn start_verify_on_initialised_repo_surfaces_partial_protection_note() {
         !stdout.contains("state: protecting"),
         "initialised-repo --verify MUST NOT claim `state: protecting`, got:\n{stdout}"
     );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_emits_no_raw_json_tracing_lines_at_default_filter() {
+    // CIB-162: without an attesting daemon, `anvil start` reaches
+    // `ready_restart_required` and probes the daemon; the probe fails
+    // (no daemon on the per-test `XDG_RUNTIME_DIR`) and emits a
+    // "daemon attestation skipped" tracing event. That event MUST NOT
+    // reach the human surface as a raw JSONL line at the CLI default
+    // (`warn`) filter — the daemon-skip signal is rendered as human
+    // copy by the render layer (`daemon:` / `meaning:` lines), so the
+    // machine JSONL is demoted below the default filter. Regression for
+    // the user-journey finding where a `{"timestamp":…,"level":"WARN"…}`
+    // line printed mid-flow and read as a crash.
+    //
+    // Covers both the full activation flow (`anvil start`) and the
+    // read-only diagnostic (`anvil start --verify`) on an already
+    // initialised repo, since both drive the daemon-attestation probe.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let assert_no_json_lines = |out: &std::process::Output, label: &str| {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{label} failed: stderr={stderr}");
+        for (stream, text) in [("stdout", &stdout), ("stderr", &stderr)] {
+            for line in text.lines() {
+                assert!(
+                    !line.trim_start().starts_with("{\"timestamp\""),
+                    "{label}: raw JSON tracing line leaked onto {stream} at the default \
+                     log filter:\n{line}\n\nfull {stream}:\n{text}"
+                );
+            }
+        }
+    };
+
+    // Full activation flow: init + install + reach ready_restart_required
+    // (the state that probes the daemon).
+    let out = run_start_with_home(dir.path(), home.path(), &[]);
+    assert_no_json_lines(&out, "anvil start");
+
+    // Read-only re-run on the now-initialised repo: the probe fires
+    // again, but no JSONL may reach the human surface.
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
+    assert_no_json_lines(&out, "anvil start --verify");
 }
 
 #[cfg(not(target_os = "windows"))]
