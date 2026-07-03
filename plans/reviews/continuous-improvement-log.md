@@ -1898,3 +1898,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 
 
 
+### 2026-07-04 — claude (council remediation)
+
+- **Task:** CIB-167 Council follow-up — two `meaning:` lines over-claimed/under-claimed: `NeedsAction` said "anvil has not written an MCP config" even when a `ConfigPresent` entry was on disk, and `Watching` attributed protection to save-time watch even when the daemon-backed spine (`Enforced`/`Promoted`) was the thing attesting.
+- **Outcome:** Split the two static arms into `needs_action_meaning(d)` (branches on `ConfigStatus` + `highest_mcp_tier`, mirroring `why_summary_for_needs_action`) and `watching_meaning(d)` (branches on `daemon_attestation.attests_worktree()`, mirroring `why_summary`/`repair_hint`). NeedsAction now acknowledges a written entry and points at restart/re-verify; daemon-attested Watching credits the daemon-backed spine and frames MCP as an optional upgrade. Save-time-only Watching copy is byte-identical, and `ReadyRestartRequired`/`Unsupported` arms are untouched. TDD: 2 new render tests (written-entry NeedsAction, daemon-backed Watching) proven red first; existing NeedsAction test retargeted to the honest not-set-up-yet copy.
+- **Worked:** Reusing the exact `daemon_attestation.attests_worktree()` / MCP-tier truth tables the `why:`/`next:` lines already dispatch on kept all four lines in lockstep, so the `meaning:` line can never disagree with the `next:` hint below it.
+- **Failed:** none.
+- **Friction:** none — the change stayed inside `render.rs`; no schema or diagnostic changes were needed.
+- **Improvement:** A `meaning:` line that restates a state must dispatch on the same signal that produced the state, not a hard-coded assumption about the most common path — `NeedsAction` and `Watching` are both multi-cause states.
+- **Follow-up:** none.
+

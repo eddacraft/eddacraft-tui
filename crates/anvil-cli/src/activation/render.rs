@@ -605,16 +605,66 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
         // `meaning:` line too. These arms are purely additive — the
         // `ReadyRestartRequired` copy above is unchanged, so existing
         // `--verify` output for that state stays byte-identical.
-        ProtectionState::NeedsAction => Some(
-            "anvil has not written an MCP config for this repository yet. Run `anvil start` to set it up, then run `anvil start --verify` to confirm the editor or agent attached.",
-        ),
+        ProtectionState::NeedsAction => Some(needs_action_meaning(d)),
         ProtectionState::Unsupported => Some(
             "None of the files anvil has seen use a language it can validate, so there is no further setup that would enable protection here. This is not an error — anvil simply has no rules for these file types yet, and coverage expands as language packs ship.",
         ),
-        ProtectionState::Watching => Some(
-            "Save-time watch is the active fallback: anvil validates files after they are written to disk, which is weaker than MCP pre-write validation that can block a bad write before it lands. Wire an MCP client and run `anvil start --verify` to graduate to pre-write protection.",
-        ),
+        ProtectionState::Watching => Some(watching_meaning(d)),
         ProtectionState::Protecting | ProtectionState::Error => None,
+    }
+}
+
+/// `NeedsAction` branch of [`state_explanation`]. CIB-167 Council
+/// (major): the first draft always claimed "anvil has not written an
+/// MCP config", but `NeedsAction` is reachable *after* the MCP entry is
+/// written — a `ConfigPresent` client that no editor has attached to
+/// yet still lands here. Branch on the config / MCP layer so the copy
+/// never denies work that was actually done. Mirrors the truth table in
+/// [`why_summary_for_needs_action`] so the `meaning:` and `next:` lines
+/// stay in lockstep. `ConfigStatus::Invalid` maps to `Error` upstream,
+/// so it cannot reach this function.
+fn needs_action_meaning(d: &ActivationDiagnostic) -> &'static str {
+    use super::diagnostic::ConfigStatus;
+
+    if matches!(d.config, ConfigStatus::Absent) {
+        return "anvil has not set up this repository yet — no config or MCP entry has been written. Run `anvil start` to create them, then run `anvil start --verify` to confirm the editor or agent attached.";
+    }
+    // Config is present; the honest claim depends on how far the MCP
+    // entry actually got.
+    match d.highest_mcp_tier() {
+        None | Some(McpTier::NotDetected | McpTier::ConfigAbsent) => {
+            "anvil has a config here but has not written an MCP entry into an editor or agent yet. Run `anvil start` to install it, then run `anvil start --verify` to confirm it attached."
+        }
+        Some(McpTier::ConfigPresent) => {
+            "anvil has written the MCP entry, but no editor or agent has attached to it yet. Restart your editor or agent, then run `anvil start --verify`."
+        }
+        Some(McpTier::ServerStartable) => {
+            "anvil has written the MCP entry and its server starts, but the editor or agent wiring is not confirmed yet. Restart your editor or agent, then run `anvil start --verify`."
+        }
+        // `RestartRequired` / `RestartHandshakeVerified` / `LiveValidation`
+        // promote out of `NeedsAction` upstream (into `ReadyRestartRequired`
+        // / `Protecting`), so they are unreachable here — keep a safe,
+        // non-panicking fallback rather than deny written work.
+        Some(_) => {
+            "anvil has written the MCP entry but activation is in an intermediate state. Run `anvil start --verify` to refresh the diagnostic."
+        }
+    }
+}
+
+/// `Watching` branch of [`state_explanation`]. CIB-167 Council (major):
+/// `Watching` is reached both by save-time watch *and* by the
+/// daemon-backed intercept spine attesting this worktree
+/// (`protection_state` returns `Watching` when
+/// [`super::daemon_evidence::DaemonAttestation::attests_worktree`] is
+/// true). Attributing the protection to save-time watch in the
+/// daemon-attested case understates what is actually validating writes,
+/// so branch on the attestation — matching the `why_summary` /
+/// `repair_hint` split.
+fn watching_meaning(d: &ActivationDiagnostic) -> &'static str {
+    if d.daemon_attestation.attests_worktree() {
+        "The intercept daemon is attesting this worktree, so writes are being validated through the daemon-backed spine — not just save-time watch. MCP pre-write validation is an optional upgrade; wire an MCP client and run `anvil start --verify` to graduate to it."
+    } else {
+        "Save-time watch is the active fallback: anvil validates files after they are written to disk, which is weaker than MCP pre-write validation that can block a bad write before it lands. Wire an MCP client and run `anvil start --verify` to graduate to pre-write protection."
     }
 }
 
@@ -1337,8 +1387,8 @@ mod tests {
 
     /// CIB-167: terminal-first users need a plain-language `meaning:`
     /// line for the non-restart states too, not only
-    /// `ready_restart_required`. `NeedsAction` must explain that the MCP
-    /// config has not been written yet and name `anvil start`.
+    /// `ready_restart_required`. With no config on disk `NeedsAction`
+    /// must explain that nothing is set up yet and name `anvil start`.
     #[test]
     fn needs_action_render_explains_meaning_in_plain_language() {
         let d = empty();
@@ -1347,10 +1397,54 @@ mod tests {
             ProtectionState::NeedsAction,
             "empty() must resolve to NeedsAction for this test to exercise that arm"
         );
+        assert_eq!(
+            d.config,
+            ConfigStatus::Absent,
+            "empty() must have an absent config so this test covers the not-set-up-yet arm"
+        );
         let h = render_human(&d);
         assert!(
-            h.contains("meaning:") && h.contains("MCP config") && h.contains("anvil start"),
+            h.contains("meaning:") && h.contains("not set up") && h.contains("anvil start"),
             "NeedsAction render must explain the label in plain language and name `anvil start`: {h}"
+        );
+    }
+
+    /// CIB-167 Council (major): `NeedsAction` is reachable *after* the
+    /// MCP entry is written — a `ConfigPresent` client that no editor
+    /// has attached to yet still resolves to `NeedsAction`. The
+    /// `meaning:` line must NOT falsely claim no MCP config was written;
+    /// it must acknowledge the entry exists and point at the real next
+    /// step (restart / re-verify), matching the honest `next:` hint.
+    #[test]
+    fn needs_action_with_written_mcp_entry_does_not_claim_nothing_written() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ConfigPresent.into());
+        assert_eq!(
+            d.protection_state(),
+            ProtectionState::NeedsAction,
+            "config-present-but-unattached must resolve to NeedsAction for this test"
+        );
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("NeedsAction render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            !lower.contains("has not written")
+                && !lower.contains("no config")
+                && !lower.contains("no mcp entry"),
+            "meaning must not falsely claim nothing was written once the entry exists: {meaning}"
+        );
+        assert!(
+            lower.contains("written the mcp entry"),
+            "meaning must acknowledge the MCP entry was written: {meaning}"
+        );
+        assert!(
+            meaning.contains("anvil start --verify"),
+            "meaning must point at the real next step (`anvil start --verify`): {meaning}"
         );
     }
 
@@ -1383,12 +1477,48 @@ mod tests {
             ProtectionState::Watching,
             "watching() must resolve to Watching for this test to exercise that arm"
         );
+        assert!(
+            !d.daemon_attestation.attests_worktree(),
+            "watching() must not be daemon-attested so this test covers the save-time arm"
+        );
         let h = render_human(&d);
         assert!(
             h.contains("meaning:")
                 && h.contains("weaker than MCP pre-write validation")
                 && h.contains("anvil start --verify"),
             "Watching render must explain the fallback is weaker than MCP pre-write validation: {h}"
+        );
+    }
+
+    /// CIB-167 Council (major): `Watching` is also reached when the
+    /// daemon-backed spine attests this worktree (`Enforced` /
+    /// `Promoted`), NOT only via save-time watch. In that case the
+    /// `meaning:` line must credit the daemon-backed spine and must NOT
+    /// attribute the protection to save-time watch — otherwise it
+    /// understates what is actually validating writes.
+    #[test]
+    fn daemon_backed_watching_meaning_credits_spine_not_save_time_watch() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+        assert_eq!(
+            d.protection_state(),
+            ProtectionState::Watching,
+            "daemon-attested spine (no watch, no MCP) must resolve to Watching for this test"
+        );
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("Watching render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            lower.contains("daemon-backed spine") && lower.contains("intercept daemon"),
+            "daemon-backed watching meaning must credit the daemon-backed spine: {meaning}"
+        );
+        assert!(
+            !lower.contains("save-time watch is the active fallback"),
+            "daemon-backed watching meaning must not attribute protection to save-time watch: {meaning}"
         );
     }
 
