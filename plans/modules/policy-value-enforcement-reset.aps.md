@@ -101,7 +101,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-001: Policy value and enforcement design gate
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3121
 - **Intent:** Produce the accepted ADR/spec that resets policy module boundaries,
   first-slice scope, and enforcement semantics.
 - **Expected Outcome:** A decision record pins the Rego-first path, validation
