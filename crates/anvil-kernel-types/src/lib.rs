@@ -4,6 +4,7 @@ pub mod feature_flags;
 pub mod feature_flags_catalogue;
 mod graph;
 pub mod hooks;
+pub mod io_risk;
 mod notifications;
 pub mod protection_claim;
 pub mod session;
@@ -27,6 +28,7 @@ pub use graph::{
     content_hash,
 };
 pub use hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
+pub use io_risk::{Confidence, RiskCategory, RiskFinding, RiskLocation, RiskSeverity};
 pub use notifications::{
     Notification, NotificationClass, NotificationContext, NotificationPriority,
 };

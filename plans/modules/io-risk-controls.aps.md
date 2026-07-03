@@ -32,9 +32,10 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 ## Work Items
 
 ### IORISK-001: Define IO risk taxonomy
+- **Status:** Done
 - **Intent:** Standardize categories, severity, and confidence for IO risk findings.
 - **Expected Outcome:** A consistent taxonomy is used across scanners and policy outputs.
-- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- io_risk_taxonomy`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- io_risk_taxonomy` — 8 passed (`crates/anvil-kernel-types/src/io_risk.rs`; pure serde, `#[serde(other)]` forward-compat fallbacks per ADR-096, remediation-first `RiskFinding`, no new deps).
 
 ### IORISK-002: Implement scanner pipeline
 - **Intent:** Add scanner execution pipeline for pre/post model checks.
