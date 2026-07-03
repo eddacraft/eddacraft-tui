@@ -4077,29 +4077,13 @@ archive.
 
 ### CIB-149: Stop treating an unverified first wire root as the confinement primary
 
-- **Status:** In Progress
-- **Intent:** Close the Allowlist-confinement bypass where a same-uid client's
-  first self-declared `workspace_root` becomes the connection's implicitly
-  admitted primary root, regardless of the operator's allow list.
-- **Expected Outcome:** In `Allowlist` mode, a connection's implicitly admitted
-  primary root is derived from a daemon-verified source (e.g. the
-  `RegisterSession` worktree already bound to the authenticated peer), not from
-  the first arbitrary `workspace_root` a later wire request happens to name;
-  an unverified root is refused unless it independently matches an operator
-  allow entry.
-- **Files:** `crates/anvil-intercept/src/{confinement.rs,save_time.rs}`.
-- **Validation:** Daemon test proving that, in `Allowlist` mode, a connection
-  cannot get an unlisted root implicitly admitted merely by naming it first in
-  a `validate_paths` call; existing `primary_root_implicitly_admitted` and
-  `allowlist_refuses_unlisted` tests continue to pass with the tightened
-  source.
-- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
-  decomposition readiness pass 2026-07-02.
-- **Coordinates with:** DSV-008 confinement CLI (`anvil workspace`), ADR-061
-  §7 same-uid trust boundary, `save_time.rs::authorise_root`.
-- **Confidence:** high — root cause and fix are mechanically clear; the only
-  risk is over-tightening legitimate first-touch usage in `Open` mode (which
-  this item does not change).
+- **Status:** Merged 2026-07-03 via PR #3117
+- **Summary:** In `Allowlist` mode, a connection's implicitly admitted primary
+  root is now derived from a daemon-verified source (the `RegisterSession`
+  worktree bound to the authenticated peer via the durable registry), not from
+  the first arbitrary `workspace_root` a later wire request names; an unverified
+  root is refused unless it independently matches an operator allow entry
+  (`crates/anvil-intercept/src/{confinement.rs,save_time.rs}`).
 
 ### CIB-150: Verify the wire `agent_tag` claim before honouring durable membership
 

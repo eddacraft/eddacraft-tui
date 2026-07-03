@@ -1780,3 +1780,9 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** Activation/`anvil workspace register` sends no lineage, so `worktree_for_lineage` is empty for those worktrees — the implicit primary covers MLP2-025 lineage-registered agents; non-lineage registrations must use explicit allow entries. If operators need the implicit primary for activation-registered worktrees, that needs a peer→worktree binding that does not exist yet (separate design/ADR).
 
 
+### 2026-07-03 — claude (CIB-149 merge)
+
+- **Task:** Land PR #3117 and flip CIB-149 to Merged.
+- **Outcome:** Rebased onto `origin/main`, gates green, merged via `--rebase`; CIB-149 status compacted to Merged with a one-line Summary.
+- **Follow-up:** none
+
