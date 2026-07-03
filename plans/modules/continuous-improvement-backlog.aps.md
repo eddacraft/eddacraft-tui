@@ -4091,31 +4091,15 @@ archive.
 
 ### CIB-150: Verify the wire `agent_tag` claim before honouring durable membership
 
-- **Status:** In Progress
-- **Intent:** Close the trust-boundary gap where any same-uid IPC client can
-  mint an `AgentTag` claiming `claimed_agent_id: "activation-spine"` and be
-  treated as durable worktree membership, bypassing the live per-worktree cap
-  and consuming the separate registered-worktree budget.
-- **Expected Outcome:** A `RegisterSession` claiming durable
-  (activation-spine) membership is only honoured when the connection's
-  authenticated peer is independently authorised to register durable
-  membership (mirroring the `verify_lineage_claim` peer-derivation pattern
-  already applied to `lineage`); an unauthorised claim is downgraded to an
-  ordinary (non-durable, capped, TTL-bound) session rather than rejected
-  outright, so a benign mis-tagged client still registers.
-- **Files:** `crates/anvil-intercept/src/{registry.rs,ipc.rs}`.
-- **Validation:** Daemon tests proving an unauthorised same-uid peer's
-  `activation-spine` claim is downgraded to a live (capped) session, a
-  legitimately authorised caller's durable claim still succeeds, and the
-  `registered_worktree_cap` cannot be exhausted by forged durable claims.
-- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
-  decomposition readiness pass 2026-07-02.
-- **Coordinates with:** MLP2-070/MLP2-074 lineage-verification pattern
-  (`verify_lineage_claim`, `verify_report_process_starttime`), ACTMO-014/019
-  durable-registration state.
-- **Confidence:** high — the fix mirrors an existing, tested verification
-  pattern in the same file; the main design decision is the safe downgrade
-  behaviour rather than a hard reject.
+- **Status:** Merged 2026-07-03 via PR #3116
+- **Summary:** Closed the trust-boundary gap where any same-uid IPC client
+  could mint an `AgentTag` claiming `activation-spine` durable membership and
+  consume the registered-worktree budget. A durable `RegisterSession` claim is
+  now honoured only when the authenticated peer is independently authorised
+  (mirroring `verify_lineage_claim`), gated on trustworthy peer-exe reads;
+  otherwise it is safely downgraded to an ordinary capped, TTL-bound session
+  rather than rejected. Follow-up peer-exe hardening filed as CIB-160. Touches
+  `crates/anvil-intercept/src/{registry.rs,ipc.rs}`.
 
 ### CIB-151: Verify on-disk state before trusting a wire-declared delete/rename
 
