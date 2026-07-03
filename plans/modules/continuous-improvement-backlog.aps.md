@@ -4530,7 +4530,13 @@ archive.
 
 ### CIB-167: Improve activation state comprehension for terminal-first users
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3135
+- **Summary:** Added additive plain-language `meaning:` lines for the
+  `needs_action`, `unsupported`, and `watching` activation states and made the
+  `needs_action`/`watching` copy honest (`render.rs`); the
+  `restart_handshake_verified` / `server_startable` tier-token rename is
+  deferred to an owner contract decision (spun out as a follow-up item) since
+  the vocabulary is consumed byte-stably by `--verify` scripts.
 - **Intent:** Terminal-first users park permanently on
   `ready_restart_required` with no editor to restart, and the MCP tier label
   `restart_handshake_verified` (`diagnostic.rs:87-96`) reads as success

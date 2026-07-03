@@ -1908,3 +1908,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** A `meaning:` line that restates a state must dispatch on the same signal that produced the state, not a hard-coded assumption about the most common path — `NeedsAction` and `Watching` are both multi-cause states.
 - **Follow-up:** none.
 
+### 2026-07-04 — claude (merge)
+
+- **Task:** CIB-167 — land the activation-state `meaning:` line work (PR #3135) onto main and flip its backlog Status to Merged.
+- **Outcome:** Rebased the branch onto `origin/main`, confirmed all required checks green, and merged via rebase. CIB-167 Status flipped to "Merged 2026-07-04 via PR #3135" with a compacted Summary; the `restart_handshake_verified` / `server_startable` tier-token rename stays deferred to an owner contract decision.
+- **Worked:** The per-item Status line and union-merge CI log kept the merge bookkeeping free of cross-PR conflicts.
+- **Failed:** none.
+- **Friction:** none.
+- **Improvement:** none.
+- **Follow-up:** none.
+
