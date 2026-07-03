@@ -1,6 +1,6 @@
 # Post-merge: feat-cib-167-activation-state-meaning-lines
 
-PR: <!-- pinned after PR creation -->
+PR: #3135
 Branch: `feat/cib-167-activation-state-meaning-lines`
 APS: CIB-167
 Merged: <!-- filled by cleanup agent -->
