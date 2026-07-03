@@ -4078,12 +4078,16 @@ archive.
 ### CIB-149: Stop treating an unverified first wire root as the confinement primary
 
 - **Status:** Merged 2026-07-03 via PR #3117
-- **Summary:** In `Allowlist` mode, a connection's implicitly admitted primary
-  root is now derived from a daemon-verified source (the `RegisterSession`
-  worktree bound to the authenticated peer via the durable registry), not from
-  the first arbitrary `workspace_root` a later wire request names; an unverified
-  root is refused unless it independently matches an operator allow entry
-  (`crates/anvil-intercept/src/{confinement.rs,save_time.rs}`).
+- **Summary:** `Allowlist` mode now fails closed to the operator allow entries
+  only — no implicit primary is admitted at all. The first pass merely relocated
+  the bypass (sourcing the primary from the connection's `RegisterSession`
+  worktree), but that worktree is equally client-supplied: the daemon verifies
+  *who* the peer is (PID lineage), never that the *path* should be admitted, so a
+  same-uid client could still register then name an arbitrary root. No genuinely
+  daemon-attested worktree source exists, so the verified-primary mechanism was
+  dropped; `set_originating_session` now records the session for telemetry
+  correlation only. `Open`-mode first-touch adoption is unchanged
+  (`crates/anvil-intercept/src/{confinement.rs,ipc.rs,save_time.rs}`).
 
 ### CIB-150: Verify the wire `agent_tag` claim before honouring durable membership
 
