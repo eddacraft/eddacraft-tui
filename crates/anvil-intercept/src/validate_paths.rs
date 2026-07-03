@@ -443,6 +443,11 @@ where
     // skips the *super-linear* parse + antipattern scan for a file that read OK
     // but is still too big to scan — detected on its read length and skipped
     // (never parsed, scanned, or hashed) with a coverage diagnostic.
+    //
+    // Scope boundary: only the declared `desc.path` (a `Rename`'s destination)
+    // is read here. A `Renamed { from }` source path that still holds live bytes
+    // on disk (a copy rather than a true move) is not scanned unless the client
+    // sends a separate descriptor for `from` — the wire only surfaces `desc.path`.
     let mut oversized: Option<usize> = None;
     let (content_h, scanned) = match read_guarded(&desc.path) {
         Ok(bytes) if bytes.len() > caps.max_parse_bytes => {

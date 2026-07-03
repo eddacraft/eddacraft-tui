@@ -4337,6 +4337,33 @@ archive.
   Hakari churn, and it cannot be locally link-verified on this Linux box
   (needs a CI Windows runner).
 
+### CIB-159: Scan a rename source path that still holds live bytes on disk
+
+- **Status:** Draft
+- **Intent:** CIB-151 (PR #3115) made `validate_paths` read and antipattern-scan
+  the declared `desc.path` regardless of its wire change kind, but for a
+  `Renamed { from }` descriptor only the destination (`desc.path`) is read. A
+  `from` (source) path that still holds live bytes on disk — a copy rather than
+  a true move — is never scanned unless the client separately sends a descriptor
+  for `from`, leaving a residual path for unscanned live bytes to reach the
+  tree.
+- **Expected Outcome:** a `Renamed { from }` whose source path still resolves to
+  readable content on disk has those source bytes read, hashed, and
+  antipattern-scanned as well (or an explicit, documented decision that the wire
+  protocol's `desc.path`-only contract makes this the client's responsibility).
+- **Files:** `crates/anvil-intercept/src/validate_paths.rs`; possibly the
+  `ChangeDescriptor`/`ChangeKindWire` wire types if `from` must be read too.
+- **Validation:** a daemon test proving a `Renamed { from }` whose `from` path
+  still holds live bytes on disk is read and antipattern-scanned; existing
+  CIB-151 delete/rename destination coverage stays green.
+- **Identified From:** CIB-151 security review, 2026-07-03 (PR #3115).
+- **Coordinates with:** CIB-151 (merged), DSV-005/006 save-time verdict
+  assembly, the antipattern check family.
+- **Confidence:** medium — the read machinery already exists, but reading a
+  second path per rename descriptor touches the wire contract (only `desc.path`
+  is surfaced today) and needs an owner call on whether source scanning is the
+  daemon's or the client's responsibility.
+
 ### CIB-160: Portable peer-exe check for durable-membership authorisation off Linux
 
 - **Status:** Draft — needs an owner decision on whether a per-OS peer-exe
