@@ -23,8 +23,8 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read # read PR labels
-  issues: write # dismiss the stale review label via the issues labels API
+  # PR label management (read + dismiss stale label) requires pull-requests: write.
+  pull-requests: write
 
 concurrency:
   group: council-gate-${{ github.event.pull_request.number || github.ref }}
