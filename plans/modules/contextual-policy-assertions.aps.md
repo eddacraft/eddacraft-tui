@@ -47,10 +47,10 @@ richer runtime context while preserving Anvil policy-pack semantics.
 
 ### CPOL-003: Add assertion guidance outputs
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Provide actionable failure explanations and fix guidance.
 - **Expected Outcome:** Assertion failures map to remediation-first outputs.
-- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_guidance`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- assertion_guidance` — 6 passed (`crates/anvil-policy-engine/src/context/guidance.rs`; reuses pack `IssueSeverity`/`PolicySeverity`, stable kebab `GuidanceCode`, skip-serialised optionals, ADR-002 blocking-axis derivation).
 - **Dependencies:** CPOL-002
 
 ## Execution

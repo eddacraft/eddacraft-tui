@@ -14,6 +14,7 @@
 
 pub mod adapters;
 pub mod assertion;
+pub mod guidance;
 
 pub use adapters::{
     AssertionContext, AssertionEvaluation, ChangedPath, Violation, evaluate, glob_match, in_scope,
@@ -22,3 +23,4 @@ pub use assertion::{
     Assertion, AssertionCondition, AssertionError, AssertionScope, ChangeKind,
     ChangedPathCountSpec, Comparison, ConfigKey, ConfigMatch, PathGlob, WorkflowPhase,
 };
+pub use guidance::{AssertionGuidance, GuidanceCode, assess, blocking_for, guidance_for};
