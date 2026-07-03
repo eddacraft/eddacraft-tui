@@ -4926,22 +4926,31 @@ const DOWNGRADED_ACTIVATION_SPINE_CLAIMED_AGENT_ID: &str = "unverified-activatio
 /// credential (legacy NDJSON wire, no `SO_PEERCRED`) or any non-Linux
 /// platform (no portable peer-exe reader yet) is treated as *not*
 /// authorised — matching the fail-closed, Linux-only posture of
-/// `verify_lineage_claim`.
+/// `verify_lineage_claim`. The Linux path additionally refuses to trust
+/// the comparison at all unless it has proven the kernel reports a foreign
+/// pid's exe faithfully (see [`peer_authorised_for_durable_membership`]),
+/// so a sandbox that aliases foreign `/proc/<pid>/exe` reads to the
+/// reader's own binary cannot silently turn the gate into "always
+/// authorised".
 ///
-/// Returns the tag to actually register: the caller's tag unchanged when
-/// it is not a durable claim or the peer is authorised; otherwise a
-/// **downgraded** copy whose `claimed_agent_id` no longer marks durable
-/// membership. The session still registers — as an ordinary live lease —
-/// rather than being rejected outright, so a benign mis-tagged client is
-/// not locked out (CIB-150 Expected Outcome). The daemon's in-process
+/// Returns [`None`] when the caller's tag should register unchanged — it
+/// is not a durable claim, or the peer is authorised. Returns
+/// [`Some`]`(downgraded)` when a durable claim from an unauthorised (or
+/// unverifiable) peer must be **downgraded** to a copy whose
+/// `claimed_agent_id` no longer marks durable membership. The session
+/// still registers — as an ordinary live lease — rather than being
+/// rejected outright, so a benign mis-tagged client is not locked out
+/// (CIB-150 Expected Outcome). Returning `None` on the common path avoids
+/// cloning the tag on every `RegisterSession`. The daemon's in-process
 /// `register_on_start` path never routes through this dispatcher, so
-/// legitimate startup durable registration is untouched.
+/// legitimate startup durable registration is untouched — and remains the
+/// durable path even where the wire gate fails closed.
 fn verify_durable_membership_claim(
     tag: &anvil_intercept_proto::session::AgentTag,
     peer_pid: Option<u32>,
-) -> anvil_intercept_proto::session::AgentTag {
+) -> Option<anvil_intercept_proto::session::AgentTag> {
     if !tag.is_durable_membership() || peer_authorised_for_durable_membership(peer_pid) {
-        return tag.clone();
+        return None;
     }
     tracing::debug!(
         target: "anvil_intercept::ipc",
@@ -4950,11 +4959,11 @@ fn verify_durable_membership_claim(
         peer_pid = ?peer_pid,
         "register-session durable-membership claim from an unauthorised peer downgraded to a live session (CIB-150)",
     );
-    anvil_intercept_proto::session::AgentTag::new(
+    Some(anvil_intercept_proto::session::AgentTag::new(
         tag.driver_id.clone(),
         DOWNGRADED_ACTIVATION_SPINE_CLAIMED_AGENT_ID,
         tag.pid_starttime,
-    )
+    ))
 }
 
 /// CIB-150: `true` when the authenticated peer behind an IPC connection
@@ -4966,12 +4975,35 @@ fn verify_durable_membership_claim(
 /// missing peer pid, an unreadable peer or daemon exe path, or a
 /// non-Linux platform (no portable peer-exe reader yet) all return
 /// `false`.
+///
+/// The comparison is only meaningful if the kernel reports a *foreign*
+/// process's `/proc/<pid>/exe` faithfully. Some sandboxed runtimes
+/// (gVisor-style micro-VMs, seen on the CI runner for this change) alias a
+/// foreign pid's `exe` symlink to the *reading* process's own binary, so
+/// every same-uid peer — an unrelated `sleep`, a forger, anything — reads
+/// back as the daemon's `anvil` binary and the gate silently degrades to
+/// "always authorised": the exact durable-budget bypass CIB-150 closes.
+/// Comparing `stat` device+inode instead of the path string does not help,
+/// because the alias fabricates the whole resolved file, not just its
+/// name. We therefore probe this capability once per process
+/// ([`foreign_exe_reads_faithful`]) and, when it cannot be trusted, refuse
+/// every durable claim over the wire. That is fail-closed: legitimate
+/// durable registration also flows through the daemon's in-process
+/// `register_on_start` path (and `anvil workspace register --persist`),
+/// which never crosses this dispatcher, so durability is preserved even
+/// where the wire gate is forced strict.
 fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
     #[cfg(target_os = "linux")]
     {
         let Some(peer_pid) = peer_pid else {
             return false;
         };
+        // Refuse to trust the exe comparison unless this environment has
+        // demonstrably reported a foreign pid's exe faithfully. Otherwise
+        // the equality below would be forced true for any same-uid peer.
+        if !foreign_exe_reads_faithful() {
+            return false;
+        }
         let Ok(peer_exe) = std::fs::read_link(format!("/proc/{peer_pid}/exe")) else {
             return false;
         };
@@ -4991,6 +5023,58 @@ fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
         let _ = peer_pid;
         false
     }
+}
+
+/// CIB-150: `true` when this process can read a *foreign* pid's
+/// `/proc/<pid>/exe` and get that process's real executable rather than an
+/// alias of our own binary. Computed once and cached: the answer is a
+/// property of the kernel/sandbox, not of any individual peer.
+///
+/// Used by [`peer_authorised_for_durable_membership`] to fail closed on
+/// sandboxes that fabricate foreign exe reads (see that function's docs).
+#[cfg(target_os = "linux")]
+fn foreign_exe_reads_faithful() -> bool {
+    static FAITHFUL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FAITHFUL.get_or_init(probe_foreign_exe_reads_faithful)
+}
+
+/// Probe whether foreign `/proc/<pid>/exe` reads are faithful by spawning
+/// a short-lived canary that is guaranteed *not* to be this binary and
+/// checking that the kernel reports the canary's exe as something other
+/// than our own. A sandbox that aliases foreign reads to the reader's
+/// binary returns our own exe here, which we treat as unfaithful.
+///
+/// Fail-closed on every uncertainty (cannot resolve our own exe, cannot
+/// spawn the canary, cannot read its exe): the caller then refuses durable
+/// wire claims, which is the safe answer.
+#[cfg(target_os = "linux")]
+fn probe_foreign_exe_reads_faithful() -> bool {
+    let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+        return false;
+    };
+    // `sleep` is POSIX, never this binary, and lives long enough to read
+    // `/proc/<pid>/exe` before we reap it. If it is somehow absent we fail
+    // closed rather than assume the kernel is trustworthy.
+    let Ok(mut canary) = std::process::Command::new("sleep")
+        .arg("30")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    let canary_pid = canary.id();
+    let observed = std::fs::read_link(format!("/proc/{canary_pid}/exe")).ok();
+    let _ = canary.kill();
+    let _ = canary.wait();
+    let Some(observed) = observed else {
+        return false;
+    };
+    let observed = std::fs::canonicalize(&observed).unwrap_or(observed);
+    // Faithful iff the canary's exe reads back as something other than our
+    // own binary. Equal ⇒ the read was aliased to the reader ⇒ unfaithful.
+    observed != daemon_exe
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5036,14 +5120,19 @@ fn dispatch_command<D: SessionDispatcher>(
             // registry keys durability off the tag, so a forged claim
             // cannot consume the durable budget. The claim is downgraded,
             // not rejected, so a benign mis-tagged client still registers.
-            let verified_tag = agent_tag
+            // `verify_durable_membership_claim` returns `Some(downgraded)`
+            // only when a durable claim must be neutralised; `None` means
+            // forward the caller's tag unchanged (the common path, no
+            // clone).
+            let downgraded_tag = agent_tag
                 .as_ref()
-                .map(|tag| verify_durable_membership_claim(tag, peer_pid));
+                .and_then(|tag| verify_durable_membership_claim(tag, peer_pid));
+            let verified_tag = downgraded_tag.as_ref().or(agent_tag.as_ref());
             dispatcher
                 .register(
                     session_id,
                     worktree,
-                    verified_tag.as_ref(),
+                    verified_tag,
                     verified_lineage.as_ref(),
                 )
                 .map_err(|err| err.to_string())?;
@@ -6380,6 +6469,20 @@ mod tests {
     /// `/proc/<pid>/exe` equals the daemon's `current_exe`) — keeps its
     /// durable activation-spine membership. Guards against the CIB-150
     /// gate regressing genuine durable registration.
+    ///
+    /// The assertion is conditioned on [`foreign_exe_reads_faithful`]:
+    /// where the kernel reports a foreign pid's exe faithfully (real Linux,
+    /// including this dev box) the peer is provably the daemon's binary and
+    /// its durable claim persists. Under a sandbox that aliases foreign exe
+    /// reads to the reader's own binary (the CI micro-VM, run
+    /// 28642478053), an authorised peer is *indistinguishable* from a
+    /// forger — every same-uid pid reads back as `anvil` — so the gate
+    /// correctly fails closed and downgrades. Durable membership is still
+    /// reachable there via the daemon's in-process `register_on_start`
+    /// path, which never crosses this dispatcher. Asserting persistence
+    /// unconditionally is exactly what red-flagged this environment
+    /// (`880 passed; 1 failed`); asserting the *contract* keeps the gate
+    /// honest on both kinds of kernel.
     #[cfg(target_os = "linux")]
     #[test]
     fn dispatch_command_durable_claim_from_authorised_peer_persists() {
@@ -6408,14 +6511,23 @@ mod tests {
             [RecordedCall::Register { agent_tag, .. }] => agent_tag.clone().expect("tag forwarded"),
             other => panic!("expected single Register call, got {other:?}"),
         };
-        assert!(
-            forwarded.is_durable_membership(),
-            "an authorised activation-spine claim must remain durable, got {forwarded:?}",
-        );
-        assert_eq!(
-            forwarded.claimed_agent_id, ACTIVATION_SPINE_CLAIMED_AGENT_ID,
-            "the daemon must forward the caller's activation-spine id unchanged",
-        );
+        if foreign_exe_reads_faithful() {
+            assert!(
+                forwarded.is_durable_membership(),
+                "on a kernel with faithful foreign exe reads, an authorised \
+                 activation-spine claim must remain durable, got {forwarded:?}",
+            );
+            assert_eq!(
+                forwarded.claimed_agent_id, ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+                "the daemon must forward the caller's activation-spine id unchanged",
+            );
+        } else {
+            assert!(
+                !forwarded.is_durable_membership(),
+                "under a sandbox that cannot verify peer exe identity, the wire \
+                 gate must fail closed and downgrade, got {forwarded:?}",
+            );
+        }
     }
 
     /// CIB-150: repeated forged activation-spine claims from unauthorised

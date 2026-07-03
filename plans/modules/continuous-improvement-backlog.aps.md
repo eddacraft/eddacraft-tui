@@ -4352,3 +4352,45 @@ archive.
   Linux/macOS arms, but it requires a `windows-sys` edge that has a history of
   Hakari churn, and it cannot be locally link-verified on this Linux box
   (needs a CI Windows runner).
+
+### CIB-159: Portable peer-exe check for durable-membership authorisation off Linux
+
+- **Status:** Draft — needs an owner decision on whether a per-OS peer-exe
+  reader is worth building, or whether the fail-closed non-Linux posture (never
+  honour a wire durable claim) is the permanent answer given `--persist` /
+  `register_on_start` already provide durability everywhere.
+- **Intent:** CIB-150 (PR #3116) authorises a wire `agent_tag` durable
+  claim by comparing the peer's `/proc/<pid>/exe` against the daemon's
+  `current_exe`, which is Linux-only. On macOS and Windows there is no
+  portable peer-exe reader wired, so `peer_authorised_for_durable_membership`
+  returns `false` and every durable claim received over IPC is downgraded to a
+  live/capped session. That is fail-closed and safe, but it means genuine
+  `anvil start` / `anvil workspace register` durable membership over the wire is
+  unavailable off Linux until the operator uses `--persist`
+  (`register_on_start`, the in-process path that never crosses this
+  dispatcher).
+- **Expected Outcome:** `peer_authorised_for_durable_membership` grows a
+  `#[cfg(target_os = "macos")]` arm (peer pid from `LOCAL_PEERPID` /
+  `getsockopt`, exe via `proc_pidpath`) and a `#[cfg(windows)]` arm (peer pid
+  from `GetNamedPipeClientProcessId`, image path via
+  `QueryFullProcessImageNameW`), each comparing the resolved peer image against
+  the daemon's own and each carrying an equivalent of the Linux
+  faithful-foreign-read guard so a sandbox cannot force the gate open. The
+  wire durable path then works on all three platforms without weakening the
+  fail-closed default.
+- **Files:** `crates/anvil-intercept/src/ipc.rs`
+  (`peer_authorised_for_durable_membership`, `foreign_exe_reads_faithful`), plus
+  whatever `libc` / `windows-sys` edges the per-OS readers need (mind the
+  [[windows-sys-hakari-churn]] pin discipline).
+- **Validation:** per-OS tests mirroring
+  `dispatch_command_durable_claim_from_authorised_peer_persists` /
+  `_from_non_anvil_peer_is_downgraded`, gated on the platform where the reader
+  is enforced; the Linux behaviour stays unchanged.
+- **Identified From:** CIB-150 adversarial review + CI run 28642478053,
+  2026-07-03 (PR #3116) — the non-Linux gap was noted in the code's fail-closed
+  doc comments but had no tracking item.
+- **Coordinates with:** CIB-150 (merged), [[windows-sys-hakari-churn]]
+  (dependency-pin landmine).
+- **Confidence:** medium — the per-OS peer-pid/image APIs are well-trodden, but
+  each needs a native runner to verify and the macOS/Windows faithful-read
+  guard has no reference implementation yet.
