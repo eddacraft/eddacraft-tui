@@ -90,6 +90,24 @@ fn assemble_report(manifest_path: &Path, base_dir: &Path) -> Result<ValidationRe
     let test_report = run_pack_tests(&manifest, base_dir).context("running policy pack tests")?;
     report.issues.extend(enforce_tests(&test_report));
 
+    // A member whose `.rego` is missing cannot run tests, so the test runner's
+    // load-error `policy-test-failed` restates the validator's
+    // `missing-policy-file` for the same member. Drop the duplicate, keyed on
+    // policy id (a member with a missing `.rego` produces no rule failures, so
+    // each of its `policy-test-failed` issues is that load-error restatement).
+    let missing_file_ids: std::collections::BTreeSet<String> = report
+        .issues
+        .iter()
+        .filter(|i| i.code == IssueCode::MissingPolicyFile)
+        .filter_map(|i| i.policy_id.clone())
+        .collect();
+    report.issues.retain(|i| {
+        !(i.code == IssueCode::PolicyTestFailed
+            && i.policy_id
+                .as_ref()
+                .is_some_and(|id| missing_file_ids.contains(id)))
+    });
+
     Ok(report)
 }
 
@@ -250,6 +268,41 @@ policies:
         };
         let err = run(&args, &GlobalArgs::default()).expect_err("must fail");
         assert!(err.is::<output::AlreadyReported>(), "got {err:?}");
+    }
+
+    #[test]
+    fn policy_validate_missing_policy_file_not_double_reported() {
+        // Reviewer finding #4: a missing `.rego` plus a stray sibling test file
+        // must not yield both missing-policy-file and a load-error
+        // policy-test-failed for the same member.
+        let dir = TempDir::new().expect("temp dir");
+        write(dir.path(), "pack.yaml", MANIFEST);
+        // No policies/a.rego, but a stray sibling test file exists.
+        write(
+            dir.path(),
+            "policies/a_test.rego",
+            "package a_test\nimport rego.v1\n\ntest_x if true\n",
+        );
+        let manifest = dir.path().join("pack.yaml");
+        let report = assemble_report(&manifest, dir.path()).expect("assemble");
+
+        let missing = report
+            .issues
+            .iter()
+            .filter(|i| i.code == IssueCode::MissingPolicyFile)
+            .count();
+        let test_failed = report
+            .issues
+            .iter()
+            .filter(|i| i.code == IssueCode::PolicyTestFailed)
+            .count();
+        assert_eq!(missing, 1, "{:?}", report.issues);
+        assert_eq!(
+            test_failed, 0,
+            "load-error restatement must be de-duplicated: {:?}",
+            report.issues
+        );
+        assert!(!report.is_valid());
     }
 
     #[test]

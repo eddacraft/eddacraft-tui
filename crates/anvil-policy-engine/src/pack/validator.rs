@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::pack::manifest::PackManifest;
+use crate::pack::manifest::{PackManifest, resolve_member_path};
 
 /// Whether an issue blocks the pack from validating.
 ///
@@ -153,27 +153,49 @@ pub fn validate_pack(manifest: &PackManifest, base_dir: &Path) -> ValidationRepo
             });
         }
 
-        // The member's `.rego` source must exist under the pack directory.
-        if !base_dir.join(&entry.path).is_file() {
-            issues.push(ValidationIssue {
-                code: IssueCode::MissingPolicyFile,
-                severity: IssueSeverity::Error,
-                policy_id: policy_id.clone(),
-                path: Some(entry.path.clone()),
-                message: format!(
-                    "policy source `{}` is referenced by the manifest but does not exist",
-                    entry.path.display()
-                ),
-                remediation: "Add the `.rego` file at the referenced path, or correct \
-                              the manifest to point at the real location."
-                    .to_string(),
-            });
+        // The member's `.rego` source must exist under the pack directory, and
+        // must not escape it via a symlink to external content (routed through
+        // the shared containment guard).
+        match resolve_member_path(base_dir, &entry.path) {
+            Err(_) => {
+                issues.push(ValidationIssue {
+                    code: IssueCode::MissingPolicyFile,
+                    severity: IssueSeverity::Error,
+                    policy_id: policy_id.clone(),
+                    path: Some(entry.path.clone()),
+                    message: format!(
+                        "policy source `{}` escapes the pack directory; a member \
+                         resolving outside the pack is not a valid policy file",
+                        entry.path.display()
+                    ),
+                    remediation: "Point the member at a `.rego` file inside the pack \
+                                  directory; remove any symlink that leaves the pack."
+                        .to_string(),
+                });
+            }
+            Ok(resolved) if !resolved.is_file() => {
+                issues.push(ValidationIssue {
+                    code: IssueCode::MissingPolicyFile,
+                    severity: IssueSeverity::Error,
+                    policy_id: policy_id.clone(),
+                    path: Some(entry.path.clone()),
+                    message: format!(
+                        "policy source `{}` is referenced by the manifest but does not exist",
+                        entry.path.display()
+                    ),
+                    remediation: "Add the `.rego` file at the referenced path, or correct \
+                                  the manifest to point at the real location."
+                        .to_string(),
+                });
+            }
+            Ok(_) => {}
         }
 
         // A sibling `*_test.rego` is expected but only advised here — test
-        // enforcement (a hard failure) is POLVAL-004.
+        // enforcement (a hard failure) is POLVAL-004. An escaping or absent
+        // sibling both count as "no valid in-pack test".
         if let Some(test_path) = test_sibling(&entry.path)
-            && !base_dir.join(&test_path).is_file()
+            && !resolve_member_path(base_dir, &test_path).is_ok_and(|p| p.is_file())
         {
             issues.push(ValidationIssue {
                 code: IssueCode::MissingTestFile,

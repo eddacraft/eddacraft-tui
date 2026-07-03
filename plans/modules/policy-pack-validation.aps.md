@@ -5,7 +5,7 @@
 
 | ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
-| POLVAL | —     | high     | Proposed |
+| POLVAL | —     | high     | In Progress |
 
 **Last reviewed:** 2026-07-04 (POLRESET-002 retarget under ADR-098).
 

@@ -169,22 +169,76 @@ impl PackManifest {
     }
 }
 
-/// Confirm a member path is relative and contains no `..` segment, so it can
-/// only refer to a file within the manifest's own directory tree. This is a
-/// purely lexical check — the filesystem is never touched.
+/// Lexical containment test: a member path escapes the pack if it is absolute,
+/// rooted (a Windows rooted-but-drive-less path like `\etc\x` has a root yet is
+/// not absolute, and `PathBuf::join` would then discard the base), or contains a
+/// `..` segment or a drive/UNC prefix. Purely lexical — the filesystem is never
+/// touched.
+fn is_lexically_escaping(path: &Path) -> bool {
+    path.is_absolute()
+        || path.has_root()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+}
+
+/// Confirm a member path is lexically contained within the manifest's own
+/// directory tree. This is the filesystem-free half of the contract, run by
+/// [`PackManifest::validate`]; post-resolution symlink containment is enforced
+/// at file-access time by [`resolve_member_path`].
 fn confirm_within_manifest_dir(entry: &PolicyEntry) -> Result<(), ManifestError> {
-    let escapes = entry.path.is_absolute()
-        || entry
-            .path
-            .components()
-            .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)));
-    if escapes {
+    if is_lexically_escaping(&entry.path) {
         return Err(ManifestError::PathEscapesManifest {
             policy_id: entry.metadata.id.clone(),
             path: entry.path.clone(),
         });
     }
     Ok(())
+}
+
+/// Resolve a member path against `base_dir` for file access, rejecting any path
+/// that escapes the pack directory.
+///
+/// Applies the lexical checks of [`is_lexically_escaping`], joins under
+/// `base_dir`, and — when the joined path exists — canonicalises both it and
+/// `base_dir` and requires the member to stay under the base. This catches a
+/// symlink placed at a lexically-clean member path that points outside the pack,
+/// which the lexical check alone cannot see. A nonexistent member returns the
+/// joined path unchanged; the caller's own missing-file handling owns that case.
+///
+/// On escape, returns [`ManifestError::PathEscapesManifest`] (with an empty
+/// `policy_id`; callers that hold the id re-attribute in their own reporting).
+pub(crate) fn resolve_member_path(
+    base_dir: &Path,
+    member: &Path,
+) -> Result<PathBuf, ManifestError> {
+    // Post-resolution containment for operator-invoked CLI admission — it is not
+    // a TOCTOU-proof guard. Daemon read-safety (openat2 per ADR-068) owns the
+    // guarantee that a path cannot be swapped for a symlink between check and use.
+    if is_lexically_escaping(member) {
+        return Err(escapes_manifest(member));
+    }
+    let joined = base_dir.join(member);
+    if joined.exists() {
+        let canonical_member =
+            std::fs::canonicalize(&joined).map_err(|_| escapes_manifest(member))?;
+        let canonical_base =
+            std::fs::canonicalize(base_dir).map_err(|_| escapes_manifest(member))?;
+        if !canonical_member.starts_with(&canonical_base) {
+            return Err(escapes_manifest(member));
+        }
+    }
+    Ok(joined)
+}
+
+fn escapes_manifest(member: &Path) -> ManifestError {
+    ManifestError::PathEscapesManifest {
+        policy_id: String::new(),
+        path: member.to_path_buf(),
+    }
 }
 
 #[cfg(test)]
@@ -372,6 +426,81 @@ policies:
             Err(ManifestError::PathEscapesManifest { .. }) => {}
             other => panic!("expected PathEscapesManifest for `..`, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn policy_pack_manifest_resolve_member_path_allows_contained_file() {
+        let dir = TempDir::new().expect("temp dir");
+        std::fs::create_dir_all(dir.path().join("policies")).expect("mkdir");
+        std::fs::write(dir.path().join("policies/a.rego"), "package a").expect("write");
+        let resolved =
+            resolve_member_path(dir.path(), Path::new("policies/a.rego")).expect("contained");
+        assert!(resolved.is_file());
+    }
+
+    #[test]
+    fn policy_pack_manifest_resolve_member_path_allows_nonexistent_member() {
+        let dir = TempDir::new().expect("temp dir");
+        // A member that does not exist yet returns the joined path unchanged;
+        // the missing-file check owns that case, not this containment guard.
+        let resolved =
+            resolve_member_path(dir.path(), Path::new("policies/absent.rego")).expect("joined");
+        assert_eq!(resolved, dir.path().join("policies/absent.rego"));
+    }
+
+    #[test]
+    fn policy_pack_manifest_resolve_member_path_rejects_absolute() {
+        let dir = TempDir::new().expect("temp dir");
+        let err = resolve_member_path(dir.path(), Path::new("/etc/passwd"))
+            .expect_err("absolute path must escape");
+        assert!(matches!(err, ManifestError::PathEscapesManifest { .. }));
+    }
+
+    // Reviewer repro (CRITICAL): a symlink placed AT a lexically-clean member
+    // path but pointing outside the pack must be rejected post-resolution, so
+    // external content is never opened. Symlink creation is Unix-only here.
+    #[cfg(unix)]
+    #[test]
+    fn policy_pack_manifest_symlink_member_escape_rejected() {
+        let outside = TempDir::new().expect("outside dir");
+        let secret = outside.path().join("secret.rego");
+        std::fs::write(&secret, "package secret").expect("write secret");
+
+        let pack = TempDir::new().expect("pack dir");
+        std::fs::create_dir_all(pack.path().join("policies")).expect("mkdir");
+        let member = pack.path().join("policies/a.rego");
+        std::os::unix::fs::symlink(&secret, &member).expect("symlink");
+
+        let err = resolve_member_path(pack.path(), Path::new("policies/a.rego"))
+            .expect_err("symlink escaping the pack must be rejected");
+        assert!(
+            matches!(err, ManifestError::PathEscapesManifest { .. }),
+            "got {err:?}"
+        );
+    }
+
+    // Reviewer finding #2 (CRITICAL): a Windows rooted-but-drive-less path
+    // (`\etc\x.rego`) has a root yet is not absolute, and `join` would discard
+    // the base. It must be rejected. Windows-only (backslashes are ordinary
+    // filename characters on Unix).
+    #[cfg(windows)]
+    #[test]
+    fn policy_pack_manifest_windows_rooted_path_rejected() {
+        let dir = TempDir::new().expect("temp dir");
+        let err = resolve_member_path(dir.path(), Path::new("\\etc\\x.rego"))
+            .expect_err("rooted path must escape");
+        assert!(matches!(err, ManifestError::PathEscapesManifest { .. }));
+
+        // And the lexical layer rejects it during manifest validation too.
+        let body = VALID_MANIFEST.replace(
+            "path: policies/no-network-imports.rego",
+            "path: \\etc\\x.rego",
+        );
+        let (_dir, path) = write_manifest(&body);
+        assert!(matches!(
+            load_manifest(&path),
+            Err(ManifestError::PathEscapesManifest { .. })
+        ));
     }
 
     #[test]

@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::pack::manifest::PackManifest;
+use crate::pack::manifest::{PackManifest, resolve_member_path};
 use crate::pack::validator::{IssueCode, IssueSeverity, ValidationIssue, test_sibling};
 use crate::{Engine, EngineConfig, PolicyInput};
 
@@ -121,20 +121,31 @@ fn run_member(
         outcomes: Vec::new(),
     };
 
-    // A sibling `*_test.rego` must exist for tests to run at all.
+    // A sibling `*_test.rego` must exist for tests to run at all. Resolve it
+    // through the containment guard: an escaping symlink or an absent file both
+    // mean "no valid in-pack test", so external content is never opened.
     let Some(test_rel) = test_sibling(policy_path) else {
         return Ok(result);
     };
-    let test_abs = base_dir.join(&test_rel);
-    if !test_abs.is_file() {
-        // No test file — leave test_path None for enforcement to escalate.
-        return Ok(result);
-    }
+    let test_abs = match resolve_member_path(base_dir, &test_rel) {
+        Ok(path) if path.is_file() => path,
+        _ => return Ok(result),
+    };
     result.test_path = Some(test_rel.clone());
+
+    // Resolve the policy source through the same guard before reading it, so a
+    // symlink pointing outside the pack is refused rather than evaluated.
+    let Ok(policy_abs) = resolve_member_path(base_dir, policy_path) else {
+        result.load_error = Some(format!(
+            "policy source `{}` escapes the pack directory and was not evaluated",
+            policy_path.display()
+        ));
+        return Ok(result);
+    };
 
     // Read both sources. An existing-but-unreadable file, or a missing policy
     // source, is a load error (the member's tests cannot run).
-    let policy_source = match std::fs::read_to_string(base_dir.join(policy_path)) {
+    let policy_source = match std::fs::read_to_string(&policy_abs) {
         Ok(src) => src,
         Err(e) => {
             result.load_error = Some(format!(
@@ -341,10 +352,15 @@ fn parse_test_package(source: &str) -> Option<String> {
 /// at column zero with `test_` followed by at least one more identifier char.
 /// Names are deduplicated, preserving first-seen order. See the module docs for
 /// the limitation.
+///
+/// Backtick raw-string content is blanked out first so a `test_*` line *inside*
+/// a Rego raw string is not mistaken for a rule (which would evaluate undefined
+/// and red a healthy pack).
 fn discover_test_rules_from_source(source: &str) -> Vec<String> {
+    let stripped = strip_raw_strings(source);
     let mut names = Vec::new();
     let mut seen = BTreeSet::new();
-    for line in source.lines() {
+    for line in stripped.lines() {
         if !line.starts_with("test_") {
             continue;
         }
@@ -360,6 +376,27 @@ fn discover_test_rules_from_source(source: &str) -> Vec<String> {
         }
     }
     names
+}
+
+/// Replace the content of Rego backtick raw strings with spaces, preserving
+/// newlines so line structure (and thus column-zero scanning) survives. Rego
+/// raw strings have no escape sequences, so a single toggle on the backtick
+/// character is sufficient.
+fn strip_raw_strings(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut in_raw = false;
+    for ch in source.chars() {
+        match ch {
+            '`' => {
+                in_raw = !in_raw;
+                out.push(' ');
+            }
+            '\n' => out.push('\n'),
+            _ if in_raw => out.push(' '),
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 /// Render a path as a stable string for `add_policy` (regorus uses it only as a
@@ -413,6 +450,71 @@ policies:
         assert_eq!(
             discover_test_rules_from_source(src),
             vec!["test_one".to_string(), "test_two".to_string()]
+        );
+    }
+
+    #[test]
+    fn policy_test_runner_backtick_raw_string_not_discovered() {
+        // Reviewer repro (MAJOR): a `test_*` line inside a backtick raw string
+        // must not be discovered as a rule. Exactly one real rule survives.
+        let src = "package a_test\nimport rego.v1\n\ndoc := `\ntest_example_usage if { input.x == 1 }\n`\n\ntest_real if true\n";
+        assert_eq!(
+            discover_test_rules_from_source(src),
+            vec!["test_real".to_string()],
+            "a test_ line inside a raw string must be ignored"
+        );
+    }
+
+    #[test]
+    fn policy_test_runner_backtick_raw_string_pack_stays_green() {
+        let dir = TempDir::new().expect("temp dir");
+        write(dir.path(), "policies/a.rego", POLICY);
+        write(
+            dir.path(),
+            "policies/a_test.rego",
+            "package a_test\nimport rego.v1\n\ndoc := `\ntest_example_usage if { true }\n`\n\ntest_real if data.a.allow with input as {\"x\": 1}\n",
+        );
+        let report = run_pack_tests(&one_member_manifest("policy-a"), dir.path()).expect("run");
+        let member = &report.members[0];
+        assert_eq!(member.outcomes.len(), 1, "{member:?}");
+        assert!(member.outcomes[0].passed);
+        assert!(enforce_tests(&report).is_empty(), "pack must stay green");
+    }
+
+    // Reviewer repro (CRITICAL): a symlink at the policy member path pointing
+    // outside the pack must not be read or evaluated; it surfaces as a load
+    // error that enforcement turns into an error-class issue. Unix-only.
+    #[cfg(unix)]
+    #[test]
+    fn policy_test_runner_symlink_policy_escape_not_evaluated() {
+        let outside = TempDir::new().expect("outside dir");
+        let secret = outside.path().join("secret.rego");
+        // External content that, if evaluated, would define `allow`.
+        std::fs::write(&secret, "package a\nimport rego.v1\n\nallow if true\n").expect("write");
+
+        let pack = TempDir::new().expect("pack dir");
+        std::fs::create_dir_all(pack.path().join("policies")).expect("mkdir");
+        std::os::unix::fs::symlink(&secret, pack.path().join("policies/a.rego")).expect("symlink");
+        write(
+            pack.path(),
+            "policies/a_test.rego",
+            "package a_test\nimport rego.v1\n\ntest_real if data.a.allow with input as {\"x\": 1}\n",
+        );
+
+        let report = run_pack_tests(&one_member_manifest("policy-a"), pack.path()).expect("run");
+        let member = &report.members[0];
+        assert!(
+            member.load_error.is_some(),
+            "escaping policy symlink must not be evaluated: {member:?}"
+        );
+        assert!(member.outcomes.is_empty());
+
+        let issues = enforce_tests(&report);
+        assert!(
+            issues.iter().any(
+                |i| i.code == IssueCode::PolicyTestFailed && i.severity == IssueSeverity::Error
+            ),
+            "escape must be an error-class outcome: {issues:?}"
         );
     }
 
