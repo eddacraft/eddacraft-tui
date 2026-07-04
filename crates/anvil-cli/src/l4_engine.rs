@@ -70,13 +70,15 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anvil_checks::antipattern::{
-    AntipatternCheckConfig, WarningSeverity, patterns_count, run_antipattern_check,
+    AntipatternCheckConfig, Warning, WarningSeverity, patterns_count, run_antipattern_check,
 };
 use anvil_hook::{is_hex_sha, is_zero_sha};
 use anvil_l4::{
-    EngineUnavailableReason, Severity, ValidationDiagnostic, ValidationEngine, ValidationRequest,
-    ValidationVerdict,
+    EngineUnavailableReason, ExceptionDisposition, Severity, ValidationDiagnostic,
+    ValidationEngine, ValidationRequest, ValidationVerdict, apply_exception_dispositions,
 };
+use anvil_policy::exceptions::{ExceptionStore, verify_exception_at};
+use chrono::Utc;
 
 /// MLP2-016 production engine.
 ///
@@ -214,11 +216,14 @@ where
     let path_refs: Vec<&str> = materialised.iter().map(String::as_str).collect();
     let workspace_str = workspace_root.to_string_lossy().into_owned();
     let result = run_antipattern_check(&path_refs, &config, Some(&workspace_str));
-    let diagnostics: Vec<ValidationDiagnostic> = result
+    let visible: Vec<&Warning> = result
         .warnings
         .warnings
         .iter()
         .filter(|w| w.suppressed.is_none())
+        .collect();
+    let diagnostics: Vec<ValidationDiagnostic> = visible
+        .iter()
         .map(|w| ValidationDiagnostic {
             rule_id: w.id.clone(),
             severity: match w.severity {
@@ -229,10 +234,99 @@ where
         })
         .collect();
     if diagnostics.is_empty() {
-        ValidationVerdict::Allow
-    } else {
-        ValidationVerdict::Block { diagnostics }
+        return ValidationVerdict::Allow;
     }
+    // EXCEPT-006: apply tracked policy exceptions (ADR-073) before the
+    // verdict forms. Matching runs against the *repo* root's store —
+    // the temp workspace holds only materialised blobs — while the
+    // warning's workspace-relative path is what exception globs match.
+    let dispositions = exception_dispositions(repo_root, commit_sha, &visible);
+    let outcome = apply_exception_dispositions(diagnostics, &dispositions);
+    for applied in &outcome.applied {
+        // The recorded trail of exception use. `tracing` is this
+        // surface's established machine-readable channel (see the
+        // pre-push hook's engine_unavailable event); witness-envelope
+        // and capsule inclusion build on the same applied record
+        // (EXCEPT-009).
+        tracing::info!(
+            target: "anvil::l4_engine",
+            exception_id = %applied.exception_id,
+            rule_id = %applied.rule_id,
+            commit = %short(commit_sha),
+            downgraded = applied.downgraded,
+            "policy exception applied to L4 finding",
+        );
+    }
+    outcome.verdict
+}
+
+/// EXCEPT-006: compute one [`ExceptionDisposition`] per visible
+/// warning from the tracked exception store (`anvil/exceptions/`,
+/// ADR-073).
+///
+/// - Store unreadable → no exceptions apply (fail-safe: findings
+///   stand, the gate blocks rather than silently admitting).
+/// - Revoked / expired / invalid-scope grants never apply
+///   (`verify_exception_at` precedence).
+/// - When both an attributed and an unattributed grant cover the same
+///   finding, the attributed one wins — a clean suppression is
+///   preferred over a downgrade, independent of store order.
+fn exception_dispositions(
+    repo_root: &Path,
+    commit_sha: &str,
+    warnings: &[&Warning],
+) -> Vec<ExceptionDisposition> {
+    let not_covered = vec![ExceptionDisposition::NotCovered; warnings.len()];
+    if warnings.is_empty() {
+        return not_covered;
+    }
+    let store = match ExceptionStore::load(repo_root) {
+        Ok(store) => store,
+        Err(err) => {
+            tracing::warn!(
+                target: "anvil::l4_engine",
+                commit = %short(commit_sha),
+                error = %err,
+                "exception store unreadable; no exceptions applied",
+            );
+            return not_covered;
+        }
+    };
+    let now = Utc::now();
+    let active = store.active_exceptions_at(now);
+    if active.is_empty() {
+        return not_covered;
+    }
+    warnings
+        .iter()
+        .map(|warning| {
+            let mut downgrade: Option<ExceptionDisposition> = None;
+            for exception in &active {
+                let verdict = verify_exception_at(exception, now);
+                if !verdict.applies()
+                    || !exception.covers_finding(
+                        &warning.id,
+                        &warning.location.file,
+                        warning.fingerprint.as_deref(),
+                    )
+                {
+                    continue;
+                }
+                if verdict.is_downgrade() {
+                    downgrade.get_or_insert_with(|| {
+                        ExceptionDisposition::SuppressedDowngraded {
+                            exception_id: exception.id.clone(),
+                        }
+                    });
+                } else {
+                    return ExceptionDisposition::Suppressed {
+                        exception_id: exception.id.clone(),
+                    };
+                }
+            }
+            downgrade.unwrap_or(ExceptionDisposition::NotCovered)
+        })
+        .collect()
 }
 
 /// `git diff-tree --no-commit-id --name-only -r --root
@@ -950,6 +1044,131 @@ mod tests {
             "AP-001 must surface as Warn so OnWarn::Allow can admit; \
              a future severity flip to Block would silently change \
              default-policy semantics",
+        );
+    }
+
+    // --- EXCEPT-006: tracked policy exceptions at the L4 gate ---
+
+    use anvil_policy::exceptions::{ExceptionRevocation, PolicyException, WriteOutcome};
+    use chrono::Duration;
+
+    /// Content that trips the `AP-001` broad-`eslint-disable`
+    /// antipattern — the same fixture
+    /// `validate_commit_blocks_on_known_antipattern` pins.
+    const AP_001_CONTENT: &str = "/* eslint-disable */\nimport { x } from './m';\n";
+
+    fn exception_for(policy_id: &str, file_pattern: &str) -> PolicyException {
+        PolicyException {
+            schema_version: String::new(),
+            id: String::new(),
+            policy_id: policy_id.to_string(),
+            file_pattern: file_pattern.to_string(),
+            finding_hash: None,
+            reason: "test grant".to_string(),
+            owner: Some("team-platform".to_string()),
+            created_by: Some("alice@example.test".to_string()),
+            created_at: Utc::now(),
+            expires_at: None,
+            revoked: None,
+        }
+    }
+
+    fn save_exceptions(root: &Path, exceptions: Vec<PolicyException>) {
+        let mut store = ExceptionStore::empty();
+        for ex in exceptions {
+            store.add(ex);
+        }
+        let outcome = store.save(root).expect("write tracked exception store");
+        assert_eq!(outcome, WriteOutcome::Written);
+    }
+
+    /// EXCEPT-006: a valid, attributed exception covering the rule and
+    /// file suppresses the finding — the gate recomputes to `Allow`.
+    #[test]
+    fn active_exception_suppresses_finding_and_allows() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        save_exceptions(&root, vec![exception_for("AP-001", "src/**")]);
+        let verdict = validate_commit(&root, &sha);
+        assert_eq!(verdict, ValidationVerdict::Allow);
+    }
+
+    /// EXCEPT-006 / ADR-073: an unattributed (v0-shape) grant is never
+    /// silently honoured — the finding survives at `Warn`, annotated
+    /// with the exception id.
+    #[test]
+    fn unattributed_exception_downgrades_finding_with_annotation() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let mut ex = exception_for("AP-001", "src/**");
+        ex.owner = None;
+        ex.created_by = None;
+        save_exceptions(&root, vec![ex]);
+        let verdict = validate_commit(&root, &sha);
+        let ValidationVerdict::Block { diagnostics } = verdict else {
+            panic!("expected Block carrier, got {verdict:?}");
+        };
+        let ap_001 = diagnostics
+            .iter()
+            .find(|d| d.rule_id == "AP-001")
+            .expect("AP-001 present");
+        assert_eq!(ap_001.severity, Severity::Warn);
+        assert!(
+            ap_001.message.contains("unattributed exception"),
+            "downgrade annotation missing: {}",
+            ap_001.message,
+        );
+    }
+
+    /// EXCEPT-006: an expired grant does not apply — the finding
+    /// stands unannotated.
+    #[test]
+    fn expired_exception_leaves_finding_standing() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let mut ex = exception_for("AP-001", "src/**");
+        ex.expires_at = Some(Utc::now() - Duration::days(1));
+        save_exceptions(&root, vec![ex]);
+        let verdict = validate_commit(&root, &sha);
+        let ValidationVerdict::Block { diagnostics } = verdict else {
+            panic!("expected Block, got {verdict:?}");
+        };
+        let ap_001 = diagnostics
+            .iter()
+            .find(|d| d.rule_id == "AP-001")
+            .expect("AP-001 must stand");
+        assert!(
+            !ap_001.message.contains("exception"),
+            "expired grant must not annotate: {}",
+            ap_001.message,
+        );
+    }
+
+    /// EXCEPT-006: a revoked grant does not apply.
+    #[test]
+    fn revoked_exception_leaves_finding_standing() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let mut ex = exception_for("AP-001", "src/**");
+        ex.revoked = Some(ExceptionRevocation {
+            revoked_at: Utc::now(),
+            revoked_by: "bob".to_string(),
+            reason: "no longer needed".to_string(),
+        });
+        save_exceptions(&root, vec![ex]);
+        let verdict = validate_commit(&root, &sha);
+        assert!(
+            matches!(verdict, ValidationVerdict::Block { .. }),
+            "revoked grant must not suppress, got {verdict:?}",
+        );
+    }
+
+    /// EXCEPT-006: exception scope is honoured — a grant for another
+    /// directory does not cover this finding.
+    #[test]
+    fn out_of_scope_exception_leaves_finding_standing() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        save_exceptions(&root, vec![exception_for("AP-001", "vendor/**")]);
+        let verdict = validate_commit(&root, &sha);
+        assert!(
+            matches!(verdict, ValidationVerdict::Block { .. }),
+            "out-of-scope grant must not suppress, got {verdict:?}",
         );
     }
 
