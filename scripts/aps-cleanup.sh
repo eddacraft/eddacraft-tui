@@ -4,7 +4,7 @@
 # against actual work item states, flags stale entries, checks branch hygiene.
 #
 # Usage: ./aps-cleanup.sh [--repo=<path>] [--dry-run] [--notify]
-# Default repo: ~/Projects/src/EddaCraft/anvil-001
+# Default repo: ~/Projects/src/anvil-001
 #
 # Modes:
 #   (default)  Report findings only, append to cleanup-log.md
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-$HOME/Projects/src/EddaCraft/anvil-001}"
+REPO="${REPO:-$HOME/Projects/src/anvil-001}"
 DRY_RUN=false
 NOTIFY=false
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M %Z')
@@ -367,30 +367,18 @@ for plan_file in "$POST_MERGE_DIR"/*.md; do
 done
 
 # ── 5. Branch hygiene ───────────────────────────────────────────────────────
+# Main-first since the OPMODEL-012 cutover (2026-05-11): `main` is the sole
+# integration target and `dev` is retired, so branches are measured merged
+# against `origin/main`, and the old dev→main promotion-drift check is gone.
 log "Checking branch hygiene..."
 
-stale_branches=$(git branch -r --merged origin/dev 2>/dev/null \
-  | grep -v 'HEAD\|main\|dev\|release/' \
+stale_branches=$(git branch -r --merged origin/main 2>/dev/null \
+  | grep -v 'HEAD\|main\|release/' \
   | sed 's/^[[:space:]]*//' || true)
 
 if [[ -n "$stale_branches" ]]; then
   count=$(echo "$stale_branches" | grep -c . || true)
   finding "BRANCHES: $count merged branches still open (consider deleting)"
-fi
-
-# Dev/main drift check, gated on whether `dev` is still an active
-# promotion target. OPMODEL-012 cut over to main-first on 2026-05-11
-# and tagged the retirement as `dev-retired-2026-05-11`; the dev ref
-# is scheduled for deletion. Once the tag is reachable from `origin/dev`,
-# the branch is residual not active — treat further drift as noise.
-dev_ahead=$(git rev-list --count origin/main..origin/dev 2>/dev/null || echo 0)
-dev_retired=false
-if git rev-parse --verify --quiet refs/tags/dev-retired-2026-05-11 >/dev/null 2>&1 \
-   && git merge-base --is-ancestor refs/tags/dev-retired-2026-05-11 origin/dev 2>/dev/null; then
-  dev_retired=true
-fi
-if [[ "$dev_ahead" -gt 20 ]] && [[ "$dev_retired" != true ]]; then
-  finding "DRIFT: dev is $dev_ahead commits ahead of main — promotion overdue"
 fi
 
 # ── 6. Index staleness check ────────────────────────────────────────────────
@@ -432,8 +420,8 @@ fi
 
 # ── 8. Notify ───────────────────────────────────────────────────────────────
 if [[ "$NOTIFY" == true ]] && [[ -n "$FINDINGS" ]]; then
-  if echo -e "$FINDINGS" | grep -qE 'MISMATCH|STATUS|DRIFT|ARCHIVE'; then
-    ALERT=$(echo -e "$FINDINGS" | grep -E 'MISMATCH|STATUS|DRIFT|ARCHIVE' | head -5)
+  if echo -e "$FINDINGS" | grep -qE 'MISMATCH|STATUS|ARCHIVE'; then
+    ALERT=$(echo -e "$FINDINGS" | grep -E 'MISMATCH|STATUS|ARCHIVE' | head -5)
     openclaw message send --channel telegram \
       "APS cleanup — $(date '+%H:%M')\n\n$ALERT" 2>/dev/null \
       || log "Notification failed (openclaw not available)"
