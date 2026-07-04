@@ -501,3 +501,22 @@ never with feature work.
 - Checkpoints raised: none.
 - Next: POLRESET-004 (CPOL/IORISK retarget + context contracts); 005/006
   remain gated on EXCEPT-006 and OPAE-006/007.
+
+## Cycle — 2026-07-04 (POLRESET-004)
+
+- Item: POLRESET-004 — Deterministic policy context and risk vocabulary
+- Outcome: done (PR #3139; CPOL-001..003 + IORISK-001..003 all Done)
+- Validation: engine crate 142 lib + 1 integration green; kernel-types 198 +
+  10 doctests green; cargo check --workspace green (14 kernel-types
+  dependents); clippy/fmt/hakari clean; aps lint clean.
+- Review: pre-PR council review found 1 CONFIRMED critical (exponential
+  ReDoS in a hand-rolled glob matcher, the workspace's fifth glob impl —
+  replaced with globset in the kernel-watcher dialect + linearity regression
+  test), 1 major (duplicated posture→decision rule — centralised in
+  src/posture.rs), 1 minor (unvalidated assertions at evaluate/assess —
+  boundary validation added), 1 nit — all fixed pre-PR.
+- Plan changes: CPOL/IORISK retargeted off crates/anvil-policy per ADR-098
+  AD-2; IORISK.steps.md migrated to .actions.md; module headers In Progress.
+- Checkpoints raised: none.
+- Next: POLRESET-005..009 are gated on external prerequisites (EXCEPT-006
+  verdict-aware wiring first); park handoff and report.

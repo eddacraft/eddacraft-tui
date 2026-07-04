@@ -143,7 +143,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-004: Deterministic policy context and risk vocabulary
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-04 via PR #3139
 - **Intent:** Ensure policy evaluation receives deterministic changed-code,
   workflow, graph, and risk context before enforcement routing is attempted.
 - **Expected Outcome:** CPOL and IORISK provide reusable input contracts for
