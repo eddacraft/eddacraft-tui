@@ -213,14 +213,34 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-007: Starter policy pack proof
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Ship one high-signal starter pack that proves real policy value
   before broad compliance-pack expansion.
 - **Expected Outcome:** A starter pack installs, validates, evaluates through
   regorus, emits remediation-first guidance, and can be exercised in report-only
   CI.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- starter_policy_pack`
-  and `opa test policies/fixtures/`
+- **Validation:** `cargo test -p eddacraft-anvil -- starter_policy_pack` and
+  `opa test policies/fixtures/` (the Go-OPA compat check). The proof lands in
+  the CLI crate (`crates/anvil-cli/src/commands/policy/starter_proof.rs`), not
+  the deleted `eddacraft-anvil-policy` crate the original line cited.
+- **Proof status:** End-to-end proof landed as one integration-grade module
+  (7 `#[test]`s). Six of seven chain stages are proven green: install +
+  verified provenance, admission pipeline (regorus pack tests), advisory-first
+  gate evaluation (exit 0), pre-write `PrewriteInput` projection feeding the
+  pack, the warnings-never-veto-even-under-interrupt advisory invariant (routed
+  through the real `mcp::enforcement::decision_for`), and report-only
+  eval-harness exercisability under the frozen `anvil policy eval --json` v1
+  contract. **Blocking gap (do not flip to Done until resolved):** the gate's
+  finding extractor (`gate::extract_policy_findings`) recognises the rule
+  vocabulary `warn`/`warnings`/`violation`/`deny`, but the bundled pack emits
+  its advisories under a `warning` rule — so the gate evaluates the pack yet
+  drops every advisory, and remediation guidance never reaches an operator via
+  `anvil gate`. The pack's remediation-first guidance IS proven (directly, and
+  via `anvil policy eval`); only the gate surface loses it. Fix is a one-line
+  vocabulary alignment (add `warning` to the gate extractor, or rename the pack
+  rule to `warn`) — a product/API decision left for the owner. Pinned by
+  `starter_policy_pack_gate_drops_pack_warnings_vocab_gap` as a regression
+  guard.
 - **Dependencies:** POLRESET-002, POLRESET-003, POLRESET-006
 - **Coordinates with:** CPACKS, OPAE-004, OPAE-008
 - **Confidence:** medium

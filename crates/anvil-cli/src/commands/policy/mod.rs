@@ -7,6 +7,8 @@ use crate::GlobalArgs;
 mod eval;
 mod eval_regression;
 mod install;
+#[cfg(test)]
+mod starter_proof;
 mod validate;
 
 #[derive(Debug, Args)]

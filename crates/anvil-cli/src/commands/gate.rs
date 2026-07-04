@@ -2151,6 +2151,26 @@ fn run_check_policy(
     }
 }
 
+/// Test-only bridge to the private policy gate check for the cross-module
+/// starter-pack end-to-end proof (`commands::policy::starter_proof`), which
+/// lives outside this module and so cannot reach [`run_check_policy`]
+/// directly. Returns the check's `(passed, message)`. Compiled only under
+/// test — nothing here ships in the binary.
+#[cfg(test)]
+pub(crate) fn run_policy_check_for_proof(
+    project_root: &Path,
+    all_files: &[String],
+) -> (bool, String) {
+    let result = run_check_policy(
+        project_root,
+        None,
+        None,
+        &std::collections::HashSet::new(),
+        Some(all_files),
+    );
+    (result.passed, result.message)
+}
+
 fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     let root = &ctx.workspace_root;
 

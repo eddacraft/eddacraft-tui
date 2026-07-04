@@ -305,13 +305,22 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-008: Starter pack end-to-end proof
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Prove one high-signal policy pack across install, validation,
   evaluation, guidance, and report-only regression.
 - **Expected Outcome:** A starter pack demonstrates real policy value before broad
   compliance-pack expansion.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- starter_policy_pack`
-  and `cargo test -p eddacraft-anvil -- eval_regression_command`
+- **Validation:** `cargo test -p eddacraft-anvil -- starter_policy_pack` (the
+  proof lands in the CLI crate, not the deleted `eddacraft-anvil-policy` crate
+  the original line cited) and `cargo test -p eddacraft-anvil -- eval_regression_command`
+  (already green on main).
+- **Proof status:** Delivered jointly with POLRESET-007 as one proof module
+  (`crates/anvil-cli/src/commands/policy/starter_proof.rs`). Install,
+  admission, advisory-first gate evaluation, pre-write projection, the
+  advisory (never-veto) invariant, and frozen-v1 eval-harness exercisability
+  are proven; guidance surfacing at the `anvil gate` surface is blocked by the
+  `warn` vs `warning` extractor/pack vocabulary mismatch documented under
+  POLRESET-007. Held In Progress until that gap is resolved.
 - **Dependencies:** OPAE-004, OPAE-007, POLRESET-007
 - **Confidence:** medium
 
