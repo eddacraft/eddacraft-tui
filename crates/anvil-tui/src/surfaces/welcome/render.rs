@@ -46,12 +46,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     };
 
     // In compact mode, surface a one-line resize hint — but only when the
-    // terminal is tall enough for the logo, at least one menu row, and the
-    // hint itself, so the hint never crowds out the whole menu (CIB-179).
-    // The trailing Length(1) chunk keeps menu priority via Min(menu_h).
-    // Room needed beyond the top padding: logo(7) + blank(1) + a menu row(1)
-    // + hint(1) = 10, so require strictly more than 10 rows.
-    let show_hint = compact && area.height > 7 + 1 + 1 + 1;
+    // terminal has genuine spare height for it: top padding(1) + logo(7) +
+    // blank(1) + the full compact menu + hint(1). Showing it under contention
+    // is unsafe — ratatui holds the `Min(menu_h)` menu at full size and lets
+    // the fixed `Length(7)` logo absorb the shortfall, silently squeezing a
+    // row (or more) out of the brandmark. That is the exact defect CIB-179
+    // exists to prevent, so the hint must never be traded for logo integrity.
+    #[allow(clippy::cast_possible_truncation)]
+    let hint_min_height = (1 + 7 + 1 + menu_height + 1) as u16;
+    let show_hint = compact && area.height >= hint_min_height;
     let hint_h: u16 = u16::from(show_hint);
 
     // In compact mode: logo(7) + blank(1) + menu(N) + optional hint(1)
@@ -269,7 +272,9 @@ mod tests {
 
     #[test]
     fn compact_shows_resize_hint() {
-        let backend = TestBackend::new(40, 12);
+        // Compact (< full_content_height) but tall enough that the hint fits
+        // below a full logo and full compact menu without contention.
+        let backend = TestBackend::new(40, 20);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = WelcomeState::new();
         let theme = EddaCraftTheme;
@@ -282,6 +287,38 @@ mod tests {
         assert!(
             text.contains(COMPACT_HINT),
             "compact mode should surface the resize hint; got:\n{text}"
+        );
+        assert_eq!(
+            text.lines().filter(|l| l.contains('\u{2588}')).count(),
+            LOGO_LINES.len(),
+            "logo must stay intact when the hint is shown; got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn boundary_compact_withholds_hint_keeps_logo_intact() {
+        // Height 16 is the boundary that fits a full logo + full compact menu
+        // exactly. Adding the hint here would force the fixed-height logo to
+        // shed a row, so the hint is withheld and the brandmark stays intact
+        // (the precise boundary case CIB-179 must not regress).
+        let backend = TestBackend::new(40, 16);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = WelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let text = plain(terminal.backend().buffer());
+        assert!(
+            !text.contains(COMPACT_HINT),
+            "hint must be withheld when it would squeeze the logo; got:\n{text}"
+        );
+        assert_eq!(
+            text.lines().filter(|l| l.contains('\u{2588}')).count(),
+            LOGO_LINES.len(),
+            "logo must stay intact at the boundary compact size; got:\n{text}"
         );
     }
 
@@ -306,7 +343,8 @@ mod tests {
 
     #[test]
     fn snapshot_compact_hint() {
-        let backend = TestBackend::new(40, 12);
+        // Compact with enough height that the hint fits below an intact logo.
+        let backend = TestBackend::new(40, 20);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = WelcomeState::new();
         let theme = EddaCraftTheme;
@@ -329,5 +367,39 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    /// Count rows that contain the logo block glyph — the effective rendered
+    /// height of the brandmark.
+    fn logo_rows(text: &str) -> usize {
+        text.lines().filter(|l| l.contains('\u{2588}')).count()
+    }
+
+    /// The compact resize hint must never be shown at a size where doing so
+    /// squeezes a row out of the fixed-height logo. Under contention ratatui
+    /// holds the `Min(menu)` menu at full size and shrinks the `Length(7)`
+    /// logo, so an over-eager hint silently degrades the brandmark — the exact
+    /// failure mode CIB-179 exists to prevent (regression guard).
+    #[test]
+    fn compact_hint_never_squeezes_logo() {
+        let theme = EddaCraftTheme;
+        for height in 8u16..=32 {
+            let backend = TestBackend::new(40, height);
+            let mut terminal = Terminal::new(backend).unwrap();
+            let state = WelcomeState::new();
+            terminal
+                .draw(|frame| render(frame, frame.area(), &state, &theme))
+                .unwrap();
+
+            let text = plain(terminal.backend().buffer());
+            let rows = logo_rows(&text);
+            let hint_shown = text.contains(COMPACT_HINT);
+            assert!(
+                !(hint_shown && rows < LOGO_LINES.len()),
+                "at height {height}: resize hint shown but logo squeezed to \
+                 {rows} rows (expected {}); got:\n{text}",
+                LOGO_LINES.len(),
+            );
+        }
     }
 }

@@ -1998,5 +1998,15 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When a compact TUI layout must add an element without stealing content rows, lean on `Min(priority_h)` for the content and a trailing fixed `Length` for the addition — the solver sacrifices lower-priority decorative `Length` chunks first.
 - **Follow-up:** none.
 
+### 2026-07-04 — claude (council remediation)
+
+- **Task:** CIB-179 Council follow-up (major) — the `Min(menu_h)` + trailing `Length(1)` hint trick that was celebrated in the prior entry is exactly what degraded the brandmark: under contention ratatui holds the menu at full size and lets the fixed `Length(7)` logo absorb the shortfall, so at compact heights 11–16 the logo silently lost a row (at height 11 it collapsed to a single fragment row; height 16 — a previously perfect full-logo/full-menu fit — dropped to 6). Duplicated in both welcome renderers. The added tests only asserted hint presence/absence, so the regression was invisible to CI.
+- **Outcome:** Gated the hint on genuine spare height instead of a hard-coded floor: `show_hint = compact && area.height >= (1 top-pad + 7 logo + 1 blank + menu_height + 1 hint)` in both `welcome/render.rs` and `onboarding/welcome_render.rs`. The hint now appears only when logo + full compact menu + hint fit without contention, so it can never be traded for a logo row. TDD: added a `compact_hint_never_squeezes_logo` invariant test (sweeps heights 8–32, asserts `hint_shown ⇒ logo == 7 rows`) proven red first (failed at height 11, logo=1), plus boundary tests pinning the logo at the exact 16/13 fit heights where the hint is now withheld. Retargeted the `compact_shows_resize_hint`/`snapshot_compact_hint` cases to compact-but-roomy sizes (40x20 welcome, 40x16 onboarding) and regenerated the insta snapshots — both now show all 7 logo rows and the hint together.
+- **Worked:** Deriving the show threshold from the same `menu_height` the layout already uses keeps the gate honest across both surfaces and any future menu-count change; the sweep test turns "logo integrity" into a machine-checked property rather than a manually sanity-checked case.
+- **Failed:** none.
+- **Friction:** The logo is inherently squeezed at 40x12 by the 7-item menu alone (independent of the hint), so the boundary "logo intact" assertion had to sit at height 16 (welcome) / 13 (onboarding) — the smallest heights where a full logo + full compact menu actually fit — not at the smallest compact size.
+- **Improvement:** A `Min(content)` + trailing `Length(decoration)` layout only protects the content; the fixed-`Length` element it sits beside is what gets sacrificed under contention. Any additive chunk must be gated on the total fitting without contention, and a decorative fixed-size element (a logo) needs a row-count regression test, not just a content-presence one, or the trade-off it silently makes stays invisible to CI.
+- **Follow-up:** none.
+
 
 
