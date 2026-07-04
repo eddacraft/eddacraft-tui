@@ -305,7 +305,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-008: Starter pack end-to-end proof
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Prove one high-signal policy pack across install, validation,
   evaluation, guidance, and report-only regression.
 - **Expected Outcome:** A starter pack demonstrates real policy value before broad
@@ -315,12 +315,16 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   the original line cited) and `cargo test -p eddacraft-anvil -- eval_regression_command`
   (already green on main).
 - **Proof status:** Delivered jointly with POLRESET-007 as one proof module
-  (`crates/anvil-cli/src/commands/policy/starter_proof.rs`). Install,
-  admission, advisory-first gate evaluation, pre-write projection, the
-  advisory (never-veto) invariant, and frozen-v1 eval-harness exercisability
-  are proven; guidance surfacing at the `anvil gate` surface is blocked by the
-  `warn` vs `warning` extractor/pack vocabulary mismatch documented under
-  POLRESET-007. Held In Progress until that gap is resolved.
+  (`crates/anvil-cli/src/commands/policy/starter_proof.rs`). All five stages
+  proven green — install + verified provenance, admission (regorus pack tests),
+  advisory-first gate evaluation surfacing remediation-first guidance,
+  pre-write projection with the warnings-never-veto-under-interrupt invariant,
+  and frozen `anvil policy eval --json` v1 eval-harness exercisability. The
+  proof surfaced and closed a policy extractor gap on **both** surfaces (the
+  gate and the pre-write `mcp::policy_prewrite` path from PR #3165 both failed
+  to recognise the documented `warning` rule set), fixed via a crate
+  single-source rule-family vocabulary (`crate::policy_vocab`) — see
+  POLRESET-007.
 - **Dependencies:** OPAE-004, OPAE-007, POLRESET-007
 - **Confidence:** medium
 

@@ -22,8 +22,9 @@
 //!    are all green on the installed copy (the pack's own Rego tests pass
 //!    through the regorus facade).
 //! 3. **Gate** — [`starter_policy_pack_gate_evaluates_advisory_first`]: the
-//!    live gate evaluates the installed pack and passes (exit 0) even with a
-//!    sensitive path changed (advisory-first, ADR-002).
+//!    live gate evaluates the installed pack and surfaces the pack's
+//!    warning-class advisory with its remediation-first guidance, while still
+//!    passing (exit 0) — advisory-first, ADR-002.
 //! 4. **Pre-write** — [`starter_policy_pack_prewrite_projection_feeds_pack`]:
 //!    the pre-write [`PrewriteInput`] projection feeds the pack the sensitive
 //!    change and the pack fires.
@@ -37,11 +38,12 @@
 //!    policy evaluates through the same engine pipeline `anvil policy eval`
 //!    uses, and the resulting v1 document normalises cleanly through the frozen
 //!    `anvil policy eval --json` harness the eval-regression command binds to.
-//! 7. **Gap characterisation** —
-//!    [`starter_policy_pack_gate_drops_pack_warnings_vocab_gap`]: pins the one
-//!    stage that is **not** provable end-to-end — the gate's finding extractor
-//!    reads `warn`/`warnings` while the pack emits `warning`, so the pack's
-//!    remediation-first advisories never reach the gate surface.
+//! 7. **Vocabulary lockstep** —
+//!    [`starter_policy_pack_extractor_recognises_documented_rule_families`]:
+//!    guards that the pack's rule-set names and the gate's recognised
+//!    vocabulary stay in lockstep via the single-source `WARNING_FAMILY_KEYS` /
+//!    `VIOLATION_FAMILY_KEYS` consts (the warn/warning gap this proof originally
+//!    surfaced, now closed at the extractor).
 
 use std::path::Path;
 
@@ -306,6 +308,23 @@ fn starter_policy_pack_gate_evaluates_advisory_first() {
         !message.contains("Skipping"),
         "an installed pack must not be skipped: {message}"
     );
+
+    // The pack's advisory SURFACES through the gate result as a warning-class
+    // finding carrying remediation-first guidance (the review + exception path).
+    // The gate recognises the documented `warning` rule family
+    // (docs/guides/opa-policy-testing.md).
+    assert!(
+        message.contains("warning"),
+        "a warning-class finding must surface at the gate: {message}"
+    );
+    assert!(
+        message.contains("[warning]"),
+        "the finding must render as warning-severity: {message}"
+    );
+    assert!(
+        message.contains("reviewer") && message.contains("exception grant sensitive-paths"),
+        "remediation-first guidance (review + exception path) must surface at the gate: {message}"
+    );
 }
 
 // ── Stage 4: pre-write projection feeds the pack ────────────────────
@@ -482,43 +501,62 @@ fn starter_policy_pack_evaluates_under_frozen_eval_v1_contract() {
     // is out of scope here — that is POLRESET-008 / EVALCI-006.
 }
 
-// ── Stage 7: gap characterisation (gate drops pack advisories) ──────
+// ── Stage 7: documented-vocabulary lockstep guard ──────────────────
 
 #[test]
-fn starter_policy_pack_gate_drops_pack_warnings_vocab_gap() {
+fn starter_policy_pack_extractor_recognises_documented_rule_families() {
+    // The pack emits its advisories under the documented `warning` rule set
+    // (docs/guides/opa-policy-testing.md: "Both `violation` and `warning` rule
+    // sets are recognised by the gate"). BOTH Rego rule-set extractors — the
+    // gate (`commands::gate::extract_policy_findings`) and the pre-write path
+    // (`mcp::policy_prewrite::extract_policy_findings`) — key off these same
+    // crate single-source consts, so the pack's rule vocabulary and each
+    // surface's recognised vocabulary cannot silently drift (the warn/warning
+    // gap this proof originally surfaced). The pre-write surface's own
+    // behavioural regression lives in
+    // `policy_prewrite_routing_warning_family_surfaces_warning_class_diagnostic`.
+    use crate::policy_vocab::{VIOLATION_FAMILY_KEYS, WARNING_FAMILY_KEYS};
+
+    // The documented canonical rule names are in the single source of truth.
+    assert!(
+        WARNING_FAMILY_KEYS.contains(&"warning"),
+        "the documented `warning` rule set must be recognised"
+    );
+    assert!(
+        VIOLATION_FAMILY_KEYS.contains(&"violation"),
+        "the documented `violation` rule set must be recognised"
+    );
+
+    // Lockstep: the bundled pack's actual rule-set names must all be members of
+    // the recognised families. If the pack adds a rule set the extractor does
+    // not key on, this trips — the two surfaces are kept in lockstep by the
+    // shared consts, and this asserts the pack conforms to them.
     let ws = TempDir::new().expect("workspace");
     let pack_dir = install_baseline(ws.path());
-
-    // The pack DOES produce remediation-first advisories for a sensitive change
-    // (proven directly against the installed pack's `warning` rule).
     let value = eval_installed_pack(&pack_dir, &sensitive_change_input(), "data.anvil.policies");
-    let advisories = collect_warning_messages(&value);
-    assert!(
-        advisories
-            .iter()
-            .any(|m| m.contains("exception grant sensitive-paths")),
-        "pack advisory with remediation guidance must exist: {advisories:?}"
-    );
-
-    // KNOWN GAP (reported, not fixed here): the gate's finding extractor
-    // (`gate::extract_policy_findings`) recognises the rule vocabulary
-    // `warn`/`warnings`/`violation`/`deny`, but the starter pack emits its
-    // advisories under a `warning` rule. So the gate evaluates the pack yet
-    // surfaces none of these advisories at the gate surface — the remediation
-    // text never reaches the operator through `anvil gate`.
-    git_init(ws.path());
-    let workflow = ws.path().join(SENSITIVE_PATH);
-    std::fs::create_dir_all(workflow.parent().unwrap()).unwrap();
-    std::fs::write(&workflow, "name: deploy\non: push\njobs: {}\n").unwrap();
-
-    let (passed, message) = crate::commands::gate::run_policy_check_for_proof(ws.path(), &[]);
-    assert!(passed, "advisory-first: {message}");
-    assert!(
-        !message.contains("exception grant") && !message.contains("second reviewer"),
-        "REGRESSION-GUARD: if the gate begins surfacing pack `warning` advisories, \
-         the warn/warning vocabulary gap has been closed — update this proof and \
-         stage 3 to assert the surfaced remediation text. Message: {message}"
-    );
+    let recognised: std::collections::HashSet<&str> = WARNING_FAMILY_KEYS
+        .iter()
+        .chain(VIOLATION_FAMILY_KEYS.iter())
+        .copied()
+        .collect();
+    if let Some(map) = value.as_object() {
+        for (pkg, output) in map {
+            if let Some(obj) = output.as_object() {
+                for rule in obj.keys() {
+                    // Rule sets that emit findings are arrays; helper rules
+                    // (scalars/objects like `soft_limit`) are not findings.
+                    let is_finding_set = obj.get(rule).is_some_and(serde_json::Value::is_array);
+                    if is_finding_set {
+                        assert!(
+                            recognised.contains(rule.as_str()),
+                            "pack `{pkg}` emits an unrecognised finding rule set `{rule}` \
+                             (not in WARNING_FAMILY_KEYS/VIOLATION_FAMILY_KEYS)"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ── git helper ──────────────────────────────────────────────────────

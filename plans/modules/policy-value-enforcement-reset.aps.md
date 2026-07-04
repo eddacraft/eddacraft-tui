@@ -213,7 +213,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-007: Starter policy pack proof
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Ship one high-signal starter pack that proves real policy value
   before broad compliance-pack expansion.
 - **Expected Outcome:** A starter pack installs, validates, evaluates through
@@ -224,23 +224,29 @@ modules named by each `Coordinates with` field.
   the CLI crate (`crates/anvil-cli/src/commands/policy/starter_proof.rs`), not
   the deleted `eddacraft-anvil-policy` crate the original line cited.
 - **Proof status:** End-to-end proof landed as one integration-grade module
-  (7 `#[test]`s). Six of seven chain stages are proven green: install +
-  verified provenance, admission pipeline (regorus pack tests), advisory-first
-  gate evaluation (exit 0), pre-write `PrewriteInput` projection feeding the
-  pack, the warnings-never-veto-even-under-interrupt advisory invariant (routed
-  through the real `mcp::enforcement::decision_for`), and report-only
-  eval-harness exercisability under the frozen `anvil policy eval --json` v1
-  contract. **Blocking gap (do not flip to Done until resolved):** the gate's
-  finding extractor (`gate::extract_policy_findings`) recognises the rule
-  vocabulary `warn`/`warnings`/`violation`/`deny`, but the bundled pack emits
-  its advisories under a `warning` rule — so the gate evaluates the pack yet
-  drops every advisory, and remediation guidance never reaches an operator via
-  `anvil gate`. The pack's remediation-first guidance IS proven (directly, and
-  via `anvil policy eval`); only the gate surface loses it. Fix is a one-line
-  vocabulary alignment (add `warning` to the gate extractor, or rename the pack
-  rule to `warn`) — a product/API decision left for the owner. Pinned by
-  `starter_policy_pack_gate_drops_pack_warnings_vocab_gap` as a regression
-  guard.
+  (7 `#[test]`s) against the real embedded `anvil-baseline` pack. Five chain
+  stages proven green: (1) **install** via the real `anvil policy install`
+  path with verified provenance (sha256s re-derived from bytes on disk); (2)
+  **admission** — `load_manifest`/`validate_pack`/`run_pack_tests`/`enforce_tests`
+  all green (the pack's own Rego tests pass through the regorus facade); (3)
+  **gate evaluation** — the live gate surfaces the pack's warning-class advisory
+  with its remediation-first guidance (review + `anvil exception grant`
+  sensitive-paths) while passing exit 0 (advisory-first, ADR-002); (4)
+  **pre-write** — the `PrewriteInput` projection feeds the pack the sensitive
+  change and warnings never veto even under `interrupt` (routed through the real
+  `mcp::enforcement::decision_for`); (5) **report-only CI exercisability** — a
+  member policy normalises through the frozen `anvil policy eval --json` v1
+  harness the eval-regression command binds to. Gap found and closed: the proof
+  surfaced that **both** Rego rule-set extractors — the gate
+  (`commands::gate`) and the pre-write path (`mcp::policy_prewrite`, PR #3165) —
+  recognised `warn`/`warnings` but not the documented `warning` rule set
+  (`docs/guides/opa-policy-testing.md`), so pack advisories were silently
+  dropped on both surfaces; fixed at both extractors via a crate single-source
+  `crate::policy_vocab` (`WARNING_FAMILY_KEYS`/`VIOLATION_FAMILY_KEYS`), pinned
+  by the `starter_policy_pack_extractor_recognises_documented_rule_families`
+  lockstep guard and the pre-write
+  `policy_prewrite_routing_warning_family_surfaces_warning_class_diagnostic`
+  regression test.
 - **Dependencies:** POLRESET-002, POLRESET-003, POLRESET-006
 - **Coordinates with:** CPACKS, OPAE-004, OPAE-008
 - **Confidence:** medium

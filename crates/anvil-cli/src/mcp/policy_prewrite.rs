@@ -441,36 +441,39 @@ struct RawFinding {
 }
 
 /// Extract findings from a `data.anvil.policies`-rooted value, mirroring the
-/// `anvil gate` policy check's family mapping: `violation`/`violations`/`deny`/
-/// `denies` are violation-class and `warn`/`warnings` are warning-class. An
-/// object finding may override its class via a `severity` field (`error` ⇒
-/// violation, `warn`/`warning`/`info` ⇒ warning); an unrecognised override
-/// keeps the family default (fail-closed on a typo). Helper rules and other
-/// keys are ignored.
+/// `anvil gate` policy check's family mapping via the shared, crate single-source
+/// vocabulary ([`crate::policy_vocab`]): [`VIOLATION_FAMILY_KEYS`] rule sets are
+/// violation-class and [`WARNING_FAMILY_KEYS`] rule sets (including the
+/// documented `warning`) are warning-class. Consuming the same consts as
+/// `commands::gate::extract_policy_findings` keeps the pre-write and gate
+/// surfaces from drifting on which rule families they recognise. An object
+/// finding may override its class via a `severity` field (`error` ⇒ violation,
+/// `warn`/`warning`/`info` ⇒ warning); an unrecognised override keeps the
+/// family default (fail-closed on a typo). Helper rules and other keys are
+/// ignored.
 fn extract_policy_findings(value: &serde_json::Value) -> Vec<RawFinding> {
-    const KEYS: [(&str, PolicySeverityClass); 6] = [
-        ("violation", PolicySeverityClass::Violation),
-        ("violations", PolicySeverityClass::Violation),
-        ("deny", PolicySeverityClass::Violation),
-        ("denies", PolicySeverityClass::Violation),
-        ("warn", PolicySeverityClass::Warning),
-        ("warnings", PolicySeverityClass::Warning),
-    ];
+    use crate::policy_vocab::{VIOLATION_FAMILY_KEYS, WARNING_FAMILY_KEYS};
 
     let mut out = Vec::new();
     let Some(map) = value.as_object() else {
         return out;
     };
+    let families = [
+        (VIOLATION_FAMILY_KEYS, PolicySeverityClass::Violation),
+        (WARNING_FAMILY_KEYS, PolicySeverityClass::Warning),
+    ];
     for (policy_id, output) in map {
         let Some(obj) = output.as_object() else {
             continue;
         };
-        for (key, default_class) in KEYS {
-            let Some(arr) = obj.get(key).and_then(serde_json::Value::as_array) else {
-                continue;
-            };
-            for item in arr {
-                out.push(raw_finding_from_item(item, policy_id, default_class));
+        for (keys, default_class) in families {
+            for key in keys {
+                let Some(arr) = obj.get(*key).and_then(serde_json::Value::as_array) else {
+                    continue;
+                };
+                for item in arr {
+                    out.push(raw_finding_from_item(item, policy_id, default_class));
+                }
             }
         }
     }
@@ -802,6 +805,19 @@ warn contains msg if {
 }
 "#;
 
+    // The documented canonical warning rule set is `warning` (singular), not
+    // `warn` — see `docs/guides/opa-policy-testing.md`. The starter pack emits
+    // its advisories under `warning`; this fixture exercises that the pre-write
+    // extractor recognises it (it was dropped before the vocabulary fix).
+    const WARNING_REGO: &str = r#"package anvil.policies.always_warning
+import rego.v1
+
+warning contains msg if {
+    some f in input.diff.changed_files
+    msg := sprintf("change to %s is advised against by the test policy", [f])
+}
+"#;
+
     #[test]
     fn policy_prewrite_routing_violation_pack_interrupt_posture_vetoes() {
         temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
@@ -861,6 +877,36 @@ warn contains msg if {
             );
             assert_eq!(outcome.decision, ControlDecision::Warn);
             assert!(!outcome.decision.is_veto());
+        });
+    }
+
+    #[test]
+    fn policy_prewrite_routing_warning_family_surfaces_warning_class_diagnostic() {
+        // Regression guard for the warn/warning vocabulary fix: a pack member
+        // emitting `warning`-rule findings (the documented canonical rule set,
+        // which the starter pack uses) must surface a warning-class policy
+        // diagnostic through the pre-write extractor — and, being warning-class,
+        // never veto even under the strictest posture. Before the fix the
+        // extractor keyed only on `warn`/`warnings`, so this was dropped.
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = install_pack("warning-pack", WARNING_REGO);
+            let outcome = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert_eq!(outcome.decision, ControlDecision::Warn);
+            assert!(!outcome.decision.is_veto(), "a warning must never veto");
+            assert!(
+                outcome
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.severity == Severity::Warning && d.category == Category::Policy),
+                "the documented `warning` rule set must surface a warning-class \
+                 policy diagnostic: {:?}",
+                outcome.diagnostics,
+            );
         });
     }
 

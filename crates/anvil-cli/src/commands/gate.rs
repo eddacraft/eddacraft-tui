@@ -1902,19 +1902,15 @@ fn finding_from_item(
 
 /// Extract findings from a `data.anvil.policies`-rooted result value.
 ///
-/// The value is an object mapping each policy sub-package to its rule outputs;
-/// `violation`/`violations`/`deny`/`denies` map to error-class findings and
-/// `warn`/`warnings` to warning-class findings, preserving the legacy mapping.
-/// Other keys (helper rules, `info`) are ignored, as on the OPA path.
+/// The value is an object mapping each policy sub-package to its rule outputs.
+/// The recognised rule vocabulary is the crate single-source
+/// [`crate::policy_vocab::VIOLATION_FAMILY_KEYS`] (error-class) and
+/// [`crate::policy_vocab::WARNING_FAMILY_KEYS`] (warning-class, including the
+/// documented `warning` rule set) — the same consts the pre-write extractor
+/// (`mcp::policy_prewrite`) consumes, so the two surfaces cannot drift. Other
+/// keys (helper rules, `info`) are ignored, as on the OPA path.
 fn extract_policy_findings(value: &serde_json::Value) -> Vec<PolicyFinding> {
-    const KEYS: [(&str, &str); 6] = [
-        ("violation", "error"),
-        ("violations", "error"),
-        ("deny", "error"),
-        ("denies", "error"),
-        ("warn", "warning"),
-        ("warnings", "warning"),
-    ];
+    use crate::policy_vocab::{VIOLATION_FAMILY_KEYS, WARNING_FAMILY_KEYS};
 
     let mut out = Vec::new();
     let Some(map) = value.as_object() else {
@@ -1924,10 +1920,16 @@ fn extract_policy_findings(value: &serde_json::Value) -> Vec<PolicyFinding> {
         let Some(obj) = output.as_object() else {
             continue;
         };
-        for (key, default_sev) in KEYS {
-            if let Some(arr) = obj.get(key).and_then(serde_json::Value::as_array) {
-                for item in arr {
-                    out.push(finding_from_item(item, policy_id, default_sev));
+        let families = [
+            (VIOLATION_FAMILY_KEYS, "error"),
+            (WARNING_FAMILY_KEYS, "warning"),
+        ];
+        for (keys, default_sev) in families {
+            for key in keys {
+                if let Some(arr) = obj.get(*key).and_then(serde_json::Value::as_array) {
+                    for item in arr {
+                        out.push(finding_from_item(item, policy_id, default_sev));
+                    }
                 }
             }
         }
@@ -4245,6 +4247,29 @@ mod tests {
         assert_eq!(warns.len(), 1, "one warning-class finding");
         // `info` and non-array helper rules are ignored, as on the OPA path.
         assert_eq!(findings.len(), 2);
+    }
+
+    #[test]
+    fn extract_policy_findings_recognises_documented_warning_rule() {
+        // `docs/guides/opa-policy-testing.md`: "Both `violation` and `warning`
+        // rule sets are recognised by the gate". The `warning` (singular) rule
+        // set is the documented contract — regression guard for the warn/warning
+        // vocabulary fix (the starter pack emits `warning`).
+        let value = serde_json::json!({
+            "sensitive_paths": {"warning": ["review this sensitive change"]},
+        });
+        let findings = extract_policy_findings(&value);
+        assert_eq!(
+            findings.len(),
+            1,
+            "the documented `warning` rule must surface"
+        );
+        assert_eq!(findings[0].severity, "warning");
+        assert_eq!(findings[0].message, "review this sensitive change");
+        // The documented families are the crate single source of truth and
+        // include the canonical `violation` / `warning` names.
+        assert!(crate::policy_vocab::VIOLATION_FAMILY_KEYS.contains(&"violation"));
+        assert!(crate::policy_vocab::WARNING_FAMILY_KEYS.contains(&"warning"));
     }
 
     #[test]
