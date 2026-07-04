@@ -5,18 +5,17 @@
 //! (`crates/anvil-cli/src/mcp/enforcement.rs`, RTAI-006) and the
 //! intercept daemon (`crates/anvil-intercept/src/config.rs`, INTD-008)
 //! deserialise the same `EnforcementConfigFile` struct so the two
-//! consumers cannot drift on which keys / aliases are accepted. Each
-//! consumer maps the raw strings onto its own resolved enum:
+//! consumers cannot drift on which keys / aliases are accepted. Both
+//! resolve the raw `mode` string via the single shared posture type:
 //!
-//! - RTAI-006 collapses to `EnforcementMode::{Block, Warn, Off}` —
-//!   the `validate_write` tool only needs three decision modes
-//!   (block-on-error / always-warn / never-block).
-//! - INTD-008 expands to `Mode::{Warn, Fence, Interrupt}` — the daemon
-//!   needs to distinguish "fence the worktree" from "interrupt the
-//!   process group" semantically. Treating `block` and `interrupt`
-//!   as the same fence-on-error semantic is the explicit
-//!   reconciliation called out in the wave-1 brief; both consumers
-//!   accept the alias set listed below.
+//! - Since ADR-098 AD-3 the MCP shim and the daemon both map onto
+//!   `anvil_kernel_types::EnforcementMode { Off, Warn, Fence, Interrupt }`
+//!   through one shared alias table (`off`/`advisory`/`proceed` → Off,
+//!   `warn` → Warn, `fence` → Fence, `interrupt`/`block` → Interrupt).
+//!   The pre-AD-3 lossy `fence`/`interrupt` → `Block` collapse the shim
+//!   did at parse time is gone: parsing keeps every posture distinct and
+//!   the veto is projected at action time (the daemon fences the worktree
+//!   or runs the signal ladder; the MCP shim refuses the write).
 //!
 //! Keeping deserialisation here (and **not** the resolution into
 //! either consumer's enum) means:

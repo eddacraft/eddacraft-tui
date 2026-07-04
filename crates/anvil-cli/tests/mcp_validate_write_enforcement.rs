@@ -1,6 +1,10 @@
-//! RTAI-006 E2E: drive `anvil mcp serve --stdio` with `.anvil.yaml`
-//! enforcement-mode fixtures and assert the `validate_write` tool
-//! response honours `block` / `warn` / `off` semantics.
+//! RTAI-006 / ADR-098 AD-3 E2E: drive `anvil mcp serve --stdio` with
+//! `.anvil.yaml` enforcement-mode fixtures and assert the `validate_write`
+//! tool response honours the unified posture vocabulary
+//! (`off` / `warn` / `fence` / `interrupt`, with `block` an alias for
+//! `interrupt`). The veto postures record the true decision — `fence`
+//! stays `fence`, `interrupt` stays `interrupt` — rather than the pre-AD-3
+//! collapse to `block`.
 //!
 //! Unix-only: this integration test wires up `IpcListener::bind(&Path)`
 //! which has a different signature on Windows (`&str` named-pipe form).
@@ -36,7 +40,10 @@ const DAEMON_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 const SECRET_PROPOSED_CONTENT: &str = "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
 
 #[test]
-fn enforcement_mode_block_rejects_secret_write_e2e() {
+fn enforcement_mode_block_alias_rejects_secret_write_e2e() {
+    // ADR-098 AD-3: `block` is an alias for the `interrupt` posture, and
+    // the response records the true `interrupt` decision (no parse-time
+    // collapse). `isError` is still true — the write is vetoed.
     let workspace = workspace_with_enforcement_mode("block");
     let payload = run_validate_write_against(workspace.path(), SECRET_PROPOSED_CONTENT);
 
@@ -44,15 +51,32 @@ fn enforcement_mode_block_rejects_secret_write_e2e() {
     assert_eq!(payload["result"]["isError"], true);
 
     let tool = parse_tool_payload(&payload);
-    assert_eq!(tool["decision"], "block");
+    assert_eq!(tool["decision"], "interrupt");
     assert_eq!(tool["safeDefault"], "do-not-write");
-    assert_eq!(tool["correlation"]["enforcementMode"], "block");
+    assert_eq!(tool["correlation"]["enforcementMode"], "interrupt");
     assert_eq!(tool["summary"]["bySeverity"]["error"], 1);
     assert_eq!(tool["diagnostics"][0]["category"], "secret");
     assert_eq!(
         tool["diagnostics"][0]["source"]["rule_id"],
         "secret-detection"
     );
+}
+
+#[test]
+fn enforcement_mode_fence_rejects_secret_write_with_true_fence_decision_e2e() {
+    // ADR-098 AD-3 regression: a `fence` posture records the true `fence`
+    // decision end-to-end (fence stays fence, no collapse to `block`) and
+    // still reports `isError: true` via the veto projection.
+    let workspace = workspace_with_enforcement_mode("fence");
+    let payload = run_validate_write_against(workspace.path(), SECRET_PROPOSED_CONTENT);
+
+    assert_eq!(payload["result"]["isError"], true);
+
+    let tool = parse_tool_payload(&payload);
+    assert_eq!(tool["decision"], "fence");
+    assert_eq!(tool["safeDefault"], "do-not-write");
+    assert_eq!(tool["correlation"]["enforcementMode"], "fence");
+    assert_eq!(tool["summary"]["bySeverity"]["error"], 1);
 }
 
 #[test]
@@ -100,13 +124,17 @@ fn enforcement_mode_off_returns_allow_decision_with_diagnostics_e2e() {
 }
 
 #[test]
-fn missing_anvil_yaml_defaults_to_block_e2e() {
+fn missing_anvil_yaml_defaults_to_interrupt_e2e() {
+    // ADR-098 AD-3: the MCP no-config default is the `block` alias —
+    // `interrupt` — preserving the veto-on-error default while recording
+    // the true decision.
     let workspace = tempfile::tempdir().expect("workspace exists");
     let payload = run_validate_write_against(workspace.path(), SECRET_PROPOSED_CONTENT);
 
+    assert_eq!(payload["result"]["isError"], true);
     let tool = parse_tool_payload(&payload);
-    assert_eq!(tool["decision"], "block");
-    assert_eq!(tool["correlation"]["enforcementMode"], "block");
+    assert_eq!(tool["decision"], "interrupt");
+    assert_eq!(tool["correlation"]["enforcementMode"], "interrupt");
 }
 
 fn workspace_with_enforcement_mode(mode: &str) -> TempDir {

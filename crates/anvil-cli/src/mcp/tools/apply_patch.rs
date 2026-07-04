@@ -3,7 +3,7 @@ use std::path::{Component, Path, PathBuf};
 use anvil_kernel_types::diagnostics::ControlDecision;
 use serde_json::{Value, json};
 
-use crate::mcp::enforcement::{self, EnforcementMode};
+use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
 use crate::mcp::tools::shared::validate_workspace_root;
 use crate::mcp::tools::validate_write::{
     correlation_id, diagnostic_summary, normalise_response_diagnostics,
@@ -72,7 +72,7 @@ pub fn call(arguments: &Value) -> Value {
                     "backend": ValidationBackend::Embedded.as_str(),
                     "daemonStatus": DaemonStatus::NotWired.as_str(),
                     "path": "<server-cwd>",
-                    "enforcementMode": EnforcementMode::default().as_str()
+                    "enforcementMode": MCP_DEFAULT_ENFORCEMENT.as_str()
                 }
             }));
         }
@@ -99,7 +99,7 @@ fn call_with_validation_client(
             return tool_result(&input_error_payload(
                 &message,
                 "<unknown>",
-                EnforcementMode::Block,
+                MCP_DEFAULT_ENFORCEMENT,
             ));
         }
     };
@@ -154,7 +154,9 @@ fn call_with_validation_client(
         }
     });
 
-    if decision == ControlDecision::Block {
+    // ADR-098 AD-3 amendment 1: any veto (block / fence / interrupt), not
+    // just `block`, sets the do-not-write safe default.
+    if decision.is_veto() {
         payload["safeDefault"] = json!("do-not-write");
     }
 
@@ -162,7 +164,14 @@ fn call_with_validation_client(
 }
 
 fn tool_result(payload: &Value) -> Value {
-    let is_error = payload["decision"] == "block" || payload.get("error").is_some();
+    // ADR-098 AD-3 amendment 1: gate `isError` on the true decision via
+    // `ControlDecision::is_veto` (block / fence / interrupt), not a
+    // `== "block"` string compare — a fence-vetoed write must not report
+    // `isError: false`. An unrecognised decision string deserialises to
+    // `Unknown` (not a veto), matching the safe `warn` default.
+    let vetoed = serde_json::from_value::<ControlDecision>(payload["decision"].clone())
+        .is_ok_and(ControlDecision::is_veto);
+    let is_error = vetoed || payload.get("error").is_some();
     let text = serde_json::to_string(payload).expect("apply-patch payload serialises");
     json!({
         "content": [{"type": "text", "text": text}],
@@ -372,7 +381,7 @@ mod tests {
             }),
         );
 
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
     }

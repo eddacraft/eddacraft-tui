@@ -12,7 +12,7 @@ use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode,
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::mcp::enforcement::{self, EnforcementMode};
+use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient,
     PRE_WRITE_MODE, PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure,
@@ -143,10 +143,12 @@ fn call_with_validation_client(
         Ok(request) => request,
         Err(ParseError::Problem(problem)) => {
             // Input problems short-circuit before we have a trusted
-            // workspace root to read `.anvil.yaml` from. They always
-            // map to `block` regardless of enforcement mode — the tool
-            // cannot evaluate a request it cannot parse.
-            return tool_result(&problem_payload(problem, None, EnforcementMode::Block));
+            // workspace root to read `.anvil.yaml` from. The decision is
+            // always an outright `block` regardless of enforcement mode —
+            // the tool cannot evaluate a request it cannot parse — while
+            // the reported `enforcementMode` is the MCP default posture
+            // (unresolved here).
+            return tool_result(&problem_payload(problem, None, MCP_DEFAULT_ENFORCEMENT));
         }
         Err(ParseError::UntrustedWorkspaceRoot { expected }) => {
             // CIB-007: same `block` outcome as any other input
@@ -154,7 +156,7 @@ fn call_with_validation_client(
             // field so the caller can retry with the right value.
             return tool_result(&untrusted_workspace_root_payload(
                 &expected,
-                EnforcementMode::Block,
+                MCP_DEFAULT_ENFORCEMENT,
             ));
         }
     };
@@ -351,7 +353,14 @@ fn materialise_patch_if_needed(
 }
 
 fn tool_result(payload: &Value) -> Value {
-    let is_error = payload["decision"] == "block" || payload.get("error").is_some();
+    // ADR-098 AD-3 amendment 1: gate `isError` on the true decision via
+    // `ControlDecision::is_veto` (block / fence / interrupt), not a
+    // `== "block"` string compare — a fence-vetoed write must not report
+    // `isError: false`. An unrecognised decision string deserialises to
+    // `Unknown` (not a veto), matching the safe `warn` default.
+    let vetoed = serde_json::from_value::<ControlDecision>(payload["decision"].clone())
+        .is_ok_and(ControlDecision::is_veto);
+    let is_error = vetoed || payload.get("error").is_some();
     let text = serde_json::to_string(&payload).expect("validate-write payload serialises");
     json!({
         "content": [
@@ -461,7 +470,7 @@ fn server_cwd_unavailable_payload(problem: ToolProblem, err: &std::io::Error) ->
             "backend": ValidationBackend::Embedded.as_str(),
             "daemonStatus": DaemonStatus::NotWired.as_str(),
             "path": path,
-            "enforcementMode": EnforcementMode::default().as_str()
+            "enforcementMode": MCP_DEFAULT_ENFORCEMENT.as_str()
         }
     })
 }
@@ -537,7 +546,9 @@ fn validation_payload_with_decision(
         payload["correlation"]["partialScan"] = json!(true);
     }
 
-    if decision == ControlDecision::Block {
+    // ADR-098 AD-3 amendment 1: any veto (block / fence / interrupt) sets
+    // the do-not-write safe default, not just an outright `block`.
+    if decision.is_veto() {
         payload["safeDefault"] = json!("do-not-write");
     }
 
@@ -1722,8 +1733,8 @@ mod tests {
     };
     use crate::mcp::enforcement::EnforcementMode;
     use crate::mcp::validation::{
-        DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
-        ValidationBackendFailure,
+        DaemonValidationClient, DaemonValidationOutcome, LocalDaemonValidationClient,
+        PreWriteValidationRequest, ValidationBackendFailure,
     };
     #[cfg(unix)]
     use anvil_intercept::Shutdown;
@@ -1806,7 +1817,7 @@ mod tests {
                     "backend": "embedded",
                     "daemonStatus": "not-wired",
                     "path": "src/example.ts",
-                    "enforcementMode": "block",
+                    "enforcementMode": "interrupt",
                 },
                 "tier": {
                     "decision": "full",
@@ -1828,7 +1839,7 @@ mod tests {
             }),
         );
 
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
         assert_eq!(payload["diagnostics"][0]["category"], "secret");
@@ -1852,6 +1863,33 @@ mod tests {
     }
 
     #[test]
+    fn fence_posture_vetoes_with_true_fence_decision_and_is_error() {
+        // ADR-098 AD-3 regression: under a `fence` posture a secret error
+        // records the true `fence` decision (no collapse to `block`), the
+        // response is `isError: true` via `is_veto`, and the do-not-write
+        // safe default is set. The pre-AD-3 shim would have reported
+        // `decision: "block"`; a `== "block"` isError gate would also have
+        // let a fence-vetoed write slip through as `isError: false`.
+        let workspace = tempdir().expect("workspace exists");
+        let result = call_with_validation_client(
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+            workspace.path(),
+            &LocalDaemonValidationClient,
+            &FixedEnforcement(EnforcementMode::Fence),
+        );
+
+        assert_eq!(result["isError"], true, "a fence veto must report isError");
+        let payload = parse_payload(&result);
+        assert_eq!(payload["decision"], "fence", "fence stays fence");
+        assert_eq!(payload["safeDefault"], "do-not-write");
+        assert_eq!(payload["correlation"]["enforcementMode"], "fence");
+    }
+
+    #[test]
     fn daemon_backend_payload_is_reported_when_available() {
         let workspace = tempdir().expect("workspace exists");
         let daemon = FixtureDaemon {
@@ -1865,14 +1903,14 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["correlation"]["backend"], "daemon");
-        assert_eq!(payload["correlation"]["enforcementMode"], "block");
+        assert_eq!(payload["correlation"]["enforcementMode"], "interrupt");
         assert_eq!(
             payload["diagnostics"][0]["source"]["rule_id"],
             "secret-detection"
@@ -1935,13 +1973,13 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
         let response_text = serde_json::to_string(&payload).expect("payload serialises");
         let expected_redacted_id = redact_secret_id(daemon_secret_id, false);
 
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["diagnostics"][0]["id"], "diag_reasoning_001");
         assert_eq!(
             payload["diagnostics"][1]["id"].as_str(),
@@ -1984,7 +2022,7 @@ mod tests {
             &FixtureDaemon {
                 outcome: DaemonValidationOutcome::Unavailable,
             },
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
         let embedded_diagnostics: Vec<Diagnostic> =
             serde_json::from_value(embedded["diagnostics"].clone())
@@ -1995,7 +2033,7 @@ mod tests {
             &FixtureDaemon {
                 outcome: DaemonValidationOutcome::Diagnostics(embedded_diagnostics),
             },
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
 
         assert_eq!(daemon["diagnostics"], embedded["diagnostics"]);
@@ -2032,7 +2070,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
 
         assert_eq!(
@@ -2065,7 +2103,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
 
         assert_eq!(
@@ -2074,7 +2112,7 @@ mod tests {
         );
         assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
         assert_eq!(
-            payload["decision"], "block",
+            payload["decision"], "interrupt",
             "the in-process fallback must still catch the secret",
         );
         assert_eq!(
@@ -2113,13 +2151,13 @@ mod tests {
             &FixtureDaemon {
                 outcome: DaemonValidationOutcome::Unavailable,
             },
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
         let daemon = parse_payload(&call_with_validation_client(
             &arguments,
             workspace.path(),
             &super::LocalDaemonValidationClient::with_socket_path(socket),
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
 
         shutdown.trigger();
@@ -2181,7 +2219,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
@@ -2270,7 +2308,7 @@ mod tests {
             }),
         );
 
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["safeDefault"], "do-not-write");
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
         assert_eq!(payload["diagnostics"][0]["category"], "secret");
@@ -2381,7 +2419,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
 
         assert_eq!(
@@ -2432,7 +2470,7 @@ mod tests {
             "the edit shape itself is safelisted, got: {payload}"
         );
         assert_eq!(
-            payload["decision"], "block",
+            payload["decision"], "interrupt",
             "an untouched-line secret must still block on the fast path, got: {payload}"
         );
         assert_eq!(payload["diagnostics"][0]["category"], "secret");
@@ -2696,7 +2734,7 @@ mod tests {
 
         assert_eq!(payload["tier"]["decision"], "safelist");
         assert_eq!(
-            payload["decision"], "block",
+            payload["decision"], "interrupt",
             "the fast path must still block a secret-looking value, got: {payload}"
         );
         assert_eq!(payload["diagnostics"][0]["category"], "secret");
@@ -2881,7 +2919,7 @@ mod tests {
         );
 
         assert_eq!(
-            payload["decision"], "block",
+            payload["decision"], "interrupt",
             "preview+patch must scan the patch post-image, not the preview slice; got: {payload}"
         );
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
@@ -3227,14 +3265,14 @@ mod tests {
             &FixtureDaemon {
                 outcome: DaemonValidationOutcome::Unavailable,
             },
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
         assert_eq!(result["isError"], true);
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["safeDefault"], "do-not-write");
-        assert_eq!(payload["correlation"]["enforcementMode"], "block");
+        assert_eq!(payload["correlation"]["enforcementMode"], "interrupt");
         assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
         assert_eq!(payload["diagnostics"][0]["category"], "secret");
     }
@@ -3498,7 +3536,7 @@ mod tests {
             }),
         );
 
-        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["decision"], "interrupt");
         assert_eq!(payload["correlation"]["partialScan"], true);
     }
 
@@ -3598,7 +3636,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
@@ -3633,7 +3671,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
@@ -3669,7 +3707,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
@@ -3705,7 +3743,7 @@ mod tests {
             }),
             workspace.path(),
             &daemon,
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         );
         let payload = parse_payload(&result);
 
@@ -3755,7 +3793,7 @@ mod tests {
                 outcome: DaemonValidationOutcome::Diagnostics(vec![]),
                 claim: Some(sample_protection_claim()),
             },
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
         let parsed_with: DriverViewWithClaim =
             serde_json::from_value(with_claim).expect("driver parses payload with claim");
@@ -3778,7 +3816,7 @@ mod tests {
                 outcome: DaemonValidationOutcome::Unavailable,
                 claim: None,
             },
-            &FixedEnforcement(EnforcementMode::Block),
+            &FixedEnforcement(EnforcementMode::Interrupt),
         ));
         let parsed_without: DriverViewWithClaim =
             serde_json::from_value(without_claim).expect("driver parses payload without claim");

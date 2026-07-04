@@ -1052,7 +1052,7 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content_via_embedded_fallback() {
     assert_eq!(parsed["result"]["isError"], true);
 
     let payload = parse_tool_payload(&parsed);
-    assert_eq!(payload["decision"], "block");
+    assert_eq!(payload["decision"], "interrupt");
     assert_eq!(payload["safeDefault"], "do-not-write");
     assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
     assert_eq!(payload["diagnostics"][0]["category"], "secret");
@@ -1162,7 +1162,7 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content() {
     assert_eq!(parsed["result"]["isError"], true);
 
     let payload = parse_tool_payload(&parsed);
-    assert_eq!(payload["decision"], "block");
+    assert_eq!(payload["decision"], "interrupt");
     assert_eq!(payload["safeDefault"], "do-not-write");
     assert_eq!(payload["summary"]["bySeverity"]["error"], 1);
     assert_eq!(
