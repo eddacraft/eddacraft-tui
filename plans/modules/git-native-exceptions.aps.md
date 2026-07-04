@@ -98,7 +98,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** Gates suppress only matching, valid findings — attributed grants suppress cleanly, unattributed grants downgrade to an annotated warn (ADR-073, never silently honoured), revoked/expired/out-of-scope grants leave findings standing; store-read failures fail safe (findings stand). Use is recorded via the gate's tracing channel (unattributed applications at `warn`, visible under the default filter); durable witness/capsule recording is EXCEPT-009.
 - **Validation:** `cargo test -p eddacraft-anvil-l4 -- exceptions` and `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (gate-integration tests live in the CLI engine)
 - **Dependencies:** EXCEPT-005, EXCEPT-007
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3140
 
 ### EXCEPT-007: Write-path hardening (pre-wiring contract)
 - **Intent:** Close the council-identified (2026-06-08) write-path gaps before any caller is wired: (a) `load()` reports provenance (tracked/legacy/none) and `save()` refuses — or requires an explicit migrate acknowledgement — when the in-memory store originated from the legacy path, so the load→modify→save CRUD flow cannot silently promote local-only entries into git (ADR-073 demands an *explicit* cleanup step); (b) `flock` the load-modify-save cycle mirroring `anvil-witness::WitnessWriter`, closing the lost-write race and the `migrate()` exists→save TOCTOU; (c) read-only worktrees degrade to warn + no-op, never a propagated `Io` error from a gate (ADR-002); (d) refuse symlinked `anvil/exceptions/` path components (canonicalise + assert under the workspace root) — the same guard the capsule writer will need.
