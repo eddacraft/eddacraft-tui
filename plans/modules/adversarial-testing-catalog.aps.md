@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Status      |
 | --- | ------ | ----------- |
-| ATC | @aneki | In Progress |
+| ATC | @aneki | Done |
 
 **Last reviewed:** 2026-05-25 (APSCAN-004 canonical-heading migration)
 

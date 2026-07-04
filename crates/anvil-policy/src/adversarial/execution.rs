@@ -38,6 +38,12 @@ use crate::eval::{EvalFinding, EvalRunSummary, EvalSeverity};
 /// The `suite` prefix marking an [`EvalRunSummary`] as an adversarial probe
 /// category suite rather than a policy suite. The category's kebab-case label
 /// follows the prefix (e.g. `probe:prompt-injection`).
+///
+/// This is a **reserved prefix**: a policy eval suite name must never start with
+/// it, or its records would be mis-attributed as adversarial trend data by
+/// [`category_from_suite`]. Committed suites use colon-free `snake_case`
+/// (`arch_boundary`), so the separation holds by convention; use
+/// [`is_reserved_suite_name`] to assert it where a suite name is authored.
 pub const PROBE_SUITE_PREFIX: &str = "probe:";
 
 /// The contract version stamped on a projected probe summary — the same `"1.0.0"`
@@ -57,6 +63,14 @@ pub fn probe_suite_name(category: ProbeCategory) -> String {
 #[must_use]
 pub fn category_from_suite(suite: &str) -> Option<&str> {
     suite.strip_prefix(PROBE_SUITE_PREFIX)
+}
+
+/// Whether `suite` uses the reserved [`PROBE_SUITE_PREFIX`]. A policy eval suite
+/// name must not — this is the guard that keeps the probe and policy record
+/// namespaces from colliding in the shared eval store.
+#[must_use]
+pub fn is_reserved_suite_name(suite: &str) -> bool {
+    suite.starts_with(PROBE_SUITE_PREFIX)
 }
 
 /// Supplies the *observed* safe-behaviour outcome for a probe.
@@ -308,6 +322,17 @@ mod tests {
             suites,
             ["probe:data-exfiltration", "probe:prompt-injection"]
         );
+    }
+
+    #[test]
+    fn adversarial_eval_integration_reserved_prefix_is_recognised() {
+        assert!(is_reserved_suite_name("probe:prompt-injection"));
+        assert!(!is_reserved_suite_name("arch_boundary"));
+        assert_eq!(
+            category_from_suite("probe:tool-misuse"),
+            Some("tool-misuse")
+        );
+        assert_eq!(category_from_suite("arch_boundary"), None);
     }
 
     #[test]
