@@ -453,6 +453,38 @@ fn exception_store_process_lock() -> &'static Mutex<()> {
 }
 
 impl PolicyException {
+    /// Whether this exception's **scope** covers a finding identified
+    /// by `rule_id`, a workspace-relative `file` path, and an optional
+    /// stable finding hash (EXCEPT-006).
+    ///
+    /// Scope only: revocation, expiry, and attribution are
+    /// [`verify_exception_at`]'s job — gate callers check both, so a
+    /// revoked grant still *covers* its finding here but must never be
+    /// offered to this method's consumers as applicable. A
+    /// `finding_hash`-pinned grant covers only a finding reporting the
+    /// identical hash; a finding with no hash is never covered by a
+    /// pinned grant (fail-safe: instance-scoped grants don't widen).
+    /// An unparseable glob covers nothing, mirroring
+    /// [`ExceptionVerdict::InvalidScope`].
+    #[must_use]
+    pub fn covers_finding(&self, rule_id: &str, file: &str, finding_hash: Option<&str>) -> bool {
+        if self.policy_id != rule_id {
+            return false;
+        }
+        if let Some(required) = self.finding_hash.as_deref()
+            && finding_hash != Some(required)
+        {
+            return false;
+        }
+        if !scope_is_valid(&self.file_pattern) {
+            return false;
+        }
+        if self.file_pattern.is_empty() {
+            return true;
+        }
+        glob_matches(&self.file_pattern, file)
+    }
+
     fn ensure_schema_defaults(&mut self) {
         if self.schema_version.is_empty() {
             self.schema_version = default_exception_schema_version();
@@ -586,10 +618,15 @@ pub fn is_suppressed_at(
             );
             return false;
         }
-        if ex.file_pattern.is_empty() {
-            return true;
-        }
-        glob_matches(&ex.file_pattern, &violation.file)
+        // Delegate the scope decision to the shared matcher so the OPA
+        // evaluator path and the L3/L4 gate path (EXCEPT-006) cannot
+        // drift; the guards above only preserve this arm's diagnostic
+        // ordering.
+        ex.covers_finding(
+            &violation.policy_id,
+            &violation.file,
+            violation.fingerprint.as_deref(),
+        )
     })
 }
 
@@ -815,6 +852,70 @@ mod tests {
         ex.owner = Some("team-platform".to_string());
         ex.created_by = Some("alice@example.test".to_string());
         ex
+    }
+
+    // --- EXCEPT-006 scope matching for gate findings ---
+
+    #[test]
+    fn covers_finding_matches_rule_id_with_empty_pattern() {
+        let ex = make_attributed("AP-001", "");
+        assert!(ex.covers_finding("AP-001", "src/a.ts", None));
+    }
+
+    #[test]
+    fn covers_finding_rejects_rule_id_mismatch() {
+        let ex = make_attributed("AP-001", "");
+        assert!(!ex.covers_finding("AP-002", "src/a.ts", None));
+    }
+
+    #[test]
+    fn covers_finding_matches_glob_scope() {
+        let ex = make_attributed("AP-001", "src/legacy/**");
+        assert!(ex.covers_finding("AP-001", "src/legacy/old.ts", None));
+        assert!(!ex.covers_finding("AP-001", "src/new/fresh.ts", None));
+    }
+
+    #[test]
+    fn covers_finding_requires_literal_separator() {
+        // `*` must not cross `/` — mirrors glob_matches's MatchOptions.
+        let ex = make_attributed("AP-001", "src/*");
+        assert!(ex.covers_finding("AP-001", "src/a.ts", None));
+        assert!(!ex.covers_finding("AP-001", "src/nested/a.ts", None));
+    }
+
+    #[test]
+    fn covers_finding_pinned_hash_requires_identical_hash() {
+        let mut ex = make_attributed("AP-001", "");
+        ex.finding_hash = Some("abc123".to_string());
+        assert!(ex.covers_finding("AP-001", "src/a.ts", Some("abc123")));
+        assert!(!ex.covers_finding("AP-001", "src/a.ts", Some("zzz999")));
+        // A finding with no hash is never covered by a pinned grant.
+        assert!(!ex.covers_finding("AP-001", "src/a.ts", None));
+    }
+
+    #[test]
+    fn covers_finding_unpinned_grant_ignores_finding_hash() {
+        let ex = make_attributed("AP-001", "");
+        assert!(ex.covers_finding("AP-001", "src/a.ts", Some("abc123")));
+    }
+
+    #[test]
+    fn covers_finding_invalid_glob_covers_nothing() {
+        let ex = make_attributed("AP-001", "src/[invalid");
+        assert!(!ex.covers_finding("AP-001", "src/a.ts", None));
+    }
+
+    #[test]
+    fn covers_finding_is_scope_only_ignores_validity() {
+        // A revoked grant still *covers* its finding — validity is
+        // verify_exception_at's job, and gate callers check both.
+        let mut ex = make_attributed("AP-001", "src/**");
+        ex.revoked = Some(ExceptionRevocation {
+            revoked_at: Utc::now(),
+            revoked_by: "bob".to_string(),
+            reason: "no longer needed".to_string(),
+        });
+        assert!(ex.covers_finding("AP-001", "src/a.ts", None));
     }
 
     // --- EXCEPT-005 scope/expiry/revocation verification ---
