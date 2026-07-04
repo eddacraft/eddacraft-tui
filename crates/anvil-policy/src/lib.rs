@@ -10,7 +10,10 @@
 //! - [`eval`] — the eval-regression harness.
 //! - [`config`] — `.anvil.yaml` policy configuration loading.
 //! - [`attack`] — the prompt-attack regression pack runner (PATT-002).
+//! - [`adversarial`] — the adversarial testing catalog: probe packs (ATC-002)
+//!   and their eval-harness integration (ATC-003).
 
+pub mod adversarial;
 pub mod attack;
 pub mod config;
 pub mod eval;

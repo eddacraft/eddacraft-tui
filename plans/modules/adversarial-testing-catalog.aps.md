@@ -35,10 +35,17 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-002: Implement probe pack registry
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Add loadable probe packs with versioned manifests.
 - **Expected Outcome:** Probe sets can be selected by risk profile and context.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- probe_registry`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- probe_registry` (green —
+  20 tests). Added `crates/anvil-policy/src/adversarial/{mod,registry}.rs`:
+  `ProbePack` versioned manifest (`deny_unknown_fields` root, forward-compatible
+  probe entries), `load_probe_pack`, containment-safe `discover_probe_packs`
+  (canonicalise + contain, per-entry reject), and `ProbeRegistry` with
+  `RiskProfile` selection and fail-closed `load` admission. Mirrors the
+  policy-engine pack module. New internal dep `anvil-kernel-types` (serde-only,
+  hakari-neutral).
 - **Dependencies:** ATC-001
 
 ### ATC-003: Integrate probe execution into eval harness

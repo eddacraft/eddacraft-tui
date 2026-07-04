@@ -10,10 +10,10 @@ description = "Anvil policy support — git-native exceptions store, eval-regres
 name = "anvil_policy"
 
 [dependencies]
-# PATT: the attack-scenario schema (AttackScenario, SafeBehaviour, Confidence)
-# is the wire vocabulary the pack runner loads and normalises. It lives in the
-# dependency-light wire-types crate, already in this binary's tree, so this adds
-# no new shipped crate.
+# The wire-types crate (anvil-kernel-types) carries the attack-scenario schema
+# (PATT) and the adversarial probe taxonomy (ATC) that the runners load; it is
+# the dependency-light wire crate already in this binary's tree, no new shipped
+# crate.
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
