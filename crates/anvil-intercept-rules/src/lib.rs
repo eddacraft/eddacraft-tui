@@ -20,6 +20,7 @@
 pub mod antipattern;
 pub mod config;
 pub mod path_deny;
+pub mod policy_routing;
 pub mod reasoning;
 pub mod regex_content;
 pub mod registry;
@@ -37,6 +38,7 @@ pub use config::{
     InterceptRulesConfig, RuleConfigError, registry_from_value, registry_from_workspace,
 };
 pub use path_deny::{PathDenyConfig, PathDenyError, PathDenyListRule};
+pub use policy_routing::{PolicyOutcome, PolicySeverityClass, route_policy_outcome};
 pub use reasoning::LaunchReasoningPatternRule;
 pub use regex_content::{RegexContentConfig, RegexContentError, RegexContentRule};
 pub use registry::{
