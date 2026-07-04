@@ -112,8 +112,13 @@ impl ProcessControl for SystemProcessControl {
         }
         match (recorded_start_time, crate::process_start_time(pid)) {
             (Some(recorded), Some(current)) => recorded == current,
-            // No discriminator on one side (platform without a start-time
-            // read): PID liveness is the best evidence available.
+            // A missing discriminator falls back to PID liveness as the best
+            // evidence available. On start-time-capable platforms the
+            // supervisor never *tracks* a `None`-recorded PID (`spawn_driver`
+            // stops such a child immediately) and the startup reconcile
+            // refuses to signal bare records, so this arm is only reached on
+            // platforms without a start-time read, or when the *current*
+            // read transiently fails for a PID recorded with one.
             _ => true,
         }
     }
@@ -493,6 +498,37 @@ impl SupervisorInner {
         match spawned {
             Ok(pid) => {
                 let start_time = self.procs.start_time(pid);
+                if start_time.is_none() && self.procs.supports_start_time() {
+                    // On a start-time-capable platform a driver is NEVER
+                    // tracked without its PID-reuse discriminator — a bare
+                    // PID could later be signalled after recycling. Right
+                    // now, milliseconds after our own spawn, the PID is
+                    // provably still our child, so terminating it is the one
+                    // safe moment; the driver is reported failed honestly.
+                    if let Err(err) = self.procs.terminate(pid) {
+                        tracing::warn!(
+                            target: "anvil_intercept::save_time_driver",
+                            worktree = %worktree.display(),
+                            pid,
+                            error = %err,
+                            "could not terminate a driver whose start time was unreadable",
+                        );
+                    }
+                    tracing::warn!(
+                        target: "anvil_intercept::save_time_driver",
+                        worktree = %worktree.display(),
+                        pid,
+                        "driver start time unreadable at spawn; driver stopped and marked failed",
+                    );
+                    drivers.insert(
+                        worktree.to_path_buf(),
+                        DriverEntry {
+                            pid: None,
+                            start_time: None,
+                        },
+                    );
+                    return;
+                }
                 if let Err(err) = self.write_pid_file(&stem, pid, start_time) {
                     // The driver still runs; only reconcile-after-restart
                     // loses track of it. Loud, not fatal.
@@ -701,6 +737,9 @@ mod tests {
         /// PIDs considered alive, with their fake start times.
         alive: Mutex<HashMap<u32, u64>>,
         terminated: Mutex<Vec<u32>>,
+        /// Model a transient start-time read failure on a platform that
+        /// supports start times.
+        withhold_start_time: std::sync::atomic::AtomicBool,
     }
 
     struct FakeLauncher {
@@ -757,6 +796,9 @@ mod tests {
 
     impl ProcessControl for FakeProcs {
         fn start_time(&self, pid: u32) -> Option<u64> {
+            if self.state.withhold_start_time.load(Ordering::SeqCst) {
+                return None;
+            }
             self.state
                 .alive
                 .lock()
@@ -1063,6 +1105,34 @@ mod tests {
         assert!(
             h.state.spawns.lock().expect("spawns").is_empty(),
             "no spawn after shutdown latched"
+        );
+    }
+
+    #[test]
+    fn save_time_driver_unreadable_start_time_at_spawn_stops_and_fails() {
+        // On a start-time-capable platform a driver must never be TRACKED
+        // without its PID-reuse discriminator: the just-spawned child (still
+        // provably ours) is stopped immediately and reported failed.
+        let h = harness();
+        h.state.withhold_start_time.store(true, Ordering::SeqCst);
+        let worktree = Path::new("/ws/repo");
+        enqueue(&h, MembershipChange::Registered, worktree);
+        h.supervisor.process_pending();
+
+        assert_eq!(
+            *h.state.terminated.lock().expect("terminated"),
+            vec![41],
+            "the discriminator-less child is stopped at once"
+        );
+        assert_eq!(
+            h.supervisor.driver_status(worktree),
+            Some(DriverStatus::Failed)
+        );
+        assert!(
+            !h.dir
+                .join(format!("{}.pid", worktree_artifact_stem(worktree)))
+                .exists(),
+            "no pid file for an untracked child"
         );
     }
 
