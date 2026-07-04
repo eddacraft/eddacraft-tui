@@ -62,12 +62,16 @@
 //! ```
 
 mod decide;
+mod exceptions;
 mod policy;
 mod recognised_rules;
 mod resolve;
 mod validate;
 
 pub use decide::{BlockKind, CommitDecision, VersionFloorOutcome, evaluate_version_floor};
+pub use exceptions::{
+    AppliedException, ExceptionDisposition, ExceptionOutcome, apply_exception_dispositions,
+};
 pub use policy::{
     BaselineSection, BranchRule, OnBlock, OnNoWitness, OnWarn, Policy, PolicyParseError,
     PolicyPinError, Requirement, pin_cutoff_commit,
