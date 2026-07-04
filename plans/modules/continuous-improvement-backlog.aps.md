@@ -4141,31 +4141,17 @@ archive.
 
 ### CIB-154: Cap the number of workspace roots a connection may admit
 
-- **Status:** In Progress
-- **Intent:** Close the unbounded per-connection resource vector where
-  `Open`-mode admission holds one real file descriptor
-  (`WorkspaceAnchor`/`OwnedFd`) per distinct admitted root with no ceiling,
-  letting a same-uid peer exhaust the daemon's descriptor table by naming
-  many distinct roots.
-- **Expected Outcome:** `AdmittedRoots` enforces a per-connection budget on
-  the number of distinct admitted roots (a new `DoS`-family cap alongside
-  the existing connection/RPS/frame budgets); a connection past the budget
-  is refused further admission with a structured error rather than allowed
-  to keep opening anchors, in both `Open` and `Allowlist` modes.
-- **Files:** `crates/anvil-intercept/src/{workspace_admission.rs,dos.rs}`.
-- **Validation:** Test proving a connection that admits more than the
-  budgeted number of distinct roots is refused on the next admission (not
-  crashed or silently unbounded), while staying within budget continues to
-  admit normally; existing admission tests (`root_set_grows_on_first_touch`,
-  allowlist refusal) continue to pass.
-- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
-  decomposition readiness pass 2026-07-02.
-- **Coordinates with:** `dos.rs` `IpcLimits`/`DosCaps` budget model
-  (already stricter-wins project/user merge for the sibling caps),
-  `workspace_anchor.rs` held-fd resource.
-- **Confidence:** high — the fix is an additive counter/cap with no
-  behavioural change below the new budget; the only judgement call is
-  picking a default ceiling generous enough for real multi-root workflows.
+- **Status:** Merged 2026-07-04 via PR #3187
+- **Summary:** Added a `DoS`-family budget `max_admitted_roots` (default
+  `DEFAULT_MAX_ADMITTED_ROOTS = 32`) so a same-uid peer can no longer exhaust
+  the daemon's descriptor table by admitting unbounded distinct roots.
+  `AdmittedRoots` carries a `root_budget` (`with_root_budget`/`root_budget`/
+  `root_budget_would_block`); `Confinement::to_admitted_roots_with_budget`
+  and `SaveTimeState::with_root_budget` thread the resolved cap from
+  `IpcLimits`; over-budget admissible roots are refused with a structured
+  `SaveTimeError::RootBudgetExceeded` (`-32011`), distinct from `NotAdmitted`.
+  Config merges stricter-wins (smaller cap wins). Budget enforced in both
+  `Open` and `Allowlist` modes.
 
 ### CIB-155: Make Security Summary fail when its security scan jobs fail
 
