@@ -6,6 +6,7 @@ use anvil_kernel_types::{
     Category, Diagnostic, DiagnosticSource, Location, Mode, Notification, NotificationClass,
     NotificationContext, NotificationPriority, Severity, diagnostics::KnownMode,
 };
+use anvil_policy_engine::{Engine, EngineConfig, PolicyInput};
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use regex::Regex;
@@ -1733,6 +1734,173 @@ fn build_policy_input(
     input
 }
 
+/// A single policy finding extracted from a `data.anvil.policies` result.
+struct PolicyFinding {
+    policy_id: String,
+    /// Normalised severity label — `error` (from `violation`/`deny` rules) or
+    /// `warning` (from `warn` rules), preserving the legacy severity mapping.
+    severity: String,
+    message: String,
+}
+
+/// A reported policy-check failure (score 0, not a skip). Used for compile
+/// errors and evaluation errors — fail-fast, never a silent pass.
+fn failed_policy_result(message: String) -> CheckResult {
+    CheckResult {
+        name: "policy".to_string(),
+        passed: false,
+        score: 0.0,
+        message,
+        requires_config: false,
+    }
+}
+
+/// A passing policy result (score 100). Used for clean skips (no bundle —
+/// message carries "Skipping" so the strict-config guard treats an absent
+/// bundle as a config gap) and for evaluations that surface only warnings.
+fn passing_policy_result(message: String) -> CheckResult {
+    CheckResult {
+        name: "policy".to_string(),
+        passed: true,
+        score: 100.0,
+        message,
+        requires_config: false,
+    }
+}
+
+/// Recursively discover evaluable `.rego` policy files under `dir`.
+///
+/// Mirrors the legacy loader's discovery semantics: `*.rego` files only,
+/// `*_test.rego` excluded, returned in deterministic (path-sorted) order.
+fn discover_policy_files(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy();
+            name.ends_with(".rego") && !name.ends_with("_test.rego")
+        })
+        .map(|e| e.path().to_path_buf())
+        .collect();
+    files.sort();
+    files
+}
+
+/// Normalise a policy-supplied severity string to the gate's vocabulary,
+/// preserving the legacy OPA-path mapping (`err` → `error`, `warn` → `warning`).
+fn normalise_policy_severity(s: &str) -> String {
+    match s.to_lowercase().as_str() {
+        "error" | "err" => "error".to_string(),
+        "warning" | "warn" => "warning".to_string(),
+        "info" => "info".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Build a single [`PolicyFinding`] from one rule-set item, honouring the
+/// legacy shapes: a bare string message, or an object carrying
+/// `message`/`msg` and an optional `severity` override.
+fn finding_from_item(
+    item: &serde_json::Value,
+    policy_id: &str,
+    default_sev: &str,
+) -> PolicyFinding {
+    match item {
+        serde_json::Value::String(msg) => PolicyFinding {
+            policy_id: policy_id.to_string(),
+            severity: default_sev.to_string(),
+            message: msg.clone(),
+        },
+        serde_json::Value::Object(obj) => {
+            let message = obj
+                .get("message")
+                .or_else(|| obj.get("msg"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("policy violation")
+                .to_string();
+            let severity = obj
+                .get("severity")
+                .and_then(serde_json::Value::as_str)
+                .map_or_else(|| default_sev.to_string(), normalise_policy_severity);
+            PolicyFinding {
+                policy_id: policy_id.to_string(),
+                severity,
+                message,
+            }
+        }
+        other => PolicyFinding {
+            policy_id: policy_id.to_string(),
+            severity: default_sev.to_string(),
+            message: other.to_string(),
+        },
+    }
+}
+
+/// Extract findings from a `data.anvil.policies`-rooted result value.
+///
+/// The value is an object mapping each policy sub-package to its rule outputs;
+/// `violation`/`violations`/`deny`/`denies` map to error-class findings and
+/// `warn`/`warnings` to warning-class findings, preserving the legacy mapping.
+/// Other keys (helper rules, `info`) are ignored, as on the OPA path.
+fn extract_policy_findings(value: &serde_json::Value) -> Vec<PolicyFinding> {
+    const KEYS: [(&str, &str); 6] = [
+        ("violation", "error"),
+        ("violations", "error"),
+        ("deny", "error"),
+        ("denies", "error"),
+        ("warn", "warning"),
+        ("warnings", "warning"),
+    ];
+
+    let mut out = Vec::new();
+    let Some(map) = value.as_object() else {
+        return out;
+    };
+    for (policy_id, output) in map {
+        let Some(obj) = output.as_object() else {
+            continue;
+        };
+        for (key, default_sev) in KEYS {
+            if let Some(arr) = obj.get(key).and_then(serde_json::Value::as_array) {
+                for item in arr {
+                    out.push(finding_from_item(item, policy_id, default_sev));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Map the gate's evaluation context onto the canonical `PolicyInput` v1 the
+/// policy-engine facade consumes: changed and workspace file lists feed
+/// `diff.changed_files` and `repo_state.files` respectively.
+fn policy_input_from_gate(
+    project_root: &Path,
+    profile: Option<&str>,
+    plan_path: Option<&str>,
+    plan_files: &std::collections::HashSet<String>,
+    all_files: Option<&[String]>,
+) -> PolicyInput {
+    let value = build_policy_input(project_root, profile, plan_path, plan_files, all_files);
+    let string_array = |key: &str| -> Vec<String> {
+        value
+            .get(key)
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+
+    let mut input = PolicyInput::default();
+    input.repo_state.files = string_array("files");
+    input.diff.changed_files = string_array("changed_files");
+    input
+}
+
 fn run_check_policy(
     project_root: &Path,
     profile: Option<&str>,
@@ -1743,78 +1911,91 @@ fn run_check_policy(
     let policy_dir = project_root.join(".anvil/policies");
 
     if !policy_dir.exists() || !policy_dir.is_dir() {
-        return CheckResult {
-            name: "policy".to_string(),
-            passed: true,
-            score: 100.0,
-            message: "No policy bundle found (.anvil/policies/). Skipping.".to_string(),
-            requires_config: false,
-        };
+        return passing_policy_result(
+            "No policy bundle found (.anvil/policies/). Skipping.".to_string(),
+        );
     }
 
-    let evaluator = anvil_policy::evaluator::Evaluator::new(None);
-    let input = build_policy_input(project_root, profile, plan_path, plan_files, all_files);
+    // Discovery: *.rego minus *_test.rego, deterministic order. An empty
+    // bundle has nothing to evaluate — a clean skip, as today.
+    let policy_files = discover_policy_files(&policy_dir);
+    if policy_files.is_empty() {
+        return passing_policy_result(
+            "No policies found in .anvil/policies/. Skipping.".to_string(),
+        );
+    }
 
-    match evaluator.evaluate(project_root, &input, None) {
-        Ok(result) => {
-            if result.passed {
-                CheckResult {
-                    name: "policy".to_string(),
-                    passed: true,
-                    score: 100.0,
-                    message: format!("{} policies evaluated, no violations", result.checks_run),
-                    requires_config: false,
-                }
-            } else {
-                let msgs: Vec<String> = result
-                    .violations
-                    .iter()
-                    .map(|v| format!("[{}] {}: {}", v.severity, v.policy_id, v.message))
-                    .collect();
-                CheckResult {
-                    name: "policy".to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!(
-                        "{} violation(s):\n{}",
-                        result.violations.len(),
-                        msgs.join("\n")
-                    ),
-                    requires_config: false,
-                }
+    // regorus is embedded via the policy-engine facade, so evaluation always
+    // runs when a bundle exists — there is no host `opa` binary to be missing
+    // and no silent skip on its absence.
+    let mut engine = match Engine::new(EngineConfig::default()) {
+        Ok(engine) => engine,
+        Err(e) => return failed_policy_result(format!("Policy engine unavailable: {e}")),
+    };
+    if let Err(e) = anvil_policy_engine::builtins::register_all(&mut engine) {
+        return failed_policy_result(format!("Policy engine setup failed: {e}"));
+    }
+
+    for path in &policy_files {
+        let source = match std::fs::read_to_string(path) {
+            Ok(source) => source,
+            Err(e) => {
+                return failed_policy_result(format!(
+                    "Failed to read policy {}: {e}",
+                    path.display()
+                ));
             }
+        };
+        let name = path
+            .strip_prefix(project_root)
+            .unwrap_or(path)
+            .display()
+            .to_string();
+        // Fail-fast pack admission: a policy that fails to compile is a
+        // reported check failure, never a silent skip.
+        if let Err(e) = engine.add_policy(name.clone(), source) {
+            return failed_policy_result(format!("Policy failed to compile ({name}): {e}"));
         }
-        Err(anvil_policy::evaluator::EvalError::OpaNotAvailable) => CheckResult {
-            name: "policy".to_string(),
-            passed: true,
-            score: 100.0,
-            message: "OPA not installed. Skipping policy evaluation.".to_string(),
-            requires_config: false,
-        },
-        Err(anvil_policy::evaluator::EvalError::UnexpectedShape { pointer, .. }) => CheckResult {
-            // UnexpectedShape comes through as a structured variant rather
-            // than a substring match so wording changes in the Display impl
-            // don't silently break this branch. Most common cause is an OPA
-            // version whose output layout has drifted; point the operator
-            // at the runbook rather than dumping the raw snippet at them.
-            name: "policy".to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!(
-                "Policy evaluation failed: unexpected OPA output shape at {pointer}.\n\
-                 hint: the OPA output schema does not match what anvil expects. \
-                 Verify your OPA version with `anvil doctor` and confirm it matches \
-                 the version pinned in docs/guides/opa-policy-testing.md."
-            ),
-            requires_config: false,
-        },
-        Err(e) => CheckResult {
-            name: "policy".to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Policy evaluation failed: {e}"),
-            requires_config: false,
-        },
+    }
+
+    let input = policy_input_from_gate(project_root, profile, plan_path, plan_files, all_files);
+    let value = match engine.eval(&input, "data.anvil.policies") {
+        Ok(result) => result.value,
+        Err(e) => return failed_policy_result(format!("Policy evaluation failed: {e}")),
+    };
+
+    let findings = value
+        .as_ref()
+        .map(extract_policy_findings)
+        .unwrap_or_default();
+    let (errors, warnings): (Vec<_>, Vec<_>) =
+        findings.into_iter().partition(|f| f.severity == "error");
+
+    let render = |f: &PolicyFinding| format!("[{}] {}: {}", f.severity, f.policy_id, f.message);
+
+    if !errors.is_empty() {
+        // Warnings never block (warnings-over-blocks); list them after the
+        // blocking violations so the failure message stays complete.
+        let mut lines: Vec<String> = errors.iter().map(render).collect();
+        lines.extend(warnings.iter().map(render));
+        failed_policy_result(format!(
+            "{} violation(s):\n{}",
+            errors.len(),
+            lines.join("\n")
+        ))
+    } else if !warnings.is_empty() {
+        let lines: Vec<String> = warnings.iter().map(render).collect();
+        passing_policy_result(format!(
+            "{} policies evaluated, {} warning(s):\n{}",
+            policy_files.len(),
+            warnings.len(),
+            lines.join("\n")
+        ))
+    } else {
+        passing_policy_result(format!(
+            "{} policies evaluated, no violations",
+            policy_files.len()
+        ))
     }
 }
 
@@ -3712,11 +3893,12 @@ mod tests {
     }
 
     #[test]
-    fn policy_with_bundle_evaluates_or_skips() {
+    fn policy_with_bundle_evaluates() {
         let tmp = tempfile::TempDir::new().unwrap();
         let policy_dir = tmp.path().join(".anvil/policies");
         std::fs::create_dir_all(&policy_dir).unwrap();
-        // Use a valid policy under the anvil.policies namespace
+        // A valid, empty policy under the anvil.policies namespace produces no
+        // findings — regorus is embedded, so this always evaluates and passes.
         std::fs::write(
             policy_dir.join("noop.rego"),
             "package anvil.policies.noop\n",
@@ -3729,15 +3911,168 @@ mod tests {
             &std::collections::HashSet::new(),
             None,
         );
-        // With OPA installed: evaluates and passes (no violations in noop policy)
-        // Without OPA: skips gracefully
-        // OPA evaluation may also fail due to missing input structure — that's
-        // acceptable; the test verifies the command doesn't panic.
+        assert!(result.passed, "unexpected failure: {}", result.message);
         assert!(
-            result.passed || result.message.contains("evaluation failed"),
-            "unexpected failure: {}",
+            result.message.contains("no violations"),
+            "{}",
             result.message
         );
+    }
+
+    #[test]
+    fn policy_empty_bundle_dir_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil/policies")).unwrap();
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
+        assert!(result.passed);
+        assert!(result.message.contains("Skipping"), "{}", result.message);
+    }
+
+    #[test]
+    fn policy_violation_surfaces_as_failure() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let policy_dir = tmp.path().join(".anvil/policies");
+        std::fs::create_dir_all(&policy_dir).unwrap();
+        std::fs::write(
+            policy_dir.join("boom.rego"),
+            "package anvil.policies.boom\nimport rego.v1\n\nviolation contains msg if { msg := \"boom happened\" }\n",
+        )
+        .unwrap();
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
+        assert!(
+            !result.passed,
+            "violation must fail the check: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains("boom happened"),
+            "{}",
+            result.message
+        );
+        assert!(result.message.contains("[error]"), "{}", result.message);
+    }
+
+    #[test]
+    fn policy_warning_does_not_fail() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let policy_dir = tmp.path().join(".anvil/policies");
+        std::fs::create_dir_all(&policy_dir).unwrap();
+        std::fs::write(
+            policy_dir.join("heads_up.rego"),
+            "package anvil.policies.heads_up\nimport rego.v1\n\nwarn contains msg if { msg := \"heads up\" }\n",
+        )
+        .unwrap();
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
+        assert!(
+            result.passed,
+            "warning must not fail the check: {}",
+            result.message
+        );
+        assert!(result.message.contains("heads up"), "{}", result.message);
+        assert!(result.message.contains("warning"), "{}", result.message);
+    }
+
+    #[test]
+    fn policy_uncompilable_rego_is_reported_not_skipped() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let policy_dir = tmp.path().join(".anvil/policies");
+        std::fs::create_dir_all(&policy_dir).unwrap();
+        std::fs::write(
+            policy_dir.join("broken.rego"),
+            "package anvil.policies.broken\nthis is not valid rego @#$%\n",
+        )
+        .unwrap();
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
+        assert!(
+            !result.passed,
+            "uncompilable policy must be reported: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains("compile"),
+            "expected a compile-failure message, got: {}",
+            result.message
+        );
+        assert!(
+            !result.message.contains("Skipping"),
+            "must not skip: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn policy_test_rego_files_are_excluded_from_evaluation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let policy_dir = tmp.path().join(".anvil/policies");
+        std::fs::create_dir_all(&policy_dir).unwrap();
+        // A valid policy that only warns (so the check passes)...
+        std::fs::write(
+            policy_dir.join("ok.rego"),
+            "package anvil.policies.ok\nimport rego.v1\n\nwarn contains msg if { msg := \"note\" }\n",
+        )
+        .unwrap();
+        // ...plus a *_test.rego that would fail to compile if it were loaded.
+        std::fs::write(
+            policy_dir.join("ok_test.rego"),
+            "package anvil.policies.ok_test\nnot valid rego @#$%\n",
+        )
+        .unwrap();
+        let result = run_check_policy(
+            tmp.path(),
+            None,
+            None,
+            &std::collections::HashSet::new(),
+            None,
+        );
+        assert!(
+            result.passed,
+            "the *_test.rego must be excluded, so no compile failure: {}",
+            result.message
+        );
+        assert!(!result.message.contains("compile"), "{}", result.message);
+    }
+
+    #[test]
+    fn extract_policy_findings_maps_severities() {
+        let value = serde_json::json!({
+            "sec": {"violation": ["a bare string violation"]},
+            "scope": {"warn": [{"message": "obj warning"}]},
+            "cov": {"info": ["ignored info"], "helper_rule": 42},
+        });
+        let findings = extract_policy_findings(&value);
+        let errors: Vec<_> = findings.iter().filter(|f| f.severity == "error").collect();
+        let warns: Vec<_> = findings
+            .iter()
+            .filter(|f| f.severity == "warning")
+            .collect();
+        assert_eq!(errors.len(), 1, "one error-class finding");
+        assert_eq!(warns.len(), 1, "one warning-class finding");
+        // `info` and non-array helper rules are ignored, as on the OPA path.
+        assert_eq!(findings.len(), 2);
     }
 
     // ── Policy input context tests ─────────────────────────────────────
