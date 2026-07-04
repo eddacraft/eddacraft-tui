@@ -176,7 +176,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-006: Save-time policy enforcement routing
 
-- **Status:** Done — the routing contract (OPAE-007,
+- **Status:** Merged 2026-07-04 via PR #3165 — the routing contract (OPAE-007,
   `crates/anvil-intercept-rules/src/policy_routing.rs`) plus its MCP pre-write
   consumer (`crates/anvil-cli/src/mcp/policy_prewrite.rs`) connect regorus-backed
   policy results to the unified kernel-types `ControlDecision` vocabulary without

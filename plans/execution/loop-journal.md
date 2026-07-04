@@ -538,3 +538,22 @@ never with feature work.
 - Checkpoints raised: none (EXCEPT-006 landed by the operator in parallel).
 - Next: POLRESET-006 / OPAE-007 — enforcement routing + the ADR-098 AD-3
   vocabulary unification (now fully unblocked).
+
+## Cycle — 2026-07-04 (POLRESET-006 / OPAE-007 + AD-3)
+
+- Items: ADR-098 AD-3 vocabulary unification (PR #3162: ControlDecision
+  +Fence +Unknown, one shared posture in kernel-types, action-time veto
+  projection, is_veto isError fix); OPAE-007 + POLRESET-006 routing
+  (PR #3165: neutral engine-free contract in intercept-rules + MCP
+  pre-write evaluation with ANVIL_POLICY_ENFORCEMENT kill switch,
+  strictest-wins merge, fail-open everywhere, one wall-clock deadline
+  over the whole pass).
+- Validation: routing filters 6+13 green; intercept 890; cli policy 111;
+  daemon_dep_boundary 7/7 (no engine crate daemonward); workspace clean.
+- Review: AD-3 clean (doc drift + Off merge tests fixed); routing review
+  measured the uncached per-call compile cost (~450µs/pack) sitting
+  outside the budget — fixed via a whole-pass deadline; OPAE-011
+  (compiled-policy cache) filed with the measurement.
+- Checkpoints raised: none.
+- Next: POLRESET-007 starter-pack proof (evidence + flip), then 008
+  (EVALCI-005/006 report-only CI) and 009 (ATC/PATT depth).

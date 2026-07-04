@@ -271,7 +271,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-007: Enforcement-routing contract
 
-- **Status:** Done — `crates/anvil-intercept-rules/src/policy_routing.rs` adds the
+- **Status:** Merged 2026-07-04 via PR #3165 — `crates/anvil-intercept-rules/src/policy_routing.rs` adds the
   neutral, engine-free routing contract: `PolicyOutcome` (rule id + severity
   class `violation`|`warning`, mirroring the two Rego rule families) and
   `route_policy_outcome(outcome, posture: EnforcementMode) -> ControlDecision`.
