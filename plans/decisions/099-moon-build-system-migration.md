@@ -1,4 +1,10 @@
-# ADR-093: moon (moonrepo) build-system migration — defer to a go/no-go spike
+# ADR-099: moon (moonrepo) build-system migration — defer to a go/no-go spike
+
+> **Renumbered (2026-07-04):** originally authored as ADR-093; the number was
+> claimed concurrently by
+> [ADR-093 — lang-tail-wave-2 (WASM text + Zig re-entry)](./093-tail-wave-2-wasm-text-and-zig-reentry.md),
+> which merged to `main` first. Renumbered to the next free slot per the
+> ADR-process race rule; content unchanged.
 
 ## Status
 
