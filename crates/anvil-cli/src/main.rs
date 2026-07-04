@@ -225,6 +225,8 @@ enum Commands {
     Edda(commands::edda::EddaArgs),
     /// List Ember proposals awaiting promotion to Edda.
     Ember(commands::ember::EmberArgs),
+    /// Grant, revoke, and inspect tracked policy exceptions.
+    Exception(commands::exception::ExceptionArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
     /// Activate anvil in this repository. Writes `.anvilrc` if missing
@@ -351,6 +353,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Drift(_) => "drift",
         Commands::Edda(_) => "edda",
         Commands::Ember(_) => "ember",
+        Commands::Exception(_) => "exception",
         Commands::Start(_) => "start",
         Commands::Status(_) => "status",
         Commands::Tutorial(_) => "tutorial",
@@ -1258,6 +1261,7 @@ fn main() -> ExitCode {
         Commands::Drift(args) => commands::drift::run(args, &cli.global),
         Commands::Edda(args) => commands::edda::run(args, &cli.global),
         Commands::Ember(args) => commands::ember::run(args, &cli.global),
+        Commands::Exception(args) => commands::exception::run(args, &cli.global),
         Commands::Start(args) => commands::start::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),

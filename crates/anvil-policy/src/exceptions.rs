@@ -220,14 +220,21 @@ pub enum StoreSource {
 
 /// Outcome of a tracked-store write ([`ExceptionStore::save`] /
 /// [`ExceptionStore::update`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]
 pub enum WriteOutcome {
     /// The tracked store was written.
     Written,
     /// The worktree is read-only — the write was skipped. Gate callers
-    /// surface this as a warning, never a failure (ADR-002).
-    SkippedReadOnly,
+    /// surface this as a warning, never a failure (ADR-002). `detail`
+    /// carries the underlying I/O error text: the outcome deliberately
+    /// conflates read-only checkouts with permission misconfiguration,
+    /// so the diagnostic distinguishing them must stay reachable for
+    /// verbose surfaces (2026-06-08 council, EXCEPT-004 contract).
+    SkippedReadOnly {
+        /// Text of the I/O error that triggered the degrade.
+        detail: String,
+    },
 }
 
 /// Outcome of [`ExceptionStore::migrate`].
@@ -355,7 +362,9 @@ impl ExceptionStore {
         refuse_symlinked_store_paths(workspace_root)?;
         match Self::locked(workspace_root, || self.write_tracked(workspace_root)) {
             Ok(()) => Ok(WriteOutcome::Written),
-            Err(e) if is_readonly_io(&e) => Ok(WriteOutcome::SkippedReadOnly),
+            Err(e) if is_readonly_io(&e) => Ok(WriteOutcome::SkippedReadOnly {
+                detail: e.to_string(),
+            }),
             Err(e) => Err(e),
         }
     }
@@ -381,7 +390,9 @@ impl ExceptionStore {
         });
         match result {
             Ok(()) => Ok(WriteOutcome::Written),
-            Err(e) if is_readonly_io(&e) => Ok(WriteOutcome::SkippedReadOnly),
+            Err(e) if is_readonly_io(&e) => Ok(WriteOutcome::SkippedReadOnly {
+                detail: e.to_string(),
+            }),
             Err(e) => Err(e),
         }
     }
@@ -1793,7 +1804,10 @@ mod tests {
 
         let store = ExceptionStore::empty();
         let outcome = store.save(tmp.path()).unwrap();
-        assert_eq!(outcome, WriteOutcome::SkippedReadOnly);
+        assert!(
+            matches!(outcome, WriteOutcome::SkippedReadOnly { ref detail } if !detail.is_empty()),
+            "expected SkippedReadOnly with detail, got {outcome:?}",
+        );
 
         // Restore so TempDir cleanup can delete the tree.
         perms.set_mode(0o755);
@@ -1821,7 +1835,10 @@ mod tests {
         let loaded = ExceptionStore::load(tmp.path()).unwrap();
         assert_eq!(loaded.source(), StoreSource::Tracked);
         let outcome = loaded.save(tmp.path()).unwrap();
-        assert_eq!(outcome, WriteOutcome::SkippedReadOnly);
+        assert!(
+            matches!(outcome, WriteOutcome::SkippedReadOnly { ref detail } if !detail.is_empty()),
+            "expected SkippedReadOnly with detail, got {outcome:?}",
+        );
 
         perms.set_mode(0o755);
         std::fs::set_permissions(&dir, perms).unwrap();
