@@ -6,6 +6,7 @@ use crate::GlobalArgs;
 
 mod eval;
 mod eval_regression;
+mod install;
 mod validate;
 
 #[derive(Debug, Args)]
@@ -44,6 +45,10 @@ enum PolicyCommand {
     },
     /// Validate a policy pack: manifest, metadata, structure, and tests.
     Validate(validate::ValidateArgs),
+    /// Install a bundled starter policy pack into `.anvil/policies/`.
+    Install(install::InstallArgs),
+    /// Show a bundled starter policy pack without installing it.
+    Show(install::ShowArgs),
     /// Run policy tests
     Test {
         /// Test file or directory
@@ -297,6 +302,8 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
             }
         }
         PolicyCommand::Validate(validate_args) => return validate::run(validate_args, global),
+        PolicyCommand::Install(install_args) => return install::run_install(install_args, global),
+        PolicyCommand::Show(show_args) => return install::run_show(show_args, global),
         PolicyCommand::Test { path, list_files } => {
             let test_path = path.as_deref().unwrap_or(".anvil/policies");
 
