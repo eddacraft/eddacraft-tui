@@ -172,10 +172,13 @@ fn format_json_auth_failure_emits_only_json_envelope() {
         .output()
         .expect("failed to invoke anvil binary");
 
-    // Action command: auth-required is an expected state → exit 0.
-    assert!(
-        output.status.success(),
-        "auth-required on an action command should exit 0; stderr:\n{}",
+    // CIB-169: auth-required on an action command carries the auth signal
+    // in the exit code (exit 3) so scripts stop; the structured envelope
+    // shape is unchanged — only the exit code moved off 0.
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "auth-required on an action command should exit 3 (CIB-169); stderr:\n{}",
         String::from_utf8_lossy(&output.stderr),
     );
     // CIB-049: the envelope is structured data, so per the `--json`

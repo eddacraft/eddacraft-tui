@@ -4603,7 +4603,7 @@ archive.
 
 ### CIB-169: Reconcile `anvil start`'s exit-0-on-auth-required with `&&` chaining
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Owner decision (2026-07-04):** auth-required propagates a distinct
   non-zero exit (exit 3) on action commands, superseding issue #1822's
   exit-0 mapping there; consistent with the MCP-install non-zero rationale.

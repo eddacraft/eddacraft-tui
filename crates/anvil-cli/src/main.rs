@@ -154,11 +154,14 @@ pub struct GlobalArgs {
     before_help = help_layout::FIRST_RUN_POINTER,
     after_help = "\
 EXIT CODES:
-  0  Success (incl. pre-dispatch auth-required on action commands)
+  0  Success (incl. pre-dispatch auth-required on the read-only `status` surface)
   1  General error (incl. failed `anvil auth login` attempt)
   2  Gate check failed (one or more checks did not pass)
   3  Authentication required:
        - pre-dispatch on `whoami` / `auth whoami` (state probe)
+       - pre-dispatch on action commands (`start`, `init`, `watch`, `gate`,
+         `check`, `audit`, …) so `anvil start && deploy` stops when the repo
+         is unactivated
        - post-dispatch on any command (server-rejected token mid-call)
   4  Configuration error (invalid config file or options)"
 )]
@@ -467,11 +470,15 @@ fn skips_auth_for_local_probe(cmd: &Commands) -> bool {
 /// Returns `true` for commands whose entire purpose is to report the
 /// current auth state — the canonical programmatic preflight. For these,
 /// auth-required is the substantive answer the caller is asking for, so
-/// the exit code carries the signal (`EXIT_AUTH_REQUIRED`).
+/// the exit code carries the signal (`EXIT_AUTH_REQUIRED`) and the JSON
+/// envelope keeps its historical error shape.
 ///
-/// All other gated commands treat auth-required as an *expected state*
-/// (you haven't logged in yet) and exit `0` with an informational
-/// message — see issue #1822.
+/// This is the *probe* class in the three-way auth-required classifier
+/// (see [`auth_required_response`]): probes and action commands both exit
+/// `3`; only the read-only state surfaces ([`is_read_only_auth_surface`])
+/// exit `0`. Probes differ from action commands solely in the JSON
+/// envelope shape — probes emit `{"error": "authentication_required"}`
+/// for backward compatibility with existing `whoami` callers.
 fn is_auth_state_probe(cmd: &Commands) -> bool {
     use commands::auth::AuthCommand;
     match cmd {
@@ -481,21 +488,45 @@ fn is_auth_state_probe(cmd: &Commands) -> bool {
     }
 }
 
+/// Returns `true` for gated read-only *state* surfaces that report the
+/// current auth/activation state without asserting that protection is
+/// active. For these, auth-required is an expected informational answer
+/// (you haven't logged in yet), so the pre-dispatch auth wall exits `0`
+/// with the informational envelope rather than the exit-3 action signal.
+///
+/// Only `status` qualifies today: it is a pure state report. Governance
+/// commands that *act* on the assumption of an active protection wall
+/// (`gate`, `check`, `audit`, `start`, `init`, `watch`, …) are action
+/// commands and exit `3` so `&&` chains and script preflights stop at an
+/// unactivated repo (CIB-169). The `--verify` read-only probes on
+/// `status` / `start` bypass the auth wall entirely and never reach here.
+fn is_read_only_auth_surface(cmd: &Commands) -> bool {
+    matches!(cmd, Commands::Status(_))
+}
+
 /// Decide the exit code and (optional) JSON envelope for the
 /// pre-dispatch auth-required branch.
 ///
-/// Issue #1822: action commands treat auth-required as an *expected
-/// state* (the user hasn't logged in yet) and exit `0`; the stderr
-/// message stays loud so humans see what to do next. Only the dedicated
-/// auth-state probes (`whoami`, `auth whoami`) carry the auth signal in
-/// the exit code so scripts have a stable preflight.
+/// CIB-169 three-way classifier (incoming code `EXIT_AUTH_REQUIRED`):
+/// - **probe** ([`is_auth_state_probe`]: `whoami`, `auth whoami`) → exit
+///   `3`, error-shaped envelope. The canonical script preflight.
+/// - **read-only state surface** ([`is_read_only_auth_surface`]:
+///   `status`) → exit `0`, informational `authRequired` envelope.
+///   Auth-required is the expected answer, not a failure.
+/// - **action command** (everything else gated: `start`, `init`,
+///   `watch`, `gate`, `check`, `audit`, …) → exit `3`, informational
+///   `authRequired` envelope. This supersedes issue #1822's exit-0
+///   mapping so `anvil start && deploy` stops at an unactivated repo;
+///   the stderr message stays loud so humans still see what to do next.
+///   A breaking change in beta — the `--help` exit-code table and
+///   CHANGELOG call it out.
 ///
-/// The exit-code coercion to `0` is gated on the incoming code being
-/// exactly `EXIT_AUTH_REQUIRED`. Any other failure from `check_auth`
-/// (e.g. a failed interactive `anvil auth login` attempt, which now
-/// returns `EXIT_ERROR`) is a real runtime failure and passes through
-/// unchanged — scripts must be able to distinguish "user hasn't logged
-/// in yet" from "user tried to log in and it failed".
+/// The exit-code decision is gated on the incoming code being exactly
+/// `EXIT_AUTH_REQUIRED`. Any other failure from `check_auth` (e.g. a
+/// failed interactive `anvil auth login` attempt, which returns
+/// `EXIT_ERROR`) is a real runtime failure and passes through unchanged
+/// — scripts must be able to distinguish "user hasn't logged in yet"
+/// from "user tried to log in and it failed".
 ///
 /// Pure so it can be unit-tested without depending on credential I/O.
 /// Returns `(exit_code, Some(json_envelope))` when `--json` is set —
@@ -526,7 +557,15 @@ fn auth_required_response(
         return (code, envelope);
     }
     let is_probe = is_auth_state_probe(cmd);
-    let exit_code = if is_probe { code } else { EXIT_OK };
+    // CIB-169: only read-only state surfaces (`status`) treat
+    // auth-required as an expected informational state and exit 0.
+    // Probes and action commands both carry the auth signal (exit 3) so
+    // script preflights and `&&` chains stop at an unactivated repo.
+    let exit_code = if is_read_only_auth_surface(cmd) {
+        EXIT_OK
+    } else {
+        EXIT_AUTH_REQUIRED
+    };
     let envelope = if !json_mode {
         None
     } else if is_probe {
@@ -1950,18 +1989,21 @@ mod tests {
     }
 
     #[test]
-    fn auth_required_response_action_command_exits_zero() {
-        // Issue #1822: gated action commands treat auth-required as an
-        // expected state and exit 0 so new users don't see what looks
-        // like a crash.
+    fn auth_required_response_action_command_exits_three() {
+        // CIB-169: gated *action* commands carry the auth signal in the
+        // exit code (exit 3) so `anvil start && deploy` stops at an
+        // unactivated repo instead of advancing past the auth wall.
+        // Supersedes issue #1822's exit-0 mapping for these surfaces.
         for tokens in [
-            &["welcome"][..],
-            &["status"][..],
             &["start"][..],
             &["init"][..],
             &["gate"][..],
             &["audit"][..],
             &["watch"][..],
+            &["check", "--all"][..],
+            &["architecture", "validate"][..],
+            &["drift", "list"][..],
+            &["policy", "list"][..],
         ] {
             let (code, envelope) = auth_required_response(
                 &parse_command(tokens),
@@ -1970,14 +2012,37 @@ mod tests {
                 Some(AuthRequiredKind::NotAuthenticated),
             );
             assert_eq!(
-                code, EXIT_OK,
-                "{tokens:?} should exit 0 on auth-required (informational)"
+                code, EXIT_AUTH_REQUIRED,
+                "{tokens:?} should exit 3 on auth-required (action command)"
             );
             assert!(
                 envelope.is_none(),
                 "text mode must not emit a JSON envelope"
             );
         }
+    }
+
+    #[test]
+    fn auth_required_response_read_only_surface_exits_zero() {
+        // CIB-169: read-only state surfaces (`status`) report the current
+        // auth/activation state, so auth-required is the expected
+        // informational answer and exits 0 — a new user running `anvil
+        // status` sees state, not a failure. The probes (`whoami`) keep
+        // their own exit-3 contract; this is the non-probe read-only path.
+        let (code, envelope) = auth_required_response(
+            &parse_command(&["status"]),
+            EXIT_AUTH_REQUIRED,
+            false,
+            Some(AuthRequiredKind::NotAuthenticated),
+        );
+        assert_eq!(
+            code, EXIT_OK,
+            "`status` should exit 0 on auth-required (read-only informational)"
+        );
+        assert!(
+            envelope.is_none(),
+            "text mode must not emit a JSON envelope"
+        );
     }
 
     #[test]
@@ -2006,7 +2071,10 @@ mod tests {
             true,
             Some(AuthRequiredKind::NotAuthenticated),
         );
-        assert_eq!(code, EXIT_OK);
+        // CIB-169: the informational `authRequired` envelope now
+        // accompanies exit 3 on action commands (`start`); only the
+        // exit code changed, the envelope shape is unchanged.
+        assert_eq!(code, EXIT_AUTH_REQUIRED);
         let envelope = envelope.expect("--json mode must emit an envelope");
         assert_eq!(envelope["state"], "authRequired");
         assert_eq!(envelope["next"], "anvil auth login");

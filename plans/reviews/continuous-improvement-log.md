@@ -2019,5 +2019,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Failed:** none.
 - **Friction:** `show_workflow_picker` itself still needs an interactive terminal, so the default is verified through the extracted helper rather than by driving the picker.
 - **Improvement:** When a default lives inside a TTY-only widget builder, extract the value-producing step into a pure function so the policy (here: unticked-by-default) is unit-testable independent of the UI library.
+### 2026-07-04 — claude (CIB-169)
+
+- **Task:** CIB-169 — `anvil start` exited `0` on the pre-dispatch auth wall, so `anvil start && deploy` advanced past a completely unactivated repo.
+- **Outcome:** Replaced the blanket `is_probe ? 3 : 0` coercion in `auth_required_response` with a three-way classifier — probe (`whoami`/`auth whoami`) → 3 (error envelope), read-only surface (`status`, new `is_read_only_auth_surface`) → 0 (informational envelope), action command (everything else gated) → 3 (informational envelope, shape unchanged). Non-auth pass-through and `--verify` local-probe bypass untouched. TDD: unit tests (`..._exits_three`/`..._read_only_surface_exits_zero`) + a `start.rs` shell-driven `&& echo reached` integration test proven red first. Updated the `--help` EXIT CODES table, doc comments, and a breaking-change CHANGELOG entry.
+- **Worked:** The auth wall already threaded `AuthRequiredKind` and a pure, unit-testable `auth_required_response`, so the remap was a single site; the read-only allowlist keeps `status` (a pure state report) on exit 0 while the governance verbs stop `&&` chains.
+- **Failed:** none.
+- **Friction:** Three integration tests (`format_flag`, `init_post_analysis`) pinned the old exit-0 contract with comments mislabelling read-only `status` as an "action command"; the `status`-based ones stayed green (read-only) but needed the misleading comments corrected, and only the `start`-based JSON test needed its exit assertion flipped to 3.
+- **Improvement:** When a shared exit-code helper serves both read-only and action surfaces, encode the read-only allowlist as its own named predicate next to the probe predicate — it makes the "which class exits 0" decision auditable and stops future callers from re-broadening the exit-0 coercion.
 - **Follow-up:** none.
 

@@ -151,8 +151,9 @@ fn json_mode_auth_failure_emits_only_json_error() {
         .output()
         .expect("failed to invoke anvil binary");
 
-    // Issue #1822 / PR #1824: action commands treat auth-required as
-    // an *expected state* and exit 0 with the informational envelope.
+    // CIB-169: `status` is the read-only state surface — auth-required is
+    // the expected informational answer, so it stays exit 0 with the
+    // informational envelope (action commands now exit 3).
     // CIB-049: the envelope is structured data, so per the `--json`
     // stream policy (`docs/guides/cli-output-streams.md`) it lands on
     // **stdout** — a JSON consumer piping stdout must receive it.
@@ -191,11 +192,11 @@ fn json_mode_auth_failure_emits_only_json_error() {
     // design, so a substring check would self-trip.
 }
 
-/// CIB-049: `anvil start` is the activation surface scripts drive with
-/// `--json`. Unauthenticated it must exit 0 (#1822 action-command
-/// coercion) AND deliver the `authRequired` envelope on **stdout** —
-/// before this fix the envelope went to stderr, so a JSON consumer
-/// reading stdout got nothing.
+/// CIB-049 / CIB-169: `anvil start` is the activation surface scripts
+/// drive with `--json`. Unauthenticated it must exit 3 (CIB-169: action
+/// commands carry the auth signal so `anvil start && deploy` stops) AND
+/// deliver the `authRequired` envelope on **stdout** — before CIB-049 the
+/// envelope went to stderr, so a JSON consumer reading stdout got nothing.
 #[test]
 fn start_json_auth_failure_emits_envelope_on_stdout() {
     let dir = tempfile::tempdir().unwrap();
@@ -214,9 +215,10 @@ fn start_json_auth_failure_emits_envelope_on_stdout() {
         .output()
         .expect("failed to invoke anvil binary");
 
-    assert!(
-        output.status.success(),
-        "auth-required on an action command must exit 0 (#1822); stderr:\n{}",
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "auth-required on an action command must exit 3 (CIB-169); stderr:\n{}",
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -255,9 +257,9 @@ fn json_verbose_edict_auth_failure_emits_only_json_error() {
         .output()
         .expect("failed to invoke anvil binary");
 
-    // Issue #1822 / PR #1824: edict refresh failure on an action
-    // command treats auth-required as an *expected state* and exits 0
-    // with the informational envelope (same shape as missing creds).
+    // CIB-169: edict refresh failure on the read-only `status` surface
+    // treats auth-required as an expected state and exits 0 with the
+    // informational envelope (same shape as missing creds).
     // CIB-049: the envelope is structured data → stdout (stream policy).
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);

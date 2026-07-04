@@ -69,6 +69,19 @@ startup, and continued beta-reliability polish.
   other finding-emitting surfaces without changing exit semantics or JSON/SARIF
   contracts. Spacing and original message fidelity are preserved in the mapping.
 
+- **Breaking (beta): auth-required now exits `3` on action commands.** When you
+  aren't logged in, gated _action_ commands — `anvil start`, `init`, `watch`,
+  `gate`, `check`, `audit`, and siblings — now exit `3` (authentication
+  required) instead of `0`, so `anvil start && deploy` stops at an unactivated
+  repo rather than advancing past the auth wall. The human message is unchanged
+  and still actionable, and the `--json` `authRequired` envelope shape is
+  unchanged (only the exit code moved). The read-only `anvil status` surface and
+  the `whoami` / `auth whoami` state probes keep their existing contracts (`0`
+  and `3` respectively); the `--verify` read-only probes are unaffected. If a
+  script relied on the previous exit-`0` mapping, gate on the explicit exit code
+  or authenticate first. The `--help` exit-code table documents the new contract
+  (CIB-169, superseding issue #1822 on these surfaces).
+
 ### Fixed
 
 - **Secret scanning false-positive reduction.** Local `.env` files and

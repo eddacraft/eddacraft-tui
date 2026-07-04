@@ -996,3 +996,64 @@ fn start_verify_runs_probe_unauthenticated_without_dev() {
          stdout=\n{stdout}\nstderr=\n{stderr}",
     );
 }
+
+/// CIB-169: full (non-`--verify`) `anvil start` on an unauthenticated repo
+/// carries the auth signal in the exit code (exit 3) so `anvil start &&
+/// deploy` stops at an unactivated repo instead of advancing past the auth
+/// wall. The human message stays actionable, and a `&& echo reached` chain
+/// must NOT print `reached`. Supersedes issue #1822's exit-0 mapping on
+/// action commands.
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_unauthenticated_exits_three_and_breaks_and_chain() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    // Drive the invocation through a shell so the `&&` chain is exercised
+    // exactly as an operator's `anvil start && deploy` would be — the
+    // whole point of the exit-3 contract is that the chain stops here.
+    let script = format!("{ANVIL_BIN:?} --no-tui start && echo reached");
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        // Empty XDG + isolated ANVIL_HOME so no credentials resolve on any
+        // platform: the repo is genuinely unauthenticated.
+        .env("XDG_CONFIG_HOME", home.path().join("xdg"))
+        .env("ANVIL_HOME", home.path().join("anvil-home"))
+        // No dev bypass — the auth wall must actually fire (not the
+        // ANVIL_DEV escape hatch the mechanics tests above lean on).
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .env_remove("ANVIL_LOG")
+        .env_remove("RUST_LOG")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_NO_PROMPT", "1")
+        .output()
+        .expect("failed to invoke anvil binary via shell");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // The `&&` chain stops: the shell's exit status is `anvil`'s exit 3,
+    // and the second command never ran.
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "unauthenticated `anvil start` must exit 3 (CIB-169); \
+         stdout=\n{stdout}\nstderr=\n{stderr}",
+    );
+    assert!(
+        !stdout.contains("reached"),
+        "the `&& echo reached` chain must NOT advance past an unactivated \
+         repo: stdout=\n{stdout}",
+    );
+    // The message stays actionable — humans still learn what to do next.
+    assert!(
+        stderr.contains("anvil auth login"),
+        "the auth-required message must stay actionable on stderr: \
+         stderr=\n{stderr}",
+    );
+}
