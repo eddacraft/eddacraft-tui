@@ -4729,22 +4729,17 @@ archive.
 
 ### CIB-178: Exclude anvil-generated artefacts from the language profile
 
-- **Status:** In Progress
-- **Intent:** The activation language profile counts anvil's own writes: live
-  runs crept "(1 unclassified file)" → 4 → 6 as activation created
-  `.anvilrc`, `anvil/`, `plans/`, and workflow files — the tool inflates its
-  own "unclassified" noise and mildly erodes the diagnostic's credibility.
-- **Expected Outcome:** Known anvil-owned artefacts (`.anvilrc` /
-  `.anvil.<ext>`, `anvil/`, `.anvil/`, the planning dir it created, installed
-  workflow files) are excluded from the profile's unclassified count, or
-  grouped as an "anvil config" bucket.
-- **Files:** `crates/anvil-cli/src/activation/language_profile.rs`.
-- **Validation:** `cargo test -p eddacraft-anvil language_profile` — fixture
-  repo where activation artefacts do not change the unclassified count across
-  two consecutive runs.
-- **Identified From:** User-journey pass 2026-07-04 (finding 17); reproduced
-  live across three consecutive runs.
-- **Confidence:** high.
+- **Status:** Merged 2026-07-04 via PR #3152
+- **Summary:** Added an activation-only `is_anvil_owned_artifact(path, root)`
+  predicate applied per-file in `profile_repo`
+  (`activation/language_profile.rs`) so anvil's own writes (`.anvilrc`,
+  `.anvil.<ext>` config, root-level `anvil/`, `.anvil-mcp-fallback.json`,
+  installed `.github/workflows/{anvil,anvil-audit}.yml`) no longer inflate the
+  language profile's unclassified count. Rules are root-anchored via
+  `strip_prefix(root)` so nested `vendor/anvil/` and user `src/anvil.rs` are
+  never dropped. TDD fixture asserts the unclassified count matches baseline and
+  is stable across two runs. `plans/` deliberately left in scope to avoid
+  dropping user planning docs.
 
 ### CIB-179: Say something when welcome surfaces drop copy in small terminals
 
