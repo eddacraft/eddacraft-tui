@@ -127,3 +127,10 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Validation:** ADR-100 + `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (incl. `uncommitted_worktree_grant_does_not_apply`)
 - **Dependencies:** EXCEPT-006
 - **Status:** Merged 2026-07-04 via PR #3168
+
+### EXCEPT-011: Capsule tip-aligned store provenance (ADR-100 follow-up)
+- **Intent:** Align the capsule layer with ADR-100's committed-authority semantics: `capsule create` collects exception grants from the worktree store (`collect_exceptions` → `ExceptionStore::load`), and `verify`'s live-store recheck reads the worktree too — both should bind to a committed tree (create: the capsule range's head; verify: an explicitly named ref) the way the L4 gate does, so a capsule's exception evidence is reproducible from refs alone. Named as a non-delivered follow-up in ADR-100's consequences.
+- **Expected Outcome:** Capsule exception collection and the verify recheck read from committed trees; worktree-only grants influence neither; the gate and the capsule agree on what "the store" means for a given range.
+- **Validation:** `cargo test -p eddacraft-anvil-capsule -- exceptions`
+- **Dependencies:** EXCEPT-009, EXCEPT-010
+- **Status:** Proposed
