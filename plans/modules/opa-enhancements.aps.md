@@ -275,6 +275,22 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Dependencies:** OPAE-004, OPAE-007, POLRESET-007
 - **Confidence:** medium
 
+### OPAE-010: Pack configuration surface
+
+- **Status:** Proposed
+- **Intent:** Give policy packs a real, wired configuration surface — discovered
+  during OPAE-004 review: `PolicyInput` (a frozen stability contract) carries no
+  `config` field and no gate/pre-write caller populates one, so any pack rule
+  reading `input.config` is permanently dead in production.
+- **Expected Outcome:** A decided mechanism (additive `PolicyInput` field with a
+  populated source, or a separate config document) lets packs read
+  workspace-scoped configuration; the starter pack's thresholds become genuinely
+  configurable; Rego pack tests can only exercise input shapes production
+  supplies.
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_input_config`
+- **Dependencies:** OPAE-004, OPAE-007
+- **Confidence:** medium
+
 ### OPAE-009: Policy authoring user docs
 
 - **Status:** Proposed
