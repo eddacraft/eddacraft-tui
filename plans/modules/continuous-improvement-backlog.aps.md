@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 145/181  |
+| CIB | —     | In Progress | 148/181  |
 
 ## Purpose
 
@@ -4713,39 +4713,15 @@ archive.
 
 ### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests
 
-- **Status:** In Progress
-- **Intent:** `eddacraft-anvil-policy` tests that write a fixture script and
-  immediately exec it via `SubprocessRunner::eval_json` (all five that route
-  through the `script()` helper:
-  `eval::adapter::tests::eval_harness_exit_code_classification`,
-  `eval_harness_adapter_subprocess_drains_large_output_without_deadlock`,
-  `eval_harness_adapter_subprocess_times_out_on_hanging_child`,
-  `eval_harness_adapter_subprocess_empty_stdout_surfaces_stderr`, and
-  `eval_harness_adapter_subprocess_null_stdin`) flake intermittently under
-  parallel runs with "Text file busy (os error 26)". Observed repeatedly on
-  2026-07-04 across unrelated EXCEPT-wave runs; disappears on retry, so it
-  burns re-diagnosis effort per encounter.
-- **Root Cause:** The classic multithreaded fork+exec race. `fork()` clones
-  the whole process fd table, so while one thread is mid-`std::fs::write` on
-  its fixture script another thread's `Command::spawn` can `fork()` a child
-  that inherits a duplicate of that write-mode fd. The kernel's
-  `deny_write_access` check is **inode-scoped** (`i_writecount`), not
-  path-scoped, so it trips even though the threads write different paths in
-  different tempdirs — if the first thread execs its script inside the narrow
-  fork-to-exec window before the sibling child's own `execve` closes the
-  CLOEXEC fd, it gets ETXTBSY. A write-to-temp-then-rename approach was
-  considered and **rejected**: rename preserves the underlying inode and its
-  write-count, so it is a no-op for this race (confirmed against
-  rust-lang/rust#114554).
-- **Expected Outcome:** A bounded ETXTBSY retry at the
-  `SubprocessRunner::eval_json` spawn site (extracted as the unit-testable
-  `spawn_with_etxtbsy_retry` helper, `max_retries = 5` retries after the
-  initial attempt — 6 total spawn calls worst-case — with exponential
-  back-off) — the ecosystem-standard fix for this POSIX design limitation
-  (mirrors golang/go#22315 and rust-lang/rust#114554). The transient failure
-  is detected via `std::io::ErrorKind::ExecutableFileBusy` (stable on Rust
-  1.95.0) rather than a hard-coded errno. The five fixture-exec tests pass
-  repeatedly under a parallel full-crate run.
-- **Validation:** `for i in $(seq 1 20); do cargo test -p eddacraft-anvil-policy || exit 1; done`
-  with zero ETXTBSY failures
-- **Dependencies:** —
+- **Status:** Merged 2026-07-05 via PR #3194
+- **Summary:** `SubprocessRunner::eval_json`'s spawn site now retries on
+  `std::io::ErrorKind::ExecutableFileBusy` (bounded, exponential back-off,
+  `spawn_with_etxtbsy_retry`) — the ecosystem-standard fix for the
+  inode-scoped multithreaded fork+exec race (mirrors golang/go#22315 and
+  rust-lang/rust#114554). A write-to-temp-then-rename approach was
+  considered and rejected: `rename` preserves the target inode's
+  `i_writecount`, so it is a no-op for this specific race. Fixes all five
+  fixture-exec tests routing through the `script()` helper; the item's
+  original two `opa.rs`-based test references were dropped as dead (module
+  deleted in ADR-098 PR-C). Validated with 20 consecutive
+  `cargo test -p eddacraft-anvil-policy` runs, zero ETXTBSY.
