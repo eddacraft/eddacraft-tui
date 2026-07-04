@@ -308,8 +308,19 @@ struct InviteResult {
 /// exercise every branch without the `unsafe { std::env::set_var }`
 /// forbidden by the crate-level `unsafe_code` lint.
 fn admin_credential_config_path() -> Result<PathBuf> {
-    let config_dir = dirs::config_dir().context("could not determine user config directory")?;
-    Ok(config_dir.join("anvil").join("admin-auth.json"))
+    // Route through the credentials-dir convention rather than raw
+    // `dirs::config_dir()`: the admin key lives under the same roof as the
+    // login credentials — honouring the DISTRIB-006 `ANVIL_HOME` re-rooting
+    // (a pre-release candidate must not read the production admin key
+    // either) and the deliberate XDG-on-macOS policy — and it drops the hard
+    // dependency on the Windows known-folder API, which fails in headless /
+    // service sessions (observed as `could not determine user config
+    // directory` exit-1s on the Windows cross-compile smoke leg). Default
+    // Linux and Windows paths are unchanged (`~/.config/anvil/` /
+    // `%APPDATA%/anvil/`).
+    let config_dir = crate::auth::credentials::credentials_dir()
+        .context("could not determine user config directory")?;
+    Ok(config_dir.join("admin-auth.json"))
 }
 
 fn load_admin_credential_config(path: &Path) -> Result<Option<AdminCredentialConfig>> {

@@ -72,7 +72,16 @@ fn run_concurrent(n_writers: usize) {
             // Real callers chain from the running tip.
             let line = line_for_thread(thread_id as u64 + 1, &prev, thread_id);
             barrier.wait();
-            writer.append(&line).unwrap();
+            // Generous acquire bound: this test asserts serialisation
+            // correctness, not lock latency. With 80 fsync-ing writers
+            // released on one barrier, the tail writer on a 2-core shared
+            // CI runner legitimately waits past the default 5 s
+            // (observed: `LockTimeout(5s)` reds on the cross-compile smoke
+            // legs), so give contention a bound only a genuine wedge
+            // would exceed.
+            writer
+                .append_with_lock_timeout(&line, std::time::Duration::from_mins(2))
+                .unwrap();
         }));
     }
     for h in handles {

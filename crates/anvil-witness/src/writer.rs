@@ -239,6 +239,22 @@ impl WitnessWriter {
     /// property of the atomic append path; route production writes through
     /// [`WitnessWriter::append_chained_with_lock_timeout`] to honour it.
     pub fn append(&self, line: &WitnessLine) -> Result<AppendOutcome, WriterError> {
+        self.append_with_lock_timeout(line, DEFAULT_LOCK_ACQUIRE_TIMEOUT)
+    }
+
+    /// As [`append`](Self::append), but with the flock-acquire timeout supplied
+    /// by the caller — the low-level twin of
+    /// [`append_chained_with_lock_timeout`](Self::append_chained_with_lock_timeout).
+    /// Production writes should still route through the chained path (which
+    /// honours [`LOCK_TIMEOUT_ENV`]); this exists for callers that own their
+    /// `(seq, prev)` derivation and need a non-default acquire bound — e.g.
+    /// high-contention correctness tests on slow shared CI runners, where a
+    /// fixed 5 s bound is a latency assertion the test never meant to make.
+    pub fn append_with_lock_timeout(
+        &self,
+        line: &WitnessLine,
+        lock_timeout: Duration,
+    ) -> Result<AppendOutcome, WriterError> {
         // Fail fast on a misrouted line BEFORE acquiring the shared flock — a
         // scope mismatch is a caller bug, not something to take the lock for.
         // (`append_locked` re-checks as defence-in-depth.)
@@ -250,7 +266,7 @@ impl WitnessWriter {
         }
         // The guard releases the flock on drop (end of scope), including on a
         // panic inside `append_locked` (CIB-124).
-        let _guard = self.acquire_lock()?;
+        let _guard = self.acquire_lock_with_timeout(lock_timeout)?;
         self.append_locked(line)
     }
 
@@ -423,6 +439,10 @@ impl WitnessWriter {
     }
 
     /// Acquire the exclusive flock with the [`DEFAULT_LOCK_ACQUIRE_TIMEOUT`].
+    /// Production paths route through [`Self::acquire_lock_with_timeout`] (via
+    /// the `append*` methods); this default-bound shorthand is only exercised
+    /// by the in-crate lock-contention tests.
+    #[cfg(test)]
     fn acquire_lock(&self) -> Result<LockGuard, WriterError> {
         self.acquire_lock_with_timeout(DEFAULT_LOCK_ACQUIRE_TIMEOUT)
     }

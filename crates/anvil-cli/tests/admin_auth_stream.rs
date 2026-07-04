@@ -16,11 +16,14 @@
 //!
 //! ## Environment isolation
 //!
-//! Admin authenticates via `ANVIL_ADMIN_KEY` or a stored credential source
-//! at `dirs::config_dir()/anvil/admin-auth.json` (XDG on Linux, `HOME`
-//! fallback elsewhere). Each test removes the env var and points `HOME` /
-//! `XDG_CONFIG_HOME` at an empty tempdir so no developer-machine
-//! credential can leak in and the auth-required path is deterministic.
+//! Admin authenticates via `ANVIL_ADMIN_KEY` or a stored credential at
+//! `credentials_dir()/admin-auth.json` (XDG on Linux/macOS, `%APPDATA%`
+//! on Windows, `<ANVIL_HOME>/user/` when re-rooted per DISTRIB-006). Each
+//! test removes the env var and re-roots via `ANVIL_HOME` into an empty
+//! tempdir — `HOME`/`XDG_CONFIG_HOME` alone don't cover Windows, where
+//! the default path resolves through the known-folder API, not env vars —
+//! so no developer-machine credential can leak in and the auth-required
+//! path is deterministic on every platform.
 
 use std::process::{Command, Output};
 
@@ -44,6 +47,11 @@ fn run_admin_list_unauthenticated(json: bool) -> Output {
         .env("HOME", home.path())
         .env("USERPROFILE", home.path())
         .env("XDG_CONFIG_HOME", home.path().join("xdg"))
+        // Re-root user-owned state into the tempdir on ALL platforms
+        // (DISTRIB-006): on Windows the default admin-auth path resolves
+        // through the known-folder API, which env vars cannot redirect
+        // (and which outright fails in headless runner sessions).
+        .env("ANVIL_HOME", home.path().join("anvil-home"))
         .env_remove("ANVIL_ADMIN_KEY")
         .env_remove("ANVIL_DEV")
         .env("ANVIL_LOG", "off")
