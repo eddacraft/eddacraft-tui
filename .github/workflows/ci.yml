@@ -198,16 +198,24 @@ jobs:
         run: node scripts/check-stability-markers.mjs
         continue-on-error: true
 
+      # These are self-tests of the docs-check/active-lint tooling itself (run
+      # against the live corpus only to exercise output contract/format, per
+      # docs-check.test.sh's own header comment) — not a content check of this
+      # PR's markdown. Gate on script-fixtures-required (scripts/**/*.mjs|.sh,
+      # which covers scripts/docs/* and scripts/aps/*) instead of the much
+      # broader markdownlint-required (any *.md), so a plans/*.md-only PR
+      # doesn't pay for a ~280s tool self-test on every run. Content
+      # correctness is still enforced unconditionally by `docs:check` above.
       - name: Run docs-check fixture tests
         if:
           needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true'
+          needs.detect-changes.outputs.script-fixtures-required == 'true'
         run: pnpm run test:docs-check
 
       - name: Run active-lint self-test
         if:
           needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true'
+          needs.detect-changes.outputs.script-fixtures-required == 'true'
         run: pnpm run test:aps-active-lint
 
       # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
