@@ -439,9 +439,16 @@ mod tests {
         // malformed or drifted manifest is caught here rather than only at CI
         // runtime. Bound to the repo-root artefact (two levels up from this
         // crate) so the fixture and its consumer cannot drift apart.
-        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ci/eval/suites.json");
-        let raw = std::fs::read_to_string(manifest)
-            .unwrap_or_else(|e| panic!("reading committed suites manifest `{manifest}`: {e}"));
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("ci/eval/suites.json");
+        let raw = std::fs::read_to_string(&manifest).unwrap_or_else(|e| {
+            panic!(
+                "reading committed suites manifest `{}`: {e}",
+                manifest.display()
+            )
+        });
         let suites: Vec<EvalSuite> =
             serde_json::from_str(&raw).expect("suites.json parses as an array of eval suites");
         assert!(!suites.is_empty(), "manifest defines at least one suite");

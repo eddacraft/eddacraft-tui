@@ -16,8 +16,8 @@ package anvil.policies.arch_boundary
 
 import rego.v1
 
-# Outer (higher-level) layer path prefixes. A defaulted rule so a hermetic
-# input document need not restate them.
+# Outer (higher-level) layer path prefixes — policy-defined defaults, not
+# read from `input` (the input document carries only the change facts).
 default outer_prefixes := ["src/ui/", "src/app/"]
 
 # Core (lower-level) layer path prefixes an outer layer must not depend on
