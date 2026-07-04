@@ -21,6 +21,7 @@ use anyhow::{Context, Result};
 use clap::Args;
 use serde::Serialize;
 
+use anvil_policy::adversarial::is_reserved_suite_name;
 use anvil_policy::eval::{
     EvalHarnessPort, EvalRegressionReport, EvalResultStore, EvalRunSummary, EvalSuite,
     GuidedFinding, PolicyEvalAdapter, SubprocessRunner, guidance_for,
@@ -282,6 +283,17 @@ fn load_suites(path: &PathBuf) -> Result<Vec<EvalSuite>> {
         .with_context(|| format!("parsing `{}` as an array of eval suites", path.display()))?;
     if suites.is_empty() {
         anyhow::bail!("suites file `{}` defines no suites", path.display());
+    }
+    // The `probe:` prefix is reserved for adversarial probe categories
+    // (ATC-003) so their synthetic suites don't collide with policy suites in
+    // the shared eval store — enforce it here, at the boundary where a policy
+    // suite name is authored.
+    if let Some(suite) = suites.iter().find(|s| is_reserved_suite_name(&s.name)) {
+        anyhow::bail!(
+            "suite `{}` in `{}` uses the reserved `probe:` prefix, which is only valid for adversarial probe categories",
+            suite.name,
+            path.display()
+        );
     }
     Ok(suites)
 }
@@ -629,5 +641,37 @@ mod tests {
         let clean = build_outcome(&[ran(summary("arch", 0, vec![]), None)]);
         assert!(!should_block(&clean, true));
         assert!(!should_block(&clean, false));
+    }
+
+    #[test]
+    fn load_suites_rejects_reserved_probe_prefix() {
+        let dir = tempfile::TempDir::new().expect("tmp");
+        let path = dir.path().join("suites.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&[suite_def("probe:prompt-injection")]).expect("serialise"),
+        )
+        .expect("write");
+
+        let err = load_suites(&path).expect_err("reserved prefix must be rejected");
+        assert!(
+            err.to_string().contains("reserved `probe:` prefix"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_suites_accepts_non_reserved_names() {
+        let dir = tempfile::TempDir::new().expect("tmp");
+        let path = dir.path().join("suites.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&[suite_def("arch_boundary")]).expect("serialise"),
+        )
+        .expect("write");
+
+        let suites = load_suites(&path).expect("suite loads");
+        assert_eq!(suites.len(), 1);
+        assert_eq!(suites[0].name, "arch_boundary");
     }
 }

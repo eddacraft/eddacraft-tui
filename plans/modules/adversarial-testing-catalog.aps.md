@@ -39,7 +39,7 @@ validate prompt safety, data handling, and model behaviour regressions.
 - **Intent:** Add loadable probe packs with versioned manifests.
 - **Expected Outcome:** Probe sets can be selected by risk profile and context.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- probe_registry` (green —
-  20 tests). Added `crates/anvil-policy/src/adversarial/{mod,registry}.rs`:
+  21 tests). Added `crates/anvil-policy/src/adversarial/{mod,registry}.rs`:
   `ProbePack` versioned manifest (`deny_unknown_fields` root, forward-compatible
   probe entries), `load_probe_pack`, containment-safe `discover_probe_packs`
   (canonicalise + contain, per-entry reject), and `ProbeRegistry` with
@@ -54,7 +54,7 @@ validate prompt safety, data handling, and model behaviour regressions.
 - **Intent:** Execute adversarial probes in CI and local eval runs.
 - **Expected Outcome:** Probe outcomes appear in eval regression summaries.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- adversarial_eval_integration`
-  (green — 6 tests). Added `crates/anvil-policy/src/adversarial/execution.rs`:
+  (green — 7 tests). Added `crates/anvil-policy/src/adversarial/execution.rs`:
   a `ProbeExecutor` injection point, `run_probe_pack`, and
   `ProbeRunReport::to_eval_summaries` which projects a probe run onto the
   **unchanged** `EvalRunSummary`/`EvalFinding` types — one synthetic

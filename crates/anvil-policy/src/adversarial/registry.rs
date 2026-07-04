@@ -288,7 +288,8 @@ impl ProbeRegistry {
     /// # Errors
     ///
     /// Returns a [`RegistryLoadError`] on a discovery failure, a rejected entry,
-    /// a pack load failure, or a duplicate pack id.
+    /// a pack load failure, a pack directory name that disagrees with its
+    /// manifest id, or a duplicate pack id.
     pub fn load(workspace_root: &Path) -> Result<Self, RegistryLoadError> {
         let discovery = discover_probe_packs(workspace_root)?;
         if let Some(rejected) = discovery.rejected.into_iter().next() {
@@ -296,7 +297,14 @@ impl ProbeRegistry {
         }
         let mut packs = Vec::with_capacity(discovery.packs.len());
         for pack_ref in discovery.packs {
-            packs.push(load_probe_pack(&pack_ref.manifest_path)?);
+            let pack = load_probe_pack(&pack_ref.manifest_path)?;
+            if pack.id != pack_ref.id {
+                return Err(RegistryLoadError::PackIdMismatch {
+                    dir_id: pack_ref.id,
+                    manifest_id: pack.id,
+                });
+            }
+            packs.push(pack);
         }
         Ok(Self::from_packs(packs)?)
     }
@@ -327,7 +335,11 @@ impl ProbeRegistry {
 /// having loaded or validated the manifest.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProbePackRef {
-    /// The pack id: the pack directory's own name.
+    /// The pack directory's own name, captured at discovery time before the
+    /// manifest is parsed. [`ProbeRegistry::load`] verifies this agrees with
+    /// the manifest-declared [`ProbePack::id`] and refuses admission
+    /// ([`RegistryLoadError::PackIdMismatch`]) if they disagree, so once a pack
+    /// is admitted this is the authoritative pack id.
     pub id: String,
     /// The pack directory, under `.anvil/probes/`.
     pub dir: PathBuf,
@@ -428,6 +440,19 @@ pub enum RegistryLoadError {
     /// A discovered pack's manifest failed to load or validate.
     #[error(transparent)]
     Pack(#[from] ProbePackError),
+    /// A pack's directory name does not match its manifest-declared `id` — the
+    /// registry refuses to admit it rather than key it under a directory name
+    /// that could silently diverge from the authoritative pack id.
+    #[error(
+        "probe pack directory `{dir_id}` does not match its manifest id `{manifest_id}`; \
+         rename the directory or correct the manifest so they agree"
+    )]
+    PackIdMismatch {
+        /// The pack directory's own name (the discovered [`ProbePackRef::id`]).
+        dir_id: String,
+        /// The manifest-declared [`ProbePack::id`].
+        manifest_id: String,
+    },
 }
 
 /// Discover probe packs under `<workspace_root>/.anvil/probes/`.
@@ -837,6 +862,26 @@ probes: []
         match ProbeRegistry::load(ws.path()) {
             Err(RegistryLoadError::Pack(_)) => {}
             other => panic!("expected fail-closed Pack error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn probe_registry_load_rejects_pack_id_directory_mismatch() {
+        // The directory name (ProbePackRef::id) and the manifest-declared
+        // ProbePack::id must agree — otherwise the "pack id" used for discovery
+        // and sorting could silently diverge from the id actually keyed into the
+        // registry and the eval store.
+        let ws = TempDir::new().expect("workspace");
+        write_pack(ws.path(), "dir-name", &manifest_with_id("manifest-name"));
+        match ProbeRegistry::load(ws.path()) {
+            Err(RegistryLoadError::PackIdMismatch {
+                dir_id,
+                manifest_id,
+            }) => {
+                assert_eq!(dir_id, "dir-name");
+                assert_eq!(manifest_id, "manifest-name");
+            }
+            other => panic!("expected PackIdMismatch, got {other:?}"),
         }
     }
 

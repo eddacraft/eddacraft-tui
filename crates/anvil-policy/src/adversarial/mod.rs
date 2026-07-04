@@ -20,7 +20,7 @@ pub mod registry;
 
 pub use execution::{
     PROBE_SUITE_PREFIX, ProbeExecutor, ProbeOutcome, ProbeRunReport, category_from_suite,
-    probe_suite_name, run_probe_pack,
+    is_reserved_suite_name, probe_suite_name, run_probe_pack,
 };
 pub use registry::{
     DiscoveryError, LoadedProbePack, ProbePack, ProbePackDiscovery, ProbePackError, ProbePackRef,

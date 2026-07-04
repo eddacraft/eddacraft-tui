@@ -42,8 +42,10 @@ use crate::eval::{EvalFinding, EvalRunSummary, EvalSeverity};
 /// This is a **reserved prefix**: a policy eval suite name must never start with
 /// it, or its records would be mis-attributed as adversarial trend data by
 /// [`category_from_suite`]. Committed suites use colon-free `snake_case`
-/// (`arch_boundary`), so the separation holds by convention; use
-/// [`is_reserved_suite_name`] to assert it where a suite name is authored.
+/// (`arch_boundary`), so the separation holds by convention; [`is_reserved_suite_name`]
+/// is the guard that enforces it — `anvil policy eval-regression` calls it when
+/// loading a suite manifest, rejecting any suite name that collides with this
+/// prefix before it can reach the shared eval store.
 pub const PROBE_SUITE_PREFIX: &str = "probe:";
 
 /// The contract version stamped on a projected probe summary — the same `"1.0.0"`
@@ -60,9 +62,16 @@ pub fn probe_suite_name(category: ProbeCategory) -> String {
 /// The category label carried by a probe suite name, or `None` if `suite` is not
 /// a probe suite. The returned label is the kebab-case
 /// [`ProbeCategory`](anvil_kernel_types::ProbeCategory) wire form.
+///
+/// `"probe:"` with no category suffix is not itself a valid probe suite, so it
+/// also returns `None` rather than leaking an empty category label into trend
+/// reporting and grouping keys.
 #[must_use]
 pub fn category_from_suite(suite: &str) -> Option<&str> {
-    suite.strip_prefix(PROBE_SUITE_PREFIX)
+    match suite.strip_prefix(PROBE_SUITE_PREFIX) {
+        Some("") | None => None,
+        Some(category) => Some(category),
+    }
 }
 
 /// Whether `suite` uses the reserved [`PROBE_SUITE_PREFIX`]. A policy eval suite
@@ -247,6 +256,9 @@ mod tests {
         assert_eq!(category_from_suite(&name), Some("prompt-injection"));
         // A non-probe suite is not misread as a probe suite.
         assert_eq!(category_from_suite("arch_boundary"), None);
+        // The bare reserved prefix has no category suffix — not a valid probe
+        // suite either, so it must not yield an empty category label.
+        assert_eq!(category_from_suite(PROBE_SUITE_PREFIX), None);
     }
 
     #[test]
