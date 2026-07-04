@@ -3831,14 +3831,30 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
                 Some(jsonrpc_success(response_id, traceparent, result))
             }
         }
-        Err(err) => jsonrpc_request_error(
-            response_id,
-            traceparent,
-            is_notification,
-            -32603,
-            "Internal error",
-            json!({"error": err.clone()}),
-        ),
+        Err(err) => {
+            // CIB-153: heartbeat is a fire-and-forget JSON-RPC
+            // notification, so `jsonrpc_request_error` returns `None`
+            // (no wire response) on the notification path — without
+            // this log a genuine `PeerOwnershipMismatch` (now only
+            // possible for lineage-bearing sessions) would be silent in
+            // both client and daemon. Log server-side so the refusal is
+            // diagnosable, mirroring the sibling refusal paths in this
+            // file.
+            tracing::warn!(
+                target: "anvil_intercept::ipc",
+                method = %method,
+                error = %err,
+                "session dispatch returned error"
+            );
+            jsonrpc_request_error(
+                response_id,
+                traceparent,
+                is_notification,
+                -32603,
+                "Internal error",
+                json!({"error": err.clone()}),
+            )
+        }
     }
 }
 

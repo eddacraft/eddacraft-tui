@@ -4121,13 +4121,23 @@ archive.
 ### CIB-153: Bind session lifecycle operations to the registering peer
 
 - **Status:** Merged 2026-07-04 via PR #3188
-- **Summary:** Sessions now record the authenticated peer identity (uid/pid/
-  starttime) at registration; `Heartbeat` and `UnregisterSession` are rejected
-  when the calling peer does not match the recorded owner (mirroring the
-  `ReportProcess` peer-pid contract), independent of the telemetry-subscriber
-  binding, and legacy/no-peer-credential paths fail closed. Dispatch-level
+- **Summary:** Live, lineage-verified sessions now record the authenticated
+  peer identity (uid/pid/starttime) at registration; their `Heartbeat` and
+  `UnregisterSession` calls are rejected when the calling peer does not match
+  the recorded launcher owner (mirroring the `ReportProcess` peer-pid
+  contract), independent of the telemetry-subscriber binding. The binding is
+  **scoped to sessions that carry a verified lineage claim**
+  (`launcher_pid == Some`): the CIB-153 threat model is a same-uid neighbour
+  guessing a *live* session's id. Sessions registered without a verified
+  lineage claim (`launcher_pid == None`) are unaffected and keep the
+  pre-existing same-uid-socket authorization boundary — this covers durable
+  worktree memberships (`anvil workspace register`/`unregister`, separate
+  one-shot CLI processes with no single owner pid, per ADR-094 decision-3) and
+  Windows sessions (no `SO_PEERCRED` yet, pending CIB-114). Dispatch-level
   tests inject peer A/B credentials to prove cross-peer denial and same-peer
-  acceptance (`crates/anvil-intercept/src/{registry.rs,ipc.rs}`).
+  acceptance for lineage-bearing sessions, and prove no-lineage durable
+  memberships remain heartbeat/unregisterable from any same-uid peer
+  (`crates/anvil-intercept/src/{registry.rs,ipc.rs}`).
 
 ### CIB-154: Cap the number of workspace roots a connection may admit
 

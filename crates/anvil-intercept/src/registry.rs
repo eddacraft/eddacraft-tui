@@ -560,10 +560,16 @@ struct RegistryEntry {
     /// session-lifecycle ownership check ([`SessionRegistry::verify_peer_owns`])
     /// binds `Heartbeat` / `UnregisterSession` to, so the launcher can
     /// still manage the session after `report_process` has re-pointed
-    /// the lineage anchor at the child. `None` for the legacy
-    /// lineage-less `register` path (no authenticated launcher), which
-    /// fails closed. Distinct from `subscriber_binding` (telemetry
-    /// ownership) per the CIB-153 Intent.
+    /// the lineage anchor at the child. `None` for the lineage-less
+    /// `register` path (no authenticated launcher was ever attributed):
+    /// such sessions are **exempt** from the ownership check and keep
+    /// same-uid socket permission as their authorization boundary,
+    /// because they have no single owner pid to bind to — durable
+    /// worktree memberships are separate one-shot CLI processes, and
+    /// Windows registers `None` pending CIB-114. See
+    /// [`SessionRegistry::verify_peer_owns`] for the full reasoning.
+    /// Distinct from `subscriber_binding` (telemetry ownership) per the
+    /// CIB-153 Intent.
     launcher_pid: Option<u32>,
     /// ACTMO-014: `true` when this entry is **durable worktree membership**
     /// (registered with an activation-spine [`AgentTag`], see
@@ -844,11 +850,15 @@ impl SessionRegistry {
                     record: record.clone(),
                     last_heartbeat: now,
                     subscriber_binding: None,
-                    // CIB-153: the legacy `register` path carries no
-                    // authenticated launcher pid — sessions registered
-                    // this way have no lifecycle owner and fail closed on
-                    // `Heartbeat` / `UnregisterSession`. The lineage path
-                    // (`register_with_lineage`) stamps `Some(pid)` below.
+                    // CIB-153: the lineage-less `register` path carries
+                    // no authenticated launcher pid — sessions registered
+                    // this way have no single owner pid to bind to and
+                    // are exempt from the `Heartbeat` /
+                    // `UnregisterSession` ownership check (durable
+                    // memberships are separate one-shot CLI processes;
+                    // Windows registers `None` pending CIB-114). The
+                    // lineage path (`register_with_lineage`) stamps
+                    // `Some(pid)` below and gets strict enforcement.
                     launcher_pid: None,
                     durable,
                 },
@@ -1219,17 +1229,32 @@ impl SessionRegistry {
     /// sending the session's heartbeats and the final unregister, so
     /// the owner identity must not move with the lineage anchor.
     ///
-    /// Rejection cases, all with [`RegistryError::PeerOwnershipMismatch`]:
-    /// - the caller supplied no authenticated peer (`peer_pid = None`) —
-    ///   the legacy NDJSON wire and platforms without `SO_PEERCRED`
-    ///   surface this; fail closed rather than mutate on unauthenticated
-    ///   input (mirrors `report_process`'s "requires authenticated peer
-    ///   credentials" arm);
-    /// - the session was registered via the legacy lineage-less
-    ///   `register` path (`launcher_pid == None`) — no authenticated
-    ///   launcher was ever attributed, so no peer can claim it;
-    /// - the authenticated `peer_pid` does not equal the stamped
-    ///   launcher pid — a same-UID neighbour that guessed the id.
+    /// The check applies **only to sessions that carry a verified
+    /// lineage anchor** (`launcher_pid == Some(_)`): those are live,
+    /// single-continuous-process sessions where one launcher registers,
+    /// heartbeats, and finally unregisters — the exact CIB-153 threat
+    /// model of a same-UID neighbour guessing that live id. For them a
+    /// mismatched or absent peer pid is rejected with
+    /// [`RegistryError::PeerOwnershipMismatch`].
+    ///
+    /// Sessions with `launcher_pid == None` are **exempt** (returns
+    /// `Ok(())`): no verified lineage claim was ever established, so
+    /// there is no owner pid to bind against, and same-uid Unix-socket
+    /// permission is their authorization boundary — unchanged from
+    /// pre-CIB-153 behaviour. Two real cases require this:
+    /// - **Durable memberships** (`anvil workspace register` /
+    ///   `unregister`) are separate one-shot CLI process invocations;
+    ///   `session_register_params` sends no `lineage`, so there is no
+    ///   single continuously-running owner process to bind to. Binding
+    ///   to any one invocation's pid would permanently strand the
+    ///   membership — no later `unregister`/heartbeat process could
+    ///   ever match. This is the exact non-obvious invariant that must
+    ///   not be "tightened" back into a rejection by a future refactor.
+    /// - **Windows** sessions: the named-pipe accept loop hardcodes
+    ///   `peer_pid = None` pending CIB-114's peer-credential work, so
+    ///   every Windows session registers with `launcher_pid == None`;
+    ///   rejecting them would fail-close all Windows heartbeat/
+    ///   unregister traffic (a pure regression vs pre-CIB-153).
     ///
     /// An unknown session id returns `Ok(())` so the downstream
     /// operation keeps its established semantics (heartbeat surfaces
@@ -1240,16 +1265,23 @@ impl SessionRegistry {
         let Some(entry) = inner.sessions.get(id) else {
             return Ok(());
         };
-        match (entry.launcher_pid, peer_pid) {
-            (Some(owner), Some(caller)) if owner == caller => Ok(()),
-            (expected, actual) => Err(RegistryError::PeerOwnershipMismatch {
-                session: id.clone(),
-                expected,
+        match entry.launcher_pid {
+            // No verified lineage anchor: same-uid socket permission is
+            // the boundary (durable memberships, Windows pending
+            // CIB-114). See the doc comment for why this must stay a
+            // pass-through and not a rejection.
+            None => Ok(()),
+            Some(owner) => match peer_pid {
+                Some(caller) if owner == caller => Ok(()),
                 // A `None` peer supplies no pid; 0 is never a valid IPC
                 // peer (the swapper), so it reads as "no authenticated
                 // peer" in the error.
-                actual: actual.unwrap_or(0),
-            }),
+                _ => Err(RegistryError::PeerOwnershipMismatch {
+                    session: id.clone(),
+                    expected: Some(owner),
+                    actual: peer_pid.unwrap_or(0),
+                }),
+            },
         }
     }
 
@@ -2212,28 +2244,68 @@ mod tests {
         );
     }
 
-    /// CIB-153: a session registered via the legacy lineage-less path
-    /// (`record.pid == None`) has no attributable owner, so even an
-    /// authenticated peer is rejected — no peer can claim an
-    /// anchorless session.
+    /// CIB-153: a session registered via the lineage-less `register`
+    /// path (`launcher_pid == None`) never established a verified
+    /// lineage anchor, so it is **exempt** from the peer-ownership
+    /// check — same-uid socket permission remains its authorization
+    /// boundary (pre-CIB-153 behaviour). This covers durable
+    /// memberships (separate one-shot CLI invocations, each its own
+    /// process) and Windows sessions (no `SO_PEERCRED` yet, pending
+    /// CIB-114): any authenticated peer, including one whose pid never
+    /// touched the session, may heartbeat it.
     #[test]
-    fn dispatcher_heartbeat_rejects_session_registered_without_lineage() {
+    fn dispatcher_heartbeat_permits_session_registered_without_lineage() {
         let registry = SessionRegistry::new();
         let wt = make_worktree();
         registry
             .register(&sid("legacy"), wt.path(), None, Instant::now())
             .expect("legacy register");
 
-        let err = SessionDispatcher::heartbeat(&registry, &sid("legacy"), Some(4242))
-            .expect_err("legacy register has no launcher pid");
-        assert_eq!(
-            err,
-            RegistryError::PeerOwnershipMismatch {
-                session: sid("legacy"),
-                expected: None,
-                actual: 4242,
-            }
+        // An arbitrary peer pid — one that never registered this
+        // session — is accepted, proving the no-lineage exemption is
+        // genuinely permissive rather than accidentally still matching.
+        SessionDispatcher::heartbeat(&registry, &sid("legacy"), Some(4242))
+            .expect("no-lineage session must be exempt from peer-ownership check");
+    }
+
+    /// CIB-153 regression: durable worktree memberships (`anvil
+    /// workspace register` / `unregister`) are separate one-shot CLI
+    /// process invocations — each is its own OS process with its own
+    /// peer pid, and `session_register_params` sends no `lineage`
+    /// field — so they register with `launcher_pid == None`. They must
+    /// remain heartbeat-refreshable (ADR-094 decision-3 idempotent
+    /// re-register-as-heartbeat) and unregisterable by a *later*,
+    /// entirely different process. This mirrors the production wire
+    /// shape end-to-end: register the durable-membership way (durable
+    /// `agent_tag`, no lineage anchor), then drive `heartbeat` and
+    /// `unregister` through the `SessionDispatcher` trait with a peer
+    /// pid that differs from any prior caller.
+    #[test]
+    fn dispatcher_permits_durable_membership_lifecycle_from_any_peer() {
+        let registry: Arc<dyn SessionDispatcher> = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+
+        // `anvil workspace register`: durable activation-spine tag, no
+        // lineage anchor on the wire — exactly what
+        // `register_worktree_with_daemon` sends.
+        registry
+            .register(&sid("member"), wt.path(), Some(&spine_tag()), None)
+            .expect("durable register");
+
+        // A subsequent `anvil workspace register` (idempotent
+        // re-register-as-heartbeat) is a brand-new process: peer pid
+        // 7777 never touched the original registration.
+        registry
+            .heartbeat(&sid("member"), Some(7777))
+            .expect("durable membership heartbeat must be permitted from any same-uid peer");
+
+        // `anvil workspace unregister`: yet another distinct process.
+        assert!(
+            registry
+                .unregister(&sid("member"), Some(8888))
+                .expect("durable membership unregister must be permitted from any same-uid peer"),
         );
+        assert!(registry.list().is_empty());
     }
 
     /// CIB-153: `unregister` carries the same registering-peer binding

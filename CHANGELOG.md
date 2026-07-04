@@ -111,6 +111,17 @@ startup, and continued beta-reliability polish.
   unchanged. If you rely on `allowlist` mode, add the roots you want served
   before upgrading (CIB-149).
 
+- **Session lifecycle operations are now bound to the registering peer.**
+  `Heartbeat` and `UnregisterSession` for a live, lineage-verified session are
+  now accepted only from the peer that registered it (matching the recorded
+  launcher pid), closing a gap where a same-uid neighbour who guessed a live
+  session's id could refresh or tear it down. Sessions registered without a
+  verified lineage claim are unaffected and keep the existing same-uid-socket
+  authorization boundary: durable worktree memberships
+  (`anvil workspace register`/`unregister`, separate one-shot CLI processes) and
+  Windows sessions (peer credentials pending CIB-114) continue to work exactly
+  as before (CIB-153).
+
 ### Upgrade notes
 
 - **Warm-start snapshots rebuild once after upgrading.** Persistence warm-start
