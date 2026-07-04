@@ -4648,19 +4648,14 @@ archive.
 
 ### CIB-172: Windows variant for the first-run smoke recipe
 
-- **Status:** In Progress
-- **Intent:** `RECIPE_LINES` (`start.rs:840-844`) step 3 is
-  `rm .anvil-smoke-test.ts`, which fails in cmd.exe (`'rm' is not
-  recognized`); there is no `cfg!(windows)` branch, unlike the tutorial's
-  `mkdir` handling (`paths.rs:113-127`) which is the established pattern.
-- **Expected Outcome:** The recipe renders platform-appropriate commands
-  (`del` on Windows, `rm` elsewhere), mirroring the tutorial's platform
-  branch, with the pinned-fixture test updated per platform.
-- **Files:** `crates/anvil-cli/src/commands/start.rs`.
-- **Validation:** `cargo test -p eddacraft-anvil first_run_recipe`; recipe
-  string contains no `rm` under `cfg!(windows)`.
-- **Identified From:** User-journey pass 2026-07-04 (finding 11).
-- **Confidence:** high — mechanical, modelled on the tutorial fix.
+- **Status:** Merged 2026-07-04 via PR #3145
+- **Summary:** Branched the first-run smoke recipe's cleanup step in
+  `start.rs` to render `del` on Windows and `rm` elsewhere (mirroring the
+  tutorial's `cfg!(windows)` pattern) via named `RECIPE_CLEANUP_UNIX` /
+  `RECIPE_CLEANUP_WINDOWS` consts and a `recipe_cleanup_line()` selector, so
+  cmd.exe no longer hits `'rm' is not recognized`. Both variants are compiled
+  and named on every host; a `first_run_recipe_cleanup_is_platform_branched`
+  test pins the Windows `del` / no-`rm` contract.
 
 ### CIB-173: PATHEXT-aware editor detection on Windows
 
