@@ -547,10 +547,6 @@ mod tests {
         assert!(busted.manifest.is_err(), "busted pack carries its error");
     }
 
-    // A symlinked pack directory escaping the policies root must be rejected
-    // per-entry while a legitimate sibling is still discovered — one tampered
-    // entry cannot hide the rest. Unix-only (symlink API).
-    #[cfg(unix)]
     #[cfg(unix)]
     #[test]
     fn policy_pack_discovery_broken_policies_dir_symlink_is_io_error() {
@@ -579,6 +575,13 @@ mod tests {
         assert!(discovery.packs.is_empty());
     }
 
+    // A symlinked pack directory escaping the policies root must be rejected
+    // per-entry while a legitimate sibling is still discovered — one tampered
+    // entry cannot hide the rest. Unix-only (symlink API): this cfg gate had
+    // drifted onto the neighbouring test (which carried it twice) — caught by
+    // the Cross (x86_64-pc-windows-msvc) smoke leg once the anvil-cli compile
+    // fixes un-masked the test build.
+    #[cfg(unix)]
     #[test]
     fn policy_pack_discovery_symlink_escape_rejected() {
         // An external directory holding a would-be pack manifest.
