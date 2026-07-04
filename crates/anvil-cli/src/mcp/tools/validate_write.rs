@@ -265,15 +265,22 @@ fn call_with_validation_client(
         None
     };
 
-    let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
+    let mut diagnostics = normalise_response_diagnostics(&diagnostics, backend);
 
-    let mut payload = validation_payload(
+    // POLRESET-006 / OPAE-007: additive pre-write policy evaluation, run AFTER
+    // the intercept-rules scan and never replacing it (see
+    // `merge_prewrite_policy`). Appends policy diagnostics and merges the routed
+    // policy decision strictest-wins with the scan decision.
+    let decision = merge_prewrite_policy(&request, &mut diagnostics, enforcement_mode);
+
+    let mut payload = validation_payload_with_decision(
         &request.relative_path,
         &diagnostics,
         backend,
         daemon_status,
         None,
         enforcement_mode,
+        decision,
         request.partial_scan,
         protection_claim.as_ref(),
     );
@@ -299,6 +306,30 @@ fn call_with_validation_client(
         "reason": full_tier_reason,
     });
     tool_result(&payload)
+}
+
+/// POLRESET-006 / OPAE-007: run kill-switch-gated, fail-open pre-write policy
+/// evaluation AFTER the intercept-rules scan, appending its diagnostics to
+/// `diagnostics` and returning the strictest of the scan decision and the
+/// routed policy decision (strictest-wins). Additive — it never suppresses a
+/// scan finding, and a broken pack or an eval failure warns rather than blocks
+/// (ADR-098 AD-5).
+fn merge_prewrite_policy(
+    request: &ValidateWriteRequest,
+    diagnostics: &mut Vec<Diagnostic>,
+    enforcement_mode: EnforcementMode,
+) -> ControlDecision {
+    // Base decision from the intercept-rules scan, over the scan diagnostics
+    // only (before the policy diagnostics are appended).
+    let scan_decision = enforcement::decision_for(diagnostics, enforcement_mode);
+    let policy = crate::mcp::policy_prewrite::evaluate(
+        &request.workspace_root,
+        &request.relative_path,
+        request.operation.policy_change_kind(),
+        enforcement_mode,
+    );
+    diagnostics.extend(policy.diagnostics);
+    crate::mcp::policy_prewrite::strictest_decision(scan_decision, policy.decision)
 }
 
 /// CIB-005: apply the caller's patch to the on-disk file in memory
@@ -919,6 +950,18 @@ impl Operation {
 
     const fn requires_content(self) -> bool {
         matches!(self, Self::Create | Self::Update)
+    }
+
+    /// POLRESET-006: the policy-engine change kind for this operation, so the
+    /// pre-write policy input reflects what the write does to the path.
+    const fn policy_change_kind(self) -> anvil_policy_engine::context::assertion::ChangeKind {
+        use anvil_policy_engine::context::assertion::ChangeKind;
+        match self {
+            Self::Create => ChangeKind::Added,
+            Self::Update => ChangeKind::Modified,
+            Self::Delete => ChangeKind::Removed,
+            Self::Rename => ChangeKind::Renamed,
+        }
     }
 }
 

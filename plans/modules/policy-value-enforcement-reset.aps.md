@@ -176,7 +176,28 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-006: Save-time policy enforcement routing
 
-- **Status:** Proposed
+- **Status:** Done — the routing contract (OPAE-007,
+  `crates/anvil-intercept-rules/src/policy_routing.rs`) plus its MCP pre-write
+  consumer (`crates/anvil-cli/src/mcp/policy_prewrite.rs`) connect regorus-backed
+  policy results to the unified kernel-types `ControlDecision` vocabulary without
+  touching the daemon boundary. Pre-write evaluation runs AFTER the intercept-rules
+  scan on `anvil_validate_write` (additive, never replacing it), gated by the
+  `ANVIL_POLICY_ENFORCEMENT` out-of-band kill switch (AD-5; re-read per call,
+  `off`/`0` bypasses `.anvil.yaml`), discovers packs via `discover_and_load`,
+  evaluates each through the ADR-040 facade over the OPAE-006 `PrewriteInput`
+  projection with its tight fail-open `PrewriteBudget`, and routes findings via
+  OPAE-007. Fail-open per AD-5: a broken/unparseable pack, an uncompilable member,
+  an eval error, a **budget timeout**, or a panic degrades that pack to a
+  warning-class outcome (never a veto, never a crashed tool call). The routed
+  decision merges strictest-wins with the scan decision; default posture stays
+  warnings-first (ADR-002). Off-daemon boundary held: `cargo test -p
+  eddacraft-anvil-intercept --test daemon_dep_boundary` (7) confirms no
+  `regorus`/`anvil-policy*` reaches the resident daemon. Validated by
+  `cargo test -p eddacraft-anvil-intercept-rules -- policy_routing` (6) and
+  `cargo test -p eddacraft-anvil -- policy_prewrite_routing` (11: violation+interrupt
+  vetoes, violation+warn does not, warn-family never vetoes, kill switch off yields
+  no diagnostics, broken pack + uncompilable member warn not veto, budget-exhaustion
+  degradation, strictest-wins merge).
 - **Intent:** Connect regorus-backed policy results to Anvil's existing
   enforcement vocabulary without changing the daemon boundary contract.
 - **Expected Outcome:** Policy outcomes can opt into `warn`, `fence`, or

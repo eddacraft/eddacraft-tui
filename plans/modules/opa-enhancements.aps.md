@@ -271,7 +271,24 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-007: Enforcement-routing contract
 
-- **Status:** Proposed
+- **Status:** Done — `crates/anvil-intercept-rules/src/policy_routing.rs` adds the
+  neutral, engine-free routing contract: `PolicyOutcome` (rule id + severity
+  class `violation`|`warning`, mirroring the two Rego rule families) and
+  `route_policy_outcome(outcome, posture: EnforcementMode) -> ControlDecision`.
+  Warning-class routes to `warn` under every posture except `off` (→`allow`) and
+  never vetoes; violation-class routes through `EnforcementMode::escalated_decision`
+  (`off`→allow, `warn`→warn per ADR-002 warnings-first, `fence`→fence,
+  `interrupt`→interrupt). The module depends **only** on `anvil-kernel-types` —
+  the daemon gains no policy evaluation (ADR-098 AD-4), so a future daemon-side
+  consumer can speak this vocabulary without linking an engine. The binary
+  `RuleDecision` (`Allow`|`Interrupt`) is untouched; routing lives at the adapter
+  layer (ADR-098 AD-5). Validated by
+  `cargo test -p eddacraft-anvil-intercept-rules -- policy_routing` (6 tests: full
+  posture×class matrix, `off`→`allow` never veto, warnings never veto under any
+  posture, violation matches `escalated_decision`, no bare `block`) plus the full
+  crate suite (97) and `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary`
+  (7, proving no engine crate leaked toward the daemon). Consumed by POLRESET-006
+  on the MCP pre-write path.
 - **Intent:** Map policy outcomes to Anvil's existing enforcement vocabulary.
 - **Expected Outcome:** Explicit policy modes can route to `warn`, `fence`, or
   `interrupt`; default behaviour remains warnings-first.
