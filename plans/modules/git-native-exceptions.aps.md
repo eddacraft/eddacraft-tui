@@ -18,8 +18,9 @@
 > evaluation, and the first write surface is gated on the EXCEPT-007
 > hardening contract.
 > EXCEPT-003 is Done after ADR-073 and EXCEPT-007 cleared the required
-> state-boundary and write-path gates. Remaining CLI, L3/L4, and capsule
-> integration items stay Proposed pending next-work authorisation. Brainstorm:
+> state-boundary and write-path gates. L3/L4 integration (EXCEPT-006) was
+> authorised 2026-07-04; remaining CLI and capsule integration items stay
+> Proposed pending next-work authorisation. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
 
 2026-06-12: items confirmed in the v0.8.0-beta tag (record:
@@ -90,14 +91,14 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** Expired/revoked exceptions do not apply; an unattributed v0-shape grant downgrades (`warn`/`degraded`), it is never silently honoured.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_verify`
 - **Dependencies:** EXCEPT-003
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2413
 
 ### EXCEPT-006: L3/L4 integration
 - **Intent:** Apply only valid exceptions during pre-commit/pre-push evaluation; record exception use.
 - **Expected Outcome:** Gates suppress only matching, valid findings; use is recorded.
 - **Validation:** `cargo test -p eddacraft-anvil-l4 -- exceptions`
 - **Dependencies:** EXCEPT-005, EXCEPT-007
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### EXCEPT-007: Write-path hardening (pre-wiring contract)
 - **Intent:** Close the council-identified (2026-06-08) write-path gaps before any caller is wired: (a) `load()` reports provenance (tracked/legacy/none) and `save()` refuses — or requires an explicit migrate acknowledgement — when the in-memory store originated from the legacy path, so the load→modify→save CRUD flow cannot silently promote local-only entries into git (ADR-073 demands an *explicit* cleanup step); (b) `flock` the load-modify-save cycle mirroring `anvil-witness::WitnessWriter`, closing the lost-write race and the `migrate()` exists→save TOCTOU; (c) read-only worktrees degrade to warn + no-op, never a propagated `Io` error from a gate (ADR-002); (d) refuse symlinked `anvil/exceptions/` path components (canonicalise + assert under the workspace root) — the same guard the capsule writer will need.
