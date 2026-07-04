@@ -4739,10 +4739,13 @@ archive.
   rust-lang/rust#114554).
 - **Expected Outcome:** A bounded ETXTBSY retry at the
   `SubprocessRunner::eval_json` spawn site (extracted as the unit-testable
-  `spawn_with_etxtbsy_retry` helper, 5 attempts, exponential back-off) — the
-  ecosystem-standard fix for this POSIX design limitation (mirrors
-  golang/go#22315 and rust-lang/rust#114554). The five fixture-exec tests
-  pass repeatedly under a parallel full-crate run.
+  `spawn_with_etxtbsy_retry` helper, `max_retries = 5` retries after the
+  initial attempt — 6 total spawn calls worst-case — with exponential
+  back-off) — the ecosystem-standard fix for this POSIX design limitation
+  (mirrors golang/go#22315 and rust-lang/rust#114554). The transient failure
+  is detected via `std::io::ErrorKind::ExecutableFileBusy` (stable on Rust
+  1.95.0) rather than a hard-coded errno. The five fixture-exec tests pass
+  repeatedly under a parallel full-crate run.
 - **Validation:** `for i in $(seq 1 20); do cargo test -p eddacraft-anvil-policy || exit 1; done`
   with zero ETXTBSY failures
 - **Dependencies:** —

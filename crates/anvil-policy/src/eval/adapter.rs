@@ -181,7 +181,13 @@ fn describe_exit(status: std::process::ExitStatus) -> String {
 /// to ~2+4+8+16+32 = ~62 ms — negligible beside the per-suite timeout.
 const ETXTBSY_MAX_RETRIES: u32 = 5;
 
-/// Spawn a child, retrying on `ETXTBSY` ("Text file busy", os error 26).
+/// Spawn a child, retrying on `ETXTBSY` ("Text file busy",
+/// [`std::io::ErrorKind::ExecutableFileBusy`]).
+///
+/// `max_retries` is the number of *retries* after the initial attempt, so the
+/// spawn closure is called at most `max_retries + 1` times (1 initial attempt +
+/// up to `max_retries` retries). The last error is surfaced when the budget is
+/// exhausted.
 ///
 /// Guards the classic multithreaded fork+exec race: `fork()` clones the whole
 /// process fd table, so a sibling thread mid-`write` on *any* freshly-created
@@ -195,17 +201,16 @@ const ETXTBSY_MAX_RETRIES: u32 = 5;
 /// Mirrors golang/go#22315 and rust-lang/rust#114554.
 fn spawn_with_etxtbsy_retry(
     mut spawn: impl FnMut() -> std::io::Result<std::process::Child>,
-    max_attempts: u32,
+    max_retries: u32,
 ) -> std::io::Result<std::process::Child> {
-    /// `ETXTBSY` — "Text file busy". A raw constant avoids a `libc` dependency
-    /// for a single integer.
-    const ETXTBSY: i32 = 26;
-    let mut attempt = 0;
+    let mut retries = 0;
     loop {
         match spawn() {
-            Err(e) if e.raw_os_error() == Some(ETXTBSY) && attempt < max_attempts => {
-                attempt += 1;
-                std::thread::sleep(std::time::Duration::from_millis(1u64 << attempt));
+            Err(e)
+                if e.kind() == std::io::ErrorKind::ExecutableFileBusy && retries < max_retries =>
+            {
+                retries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(1u64 << retries));
             }
             other => return other,
         }
@@ -471,9 +476,9 @@ mod tests {
     }
 
     #[test]
-    fn spawn_retry_gives_up_after_max_attempts() {
+    fn spawn_retry_gives_up_after_max_retries() {
         // A spawn that *always* fails with ETXTBSY (os error 26) must exhaust
-        // exactly `max_attempts` retries and then surface the last error, not
+        // exactly `max_retries` retries and then surface the last error, not
         // loop forever.
         let mut calls = 0u32;
         let err = spawn_with_etxtbsy_retry(
@@ -485,8 +490,13 @@ mod tests {
         )
         .expect_err("persistent ETXTBSY should surface after exhausting retries");
         assert_eq!(err.raw_os_error(), Some(26), "last error is preserved");
-        // Initial attempt + 3 retries.
-        assert_eq!(calls, 4, "one initial call plus max_attempts retries");
+        assert_eq!(
+            err.kind(),
+            std::io::ErrorKind::ExecutableFileBusy,
+            "raw errno 26 maps to ExecutableFileBusy"
+        );
+        // 1 initial attempt + 3 retries = 4 total spawn calls.
+        assert_eq!(calls, 4, "one initial call plus max_retries retries");
     }
 
     #[test]
