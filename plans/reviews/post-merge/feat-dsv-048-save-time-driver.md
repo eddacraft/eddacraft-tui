@@ -11,8 +11,9 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] `cargo test -p eddacraft-anvil --bin anvil -- watch_save_time_driver` green
       on main (10 tests) (agent: yes)
 - [ ] `anvil watch --save-time-driver` without `--worktree` exits with a clap
-      usage error, and with `--action gate` exits with a conflict error
-      (agent: yes)
+      usage error, and `anvil watch --save-time-driver --worktree . --action
+      gate` exits with a conflict error (`--worktree` supplied so the check
+      exercises the conflict, not the missing-required path) (agent: yes)
 - [ ] Live-daemon verdict-to-log smoke — a planted antipattern finding lands in
       the `ANVIL_SAVE_TIME_DRIVER_LOG` file within one debounce window. Needs a
       licensed environment (beta auth wall, exit 3 unauthenticated); covered
