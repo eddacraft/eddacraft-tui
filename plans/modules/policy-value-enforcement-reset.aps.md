@@ -2,7 +2,7 @@
 
 | ID       | Type      | Owner | Priority | Status   | Progress |
 | -------- | --------- | ----- | -------- | -------- | -------- |
-| POLRESET | Conductor | —     | high     | In Progress | 0/10     |
+| POLRESET | Conductor | —     | high     | In Progress | 9/10     |
 
 **Last reviewed:** 2026-07-04 (POLRESET-001 design gate landed as ADR-098 via
 planning council plan-18c47503).

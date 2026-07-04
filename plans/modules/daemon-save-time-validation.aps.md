@@ -26,6 +26,14 @@ cache without a save, so a fresh session is not cold. Architecture decided by
 `plan-898d9222`); merges before the GCTX-010 warm-up triggers. Module total
 19 → 20.
 
+2026-07-04: **DSV-046** shaped and promoted — planning-council direction validate
+on the headless save-time driver; [ADR-101](../decisions/101-headless-save-time-driver.md)
+Accepted (operator); design
+[`specs/2026-07-04-headless-save-time-driver-design.md`](../specs/2026-07-04-headless-save-time-driver-design.md).
+DSV-046 marked **Done** (design); splits into **DSV-047..051** (Ready, cut-line).
+Module total 21 → 26. Closes the RELEASE-PLAN usefulness addendum implementation
+gap alongside merged ACTMO-014..020.
+
 ## Purpose
 
 Deliver Anvil's save-time validation as a daemon-mediated service across its
@@ -79,6 +87,12 @@ persistence) without consumers re-integrating.
   restart, per the validation contract §9. **Done/Merged:** GV2-021 is
   Released/Shipped and DSV-030 Merged 2026-06-17 via PR #2688; the sub-phase now
   waits only for release-tag lifecycle advancement.
+- **Sub-phase C — headless background driver.** Unattended filesystem observation
+  for durable registered worktrees without a visible `anvil watch` terminal.
+  **Design Done:** DSV-046 + [ADR-101](../decisions/101-headless-save-time-driver.md)
+  (2026-07-04). **Implementation Ready:** DSV-047..051 — daemon-supervised detached
+  `--save-time-driver` sidecars consuming the ACTMO-014 membership hook. This is
+  the `v0.9.0-beta` usefulness cut-line gate alongside merged ACTMO registration UX.
 
 ## In Scope
 
@@ -1123,38 +1137,148 @@ requirement). Architecture decided by
 
 #### DSV-046: Headless background save-time driver contract
 
-- **Status:** Proposed
-- **Source:** Operator grounding session 2026-06-29 identified a contract mismatch:
-  ACTMO-006 says users should not need a separate visible `anvil watch` terminal
-  after `anvil start`, while the current implementation still describes
-  `anvil watch` as the filesystem watcher/client that feeds changed paths to the
-  daemon's `validate_paths` verb.
+- **Status:** Done 2026-07-04 — design deliverable (planning-council direction
+  validate). [ADR-101](../decisions/101-headless-save-time-driver.md) Accepted
+  (operator); hardened spec at
+  [`specs/2026-07-04-headless-save-time-driver-design.md`](../specs/2026-07-04-headless-save-time-driver-design.md).
+  **Keystone:** daemon-supervised detached `anvil watch --save-time-driver`
+  sidecars (one per durable registration), not in-daemon `notify` (ADR-064). The
+  registry `membership_hook` (ACTMO-014) is the spawn/stop seam. Splits into
+  **DSV-047..051** (Ready, cut-line).
+- **Source:** Operator usefulness review 2026-06-29 + RELEASE-PLAN addendum; ACTMO
+  registration UX merged without an unattended filesystem observer.
 - **Intent:** Decide the non-MCP, non-visible save-time driver model so
-  `anvil start` can honestly mean background daemon-backed validation is active,
-  without requiring a foreground watch terminal for every protected surface.
-- **Expected Outcome:** A design note or ADR defines whether the intercept daemon
-  owns a background filesystem watcher, whether `anvil start` launches a managed
-  watch-driver sidecar, or whether the product copy must downgrade to "daemon
-  ready, validation starts when a client feeds changes". The decision must cover
-  lifecycle, status visibility, stop/restart behaviour, resource limits,
-  multi-worktree registration, Windows parity, and how findings are surfaced when
-  no terminal is attached. If the design is accepted, split implementation into
-  separate Ready work items before treating this as `v0.9.0-beta` cut-line scope.
-- **Validation:** Planning council review plus a proposed test matrix covering:
-  `anvil start --no-mcp` with no visible watch terminal, background detection of a
-  planted save-time finding, status/reporting of the background driver, daemon
-  restart recovery, driver stop, Windows named-pipe parity, and opt-out via
-  `--no-daemon` / `ANVIL_NO_DAEMON` / `ANVIL_WATCH_DAEMON=0`.
-- **Files:** `crates/anvil-cli/src/commands/{start,watch,watch_save_time,intercept}.rs`,
-  `crates/anvil-intercept/src/{save_time,watcher,ipc,status}.rs`, activation/status
-  docs and runbooks if the contract changes.
-- **Dependencies:** ACTMO-006 (default save-time armed posture), DSV-007 (watch
-  daemon client), DSV-021 (default-on daemon routing), DSV-045 (background full
-  scan executor). Coordinates with MLP2-077 if background validation should feed
-  stronger containment semantics.
-- **Confidence:** medium — the validation wire and watch client exist, but the
-  owner of unattended filesystem observation and user-visible findings needs a
-  durable decision.
+  `anvil start` can honestly mean background daemon-backed validation is active.
+- **Expected Outcome:** ADR + spec + Ready implementation items (delivered as
+  DSV-047..051).
+- **Validation:** Planning council direction validate recorded in the design spec
+  §Planning council notes; implementation validation lives on DSV-051.
+- **Dependencies:** ACTMO-014 (membership hook), DSV-007, ADR-094 decision 7.
+- **Confidence:** high — architecture pinned; implementation is a bounded split.
+
+---
+
+#### DSV-047: Daemon `SaveTimeDriverSupervisor`
+
+- **Status:** Ready
+- **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 1;
+  design spec §Driver contract.
+- **Intent:** Consume durable membership changes and manage detached driver
+  children without duplicating registration semantics.
+- **Expected Outcome:** `SaveTimeDriverSupervisor` in `anvil-intercept` wires
+  `SessionRegistry::set_membership_hook`: on `Registered` spawn one detached
+  `anvil watch --save-time-driver --worktree <canonical>` via the DLIFE launcher
+  pattern; on `Unregistered`/`Reaped` terminate the child; on daemon startup
+  reconcile drivers for all reloaded durable registrations; maintain PID registry
+  under `{ANVIL_HOME}/runtime/save-time-drivers/`; honour non-empty
+  `ANVIL_NO_SAVE_TIME_DRIVER`; stop all drivers on daemon shutdown.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept save_time_driver` (new
+  module tests with fake launcher); supervisor unit tests for spawn/stop/reconcile
+  without a live filesystem.
+- **Files:** `crates/anvil-intercept/src/save_time_driver.rs` (new),
+  `crates/anvil-intercept/src/lib.rs` (hook wiring in `run_foreground`),
+  `crates/anvil-intercept/src/registry.rs` (hook consumer only if needed)
+- **Dependencies:** DSV-046 (design), ACTMO-014 (Merged), DSV-048 (spawn argv
+  contract)
+- **Confidence:** medium
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+---
+
+#### DSV-048: CLI `anvil watch --save-time-driver` headless mode
+
+- **Status:** Ready
+- **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 2;
+  design spec §Spawn shape.
+- **Intent:** Provide a stable, headless entrypoint the supervisor can spawn without
+  a visible terminal or daemon lifecycle prompts.
+- **Expected Outcome:** `WatchArgs` gains `--save-time-driver` and required
+  `--worktree <PATH>`; driver mode forces plain/headless output (no TUI, no
+  `[watching]` stdout banners), skips daemon offer/spawn, reuses
+  `watch_save_time` daemon routing (`DefaultOnWhenLive`), appends findings to the
+  supervisor-provided log path (env `ANVIL_SAVE_TIME_DRIVER_LOG` or default under
+  runtime), exits non-zero only on unrecoverable setup failure (not on findings).
+- **Validation:** `cargo test -p eddacraft-anvil -- watch_save_time_driver`; driver
+  mode does not call `ensure_daemon` (mock/spy test).
+- **Files:** `crates/anvil-cli/src/commands/watch.rs`,
+  `crates/anvil-cli/src/commands/watch_save_time.rs`
+- **Dependencies:** DSV-007 (Merged)
+- **Confidence:** high
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+---
+
+#### DSV-049: `save_time_driver` status wire + derivation
+
+- **Status:** Ready
+- **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decisions 4–5;
+  ADR-094 decision 6 assurance axis; ACTMO-017 soft-dep.
+- **Intent:** Make driver attachment observable so `watching` is evidence-backed.
+- **Expected Outcome:** `WorktreeStatusV1` gains `save_time_driver: attached | absent
+  | failed` (additive wire field); supervisor updates driver state; `anvil status`
+  plain + `--json` render per-worktree driver state; activation diagnostic uses
+  `registered ∧ driver_attached` for save-time-active `watching` copy (distinct from
+  membership-only `watching`).
+- **Validation:** `cargo test -p eddacraft-anvil -- status_save_time_driver`;
+  `apps/e2e` status JSON contract extended if applicable.
+- **Files:** `crates/anvil-intercept-proto/src/status.rs`,
+  `crates/anvil-intercept/src/save_time_driver.rs`,
+  `crates/anvil-cli/src/commands/status.rs`,
+  `crates/anvil-cli/src/activation/{diagnostic,render}.rs`
+- **Dependencies:** DSV-047, ACTMO-017 (Merged)
+- **Confidence:** medium
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+---
+
+#### DSV-050: Activation copy — honest armed posture without `anvil watch`
+
+- **Status:** Ready
+- **Source:** ACTMO-006; design spec; CIB-162..166 class (misleading next-step).
+- **Intent:** When the supervisor attaches a driver for the current worktree,
+  `anvil start` must not recommend a foreground `anvil watch`.
+- **Expected Outcome:** `start.rs` next-step arbitration: driver attached ⇒ point
+  to `anvil intercept status` / log path, not `anvil watch`; driver absent but
+  registered ⇒ honest "save-time driver starting" or "run `anvil workspace
+  register`" guidance; `anvil intercept status` reports active driver count;
+  activation render tests updated.
+- **Validation:** `cargo test -p eddacraft-anvil -- start_save_time_driver_copy`
+- **Files:** `crates/anvil-cli/src/commands/{start,intercept}.rs`,
+  `crates/anvil-cli/src/activation/render.rs`
+- **Dependencies:** DSV-049, ACTMO-006 (Merged)
+- **Confidence:** high
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+---
+
+#### DSV-051: Runbook + E2E regression matrix
+
+- **Status:** Ready
+- **Source:** RELEASE-PLAN cut criteria; design spec §Validation matrix.
+- **Intent:** Prove the usefulness addendum end-to-end and document operator
+  recovery paths.
+- **Expected Outcome:** Runbook at `docs/runbooks/save-time-background-driver.md`
+  (opt-outs, log locations, inotify guidance, Windows notes); E2E cases in
+  `apps/e2e/` for: `start --no-mcp` headless driver, planted finding in log,
+  second worktree register, daemon restart reconciliation, `intercept stop`,
+  `ANVIL_NO_SAVE_TIME_DRIVER`; docs index updated.
+- **Validation:** `pnpm --filter @eddacraft/anvil-e2e test:smoke` (new cases);
+  `pnpm run docs:check`
+- **Files:** `docs/runbooks/save-time-background-driver.md`,
+  `apps/e2e/src/**/*save*time*driver*.e2e.test.ts`, public activation docs cross-links
+- **Dependencies:** DSV-047, DSV-048, DSV-049, DSV-050
+- **Confidence:** medium
+- **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** minor
 
 ---
 
@@ -1181,4 +1305,5 @@ requirement). Architecture decided by
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
-| **Total** | **20** | **20/20 done** | **In Progress (awaiting v0.9 release of DSV-045/-030)** |
+| C — Headless background driver | 6 | 1/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-047..051 Ready cut-line) | In Progress |
+| **Total** | **26** | **21/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
