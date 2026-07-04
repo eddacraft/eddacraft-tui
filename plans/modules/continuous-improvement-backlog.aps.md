@@ -4743,16 +4743,14 @@ archive.
 
 ### CIB-179: Say something when welcome surfaces drop copy in small terminals
 
-- **Status:** In Progress
-- **Intent:** In compact mode the welcome/onboarding surfaces silently drop
-  taglines and per-item descriptions (`welcome_render.rs:39-49`); the 80x24
-  hard gate (`compat.rs`) only guards `anvil watch --tui`, so a small-terminal
-  user gets a degraded menu with no hint that resizing restores context.
-- **Expected Outcome:** Compact mode shows a one-line unobtrusive hint
-  (e.g. "resize for descriptions") or the footer notes the truncation; no
-  hard gate is added to welcome (adaptive layout stays).
-- **Files:** `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs`,
-  `crates/anvil-tui/src/surfaces/welcome/render.rs`.
+- **Status:** Merged 2026-07-04 via PR #3150
+- **Summary:** Both welcome renderers now reserve a trailing muted "resize for
+  descriptions" hint in compact mode instead of silently dropping taglines and
+  per-item descriptions, gated on genuine spare height so the fixed `Length(7)`
+  logo is never traded for the hint row. Added a `compact_hint_never_squeezes_logo`
+  invariant sweep (heights 8–32, `hint_shown ⇒ logo == 7 rows`) plus boundary and
+  snapshot tests in `crates/anvil-tui/src/surfaces/welcome/render.rs` and
+  `.../onboarding/welcome_render.rs`; no hard gate added (adaptive layout stays).
 - **Validation:** `cargo test -p anvil-tui` compact-mode snapshots at 40x12.
 - **Identified From:** User-journey pass 2026-07-04 (finding 18).
 - **Confidence:** high — additive rendering only.
