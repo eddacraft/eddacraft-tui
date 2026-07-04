@@ -156,7 +156,14 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-005: Exception verification before blocking
 
-- **Status:** Proposed
+- **Status:** Done — satisfied by the EXCEPT chain: verification
+  (`verify_exception_at`, EXCEPT-005 via PR #2413), write-path hardening
+  (EXCEPT-007, PR #2366, shipped v0.8.0-beta), and gate application +
+  use-recording at the L4 evaluation seam (EXCEPT-006 via PR #3140,
+  2026-07-04 council re-scope: L4 is the only rule-evaluation seam; L3
+  inherits when scanner integration lands). Evidence re-verified
+  2026-07-04: `cargo test -p eddacraft-anvil-policy -- exception` 65
+  green; `cargo test -p eddacraft-anvil-l4 -- exceptions` 10 green.
 - **Intent:** Make exceptions scoped, expiring, attributed, and enforced before
   any policy mode can fence or interrupt.
 - **Expected Outcome:** Valid exceptions suppress only matching findings; use is

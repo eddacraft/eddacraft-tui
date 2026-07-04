@@ -520,3 +520,21 @@ never with feature work.
 - Checkpoints raised: none.
 - Next: POLRESET-005..009 are gated on external prerequisites (EXCEPT-006
   verdict-aware wiring first); park handoff and report.
+
+## Cycle — 2026-07-04 (POLRESET-005 + OPAE wave)
+
+- Items: POLRESET-005 (Done — satisfied by EXCEPT-005/006/007, verified);
+  OPAE-002/003/004/005/006 all Done (PRs #3157, #3141+#3143, #3154, #3151);
+  ADR-098 PR-B/PR-C complete (gate on regorus; 2,662 lines of OPA-subprocess
+  code deleted; `which` left the shipped closure).
+- Validation: per-PR gates green (engine crate 179; CLI policy 98/gate 140;
+  policy crate 101 post-deletion); exception evidence 65+10 green on main.
+- Review: every PR pre- or post-reviewed; notable catches — install symlink
+  write-escape, phantom input.config (starter pack reworked advisory-first,
+  OPAE-010 filed), discovery broken-symlink fail-closed gaps, journal
+  backup-before-write ordering.
+- Plan changes: OPAE-010 (pack configuration surface) filed as Proposed
+  intake; OPAE validation targets drift-corrected off the deleted OPA crate.
+- Checkpoints raised: none (EXCEPT-006 landed by the operator in parallel).
+- Next: POLRESET-006 / OPAE-007 — enforcement routing + the ADR-098 AD-3
+  vocabulary unification (now fully unblocked).
