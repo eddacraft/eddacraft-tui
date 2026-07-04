@@ -1516,6 +1516,7 @@ mod tests {
             "drift" => vec!["drift", "snapshot"],
             "edda" => vec!["edda", "list"],
             "ember" => vec!["ember", "list"],
+            "exception" => vec!["exception", "list"],
             "start" => vec!["start"],
             "status" => vec!["status"],
             "tutorial" => vec!["tutorial"],

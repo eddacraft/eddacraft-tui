@@ -22,12 +22,20 @@
 //! - `verify` surfaces the EXCEPT-005 verdicts (active / unattributed
 //!   / expired / revoked / invalid-scope) without enforcing anything;
 //!   it always exits zero (warnings over blocks, ADR-002).
+//! - Attribution is **advisory**: `created_by`/`revoked_by` come from
+//!   local git config, which the author controls — reviewers should
+//!   verify it against PR authorship, exactly as with commit authors.
+//! - `--json` mode emits exactly one JSON document on stdout; human
+//!   warnings fold into the document instead of preceding it.
+//! - Writes honour the pre-release project-write gate: a candidate
+//!   binary under a non-default install root refuses to mutate a real
+//!   checkout unless explicitly permitted.
 
 use std::path::Path;
 
 use anvil_policy::exceptions::{
     ExceptionRevocation, ExceptionStore, ExceptionVerdict, MigrateOutcome, PolicyException,
-    WriteOutcome, verify_exception_at,
+    WriteOutcome, is_visibly_blank, verify_exception_at,
 };
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Duration, Utc};
@@ -108,19 +116,11 @@ pub fn run(args: &ExceptionArgs, global: &GlobalArgs) -> Result<()> {
                 expires_in_days: *expires_in_days,
                 finding_hash: finding_hash.clone(),
             };
-            let outcome = run_grant(&root, request)?;
-            for warning in &outcome.warnings {
-                crate::output::plain::warn(warning);
-            }
-            finish_write(&outcome.write, global)?;
-            if global.json {
-                crate::output::json::print(&outcome)?;
-            } else {
-                crate::output::plain::success(&format!("granted exception {}", outcome.id));
-            }
-            Ok(())
+            crate::install_root::ensure_project_write_allowed("exception grant")?;
+            grant_command(&root, request, global)
         }
         ExceptionCommand::Revoke { id, reason } => {
+            crate::install_root::ensure_project_write_allowed("exception revoke")?;
             let Some(actor) = git_identity(&root) else {
                 bail!(
                     "revocation needs an actor: set git user.email (or user.name) so the \
@@ -136,7 +136,7 @@ pub fn run(args: &ExceptionArgs, global: &GlobalArgs) -> Result<()> {
             }
             Ok(())
         }
-        ExceptionCommand::List | ExceptionCommand::Verify => {
+        ExceptionCommand::List => {
             let views = run_list(&root)?;
             if global.json {
                 crate::output::json::print(&views)?;
@@ -144,6 +144,27 @@ pub fn run(args: &ExceptionArgs, global: &GlobalArgs) -> Result<()> {
                 crate::output::plain::info("no exceptions in the tracked store");
             } else {
                 render_table(&views);
+            }
+            Ok(())
+        }
+        ExceptionCommand::Verify => {
+            let views = run_list(&root)?;
+            let counts = verdict_counts(&views);
+            if global.json {
+                crate::output::json::print(&serde_json::json!({
+                    "exceptions": views,
+                    "counts": counts,
+                }))?;
+            } else if views.is_empty() {
+                crate::output::plain::info("no exceptions in the tracked store");
+            } else {
+                render_table(&views);
+                let summary = counts
+                    .iter()
+                    .map(|(verdict, n)| format!("{n} {verdict}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                crate::output::plain::info(&summary);
             }
             Ok(())
         }
@@ -157,23 +178,62 @@ pub fn run(args: &ExceptionArgs, global: &GlobalArgs) -> Result<()> {
             Ok(())
         }
         ExceptionCommand::Migrate => {
-            let outcome = ExceptionStore::migrate(&root)
-                .context("migrate legacy exception store into the tracked tree")?;
-            match outcome {
-                MigrateOutcome::Migrated => crate::output::plain::success(
-                    "legacy exceptions copied into anvil/exceptions/store.json (legacy file \
-                     left in place — remove it once the tracked store is committed)",
-                ),
-                MigrateOutcome::NothingToDo => crate::output::plain::info(
-                    "nothing to migrate: no legacy store, or the tracked store already exists",
-                ),
-                MigrateOutcome::SkippedReadOnly => {
-                    crate::output::plain::warn("worktree is read-only — migration skipped");
-                }
-            }
-            Ok(())
+            crate::install_root::ensure_project_write_allowed("exception migrate")?;
+            migrate_command(&root, global)
         }
     }
+}
+
+/// `grant` arm body: run the core, fold warnings into the JSON
+/// document or print them ahead of the plain success line.
+fn grant_command(root: &Path, request: GrantRequest, global: &GlobalArgs) -> Result<()> {
+    let outcome = run_grant(root, request)?;
+    if !global.json {
+        for warning in &outcome.warnings {
+            crate::output::plain::warn(warning);
+        }
+    }
+    finish_write(&outcome.write, global)?;
+    if global.json {
+        crate::output::json::print(&outcome)?;
+    } else {
+        crate::output::plain::success(&format!("granted exception {}", outcome.id));
+    }
+    Ok(())
+}
+
+/// `migrate` arm body: honour `--json` with a single outcome token,
+/// keep the read-only degrade diagnosable in plain mode.
+fn migrate_command(root: &Path, global: &GlobalArgs) -> Result<()> {
+    let outcome = ExceptionStore::migrate(root)
+        .context("migrate legacy exception store into the tracked tree")?;
+    if global.json {
+        let token = match &outcome {
+            MigrateOutcome::Migrated => "migrated",
+            MigrateOutcome::NothingToDo => "nothing-to-do",
+            MigrateOutcome::SkippedReadOnly { .. } => "skipped-read-only",
+        };
+        crate::output::json::print(&serde_json::json!({ "outcome": token }))?;
+        return Ok(());
+    }
+    match outcome {
+        MigrateOutcome::Migrated => crate::output::plain::success(
+            "legacy exceptions copied into anvil/exceptions/store.json (legacy file \
+             left in place — remove it once the tracked store is committed)",
+        ),
+        MigrateOutcome::NothingToDo => crate::output::plain::info(
+            "nothing to migrate: no legacy store, or the tracked store already exists",
+        ),
+        MigrateOutcome::SkippedReadOnly { detail } => {
+            crate::output::plain::warn("worktree is read-only — migration skipped");
+            if global.verbose {
+                crate::output::plain::dim(&format!("underlying error: {detail}"));
+            } else {
+                crate::output::plain::dim("re-run with --verbose for the underlying error");
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Inputs for one grant. Separated from clap so tests drive the core
@@ -217,11 +277,14 @@ struct ExceptionView {
 }
 
 fn run_grant(root: &Path, request: GrantRequest) -> Result<GrantOutcome> {
+    // is_visibly_blank (shared with the store's own attribution check)
+    // treats zero-width/format characters as blank, so `--owner
+    // $'\u200b'` cannot masquerade as attribution.
     let non_blank = |value: &Option<String>| {
         value
             .as_deref()
             .map(str::trim)
-            .filter(|s| !s.is_empty())
+            .filter(|s| !is_visibly_blank(s))
             .map(str::to_string)
     };
     let owner = non_blank(&request.owner);
@@ -272,6 +335,7 @@ fn run_grant(root: &Path, request: GrantRequest) -> Result<GrantOutcome> {
         );
     }
     let mut id = String::new();
+    let mut duplicate = false;
     let write = ExceptionStore::update(root, |store| {
         store.add(exception.clone());
         id = store
@@ -279,8 +343,22 @@ fn run_grant(root: &Path, request: GrantRequest) -> Result<GrantOutcome> {
             .last()
             .map(|ex| ex.id.clone())
             .unwrap_or_default();
+        // Ids are derived from (policy, scope, created_at, hash); a
+        // colliding grant would create two records that list/show
+        // cannot tell apart and revoke would only half-kill. Refuse
+        // and leave the store as it was.
+        if store.exceptions[..store.exceptions.len() - 1]
+            .iter()
+            .any(|ex| ex.id == id)
+        {
+            duplicate = true;
+            store.exceptions.pop();
+        }
     })
-    .map_err(|e| anyhow::anyhow!("exception store write refused: {e}"))?;
+    .context("exception store write refused")?;
+    if duplicate {
+        bail!("an identical grant ({id}) already exists — revoke it first if it needs replacing");
+    }
     Ok(GrantOutcome {
         id,
         verdict: verdict.as_str(),
@@ -290,9 +368,16 @@ fn run_grant(root: &Path, request: GrantRequest) -> Result<GrantOutcome> {
 }
 
 fn run_revoke(root: &Path, id: &str, reason: &str, revoked_by: String) -> Result<WriteOutcome> {
-    let store =
-        ExceptionStore::load(root).map_err(|e| anyhow::anyhow!("load exception store: {e}"))?;
-    let Some(existing) = store.exceptions.iter().find(|ex| ex.id == id) else {
+    let store = ExceptionStore::load(root).context("load exception store")?;
+    let matches: Vec<&PolicyException> = store.exceptions.iter().filter(|ex| ex.id == id).collect();
+    if matches.len() > 1 {
+        bail!(
+            "{} records share id {id} — the store is ambiguous; fix anvil/exceptions/store.json \
+             before revoking (a duplicate id can hide a decoy grant)",
+            matches.len(),
+        );
+    }
+    let Some(existing) = matches.first() else {
         bail!("no exception with id {id} in the store — `anvil exception list` shows ids");
     };
     if existing.revoked.is_some() {
@@ -314,7 +399,7 @@ fn run_revoke(root: &Path, id: &str, reason: &str, revoked_by: String) -> Result
             applied = true;
         }
     })
-    .map_err(|e| anyhow::anyhow!("exception store write refused: {e}"))?;
+    .context("exception store write refused")?;
     if !applied && write == WriteOutcome::Written {
         bail!("exception {id} changed concurrently; re-run the revocation");
     }
@@ -322,19 +407,25 @@ fn run_revoke(root: &Path, id: &str, reason: &str, revoked_by: String) -> Result
 }
 
 fn run_list(root: &Path) -> Result<Vec<ExceptionView>> {
-    let store =
-        ExceptionStore::load(root).map_err(|e| anyhow::anyhow!("load exception store: {e}"))?;
+    let store = ExceptionStore::load(root).context("load exception store")?;
     let now = Utc::now();
     Ok(store.exceptions.iter().map(|ex| view_of(ex, now)).collect())
 }
 
 fn run_show(root: &Path, id: &str) -> Result<ExceptionView> {
-    run_list(root)?
+    let mut matches: Vec<ExceptionView> = run_list(root)?
         .into_iter()
-        .find(|view| view.id == id)
-        .with_context(|| {
-            format!("no exception with id {id} in the store — `anvil exception list` shows ids")
-        })
+        .filter(|view| view.id == id)
+        .collect();
+    if matches.len() > 1 {
+        bail!(
+            "{} records share id {id} — the store is ambiguous; fix anvil/exceptions/store.json",
+            matches.len(),
+        );
+    }
+    matches.pop().with_context(|| {
+        format!("no exception with id {id} in the store — `anvil exception list` shows ids")
+    })
 }
 
 fn view_of(exception: &PolicyException, now: DateTime<Utc>) -> ExceptionView {
@@ -381,6 +472,14 @@ fn finish_write(write: &WriteOutcome, global: &GlobalArgs) -> Result<()> {
     match write {
         WriteOutcome::Written => Ok(()),
         WriteOutcome::SkippedReadOnly { detail } => {
+            if global.json {
+                // Stream purity: no plain text on stdout in JSON mode —
+                // the error (with detail) travels on stderr.
+                bail!(
+                    "exception store write skipped (read-only worktree or permission \
+                     misconfiguration): {detail}"
+                );
+            }
             crate::output::plain::warn(
                 "store not written: the worktree is read-only or permissions refuse the \
                  governance tree",
@@ -395,6 +494,44 @@ fn finish_write(write: &WriteOutcome, global: &GlobalArgs) -> Result<()> {
     }
 }
 
+/// Per-verdict counts for `verify`'s summary, in verdict-precedence
+/// order (stable output for scripts diffing the summary).
+fn verdict_counts(views: &[ExceptionView]) -> Vec<(&'static str, usize)> {
+    [
+        "revoked",
+        "expired",
+        "invalid-scope",
+        "unattributed",
+        "active",
+    ]
+    .into_iter()
+    .map(|verdict| {
+        (
+            verdict,
+            views.iter().filter(|v| v.verdict == verdict).count(),
+        )
+    })
+    .filter(|(_, n)| *n > 0)
+    .collect()
+}
+
+/// Neutralise control and zero-width/format characters before a store
+/// field reaches the terminal: the tracked store is a multi-author,
+/// git-tracked file, so `reason`/`owner`/`scope`/`id` are untrusted
+/// render input (ANSI escapes, bidi overrides). Mirrors the capsule
+/// renderer's display-unsafe discipline.
+fn sanitise_field(raw: &str) -> String {
+    raw.chars()
+        .map(|c| {
+            if c.is_control() || (is_visibly_blank(&c.to_string()) && !c.is_whitespace()) {
+                '\u{FFFD}'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
 fn render_table(views: &[ExceptionView]) {
     crate::output::plain::section("Exceptions");
     for view in views {
@@ -404,44 +541,44 @@ fn render_table(views: &[ExceptionView]) {
         );
         println!(
             "  {}  {:<10}  {:<9}  expires {}  {}",
-            view.id,
-            view.policy_id,
+            sanitise_field(&view.id),
+            sanitise_field(&view.policy_id),
             view.verdict,
             expiry,
             if view.scope.is_empty() {
-                "(all files)"
+                "(all files)".to_string()
             } else {
-                &view.scope
+                sanitise_field(&view.scope)
             },
         );
     }
 }
 
 fn render_full(view: &ExceptionView) {
-    crate::output::plain::section(&view.id);
-    crate::output::plain::label("policy", &view.policy_id);
+    crate::output::plain::section(&sanitise_field(&view.id));
+    crate::output::plain::label("policy", sanitise_field(&view.policy_id));
     crate::output::plain::label(
         "scope",
         if view.scope.is_empty() {
-            "(all files)"
+            "(all files)".to_string()
         } else {
-            &view.scope
+            sanitise_field(&view.scope)
         },
     );
     crate::output::plain::label("verdict", view.verdict);
-    crate::output::plain::label("reason", &view.reason);
+    crate::output::plain::label("reason", sanitise_field(&view.reason));
     if let Some(owner) = &view.owner {
-        crate::output::plain::label("owner", owner);
+        crate::output::plain::label("owner", sanitise_field(owner));
     }
     if let Some(created_by) = &view.created_by {
-        crate::output::plain::label("created by", created_by);
+        crate::output::plain::label("created by", sanitise_field(created_by));
     }
     crate::output::plain::label("created at", view.created_at.to_rfc3339());
     if let Some(expires_at) = &view.expires_at {
         crate::output::plain::label("expires at", expires_at.to_rfc3339());
     }
     if let Some(revoked_by) = &view.revoked_by {
-        crate::output::plain::label("revoked by", revoked_by);
+        crate::output::plain::label("revoked by", sanitise_field(revoked_by));
     }
 }
 
@@ -604,6 +741,72 @@ mod tests {
         run_show(tmp.path(), "exc_missing").expect_err("unknown id must refuse");
     }
 
+    /// Zero-width-only attribution refuses like blank attribution —
+    /// `--owner $'\u{200B}'` must not mint an "attributed" grant.
+    #[test]
+    fn grant_refuses_invisible_unicode_attribution() {
+        let tmp = TempDir::new().unwrap();
+        let mut req = request("AP-001", "");
+        req.owner = Some("\u{200B}\u{2060}".to_string());
+        req.created_by = None;
+        run_grant(tmp.path(), req).expect_err("invisible attribution must refuse");
+    }
+
+    /// An identical grant (same policy/scope/instant → same derived id)
+    /// refuses instead of planting an indistinguishable duplicate that
+    /// a later revoke would only half-kill.
+    #[test]
+    fn grant_refuses_duplicate_id() {
+        let tmp = TempDir::new().unwrap();
+        let now = chrono::Utc::now();
+        // Drive the store directly so both records share created_at
+        // (the id-derivation input that collides).
+        let mut first = PolicyException {
+            schema_version: String::new(),
+            id: String::new(),
+            policy_id: "AP-001".to_string(),
+            file_pattern: "src/**".to_string(),
+            finding_hash: None,
+            reason: "test grant".to_string(),
+            owner: Some("team-platform".to_string()),
+            created_by: None,
+            created_at: now,
+            expires_at: None,
+            revoked: None,
+        };
+        let outcome = ExceptionStore::update(tmp.path(), |store| {
+            store.add(first.clone());
+            first.id = store.exceptions.last().unwrap().id.clone();
+        })
+        .unwrap();
+        assert_eq!(outcome, WriteOutcome::Written);
+        // Plant a decoy sharing the id (differing reason) and assert
+        // the id-addressed verbs refuse the ambiguity.
+        let outcome = ExceptionStore::update(tmp.path(), |store| {
+            let mut decoy = first.clone();
+            decoy.reason = "decoy".to_string();
+            store.exceptions.push(decoy);
+        })
+        .unwrap();
+        assert_eq!(outcome, WriteOutcome::Written);
+        let err = run_revoke(tmp.path(), &first.id, "cleanup", "bob".to_string())
+            .expect_err("ambiguous id must refuse revocation");
+        assert!(err.to_string().contains("ambiguous"), "{err}");
+        run_show(tmp.path(), &first.id).expect_err("ambiguous id must refuse show");
+    }
+
+    /// Store fields are render-sanitised: control and zero-width
+    /// characters cannot reach the terminal from list/show output.
+    #[test]
+    fn sanitise_field_neutralises_escapes() {
+        let hostile = "ok\u{1b}[31mred\u{200B}end";
+        let cleaned = sanitise_field(hostile);
+        assert!(!cleaned.contains('\u{1b}'));
+        assert!(!cleaned.contains('\u{200B}'));
+        assert!(cleaned.contains("ok"), "{cleaned}");
+        assert!(cleaned.contains("red"), "{cleaned}");
+    }
+
     /// A legacy-origin store refuses writes with the migrate hint
     /// (ADR-073 explicit-promotion discipline) — the CLI surfaces the
     /// store error rather than silently promoting.
@@ -618,6 +821,7 @@ mod tests {
         .unwrap();
         let err = run_grant(tmp.path(), request("AP-001", ""))
             .expect_err("legacy origin must refuse until migrated");
-        assert!(err.to_string().to_lowercase().contains("migrate"), "{err}");
+        let chain = format!("{err:#}").to_lowercase();
+        assert!(chain.contains("migrate"), "{chain}");
     }
 }

@@ -238,7 +238,7 @@ pub enum WriteOutcome {
 }
 
 /// Outcome of [`ExceptionStore::migrate`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]
 pub enum MigrateOutcome {
     /// Legacy data was copied into the tracked store.
@@ -246,7 +246,13 @@ pub enum MigrateOutcome {
     /// Nothing to do: no legacy store, or the tracked store already exists.
     NothingToDo,
     /// The worktree is read-only — the migration was skipped (ADR-002).
-    SkippedReadOnly,
+    /// `detail` carries the underlying I/O error, mirroring
+    /// [`WriteOutcome::SkippedReadOnly`]: the read-only/permission
+    /// conflation must stay diagnosable here too.
+    SkippedReadOnly {
+        /// Text of the I/O error that triggered the degrade.
+        detail: String,
+    },
 }
 
 /// Tracked store path (ADR-073). Exceptions are durable governance state that
@@ -416,6 +422,11 @@ impl ExceptionStore {
             return Ok(MigrateOutcome::NothingToDo);
         }
         refuse_symlinked_store_paths(workspace_root)?;
+        // 2026-07-04 council: migrate() reads the legacy store, so the
+        // read-side legacy guard applies here exactly as it does on
+        // load()'s fallback — without it a symlinked `.anvil/` smuggles
+        // outside content into the tracked, git-visible store.
+        refuse_symlinked_legacy_paths(workspace_root)?;
         let result = Self::locked(workspace_root, || {
             // Re-check under the lock: a concurrent migrate may have won.
             if tracked.exists() {
@@ -430,7 +441,9 @@ impl ExceptionStore {
         });
         match result {
             Ok(outcome) => Ok(outcome),
-            Err(e) if is_readonly_io(&e) => Ok(MigrateOutcome::SkippedReadOnly),
+            Err(e) if is_readonly_io(&e) => Ok(MigrateOutcome::SkippedReadOnly {
+                detail: e.to_string(),
+            }),
             Err(e) => Err(e),
         }
     }
@@ -894,12 +907,34 @@ fn scope_is_valid(file_pattern: &str) -> bool {
 
 /// A grant is unattributed when it carries neither an `owner` nor a
 /// `created_by` — the v0 schema shape, which predates ADR-073's
-/// attribution requirement. A **blank** (empty or whitespace-only) value
-/// counts as absent: `owner: ""` is attribution in name only and must
-/// not let a v0-shape grant masquerade as `Active` (council EXCEPT-005).
+/// attribution requirement. A **blank** (empty, whitespace-only, or
+/// invisible-character-only) value counts as absent: `owner: ""` — or
+/// `owner: "\u{200B}"` — is attribution in name only and must not let
+/// a v0-shape grant masquerade as `Active` (council EXCEPT-005;
+/// invisible-unicode hardening 2026-07-04 council).
 fn is_unattributed(exception: &PolicyException) -> bool {
-    let blank = |s: &String| s.trim().is_empty();
+    let blank = |s: &String| is_visibly_blank(s);
     exception.owner.as_ref().is_none_or(blank) && exception.created_by.as_ref().is_none_or(blank)
+}
+
+/// Whether a string carries no visible content: whitespace, control
+/// characters, and zero-width/format characters (zero-width spaces,
+/// joiners, bidi marks, soft hyphen, BOM) all count as blank. `trim()`
+/// alone misses the format class — `"\u{200B}"` survives it — which
+/// let invisible strings masquerade as attribution.
+#[must_use]
+pub fn is_visibly_blank(s: &str) -> bool {
+    s.chars().all(|c| {
+        c.is_whitespace()
+            || c.is_control()
+            || matches!(c,
+                '\u{00AD}'
+                | '\u{200B}'..='\u{200F}'
+                | '\u{202A}'..='\u{202E}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{FEFF}')
+    })
 }
 
 #[cfg(test)]
@@ -996,6 +1031,47 @@ mod tests {
         std::fs::write(root.join("anvil/exceptions/store.json"), padding).unwrap();
         let err = ExceptionStore::load(root).expect_err("oversized store must refuse");
         assert!(matches!(err, ExceptionError::Oversized { .. }), "{err:?}");
+    }
+
+    // --- EXCEPT-004 hardening (2026-07-04 council) ---
+
+    /// Zero-width/format characters must not masquerade as attribution:
+    /// a grant whose owner is a zero-width space is Unattributed.
+    #[test]
+    fn invisible_unicode_owner_is_unattributed() {
+        let mut ex = make_exception("AP-001", "");
+        ex.owner = Some("\u{200B}\u{2060}".to_string());
+        ex.created_by = Some("\u{FEFF}".to_string());
+        assert_eq!(verify_exception(&ex), ExceptionVerdict::Unattributed);
+        assert!(is_visibly_blank("\u{200B}"));
+        assert!(is_visibly_blank(" \t\n"));
+        assert!(is_visibly_blank(""));
+        assert!(!is_visibly_blank("alice"));
+        assert!(!is_visibly_blank("\u{200B}a"));
+    }
+
+    /// `migrate` refuses a symlinked legacy tree — the read-side guard
+    /// applies to the migration read exactly as it does to `load()`'s
+    /// fallback, so outside content cannot be smuggled into the
+    /// tracked, git-visible store.
+    #[cfg(unix)]
+    #[test]
+    fn migrate_refuses_symlinked_legacy_store() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("exceptions.json"), r#"{"exceptions":[]}"#).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join(".anvil")).unwrap();
+        let err = ExceptionStore::migrate(root).expect_err("symlinked legacy must refuse");
+        assert!(
+            matches!(err, ExceptionError::SymlinkedPath { .. }),
+            "{err:?}"
+        );
+        assert!(
+            !root.join("anvil/exceptions/store.json").exists(),
+            "nothing may be written on refusal",
+        );
     }
 
     // --- EXCEPT-006 scope matching for gate findings ---
@@ -1858,7 +1934,10 @@ mod tests {
         std::fs::set_permissions(tmp.path(), perms.clone()).unwrap();
 
         let outcome = ExceptionStore::migrate(tmp.path()).unwrap();
-        assert_eq!(outcome, MigrateOutcome::SkippedReadOnly);
+        assert!(
+            matches!(outcome, MigrateOutcome::SkippedReadOnly { ref detail } if !detail.is_empty()),
+            "expected SkippedReadOnly with detail, got {outcome:?}",
+        );
         assert!(!tmp.path().join("anvil/exceptions/store.json").exists());
 
         perms.set_mode(0o755);

@@ -40,6 +40,24 @@ fn anvil(root: &Path, args: &[&str]) -> Output {
         .current_dir(root)
         .env("HOME", root)
         .env("ANVIL_HOME", root.join(".anvil-home"))
+        // The tests run under a non-default install root, which trips
+        // the pre-release project-write gate on grant/revoke/migrate
+        // by design; opt in deliberately, as an operator would with
+        // --touch-project-state.
+        .env("ANVIL_TOUCH_PROJECT_STATE", "1")
+        .output()
+        .expect("spawn anvil")
+}
+
+/// Same as [`anvil`] but WITHOUT the project-write opt-in — for
+/// pinning the gate itself.
+fn anvil_gated(root: &Path, args: &[&str]) -> Output {
+    Command::new(ANVIL_BIN)
+        .args(args)
+        .current_dir(root)
+        .env("HOME", root)
+        .env("ANVIL_HOME", root.join(".anvil-home"))
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
         .output()
         .expect("spawn anvil")
 }
@@ -110,9 +128,37 @@ fn grant_list_revoke_round_trip() {
     assert!(revoked.status.success(), "{revoked:?}");
 
     let after = stdout_json(&anvil(&root, &["--json", "exception", "verify"]));
-    let rows = after.as_array().expect("verify is an array");
+    let rows = after["exceptions"]
+        .as_array()
+        .expect("verify carries exceptions");
     assert_eq!(rows[0]["verdict"], "revoked");
     assert_eq!(rows[0]["revoked_by"], "operator@example.test");
+    let counts = after["counts"].as_array().expect("verify carries counts");
+    assert!(
+        counts.iter().any(|c| c[0] == "revoked" && c[1] == 1),
+        "counts: {counts:?}",
+    );
+
+    // Stream purity: a default grant (no scope, no expiry) in JSON mode
+    // must still emit exactly one JSON document on stdout — warnings
+    // fold into the document instead of preceding it.
+    let bare = anvil(
+        &root,
+        &[
+            "--json",
+            "exception",
+            "grant",
+            "--policy",
+            "AP-002",
+            "--reason",
+            "stream purity probe",
+        ],
+    );
+    let bare = stdout_json(&bare);
+    assert!(
+        bare["warnings"].as_array().is_some_and(|w| !w.is_empty()),
+        "breadth warnings must appear in the JSON document",
+    );
 }
 
 #[test]
@@ -155,5 +201,28 @@ fn invalid_scope_refuses_with_nonzero_exit() {
         ],
     );
     assert!(!output.status.success(), "invalid glob must refuse");
+    assert!(!root.join("anvil/exceptions/store.json").exists());
+}
+
+#[test]
+fn write_verbs_honour_project_write_gate() {
+    let (_tmp, root) = repo_with_identity();
+    let output = anvil_gated(
+        &root,
+        &[
+            "exception",
+            "grant",
+            "--policy",
+            "AP-001",
+            "--reason",
+            "gate probe",
+        ],
+    );
+    assert!(
+        !output.status.success(),
+        "grant under a candidate install root must refuse without the opt-in",
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("touch-project-state"), "stderr: {stderr}");
     assert!(!root.join("anvil/exceptions/store.json").exists());
 }

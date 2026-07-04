@@ -305,6 +305,58 @@ $ anvil ember list --json
 
 ---
 
+## anvil exception
+
+**Class:** User-explicit **Purpose:** Grant, revoke, and inspect tracked policy
+exceptions. **When to use:** To record an intentional, scoped, expiring policy
+deviation in the repo-tracked store (`anvil/exceptions/store.json`) so it
+travels with the repository and is visible in PR review — or to revoke, list,
+and verify existing grants. Writes are explicit-only; checks never write this
+store.
+
+**Synopsis:** `anvil exception <grant|revoke|list|show|verify|migrate>`
+
+**Subcommands:**
+
+| Subcommand    | Description                                                              |
+| ------------- | ------------------------------------------------------------------------ |
+| `grant`       | Grant a scoped, attributed exception. Refuses unattributed records.      |
+| `revoke <id>` | Revoke a grant, preserving the audit trail (soft delete).                |
+| `list`        | List exceptions with their verdicts.                                     |
+| `show <id>`   | Show a single exception in full.                                         |
+| `verify`      | List plus per-verdict summary counts; always exits zero.                 |
+| `migrate`     | Copy the legacy local store into the tracked store (explicit, one-time). |
+
+**`grant` flags:**
+
+| Flag                    | Description                                                      |
+| ----------------------- | ---------------------------------------------------------------- |
+| `--policy <ID>`         | Policy or rule identifier the exception suppresses.              |
+| `--reason <TEXT>`       | Justification recorded on the grant.                             |
+| `--scope <GLOB>`        | Glob scope (default: empty, meaning every file — warned about).  |
+| `--owner <TEXT>`        | Accountable team or owner; git identity is used when omitted.    |
+| `--expires-in-days <N>` | Days until the grant lapses. Omitted means never (warned about). |
+| `--finding-hash <HASH>` | Pin the grant to one concrete finding instance.                  |
+
+**Exit codes:** 0 (success), 1 (error, including a write that did not persist on
+a read-only worktree — re-run with `--verbose` for the underlying error)
+
+**Notes:** attribution (`created_by`/`revoked_by`) comes from local git config
+and is advisory — reviewers should check it against PR authorship. Grants are
+enforced at the L4 gate; an unattributed legacy grant only ever downgrades a
+finding to a warning, it never silently suppresses it.
+
+**Examples:**
+
+```
+$ anvil exception grant --policy AP-001 --reason "legacy module" --scope "src/legacy/**" --expires-in-days 30
+$ anvil exception list
+$ anvil exception revoke exc_1a2b3c4d5e6f708192a3b4c5 --reason "module removed"
+$ anvil exception verify --json
+```
+
+---
+
 ## anvil status
 
 **Class:** User-explicit **Purpose:** Show project status and health. **When to
