@@ -9,9 +9,10 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Confirm CI matrix ran `eddacraft-anvil-kernel` tests green on macOS and
-      Windows runners for the merge commit — the platform-specific
-      `watch_limit_guidance()` copy is `cfg`-gated and only compiles/asserts
-      off Linux there (agent: yes)
+      Windows runners for the merge commit — `watch_limit_guidance()` selects
+      copy at runtime via `cfg!` (both branches compile in every build), while
+      the per-platform *assertions* in the tests are `#[cfg]`-gated, so the
+      non-Linux copy is only asserted on the macOS/Windows runners (agent: yes)
 - [ ] On a watch-exhausted Linux box, run `anvil watch` and capture a
       transcript showing the inotify sysctl guidance on hard failure and the
       partial-registration exhaustion warning — validation step named in the
@@ -27,6 +28,6 @@ Verified: <!-- filled by cleanup agent -->
 `crates/anvil-kernel/src/watcher/mod.rs`; the CLI appends the guidance as
 anyhow context in `crates/anvil-cli/src/commands/watch.rs`, keeping the raw
 notify chain intact for `--json`/debug output. The Linux inotify preflight in
-`capacity.rs` is untouched. Local dev boxes with exhausted inotify watchers
-(see memory) cannot start `anvil watch` at all, which is exactly the
-exhaustion path step 2 exercises.
+`capacity.rs` is untouched. A dev box whose inotify watch limit
+(`fs.inotify.max_user_watches`) is already exhausted cannot start `anvil watch`
+at all, which is exactly the exhaustion path step 2 exercises.

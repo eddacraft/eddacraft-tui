@@ -86,10 +86,15 @@ pub fn failure_guidance(err: &notify::Error) -> String {
             format!("{}, then retry.", watch_limit_guidance())
         }
         notify::ErrorKind::Io(io_err) => {
+            let fd_limit_hint = if cfg!(unix) {
+                "your open-file limit (`ulimit -n`)"
+            } else {
+                "your open-file / handle limit"
+            };
             format!(
                 "file-watch I/O error ({io_err}) — likely a directory-permission or \
-                 open-file-descriptor limit; check the watch path's permissions and your \
-                 open-file limit (`ulimit -n`), then retry."
+                 open-file-descriptor limit; check the watch path's permissions and \
+                 {fd_limit_hint}, then retry."
             )
         }
         notify::ErrorKind::PathNotFound => {
