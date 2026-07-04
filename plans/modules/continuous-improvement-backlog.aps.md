@@ -4678,25 +4678,11 @@ archive.
 
 ### CIB-175: Actionable watcher-failure guidance off Linux
 
-- **Status:** In Progress
-- **Intent:** The inotify-headroom preflight is
-  `cfg(target_os = "linux")`-only (`capacity.rs:68-84`); on macOS/Windows a
-  watcher hard failure surfaces as a raw anyhow chain
-  (`starting kernel watcher: notify error: …`, `watch.rs:1566-1567`,
-  `watcher/mod.rs:46-47`) with no hint about cause or next step. Partial
-  registration failures (`WatchSetupDiagnostics`) can also silently drop
-  subtree coverage.
-- **Expected Outcome:** Watcher start failures render a human line naming the
-  likely cause per platform and a next step (retry, reduce scope, report), and
-  partial-registration exhaustion is surfaced rather than silent; Linux keeps
-  the existing preflight.
-- **Files:** `crates/anvil-cli/src/commands/watch.rs`,
-  `crates/anvil-kernel/src/watcher/mod.rs`,
-  `crates/anvil-cli/src/capacity.rs`.
-- **Validation:** unit test mapping a synthesised `notify` error to the human
-  copy; transcript on a watch-exhausted box shows the guidance.
-- **Identified From:** User-journey pass 2026-07-04 (finding 14).
-- **Confidence:** medium — per-platform failure taxonomy needs a small design.
+- **Status:** Merged 2026-07-04 via PR #3147
+- **Summary:** Watcher-start failures now render a platform-aware human line
+  naming the likely cause and a next step, and partial-registration exhaustion
+  is surfaced rather than silently dropping subtree coverage; Linux keeps its
+  existing inotify-headroom preflight.
 
 ### CIB-176: Detect sh-less git before relying on `#!/bin/sh` hooks
 
