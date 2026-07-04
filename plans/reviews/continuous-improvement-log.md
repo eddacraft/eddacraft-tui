@@ -1988,4 +1988,15 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** none — the existing `.anvil` directory doc entry gave a template for documenting the activation-specific addition in the module doc.
 - **Improvement:** none.
 - **Follow-up:** none. The intent mentioned `plans/` creep too, but the plan deliberately scoped the exclusion to the enumerated artefacts (excluding `plans/` wholesale would risk dropping user planning docs).
+### 2026-07-04 — claude (autonomous)
+
+- **Task:** CIB-179 — both welcome renderers (`welcome/render.rs`, `onboarding/welcome_render.rs`) silently drop taglines and per-item descriptions in compact mode with no cue that resizing restores them.
+- **Outcome:** Compact mode now reserves a trailing `Length(1)` chunk carrying a muted "resize for descriptions" hint (`COMPACT_HINT`), gated by `show_hint = compact && area.height >= 11` and added to the compact `content_height` so centring stays correct; full mode is byte-unchanged. TDD: contains/omits behavioural tests + insta snapshots at 40x12 proven red first (undefined `COMPACT_HINT`), then green. No hard gate added; adaptive layout preserved.
+- **Worked:** Because the menu sits under `Constraint::Min(menu_h)`, the ratatui solver keeps the menu at full priority even when over-constrained — at 40x12 the decorative logo yields rows while all menu items AND the hint stay visible, so the footer never steals a menu row.
+- **Failed:** none.
+- **Friction:** The style-aware `buffer_to_string` interleaves per-cell style tags between characters, so `contains` assertions needed a local style-stripping `plain()` helper; the package is `eddacraft-anvil-tui`, not the `anvil-tui` the item's Validation line names.
+- **Improvement:** When a compact TUI layout must add an element without stealing content rows, lean on `Min(priority_h)` for the content and a trailing fixed `Length` for the addition — the solver sacrifices lower-priority decorative `Length` chunks first.
+- **Follow-up:** none.
+
+
 

@@ -4743,7 +4743,7 @@ archive.
 
 ### CIB-179: Say something when welcome surfaces drop copy in small terminals
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** In compact mode the welcome/onboarding surfaces silently drop
   taglines and per-item descriptions (`welcome_render.rs:39-49`); the 80x24
   hard gate (`compat.rs`) only guards `anvil watch --tui`, so a small-terminal

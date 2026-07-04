@@ -22,6 +22,10 @@ const LOGO_LINES: &[&str] = &[
 const TAGLINE: &str = "anvil catches architecture drift at save-time";
 const SUBTITLE: &str = "Let's get you set up.";
 
+/// Muted one-line hint shown in compact mode to explain that resizing the
+/// terminal restores the per-item descriptions dropped to save space (CIB-179).
+const COMPACT_HINT: &str = "resize for descriptions";
+
 /// Left padding for content.
 const PAD: &str = "    ";
 
@@ -48,10 +52,19 @@ pub fn render(
         full_menu_height
     };
 
-    // In compact mode: logo(7) + blank(1) + menu
+    // In compact mode, surface a one-line resize hint — but only when the
+    // terminal is tall enough for the logo, at least one menu row, and the
+    // hint itself, so the hint never crowds out the whole menu (CIB-179).
+    // The trailing Length(1) chunk keeps menu priority via Min(menu_h).
+    // Room needed beyond the top padding: logo(7) + blank(1) + a menu row(1)
+    // + hint(1) = 10, so require strictly more than 10 rows.
+    let show_hint = compact && area.height > 7 + 1 + 1 + 1;
+    let hint_h: u16 = u16::from(show_hint);
+
+    // In compact mode: logo(7) + blank(1) + menu + optional hint(1)
     // In full mode: logo(7) + blank(1) + tagline(1) + subtitle(1) + spacer(1) + menu
     let content_height = if compact {
-        7 + 1 + menu_height
+        7 + 1 + menu_height + usize::from(show_hint)
     } else {
         7 + 1 + 1 + 1 + 1 + menu_height
     };
@@ -65,9 +78,10 @@ pub fn render(
     let chunks = if compact {
         Layout::vertical([
             Constraint::Length(top_pad),
-            Constraint::Length(7),   // Logo
-            Constraint::Length(1),   // Blank
-            Constraint::Min(menu_h), // Menu items
+            Constraint::Length(7),      // Logo
+            Constraint::Length(1),      // Blank
+            Constraint::Min(menu_h),    // Menu items
+            Constraint::Length(hint_h), // Resize hint (0 when it doesn't fit)
         ])
         .split(area)
     } else {
@@ -130,6 +144,15 @@ pub fn render(
     let menu_lines = build_menu_lines(state, theme, compact);
     let menu = Paragraph::new(Text::from(menu_lines));
     frame.render_widget(menu, chunks[menu_chunk_idx]);
+
+    // Compact-mode resize hint occupies the reserved trailing chunk.
+    if show_hint {
+        let hint = Paragraph::new(Line::from(vec![
+            Span::styled(PAD, Style::default()),
+            Span::styled(COMPACT_HINT, Style::default().fg(theme.muted())),
+        ]));
+        frame.render_widget(hint, chunks[4]);
+    }
 }
 
 fn build_menu_lines<'a>(
@@ -199,6 +222,70 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    /// Plain-text (style-stripped) render of a buffer for substring assertions.
+    fn plain(buf: &ratatui::buffer::Buffer) -> String {
+        let area = buf.area;
+        let mut s = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                s.push_str(buf[(x, y)].symbol());
+            }
+            s.push('\n');
+        }
+        s
+    }
+
+    #[test]
+    fn compact_shows_resize_hint() {
+        let backend = ratatui::backend::TestBackend::new(40, 12);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let state = OnboardingWelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let text = plain(terminal.backend().buffer());
+        assert!(
+            text.contains(COMPACT_HINT),
+            "compact mode should surface the resize hint; got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn full_mode_omits_resize_hint() {
+        let backend = ratatui::backend::TestBackend::new(80, 24);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let state = OnboardingWelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let text = plain(terminal.backend().buffer());
+        assert!(
+            !text.contains(COMPACT_HINT),
+            "full mode should not show the resize hint; got:\n{text}"
+        );
+    }
+
+    #[test]
+    fn snapshot_compact_hint() {
+        let backend = ratatui::backend::TestBackend::new(40, 12);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let state = OnboardingWelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
     }
 
     #[test]
