@@ -178,7 +178,10 @@ impl AssertionCondition {
                 blank_guard("glob", &spec.glob)
             }
             Self::ChangedPathCount(_) => Ok(()),
-            Self::ConfigEquals(spec) => blank_guard("key", &spec.key),
+            Self::ConfigEquals(spec) => {
+                blank_guard("key", &spec.key)?;
+                blank_guard("value", &spec.value)
+            }
             Self::ConfigPresent(spec) => blank_guard("key", &spec.key),
         }
     }
@@ -643,6 +646,25 @@ remediation: fix it
                 assertion_id: "confine-changes-to-src".into(),
                 index: 1,
                 field: "key",
+            })
+        );
+    }
+
+    #[test]
+    fn assertion_schema_blank_config_equals_value_is_reported() {
+        let assertion = Assertion {
+            conditions: vec![AssertionCondition::ConfigEquals(ConfigMatch {
+                key: "signed".into(),
+                value: "   ".into(),
+            })],
+            ..valid_assertion()
+        };
+        assert_eq!(
+            assertion.validate(),
+            Err(AssertionError::BlankConditionField {
+                assertion_id: "confine-changes-to-src".into(),
+                index: 0,
+                field: "value",
             })
         );
     }

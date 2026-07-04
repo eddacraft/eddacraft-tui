@@ -61,9 +61,10 @@ impl AssertionContext {
     /// Build a context from explicitly-supplied facts.
     ///
     /// `changed_paths` and `config` may arrive in any order and may contain
-    /// duplicates; the result normalises both (sort + de-duplicate paths, last
-    /// write wins per config key) so it is deterministic regardless of input
-    /// order. Purely a transform of its arguments — no I/O.
+    /// duplicates; the result normalises both (sort + de-duplicate paths;
+    /// duplicate config keys resolve to the lexicographically greatest value)
+    /// so it is deterministic regardless of input order. Purely a transform of
+    /// its arguments — no I/O.
     pub fn from_parts(
         phase: WorkflowPhase,
         changed_paths: impl IntoIterator<Item = ChangedPath>,
@@ -72,7 +73,13 @@ impl AssertionContext {
         let mut changed_paths: Vec<ChangedPath> = changed_paths.into_iter().collect();
         changed_paths.sort();
         changed_paths.dedup();
-        let config: BTreeMap<String, String> = config.into_iter().collect();
+        // Sort pairs before inserting so duplicate keys resolve to the
+        // lexicographically greatest value regardless of input order — a
+        // plain `collect` lets the caller's iteration order pick the
+        // winner, breaking the order-independence contract.
+        let mut config_pairs: Vec<(String, String)> = config.into_iter().collect();
+        config_pairs.sort();
+        let config: BTreeMap<String, String> = config_pairs.into_iter().collect();
         Self {
             phase,
             changed_paths,
@@ -546,6 +553,31 @@ mod tests {
             eval(&assertion, &missing),
             AssertionEvaluation::Violated(_)
         ));
+    }
+
+    #[test]
+    fn assertion_context_duplicate_config_keys_resolve_order_independently() {
+        let a = AssertionContext::from_parts(
+            WorkflowPhase::Save,
+            std::iter::empty(),
+            [
+                ("k".to_string(), "first".to_string()),
+                ("k".to_string(), "second".to_string()),
+            ],
+        );
+        let b = AssertionContext::from_parts(
+            WorkflowPhase::Save,
+            std::iter::empty(),
+            [
+                ("k".to_string(), "second".to_string()),
+                ("k".to_string(), "first".to_string()),
+            ],
+        );
+        assert_eq!(
+            a, b,
+            "duplicate-key resolution must not depend on input order"
+        );
+        assert_eq!(a.config.get("k").map(String::as_str), Some("second"));
     }
 
     #[test]
