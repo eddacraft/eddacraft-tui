@@ -89,9 +89,14 @@ pub struct GraphFacts {
 }
 
 impl GraphFacts {
-    /// Every path named anywhere in the graph facts, in sorted key order.
+    /// Every path named anywhere in the graph facts, globally sorted and
+    /// de-duplicated across both maps.
     fn paths(&self) -> impl Iterator<Item = &String> {
-        self.boundaries.keys().chain(self.dependents.keys())
+        self.boundaries
+            .keys()
+            .chain(self.dependents.keys())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
     }
 }
 
@@ -107,8 +112,10 @@ impl GraphFacts {
 /// budget; the degrade-to-warn behaviour is implemented by the enforcement
 /// layer, not here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PrewriteBudget {
-    /// Maximum wall-clock duration a single pre-write eval may take.
+    /// Maximum wall-clock duration a single pre-write eval may take. Absent
+    /// on the wire ⇒ the tight default budget (backward-compatible).
     pub max_eval: Duration,
 }
 
@@ -446,6 +453,12 @@ mod tests {
         let policy_input = input.to_policy_input();
         assert!(policy_input.diff.new_edges.is_empty());
         assert!(policy_input.repo_state.edges.is_empty());
+    }
+
+    #[test]
+    fn policy_prewrite_input_budget_deserialises_when_field_absent() {
+        let b: PrewriteBudget = serde_json::from_str("{}").expect("defaults when absent");
+        assert_eq!(b, PrewriteBudget::default());
     }
 
     #[test]
