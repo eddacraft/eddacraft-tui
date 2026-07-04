@@ -82,7 +82,7 @@ pub struct WatchArgs {
     #[arg(
         long = "save-time-driver",
         requires = "worktree",
-        conflicts_with_all = ["file", "action", "plans", "source", "all", "patterns"]
+        conflicts_with_all = ["file", "action", "plans", "source", "all", "patterns", "exclude"]
     )]
     save_time_driver: bool,
 
@@ -3606,6 +3606,7 @@ mod tests {
             ("--action", Some("gate")),
             ("--file", Some("src/a.ts")),
             ("--patterns", Some("src/**")),
+            ("--exclude", Some("vendor/**")),
             ("--plans", None),
             ("--source", None),
             ("--all", None),

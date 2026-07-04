@@ -71,13 +71,21 @@ impl DriverLog {
 
     /// Rename the live log to `<path>.1` (replacing any prior rotation) once
     /// it reaches the size cap, so the next append starts a fresh file while
-    /// the most recent history survives one generation.
+    /// the most recent history survives one generation. The prior `.1` is
+    /// removed first: Windows `rename` fails over an existing destination
+    /// (unlike POSIX), and a failed rotation must not wedge appends.
     fn rotate_if_needed(&self) -> std::io::Result<()> {
         match std::fs::metadata(&self.path) {
             Ok(meta) if meta.len() >= MAX_LOG_BYTES => {
                 let mut rotated = self.path.clone().into_os_string();
                 rotated.push(".1");
-                std::fs::rename(&self.path, PathBuf::from(rotated))
+                let rotated = PathBuf::from(rotated);
+                match std::fs::remove_file(&rotated) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e),
+                }
+                std::fs::rename(&self.path, rotated)
             }
             Ok(_) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -202,6 +210,21 @@ mod tests {
         assert_eq!(rotated.len() as u64, MAX_LOG_BYTES, "history moved aside");
         let fresh = std::fs::read_to_string(&path).expect("fresh log");
         assert_eq!(fresh, "fresh line\n", "live log restarted after rotation");
+
+        // A SECOND rotation must replace the existing `.1` (Windows `rename`
+        // fails over an existing destination; the remove-then-rename must
+        // keep appends working after the first generation).
+        let big2 = vec![b'y'; usize::try_from(MAX_LOG_BYTES).expect("cap fits usize")];
+        log.append(&big2).expect("second filling append");
+        log.append(b"second fresh\n")
+            .expect("append after second rotation");
+        let rotated2 = std::fs::read(dir.path().join("wt.log.1")).expect(".1 replaced");
+        assert!(
+            rotated2.starts_with(b"fresh line\n") && rotated2.ends_with(b"yy"),
+            "second generation replaced the first"
+        );
+        let fresh2 = std::fs::read_to_string(&path).expect("fresh log 2");
+        assert_eq!(fresh2, "second fresh\n");
     }
 
     #[test]
