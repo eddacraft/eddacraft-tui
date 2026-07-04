@@ -2,9 +2,10 @@
 
 | ID   | Owner  | Status      |
 | ---- | ------ | ----------- |
-| PATT | @aneki | In Progress |
+| PATT | @aneki | Done        |
 
-**Last reviewed:** 2026-05-25 (APSCAN-010 canonical-heading migration)
+**Last reviewed:** 2026-07-05 (PATT-001..003 all Done, merged 2026-07-04 via
+PR #3175; module closed alongside POLRESET-009)
 
 ## Purpose
 

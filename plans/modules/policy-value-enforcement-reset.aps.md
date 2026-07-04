@@ -2,10 +2,10 @@
 
 | ID       | Type      | Owner | Priority | Status   | Progress |
 | -------- | --------- | ----- | -------- | -------- | -------- |
-| POLRESET | Conductor | —     | high     | In Progress | 9/10     |
+| POLRESET | Conductor | —     | high     | Done     | 10/10    |
 
-**Last reviewed:** 2026-07-04 (POLRESET-001 design gate landed as ADR-098 via
-planning council plan-18c47503).
+**Last reviewed:** 2026-07-05 (POLRESET-009 closed via the ATC chain, PR #3181;
+module complete at 10/10).
 
 ## Purpose
 
@@ -273,7 +273,17 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-009: Adversarial policy depth
 
-- **Status:** Proposed
+- **Status:** Done — satisfied by the ATC and PATT chains: adversarial probe
+  taxonomy, pack registry, eval-harness execution, and trend reporting
+  (ATC-001..004, Merged 2026-07-05 via PR #3181) plus prompt-attack scenario
+  schema, pack runner, and fail-policy/CI gates (PATT-001..003, Merged
+  2026-07-04 via PR #3175). Probe findings fold into eval summaries as
+  synthetic `probe:<category>` suites over the unchanged frozen eval v1 shape
+  (with the `probe:` prefix reserved and enforced at the eval-regression
+  suite-loading boundary), so the first policy-value slice is not
+  destabilised. Evidence verified 2026-07-05 on merged main:
+  `cargo test -p eddacraft-anvil-policy -- adversarial_eval_integration` 7
+  green; `cargo test -p eddacraft-anvil -- attack_regression_gate` 12 green.
 - **Intent:** Add adversarial and prompt-attack regression depth after the first
   report-only policy path is visible.
 - **Expected Outcome:** ATC and PATT findings feed eval summaries without
