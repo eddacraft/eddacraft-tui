@@ -487,9 +487,17 @@ pub fn notification_mapping(
         ControlDecision::Allow => (NotificationClass::Info, NotificationPriority::Low),
         ControlDecision::Warn => (NotificationClass::Warning, NotificationPriority::High),
         ControlDecision::Block => (NotificationClass::Block, NotificationPriority::Critical),
+        // Fence is a veto that stops the write and fences the worktree —
+        // block-severity, no process signal. It shares `Block`'s
+        // notification class and `Critical` priority (ADR-098 AD-3).
+        ControlDecision::Fence => (NotificationClass::Block, NotificationPriority::Critical),
         ControlDecision::Interrupt => {
             (NotificationClass::Interrupt, NotificationPriority::Critical)
         }
+        // Unknown degrades to the safe `warn` default (ADR-098 AD-3): a
+        // decision this consumer cannot interpret is surfaced as a
+        // warning, never escalated to a veto-class notification.
+        ControlDecision::Unknown => (NotificationClass::Warning, NotificationPriority::High),
     }
 }
 
@@ -572,15 +580,19 @@ const fn midedit_severity_class(severity: Severity) -> ControlDecision {
     }
 }
 
-/// Ordering for the mid-edit advisory vocabulary. `Interrupt` is not
-/// reachable on this path; it sorts above `Block` only so the function
-/// is total.
+/// Ordering for the mid-edit advisory vocabulary. `Fence` / `Interrupt`
+/// are not reachable on this path (mid-edit only produces
+/// `Allow`/`Warn`/`Block` via [`midedit_severity_class`]); they sort
+/// above `Block` only so the function is total. `Unknown` degrades to
+/// the `Warn` rank — the ADR-098 AD-3 safe default — so a decision this
+/// consumer cannot interpret never out-ranks a genuine `Block`.
 const fn midedit_class_rank(decision: ControlDecision) -> u8 {
     match decision {
         ControlDecision::Allow => 0,
-        ControlDecision::Warn => 1,
+        ControlDecision::Warn | ControlDecision::Unknown => 1,
         ControlDecision::Block => 2,
-        ControlDecision::Interrupt => 3,
+        ControlDecision::Fence => 3,
+        ControlDecision::Interrupt => 4,
     }
 }
 

@@ -11,9 +11,9 @@
 //! INTD-013, DRVR-002) consume.
 //!
 //! `Severity` is intentionally distinct from the control decision
-//! (`allow`/`warn`/`block`/`interrupt`). INTD-013 maps severity to a
-//! control decision per the project's enforcement configuration; that
-//! mapping is the daemon's job, not the diagnostic's.
+//! (`allow`/`warn`/`block`/`fence`/`interrupt`). INTD-013 maps severity
+//! to a control decision per the project's enforcement configuration;
+//! that mapping is the daemon's job, not the diagnostic's.
 
 use serde::{Deserialize, Serialize};
 
@@ -25,8 +25,8 @@ use serde::{Deserialize, Serialize};
 pub const DIAGNOSTIC_SCHEMA_VERSION: &str = "anvil.diagnostic.v1";
 
 /// Rule severity. Deliberately separate from the control decision
-/// (`allow`/`warn`/`block`/`interrupt`); the daemon owns severity →
-/// decision mapping.
+/// (`allow`/`warn`/`block`/`fence`/`interrupt`); the daemon owns
+/// severity → decision mapping.
 ///
 /// Forward-compatible per the envelope spec ("subscribers MUST treat
 /// unknown `severity` values as `warning` … rather than dropping"):
@@ -53,13 +53,52 @@ pub enum Severity {
 /// Enforcement decision vocabulary shared by control surfaces. This is
 /// deliberately separate from [`Severity`]: rules describe findings with
 /// severity, while the caller maps those findings to an enforcement decision.
+///
+/// This is the canonical outcome axis of the two-axis enforcement model
+/// (ADR-098 AD-3): outcome = [`ControlDecision`], posture =
+/// [`crate::enforcement::EnforcementMode`]. Every write-vetoing decision
+/// ([`ControlDecision::is_veto`]) stops the operation; the surface that
+/// consumes the decision projects it onto its own response shape (MCP
+/// projects any veto to a write-refusal; the daemon projects `Fence` to
+/// a fenced worktree and `Interrupt` to the signal ladder).
+///
+/// Forward-compatible per ADR-096 / ADR-098 AD-3: an unrecognised
+/// decision string a newer producer emitted deserialises to
+/// [`ControlDecision::Unknown`] instead of failing the parse, and
+/// consumers treat `Unknown` as the safe default (`warn` — never a
+/// veto, never an ack-gate). The `#[serde(other)]` arm mirrors the
+/// forward-compat fallback on the sibling [`Severity`] and [`Category`]
+/// enums. `Unknown` is deliberately the last breaking extension of this
+/// enum — cross-binary version skew (anvil-intercept vs anvil are
+/// separate binaries) is now observable rather than silently
+/// mis-handled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ControlDecision {
+    /// Permit the operation. No finding, or a posture that never blocks.
     Allow,
+    /// Surface the finding as a warning; do not stop the operation.
     Warn,
+    /// Veto the operation (stop the write) as an outright block. Used by
+    /// the pre-write / gate surfaces where there is no worktree to fence
+    /// or process to signal.
     Block,
+    /// Veto the operation and fence the worktree. On the daemon this
+    /// refuses subsequent registrations against the worktree without
+    /// signalling active agent processes; on a stateless surface (MCP)
+    /// it projects to a write-refusal like any other veto. A distinct
+    /// decision from [`ControlDecision::Block`] so the true enforcement
+    /// action stays auditable rather than collapsing at parse time
+    /// (ADR-098 AD-3).
+    Fence,
+    /// Veto the operation and issue a process-group interrupt against the
+    /// attributing session (the daemon's strictest action), then fence.
     Interrupt,
+    /// A decision value a newer producer emitted that this consumer does
+    /// not recognise. Treated as the safe default (`warn`): surfaced,
+    /// never a veto, never an ack-gate, never dropped (ADR-098 AD-3).
+    #[serde(other)]
+    Unknown,
 }
 
 impl ControlDecision {
@@ -69,8 +108,27 @@ impl ControlDecision {
             Self::Allow => "allow",
             Self::Warn => "warn",
             Self::Block => "block",
+            Self::Fence => "fence",
             Self::Interrupt => "interrupt",
+            Self::Unknown => "unknown",
         }
+    }
+
+    /// Whether this decision vetoes the operation (stops the write).
+    ///
+    /// [`ControlDecision::Block`], [`ControlDecision::Fence`], and
+    /// [`ControlDecision::Interrupt`] are all vetoes — a surface that
+    /// gates `isError` / write-refusal on the decision MUST use this
+    /// helper rather than a `== Block` comparison, or a fence-vetoed
+    /// write silently reports success (ADR-098 AD-3, amendment 1).
+    ///
+    /// [`ControlDecision::Allow`], [`ControlDecision::Warn`], and
+    /// [`ControlDecision::Unknown`] are not vetoes: `Unknown` degrades to
+    /// the safe `warn` default and never blocks a write on a value this
+    /// consumer cannot interpret.
+    #[must_use]
+    pub const fn is_veto(self) -> bool {
+        matches!(self, Self::Block | Self::Fence | Self::Interrupt)
     }
 }
 
@@ -324,7 +382,9 @@ mod tests {
             (ControlDecision::Allow, "allow"),
             (ControlDecision::Warn, "warn"),
             (ControlDecision::Block, "block"),
+            (ControlDecision::Fence, "fence"),
             (ControlDecision::Interrupt, "interrupt"),
+            (ControlDecision::Unknown, "unknown"),
         ];
 
         for (variant, expected) in cases {
@@ -334,6 +394,39 @@ mod tests {
             assert_eq!(back, variant);
             assert_eq!(variant.as_str(), expected);
         }
+    }
+
+    #[test]
+    fn control_decision_unknown_value_deserialises_forward_compat() {
+        // ADR-098 AD-3: a decision string a newer producer emits that
+        // this consumer does not recognise must deserialise to `Unknown`
+        // (the safe `warn` default) rather than failing the parse —
+        // cross-binary version skew (anvil-intercept vs anvil) is real.
+        let decision: ControlDecision =
+            serde_json::from_value(json!("quarantine")).expect("unknown decision deserialises");
+        assert_eq!(decision, ControlDecision::Unknown);
+        // `Unknown` round-trips through its own `"unknown"` tag.
+        assert_eq!(
+            serde_json::to_value(ControlDecision::Unknown).unwrap(),
+            "unknown"
+        );
+        assert_eq!(
+            serde_json::from_value::<ControlDecision>(json!("unknown")).unwrap(),
+            ControlDecision::Unknown
+        );
+    }
+
+    #[test]
+    fn control_decision_is_veto_covers_block_fence_interrupt() {
+        // ADR-098 AD-3, amendment 1: Block, Fence, and Interrupt are all
+        // vetoes; Allow, Warn, and Unknown are not (Unknown degrades to
+        // the safe `warn` default and never blocks a write).
+        assert!(ControlDecision::Block.is_veto());
+        assert!(ControlDecision::Fence.is_veto());
+        assert!(ControlDecision::Interrupt.is_veto());
+        assert!(!ControlDecision::Allow.is_veto());
+        assert!(!ControlDecision::Warn.is_veto());
+        assert!(!ControlDecision::Unknown.is_veto());
     }
 
     #[test]
