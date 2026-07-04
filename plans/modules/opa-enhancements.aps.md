@@ -116,12 +116,34 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-002: User policy pack discovery contract
 
-- **Status:** Proposed
+- **Status:** Done — `crates/anvil-policy-engine/src/pack/discovery.rs` adds the
+  canonical discovery contract. `discover_packs(workspace_root)` scans exactly
+  one level of `<root>/.anvil/policies/`: an immediate subdirectory carrying a
+  `pack.yaml` is a `PackRef { id, dir, manifest_path, has_provenance }` (the
+  OPAE-004 install layout); loose `*.rego` files directly under the policies dir
+  are reported as `loose_policies` (paths only, no evaluation) so callers can
+  tell the pack-managed layout from the pre-pack flat layout the gate's
+  `discover_policy_files` still evaluates. Deterministic (packs sorted by
+  id/dir, loose and rejected by path) and workspace-scoped (canonicalise +
+  `starts_with` containment on the policies dir AND every pack/loose entry,
+  mirroring `resolve_member_path`). Fail-closed **per entry**: a symlink escaping
+  the root lands in `rejected` while discovery continues, so one tampered entry
+  cannot hide the rest — deliberately unlike the gate's all-or-nothing bundle
+  posture (justified in the module doc comment). A missing `.anvil/policies/` is
+  `Ok(empty)`, not an error. Discovery ≠ admission: a pack whose `pack.yaml`
+  fails to load is still listed by `discover_packs`; the convenience
+  `discover_and_load` carries each pack's `Result<PackManifest>` with no
+  short-circuit. No new deps. Re-exported from `pack/mod.rs`. Validated by
+  `cargo test -p eddacraft-anvil-policy-engine -- policy_pack_discovery`
+  (10 tests) plus the full crate suite (178) and `cargo check --workspace`.
 - **Intent:** Define where local user/bundled policy packs live and how Anvil
   discovers them.
 - **Expected Outcome:** Policy pack discovery is deterministic, workspace-scoped,
   and compatible with POLVAL manifests.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_pack_discovery`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_pack_discovery`
+  (drift correction: the item previously cited the doomed `-p eddacraft-anvil-policy`
+  OPA crate, removed under ADR-098 AD-1's replace-then-delete sequence; the
+  discovery contract lives in the regorus engine crate)
 - **Dependencies:** OPAE-001, POLVAL-001, POLVAL-002
 - **Confidence:** high
 

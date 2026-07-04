@@ -8,11 +8,16 @@
 //! the POLRESET-002 retarget (ADR-098) pack admission lives here, in the
 //! product-path engine crate, not in the OPA-era `anvil-policy` loader.
 
+pub mod discovery;
 pub mod manifest;
 pub mod metadata;
 pub mod test_runner;
 pub mod validator;
 
+pub use discovery::{
+    DiscoveryError, LoadedPack, PackDiscovery, PackRef, RejectedEntry, RejectionReason,
+    discover_and_load, discover_packs,
+};
 pub use manifest::{ManifestError, PackManifest, PolicyEntry, load_manifest};
 pub use metadata::{MetadataError, PolicyMetadata, PolicySeverity, ensure_unique_ids};
 pub use test_runner::{
