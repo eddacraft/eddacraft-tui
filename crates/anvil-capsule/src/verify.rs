@@ -85,7 +85,7 @@ pub fn verify_capsule_at(
         check_manifest_digests(capsule_dir, &manifest),
         check_witness_chain(capsule_dir),
         check_digests_vs_repo(capsule_dir, repo_root),
-        check_exceptions(capsule_dir, now),
+        check_exceptions(capsule_dir, repo_root, now),
     ])
 }
 
@@ -308,8 +308,10 @@ fn check_digests_vs_repo(capsule_dir: &Path, repo_root: &Path) -> CheckResult {
 /// `exceptions`: verify each applied exception via the EXCEPT-005
 /// surface. Expired/revoked/invalid-scope → `block`; unattributed →
 /// `degraded`; empty → `pass`.
-fn check_exceptions(capsule_dir: &Path, now: DateTime<Utc>) -> CheckResult {
-    use anvil_policy::exceptions::{ExceptionVerdict, PolicyException, verify_exception_at};
+fn check_exceptions(capsule_dir: &Path, repo_root: &Path, now: DateTime<Utc>) -> CheckResult {
+    use anvil_policy::exceptions::{
+        ExceptionStore, ExceptionVerdict, PolicyException, verify_exception_at,
+    };
 
     let bytes = match std::fs::read(capsule_dir.join("exceptions.json")) {
         Ok(bytes) => bytes,
@@ -351,20 +353,46 @@ fn check_exceptions(capsule_dir: &Path, now: DateTime<Utc>) -> CheckResult {
         );
     }
 
+    // The capsule snapshot is frozen at create time, so revocation
+    // that happened *after* create is invisible to it. Re-consult the
+    // live tracked store (the same re-collection discipline as
+    // `check_digests_vs_repo`) so a since-revoked grant blocks and a
+    // grant that vanished from the store degrades (2026-07-04
+    // council, EXCEPT-009).
+    let live = ExceptionStore::load(repo_root);
+
     let mut verdict = Verdict::Pass;
     let mut details = Vec::new();
+    if let Err(e) = &live {
+        verdict = verdict.worst(Verdict::Degraded);
+        details.push(format!("tracked exception store unreadable: {e}"));
+    }
     for ex in &exceptions {
-        match verify_exception_at(ex, now) {
-            ExceptionVerdict::Active => {}
-            ExceptionVerdict::Unattributed => {
+        let mut classify =
+            |candidate_verdict: ExceptionVerdict, origin: &str| match candidate_verdict {
+                ExceptionVerdict::Active => {}
+                ExceptionVerdict::Unattributed => {
+                    verdict = verdict.worst(Verdict::Degraded);
+                    details.push(format!("unattributed exception {}{origin}", ex.id));
+                }
+                other => {
+                    // An applied exception that is revoked/expired/invalid is
+                    // a relied-upon deviation that no longer holds → block.
+                    verdict = verdict.worst(Verdict::Block);
+                    details.push(format!("{} exception {}{origin}", other.as_str(), ex.id));
+                }
+            };
+        classify(verify_exception_at(ex, now), "");
+        if let Ok(store) = &live {
+            if let Some(live_record) = store.exceptions.iter().find(|l| l.id == ex.id) {
+                classify(verify_exception_at(live_record, now), " (tracked store)");
+            } else {
                 verdict = verdict.worst(Verdict::Degraded);
-                details.push(format!("unattributed exception {}", ex.id));
-            }
-            other => {
-                // An applied exception that is revoked/expired/invalid is
-                // a relied-upon deviation that no longer holds → block.
-                verdict = verdict.worst(Verdict::Block);
-                details.push(format!("{} exception {}", other.as_str(), ex.id));
+                details.push(format!(
+                    "exception {} is no longer in the tracked store (revocation is a \
+                     soft delete — a vanished record means the store was rewritten)",
+                    ex.id,
+                ));
             }
         }
     }
@@ -661,6 +689,84 @@ mod tests {
         assert_eq!(check.verdict, Verdict::Pass, "detail: {:?}", check.detail);
     }
 
+    /// EXCEPT-009 council HIGH: a grant revoked in the tracked store
+    /// AFTER capsule create must still block verify — the frozen
+    /// snapshot alone would report it Active; the live-store recheck
+    /// catches it.
+    #[test]
+    fn exceptions_since_revoked_grant_blocks_verify() {
+        let (dir, base, head) = scratch_repo();
+        let now = Utc::now();
+        let grant = applied_exception(now);
+        let grant_id = grant.id.clone();
+        let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+        store.add(grant);
+        let outcome = store.save(dir.path()).unwrap();
+        assert!(matches!(
+            outcome,
+            anvil_policy::exceptions::WriteOutcome::Written
+        ));
+
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        // Revoke AFTER the capsule froze its snapshot.
+        let write = anvil_policy::exceptions::ExceptionStore::update(dir.path(), |store| {
+            if let Some(ex) = store.exceptions.iter_mut().find(|ex| ex.id == grant_id) {
+                ex.revoked = Some(anvil_policy::exceptions::ExceptionRevocation {
+                    revoked_at: Utc::now(),
+                    revoked_by: "bob".to_string(),
+                    reason: "withdrawn".to_string(),
+                });
+            }
+        })
+        .unwrap();
+        assert!(matches!(
+            write,
+            anvil_policy::exceptions::WriteOutcome::Written
+        ));
+
+        let v = verify_capsule_at(&out, dir.path(), now);
+        let check = v
+            .checks
+            .iter()
+            .find(|c| c.name == CHECK_EXCEPTIONS)
+            .unwrap();
+        assert_eq!(
+            check.verdict,
+            Verdict::Block,
+            "since-revoked grant must block: {:?}",
+            check.detail
+        );
+    }
+
+    /// EXCEPT-009 council: a snapshot grant missing from the tracked
+    /// store degrades verify (revocation is a soft delete — a vanished
+    /// record means the store was rewritten).
+    #[test]
+    fn exceptions_grant_missing_from_live_store_degrades_verify() {
+        let (dir, base, head) = scratch_repo();
+        let now = Utc::now();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+        // Plant a snapshot grant the live (absent) store never had.
+        let exceptions = vec![applied_exception(now)];
+        rewrite_recorded(
+            &out,
+            "exceptions.json",
+            &serde_json::to_vec(&exceptions).unwrap(),
+        );
+        let v = verify_capsule_at(&out, dir.path(), now);
+        let check = v
+            .checks
+            .iter()
+            .find(|c| c.name == CHECK_EXCEPTIONS)
+            .unwrap();
+        assert_eq!(check.verdict, Verdict::Degraded, "{:?}", check.detail);
+    }
+
     /// EXCEPT-009 end-to-end: an unattributed grant collected at
     /// create time degrades verify through the real pipeline.
     #[test]
@@ -714,11 +820,16 @@ mod tests {
     #[test]
     fn verify_passes_with_a_valid_applied_exception() {
         let (dir, base, head) = scratch_repo();
+        let now = Utc::now();
+        // The live tracked store must carry the grant too: verify
+        // re-consults it, and a snapshot-only grant degrades.
+        let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+        store.add(applied_exception(now));
+        let _ = store.save(dir.path()).unwrap();
         let stage = tempfile::tempdir().unwrap();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
-        let now = Utc::now();
         let exceptions = vec![applied_exception(now)];
         rewrite_recorded(
             &out,

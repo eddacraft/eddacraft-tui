@@ -116,6 +116,7 @@ pub fn write_capsule(
     // filesystem — so secret-bearing evidence never reaches a tracked
     // write and no partial capsule directory is left behind.
     scan_evidence_for_secrets(&files)?;
+    scan_exception_prose_for_secrets(&content.exceptions)?;
 
     prepare_out_dir(out_dir)?;
 
@@ -177,12 +178,12 @@ pub fn write_capsule(
 /// # Known limitation (tracked: GITGOV-012)
 ///
 /// With entropy disabled, free-text coverage is limited to
-/// prefix-anchored secret shapes. The free-text-bearing files ADR-072
-/// §3 names — applied-exception `reason` strings and Edda prose — are
-/// inert placeholders today (`exceptions.json` = `[]`,
-/// `edda-context.json` = `{}`). When EXCEPT-009 / EDDA-SEAL wire real
-/// prose into those files, they must scan with entropy enabled: the
-/// digest-density rationale for disabling it does not hold for prose.
+/// prefix-anchored secret shapes. Free-text exception prose gets the
+/// entropy-enabled pass in [`scan_exception_prose_for_secrets`] —
+/// the digest-density rationale for disabling entropy here does not
+/// hold for prose (ADR-072 §3). `edda-context.json` remains an inert
+/// `{}` placeholder; EDDA-SEAL owes it the same prose pass when it
+/// wires real content.
 fn scan_evidence_for_secrets(files: &[(&str, Vec<u8>)]) -> Result<(), CapsuleError> {
     let config = SecretCheckConfig {
         enable_entropy: false,
@@ -208,6 +209,49 @@ fn scan_evidence_for_secrets(files: &[(&str, Vec<u8>)]) -> Result<(), CapsuleErr
                 count: findings.len(),
             });
         }
+    }
+    Ok(())
+}
+
+/// Entropy-enabled scan over the exception grants' free-text fields
+/// (`reason`, `owner`, `created_by`) only. The whole-file scan above
+/// keeps entropy off because evidence is digest-dense (hex shas would
+/// false-positive constantly); prose has no such excuse, and a bare
+/// high-entropy token pasted into a grant reason must not land in a
+/// tracked capsule (ADR-072 §3, the gap the EXCEPT-009 wiring would
+/// otherwise open).
+fn scan_exception_prose_for_secrets(
+    exceptions: &crate::collect_exceptions::CollectedExceptions,
+) -> Result<(), CapsuleError> {
+    let mut prose = String::new();
+    for ex in &exceptions.exceptions {
+        for field in [
+            Some(ex.reason.as_str()),
+            ex.owner.as_deref(),
+            ex.created_by.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            prose.push_str(field);
+            prose.push('\n');
+        }
+    }
+    if prose.trim().is_empty() {
+        return Ok(());
+    }
+    let config = SecretCheckConfig {
+        enable_entropy: true,
+        max_line_bytes: usize::MAX,
+        ..SecretCheckConfig::default()
+    };
+    let findings =
+        scan_content_with_compiled_patterns(&prose, "exceptions.json", &config, &[], usize::MAX).0;
+    if !findings.is_empty() {
+        return Err(CapsuleError::SecretInEvidence {
+            file: "exceptions.json".to_string(),
+            count: findings.len(),
+        });
     }
     Ok(())
 }
@@ -584,6 +628,43 @@ mod tests {
             changed_paths: vec!["config/AKIAIOSFODNN7EXAMPLE.env".to_string()],
         });
         content
+    }
+
+    /// EXCEPT-009 / ADR-072 §3: a high-entropy token pasted into a
+    /// grant's free-text reason fails capsule creation via the
+    /// entropy-enabled prose pass (the whole-file scan keeps entropy
+    /// off for digest-dense evidence and would miss it).
+    #[test]
+    fn write_capsule_secret_in_exception_reason_fails_creation() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("capsule");
+        let mut content = sample_content();
+        content
+            .exceptions
+            .exceptions
+            .push(anvil_policy::exceptions::PolicyException {
+                schema_version: "anvil.exception.v1".to_string(),
+                id: "exc_prose_test".to_string(),
+                policy_id: "AP-001".to_string(),
+                file_pattern: String::new(),
+                finding_hash: None,
+                reason: "temp access, token: Zk9qX2tRb1B3N3lMc0RhVGdVaEplRnZCbU5wUXJTdA=="
+                    .to_string(),
+                owner: Some("team".to_string()),
+                created_by: Some("alice".to_string()),
+                created_at: chrono::Utc::now(),
+                expires_at: None,
+                revoked: None,
+            });
+        let err = write_capsule(&out, &content).expect_err("secret-shaped reason must refuse");
+        assert!(
+            matches!(
+                err,
+                CapsuleError::SecretInEvidence { ref file, .. } if file == "exceptions.json"
+            ),
+            "{err:?}",
+        );
+        assert!(!out.exists() || !out.join("manifest.json").exists());
     }
 
     /// GITGOV-012 / ADR-072 §3 scan-on-write: secret-shaped bytes bound

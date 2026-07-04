@@ -57,13 +57,20 @@ pub fn collect_exceptions(repo_root: &Path) -> Result<CollectedExceptions, Capsu
     collect_exceptions_at(repo_root, Utc::now())
 }
 
-/// [`collect_exceptions`] at an explicit `now` (testing).
-pub fn collect_exceptions_at(
+/// [`collect_exceptions`] at an explicit `now` — deterministic
+/// expiry-boundary evaluation for tests and crate-internal callers.
+pub(crate) fn collect_exceptions_at(
     repo_root: &Path,
     now: DateTime<Utc>,
 ) -> Result<CollectedExceptions, CapsuleError> {
     let store = ExceptionStore::load(repo_root).map_err(|e| CapsuleError::Collect {
-        path: "anvil/exceptions/store.json".to_string(),
+        // Name the store that actually failed: load() falls back to
+        // the legacy local file when the tracked store is absent.
+        path: if repo_root.join("anvil/exceptions/store.json").exists() {
+            "anvil/exceptions/store.json".to_string()
+        } else {
+            ".anvil/exceptions.json".to_string()
+        },
         detail: e.to_string(),
     })?;
     Ok(CollectedExceptions {
@@ -150,6 +157,34 @@ mod tests {
         let collected = collect_exceptions(tmp.path()).unwrap();
         assert_eq!(collected.exceptions.len(), 1);
         assert_eq!(collected.exceptions[0].policy_id, "AP-003");
+    }
+
+    /// Deterministic expiry boundary: a grant expiring exactly at
+    /// `now` is still active (expiry is strict `>`), one second past
+    /// is not. Drives `collect_exceptions_at` directly.
+    #[test]
+    fn collect_exceptions_at_expiry_boundary_is_deterministic() {
+        let tmp = TempDir::new().unwrap();
+        let now = Utc::now();
+        save(tmp.path(), vec![grant("AP-001", Some(now))]);
+        let at_boundary = collect_exceptions_at(tmp.path(), now).unwrap();
+        assert_eq!(at_boundary.exceptions.len(), 1, "expiry is exclusive");
+        let past = collect_exceptions_at(tmp.path(), now + Duration::seconds(1)).unwrap();
+        assert!(past.exceptions.is_empty(), "past expiry must not collect");
+    }
+
+    /// A broken LEGACY store names the legacy file in the error, not
+    /// the tracked path that does not exist.
+    #[test]
+    fn collect_exceptions_broken_legacy_store_names_legacy_path() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/exceptions.json"), "{not json").unwrap();
+        let err = collect_exceptions(tmp.path()).expect_err("broken legacy must fail");
+        assert!(
+            matches!(err, CapsuleError::Collect { ref path, .. } if path == ".anvil/exceptions.json"),
+            "{err:?}",
+        );
     }
 
     /// A present-but-broken store fails collection loudly — the
