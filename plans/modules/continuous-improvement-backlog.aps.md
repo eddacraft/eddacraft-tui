@@ -4485,7 +4485,11 @@ archive.
 
 ### CIB-165: Default the GitHub Actions workflow picker to unticked
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3179
+- **Summary:** Both GitHub Actions picker options (PR validation, Nightly
+  audit) now start unticked in `orchestrator/mod.rs`, so an Enter-through
+  writes no `.github/workflows/*.yml`; ticking a workflow is the explicit
+  consent. No extra confirm step or separate `anvil ci install` command.
 - **Owner decision (2026-07-04):** default-unticked. Both workflow options
   start unselected; the user must actively tick to get CI files written, so a
   hurried Enter-through writes nothing. No extra confirm step and no separate
