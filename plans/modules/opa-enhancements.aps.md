@@ -161,17 +161,30 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Status:** Done — `anvil policy install <PACK-ID>` (plus `install --list` and
   `show`) installs the compile-time-embedded `anvil-baseline` starter pack
   (`change_scope` + `sensitive_paths`, shaped over `input.diff.changed_files`)
-  into `<workspace>/.anvil/policies/<pack-id>/`. Install refuses to overwrite
-  existing files without `--force` (fail-closed, naming them), runs the POLVAL
-  admission stack (load_manifest → validate_pack → run_pack_tests →
-  enforce_tests) over the installed copy, and rolls back completely on a failing
-  or invalid pack so the live gate directory never holds a partial pack. A
-  `provenance.yaml` records pack id, version, `installed_from: bundled:<version>`,
-  and a sha256 per file (no timestamps — VCS records when). Verified: the gate
-  discovers the installed `.rego` recursively, excludes nested `*_test.rego`, and
-  ignores `provenance.yaml`. Validation: `cargo test -p eddacraft-anvil --
-  policy_install` (11 passed) and `cargo test -p eddacraft-anvil -- policy` (96
-  passed).
+  into `<workspace>/.anvil/policies/<pack-id>/`. Install canonicalises the
+  destination and refuses to write when `.anvil` resolves outside the workspace
+  root (path-containment breach, fail-fast, nothing written), refuses to
+  overwrite existing files without `--force` (fail-closed, naming them; this is
+  also the recovery path for a crash-interrupted install, since the rollback
+  journal is in-memory not crash-safe), runs the POLVAL admission stack
+  (load_manifest → validate_pack → run_pack_tests → enforce_tests) over the
+  installed copy, and rolls back completely on a failing or invalid pack so the
+  live gate directory never holds a partial pack. A `provenance.yaml` records
+  pack id, version, `installed_from: bundled:<version>`, and a sha256 per file
+  (no timestamps — VCS records when).
+- **Posture decision (advisory-first, slice 1):** the starter pack is advisory by
+  design — both policies emit only `warning`-tier findings (no `violation`/`deny`
+  rule) so the pack surfaces in the gate without ever failing it, and neither
+  policy reads a `config` escape hatch (there is no per-workspace override on the
+  current `PolicyInput` v1 contract; thresholds are fixed in-rego defaults).
+  Blocking behaviour is deferred to Anvil's posture-driven enforcement routing (a
+  later OPAE contract, per ADR-098 AD-5), not carried by Rego severity.
+  `sensitive_paths` remediation points at review and the future
+  `anvil exception grant <rule-id>` path, not at config keys. Verified: the gate
+  discovers the installed `.rego` recursively (warning-class surfacing, no gate
+  failure), excludes nested `*_test.rego`, and ignores `provenance.yaml`.
+  Validation: `cargo test -p eddacraft-anvil -- policy_install` (13 passed) and
+  `cargo test -p eddacraft-anvil -- policy` (98 passed).
 - **Intent:** Provide a local install/list/show path for starter packs without a
   remote marketplace.
 - **Expected Outcome:** `anvil policy install` can install bundled starter packs

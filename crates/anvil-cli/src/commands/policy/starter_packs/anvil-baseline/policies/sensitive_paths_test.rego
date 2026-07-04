@@ -1,4 +1,9 @@
 # Tests for the sensitive_paths policy.
+#
+# Every case uses the real production input shape (PolicyInput v1:
+# `input.diff.changed_files`). There is no injected `config` key — the policy
+# reads none. The policy is advisory-only: it defines no `violation` rule, so
+# these cases assert on `warning` alone.
 
 package anvil.policies.sensitive_paths_test
 
@@ -6,32 +11,27 @@ import rego.v1
 
 import data.anvil.policies.sensitive_paths
 
-# A workflow change without acknowledgement is a violation.
-test_workflow_change_violates if {
-	count(sensitive_paths.violation) > 0 with input as {"diff": {"changed_files": [".github/workflows/ci.yml"]}}
+# Positive (precise): a workflow change raises an advisory.
+test_workflow_change_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": [".github/workflows/ci.yml"]}}
 }
 
-# The same change with an explicit acknowledgement passes.
-test_acknowledged_change_passes if {
-	count(sensitive_paths.violation) == 0 with input as {
-		"diff": {"changed_files": [".github/workflows/ci.yml"]},
-		"config": {"review_acknowledged": true},
-	}
+# Positive (precise): an environment file raises an advisory.
+test_env_file_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["config/.env.production"]}}
 }
 
-# An ordinary source change is neither a violation nor a warning.
+# Positive (heuristic): a secret-adjacent name raises an advisory.
+test_token_file_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/token_store.rs"]}}
+}
+
+# Negative: an ordinary source change raises no advisory.
 test_ordinary_change_is_clean if {
-	count(sensitive_paths.violation) == 0 with input as {"diff": {"changed_files": ["src/app.rs"]}}
 	count(sensitive_paths.warning) == 0 with input as {"diff": {"changed_files": ["src/app.rs"]}}
 }
 
-# An environment file is treated as sensitive.
-test_env_file_violates if {
-	count(sensitive_paths.violation) > 0 with input as {"diff": {"changed_files": ["config/.env.production"]}}
-}
-
-# A secret-adjacent name that is not on the sensitive list warns only.
-test_token_file_warns_not_violates if {
-	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/token_store.rs"]}}
-	count(sensitive_paths.violation) == 0 with input as {"diff": {"changed_files": ["src/token_store.rs"]}}
+# A precise match is not double-counted as a heuristic match.
+test_precise_match_counts_once if {
+	count(sensitive_paths.warning) == 1 with input as {"diff": {"changed_files": [".github/workflows/ci.yml"]}}
 }

@@ -1,4 +1,8 @@
 # Tests for the change_scope policy.
+#
+# Every case uses the real production input shape (PolicyInput v1:
+# `input.diff.changed_files`). There is no injected `config` key — the policy
+# reads none.
 
 package anvil.policies.change_scope_test
 
@@ -6,28 +10,26 @@ import rego.v1
 
 import data.anvil.policies.change_scope
 
-# A small change set trips neither the soft nor the hard bound.
+# Negative: a small change set raises no advisory.
 test_small_change_set_is_clean if {
-	count(change_scope.violation) == 0 with input as {"diff": {"changed_files": ["src/a.rs", "src/b.rs"]}}
 	count(change_scope.warning) == 0 with input as {"diff": {"changed_files": ["src/a.rs", "src/b.rs"]}}
 }
 
-# A change set above the soft bound but below the ceiling warns, not refuses.
-test_moderate_change_set_warns if {
-	files := ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12"]
+# Threshold: exactly at the soft limit is still clean (the check is strict `>`).
+test_soft_boundary_is_clean if {
+	files := [sprintf("f%d.rs", [n]) | some n in numbers.range(1, 10)]
+	count(files) == 10
+	count(change_scope.warning) == 0 with input as {"diff": {"changed_files": files}}
+}
+
+# Positive: crossing the soft threshold raises one advisory.
+test_soft_threshold_warns if {
+	files := [sprintf("f%d.rs", [n]) | some n in numbers.range(1, 12)]
 	count(change_scope.warning) > 0 with input as {"diff": {"changed_files": files}}
-	count(change_scope.violation) == 0 with input as {"diff": {"changed_files": files}}
 }
 
-# A change set past the ceiling is a violation.
-test_oversized_change_set_violates if {
+# Positive: past the hard threshold raises an advisory too.
+test_hard_threshold_warns if {
 	files := [sprintf("f%d.rs", [n]) | some n in numbers.range(1, 30)]
-	count(files) == 30
-	count(change_scope.violation) > 0 with input as {"diff": {"changed_files": files}}
-}
-
-# The ceiling is configurable through the input config object.
-test_ceiling_is_configurable if {
-	files := ["a", "b", "c", "d"]
-	count(change_scope.violation) > 0 with input as {"diff": {"changed_files": files}, "config": {"max_changed_files": 3}}
+	count(change_scope.warning) > 0 with input as {"diff": {"changed_files": files}}
 }

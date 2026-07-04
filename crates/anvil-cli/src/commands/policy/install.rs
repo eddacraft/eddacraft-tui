@@ -11,6 +11,22 @@
 //! live gate directory never holds an invalid pack. A `provenance.yaml` records
 //! the pack id, version, install source, and a sha256 for every installed file
 //! (no timestamps — the version control history records when).
+//!
+//! ## Path containment
+//!
+//! The destination is resolved and canonicalised before anything is written:
+//! the deepest existing ancestor of the pack directory must stay within the
+//! canonical workspace root (so a `.anvil` symlinked outside the workspace is a
+//! reported install failure with nothing written). The same guard is applied
+//! per-write inside the [`Journal`] as defence in depth.
+//!
+//! ## Crash-safety
+//!
+//! The rollback [`Journal`] is in-memory only, not a crash-safe transaction: a
+//! process killed mid-install can leave partially-written files on disk. The
+//! recovery path is the existing-files pre-check — the next `install` without
+//! `--force` detects and names those files and refuses, so a partial install is
+//! visible rather than silently completed.
 
 use std::collections::BTreeSet;
 use std::io;
@@ -66,6 +82,16 @@ impl BundledPack {
         manifest
             .validate()
             .with_context(|| format!("validating embedded manifest for pack `{}`", self.id))?;
+        // Guard against a dual id source drifting: the enumeration id and the
+        // manifest's own `id` must agree, or install/show would key off one
+        // while the gate directory is named for the other.
+        if manifest.id != self.id {
+            bail!(
+                "embedded pack id mismatch: registry id `{}` but manifest declares `{}`",
+                self.id,
+                manifest.id
+            );
+        }
         Ok(manifest)
     }
 
@@ -167,15 +193,67 @@ enum InstallOutcome {
     },
 }
 
+/// Canonicalise `path`'s deepest existing ancestor and require it to stay
+/// within `canonical_root`. Purely a containment check — it creates nothing.
+///
+/// `path` itself usually does not exist yet (it is about to be created), so the
+/// check walks up to the first ancestor that does exist and canonicalises that:
+/// a `.anvil` directory symlinked outside the workspace canonicalises outside
+/// `canonical_root` and is rejected before any content is written. This mirrors
+/// the gate's bundle containment guard (`gate.rs` `run_check_policy`) and the
+/// pack loader's `resolve_member_path`.
+fn ensure_within_root(canonical_root: &Path, path: &Path) -> io::Result<()> {
+    let mut cursor = path;
+    let existing = loop {
+        if cursor.exists() {
+            break cursor;
+        }
+        match cursor.parent() {
+            Some(parent) => cursor = parent,
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("no existing ancestor of {} to resolve", path.display()),
+                ));
+            }
+        }
+    };
+    let canonical = existing.canonicalize()?;
+    if canonical.starts_with(canonical_root) {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "{} resolves outside the workspace root (path containment breach)",
+                path.display()
+            ),
+        ))
+    }
+}
+
 /// Journal of filesystem effects so an install can be fully undone.
-#[derive(Default)]
+///
+/// Holds the canonical workspace root so every write and directory creation can
+/// re-check containment as defence in depth (the caller has already checked the
+/// destination once, fail-fast, before the journal is used).
 struct Journal {
+    root: PathBuf,
     created_files: Vec<PathBuf>,
     restored: Vec<(PathBuf, Vec<u8>)>,
     created_dirs: Vec<PathBuf>,
 }
 
 impl Journal {
+    fn new(canonical_root: PathBuf) -> Self {
+        Self {
+            root: canonical_root,
+            created_files: Vec::new(),
+            restored: Vec::new(),
+            created_dirs: Vec::new(),
+        }
+    }
+
     /// Undo every recorded effect: remove created files, restore overwritten
     /// files to their original bytes, then remove created directories deepest
     /// first. Best-effort — each step ignores its own error so one failure does
@@ -193,7 +271,9 @@ impl Journal {
     }
 
     /// Create `dir` and any missing ancestors, recording each newly-created
-    /// directory so rollback can remove them.
+    /// directory so rollback can remove them. Containment is re-checked before
+    /// each new directory is created so a race that swaps an ancestor for an
+    /// escaping symlink is still caught.
     fn create_dirs(&mut self, dir: &Path) -> io::Result<()> {
         if dir.exists() {
             return Ok(());
@@ -208,6 +288,7 @@ impl Journal {
             cursor = candidate.parent();
         }
         for candidate in pending.iter().rev() {
+            ensure_within_root(&self.root, candidate)?;
             std::fs::create_dir(candidate)?;
             self.created_dirs.push(candidate.clone());
         }
@@ -216,10 +297,12 @@ impl Journal {
 
     /// Write `contents` to `abs`, recording enough to undo it. An existing file
     /// is backed up before it is overwritten so rollback restores it exactly.
+    /// Containment is re-checked before the write (defence in depth).
     fn write(&mut self, abs: &Path, contents: &[u8]) -> io::Result<()> {
         if let Some(parent) = abs.parent() {
             self.create_dirs(parent)?;
         }
+        ensure_within_root(&self.root, abs)?;
         if abs.exists() {
             let original = std::fs::read(abs)?;
             std::fs::write(abs, contents)?;
@@ -248,6 +331,17 @@ fn install_pack_files(
     force: bool,
 ) -> Result<InstallOutcome> {
     let dest_dir = workspace.join(".anvil/policies").join(pack_id);
+
+    // Path containment (fail-fast, before anything is written): canonicalise the
+    // workspace root and require the destination's deepest existing ancestor to
+    // resolve within it. A `.anvil` symlinked outside the workspace is a
+    // reported install failure, not a write through the link.
+    let canonical_root = workspace
+        .canonicalize()
+        .with_context(|| format!("resolving workspace root {}", workspace.display()))?;
+    if let Err(e) = ensure_within_root(&canonical_root, &dest_dir) {
+        bail!("refusing to install into {}: {e}", dest_dir.display());
+    }
 
     // Provenance hashes every pack file's bytes, in declared order.
     let provenance = Provenance {
@@ -292,7 +386,7 @@ fn install_pack_files(
     }
 
     // Write everything, journaling for rollback.
-    let mut journal = Journal::default();
+    let mut journal = Journal::new(canonical_root);
     let mut written = Vec::with_capacity(write_set.len());
     for (rel, bytes) in &write_set {
         let abs = dest_dir.join(rel);
@@ -791,10 +885,9 @@ mod tests {
         let mut files = baseline_files();
         for file in &mut files {
             if file.rel == "policies/change_scope.rego" {
-                // Neuter the violation rule: the ceiling test can never pass.
-                file.contents = file
-                    .contents
-                    .replace("changed_count > max_changed_files", "false");
+                // Neuter the soft-threshold rule so its `test_soft_threshold_warns`
+                // sibling can never pass — admission fails, forcing a rollback.
+                file.contents = file.contents.replace("changed_count > soft_limit", "false");
             }
         }
 
@@ -833,9 +926,7 @@ mod tests {
         let mut broken = baseline_files();
         for file in &mut broken {
             if file.rel == "policies/change_scope.rego" {
-                file.contents = file
-                    .contents
-                    .replace("changed_count > max_changed_files", "false");
+                file.contents = file.contents.replace("changed_count > soft_limit", "false");
             }
         }
         let outcome = install_pack_files(ws.path(), "anvil-baseline", &version, &broken, true)
@@ -866,6 +957,68 @@ mod tests {
         // gate excludes it by suffix; provenance.yaml is not a .rego at all.
         assert!(dir.join("change_scope.rego").is_file());
         assert!(dir.join("change_scope_test.rego").is_file());
+    }
+
+    #[test]
+    fn policy_install_pack_is_advisory_only() {
+        // Advisory-first (slice 1): the starter pack defines no `violation` or
+        // `deny` rule, so the gate only ever surfaces warnings — never a block —
+        // from it. Blocking arrives later via posture-driven enforcement
+        // routing, not via Rego severity.
+        for file in baseline_files() {
+            let is_rego = Path::new(&file.rel)
+                .extension()
+                .is_some_and(|e| e == "rego");
+            if is_rego && !file.rel.ends_with("_test.rego") {
+                assert!(
+                    !file.contents.contains("violation contains"),
+                    "{} must define no violation rule (advisory-first)",
+                    file.rel
+                );
+                assert!(
+                    !file.contents.contains("deny contains"),
+                    "{} must define no deny rule (advisory-first)",
+                    file.rel
+                );
+                // No dead references to a non-existent input config escape hatch.
+                assert!(
+                    !file.contents.contains("input.config"),
+                    "{} must not read input.config (not on the PolicyInput contract)",
+                    file.rel
+                );
+            }
+        }
+    }
+
+    // A `.anvil` symlinked outside the workspace must be a reported install
+    // failure with nothing written through the link. Unix-only (symlink API).
+    #[cfg(unix)]
+    #[test]
+    fn policy_install_refuses_escaping_anvil_symlink() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        std::os::unix::fs::symlink(outside.path(), ws.path().join(".anvil")).expect("symlink");
+
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        let err = install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        )
+        .expect_err("an escaping .anvil symlink must be refused");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("containment") || msg.contains("outside"),
+            "{msg}"
+        );
+        // The external directory the link points at is untouched — nothing was
+        // written through the symlink.
+        assert!(
+            !outside.path().join("policies").exists(),
+            "external dir must be untouched"
+        );
     }
 
     #[test]
