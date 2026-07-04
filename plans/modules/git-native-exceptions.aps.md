@@ -126,4 +126,4 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** A recorded provenance decision (ADR or decision-log entry) enforced by the gate loader, with CI semantics bound explicitly. 2026-07-04 owner decision: **tip-of-pushed-range tree loading (ADR-100)** — suppression authority must be committed; pre-push uses `local_sha`, `l4-validate` uses the range head, audit-chain uses the audited checkout's HEAD; tip-without-store/unreadable/oversized = no exceptions (fail-safe); legacy local store never influences gates.
 - **Validation:** ADR-100 + `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (incl. `uncommitted_worktree_grant_does_not_apply`)
 - **Dependencies:** EXCEPT-006
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3168
