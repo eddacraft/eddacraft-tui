@@ -1,4 +1,5 @@
 pub mod diagnostics;
+pub mod enforcement;
 mod events;
 pub mod feature_flags;
 pub mod feature_flags_catalogue;
@@ -12,8 +13,10 @@ pub mod trust;
 pub mod watch_event;
 
 pub use diagnostics::{
-    Category, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location, Mode, Severity,
+    Category, ControlDecision, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location,
+    Mode, Severity,
 };
+pub use enforcement::EnforcementMode;
 pub use events::{EngineEvent, ErrorCode, ErrorPayload, EventPayload, EventType};
 pub use feature_flags::{
     AudienceContext, Channel, ConditionValue, EnvironmentContext, EnvironmentName,
