@@ -4779,3 +4779,24 @@ archive.
 - **Identified From:** CIB-167 (activation state comprehension); tier-vocabulary
   question deferred to the owner as a rendered-contract decision.
 - **Confidence:** high — decided 2026-07-04 (render-only, non-breaking).
+
+### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests
+
+- **Status:** Ready
+- **Intent:** `eddacraft-anvil-policy` tests that write a fixture script and
+  immediately exec it (`eval::adapter::tests::eval_harness_exit_code_classification`,
+  `eval_harness_adapter_subprocess_drains_large_output_without_deadlock`,
+  `opa::tests::evaluate_passes_restricted_capabilities_to_opa`,
+  `evaluate_propagates_stderr_on_nonzero_exit`) flake intermittently under
+  parallel runs with "Text file busy (os error 26)" — the classic ETXTBSY
+  race: a concurrently-forked child still holds the script's write fd open
+  when another thread execs it. Observed repeatedly on 2026-07-04 across
+  unrelated EXCEPT-wave runs; disappears on retry, so it burns re-diagnosis
+  effort per encounter.
+- **Expected Outcome:** The fixture-exec helpers close/drop the write handle
+  before spawning (write to a temp name then rename, or write+close+exec via
+  a helper that pins the fd lifecycle), or the affected tests serialise their
+  spawns; the four tests pass repeatedly under a parallel full-crate run.
+- **Validation:** `for i in 1..20: cargo test -p eddacraft-anvil-policy` with
+  zero ETXTBSY failures
+- **Dependencies:** —
