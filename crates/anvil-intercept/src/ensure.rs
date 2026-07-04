@@ -150,9 +150,11 @@ pub(crate) trait DaemonProbe {
 /// is tested without spawning real processes.
 pub trait DaemonLauncher {
     /// Spawn a detached background daemon, redirecting its stdout/stderr to
-    /// `log_path`. Returns once the child is spawned — **not** once it has bound;
-    /// the caller bound-waits via the probe.
-    fn spawn_detached(&self, log_path: &Path) -> io::Result<()>;
+    /// `log_path`. Returns the spawned child's PID once the child is spawned —
+    /// **not** once it has bound; the caller bound-waits via the probe. The
+    /// ensure state machine ignores the PID; the save-time driver supervisor
+    /// (DSV-047) records it for later termination and liveness reporting.
+    fn spawn_detached(&self, log_path: &Path) -> io::Result<u32>;
 }
 
 /// The deterministic outcome of `ensure_daemon` on platforms without background
@@ -535,6 +537,7 @@ fn status_query_round_trip(stream: &std::os::unix::net::UnixStream) -> Result<()
 pub struct DetachedCommandLauncher {
     program: PathBuf,
     args: Vec<std::ffi::OsString>,
+    envs: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 }
 
 #[cfg(unix)]
@@ -542,13 +545,30 @@ impl DetachedCommandLauncher {
     /// Build a launcher that runs `program` with `args` detached.
     #[must_use]
     pub fn new(program: PathBuf, args: Vec<std::ffi::OsString>) -> Self {
-        Self { program, args }
+        Self {
+            program,
+            args,
+            envs: Vec::new(),
+        }
+    }
+
+    /// Add an environment variable set on the spawned child (on top of the
+    /// inherited environment). The save-time driver supervisor (DSV-047) hands
+    /// the findings-log path to its child this way.
+    #[must_use]
+    pub fn with_env(
+        mut self,
+        key: impl Into<std::ffi::OsString>,
+        value: impl Into<std::ffi::OsString>,
+    ) -> Self {
+        self.envs.push((key.into(), value.into()));
+        self
     }
 }
 
 #[cfg(unix)]
 impl DaemonLauncher for DetachedCommandLauncher {
-    fn spawn_detached(&self, log_path: &Path) -> io::Result<()> {
+    fn spawn_detached(&self, log_path: &Path) -> io::Result<u32> {
         use std::fs::OpenOptions;
         use std::os::unix::fs::OpenOptionsExt;
         use std::os::unix::process::CommandExt;
@@ -579,6 +599,7 @@ impl DaemonLauncher for DetachedCommandLauncher {
 
         let mut cmd = Command::new(&self.program);
         cmd.args(&self.args)
+            .envs(self.envs.iter().map(|(k, v)| (k, v)))
             .stdin(Stdio::null())
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(log_err))
@@ -594,8 +615,8 @@ impl DaemonLauncher for DetachedCommandLauncher {
         // Detached: deliberately drop the Child handle without waiting. The
         // parent bound-waits via the probe, not via the child; the daemon
         // outlives a short-lived `start` and reparents to init on parent exit.
-        let _child = cmd.spawn()?;
-        Ok(())
+        let child = cmd.spawn()?;
+        Ok(child.id())
     }
 }
 
@@ -780,19 +801,37 @@ fn pipe_status_query_round_trip(
 pub struct DetachedCommandLauncher {
     program: PathBuf,
     args: Vec<std::ffi::OsString>,
+    envs: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 }
 
 #[cfg(windows)]
 impl DetachedCommandLauncher {
     #[must_use]
     pub fn new(program: PathBuf, args: Vec<std::ffi::OsString>) -> Self {
-        Self { program, args }
+        Self {
+            program,
+            args,
+            envs: Vec::new(),
+        }
+    }
+
+    /// Add an environment variable set on the spawned child (on top of the
+    /// inherited environment). The save-time driver supervisor (DSV-047) hands
+    /// the findings-log path to its child this way.
+    #[must_use]
+    pub fn with_env(
+        mut self,
+        key: impl Into<std::ffi::OsString>,
+        value: impl Into<std::ffi::OsString>,
+    ) -> Self {
+        self.envs.push((key.into(), value.into()));
+        self
     }
 }
 
 #[cfg(windows)]
 impl DaemonLauncher for DetachedCommandLauncher {
-    fn spawn_detached(&self, log_path: &Path) -> io::Result<()> {
+    fn spawn_detached(&self, log_path: &Path) -> io::Result<u32> {
         use std::fs::OpenOptions;
         use std::os::windows::process::CommandExt;
         use std::process::{Command, Stdio};
@@ -806,7 +845,12 @@ impl DaemonLauncher for DetachedCommandLauncher {
         if log_path.exists() {
             let mut rotated = log_path.as_os_str().to_owned();
             rotated.push(".1");
-            let _ = std::fs::rename(log_path, PathBuf::from(rotated));
+            // Windows `rename` fails over an existing destination (unlike
+            // POSIX), so drop the prior generation first; a failed rotation
+            // must not block the spawn (`append` keeps the log usable).
+            let rotated = PathBuf::from(rotated);
+            let _ = std::fs::remove_file(&rotated);
+            let _ = std::fs::rename(log_path, rotated);
         }
         let log = OpenOptions::new()
             .create(true)
@@ -816,12 +860,13 @@ impl DaemonLauncher for DetachedCommandLauncher {
 
         let mut cmd = Command::new(&self.program);
         cmd.args(&self.args)
+            .envs(self.envs.iter().map(|(k, v)| (k, v)))
             .stdin(Stdio::null())
             .stdout(Stdio::from(log))
             .stderr(Stdio::from(log_err))
             .creation_flags(CREATE_NO_WINDOW);
-        let _child = cmd.spawn()?;
-        Ok(())
+        let child = cmd.spawn()?;
+        Ok(child.id())
     }
 }
 
@@ -921,7 +966,7 @@ mod tests {
     }
 
     impl DaemonLauncher for FakeLauncher {
-        fn spawn_detached(&self, _log_path: &Path) -> io::Result<()> {
+        fn spawn_detached(&self, _log_path: &Path) -> io::Result<u32> {
             if self.fail {
                 return Err(io::Error::other("boom"));
             }
@@ -936,7 +981,7 @@ mod tests {
                     flips.store(true, Ordering::SeqCst);
                 });
             }
-            Ok(())
+            Ok(1)
         }
     }
 

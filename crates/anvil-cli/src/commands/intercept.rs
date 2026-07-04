@@ -1227,6 +1227,13 @@ fn run_start(args: &StartArgs) -> Result<()> {
         let enforcement_config = config::load_for_daemon_cwd()
             .context("anvil intercept: failed to load enforcement config")?;
         let opts = ForegroundOpts::default().with_enforcement_config(enforcement_config);
+        // DSV-047: this entry point IS the `anvil` CLI binary, so the
+        // supervisor's `current_exe()` re-exec contract for
+        // `anvil watch --save-time-driver` children holds — opt in. The
+        // operator-facing `ANVIL_NO_SAVE_TIME_DRIVER` opt-out is honoured
+        // inside the daemon on top of this.
+        #[cfg(any(unix, windows))]
+        let opts = opts.with_save_time_drivers();
         // USAGE-004: inject the command-invocation usage producer so the
         // daemon records `command.invoked` rows for allowlisted JSON-RPC
         // methods to the shared usage sidecar. `None` (unresolvable state

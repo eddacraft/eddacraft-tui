@@ -76,6 +76,7 @@ pub mod snapshot_io;
 // rather than a bare fd, so they are no longer Unix-only.
 #[cfg(any(unix, windows))]
 pub mod save_time;
+pub mod save_time_driver;
 pub mod status;
 pub mod store_io;
 pub mod tag_env;
@@ -445,6 +446,16 @@ pub struct ForegroundOpts {
     /// never leaks one.
     #[cfg(any(unix, windows))]
     observation_include_paths: bool,
+    /// DSV-047 (ADR-101): whether the daemon supervises detached save-time
+    /// driver children (one `anvil watch --save-time-driver` per durable
+    /// registered worktree). `false` by default so tests and embedded hosts
+    /// never spawn children from `current_exe()` (in a test run that would be
+    /// the test binary); the production daemon entry (`anvil intercept start
+    /// --foreground`) opts in via [`Self::with_save_time_drivers`]. The
+    /// operator-facing `ANVIL_NO_SAVE_TIME_DRIVER` opt-out is honoured on top
+    /// of this flag inside [`run_foreground`].
+    #[cfg(any(unix, windows))]
+    save_time_drivers: bool,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -471,6 +482,8 @@ impl ForegroundOpts {
             observation_sink: None,
             #[cfg(any(unix, windows))]
             observation_include_paths: false,
+            #[cfg(any(unix, windows))]
+            save_time_drivers: false,
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -496,6 +509,7 @@ impl ForegroundOpts {
             observation_emitter: None,
             observation_sink: None,
             observation_include_paths: false,
+            save_time_drivers: false,
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -518,6 +532,7 @@ impl ForegroundOpts {
             observation_emitter: None,
             observation_sink: None,
             observation_include_paths: false,
+            save_time_drivers: false,
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -584,6 +599,19 @@ impl ForegroundOpts {
     #[must_use]
     pub fn with_symbol_parser(mut self, parser: Arc<dyn save_time::SymbolParser>) -> Self {
         self.symbol_parser = Some(parser);
+        self
+    }
+
+    /// DSV-047: enable save-time driver supervision — one detached
+    /// `anvil watch --save-time-driver` child per durable registered worktree,
+    /// spawned from `current_exe()`. Only the production daemon entry
+    /// (`anvil intercept start --foreground`) calls this: the re-exec contract
+    /// requires `current_exe()` to be the `anvil` CLI binary, which is not
+    /// true for test harnesses or embedded hosts.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_save_time_drivers(mut self) -> Self {
+        self.save_time_drivers = true;
         self
     }
 
@@ -1165,7 +1193,7 @@ fn stop_live_daemon(pid: u32, path: &Path) -> Result<()> {
 /// the liveness classification and the signal is treated as success — the
 /// daemon is gone either way.
 #[cfg(unix)]
-fn send_sigterm(pid: u32) -> Result<()> {
+pub(crate) fn send_sigterm(pid: u32) -> Result<()> {
     let raw = i32::try_from(pid)
         .map_err(|_| anyhow::anyhow!("daemon PID {pid} is out of range for signalling"))?;
     match kill(Pid::from_raw(raw), Some(nix::sys::signal::Signal::SIGTERM)) {
@@ -1177,7 +1205,7 @@ fn send_sigterm(pid: u32) -> Result<()> {
 }
 
 #[cfg(unix)]
-fn process_exists(pid: u32) -> bool {
+pub(crate) fn process_exists(pid: u32) -> bool {
     let Ok(pid) = i32::try_from(pid) else {
         return false;
     };
@@ -1186,36 +1214,36 @@ fn process_exists(pid: u32) -> bool {
 }
 
 #[cfg(windows)]
-fn process_exists(pid: u32) -> bool {
+pub(crate) fn process_exists(pid: u32) -> bool {
     anvil_intercept_win32::process_exists(pid).unwrap_or(true)
 }
 
 #[cfg(not(any(unix, windows)))]
-fn process_exists(_pid: u32) -> bool {
+pub(crate) fn process_exists(_pid: u32) -> bool {
     true
 }
 
 #[cfg(target_os = "linux")]
-fn process_start_time(pid: u32) -> Option<u64> {
+pub(crate) fn process_start_time(pid: u32) -> Option<u64> {
     let stat = fs::read_to_string(Path::new("/proc").join(pid.to_string()).join("stat")).ok()?;
     let after_command = stat.rsplit_once(") ")?.1;
     after_command.split_whitespace().nth(19)?.parse().ok()
 }
 
 #[cfg(windows)]
-fn process_start_time(pid: u32) -> Option<u64> {
+pub(crate) fn process_start_time(pid: u32) -> Option<u64> {
     anvil_intercept_win32::process_creation_time(pid)
         .ok()
         .flatten()
 }
 
 #[cfg(target_os = "macos")]
-fn process_start_time(pid: u32) -> Option<u64> {
+pub(crate) fn process_start_time(pid: u32) -> Option<u64> {
     anvil_intercept_macos::process_start_time(pid)
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-fn process_start_time(_pid: u32) -> Option<u64> {
+pub(crate) fn process_start_time(_pid: u32) -> Option<u64> {
     None
 }
 
@@ -1601,6 +1629,62 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         );
     }
 
+    // DSV-047 (ADR-101): the save-time driver supervisor. Built — and its
+    // membership hook installed — BEFORE the durable reload below, so the
+    // reload's `Registered` signals enqueue driver spawns: that IS the startup
+    // reconciliation for reloaded registrations (`reconcile_on_start` only
+    // sweeps PID files left by a previous daemon life). The hook only
+    // enqueues; spawn and PID-file I/O run on the supervisor's own task,
+    // never on the registry call path. Host opt-in via
+    // `ForegroundOpts::with_save_time_drivers` (the production CLI entry),
+    // operator opt-out via a non-empty `ANVIL_NO_SAVE_TIME_DRIVER`.
+    #[cfg(any(unix, windows))]
+    let driver_supervisor = if !opts.save_time_drivers {
+        None
+    } else if save_time_driver::driver_disabled(
+        env::var_os(save_time_driver::NO_DRIVER_ENV).as_deref(),
+    ) {
+        tracing::info!(
+            target: "anvil_intercept::save_time_driver",
+            "save-time driver supervision disabled (ANVIL_NO_SAVE_TIME_DRIVER)",
+        );
+        None
+    } else {
+        match save_time_driver::default_driver_dir() {
+            Ok(dir) => {
+                let supervisor = save_time_driver::SaveTimeDriverSupervisor::production(dir);
+                if daemon_state
+                    .registry
+                    .set_membership_hook(supervisor.membership_hook())
+                {
+                    supervisor.reconcile_on_start_blocking().await;
+                    Some(supervisor)
+                } else {
+                    // The registry is freshly built in `DaemonState::new`, so
+                    // this install must be first; a `false` means a second
+                    // install site was wired (a bug). Loud, but the daemon
+                    // still serves.
+                    tracing::error!(
+                        target: "anvil_intercept::save_time_driver",
+                        "membership hook already installed before this call — save-time \
+                         driver supervision disabled; review the registry hook composition",
+                    );
+                    None
+                }
+            }
+            Err(err) => {
+                // No resolvable artefact directory ⇒ no supervision; the
+                // daemon still serves (save-time verbs are unaffected).
+                tracing::warn!(
+                    target: "anvil_intercept::save_time_driver",
+                    error = %err,
+                    "could not resolve the save-time driver directory; supervision disabled",
+                );
+                None
+            }
+        }
+    };
+
     // ACTMO-014: reload the durable registration set before accepting
     // connections — analogous to the fence reload above. Reap entries whose
     // worktree directory is gone, seed survivors into the registry as durable
@@ -1947,6 +2031,18 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         let mut listener_handle = AbortOnDropJoinHandle::new(tokio::spawn(async move {
             listener.serve(listener_token).await
         }));
+        // DSV-047: the supervisor's consumer task — drains membership events
+        // enqueued by the hook (including the ones the startup reload already
+        // queued) and does the spawn/PID-file work off the registry call path.
+        // Abort-on-drop: the task ends with the daemon either via the token
+        // or this handle's drop.
+        let _driver_task = driver_supervisor.as_ref().map(|supervisor| {
+            let supervisor = supervisor.clone();
+            let driver_token = token.clone();
+            AbortOnDropJoinHandle::new(tokio::spawn(async move {
+                supervisor.run(driver_token).await;
+            }))
+        });
         let mut tick = tokio::time::interval(Duration::from_millis(250));
         // ACTMO-014: a slow periodic reaper that drops durable registrations
         // whose worktree directory is gone (e.g. `git worktree remove`d while
@@ -1981,6 +2077,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 biased;
                 () = token.cancelled() => break,
                 result = listener_handle.join() => {
+                    // DSV-047: a daemon exit is a driver stop on every path —
+                    // detached children must not outlive their supervisor.
+                    if let Some(supervisor) = &driver_supervisor {
+                        supervisor.stop_all_blocking().await;
+                    }
                     // CIB-095d: persist before propagating the listener failure —
                     // this path previously `return`ed without flushing, dropping
                     // every warm graph even with persistence enabled.
@@ -2022,6 +2123,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     }
                 }
             }
+        }
+
+        // DSV-047: stop every driver child on graceful shutdown. Before the
+        // ACTMO-017 count below so the log order mirrors the actual teardown
+        // (drivers first, then the registration bookkeeping).
+        if let Some(supervisor) = &driver_supervisor {
+            supervisor.stop_all_blocking().await;
         }
 
         // ACTMO-017: one INFO event recording how many durable worktrees lose

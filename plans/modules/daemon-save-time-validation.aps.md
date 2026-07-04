@@ -1160,7 +1160,7 @@ requirement). Architecture decided by
 
 #### DSV-047: Daemon `SaveTimeDriverSupervisor`
 
-- **Status:** Ready
+- **Status:** In Progress (2026-07-05)
 - **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 1;
   design spec §Driver contract.
 - **Intent:** Consume durable membership changes and manage detached driver
