@@ -4485,10 +4485,11 @@ archive.
 
 ### CIB-165: Default the GitHub Actions workflow picker to unticked
 
-- **Status:** Draft — needs an owner decision on the consent posture: the
-  picker currently pre-selects both workflows, and whether activation should
-  default to writing team-visible CI files (vs opt-in per workflow, vs a
-  separate `anvil ci install` step) is a product call, not mechanics.
+- **Status:** Ready
+- **Owner decision (2026-07-04):** default-unticked. Both workflow options
+  start unselected; the user must actively tick to get CI files written, so a
+  hurried Enter-through writes nothing. No extra confirm step and no separate
+  `anvil ci install` command.
 - **Intent:** Interactive `anvil start` shows "Install or enable GitHub
   Actions workflows?" with PR validation and Nightly audit both pre-ticked
   (`orchestrator/mod.rs:497-520`); Enter-through writes
@@ -4503,7 +4504,7 @@ archive.
   transcript showing Enter-through writes nothing under the new default.
 - **Identified From:** User-journey pass 2026-07-04 (finding 4); reproduced
   live.
-- **Confidence:** high once the posture is decided.
+- **Confidence:** high — posture decided 2026-07-04.
 
 ### CIB-166: One next-step arbiter per `anvil start` ending
 
@@ -4598,26 +4599,25 @@ archive.
 
 ### CIB-169: Reconcile `anvil start`'s exit-0-on-auth-required with `&&` chaining
 
-- **Status:** Draft — needs an owner decision: issue #1822 deliberately maps
-  auth-required to exit 0 for action commands ("expected state"), but the same
-  command exits non-zero on MCP install failure precisely so
-  `anvil start && next-step` cannot silently advance (`start.rs:436-449`).
-  The two contracts contradict; resolving which one wins (exit 3 for
-  auth-required on action commands, a `--strict` flag, or documented status
-  quo) is a contract decision.
+- **Status:** Ready
+- **Owner decision (2026-07-04):** auth-required propagates a distinct
+  non-zero exit (exit 3) on action commands, superseding issue #1822's
+  exit-0 mapping there; consistent with the MCP-install non-zero rationale.
+  Breaking-in-beta, so the `--help` exit-code table and CHANGELOG must call
+  it out. No `--strict` flag. Read-only/status surfaces keep their existing
+  contract.
 - **Intent:** `anvil start && deploy-assuming-protection` currently advances
   past a completely unactivated repo because the auth wall exits 0
   (`main.rs:523-524`).
-- **Expected Outcome:** Per the decision: either auth-required propagates a
-  non-zero exit on `start` (with the exit-code table in `--help` updated), or
-  the contract is kept and the auth-required message plus docs explicitly warn
-  about chaining.
+- **Expected Outcome:** Auth-required exits 3 on `start` (and sibling action
+  commands sharing the wall), the exit-code table in `--help` and the docs
+  are updated, and the auth-required message stays actionable.
 - **Files:** `crates/anvil-cli/src/main.rs`, help/exit-code docs.
 - **Validation:** `cargo test -p eddacraft-anvil auth` exit-code assertions;
   scripted `anvil start && echo reached` transcript matching the decided
   contract.
 - **Identified From:** User-journey pass 2026-07-04 (finding 8).
-- **Confidence:** high once decided — the remap is a single site.
+- **Confidence:** high — decided 2026-07-04; the remap is a single site.
 
 ### CIB-170: Make showcase findings unmistakably examples in discovery
 
@@ -4758,27 +4758,24 @@ archive.
 
 ### CIB-180: Decide whether MCP tier tokens should read as pending, not done
 
-- **Status:** Draft — needs an owner decision. The MCP tier labels
-  `restart_handshake_verified` and `server_startable` (`diagnostic.rs:87-96`)
-  are a rendered contract consumed by `--verify` scripts, so they were left
-  untouched by CIB-167 (which only added additive `meaning:` lines). Changing
-  them is a contract decision, not a copy tweak.
+- **Status:** Ready
+- **Owner decision (2026-07-04):** render-time gloss (option b). The
+  machine tokens stay byte-stable; `render.rs` adds a human-facing pending
+  qualifier next to the label (e.g. "(pending restart)") where the tier
+  reads as done under a restart-required headline, and the tokens are
+  documented as observed-probe state. No rename, no deprecation window.
 - **Intent:** Under a restart-required headline, `restart_handshake_verified`
   reads as success ("verified") when the state is still pending a restart; a
   terminal-first user can misread the tier token as "done". The token names
   describe what was probed, not that protection has graduated.
-- **Expected Outcome:** Per the decision, one of: (a) **rename** the tokens to
-  read as pending (e.g. `restart_handshake_seen`, `server_spawnable`) — a
-  breaking change to the `mcp[].tier` string contract that `--verify` consumers
-  parse, needing a deprecation window; (b) **gloss** them at render time only
-  (leave the machine token as-is, add a human-facing pending qualifier next to
-  the label in `render.rs`) — non-breaking but leaves the raw JSON token
-  ambiguous; or (c) **document** the tokens as observed-probe state (status
-  quo) and rely on the CIB-167 `meaning:` line to carry the pending nuance.
+- **Expected Outcome:** Human render shows a pending qualifier beside tier
+  tokens that read as done while a restart is still required; JSON/`--verify`
+  output stays byte-identical; the tier tokens are documented as
+  observed-probe state (what was probed, not graduation).
 - **Files:** `crates/anvil-cli/src/activation/diagnostic.rs`,
   `crates/anvil-cli/src/activation/render.rs`.
-- **Validation:** per the chosen option — byte-stability review of `--verify`
-  output for any rename; render snapshot review for a gloss.
+- **Validation:** render tests covering the pending qualifier per state;
+  byte-stability assertion that `--json`/`--verify` output is unchanged.
 - **Identified From:** CIB-167 (activation state comprehension); tier-vocabulary
   question deferred to the owner as a rendered-contract decision.
-- **Confidence:** low — the fix is a contract decision the owner must make.
+- **Confidence:** high — decided 2026-07-04 (render-only, non-breaking).
