@@ -31,10 +31,10 @@ review changes to it like code. A grant is suppression authority — the review 
 the PR that adds it is the approval step.
 
 Writes are **explicit-only**. The store changes when a human runs
-`anvil exception grant`, `revoke`, or `migrate` — never as a side effect of a
-check, gate, or scan. If your worktree shows an unexpected change to the store,
-someone (or some tool acting as someone) ran an explicit write; checks never
-dirty it.
+`anvil exception grant`, `anvil exception revoke`, or `anvil exception migrate`
+— never as a side effect of a check, gate, or scan. If your worktree shows an
+unexpected change to the store, someone (or some tool acting as someone) ran an
+explicit write; checks never dirty it.
 
 ## Managing Exceptions
 
@@ -100,8 +100,9 @@ double-entry is caught at the next write.
 ## Upgrading From the Legacy Store
 
 Repositories that used exceptions before ADR-073 have a local, gitignored
-`.anvil/exceptions.json`. Those grants keep working read-only, but every write
-surface refuses until you promote them explicitly:
+`.anvil/exceptions.json`. Those grants keep working read-only, but grant and
+revoke refuse to modify a legacy-origin store until you promote it —
+`anvil exception migrate` is the promotion path:
 
 ```
 $ anvil exception migrate
