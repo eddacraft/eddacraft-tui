@@ -153,10 +153,10 @@ jobs:
           version: v0.41.1
       - name: Run OPA policy tests
         if: steps.gate.outputs.run == 'true'
-        run: opa test --verbose policies/fixtures/
+        run: opa test --verbose policies/fixtures/ policies/eval/
       - name: Lint policies with Regal
         if: steps.gate.outputs.run == 'true'
-        run: regal lint --format github policies/fixtures/
+        run: regal lint --format github policies/fixtures/ policies/eval/
 
       # CICD-006: coverage moved to nightly assurance (ci-nightly.yml). PR/push
       # runs are the strict test gate only — no coverage instrumentation.

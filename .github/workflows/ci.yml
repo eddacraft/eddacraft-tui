@@ -323,11 +323,11 @@ jobs:
 
       - name: Run OPA policy tests
         if: needs.detect-changes.outputs.opa-required == 'true'
-        run: opa test --verbose policies/fixtures/
+        run: opa test --verbose policies/fixtures/ policies/eval/
 
       - name: Lint policies with Regal
         if: needs.detect-changes.outputs.regal-required == 'true'
-        run: regal lint --format github policies/fixtures/
+        run: regal lint --format github policies/fixtures/ policies/eval/
 
       - name: Run infrastructure static checks
         if: needs.detect-changes.outputs.infra-static-check-required == 'true'

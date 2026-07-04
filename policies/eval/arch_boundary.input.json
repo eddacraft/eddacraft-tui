@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "repo_state": {
+    "files": ["src/ui/panel.rs", "src/ui/theme.rs", "src/db/pool.rs"],
+    "edges": [{ "from": "src/db/pool.rs", "to": "src/ui/theme.rs" }]
+  },
+  "plans": [],
+  "decisions": [],
+  "diff": {
+    "changed_files": ["src/ui/panel.rs"],
+    "new_edges": [
+      { "from": "src/ui/panel.rs", "to": "src/db/pool.rs" },
+      { "from": "src/ui/panel.rs", "to": "src/ui/theme.rs" }
+    ]
+  },
+  "baseline": { "findings": [] }
+}

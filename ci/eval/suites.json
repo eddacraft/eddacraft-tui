@@ -1,0 +1,8 @@
+[
+  {
+    "name": "arch_boundary",
+    "policy": "policies/eval/arch_boundary.rego",
+    "query": "data.anvil.policies.arch_boundary.findings",
+    "input": "policies/eval/arch_boundary.input.json"
+  }
+]

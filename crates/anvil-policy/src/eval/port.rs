@@ -433,6 +433,38 @@ mod tests {
     }
 
     #[test]
+    fn eval_suite_manifest_parses() {
+        // EVALCI-005: the committed first-wave suites manifest must parse into
+        // the frozen `EvalSuite` shape the `eval-regression` command loads, so a
+        // malformed or drifted manifest is caught here rather than only at CI
+        // runtime. Bound to the repo-root artefact (two levels up from this
+        // crate) so the fixture and its consumer cannot drift apart.
+        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ci/eval/suites.json");
+        let raw = std::fs::read_to_string(manifest)
+            .unwrap_or_else(|e| panic!("reading committed suites manifest `{manifest}`: {e}"));
+        let suites: Vec<EvalSuite> =
+            serde_json::from_str(&raw).expect("suites.json parses as an array of eval suites");
+        assert!(!suites.is_empty(), "manifest defines at least one suite");
+
+        let arch = suites
+            .iter()
+            .find(|s| s.name == "arch_boundary")
+            .expect("first-wave arch_boundary suite present");
+        assert_eq!(
+            arch.policy,
+            PathBuf::from("policies/eval/arch_boundary.rego")
+        );
+        assert_eq!(arch.query, "data.anvil.policies.arch_boundary.findings");
+        assert_eq!(
+            arch.input.as_deref(),
+            Some(std::path::Path::new(
+                "policies/eval/arch_boundary.input.json"
+            )),
+            "the suite binds its hermetic input fixture"
+        );
+    }
+
+    #[test]
     fn eval_harness_port_identity_does_not_collide_on_separator_in_edge() {
         // Two genuinely different edges that a naive `|`-join would collapse:
         // (from=a|b, to=c) vs (from=a, to=b|c).
