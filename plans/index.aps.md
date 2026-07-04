@@ -722,7 +722,7 @@ post-first-slice expansion modules.
 | [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md)       | ATC     | Ready    | eval-harness-integration; OPAG guidance is downstream once promoted                                                                                  |
 | [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT    | Ready    | adversarial-testing-catalog, eval-harness-integration                                                                                               |
 | [eval-regression-ci-gate](./modules/eval-regression-ci-gate.aps.md)               | EVALCI  | In Progress | eval-harness-integration (EVAL, Done — items Merged via #3013); rust-tests.yml Test job; ATC-003 for suite depth (001-004 Merged via #3023; 005-008 Proposed)  |
-| [trust-center-automation](./modules/trust-center-automation.aps.md)               | TRUST   | Ready    | compliance-evidence-workspace, compliance-reporting                                                                                                 |
+| [trust-center-automation](./modules/trust-center-automation.aps.md)               | TRUST   | Blocked  | compliance-evidence-workspace (Draft), compliance-reporting (Draft, reset 2026-07-04 to post-first-slice) — see module status correction             |
 | [agent-governance-patterns](./modules/agent-governance-patterns.aps.md)           | AGOV    | Draft    | POLENG/regorus, POLVAL, live Edda/Ember packages or their Rust successors; retarget TS-era paths before Ready                                       |
 | [skill-discovery-observability](./modules/skill-discovery-observability.aps.md)   | SKOBS   | Draft    | AGOV (observability foundation for capability governance; AGOV-007 schema alignment)                                                                |
 | [skill-packaging-distribution](./modules/skill-packaging-distribution.aps.md)     | SKPKG   | Blocked | **Parked 2026-07-02** — new work landing in the `eddacraft-skills` catalogue repo undercuts the design spec's "What already exists" grounding; resume by re-verifying that section fresh. SKPKG-001 design spec drafted but not sent for owner review (`plans/specs/2026-07-02-skill-packaging-distribution.md`); ADR-018 (product/IP architecture), SKOBS-002 (manifest alignment) |
@@ -994,7 +994,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 | [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Early access migration tooling | In Progress |
 | [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Early access test infrastructure (6/38 complete) | In Progress |
 | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters) | Proposed |
-| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model | Ready |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model | Draft |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking | Ready |
 | [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces | Proposed |
 
