@@ -1963,3 +1963,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When simulating another OS's path layout in a cross-platform test, construct expected paths with the same `Path::join` the code under test uses rather than backslash string literals.
 - **Follow-up:** none.
 
+### 2026-07-04 — claude (autonomous, Council fix)
+
+- **Task:** CIB-176 Council major — `anvil hooks install --json` emitted the sh-less warning as plain text *after* the JSON payload on a sh-less git, corrupting the `--json` output contract (`crates/anvil-cli/src/commands/hooks.rs`).
+- **Outcome:** The warning block sat outside the `if global.json { … } else { … }` split, so it printed on stdout in both modes. Extracted the advisory to a shared `SH_LESS_HOOK_WARNING` const and an `install_interpreter_warnings(status)` helper, hoisted an `InstallOutput { results, warnings }` struct (mirroring the config-mode `{ results, coexistence }` shape) and now carry the advisory *inside* the JSON (`warnings`, omitted when empty) or as a `plain::warn` in the human branch — never trailing the JSON. Added two regression tests: `install_interpreter_warnings_only_on_missing` and `install_output_carries_warning_inside_json` (asserts single valid JSON object, no stray text). fmt/clippy/hooks+doctor+hooks_config_mode green.
+- **Worked:** Routing the advisory through both branches of the existing json/human split, with a serialisable field, both restores the contract and keeps the signal for JSON consumers.
+- **Failed:** none.
+- **Friction:** No test pinned the pre-existing bare-array `hooks install --json` shape, so confirming the array→object change was safe required grepping docs + integration tests rather than a contract test.
+- **Improvement:** Emit-once-then-branch: compute advisory data before the output-mode split and render it inside each branch, so no diagnostic can leak onto stdout after a JSON payload.
+- **Follow-up:** none.
+

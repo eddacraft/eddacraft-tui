@@ -91,6 +91,28 @@ ANVIL_HOOK=1 anvil gate || {
 }
 "#;
 
+/// CIB-176 advisory surfaced after a file-mode `hooks install` when no POSIX
+/// `sh` interpreter is available to execute the `#!/bin/sh` hooks. Extracted so
+/// the human (`plain::warn`) and JSON (`InstallOutput.warnings`) surfaces share
+/// one wording and a test can pin it.
+const SH_LESS_HOOK_WARNING: &str = "No POSIX `sh` interpreter was found on PATH or alongside git. \
+     The installed file hooks are `#!/bin/sh` scripts and will not execute in this environment, so \
+     commit/push gates will not run. Install Git for Windows (which bundles `sh`) or add `sh` to \
+     PATH; on Git 2.54+ you can instead use `anvil hooks install --config`.";
+
+/// Advisory warnings for a file-mode `hooks install`, keyed off the detected
+/// hook interpreter status. Only a *definitive* [`HookInterpreterStatus::Missing`]
+/// yields a warning so a healthy Git for Windows layout (or an indeterminate
+/// probe) never trips a false alarm. Returned as an owned `Vec<String>` so both
+/// the JSON payload and the human renderer consume the same source of truth.
+fn install_interpreter_warnings(status: HookInterpreterStatus) -> Vec<String> {
+    if matches!(status, HookInterpreterStatus::Missing) {
+        vec![SH_LESS_HOOK_WARNING.to_string()]
+    } else {
+        Vec::new()
+    }
+}
+
 fn resolve_git_dir(workspace_root: &Path) -> Result<PathBuf> {
     let git_path = workspace_root.join(".git");
     if !git_path.exists() {
@@ -234,6 +256,19 @@ struct HookResult {
     hook: String,
     action: String,
     message: String,
+}
+
+/// JSON payload for a file-mode `hooks install`. Wraps the per-hook results
+/// alongside any install-wide advisory warnings (currently the CIB-176 sh-less
+/// interpreter warning) so the warning is carried *inside* the JSON document
+/// rather than emitted as stray plain text after it — the latter corrupted the
+/// `--json` output contract. `warnings` is omitted when empty, keeping the
+/// healthy-path shape a minimal `{ "results": [...] }`.
+#[derive(Debug, Serialize)]
+struct InstallOutput<'a> {
+    results: &'a [HookResult],
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    warnings: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -1116,8 +1151,19 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 results.push(install_hook(&hooks_dir, "pre-push", PRE_PUSH_HOOK, *force)?);
             }
 
+            // CIB-176: file hooks are `#!/bin/sh` scripts. Detect once whether
+            // this git environment has a POSIX `sh` to run them so the warning
+            // can be surfaced through whichever output mode is active. Only a
+            // definitive Missing warns; a healthy or indeterminate probe stays
+            // silent. Routed through both branches below so the plain-text
+            // warning never leaks into (and corrupts) the JSON payload.
+            let interpreter_warnings = install_interpreter_warnings(hook_interpreter_status());
+
             if global.json {
-                crate::output::json::print(&results)?;
+                crate::output::json::print(&InstallOutput {
+                    results: &results,
+                    warnings: interpreter_warnings,
+                })?;
             } else {
                 crate::output::plain::blank();
                 for r in &results {
@@ -1133,20 +1179,13 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 println!("  pre-push:   Runs quality gates (anvil gate)");
                 crate::output::plain::blank();
                 println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
-            }
 
-            // CIB-176: file hooks are `#!/bin/sh` scripts. Warn honestly when
-            // this git environment has no POSIX `sh` to run them, so the user
-            // is not left believing an installed-but-inert hook is protecting
-            // them. Only a definitive Missing warns.
-            if matches!(hook_interpreter_status(), HookInterpreterStatus::Missing) {
-                crate::output::plain::warn(
-                    "No POSIX `sh` interpreter was found on PATH or alongside git. The \
-                     installed file hooks are `#!/bin/sh` scripts and will not execute in \
-                     this environment, so commit/push gates will not run. Install Git for \
-                     Windows (which bundles `sh`) or add `sh` to PATH; on Git 2.54+ you can \
-                     instead use `anvil hooks install --config`.",
-                );
+                // Warn honestly when there is no POSIX `sh` to run the hooks, so
+                // the user is not left believing an installed-but-inert hook is
+                // protecting them.
+                for warning in &interpreter_warnings {
+                    crate::output::plain::warn(warning);
+                }
             }
         }
         HooksCommand::Uninstall {
@@ -2317,6 +2356,70 @@ mod tests {
             detect_hook_interpreter(true, &[], None, &exists),
             HookInterpreterStatus::Unknown,
         );
+    }
+
+    /// The sh-less advisory is emitted only for a definitive `Missing`; a
+    /// healthy or indeterminate probe must stay silent so a working Git for
+    /// Windows layout never trips a false alarm.
+    #[test]
+    fn install_interpreter_warnings_only_on_missing() {
+        assert!(install_interpreter_warnings(HookInterpreterStatus::Available).is_empty());
+        assert!(install_interpreter_warnings(HookInterpreterStatus::Unknown).is_empty());
+
+        let missing = install_interpreter_warnings(HookInterpreterStatus::Missing);
+        assert_eq!(missing.len(), 1, "a definitive Missing yields one warning");
+        assert!(
+            missing[0].contains("sh"),
+            "warning must name the missing `sh` interpreter: {missing:?}",
+        );
+    }
+
+    /// Regression (Council major): the sh-less warning must live *inside* the
+    /// `--json` payload, not as stray plain text appended after it. A healthy
+    /// probe serialises to a minimal `{ "results": [...] }` with no `warnings`
+    /// key; a Missing probe carries the advisory in a `warnings` array. Either
+    /// way the whole document is a single valid JSON object with no trailing
+    /// text — the corruption the finding describes.
+    #[test]
+    fn install_output_carries_warning_inside_json() {
+        let results = vec![HookResult {
+            hook: "pre-commit".to_string(),
+            action: "created".to_string(),
+            message: "pre-commit created".to_string(),
+        }];
+
+        // Healthy path: no `warnings` key, results present.
+        let healthy = InstallOutput {
+            results: &results,
+            warnings: install_interpreter_warnings(HookInterpreterStatus::Available),
+        };
+        let json = serde_json::to_value(&healthy).unwrap();
+        assert!(json.is_object(), "payload must be a JSON object");
+        assert!(
+            json.get("warnings").is_none(),
+            "healthy path omits warnings"
+        );
+        assert_eq!(json["results"][0]["action"], "created");
+
+        // sh-less path: the advisory is embedded in the JSON, not appended.
+        let sh_less = InstallOutput {
+            results: &results,
+            warnings: install_interpreter_warnings(HookInterpreterStatus::Missing),
+        };
+        let json = serde_json::to_value(&sh_less).unwrap();
+        assert_eq!(json["warnings"].as_array().unwrap().len(), 1);
+        assert!(
+            json["warnings"][0]
+                .as_str()
+                .unwrap()
+                .contains("will not execute"),
+            "sh-less advisory must be carried inside the JSON payload: {json}",
+        );
+
+        // The rendered document is a single JSON value with no trailing text.
+        let rendered = serde_json::to_string_pretty(&sh_less).unwrap();
+        let reparsed: serde_json::Value = serde_json::from_str(&rendered).unwrap();
+        assert_eq!(reparsed["warnings"][0], json["warnings"][0]);
     }
 
     /// `hook.<event>.enabled` semantics: Git's default when the key is
