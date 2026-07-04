@@ -304,12 +304,17 @@ impl Journal {
         }
         ensure_within_root(&self.root, abs)?;
         if abs.exists() {
+            // Journal the backup BEFORE attempting the overwrite: a write
+            // that fails part-way (disk full, permission flip) must still
+            // leave the journal able to restore the pre-install bytes.
             let original = std::fs::read(abs)?;
-            std::fs::write(abs, contents)?;
             self.restored.push((abs.to_path_buf(), original));
-        } else {
             std::fs::write(abs, contents)?;
+        } else {
+            // Same ordering for creations: journal first, so a partial
+            // write is still removed by rollback.
             self.created_files.push(abs.to_path_buf());
+            std::fs::write(abs, contents)?;
         }
         Ok(())
     }
