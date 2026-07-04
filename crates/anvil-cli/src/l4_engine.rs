@@ -262,10 +262,13 @@ fn verdict_for_warnings(
         // is authorised success and stays at `info` (ADR-038
         // silent-on-success), also surfaced by the annotated Warn
         // diagnostic the operator sees.
+        // `exception_id` is operator-editable store content — log it
+        // with `?` (Debug) so embedded control characters are escaped
+        // in human-facing output rather than emitted raw.
         if applied.downgraded {
             tracing::warn!(
                 target: "anvil::l4_engine",
-                exception_id = %applied.exception_id,
+                exception_id = ?applied.exception_id,
                 rule_id = %applied.rule_id,
                 commit = %short(commit_sha),
                 "unattributed policy exception applied to L4 finding (downgraded to warn)",
@@ -273,7 +276,7 @@ fn verdict_for_warnings(
         } else {
             tracing::info!(
                 target: "anvil::l4_engine",
-                exception_id = %applied.exception_id,
+                exception_id = ?applied.exception_id,
                 rule_id = %applied.rule_id,
                 commit = %short(commit_sha),
                 "policy exception applied to L4 finding",

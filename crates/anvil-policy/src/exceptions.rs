@@ -298,13 +298,20 @@ impl ExceptionStore {
     }
 
     /// Reads and parses a store from an explicit path, tagging its origin.
-    /// Refuses stores larger than [`MAX_STORE_BYTES`] before allocating.
+    /// The read itself is bounded to [`MAX_STORE_BYTES`] + 1 (a
+    /// `Read::take` cap, not a check-then-read on file metadata, so a
+    /// file growing between stat and read cannot bypass the bound) and
+    /// refuses oversized stores.
     fn load_from(path: &Path, source: StoreSource) -> Result<Self, ExceptionError> {
-        let size = std::fs::symlink_metadata(path)?.len();
+        use std::io::Read;
+        let file = std::fs::File::open(path)?;
+        let mut content = String::new();
+        file.take(MAX_STORE_BYTES + 1)
+            .read_to_string(&mut content)?;
+        let size = content.len() as u64;
         if size > MAX_STORE_BYTES {
             return Err(ExceptionError::Oversized { size });
         }
-        let content = std::fs::read_to_string(path)?;
         let mut store: Self =
             serde_json::from_str(&content).map_err(|e| ExceptionError::Parse(e.to_string()))?;
         store.source = source;
