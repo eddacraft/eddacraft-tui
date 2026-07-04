@@ -74,10 +74,12 @@ pub struct ValidationRequest {
     pub repo_root: PathBuf,
     /// Commit whose tree carries suppression authority: the tip of
     /// the pushed range (pre-push `local_sha`, `l4-validate` range
-    /// head) or the audited checkout's HEAD. Exceptions apply only if
-    /// committed in this tree — configuration may be local, authority
-    /// must be committed (ADR-100). `None` applies no exceptions
-    /// (fail-safe: findings stand).
+    /// head) or, for audit-chain rescans, the audited commit list's
+    /// own tip (the `--branch` target — not the checkout's HEAD).
+    /// Exceptions apply only if committed in this tree —
+    /// configuration may be local, authority must be committed
+    /// (ADR-100). `None` applies no exceptions (fail-safe: findings
+    /// stand).
     pub exceptions_tip_sha: Option<String>,
 }
 

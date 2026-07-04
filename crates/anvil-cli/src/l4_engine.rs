@@ -440,10 +440,11 @@ enum StoreSize {
 }
 
 /// `git cat-file -s <tip>:anvil/exceptions/store.json` — object size
-/// without reading the body. A missing object exits non-zero, which is
-/// indistinguishable from other failures here, so a non-zero exit maps
-/// to `Absent` only when stderr names a resolution failure; anything
-/// else is `Unknown` (fail-safe upstream: no exceptions apply).
+/// without reading the body. Only a path-missing-in-tree error maps to
+/// `Absent` ("does not exist in", "exists on disk, but not in"); an
+/// unresolvable TIP ("Not a valid object name") or any other failure
+/// is `Unknown` — fail-safe upstream (no exceptions apply) with a
+/// traced detail, never silently treated as an honest empty store.
 fn committed_store_size(repo_root: &Path, tip: &str) -> StoreSize {
     if !is_hex_sha(tip) || is_zero_sha(tip) {
         return StoreSize::Unknown("tip is not a commit sha".to_string());
@@ -459,7 +460,7 @@ fn committed_store_size(repo_root: &Path, tip: &str) -> StoreSize {
     };
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("does not exist") || stderr.contains("Not a valid object name") {
+        if stderr.contains("does not exist in") || stderr.contains("exists on disk, but not in") {
             return StoreSize::Absent;
         }
         return StoreSize::Unknown(format!("cat-file -s failed: {}", stderr.trim()));
