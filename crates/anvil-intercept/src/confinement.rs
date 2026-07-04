@@ -436,6 +436,24 @@ impl Confinement {
     #[cfg(any(unix, windows))]
     #[must_use]
     pub fn to_admitted_roots(&self) -> crate::workspace_admission::AdmittedRoots {
+        self.to_admitted_roots_with_budget(crate::dos::DEFAULT_MAX_ADMITTED_ROOTS)
+    }
+
+    /// CIB-154: build the per-connection [`AdmittedRoots`](crate::workspace_admission::AdmittedRoots)
+    /// with an explicit per-connection root budget. The daemon threads the
+    /// operator-resolved `IpcLimits::max_admitted_roots` (stricter-wins project↔user
+    /// merge) through here so a same-uid peer cannot hold one descriptor-pinning
+    /// [`WorkspaceAnchor`](crate::workspace_anchor::WorkspaceAnchor) per distinct
+    /// root without a ceiling. The admission *policy* (Open first-touch vs the
+    /// operator allow list) is unchanged — the budget is an orthogonal `DoS` cap on
+    /// the *number* of admitted roots, applied identically in both modes.
+    /// [`Self::to_admitted_roots`] is the default-budget shorthand.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn to_admitted_roots_with_budget(
+        &self,
+        root_budget: usize,
+    ) -> crate::workspace_admission::AdmittedRoots {
         use crate::workspace_admission::{AdmittedRoots, AllowPolicy};
 
         // Canonicalise an allow entry, logging (never silently dropping) one
@@ -454,7 +472,7 @@ impl Confinement {
             }
         }
 
-        match self.mode {
+        let roots = match self.mode {
             AdmissionModeFile::Open => AdmittedRoots::new_open(),
             AdmissionModeFile::Allowlist => {
                 // CIB-149: no implicit primary. Allowlist mode admits exactly the
@@ -484,7 +502,8 @@ impl Confinement {
                     .collect();
                 AdmittedRoots::new_allowlist_with_policy(AllowPolicy::new(exact, prefixes))
             }
-        }
+        };
+        roots.with_root_budget(root_budget)
     }
 }
 

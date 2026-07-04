@@ -2045,6 +2045,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Failed:** none.
 - **Friction:** `/home` was 100% full (498G shared cargo cache), so the shared target dir's linker died with a Bus error; ran gates on an isolated `CARGO_TARGET_DIR` on the Projects disk. A pre_push integration test also failed only because the full disk blocked writing `~/.config/anvil/kindling/usage.ndjson` (usage WARN on stderr) — unrelated to this change; confirmed green with a writable `XDG_CONFIG_HOME`.
 - **Improvement:** When several surfaces share one nudge/state helper, put the gate inside the helper as an early return rather than at each call site — a per-surface wrapper is boilerplate for a universal invariant and the one that forgets it is the leak.
+### 2026-07-04 — claude (CIB-154)
+
+- **Task:** CIB-154 — cap the number of distinct workspace roots a connection may admit; `Open`-mode admission pins one real fd (`WorkspaceAnchor`) per distinct root with no ceiling, so a same-uid peer could exhaust the daemon's descriptor table.
+- **Outcome:** Added a `DoS`-family budget `max_admitted_roots` (default `DEFAULT_MAX_ADMITTED_ROOTS = 32`): new `Option<usize>` on `DosConfigFile`, `IpcLimits` field + `from_config` clamp (min 1), stricter-wins (smaller) merge in `resolve_ipc_limits`. `AdmittedRoots` gained a `root_budget` field + `with_root_budget`/`root_budget`/`root_budget_would_block`; `Confinement::to_admitted_roots_with_budget` threads the resolved cap; `SaveTimeState::with_root_budget` carries it from `IpcLimits` (wired in `lib.rs`). `authorise_root` refuses an over-budget, as-yet-unadmitted, otherwise-admissible root with a new `SaveTimeError::RootBudgetExceeded` (`-32011`, path-free wire reply mirroring `NotAdmitted`). TDD: budget tests in both modes at the admission layer and via the structured error, plus config stricter-wins.
+- **Worked:** Making `root_budget_would_block` replicate the mode/allow-policy admissibility check let the guard fire only for admissible roots, keeping ordinary allowlist refusals as `NotAdmitted` and budget refusals as `RootBudgetExceeded` — so the two distinct errors stayed distinct without changing `AdmittedRoots::authorise`'s `Option` return, and the pre-existing first-touch and allowlist-refusal tests pass unchanged.
+- **Failed:** none.
+- **Friction:** clippy `doc_markdown` flagged a bare "DoS" in a new doc comment; needed backticks.
+- **Improvement:** When a security guard must distinguish "refused for reason A" from "refused for reason B" but a shared entrypoint returns a two-state `Option`, add a pre-check predicate that mirrors the entrypoint's admissibility logic rather than widening the entrypoint's return type — it keeps every existing caller and test untouched while giving the one caller that cares an unambiguous structured signal.
 - **Follow-up:** none.
 
 ### 2026-07-04 — claude (CIB-153)

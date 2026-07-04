@@ -45,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::dos::DEFAULT_MAX_ADMITTED_ROOTS;
 use crate::workspace_anchor::WorkspaceAnchor;
 
 /// How the admitted-root set decides whether to admit a not-yet-seen root.
@@ -110,6 +111,13 @@ pub struct AdmittedRoots {
     allow: AllowPolicy,
     /// Canonical root → held anchor. Insertion-once; never re-resolved.
     admitted: BTreeMap<PathBuf, WorkspaceAnchor>,
+    /// CIB-154: the per-connection ceiling on distinct admitted roots. Once
+    /// `admitted.len()` reaches this budget, a not-yet-admitted root that would
+    /// otherwise be admissible is refused — see [`Self::root_budget_would_block`].
+    /// Defaults to [`DEFAULT_MAX_ADMITTED_ROOTS`]; the daemon threads the
+    /// operator-resolved `IpcLimits::max_admitted_roots` through
+    /// [`Self::with_root_budget`].
+    root_budget: usize,
 }
 
 impl AdmittedRoots {
@@ -120,6 +128,7 @@ impl AdmittedRoots {
             mode: AdmissionMode::Open,
             allow: AllowPolicy::default(),
             admitted: BTreeMap::new(),
+            root_budget: DEFAULT_MAX_ADMITTED_ROOTS,
         }
     }
 
@@ -148,13 +157,64 @@ impl AdmittedRoots {
             mode: AdmissionMode::Allowlist,
             allow,
             admitted: BTreeMap::new(),
+            root_budget: DEFAULT_MAX_ADMITTED_ROOTS,
         }
+    }
+
+    /// CIB-154: override the per-connection admitted-root budget (builder form).
+    /// The daemon threads the operator-resolved `IpcLimits::max_admitted_roots`
+    /// through here from [`crate::confinement::Confinement::to_admitted_roots_with_budget`].
+    /// A `0` budget is clamped to `1` — a connection must be able to admit at
+    /// least its own workspace root or no verb could ever be served (mirrors the
+    /// `IpcLimits::from_config` defensive clamp).
+    #[must_use]
+    pub fn with_root_budget(mut self, root_budget: usize) -> Self {
+        self.root_budget = root_budget.max(1);
+        self
     }
 
     /// This connection's admission mode.
     #[must_use]
     pub fn mode(&self) -> AdmissionMode {
         self.mode
+    }
+
+    /// CIB-154: this connection's distinct-admitted-root budget.
+    #[must_use]
+    pub fn root_budget(&self) -> usize {
+        self.root_budget
+    }
+
+    /// CIB-154: whether admitting `workspace_root` would push this connection
+    /// past its [`root_budget`](Self::root_budget). Returns `true` **only** for a
+    /// root that (a) is not already admitted, (b) is otherwise admissible under
+    /// this connection's mode (first-touch in `Open`, allow-policy match in
+    /// `Allowlist`), and (c) would be the `root_budget + 1`-th distinct root.
+    ///
+    /// Ordering matters: an *unlisted* root in `Allowlist` mode is an ordinary
+    /// allowlist refusal, not a budget refusal, so this returns `false` for it
+    /// (letting [`Self::authorise`] report the plain refusal). A caller checks
+    /// this **before** [`Self::authorise`] and, on `true`, produces a structured
+    /// budget error distinct from the plain `workspace-not-admitted` refusal —
+    /// so a peer probing the descriptor-exhaustion vector gets an unambiguous
+    /// signal rather than a silent/ambiguous refusal.
+    ///
+    /// A root that does not resolve is never a budget refusal (it cannot be
+    /// admitted at all); this returns `false` so `authorise` reports the plain
+    /// refusal.
+    #[must_use]
+    pub fn root_budget_would_block(&self, workspace_root: &Path) -> bool {
+        let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
+            return false;
+        };
+        if self.admitted.contains_key(&canonical) {
+            return false;
+        }
+        let admissible = match self.mode {
+            AdmissionMode::Open => true,
+            AdmissionMode::Allowlist => self.allow.permits(&canonical),
+        };
+        admissible && self.admitted.len() >= self.root_budget
     }
 
     /// Whether `canonical_root` is currently admitted (already has a held fd).
@@ -328,6 +388,96 @@ mod tests {
         assert!(
             matches!(result, Ok(None)),
             "a vanished root is a refusal, not a hard error: {result:?}"
+        );
+    }
+
+    #[test]
+    fn open_mode_refuses_root_past_budget() {
+        // CIB-154: with a budget of 2, the first two distinct roots admit
+        // normally; the third distinct root trips the budget guard while roots
+        // already admitted keep working.
+        let a = tempfile::tempdir().expect("tempdir");
+        let b = tempfile::tempdir().expect("tempdir");
+        let c = tempfile::tempdir().expect("tempdir");
+
+        let mut roots = AdmittedRoots::new_open().with_root_budget(2);
+        assert_eq!(roots.root_budget(), 2);
+
+        // First two distinct roots: within budget, admitted normally, and the
+        // budget guard does not fire for them.
+        assert!(!roots.root_budget_would_block(a.path()));
+        assert!(roots.authorise(a.path()).expect("io").is_some());
+        assert!(!roots.root_budget_would_block(b.path()));
+        assert!(roots.authorise(b.path()).expect("io").is_some());
+
+        // The third distinct root is over budget: the guard fires BEFORE
+        // authorise, so the caller can raise a structured budget error.
+        assert!(
+            roots.root_budget_would_block(c.path()),
+            "the (budget+1)th distinct root must trip the budget guard"
+        );
+
+        // An already-admitted root is never blocked and keeps authorising —
+        // the budget caps distinct roots, not repeat access.
+        assert!(!roots.root_budget_would_block(a.path()));
+        assert!(roots.authorise(a.path()).expect("io").is_some());
+    }
+
+    #[test]
+    fn allowlist_mode_refuses_root_past_budget_but_not_unlisted() {
+        // CIB-154: in Allowlist mode the budget caps admissible roots. An
+        // over-budget but ALLOW-LISTED root trips the budget guard; an UNLISTED
+        // root is an ordinary allowlist refusal, never a budget refusal (so the
+        // caller reports the right, distinct error for each).
+        let a = tempfile::tempdir().expect("tempdir");
+        let b = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+
+        let allow = AllowPolicy::new(
+            [
+                std::fs::canonicalize(a.path()).unwrap(),
+                std::fs::canonicalize(b.path()).unwrap(),
+            ],
+            std::iter::empty(),
+        );
+        let mut roots = AdmittedRoots::new_allowlist_with_policy(allow).with_root_budget(1);
+
+        // First allow-listed root fills the budget.
+        assert!(!roots.root_budget_would_block(a.path()));
+        assert!(roots.authorise(a.path()).expect("io").is_some());
+
+        // Second allow-listed root is admissible but over budget → budget guard.
+        assert!(
+            roots.root_budget_would_block(b.path()),
+            "an admissible-but-over-budget root trips the budget guard"
+        );
+
+        // An UNLISTED root is a plain allowlist refusal, NOT a budget refusal —
+        // the guard must stay silent so the caller reports workspace-not-admitted.
+        assert!(
+            !roots.root_budget_would_block(unlisted.path()),
+            "an unlisted root is an allowlist refusal, not a budget refusal"
+        );
+        assert!(roots.authorise(unlisted.path()).expect("io").is_none());
+    }
+
+    #[test]
+    fn root_budget_defaults_when_unset() {
+        // Constructors without an explicit budget default to the pinned ceiling.
+        assert_eq!(AdmittedRoots::new_open().root_budget(), 32);
+        assert_eq!(
+            AdmittedRoots::new_allowlist_with_policy(AllowPolicy::default()).root_budget(),
+            32,
+        );
+    }
+
+    #[test]
+    fn root_budget_zero_clamps_to_one() {
+        // A 0 budget would refuse every admission; clamp to 1 so the connection
+        // can always admit its own workspace root (operator-typo defence).
+        assert_eq!(
+            AdmittedRoots::new_open().with_root_budget(0).root_budget(),
+            1
         );
     }
 

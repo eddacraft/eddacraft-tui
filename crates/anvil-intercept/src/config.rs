@@ -437,6 +437,8 @@ impl Default for Resolved {
 ///   wins (faster cut-off for slow / idle peers).
 /// - `control_frame_max_bytes`: smaller wins (smaller attack
 ///   surface).
+/// - `max_admitted_roots` (CIB-154): smaller wins (tighter cap on the
+///   per-connection descriptor-holding root set).
 ///
 /// A field absent on both sides falls through to
 /// [`crate::dos::IpcLimits::default`]. Clamping of unsafe values
@@ -473,6 +475,7 @@ fn resolve_ipc_limits(
         handshake_timeout_seconds: pick(p.handshake_timeout_seconds, u.handshake_timeout_seconds),
         idle_timeout_seconds: pick(p.idle_timeout_seconds, u.idle_timeout_seconds),
         control_frame_max_bytes: pick(p.control_frame_max_bytes, u.control_frame_max_bytes),
+        max_admitted_roots: pick(p.max_admitted_roots, u.max_admitted_roots),
     };
     crate::dos::IpcLimits::from_config(&merged)
 }
@@ -996,6 +999,40 @@ mod tests {
         assert_eq!(
             resolved.session_per_worktree_max, 4,
             "smaller (stricter) value wins"
+        );
+    }
+
+    #[test]
+    fn dos_max_admitted_roots_stricter_wins_picks_smaller() {
+        // CIB-154: the per-connection root budget merges stricter-wins like the
+        // sibling DoS caps — the smaller (tighter) ceiling wins on conflict.
+        let workspace = tempdir().expect("workspace");
+        let user_dir = tempdir().expect("user dir");
+        let user_path = user_dir.path().join("anvil.yaml");
+
+        write_anvil_yaml(
+            workspace.path(),
+            "enforcement:\n  dos:\n    max_admitted_roots: 8\n",
+        );
+        write_user_config(
+            &user_path,
+            "enforcement:\n  dos:\n    max_admitted_roots: 4\n",
+        );
+        let resolved = Resolved::load(workspace.path(), Some(&user_path)).expect("load");
+        assert_eq!(
+            resolved.ipc_limits.max_admitted_roots, 4,
+            "smaller (stricter) root budget wins"
+        );
+    }
+
+    #[test]
+    fn dos_max_admitted_roots_defaults_when_unset() {
+        let workspace = tempdir().expect("workspace");
+        write_anvil_yaml(workspace.path(), "enforcement:\n  mode: warn\n");
+        let resolved = Resolved::load(workspace.path(), None).expect("load");
+        assert_eq!(
+            resolved.ipc_limits.max_admitted_roots,
+            crate::dos::DEFAULT_MAX_ADMITTED_ROOTS,
         );
     }
 

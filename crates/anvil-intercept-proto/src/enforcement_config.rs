@@ -178,6 +178,17 @@ pub struct DosConfigFile {
     /// separately by the daemon's IPC reader.
     #[serde(default)]
     pub control_frame_max_bytes: Option<usize>,
+
+    /// CIB-154: maximum number of distinct workspace roots a single
+    /// connection may admit. Default 32. `Open`-mode admission holds
+    /// one real file descriptor (`WorkspaceAnchor`) per distinct
+    /// admitted root, so an unbounded root set lets a same-uid peer
+    /// exhaust the daemon's descriptor table; this coarse, path-
+    /// oriented budget caps it. Clamped to a minimum of 1 at
+    /// `IpcLimits::from_config`. Stricter-wins (smaller) on the
+    /// project↔user merge.
+    #[serde(default)]
+    pub max_admitted_roots: Option<usize>,
 }
 
 /// MLP2-024 multi-session caps. Sized as a top-level config block

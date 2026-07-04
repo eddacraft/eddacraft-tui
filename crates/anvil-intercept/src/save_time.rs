@@ -376,6 +376,12 @@ pub struct SaveTimeState {
     /// `ANVIL_WITNESS_LOCK_TIMEOUT` at daemon start (a malformed value is warned
     /// about here, once, not on every append). A change requires a daemon restart.
     witness_lock_timeout: std::time::Duration,
+    /// CIB-154: the per-connection cap on distinct admitted workspace roots,
+    /// resolved from `IpcLimits::max_admitted_roots` (stricter-wins project↔user
+    /// merge) and threaded into each connection's `AdmittedRoots` on first verb.
+    /// Defaults to [`DEFAULT_MAX_ADMITTED_ROOTS`](crate::dos::DEFAULT_MAX_ADMITTED_ROOTS);
+    /// the daemon overrides it via [`Self::with_root_budget`].
+    root_budget: usize,
 }
 
 impl SaveTimeState {
@@ -411,7 +417,24 @@ impl SaveTimeState {
             observation_emitter: None,
             snapshot_metrics: Arc::new(SnapshotMetrics::default()),
             witness_lock_timeout: resolve_witness_lock_timeout(),
+            root_budget: crate::dos::DEFAULT_MAX_ADMITTED_ROOTS,
         }
+    }
+
+    /// CIB-154: override the per-connection admitted-root budget. The daemon
+    /// calls this with the operator-resolved `IpcLimits::max_admitted_roots`;
+    /// without it the state defaults to
+    /// [`DEFAULT_MAX_ADMITTED_ROOTS`](crate::dos::DEFAULT_MAX_ADMITTED_ROOTS).
+    #[must_use]
+    pub fn with_root_budget(mut self, root_budget: usize) -> Self {
+        self.root_budget = root_budget;
+        self
+    }
+
+    /// CIB-154: this daemon's per-connection distinct-admitted-root budget.
+    #[must_use]
+    pub fn root_budget(&self) -> usize {
+        self.root_budget
     }
 
     /// DSV-030 / ADR-069 §10: the cumulative snapshot I/O outcome counters
@@ -1211,7 +1234,12 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // Copy the shared-state reference so `state.*` reads stay disjoint from
         // the per-connection `self.admitted` field the held fd borrows.
         let state = self.state;
-        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         // Key on the *canonical* root so the assurance machine + warm cache key
         // on the same value `AdmittedRoots` admitted under — a symlinked or
         // non-canonical client root must not split state into two keys.
@@ -1314,7 +1342,12 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1338,7 +1371,12 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1385,7 +1423,12 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // Security: only an admitted root may have its chain extended (the same
         // gate as `validate_paths`). An auth/canonical failure is a transport-level
         // `Err`; the witness outcome itself rides in-band in the response.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
 
         let writer = match anvil_witness::WitnessWriter::open(
@@ -1517,7 +1560,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // connection's admitted-root set before any read. A hostile MCP client
         // can send an arbitrary or sibling-worktree root; this is the same gate
         // the save-time verbs use, and a refusal blocks the projection.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1582,7 +1630,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1645,7 +1698,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1711,7 +1769,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1759,7 +1822,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1822,7 +1890,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1889,7 +1962,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -1952,7 +2030,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -2002,7 +2085,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let anchor = authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
@@ -3151,9 +3239,23 @@ fn canonical_root(root: &Path) -> Result<PathBuf, SaveTimeError> {
 fn authorise_root<'f>(
     admitted: &'f mut Option<AdmittedRoots>,
     confinement: &Confinement,
+    root_budget: usize,
     root: &Path,
 ) -> Result<&'f WorkspaceAnchor, SaveTimeError> {
-    let set = admitted.get_or_insert_with(|| confinement.to_admitted_roots());
+    let set =
+        admitted.get_or_insert_with(|| confinement.to_admitted_roots_with_budget(root_budget));
+    // CIB-154: refuse an as-yet-unadmitted (but otherwise admissible) distinct
+    // root once the connection is at its per-connection root budget, BEFORE
+    // opening another descriptor-pinning anchor. The guard fires only for a root
+    // that would push the connection past the budget — an already-admitted root
+    // or an ordinary allowlist refusal falls through to `authorise` below, so the
+    // budget error stays distinct from `workspace-not-admitted`.
+    if set.root_budget_would_block(root) {
+        return Err(SaveTimeError::RootBudgetExceeded {
+            root: root.to_path_buf(),
+            budget: set.root_budget(),
+        });
+    }
     set.authorise(root)
         .map_err(SaveTimeError::Io)?
         .ok_or_else(|| SaveTimeError::NotAdmitted {
@@ -3713,6 +3815,96 @@ mod tests {
         );
         // An explicitly allow-listed root is still admitted via the policy.
         status(&mut conn, &allowed).expect("an allow-listed root is admitted");
+    }
+
+    /// CIB-154: in `Open` mode a connection may admit up to its root budget of
+    /// distinct roots; the next distinct root is refused with the structured
+    /// [`SaveTimeError::RootBudgetExceeded`] (distinct from `NotAdmitted`), while
+    /// roots already admitted keep being served. Proves the descriptor-exhaustion
+    /// vector is capped, not silently unbounded.
+    #[test]
+    fn open_mode_refuses_root_past_budget_with_structured_error() {
+        let a = tempfile::tempdir().expect("tempdir");
+        let b = tempfile::tempdir().expect("tempdir");
+        let c = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        )
+        .with_root_budget(2);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let status = |conn: &mut SaveTimeConn, dir: &tempfile::TempDir| {
+            conn.workspace_status(&WorkspaceStatusRequest {
+                workspace_root: dir.path().to_string_lossy().into_owned(),
+            })
+        };
+
+        // Two distinct roots admit within budget.
+        status(&mut conn, &a).expect("first root within budget admits");
+        status(&mut conn, &b).expect("second root within budget admits");
+
+        // The third distinct root trips the budget with the distinct error.
+        let refused = status(&mut conn, &c);
+        assert!(
+            matches!(
+                refused,
+                Err(SaveTimeError::RootBudgetExceeded { budget: 2, .. })
+            ),
+            "the (budget+1)th distinct root must be refused with RootBudgetExceeded, got {refused:?}",
+        );
+
+        // A root already admitted keeps being served — the budget caps distinct
+        // roots, not repeat access.
+        status(&mut conn, &a).expect("an already-admitted root keeps being served");
+    }
+
+    /// CIB-154: in `Allowlist` mode the budget caps admissible roots too. With a
+    /// budget of 1 and two allow-listed roots, the first admits and the second —
+    /// admissible but over budget — is refused with `RootBudgetExceeded`, NOT the
+    /// ordinary `NotAdmitted` allowlist refusal.
+    #[test]
+    fn allowlist_mode_refuses_admissible_root_past_budget() {
+        let a = tempfile::tempdir().expect("tempdir");
+        let b = tempfile::tempdir().expect("tempdir");
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: vec![
+                crate::confinement::AllowEntry {
+                    path: a.path().to_path_buf(),
+                    kind: crate::confinement::MatchKind::Exact,
+                },
+                crate::confinement::AllowEntry {
+                    path: b.path().to_path_buf(),
+                    kind: crate::confinement::MatchKind::Exact,
+                },
+            ],
+            ..Default::default()
+        });
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        )
+        .with_root_budget(1);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let status = |conn: &mut SaveTimeConn, dir: &tempfile::TempDir| {
+            conn.workspace_status(&WorkspaceStatusRequest {
+                workspace_root: dir.path().to_string_lossy().into_owned(),
+            })
+        };
+
+        status(&mut conn, &a).expect("first allow-listed root fills the budget");
+        let refused = status(&mut conn, &b);
+        assert!(
+            matches!(
+                refused,
+                Err(SaveTimeError::RootBudgetExceeded { budget: 1, .. })
+            ),
+            "an admissible-but-over-budget root must be refused with RootBudgetExceeded, got {refused:?}",
+        );
     }
 
     /// CIB-149 (b) — relocated-bypass regression: a `RegisterSession`-bound

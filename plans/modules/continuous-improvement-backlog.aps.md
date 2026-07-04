@@ -4141,7 +4141,7 @@ archive.
 
 ### CIB-154: Cap the number of workspace roots a connection may admit
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close the unbounded per-connection resource vector where
   `Open`-mode admission holds one real file descriptor
   (`WorkspaceAnchor`/`OwnedFd`) per distinct admitted root with no ceiling,

@@ -1770,7 +1770,12 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 scheduler,
                 antipattern_config::load_or_fail_safe(),
                 confinement::load_or_fail_closed(),
-            );
+            )
+            // CIB-154: thread the resolved per-connection admitted-root budget
+            // (stricter-wins project↔user merge) into the save-time state so each
+            // connection's `AdmittedRoots` caps its distinct descriptor-pinning
+            // roots.
+            .with_root_budget(ipc_limits.max_admitted_roots);
             // DSV-010b hardening: the operator config is now read through the
             // per-platform owner-only `confinement::read_trusted` on Windows too
             // (reparse refusal + `GetSecurityInfo` owner-SID match), so the

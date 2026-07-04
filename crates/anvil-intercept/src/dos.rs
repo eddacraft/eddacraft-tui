@@ -83,6 +83,16 @@ pub const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_mins(1);
 /// register-session frame would already be pathological) but
 /// well below the 1 MiB `scan_buffer` payload that INTD-005 sized.
 pub const DEFAULT_CONTROL_FRAME_MAX_BYTES: usize = 64 * 1024;
+/// CIB-154 — 32 distinct workspace roots per connection. `Open`-mode
+/// admission pins one real file descriptor (`WorkspaceAnchor`) per
+/// distinct admitted root, so without a ceiling a same-uid peer can
+/// exhaust the daemon's descriptor table by naming many roots. 32 is a
+/// coarse, path-oriented sibling of the finer per-worktree session cap
+/// (`DEFAULT_PER_WORKTREE_MAX = 16`): generous enough for real multi-
+/// root workflows (a monorepo plus a handful of sibling checkouts) yet
+/// far below any descriptor-exhaustion threshold. Clamped to a minimum
+/// of 1 at [`IpcLimits::from_config`].
+pub const DEFAULT_MAX_ADMITTED_ROOTS: usize = 32;
 
 /// Configuration for the IPC listener's `DoS` budgets. Constructed
 /// at daemon start from [`crate::config::Resolved`] (which reads
@@ -101,6 +111,8 @@ pub struct IpcLimits {
     pub handshake_timeout: Duration,
     pub idle_timeout: Duration,
     pub control_frame_max_bytes: usize,
+    /// CIB-154: per-connection cap on distinct admitted workspace roots.
+    pub max_admitted_roots: usize,
 }
 
 impl Default for IpcLimits {
@@ -112,6 +124,7 @@ impl Default for IpcLimits {
             handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
             idle_timeout: DEFAULT_IDLE_TIMEOUT,
             control_frame_max_bytes: DEFAULT_CONTROL_FRAME_MAX_BYTES,
+            max_admitted_roots: DEFAULT_MAX_ADMITTED_ROOTS,
         }
     }
 }
@@ -142,6 +155,11 @@ impl IpcLimits {
         }
         if let Some(bytes) = config.control_frame_max_bytes {
             out.control_frame_max_bytes = bytes.max(256);
+        }
+        if let Some(max) = config.max_admitted_roots {
+            // Clamp to a minimum of 1: a connection must be able to admit at
+            // least its own workspace root or no verb could ever be served.
+            out.max_admitted_roots = max.max(1);
         }
         out
     }
@@ -230,6 +248,7 @@ mod tests {
         assert_eq!(limits.handshake_timeout, Duration::from_secs(5));
         assert_eq!(limits.idle_timeout, Duration::from_mins(1));
         assert_eq!(limits.control_frame_max_bytes, 64 * 1024);
+        assert_eq!(limits.max_admitted_roots, 32);
     }
 
     #[test]
@@ -244,6 +263,7 @@ mod tests {
             handshake_timeout_seconds: Some(0),
             idle_timeout_seconds: Some(0),
             control_frame_max_bytes: Some(1),
+            max_admitted_roots: Some(0),
         };
         let limits = IpcLimits::from_config(&config);
         assert!(limits.max_concurrent_connections >= 1);
@@ -252,6 +272,10 @@ mod tests {
         assert!(limits.handshake_timeout >= Duration::from_secs(1));
         assert!(limits.idle_timeout >= Duration::from_secs(1));
         assert!(limits.control_frame_max_bytes >= 256);
+        assert!(
+            limits.max_admitted_roots >= 1,
+            "a 0 root budget must clamp to 1 so the connection can admit its own root"
+        );
     }
 
     #[test]

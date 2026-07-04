@@ -79,6 +79,22 @@ pub enum SaveTimeError {
         /// fail-closed).
         allow_entries: usize,
     },
+    /// CIB-154: the connection is already at its per-connection admitted-root
+    /// budget and the named root is an as-yet-unadmitted (but otherwise
+    /// admissible) distinct root. Distinct from [`Self::NotAdmitted`] so a peer
+    /// probing the descriptor-exhaustion vector gets an unambiguous structured
+    /// signal rather than a silent/ambiguous allowlist-style refusal.
+    ///
+    /// Like `NotAdmitted`, the carried `root`/`budget` are for the **server-side**
+    /// warn only and never placed on the wire — the reply stays a static,
+    /// path-free `workspace-root-budget-exceeded` (N5 / CIB-091b: no path detail
+    /// leaves the daemon).
+    RootBudgetExceeded {
+        /// The refused workspace root (server-side log only).
+        root: PathBuf,
+        /// The per-connection root budget in force at refusal time.
+        budget: usize,
+    },
     /// The admitted root's anchor could not be opened. Maps to an internal error.
     Io(std::io::Error),
 }
@@ -3265,6 +3281,12 @@ fn handle_query_status_jsonrpc(
 /// `workspace_root` is not admitted on the connection (allowlist confinement).
 const SAVE_TIME_NOT_ADMITTED_CODE: i64 = -32010;
 
+/// CIB-154: JSON-RPC application error code for a save-time verb refused because
+/// the connection is already at its per-connection admitted-root budget. In the
+/// implementation-defined server-error range (`-32000..=-32099`), sequenced
+/// after `-32010` (workspace not admitted).
+const SAVE_TIME_ROOT_BUDGET_EXCEEDED_CODE: i64 = -32011;
+
 /// Route a save-time verb (DSV-005) to the per-connection dispatcher. The
 /// dispatch arm has already matched `method` against the three save-time
 /// constants, so the `else` branch here is `request_full_scan`.
@@ -3759,6 +3781,31 @@ fn save_time_result<T: serde::Serialize>(
                 SAVE_TIME_NOT_ADMITTED_CODE,
                 "Workspace not admitted",
                 json!({"reason": "workspace-not-admitted"}),
+            )
+        }
+        Err(SaveTimeError::RootBudgetExceeded { root, budget }) => {
+            // CIB-154: the connection has hit its distinct-admitted-root ceiling.
+            // Surface the refused path + budget to the SERVER log only (an
+            // operator diagnosing a descriptor-exhaustion defence); the wire
+            // reply below stays static and path-free (N5 / CIB-091b — no path
+            // detail leaves the daemon), mirroring the `NotAdmitted` arm.
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                workspace_root = %root.display(),
+                budget,
+                "save-time verb refused: per-connection admitted-root budget \
+                 exceeded (this connection already holds the maximum number of \
+                 distinct workspace roots; close an unused connection or raise \
+                 `enforcement.dos.max_admitted_roots` if this is a legitimate \
+                 multi-root workflow)",
+            );
+            jsonrpc_request_error(
+                response_id,
+                traceparent,
+                false,
+                SAVE_TIME_ROOT_BUDGET_EXCEEDED_CODE,
+                "Workspace root budget exceeded",
+                json!({"reason": "workspace-root-budget-exceeded"}),
             )
         }
         Err(SaveTimeError::Io(err)) => {
