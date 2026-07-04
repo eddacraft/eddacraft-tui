@@ -1,6 +1,6 @@
 # Post-merge: fix-cib-178-exclude-anvil-artefacts-language-profile
 
-PR: <!-- filled after PR creation -->
+PR: #3152
 Branch: `fix/cib-178-exclude-anvil-artefacts-language-profile`
 APS: CIB-178 (module `continuous-improvement-backlog`)
 Merged: <!-- filled by cleanup agent -->
