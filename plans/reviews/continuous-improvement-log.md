@@ -2065,3 +2065,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When an ownership check keys off a per-session pid, prefer a field the lifecycle-narrowing path does NOT rewrite; the mutable lineage anchor and the stable registering-peer identity are different concepts even when they start equal.
 - **Follow-up:** No multi-process (distinct real-PID) daemon harness exists yet for a true cross-process denial proof end-to-end (noted in the CIB block); the dispatch-level injected-`peer_pid` tests cover the contract but not real `SO_PEERCRED` cross-process.
 
+### 2026-07-05 — claude (CIB-181)
+
+- **Task:** CIB-181 — `eddacraft-anvil-policy`'s fixture-exec tests (the five routing through `SubprocessRunner::eval_json` + the `script()` helper) flaked intermittently under parallel `cargo test` with "Text file busy (os error 26)".
+- **Outcome:** Bounded ETXTBSY retry at the `eval_json` spawn site, extracted as the unit-testable free function `spawn_with_etxtbsy_retry(spawn, max_attempts)` (5 attempts, `1<<attempt` ms back-off). The `Command` is reconstructed per attempt for fresh stdio pipes. TDD: three unit tests proven red first (compile error, helper absent) — recovers-after-transient-ETXTBSY, gives-up-after-max-attempts (last error preserved, exactly initial+N calls), and does-not-retry-non-ETXTBSY (ENOENT propagates on the first call). Validated with the 20x `cargo test -p eddacraft-anvil-policy` stress loop: zero ETXTBSY across all runs.
+- **Worked:** Root cause is the inode-scoped fork+exec race (`fork()` clones the whole fd table; `deny_write_access`/`i_writecount` is inode- not path-scoped), so a retry at the *spawn* site is the ecosystem-standard fix (golang/go#22315, rust-lang/rust#114554). Extracting the loop into a free function made the retry logic assertable via injected closures without needing to force a real, inherently-racy ETXTBSY.
+- **Failed:** none.
+- **Friction:** The pre-existing CIB-181 entry cited two tests (`opa::tests::evaluate_passes_restricted_capabilities_to_opa`, `evaluate_propagates_stderr_on_nonzero_exit`) that no longer exist — the whole `opa.rs` module was deleted in ADR-098 PR-C — and floated a write-then-rename fix that is a no-op here (rename preserves the inode's write-count). Corrected both in the module entry.
+- **Improvement:** For the multithreaded-fork+exec ETXTBSY race, don't chase fd-lifecycle or write-then-rename fixes — the race lives entirely in another thread's fork-to-exec window against your file's inode, so a bounded retry at the spawn call site is the only correct, self-healing fix.
+- **Follow-up:** none.
+
