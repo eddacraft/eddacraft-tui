@@ -318,9 +318,9 @@ fn admin_credential_config_path() -> Result<PathBuf> {
     // directory` exit-1s on the Windows cross-compile smoke leg). Default
     // Linux and Windows paths are unchanged (`~/.config/anvil/` /
     // `%APPDATA%/anvil/`).
-    let config_dir = crate::auth::credentials::credentials_dir()
+    let credentials_dir = crate::auth::credentials::credentials_dir()
         .context("could not determine user config directory")?;
-    Ok(config_dir.join("admin-auth.json"))
+    Ok(credentials_dir.join("admin-auth.json"))
 }
 
 fn load_admin_credential_config(path: &Path) -> Result<Option<AdminCredentialConfig>> {
