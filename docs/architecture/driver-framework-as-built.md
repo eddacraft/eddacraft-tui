@@ -289,6 +289,7 @@ enforcement:
     handshake_timeout_seconds: 5
     idle_timeout_seconds: 60
     control_frame_max_bytes: 65536
+    max_admitted_roots: 32
 telemetry:
   allow_cross_session: false
 ```
@@ -320,6 +321,10 @@ What the driver / shim can request, and what the daemon can override:
 - `enforcement.dos.*` — INTD-016 budgets reserved at the proto layer in INTD-008
   and consumed by `IpcLimits::from_config` in INTD-016
   (`enforcement_config.rs:120-176`). RTAI-006 ignores this field.
+- `enforcement.dos.max_admitted_roots` (CIB-154, default 32) caps the distinct
+  workspace roots one connection may admit — a per-connection descriptor-table
+  budget. It merges **stricter-wins** (smaller cap wins) like its sibling DoS
+  keys, and clamps to a minimum of 1.
 - `telemetry.allow_cross_session: false` is the safe default per the 2026-04-24
   council M5 review; cross-session events are dropped entirely unless explicitly
   opted in (`enforcement_config.rs:179-202`).

@@ -3797,7 +3797,9 @@ fn save_time_result<T: serde::Serialize>(
                  exceeded (this connection already holds the maximum number of \
                  distinct workspace roots; close an unused connection or raise \
                  `enforcement.dos.max_admitted_roots` if this is a legitimate \
-                 multi-root workflow)",
+                 multi-root workflow — requires a daemon restart to take effect, \
+                 as IpcLimits is resolved once at daemon start with no \
+                 hot-reload)",
             );
             jsonrpc_request_error(
                 response_id,

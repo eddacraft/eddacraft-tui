@@ -287,11 +287,23 @@ sourced from the resolved enforcement config
 | `handshake_timeout`          | 5 s       |
 | `idle_timeout`               | 60 s      |
 | `control_frame_max_bytes`    | 64 KiB    |
+| `max_admitted_roots`         | 32 roots  |
 
 Project + user `enforcement.dos.*` blocks merge **stricter-wins**: the smaller
-connection cap, smaller RPS, smaller timeouts, smaller frame cap each win
-(`config.rs:390-423`). The clamp invariant is at `dos.rs:127-147` —
-`max_connections = 0` is clamped to 1 so the operator can always recover.
+connection cap, smaller RPS, smaller timeouts, smaller frame cap, smaller
+admitted-root budget each win (`config.rs:390-423`). The clamp invariant is at
+`dos.rs:127-147` — `max_connections = 0` is clamped to 1 so the operator can
+always recover; `max_admitted_roots = 0` is likewise clamped to 1 so a
+connection can always admit at least its own workspace root.
+
+`max_admitted_roots` (CIB-154) caps the number of **distinct** workspace roots a
+single connection may admit. `Open`-mode admission pins one real file descriptor
+(`WorkspaceAnchor`) per distinct root, so an unbounded root set lets a same-uid
+peer exhaust the daemon's descriptor table; the budget refuses the
+`(budget + 1)`-th distinct admissible root with
+`-32011 Workspace root budget exceeded` (distinct from
+`workspace-not-admitted`). `IpcLimits` is resolved once at daemon start, so
+raising the cap needs a daemon restart to take effect.
 
 **RPS exhaustion does not close the connection.** When a peer's bucket is empty,
 the listener returns `-32005 Server busy: rate limit exceeded` and lets the

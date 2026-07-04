@@ -710,6 +710,20 @@ threat-model work.
   Client-side SID validation (defence-in-depth parity with the Unix
   `SO_PEERCRED` check) is deferred to MLP2-051j; same-SID processes are inside
   the v1 trust boundary the same way same-UID processes are on Unix.
+- **Per-connection admitted-workspace-root budget (CIB-154).** A new DoS-family
+  cap `enforcement.dos.max_admitted_roots` (default 32) bounds the number of
+  distinct workspace roots one connection may admit. `Open`-mode admission pins
+  one real file descriptor (`WorkspaceAnchor`) per distinct root, so an
+  unbounded root set let a same-uid peer exhaust the daemon's descriptor table;
+  the budget refuses the over-budget `(budget + 1)`-th admissible root with a
+  structured `-32011 Workspace root budget exceeded` (distinct from
+  `workspace-not-admitted`). Enforced in both `Open` and `Allowlist` modes,
+  merges stricter-wins (smaller cap wins) like its sibling DoS caps, and clamps
+  to a minimum of 1. The per-verb admission gate canonicalises the incoming root
+  **exactly once** and makes the budget-check-then-admit decision on that single
+  resolved path, closing a check/act TOCTOU a split resolution would leave. Cap
+  changes need a daemon restart (`IpcLimits` is resolved once at daemon start).
+  Mirrors the MLP2-024 per-worktree session-cap precedent.
 
 ### Diagnostics, docs & delivery
 

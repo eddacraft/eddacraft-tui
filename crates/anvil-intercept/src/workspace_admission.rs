@@ -48,6 +48,23 @@ use std::path::{Path, PathBuf};
 use crate::dos::DEFAULT_MAX_ADMITTED_ROOTS;
 use crate::workspace_anchor::WorkspaceAnchor;
 
+/// CIB-154: the outcome of [`AdmittedRoots::authorise_within_budget`], which
+/// canonicalises the incoming root **exactly once** and then makes the
+/// budget-check-then-admit decision on that single resolved path — closing the
+/// TOCTOU window a split "would-block?" / "authorise" pair would otherwise leave
+/// (a same-uid writer swapping a symlink component between the two resolutions).
+#[derive(Debug)]
+pub enum AdmitOutcome<'a> {
+    /// The root is authorised on this connection; carries the held read anchor.
+    Authorised(&'a WorkspaceAnchor),
+    /// The root is admissible but would push the connection past its
+    /// [`root_budget`](AdmittedRoots::root_budget) — refuse with a structured
+    /// budget error, distinct from a plain not-admitted refusal.
+    OverBudget,
+    /// The root is refused: unresolvable, or (in `Allowlist` mode) unlisted.
+    Refused,
+}
+
 /// How the admitted-root set decides whether to admit a not-yet-seen root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdmissionMode {
@@ -207,12 +224,20 @@ impl AdmittedRoots {
         let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
             return false;
         };
-        if self.admitted.contains_key(&canonical) {
+        self.budget_would_block_canonical(&canonical)
+    }
+
+    /// CIB-154: the budget decision on an **already-canonicalised** root — the
+    /// shared core of [`Self::root_budget_would_block`] and
+    /// [`Self::authorise_within_budget`], so both operate on the same resolved
+    /// path without re-running `canonicalize`.
+    fn budget_would_block_canonical(&self, canonical: &Path) -> bool {
+        if self.admitted.contains_key(canonical) {
             return false;
         }
         let admissible = match self.mode {
             AdmissionMode::Open => true,
-            AdmissionMode::Allowlist => self.allow.permits(&canonical),
+            AdmissionMode::Allowlist => self.allow.permits(canonical),
         };
         admissible && self.admitted.len() >= self.root_budget
     }
@@ -259,20 +284,66 @@ impl AdmittedRoots {
         let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
             return Ok(None);
         };
+        self.authorise_canonical(&canonical)
+    }
 
-        if !self.admitted.contains_key(&canonical) {
+    /// Admit/authorise an **already-canonicalised** root — the shared core of
+    /// [`Self::authorise`] and [`Self::authorise_within_budget`], so neither
+    /// re-runs `canonicalize` on a path a caller already resolved.
+    fn authorise_canonical(&mut self, canonical: &Path) -> io::Result<Option<&WorkspaceAnchor>> {
+        if !self.admitted.contains_key(canonical) {
             let admissible = match self.mode {
                 AdmissionMode::Open => true,
-                AdmissionMode::Allowlist => self.allow.permits(&canonical),
+                AdmissionMode::Allowlist => self.allow.permits(canonical),
             };
             if !admissible {
                 return Ok(None);
             }
-            let anchor = WorkspaceAnchor::open(&canonical)?;
-            self.admitted.insert(canonical.clone(), anchor);
+            let anchor = WorkspaceAnchor::open(canonical)?;
+            self.admitted.insert(canonical.to_path_buf(), anchor);
         }
 
-        Ok(self.admitted.get(&canonical))
+        Ok(self.admitted.get(canonical))
+    }
+
+    /// CIB-154: authorise `workspace_root` against this connection's admission
+    /// mode **and** its distinct-root budget in a single step, canonicalising
+    /// the incoming path **exactly once**.
+    ///
+    /// This is the seam the daemon's per-verb admission gate uses. Folding the
+    /// former separate `root_budget_would_block` (check) + [`Self::authorise`]
+    /// (act) pair into one canonicalise closes a TOCTOU: with two independent
+    /// `canonicalize` calls, a same-uid writer could swap a symlink component
+    /// between them so the budget check resolves to an already-admitted
+    /// (non-blocking) path while the admit step resolves to a genuinely new,
+    /// distinct root — admitting it without ever passing the budget check and
+    /// defeating CIB-154's own resource-exhaustion defence. Here the budget
+    /// check and the admit decision operate on the same resolved `canonical`
+    /// with no re-resolution in between.
+    ///
+    /// # Errors
+    /// Propagates the open error when admission is attempted for a root that is
+    /// admissible and within budget but cannot be opened.
+    pub fn authorise_within_budget(
+        &mut self,
+        workspace_root: &Path,
+    ) -> io::Result<AdmitOutcome<'_>> {
+        // Canonicalise ONCE; every subsequent decision uses `canonical`.
+        let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
+            // A vanished/unresolvable root is a plain refusal, not an error.
+            return Ok(AdmitOutcome::Refused);
+        };
+        // Budget guard first, so an admissible-but-over-budget root reports the
+        // structured budget refusal rather than being admitted (or reported as
+        // a plain not-admitted refusal). An unlisted or already-admitted root is
+        // never a budget block, so it falls through to `authorise_canonical`.
+        if self.budget_would_block_canonical(&canonical) {
+            return Ok(AdmitOutcome::OverBudget);
+        }
+        match self.authorise_canonical(&canonical)? {
+            Some(anchor) => Ok(AdmitOutcome::Authorised(anchor)),
+            None => Ok(AdmitOutcome::Refused),
+        }
     }
 }
 
@@ -459,6 +530,119 @@ mod tests {
             "an unlisted root is an allowlist refusal, not a budget refusal"
         );
         assert!(roots.authorise(unlisted.path()).expect("io").is_none());
+    }
+
+    #[test]
+    fn authorise_within_budget_matches_split_semantics_open_mode() {
+        // CIB-154: the single-canonicalise gate must produce exactly the same
+        // Authorised / OverBudget decisions as the former split
+        // `root_budget_would_block` + `authorise` pair.
+        let a = tempfile::tempdir().expect("tempdir");
+        let b = tempfile::tempdir().expect("tempdir");
+        let c = tempfile::tempdir().expect("tempdir");
+
+        let mut roots = AdmittedRoots::new_open().with_root_budget(2);
+
+        assert!(matches!(
+            roots.authorise_within_budget(a.path()).expect("io"),
+            AdmitOutcome::Authorised(_)
+        ));
+        assert!(matches!(
+            roots.authorise_within_budget(b.path()).expect("io"),
+            AdmitOutcome::Authorised(_)
+        ));
+        // Third distinct root is over budget — and must NOT be admitted.
+        assert!(matches!(
+            roots.authorise_within_budget(c.path()).expect("io"),
+            AdmitOutcome::OverBudget
+        ));
+        let canonical_c = std::fs::canonicalize(c.path()).unwrap();
+        assert!(
+            !roots.is_admitted(&canonical_c),
+            "an over-budget root must never be admitted (no descriptor opened)"
+        );
+        // An already-admitted root keeps authorising past budget.
+        assert!(matches!(
+            roots.authorise_within_budget(a.path()).expect("io"),
+            AdmitOutcome::Authorised(_)
+        ));
+    }
+
+    #[test]
+    fn authorise_within_budget_distinguishes_unlisted_from_over_budget() {
+        // CIB-154: in Allowlist mode an over-budget allow-listed root is
+        // OverBudget; an unlisted root is a plain Refused — never conflated.
+        let a = tempfile::tempdir().expect("tempdir");
+        let b = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+
+        let allow = AllowPolicy::new(
+            [
+                std::fs::canonicalize(a.path()).unwrap(),
+                std::fs::canonicalize(b.path()).unwrap(),
+            ],
+            std::iter::empty(),
+        );
+        let mut roots = AdmittedRoots::new_allowlist_with_policy(allow).with_root_budget(1);
+
+        assert!(matches!(
+            roots.authorise_within_budget(a.path()).expect("io"),
+            AdmitOutcome::Authorised(_)
+        ));
+        // Allow-listed but over budget.
+        assert!(matches!(
+            roots.authorise_within_budget(b.path()).expect("io"),
+            AdmitOutcome::OverBudget
+        ));
+        // Unlisted → plain refusal, distinct from the budget refusal.
+        assert!(matches!(
+            roots.authorise_within_budget(unlisted.path()).expect("io"),
+            AdmitOutcome::Refused
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn authorise_within_budget_resolves_symlink_components_consistently() {
+        // CIB-154 TOCTOU: a root named through a symlink must be budget-checked
+        // and admitted against ONE resolved canonical path. Fill the budget via
+        // the real path, then name a DISTINCT new dir through a symlink: the
+        // gate must see it as over-budget (its single resolution is genuinely
+        // new) and refuse it — never admit it because a re-resolution disagreed.
+        let dir_a = tempfile::tempdir().expect("tempdir");
+        let dir_b = tempfile::tempdir().expect("tempdir");
+        let link_root = tempfile::tempdir().expect("tempdir");
+        let link_to_b = link_root.path().join("link-to-b");
+        std::os::unix::fs::symlink(dir_b.path(), &link_to_b).expect("symlink");
+
+        let mut roots = AdmittedRoots::new_open().with_root_budget(1);
+
+        // Budget filled by the first distinct root.
+        assert!(matches!(
+            roots.authorise_within_budget(dir_a.path()).expect("io"),
+            AdmitOutcome::Authorised(_)
+        ));
+
+        // Naming a distinct new dir through a symlink resolves once to dir_b,
+        // which is genuinely new → over budget, and must not be admitted.
+        assert!(matches!(
+            roots.authorise_within_budget(&link_to_b).expect("io"),
+            AdmitOutcome::OverBudget
+        ));
+        let canonical_b = std::fs::canonicalize(dir_b.path()).unwrap();
+        assert!(
+            !roots.is_admitted(&canonical_b),
+            "a symlinked over-budget root must not slip past the budget guard"
+        );
+
+        // But the ALREADY-admitted root remains authorised when named through a
+        // symlink that resolves to it — consistent single resolution both ways.
+        let link_to_a = link_root.path().join("link-to-a");
+        std::os::unix::fs::symlink(dir_a.path(), &link_to_a).expect("symlink");
+        assert!(matches!(
+            roots.authorise_within_budget(&link_to_a).expect("io"),
+            AdmitOutcome::Authorised(_)
+        ));
     }
 
     #[test]

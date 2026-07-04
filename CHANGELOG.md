@@ -110,6 +110,16 @@ startup, and continued beta-reliability polish.
   allow-list admits no roots (fail-closed). `open` mode (the default) is
   unchanged. If you rely on `allowlist` mode, add the roots you want served
   before upgrading (CIB-149).
+- **Per-connection workspace-root limit.** The intercept daemon now caps how
+  many **distinct** workspace roots a single connection may admit
+  (`enforcement.dos.max_admitted_roots`, default 32), so a misbehaving or
+  malicious same-uid client can no longer exhaust the daemon by opening
+  unbounded roots. A long-lived connection that legitimately touches more than
+  32 distinct roots will now be refused the 33rd with a clear "workspace root
+  budget exceeded" error where it previously would have been served; raise the
+  limit under `enforcement.dos.max_admitted_roots` (it merges stricter-wins with
+  your project and user config) and restart the daemon if you have a legitimate
+  many-root workflow (CIB-154).
 
 - **Session lifecycle operations are now bound to the registering peer.**
   `Heartbeat` and `UnregisterSession` for a live, lineage-verified session are

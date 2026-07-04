@@ -89,7 +89,7 @@ use crate::kindling_observation::SaveTimeObservationEmitter;
 use crate::rule_cache::WorktreeKey;
 use crate::telemetry::{NotificationEnvelope, TelemetryCorrelation, TelemetryEmitter};
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
-use crate::workspace_admission::AdmittedRoots;
+use crate::workspace_admission::{AdmitOutcome, AdmittedRoots};
 use crate::workspace_anchor::WorkspaceAnchor;
 use crate::workspace_pool::{DosCaps, WorkScheduler};
 
@@ -3244,24 +3244,31 @@ fn authorise_root<'f>(
 ) -> Result<&'f WorkspaceAnchor, SaveTimeError> {
     let set =
         admitted.get_or_insert_with(|| confinement.to_admitted_roots_with_budget(root_budget));
-    // CIB-154: refuse an as-yet-unadmitted (but otherwise admissible) distinct
-    // root once the connection is at its per-connection root budget, BEFORE
-    // opening another descriptor-pinning anchor. The guard fires only for a root
-    // that would push the connection past the budget — an already-admitted root
-    // or an ordinary allowlist refusal falls through to `authorise` below, so the
-    // budget error stays distinct from `workspace-not-admitted`.
-    if set.root_budget_would_block(root) {
-        return Err(SaveTimeError::RootBudgetExceeded {
-            root: root.to_path_buf(),
-            budget: set.root_budget(),
-        });
-    }
-    set.authorise(root)
+    // CIB-154: canonicalise the incoming root EXACTLY ONCE and make the
+    // budget-check-then-admit decision on that single resolved path. Folding the
+    // former split `root_budget_would_block` (check) + `authorise` (act) pair
+    // behind one `canonicalize` closes a TOCTOU: two independent resolutions let
+    // a same-uid writer swap a symlink component between them so the budget check
+    // resolved to an already-admitted (non-blocking) path while the admit step
+    // resolved to a genuinely new, distinct root — admitting it without ever
+    // passing the budget check. The guard still fires only for an admissible root
+    // that would push the connection past the budget; an already-admitted root or
+    // an ordinary allowlist refusal reports its own distinct error.
+    let budget = set.root_budget();
+    match set
+        .authorise_within_budget(root)
         .map_err(SaveTimeError::Io)?
-        .ok_or_else(|| SaveTimeError::NotAdmitted {
+    {
+        AdmitOutcome::Authorised(anchor) => Ok(anchor),
+        AdmitOutcome::OverBudget => Err(SaveTimeError::RootBudgetExceeded {
+            root: root.to_path_buf(),
+            budget,
+        }),
+        AdmitOutcome::Refused => Err(SaveTimeError::NotAdmitted {
             root: root.to_path_buf(),
             allow_entries: confinement.allow_count(),
-        })
+        }),
+    }
 }
 
 #[cfg(test)]
