@@ -60,9 +60,11 @@ pub struct CapsuleContent {
 /// schema-valid SARIF document with empty `results[]` (never a 0-byte
 /// file).
 ///
-/// `exceptions.json` carries the active grants from the tracked
-/// exception store (EXCEPT-009); the verifier's `exceptions` check
-/// re-verifies each one (scope/expiry/revocation/attribution).
+/// `exceptions.json` carries the active grants from the exception
+/// store — tracked `anvil/exceptions/store.json`, or the legacy
+/// `.anvil/exceptions.json` fallback for unmigrated repos
+/// (EXCEPT-009); the verifier's `exceptions` check re-verifies each
+/// one (scope/expiry/revocation/attribution).
 ///
 /// Placeholders written by this step (their collectors land later):
 ///
@@ -220,6 +222,13 @@ fn scan_evidence_for_secrets(files: &[(&str, Vec<u8>)]) -> Result<(), CapsuleErr
 /// high-entropy token pasted into a grant reason must not land in a
 /// tracked capsule (ADR-072 §3, the gap the EXCEPT-009 wiring would
 /// otherwise open).
+///
+/// `max_line_bytes` stays unbounded deliberately: the SCAN-002 guard
+/// *skips* overlong lines, so on operator-editable prose a finite cap
+/// is a bypass (pad the reason past the cap and the secret is never
+/// scanned). Worst-case scan cost is already bounded upstream by the
+/// store's 1 MiB read cap — the same trade `scan_evidence_for_secrets`
+/// makes for canonical single-line JSON.
 fn scan_exception_prose_for_secrets(
     exceptions: &crate::collect_exceptions::CollectedExceptions,
 ) -> Result<(), CapsuleError> {

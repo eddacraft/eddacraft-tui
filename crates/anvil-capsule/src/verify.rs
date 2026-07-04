@@ -355,17 +355,18 @@ fn check_exceptions(capsule_dir: &Path, repo_root: &Path, now: DateTime<Utc>) ->
 
     // The capsule snapshot is frozen at create time, so revocation
     // that happened *after* create is invisible to it. Re-consult the
-    // live tracked store (the same re-collection discipline as
-    // `check_digests_vs_repo`) so a since-revoked grant blocks and a
-    // grant that vanished from the store degrades (2026-07-04
-    // council, EXCEPT-009).
+    // live exception store — tracked, or the legacy fallback for
+    // unmigrated repos; absent-store loads as empty — with the same
+    // re-collection discipline as `check_digests_vs_repo`, so a
+    // since-revoked grant blocks and a grant absent from the live
+    // store degrades (2026-07-04 council, EXCEPT-009).
     let live = ExceptionStore::load(repo_root);
 
     let mut verdict = Verdict::Pass;
     let mut details = Vec::new();
     if let Err(e) = &live {
         verdict = verdict.worst(Verdict::Degraded);
-        details.push(format!("tracked exception store unreadable: {e}"));
+        details.push(format!("exception store unreadable: {e}"));
     }
     for ex in &exceptions {
         let mut classify =
@@ -385,12 +386,13 @@ fn check_exceptions(capsule_dir: &Path, repo_root: &Path, now: DateTime<Utc>) ->
         classify(verify_exception_at(ex, now), "");
         if let Ok(store) = &live {
             if let Some(live_record) = store.exceptions.iter().find(|l| l.id == ex.id) {
-                classify(verify_exception_at(live_record, now), " (tracked store)");
+                classify(verify_exception_at(live_record, now), " (live store)");
             } else {
                 verdict = verdict.worst(Verdict::Degraded);
                 details.push(format!(
-                    "exception {} is no longer in the tracked store (revocation is a \
-                     soft delete — a vanished record means the store was rewritten)",
+                    "exception {} is absent from the live exception store (revocation is \
+                     a soft delete, so a record should persist; absence means the store \
+                     was rewritten, removed, or never present in this checkout)",
                     ex.id,
                 ));
             }
