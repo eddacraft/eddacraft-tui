@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
+mod attack_regression;
 mod eval;
 mod eval_regression;
 mod install;
@@ -24,6 +25,8 @@ enum PolicyCommand {
     /// Run trust-regression eval suites and report regressions against the
     /// persisted baseline.
     EvalRegression(eval_regression::EvalRegressionArgs),
+    /// Run a prompt-attack regression pack and gate on the fail-policy verdict.
+    AttackRegression(attack_regression::AttackRegressionArgs),
     /// List available policies
     List {
         /// Filter by category
@@ -197,6 +200,9 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
         PolicyCommand::Eval(eval_args) => return eval::run(eval_args, global),
         PolicyCommand::EvalRegression(reg_args) => {
             return eval_regression::run(reg_args, global);
+        }
+        PolicyCommand::AttackRegression(attack_args) => {
+            return attack_regression::run(attack_args, global);
         }
         PolicyCommand::List { category, enabled } => {
             let mut policies = policy_catalogue();

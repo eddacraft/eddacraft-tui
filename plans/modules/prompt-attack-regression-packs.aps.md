@@ -48,11 +48,19 @@ injection, exfiltration, and instruction-hijack scenarios before release.
 
 ### PATT-003: Connect fail policy and CI gates
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Enforce configurable pass/fail thresholds by severity.
 - **Expected Outcome:** CI can block or warn based on attack regression policy.
 - **Validation:** `cargo test -p eddacraft-anvil -- attack_regression_gate`
 - **Dependencies:** PATT-002
+- **Validated:** `crates/anvil-cli/src/commands/policy/attack_regression.rs` —
+  `FailPolicy` (severity threshold, warnings-first default per ADR-002) maps a
+  `PackRunReport` to a `GateDecision` (pass/warn/fail); `anvil policy
+  attack-regression` CLI surface, report-only by default, `--fail-above
+  <severity>` opts into blocking; fail-closed on unknown/missing severity. The
+  mechanism ships **report-only** — a new required, blocking CI step is a later
+  gated decision (mirrors EVALCI's report-only phase), deliberately not wired
+  here. 12 filtered tests green, clippy `-D warnings` + fmt clean.
 
 ## Execution
 
