@@ -4496,9 +4496,9 @@ archive.
   `.github/workflows/anvil.yml` + `anvil-audit.yml` — the most repo-visible,
   PR-triggering write activation performs, and the easiest to accept
   accidentally.
-- **Expected Outcome:** Per the owner decision: default-unticked options, or a
-  distinct confirm step naming the files to be committed, so a hurried Enter
-  cannot silently add CI workflows to a shared repo.
+- **Expected Outcome:** Both picker options start unticked, so a hurried
+  Enter cannot silently add CI workflows to a shared repo; ticking a
+  workflow is the consent.
 - **Files:** `crates/anvil-cli/src/activation/orchestrator/mod.rs`.
 - **Validation:** `cargo test -p eddacraft-anvil orchestrator`; interactive
   transcript showing Enter-through writes nothing under the new default.
@@ -4603,9 +4603,9 @@ archive.
 - **Owner decision (2026-07-04):** auth-required propagates a distinct
   non-zero exit (exit 3) on action commands, superseding issue #1822's
   exit-0 mapping there; consistent with the MCP-install non-zero rationale.
-  Breaking-in-beta, so the `--help` exit-code table and CHANGELOG must call
-  it out. No `--strict` flag. Read-only/status surfaces keep their existing
-  contract.
+  A breaking change in beta, so the `--help` exit-code table and CHANGELOG
+  must call it out. No `--strict` flag. Read-only/status surfaces keep
+  their existing contract.
 - **Intent:** `anvil start && deploy-assuming-protection` currently advances
   past a completely unactivated repo because the auth wall exits 0
   (`main.rs:523-524`).
