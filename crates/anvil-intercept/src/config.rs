@@ -557,6 +557,40 @@ mod tests {
         assert_eq!(Mode::Interrupt.stricter(Mode::Fence), Mode::Interrupt);
         assert_eq!(Mode::Fence.stricter(Mode::Interrupt), Mode::Interrupt);
         assert_eq!(Mode::Warn.stricter(Mode::Warn), Mode::Warn);
+        // ADR-098 AD-3: `Off` is the weakest posture — `warn` wins over it.
+        assert_eq!(Mode::Off.stricter(Mode::Warn), Mode::Warn);
+        assert_eq!(Mode::Warn.stricter(Mode::Off), Mode::Warn);
+        assert_eq!(Mode::Off.stricter(Mode::Off), Mode::Off);
+    }
+
+    #[test]
+    fn off_and_warn_merge_picks_warn_either_order() {
+        // ADR-098 AD-3: `off` is a real posture (weakest under
+        // stricter-wins). A project↔user merge of `off` and `warn`
+        // resolves to `warn` regardless of which side declares which — a
+        // user's `off` cannot weaken a project's `warn`, and a user's
+        // `warn` raises a project's `off`.
+        let workspace = tempdir().expect("workspace");
+        let user_dir = tempdir().expect("user dir");
+        let user_path = user_dir.path().join("anvil.yaml");
+
+        write_anvil_yaml(workspace.path(), "enforcement:\n  mode: off\n");
+        write_user_config(&user_path, "enforcement:\n  mode: warn\n");
+        let resolved = Resolved::load(workspace.path(), Some(&user_path)).expect("load");
+        assert_eq!(
+            resolved.mode,
+            Mode::Warn,
+            "project off + user warn must resolve to warn",
+        );
+
+        write_anvil_yaml(workspace.path(), "enforcement:\n  mode: warn\n");
+        write_user_config(&user_path, "enforcement:\n  mode: off\n");
+        let resolved = Resolved::load(workspace.path(), Some(&user_path)).expect("load");
+        assert_eq!(
+            resolved.mode,
+            Mode::Warn,
+            "project warn + user off must resolve to warn",
+        );
     }
 
     #[test]

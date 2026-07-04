@@ -69,25 +69,25 @@ use serde::Deserialize;
 pub struct EnforcementConfigFile {
     /// Top-level enforcement strictness.
     ///
-    /// Canonical RTAI-006 vocabulary: `block | warn | off`.
-    /// Canonical INTD-008 vocabulary: `warn | fence | interrupt`.
-    /// Aliases accepted by both consumers (case-folded, trimmed):
+    /// Since ADR-098 AD-3 both consumers resolve this string through the
+    /// single shared posture type
+    /// `anvil_kernel_types::EnforcementMode { Off, Warn, Fence, Interrupt }`
+    /// with one alias table (case-folded, trimmed):
     ///
-    /// | Raw input              | RTAI-006 enum | INTD-008 enum |
-    /// | ---------------------- | ------------- | ------------- |
-    /// | `block`                | `Block`       | `Interrupt`   |
-    /// | `interrupt`            | `Block`       | `Interrupt`   |
-    /// | `fence`                | `Block`       | `Fence`       |
-    /// | `warn`                 | `Warn`        | `Warn`        |
-    /// | `off` / `advisory` /   | `Off`         | `Warn` (n/a — |
-    /// | `proceed`              |               | INTD-008 has  |
-    /// |                        |               | no "off")     |
+    /// | Raw input                    | Resolved posture |
+    /// | ---------------------------- | ---------------- |
+    /// | `off` / `advisory` / `proceed` | `Off`          |
+    /// | `warn`                       | `Warn`           |
+    /// | `fence`                      | `Fence`          |
+    /// | `interrupt` / `block`        | `Interrupt`      |
     ///
-    /// INTD-008 has no `off` mode by spec; if a workspace sets
-    /// `mode: off` on the daemon side, the daemon treats it as
-    /// `warn` (the strictest interpretation the daemon can offer
-    /// without changing semantics). RTAI-006 keeps its `Off`
-    /// branch — the MCP shim semantics are unchanged.
+    /// `off` is a real posture (weakest under stricter-wins,
+    /// `off < warn < fence < interrupt`); `block` is an alias for
+    /// `interrupt`. There is no parse-time collapse of `fence`/`interrupt`
+    /// onto a single veto — the true posture is preserved and the veto is
+    /// projected at action time. The daemon and the MCP shim differ only
+    /// in their no-config default (the daemon defaults to `Warn`; the MCP
+    /// shim to `Interrupt`), which each supplies itself.
     #[serde(default)]
     pub mode: Option<String>,
 

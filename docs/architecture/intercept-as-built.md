@@ -1,21 +1,24 @@
 # anvil-intercept — As-Built
 
-| Type     | Authority | Owner     | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------- | --------- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | INTD, DSV | Live   | Last reviewed 2026-07-02 (as-built drift sweep: `ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX, `stop`/`unblock` CLI subcommands shipped, repinned lib.rs/intercept.rs/protocol.rs line refs) against main `d1fded280`; prior delta review 2026-06-10 (DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner     | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------- | --------- | --------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | INTD, DSV | Live   | Last reviewed 2026-07-04 (ADR-098 AD-3: daemon `Mode` is now the shared `EnforcementMode`; `Mode::Off` is a real always-`Allow` posture in the embedded honoured-config table); prior sweep 2026-07-02 (`ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX, `stop`/`unblock` CLI subcommands shipped, repinned lib.rs/intercept.rs/protocol.rs line refs) against main `d1fded280`; delta review 2026-06-10 (DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                                                                                                                                                             | Downstream                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, `crates/anvil-graph-cache`, `crates/anvil-checks`, ADR-015 | MCP shim validation client (RMCP), driver framework clients (DRVR), CLI intercept surface, embedded fallback path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (as-built drift sweep:
-> `ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX, `stop`/`unblock` CLI
-> subcommands shipped, repinned lib.rs/intercept.rs/protocol.rs line refs)
-> against main `d1fded280`; prior delta review 2026-06-10 (DSV save-time
-> validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against
-> main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
-> `8bbe65b9`) **Crate:** `crates/anvil-intercept` (+ `anvil-intercept-proto`,
-> `anvil-intercept-rules`, `anvil-intercept-win32`) **Module owner (APS):** INTD
+> **Status:** Live (beta) **Last reviewed:** 2026-07-04 (ADR-098 AD-3: daemon
+> `Mode` is now the shared `EnforcementMode`; `Mode::Off` is a real
+> always-`Allow` posture in the embedded honoured-config table); prior sweep
+> 2026-07-02 (`ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX,
+> `stop`/`unblock` CLI subcommands shipped, repinned
+> lib.rs/intercept.rs/protocol.rs line refs) against main `d1fded280`; delta
+> review 2026-06-10 (DSV save-time validation arc, ADR-070 peer-SID gate,
+> MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07
+> against `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Crate:**
+> `crates/anvil-intercept` (+ `anvil-intercept-proto`, `anvil-intercept-rules`,
+> `anvil-intercept-win32`) **Module owner (APS):** INTD
 > (`plans/archive/modules/intercept-daemon.aps.md`, 16/16 complete), DSV
 > (`plans/modules/daemon-save-time-validation.aps.md`), INTL
 > (`plans/archive/modules/intercept-launcher.aps.md`, Complete 9/9) **Used by:**
@@ -686,12 +689,13 @@ test.
 
 **Honoured config** (`embedded.rs:46-65`):
 
-| Resolved mode        | Embedded behaviour                                    |
-| -------------------- | ----------------------------------------------------- |
-| `Mode::Warn`         | Always `Allow` with diagnostics on the side channel.  |
-| `Mode::Fence`        | Pipeline result returned as-is; no fence side-effect. |
-| `Mode::Interrupt`    | Pipeline result returned as-is; no interrupt.         |
-| `observe_only: true` | Always `Allow` regardless of `mode`.                  |
+| Resolved mode        | Embedded behaviour                                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `Mode::Off`          | Always `Allow` with diagnostics on the side channel — the ADR-098 AD-3 posture (real always-`Allow`; same embedded behaviour as `Warn`). |
+| `Mode::Warn`         | Always `Allow` with diagnostics on the side channel.                                                                                     |
+| `Mode::Fence`        | Pipeline result returned as-is; no fence side-effect.                                                                                    |
+| `Mode::Interrupt`    | Pipeline result returned as-is; no interrupt.                                                                                            |
+| `observe_only: true` | Always `Allow` regardless of `mode`.                                                                                                     |
 
 Embedded mode does not have a fence store or a process group; the caller applies
 the side effect (CI / MCP shim).

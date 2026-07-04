@@ -1,24 +1,27 @@
 # anvil MCP Shim — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                         |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-07-02 (as-built drift sweep: tool registry now 14 tools incl. 6 GCTX graph-context tools, repinned registry.rs line refs) against main `d1fded280`; prior delta review 2026-06-10 (RMCPF-010..-012 tool registry, validate_write schema additions, gap register) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-07-04 (ADR-098 AD-3: enforcement vocabulary unified on shared `EnforcementMode`; decision vocabulary gains `fence`/`interrupt`/`unknown`; `isError`/safe-default gate on `is_veto()`; MCP default posture `Interrupt`); prior sweep 2026-07-02 (tool registry now 14 tools incl. 6 GCTX graph-context tools) against main `d1fded280`; delta review 2026-06-10 (RMCPF-010..-012 tool registry, validate_write schema additions) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
 
 | Upstream                                                                              | Downstream                                                                  |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033 | Cursor MCP client, Claude Code MCP client, activation orchestrator (LAUNCH) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (as-built drift sweep:
-> tool registry now 14 tools incl. 6 GCTX graph-context tools, repinned
-> registry.rs line refs) against main `d1fded280`; prior delta review 2026-06-10
-> (RMCPF-010..-012 tool registry, validate_write schema additions, gap register)
-> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
-> (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-cli/src/mcp/` (+
-> `commands/mcp*.rs`) **Module owner (APS):** RMCP
-> (`plans/archive/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete) **Used
-> by:** Cursor + Claude Code MCP clients (call the shim's 14 registry tools over
-> stdio; `anvil_validate_write` is the load-bearing pre-write gate); the
-> activation orchestrator
+> **Status:** Live (beta) **Last reviewed:** 2026-07-04 (ADR-098 AD-3:
+> enforcement vocabulary unified on the shared `EnforcementMode`; decision
+> vocabulary gains `fence`/`interrupt`/`unknown`; `isError`/safe-default gate on
+> `is_veto()`; MCP default posture `Interrupt`, the `block` alias); prior sweep
+> 2026-07-02 (tool registry now 14 tools incl. 6 GCTX graph-context tools,
+> repinned registry.rs line refs) against main `d1fded280`; delta review
+> 2026-06-10 (RMCPF-010..-012 tool registry, validate_write schema additions,
+> gap register) against main `45dd1047a`; full review 2026-05-07 against
+> `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate / location:**
+> `crates/anvil-cli/src/mcp/` (+ `commands/mcp*.rs`) **Module owner (APS):**
+> RMCP (`plans/archive/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete)
+> **Used by:** Cursor + Claude Code MCP clients (call the shim's 14 registry
+> tools over stdio; `anvil_validate_write` is the load-bearing pre-write gate);
+> the activation orchestrator
 > (`crates/anvil-cli/src/activation/orchestrator/mod.rs:112`) writes the MCP
 > entries during `anvil start`
 
@@ -227,7 +230,7 @@ description: "Quick project health summary. Returns available checks,
 ```jsonc
 {
   "schema": "anvil.mcp.validate-write.v1",
-  "decision": "allow" | "warn" | "block",
+  "decision": "allow" | "warn" | "block" | "fence" | "interrupt" | "unknown",
   "summary": { "total": N, "bySeverity": { "error": N, "warning": N, "info": N } },
   "diagnostics": [ /* anvil.diagnostic.v1 envelopes, redacted for secret category */ ],
   "correlation": {
@@ -237,10 +240,10 @@ description: "Quick project health summary. Returns available checks,
     "backend": "daemon" | "embedded",
     "daemonStatus": "available" | "not-wired" | "unavailable",
     "path": "<workspace-relative-path>",
-    "enforcementMode": "block" | "warn" | "off",
+    "enforcementMode": "off" | "warn" | "fence" | "interrupt",
     "partialScan": true                // present iff slim preview payload
   },
-  "safeDefault": "do-not-write",       // present iff decision == "block"
+  "safeDefault": "do-not-write",       // present iff decision.is_veto() (block | fence | interrupt)
   "protection_claim": { /* … */ }      // present iff daemonStatus == "available"
 }
 ```
@@ -411,25 +414,31 @@ The fields are tool-local in v1. RTAI-007 / DRVR-002 may promote
 
 ## 8. Enforcement mode resolution
 
-`EnforcementMode` (`crates/anvil-cli/src/mcp/enforcement.rs:42-54`) is read
+Since ADR-098 AD-3 the posture is the shared
+`anvil_kernel_types::EnforcementMode { Off, Warn, Fence, Interrupt }`, read
 per-workspace from `<workspace_root>/.anvil.yaml`'s `enforcement.mode` field via
 the shared `anvil_intercept_proto::enforcement_config::AnvilConfigFile`
-deserialiser (`enforcement.rs:135-149`). Missing file, missing field, malformed
-YAML, or unknown mode all fall back to `EnforcementMode::Block` (the fail-closed
-default).
+deserialiser. Parsing keeps every posture distinct (no parse-time
+`fence`/`interrupt` → `block` collapse); `block` is an alias for `interrupt`.
+Missing file, missing field, malformed YAML, or unknown mode all fall back to
+`MCP_DEFAULT_ENFORCEMENT` — `Interrupt` (the `block` alias) — the fail-closed
+veto-on-error default, now recording the true decision.
 
-The mode-to-decision matrix is at `enforcement.rs:96-119`:
+The mode-to-decision matrix (`V` is the posture's veto decision — `Fence` →
+`fence`, `Interrupt` → `interrupt` — recorded at action time, not collapsed to
+`block`):
 
-| Mode              | Diagnostics observed    | Tool decision | `safeDefault`  |
-| ----------------- | ----------------------- | ------------- | -------------- |
-| `block` (default) | any `Error`             | `block`       | `do-not-write` |
-| `block`           | only `Warning` / `Info` | `warn`        | (none)         |
-| `block`           | none                    | `allow`       | (none)         |
-| `warn`            | any non-empty           | `warn`        | (none)         |
-| `warn`            | none                    | `allow`       | (none)         |
-| `off`             | any                     | `allow`       | (none)         |
-| `off`             | none                    | `allow`       | (none)         |
+| Mode                  | Diagnostics observed    | Tool decision | `safeDefault`  |
+| --------------------- | ----------------------- | ------------- | -------------- |
+| `fence` / `interrupt` | any `Error`             | `V` (veto)    | `do-not-write` |
+| `fence` / `interrupt` | only `Warning` / `Info` | `warn`        | (none)         |
+| `fence` / `interrupt` | none                    | `allow`       | (none)         |
+| `warn`                | any non-empty           | `warn`        | (none)         |
+| `warn`                | none                    | `allow`       | (none)         |
+| `off`                 | any                     | `allow`       | (none)         |
+| `off`                 | none                    | `allow`       | (none)         |
 
+The MCP no-config default posture is `Interrupt` (the `block` alias).
 Diagnostics are returned to the caller verbatim regardless of mode — only the
 `decision` flag changes. Tool-level errors (malformed input, oversize content,
 workspace escape) always block regardless of mode (`enforcement.rs:1-31`
@@ -586,10 +595,12 @@ When an MCP client calls `anvil_validate_write`:
 11. **Shim writes response to stdout** — `write_message`
     (`commands/mcp.rs:525-530`) serialises and flushes.
 
-`isError` (`validate_write.rs:185-197`) is set when `decision == "block"` or an
-`error` field is present, so MCP clients that key off the standard `isError`
-flag pattern-match the same way as those that inspect the `decision` field
-directly.
+`isError` is set when the decision is a veto — `ControlDecision::is_veto()`
+(`block | fence | interrupt`), not a `decision == "block"` string compare — or
+an `error` field is present, so a fence-vetoed write cannot report
+`isError: false` (ADR-098 AD-3 amendment 1). MCP clients that key off the
+standard `isError` flag pattern-match the same way as those that inspect the
+`decision` field directly.
 
 ## 13. Cross-cutting concerns
 

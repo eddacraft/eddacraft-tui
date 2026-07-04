@@ -1,8 +1,8 @@
 # Driver Framework + intercept-proto — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-07-02 (as-built drift sweep: `ALL_ANVIL_METHODS` reconciled to 19 constants incl. DSV + witness + GCTX, repinned protocol.rs line refs to agree with intercept-as-built) against main `d1fded280`; prior delta review 2026-06-10 (INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-07-04 (ADR-098 AD-3: `mode` resolves through the shared `EnforcementMode`; `off`/`advisory`/`proceed` parse to the real `Off` posture, not a `Warn` clamp); prior sweep 2026-07-02 (`ALL_ANVIL_METHODS` reconciled to 19 constants incl. DSV + witness + GCTX, repinned protocol.rs line refs to agree with intercept-as-built) against main `d1fded280`; delta review 2026-06-10 (INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
 
 | Upstream                                                                                                                                         | Downstream                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -10,8 +10,10 @@
 
 > **Status:** Live (beta) for the proto + driver-client TypeScript glue;
 > framework spec is partially shipped (DRVR Waves 1-3 active; Wave 4 deferred
-> per ADR-033). **Last reviewed:** 2026-06-10 (targeted delta review:
-> INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against
+> per ADR-033). **Last reviewed:** 2026-07-04 (ADR-098 AD-3: `mode` resolves
+> through the shared `EnforcementMode`; `off`/`advisory`/`proceed` parse to the
+> real `Off` posture, not a `Warn` clamp); delta review 2026-06-10
+> (INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against
 > main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
 > `d223b8d9`; 2026-07-02 drift sweep against `d1fded280`). **Crates /
 > locations:** `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`,
@@ -295,13 +297,16 @@ What the driver / shim can request, and what the daemon can override:
 
 - The proto layer is intentionally forgiving — every key is `Option<...>`,
   unknown top-level keys are silently ignored, and malformed values surface as a
-  deserialise error rather than a default. Each consumer maps the raw strings
-  onto its own resolved enum (`enforcement_config.rs:1-50`).
-- `mode` aliases (`enforcement_config.rs:71-91`): `block` and `interrupt` both
-  collapse to `Mode::Interrupt` on the daemon side; `fence` is `Mode::Fence`;
-  `warn` is `Mode::Warn`; `off` / `advisory` / `proceed` map to `Mode::Warn` on
-  the daemon (no `off` mode by spec) but to `EnforcementMode::Off` on the MCP
-  shim. The aliases are case-folded, trimmed, and shared by both consumers.
+  deserialise error rather than a default. Since ADR-098 AD-3 both consumers
+  resolve the raw `mode` string through the single shared posture type
+  `anvil_kernel_types::EnforcementMode`.
+- `mode` aliases: `block` and `interrupt` both map to `Mode::Interrupt`; `fence`
+  is `Mode::Fence`; `warn` is `Mode::Warn`; `off` / `advisory` / `proceed` map
+  to the real `Mode::Off` posture (the weakest under stricter-wins,
+  `off < warn < fence < interrupt`) — no longer clamped to `Warn` on the daemon.
+  The aliases are case-folded, trimmed, and shared identically by both
+  consumers; the surfaces differ only in their no-config default (daemon `Warn`,
+  MCP shim `Interrupt`).
 - `on_ambiguous_ownership` is **hard-capped at `fence`** by the daemon's
   resolved-policy code (AD-3 in
   `plans/decisions/015-intercept-loop-enforcement.md`); operators who set `warn`
