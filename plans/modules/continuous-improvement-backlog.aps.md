@@ -4706,7 +4706,11 @@ archive.
 
 ### CIB-177: Give bare `anvil` a first-run pointer instead of a 40-command dump
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3148
+- **Summary:** Added a `before_help` banner on the root command (from new
+  `help_layout::FIRST_RUN_POINTER`) pointing first-time users at `anvil welcome`
+  (tour) and `anvil start` (activate); subcommand parsing and the exit-2/help
+  contracts unchanged, covered by unit + bare-invocation integration tests.
 - **Intent:** Plain `anvil` fails clap parsing (required subcommand,
   `main.rs:163-169`) and prints the full 40+-command help at exit 2;
   `welcome`/`start` are buried mid-list, so the very first contact for a new
