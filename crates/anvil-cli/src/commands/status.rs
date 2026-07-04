@@ -78,8 +78,11 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         use chrono::Utc;
         let hint_root =
             crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
-        data.insights_hint =
-            crate::insights::first_week_hint::first_week_insights_hint(&hint_root, Utc::now());
+        data.insights_hint = crate::insights::first_week_hint::first_week_insights_hint(
+            &hint_root,
+            Utc::now(),
+            crate::install_root::project_writes_gated(),
+        );
         // UJ-010: post-upgrade what's-new one-liner, once per version change.
         // Gathered ONLY when the plain surface will render (the same predicate
         // as the dispatch below, inverted): computing it consumes the
@@ -2832,7 +2835,7 @@ mod tests {
         let mut data = gather_status_data(dir.to_str().unwrap());
         // Force the caller wiring path (status run does this for !json).
         data.insights_hint =
-            crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
+            crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now(), false);
 
         // In plain render the hint appears as a trailing line.
         // We assert on the data (the render just prints it); the
@@ -2850,10 +2853,33 @@ mod tests {
 
         // Second computation in same week must be suppressed by the
         // internal state written on first emission.
-        let second = crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
+        let second =
+            crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now(), false);
         assert!(
             second.is_none(),
             "nudge must be emitted at most once per week"
+        );
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn first_week_hint_suppressed_when_project_writes_gated() {
+        use chrono::Utc;
+        let dir = make_temp_dir();
+        seed_project_id_with_created_at(&dir, 2); // well inside 14d
+
+        // Under a gated project root the status surface must neither emit the
+        // nudge nor write the real project's hint state (DISTRIB-006 / ADR-060).
+        let hint =
+            crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now(), true);
+        assert!(
+            hint.is_none(),
+            "gated status must not emit the first-week nudge"
+        );
+        assert!(
+            !dir.join(".anvil/insights-hint.json").exists(),
+            "gated status must not write the project hint state"
         );
 
         cleanup(&dir);
@@ -2869,7 +2895,8 @@ mod tests {
         crate::insights::first_week_hint::record_insights_viewed(&dir, chrono::Utc::now());
 
         // Now status/walk should see no nudge.
-        let hint = crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now());
+        let hint =
+            crate::insights::first_week_hint::first_week_insights_hint(&dir, Utc::now(), false);
         assert!(
             hint.is_none(),
             "hint must be suppressed for the week after running insights"

@@ -1703,6 +1703,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                     crate::insights::first_week_hint::first_week_insights_hint(
                         &workspace_root,
                         Utc::now(),
+                        crate::install_root::project_writes_gated(),
                     )
                 } else {
                     None
@@ -3412,5 +3413,40 @@ mod tests {
                 "{combo:?} should keep --all's broad scope, got {patterns:?}"
             );
         }
+    }
+
+    // ── CIB-133: gated-root suppression of the first-week nudge ─────────
+    //
+    // The watch surface resolves the hint via the same canonical
+    // `first_week_insights_hint(root, now, project_writes_gated)` call the
+    // TUI-state setup uses (watch.rs:~1703). Under a gated project root it
+    // must neither emit the nudge nor read-and-record the real project's
+    // hint state (DISTRIB-006 / ADR-060).
+    #[test]
+    fn first_week_hint_suppressed_when_project_writes_gated() {
+        use chrono::{Duration, Utc};
+
+        let tmp = tempfile::TempDir::with_prefix("anvil-watch-insights-").unwrap();
+        let root = tmp.path().to_path_buf();
+        let anvil = root.join("anvil");
+        std::fs::create_dir_all(&anvil).unwrap();
+        let created =
+            (Utc::now() - Duration::days(3)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        std::fs::write(
+            anvil.join("project-id"),
+            format!("project_uuid: 01999999-0000-0000-0000-000000000133\ncreated_at: {created}\n"),
+        )
+        .unwrap();
+
+        let hint =
+            crate::insights::first_week_hint::first_week_insights_hint(&root, Utc::now(), true);
+        assert!(
+            hint.is_none(),
+            "gated watch must not emit the first-week nudge"
+        );
+        assert!(
+            !root.join(".anvil/insights-hint.json").exists(),
+            "gated watch must not write the project hint state"
+        );
     }
 }

@@ -2037,3 +2037,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When a machine token's *name* is honest but its *reading* misleads a terminal-first user, prefer a render-time gloss keyed on the surrounding state over renaming the token — it fixes comprehension without breaking the byte-stable machine contract or opening a deprecation window.
 - **Follow-up:** none.
 
+### 2026-07-04 — claude (CIB-133)
+
+- **Task:** CIB-133 — `anvil status` and `anvil watch` called `first_week_insights_hint` ungated, so a candidate / side-by-side install under a non-default `ANVIL_HOME` burned the real project's once-per-week nudge marker and wrote `.anvil/insights-hint.json` into the real repo (DISTRIB-006 / ADR-060).
+- **Outcome:** Threaded the gate into the canonical function — `first_week_insights_hint(root, now, project_writes_gated)` returns `None` with no read and no write at the top when gated — and updated `status.rs` and `watch.rs` to pass `crate::install_root::project_writes_gated()`. Dropped INSIGHTS-005's `welcome`-specific `welcome_insights_hint` wrapper, repointing `print_welcome_insights_hint` and the welcome tests straight at the canonical function so no surface can regress by forgetting the guard. TDD: added a gated-root test per surface (canonical, status, watch) asserting `None` and that `.anvil/insights-hint.json` is not written, proven red against the old 2-arg signature first.
+- **Worked:** Lifting the guard into the one function all three surfaces already call collapsed three copies of the check into one and made the "no read, no write when gated" contract a single assertable early return; the existing INSIGHTS-004/-005 in-window tests carried over verbatim (just the new bool arg).
+- **Failed:** none.
+- **Friction:** `/home` was 100% full (498G shared cargo cache), so the shared target dir's linker died with a Bus error; ran gates on an isolated `CARGO_TARGET_DIR` on the Projects disk. A pre_push integration test also failed only because the full disk blocked writing `~/.config/anvil/kindling/usage.ndjson` (usage WARN on stderr) — unrelated to this change; confirmed green with a writable `XDG_CONFIG_HOME`.
+- **Improvement:** When several surfaces share one nudge/state helper, put the gate inside the helper as an early return rather than at each call site — a per-surface wrapper is boilerplate for a universal invariant and the one that forgets it is the leak.
+- **Follow-up:** none.
+
+

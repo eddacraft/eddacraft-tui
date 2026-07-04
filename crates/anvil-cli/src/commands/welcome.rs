@@ -187,31 +187,27 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// INSIGHTS-005: the first-week insights nudge for the `anvil welcome` closing
-/// output. Reuses the INSIGHTS-004 contract verbatim (14-day cohort window, once
-/// per week, suppressed after an `anvil insights` run, shared
-/// `.anvil/insights-hint.json` state — no new state file or rate-limit bucket),
-/// so the nudge stays at-most-once-per-week across `status`, `watch`, and
-/// `welcome`. Returns `None` under a gated project root (DISTRIB-006 / ADR-060)
-/// so the candidate never reads-and-records the real project's hint state.
-fn welcome_insights_hint(
-    root: &std::path::Path,
-    now: chrono::DateTime<chrono::Utc>,
-    project_writes_gated: bool,
-) -> Option<String> {
-    if project_writes_gated {
-        return None;
-    }
-    crate::insights::first_week_hint::first_week_insights_hint(root, now)
-}
-
-/// Render the first-week nudge to the closing output if it is due. Resolving the
-/// hint consumes the once-per-week marker, so this is only ever called on a
-/// surface that actually prints it (both `welcome` closing paths do).
+/// INSIGHTS-005: render the first-week insights nudge to the `anvil welcome`
+/// closing output if it is due. Reuses the INSIGHTS-004 contract verbatim
+/// (14-day cohort window, once per week, suppressed after an `anvil insights`
+/// run, shared `.anvil/insights-hint.json` state — no new state file or
+/// rate-limit bucket), so the nudge stays at-most-once-per-week across
+/// `status`, `watch`, and `welcome`. The gate is threaded straight into the
+/// canonical `first_week_insights_hint`, which returns `None` — with no read
+/// and no write — under a gated project root (DISTRIB-006 / ADR-060), so no
+/// surface can regress by forgetting the guard (CIB-133).
+///
+/// Resolving the hint consumes the once-per-week marker, so this is only ever
+/// called on a surface that actually prints it (both `welcome` closing paths
+/// do).
 fn print_welcome_insights_hint(project_writes_gated: bool) {
     let root =
         crate::util::workspace_root().unwrap_or_else(|_| std::path::Path::new(".").to_path_buf());
-    if let Some(hint) = welcome_insights_hint(&root, chrono::Utc::now(), project_writes_gated) {
+    if let Some(hint) = crate::insights::first_week_hint::first_week_insights_hint(
+        &root,
+        chrono::Utc::now(),
+        project_writes_gated,
+    ) {
         println!();
         println!("{hint}");
     }
@@ -1671,7 +1667,7 @@ mod tests {
     // Grouped under `welcome::insights_hint::*` so the surface tests are
     // greppable (`cargo test -p eddacraft-anvil welcome::insights_hint`).
     mod insights_hint {
-        use super::super::welcome_insights_hint;
+        use crate::insights::first_week_hint::first_week_insights_hint;
         use chrono::{Duration, Utc};
         use tempfile::TempDir;
 
@@ -1697,7 +1693,7 @@ mod tests {
         #[test]
         fn shows_within_window_when_not_gated() {
             let (_tmp, root) = repo_in_first_week();
-            let hint = welcome_insights_hint(&root, Utc::now(), false);
+            let hint = first_week_insights_hint(&root, Utc::now(), false);
             assert!(
                 hint.as_deref()
                     .is_some_and(|h| h.contains("run `anvil insights`")),
@@ -1710,7 +1706,7 @@ mod tests {
             let (_tmp, root) = repo_in_first_week();
             // Under a gated project root the candidate must neither emit the
             // nudge nor write the project's hint state (DISTRIB-006 / ADR-060).
-            assert!(welcome_insights_hint(&root, Utc::now(), true).is_none());
+            assert!(first_week_insights_hint(&root, Utc::now(), true).is_none());
             assert!(
                 !root.join(".anvil/insights-hint.json").exists(),
                 "gated welcome must not write the project hint state"
@@ -1721,11 +1717,10 @@ mod tests {
         fn shares_rate_limit_with_status_and_watch() {
             let (_tmp, root) = repo_in_first_week();
             // The welcome surface emits once...
-            assert!(welcome_insights_hint(&root, Utc::now(), false).is_some());
+            assert!(first_week_insights_hint(&root, Utc::now(), false).is_some());
             // ...and that emission consumes the shared once-per-week marker, so
             // the same underlying hint behind `status`/`watch` is now suppressed.
-            let via_status =
-                crate::insights::first_week_hint::first_week_insights_hint(&root, Utc::now());
+            let via_status = first_week_insights_hint(&root, Utc::now(), false);
             assert!(
                 via_status.is_none(),
                 "the welcome emission must share the per-week rate limit with status/watch"
@@ -1737,11 +1732,8 @@ mod tests {
             let (_tmp, root) = repo_in_first_week();
             // The reverse direction: status/watch emits first via the shared
             // mechanism, so the welcome surface is then suppressed for the week.
-            assert!(
-                crate::insights::first_week_hint::first_week_insights_hint(&root, Utc::now())
-                    .is_some()
-            );
-            assert!(welcome_insights_hint(&root, Utc::now(), false).is_none());
+            assert!(first_week_insights_hint(&root, Utc::now(), false).is_some());
+            assert!(first_week_insights_hint(&root, Utc::now(), false).is_none());
         }
     }
 

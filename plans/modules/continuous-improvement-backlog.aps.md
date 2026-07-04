@@ -3621,7 +3621,7 @@ archive.
 
 ### CIB-133: Gate the first-week insights nudge under `project_writes_gated` in `status` and `watch`
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Re-filed:** 2026-07-02 — originally filed as CIB-105; that entry was
   removed by an accidental stale-base revert (`e57a65fdf`, 2026-06-26) and the
   CIB-105 id was subsequently reused by "Windows reparse-point hardening for

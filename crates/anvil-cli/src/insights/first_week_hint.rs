@@ -42,6 +42,7 @@ struct FirstWeekHintState {
 }
 
 /// Returns the one-line nudge if all gates pass:
+/// - durable per-project writes are not gated for this process
 /// - project has a parsable `anvil/project-id` with `created_at`
 /// - now is within 14 days of that `created_at`
 /// - no insights summary run in the trailing 7 days
@@ -49,8 +50,22 @@ struct FirstWeekHintState {
 ///
 /// When it returns Some(line), it also records the emission in the
 /// project-local state so the "exactly once per week" contract holds
-/// across `status` and `watch` invocations.
-pub fn first_week_insights_hint(root: &Path, now: DateTime<Utc>) -> Option<String> {
+/// across `status`, `watch`, and `welcome` invocations.
+///
+/// `project_writes_gated` short-circuits to `None` — with no read and no
+/// write of `.anvil/insights-hint.json` — so a candidate / side-by-side
+/// install under a non-default `ANVIL_HOME` never burns the real install's
+/// once-per-week marker (DISTRIB-006 / ADR-060). All three nudge surfaces
+/// (`status`, `watch`, `welcome`) thread this in uniformly.
+pub fn first_week_insights_hint(
+    root: &Path,
+    now: DateTime<Utc>,
+    project_writes_gated: bool,
+) -> Option<String> {
+    if project_writes_gated {
+        return None;
+    }
+
     let now = crate::insights::truncate_to_seconds(now);
 
     // 1. Install timestamp from the authoritative tracked identity file.
@@ -169,7 +184,7 @@ mod tests {
             format!("project_uuid: 01999999-0000-0000-0000-000000000001\ncreated_at: {old}\n");
         std::fs::write(root.join("anvil/project-id"), pid).unwrap();
 
-        let hint = first_week_insights_hint(&root, Utc::now());
+        let hint = first_week_insights_hint(&root, Utc::now(), false);
         assert!(hint.is_none());
     }
 
@@ -179,7 +194,7 @@ mod tests {
         // Ensure no prior state.
         let _ = std::fs::remove_file(root.join(".anvil/insights-hint.json"));
 
-        let hint = first_week_insights_hint(&root, Utc::now());
+        let hint = first_week_insights_hint(&root, Utc::now(), false);
         assert!(hint.is_some());
         assert!(hint.unwrap().contains("run `anvil insights`"));
     }
@@ -189,7 +204,7 @@ mod tests {
         let (_tmp, root) = make_temp_repo();
         record_insights_viewed(&root, Utc::now());
 
-        let hint = first_week_insights_hint(&root, Utc::now());
+        let hint = first_week_insights_hint(&root, Utc::now(), false);
         assert!(hint.is_none());
     }
 
@@ -197,11 +212,26 @@ mod tests {
     fn hint_is_rate_limited_per_week() {
         let (_tmp, root) = make_temp_repo();
         // First call emits.
-        let h1 = first_week_insights_hint(&root, Utc::now());
+        let h1 = first_week_insights_hint(&root, Utc::now(), false);
         assert!(h1.is_some());
 
         // Immediate second call in same week is suppressed.
-        let h2 = first_week_insights_hint(&root, Utc::now());
+        let h2 = first_week_insights_hint(&root, Utc::now(), false);
         assert!(h2.is_none());
+    }
+
+    #[test]
+    fn suppressed_when_project_writes_gated() {
+        let (_tmp, root) = make_temp_repo();
+        // Ensure no prior state so an emission would otherwise fire.
+        let _ = std::fs::remove_file(root.join(".anvil/insights-hint.json"));
+
+        // Gated: no nudge, and crucially no read-and-record of the real
+        // project's hint state (DISTRIB-006 / ADR-060).
+        assert!(first_week_insights_hint(&root, Utc::now(), true).is_none());
+        assert!(
+            !root.join(".anvil/insights-hint.json").exists(),
+            "gated call must not write the project hint state"
+        );
     }
 }
