@@ -4659,7 +4659,7 @@ archive.
 
 ### CIB-173: PATHEXT-aware editor detection on Windows
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `detect_agents.rs:148-199` tries only a bare name (if it already
   has an extension) plus a `.exe` fallback on Windows; editor CLIs commonly
   ship as `.cmd`/`.bat` shims, so installed editors are missed and their MCP

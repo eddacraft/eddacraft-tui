@@ -146,9 +146,11 @@ pub trait DetectionEnv {
 /// freely; one detection pass is one call to [`detect_all`].
 ///
 /// Windows note: the trait contract is "follow the platform's
-/// normal extension rules". The current impl tries `name` and
-/// `name.exe` on Windows; richer PATHEXT handling is filed as a
-/// follow-up because every rule today names a POSIX binary.
+/// normal extension rules". The impl tries the bare `name` (only
+/// when it already carries an extension) plus each executable
+/// extension derived from `PATHEXT`, bounded to the standard set
+/// (`.exe`, `.cmd`, `.bat`, `.com`) — see [`pathext_candidates`] —
+/// so `.cmd`/`.bat` editor shims are detected (CIB-173).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RealDetectionEnv;
 
@@ -157,6 +159,17 @@ impl DetectionEnv for RealDetectionEnv {
         let Some(path) = std::env::var_os("PATH") else {
             return false;
         };
+        // On Windows, editor CLIs commonly ship as `.cmd`/`.bat`
+        // shims rather than `.exe`, so hardcoding `.exe` silently
+        // misses them (CIB-173). Consult `PATHEXT`, bounded to the
+        // standard executable set — see [`pathext_candidates`]. On
+        // Unix the extension list is empty; the executable-bit check
+        // in [`is_executable_file`] is the real gate there.
+        #[cfg(windows)]
+        let extensions = pathext_candidates(self.env("PATHEXT").as_deref());
+        #[cfg(not(windows))]
+        let extensions: Vec<String> = Vec::new();
+
         for dir in std::env::split_paths(&path) {
             // POSIX gives empty `PATH` components the meaning of
             // "current working directory". `anvil start` runs from
@@ -171,31 +184,22 @@ impl DetectionEnv for RealDetectionEnv {
             if dir.as_os_str().is_empty() {
                 continue;
             }
-            let candidate = dir.join(name);
             // On Windows, accept the bare `dir.join(name)` only when
             // the caller already supplied an extension (the agent
             // rules never do, but a future rule might list
             // `tool.bat`). Without this guard a plain text file
             // named `claude` on PATH would match `is_executable_file`
             // because Windows has no execute bit to gate on; the
-            // PATHEXT-style `.exe` fallback below is the real check
+            // PATHEXT-derived candidates below are the real check
             // for the extensionless-name case. On Unix the
             // executable-bit check inside `is_executable_file`
-            // already screens out plain files.
+            // already screens out plain files, so bare names resolve.
             #[cfg(windows)]
-            let accept_bare = candidate.extension().is_some();
+            let accept_bare = Path::new(name).extension().is_some();
             #[cfg(not(windows))]
             let accept_bare = true;
-            if accept_bare && is_executable_file(&candidate) {
+            if binary_in_dir(&dir, name, &extensions, accept_bare) {
                 return true;
-            }
-            #[cfg(windows)]
-            {
-                let mut with_exe = candidate.clone();
-                with_exe.set_extension("exe");
-                if is_executable_file(&with_exe) {
-                    return true;
-                }
             }
         }
         false
@@ -228,9 +232,9 @@ impl DetectionEnv for RealDetectionEnv {
 /// enough to reject the common false-positive cases (download
 /// artefacts, leftover config files, plain text) without taking
 /// a libc dep. On Windows there is no execute bit, so the plain
-/// existence check is left in place; the `set_extension("exe")`
-/// callers in [`RealDetectionEnv::has_binary`] handle the
-/// extensionless-name spoof there.
+/// existence check is left in place; the PATHEXT-derived extension
+/// candidates applied in [`RealDetectionEnv::has_binary`] (via
+/// [`binary_in_dir`]) handle the extensionless-name spoof there.
 fn is_executable_file(path: &Path) -> bool {
     if !path.is_file() {
         return false;
@@ -247,6 +251,79 @@ fn is_executable_file(path: &Path) -> bool {
     {
         true
     }
+}
+
+/// Parse `PATHEXT` into the ordered list of executable extensions to
+/// try when resolving a bare command name on Windows.
+///
+/// Editor CLIs commonly ship as `.cmd`/`.bat` shims rather than
+/// `.exe`, so hardcoding `.exe` silently misses them (CIB-173). We
+/// consult `PATHEXT` but **bound** it to the standard executable set
+/// (`.exe`, `.cmd`, `.bat`, `.com`) so an operator-extended `PATHEXT`
+/// (`.PY`, `.PL`, `.RB`, …) can never turn an arbitrary script on
+/// `PATH` into a "binary" match that gates default MCP install. The
+/// intersection is case-insensitive and preserves `PATHEXT` order;
+/// when `PATHEXT` is unset or empty we fall back to the full bounded
+/// set in its canonical order.
+///
+/// Extensions are returned without the leading dot, ready for
+/// [`std::path::PathBuf::set_extension`]. Platform-independent so it
+/// is unit-testable without mutating the process environment
+/// (`set_var` is forbidden by the workspace `unsafe_code = "forbid"`
+/// lint).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn pathext_candidates(pathext: Option<&str>) -> Vec<String> {
+    // The bounded standard executable set, in canonical fallback
+    // order. Extensions outside this set are never honoured even if
+    // `PATHEXT` lists them.
+    const BOUNDED: [&str; 4] = ["exe", "cmd", "bat", "com"];
+    let full = || BOUNDED.iter().map(|e| (*e).to_string()).collect();
+
+    let Some(raw) = pathext else {
+        return full();
+    };
+    if raw.trim().is_empty() {
+        return full();
+    }
+
+    let mut out: Vec<String> = Vec::new();
+    for entry in raw.split(';') {
+        let ext = entry.trim().trim_start_matches('.').to_ascii_lowercase();
+        if ext.is_empty() {
+            continue;
+        }
+        if BOUNDED.contains(&ext.as_str()) && !out.contains(&ext) {
+            out.push(ext);
+        }
+    }
+
+    // A `PATHEXT` that intersects the bounded set to nothing (e.g. an
+    // exotic `.PY;.VBS`) still falls back to the full set so `.exe` is
+    // never dropped.
+    if out.is_empty() { full() } else { out }
+}
+
+/// Resolve command `name` within a single `PATH` directory `dir`,
+/// trying the bare name first (only when `accept_bare` is set) and
+/// then each executable `extensions` candidate in order. Returns
+/// `true` on the first hit.
+///
+/// Factored out of [`RealDetectionEnv::has_binary`] so the Windows
+/// PATHEXT lookup can be exercised against a temp directory without
+/// mutating `PATH`/`PATHEXT` in the process environment.
+fn binary_in_dir(dir: &Path, name: &str, extensions: &[String], accept_bare: bool) -> bool {
+    let candidate = dir.join(name);
+    if accept_bare && is_executable_file(&candidate) {
+        return true;
+    }
+    for ext in extensions {
+        let mut with_ext = candidate.clone();
+        with_ext.set_extension(ext);
+        if is_executable_file(&with_ext) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Relative path of the on-disk cache, joined onto the repo root.
@@ -813,6 +890,90 @@ mod tests {
 
         let missing = tmp.path().join("nope");
         assert!(!is_executable_file(&missing));
+    }
+
+    /// Create a file that [`is_executable_file`] accepts on the host
+    /// platform: on Unix that needs an execute bit; on Windows any
+    /// regular file passes. Lets the PATHEXT lookup tests run on all
+    /// platforms without mutating the process environment.
+    fn write_executable_shim(path: &Path) {
+        std::fs::write(path, b"shim").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
+
+    #[test]
+    fn pathext_candidates_bounds_and_orders_to_the_standard_set() {
+        // PATHEXT order is preserved and extensions outside the
+        // bounded executable set (`.vbs`, `.py`) are dropped so a
+        // stray script on PATH can never masquerade as a binary.
+        assert_eq!(
+            pathext_candidates(Some(".COM;.EXE;.BAT;.CMD;.VBS;.PY")),
+            vec!["com", "exe", "bat", "cmd"],
+        );
+    }
+
+    #[test]
+    fn pathext_candidates_is_case_insensitive_and_dedupes() {
+        assert_eq!(
+            pathext_candidates(Some(".EXE;.exe;.Cmd;.cmd")),
+            vec!["exe", "cmd"],
+        );
+    }
+
+    #[test]
+    fn pathext_candidates_falls_back_when_unset_or_empty() {
+        let full = vec![
+            "exe".to_string(),
+            "cmd".to_string(),
+            "bat".to_string(),
+            "com".to_string(),
+        ];
+        assert_eq!(pathext_candidates(None), full);
+        assert_eq!(pathext_candidates(Some("")), full);
+        assert_eq!(pathext_candidates(Some("   ")), full);
+        // Set but with nothing in the bounded set → still fall back to
+        // the full set so `.exe` is never lost.
+        assert_eq!(pathext_candidates(Some(".PY;.VBS")), full);
+    }
+
+    #[test]
+    fn binary_in_dir_resolves_a_cmd_shim() {
+        // Editor CLIs commonly ship as `.cmd` shims on Windows; the
+        // PATHEXT-derived candidate list must resolve them.
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_executable_shim(&tmp.path().join("code.cmd"));
+        assert!(binary_in_dir(
+            tmp.path(),
+            "code",
+            &["exe".to_string(), "cmd".to_string()],
+            false,
+        ));
+    }
+
+    #[test]
+    fn binary_in_dir_bare_guard_rejects_extensionless_file() {
+        // A bare, executable, extensionless file must NOT match when
+        // the caller withholds `accept_bare` (the Windows spoofing
+        // guard) — even though `is_executable_file` accepts it.
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_executable_shim(&tmp.path().join("claude"));
+        assert!(!binary_in_dir(
+            tmp.path(),
+            "claude",
+            &["exe".to_string(), "cmd".to_string()],
+            false,
+        ));
+        // With `accept_bare` (POSIX semantics) the same file resolves.
+        assert!(binary_in_dir(
+            tmp.path(),
+            "claude",
+            &["exe".to_string(), "cmd".to_string()],
+            true,
+        ));
     }
 
     #[test]

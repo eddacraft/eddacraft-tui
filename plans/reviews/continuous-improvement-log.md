@@ -1928,3 +1928,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** none.
 - **Follow-up:** Step 1's `echo 'const KEY = "…"'` single-quote quoting is a cmd.exe quirk (cmd echoes the quotes literally) — out of scope here; worth a follow-up CIB if the Windows smoke path is exercised end-to-end.
 
+### 2026-07-04 — claude (CIB-173)
+
+- **Task:** CIB-173 — make Windows editor detection PATHEXT-aware so `.cmd`/`.bat` editor shims are detected instead of only `.exe`.
+- **Outcome:** Extracted `pathext_candidates` (parses PATHEXT, bounds it case-insensitively to `.exe`/`.cmd`/`.bat`/`.com`, order-preserving, falls back to the full set when unset/empty/no-intersection) and `binary_in_dir` (per-directory lookup taking the candidate list). Rewired `RealDetectionEnv::has_binary`'s `cfg(windows)` branch to iterate the PATHEXT-derived candidates, keeping the empty-PATH-component skip and the `accept_bare` spoof guard; refreshed the guard comments to reference PATHEXT. Five new unit tests (bounding/ordering/fallback + temp-dir `.cmd` shim resolves while a bare extensionless file is guarded out).
+- **Worked:** TDD via pure helpers dodged the `unsafe_code = "forbid"` block on `set_var` — temp-dir tests exercise the lookup without mutating the process environment; `write_executable_shim` makes them cross-platform.
+- **Failed:** none.
+- **Friction:** the crate is `eddacraft-anvil`, not `anvil-cli`, so the item's `cargo test -p anvil-cli` invocation had to be redirected.
+- **Improvement:** cfg-gated helpers used only on Windows need `#[cfg_attr(not(windows), allow(dead_code))]` to stay clippy-clean on Unix while remaining test-reachable on all platforms.
+- **Follow-up:** none.
+
