@@ -4751,7 +4751,7 @@ archive.
 
 ### CIB-180: Decide whether MCP tier tokens should read as pending, not done
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Owner decision (2026-07-04):** render-time gloss (option b). The
   machine tokens stay byte-stable; `render.rs` adds a human-facing pending
   qualifier next to the label (e.g. "(pending restart)") where the tier

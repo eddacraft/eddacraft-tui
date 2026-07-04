@@ -2027,5 +2027,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Failed:** none.
 - **Friction:** Three integration tests (`format_flag`, `init_post_analysis`) pinned the old exit-0 contract with comments mislabelling read-only `status` as an "action command"; the `status`-based ones stayed green (read-only) but needed the misleading comments corrected, and only the `start`-based JSON test needed its exit assertion flipped to 3.
 - **Improvement:** When a shared exit-code helper serves both read-only and action surfaces, encode the read-only allowlist as its own named predicate next to the probe predicate — it makes the "which class exits 0" decision auditable and stops future callers from re-broadening the exit-0 coercion.
+### 2026-07-04 — claude (CIB-180)
+
+- **Task:** CIB-180 — under a restart-required headline the MCP tier tokens (`restart_handshake_verified`, `server_startable`, `restart_required`) read as "done" to a terminal-first user, even though a restart is still pending; the token names describe what was probed, not that protection has graduated.
+- **Outcome:** Owner-decided render-time gloss (option b). Added a `tier_pending_qualifier(state, tier)` helper in `activation/render.rs` that returns ` (pending restart)` for the three done-ish tiers only under a `ReadyRestartRequired` state, and applied it at the two human print sites (`render_human` compact mcp block + `render_human_verbose` tier line). `render_json` is untouched, so machine tokens stay byte-stable. Extended the `McpTier` doc comment in `diagnostic.rs` to state the labels are observed-probe state, not graduation. TDD: qualifier-present tests (handshake-verified / server-startable / restart-required) proven red first, plus omit-when-live, omit-under-non-restart-headline, verbose, and a JSON byte-stability guard.
+- **Worked:** Gating on `ProtectionState::ReadyRestartRequired` (not the raw tier) keeps the qualifier scoped to the one headline where a done-ish token misleads; `LiveValidation` never co-renders there, so no live tier is ever falsely qualified.
+- **Failed:** none.
+- **Friction:** The item's Validation names `cargo test -p anvil-cli`, but the crate package is `eddacraft-anvil` and it is a `[[bin]]`-only target — the working invocation is `cargo test -p eddacraft-anvil --bin anvil`.
+- **Improvement:** When a machine token's *name* is honest but its *reading* misleads a terminal-first user, prefer a render-time gloss keyed on the surrounding state over renaming the token — it fixes comprehension without breaking the byte-stable machine contract or opening a deprecation window.
 - **Follow-up:** none.
 

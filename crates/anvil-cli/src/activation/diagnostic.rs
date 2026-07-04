@@ -59,6 +59,18 @@ impl std::fmt::Display for McpClientId {
 /// observed". A surface that wants to claim `Protecting` needs at
 /// least one client at [`McpTier::LiveValidation`]. Any tier below
 /// that is more honest as `ReadyRestartRequired` or weaker.
+///
+/// **The labels name observed probe state, not graduation** (CIB-180).
+/// Each variant records *what was probed* — the anvil entry is on disk,
+/// the command spawns, the initialize handshake answered — not that
+/// protection has graduated for that client. In particular
+/// `RestartHandshakeVerified` means the installed command completed an
+/// MCP handshake while a restart is *still* pending; it does not mean
+/// the editor has attached. Only [`McpTier::LiveValidation`] evidences a
+/// live in-repo validation. The human renderer glosses the done-ish
+/// tokens with a `(pending restart)` qualifier under a restart-required
+/// headline (see `activation::render::tier_pending_qualifier`); the
+/// machine tokens returned by [`McpTier::label`] stay byte-stable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum McpTier {

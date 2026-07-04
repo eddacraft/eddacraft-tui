@@ -43,11 +43,14 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     } else {
         out.push_str("  mcp:\n");
         for (client, result) in &d.mcp {
+            // CIB-180: append a human-facing pending qualifier when the
+            // tier token reads as done under a restart-required headline.
             let _ = writeln!(
                 out,
-                "    {}: {}",
+                "    {}: {}{}",
                 client.display_name(),
-                result.tier.label()
+                result.tier.label(),
+                tier_pending_qualifier(state, result.tier),
             );
         }
     }
@@ -298,8 +301,9 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
 /// remediation step.
 pub fn render_human_verbose(d: &ActivationDiagnostic) -> String {
     let mut out = String::new();
+    let state = d.protection_state();
     out.push_str("ACTIVATION (verbose)\n");
-    let _ = writeln!(out, "  state: {}", d.protection_state().label());
+    let _ = writeln!(out, "  state: {}", state.label());
     let _ = writeln!(out, "  config: {}", d.config.label());
 
     if d.mcp.is_empty() {
@@ -308,7 +312,13 @@ pub fn render_human_verbose(d: &ActivationDiagnostic) -> String {
         out.push_str("  mcp:\n");
         for (client, result) in &d.mcp {
             let _ = writeln!(out, "    {}:", client.display_name());
-            let _ = writeln!(out, "      tier:      {}", result.tier.label());
+            // CIB-180: same pending qualifier as the compact human render.
+            let _ = writeln!(
+                out,
+                "      tier:      {}{}",
+                result.tier.label(),
+                tier_pending_qualifier(state, result.tier),
+            );
             let _ = writeln!(out, "      transport: {}", result.transport.label());
             // Per-client tier-evidence sub-steps. Each line answers
             // "what was found at this layer?" and is derived purely
@@ -548,6 +558,38 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
         DaemonAttestation::Enforced | DaemonAttestation::Promoted => {
             "no missing piece — daemon attests this worktree"
         }
+    }
+}
+
+/// CIB-180: human-facing qualifier appended after an MCP tier token when
+/// the token reads as "done" while a restart is still pending.
+///
+/// Under a [`ProtectionState::ReadyRestartRequired`] headline the tier
+/// tokens `server_startable`, `restart_required`, and
+/// `restart_handshake_verified` all describe an *observed probe result*
+/// (the anvil entry is wired, the command spawns, the handshake answered)
+/// — not that protection has graduated. A terminal-first user can misread
+/// `restart_handshake_verified` as "done", so the human surfaces append
+/// ` (pending restart)` for those tiers. Returns `""` for
+/// [`McpTier::LiveValidation`] (already live) and for every tier under any
+/// non-restart headline.
+///
+/// This is a **render-time gloss only** (owner decision 2026-07-04,
+/// option b): the machine tokens stay byte-stable, so `render_json` never
+/// calls this helper. The done-ish set reuses the
+/// `RestartRequired | RestartHandshakeVerified` matcher the `Watching`
+/// repair hint uses, widened to `ServerStartable` — the three tiers that
+/// can co-render under a restart-required headline while still awaiting a
+/// restart.
+fn tier_pending_qualifier(state: ProtectionState, tier: McpTier) -> &'static str {
+    let reads_done_pending_restart = matches!(
+        tier,
+        McpTier::ServerStartable | McpTier::RestartRequired | McpTier::RestartHandshakeVerified
+    );
+    if matches!(state, ProtectionState::ReadyRestartRequired) && reads_done_pending_restart {
+        " (pending restart)"
+    } else {
+        ""
     }
 }
 
@@ -1096,6 +1138,133 @@ mod tests {
         let labels: Vec<&str> = arr.iter().map(|e| e["client"].as_str().unwrap()).collect();
         assert!(labels.contains(&"cursor"));
         assert!(labels.contains(&"claude-code"));
+    }
+
+    /// CIB-180: under a restart-required headline the tier tokens read as
+    /// observed-probe state, not graduation. A token like
+    /// `restart_handshake_verified` sounds "done" to a terminal-first user
+    /// even though a restart is still pending, so the human surfaces append
+    /// a `(pending restart)` qualifier next to the label.
+    #[test]
+    fn human_render_qualifies_handshake_verified_tier_under_restart_headline() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::NotProbed);
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+        let h = render_human(&d);
+        assert!(
+            h.contains("restart_handshake_verified (pending restart)"),
+            "restart_handshake_verified must carry the pending qualifier under a restart headline: {h}"
+        );
+    }
+
+    /// CIB-180: `restart_required` and `server_startable` also read as
+    /// done-ish next to a restart headline when a stronger client has
+    /// pushed the diagnostic to `ReadyRestartRequired`, so both take the
+    /// qualifier.
+    #[test]
+    fn human_render_qualifies_all_done_ish_tiers_under_restart_headline() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp.insert(
+            McpClientId::ClaudeCode,
+            McpTier::RestartHandshakeVerified.into(),
+        );
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ServerStartable.into());
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+        let h = render_human(&d);
+        assert!(
+            h.contains("server_startable (pending restart)"),
+            "server_startable must carry the pending qualifier under a restart headline: {h}"
+        );
+        assert!(
+            h.contains("restart_handshake_verified (pending restart)"),
+            "restart_handshake_verified must carry the pending qualifier under a restart headline: {h}"
+        );
+    }
+
+    /// CIB-180: the plain `restart_required` tier (state maps to
+    /// `ReadyRestartRequired`) also carries the qualifier.
+    #[test]
+    fn human_render_qualifies_restart_required_tier() {
+        let d = restart_required();
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+        let h = render_human(&d);
+        assert!(
+            h.contains("restart_required (pending restart)"),
+            "restart_required must carry the pending qualifier: {h}"
+        );
+    }
+
+    /// CIB-180: a live tier is genuinely graduated, so it must NOT gain the
+    /// qualifier even though it is the strongest tier.
+    #[test]
+    fn human_render_omits_qualifier_when_live() {
+        let d = protecting();
+        let h = render_human(&d);
+        assert!(
+            h.contains("live_validation"),
+            "live tier must still render its token: {h}"
+        );
+        assert!(
+            !h.contains("(pending restart)"),
+            "live tier must not carry a pending-restart qualifier: {h}"
+        );
+    }
+
+    /// CIB-180: under a non-restart headline (here `Watching`, driven by a
+    /// `server_startable` client with watch running) the tier token stays
+    /// bare — the qualifier is scoped to the restart-required headline.
+    #[test]
+    fn human_render_omits_qualifier_under_non_restart_headline() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.watch = WatchTier::Running;
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::ServerStartable.into());
+        assert_eq!(d.protection_state(), ProtectionState::Watching);
+        let h = render_human(&d);
+        assert!(
+            h.contains("server_startable"),
+            "server_startable token must still render: {h}"
+        );
+        assert!(
+            !h.contains("(pending restart)"),
+            "non-restart headline must not qualify the tier token: {h}"
+        );
+    }
+
+    /// CIB-180: the verbose (`--verify --why`, stderr) tier line carries the
+    /// same qualifier so both human surfaces stay in lockstep.
+    #[test]
+    fn verbose_render_qualifies_done_ish_tier_under_restart_headline() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::NotProbed);
+        let v = render_human_verbose(&d);
+        assert!(
+            v.contains("restart_handshake_verified (pending restart)"),
+            "verbose tier line must carry the pending qualifier: {v}"
+        );
+    }
+
+    /// CIB-180: the machine surface stays byte-stable — `render_json` never
+    /// gains the human qualifier, so `--json` / `--verify` JSON consumers
+    /// see the same tokens as before (owner decision 2026-07-04, option b).
+    #[test]
+    fn json_render_tier_tokens_stay_byte_stable() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::NotProbed);
+        let v = render_json(&d);
+        let serialised = serde_json::to_string(&v).unwrap();
+        assert!(
+            !serialised.contains("pending restart"),
+            "JSON output must not carry the human qualifier: {serialised}"
+        );
+        let arr = v["mcp"].as_array().unwrap();
+        assert_eq!(
+            arr[0]["tier"], "restart_handshake_verified",
+            "JSON tier token must stay the bare machine value: {v}"
+        );
     }
 
     #[test]
