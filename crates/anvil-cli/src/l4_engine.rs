@@ -222,6 +222,19 @@ where
         .iter()
         .filter(|w| w.suppressed.is_none())
         .collect();
+    verdict_for_warnings(repo_root, commit_sha, &visible)
+}
+
+/// Map the scanner's visible warnings onto the gate verdict, applying
+/// tracked policy exceptions (EXCEPT-006, ADR-073) before the verdict
+/// forms. Matching runs against the *repo* root's store — the temp
+/// workspace holds only materialised blobs — while the warning's
+/// workspace-relative path is what exception globs match.
+fn verdict_for_warnings(
+    repo_root: &Path,
+    commit_sha: &str,
+    visible: &[&Warning],
+) -> ValidationVerdict {
     let diagnostics: Vec<ValidationDiagnostic> = visible
         .iter()
         .map(|w| ValidationDiagnostic {
@@ -236,11 +249,7 @@ where
     if diagnostics.is_empty() {
         return ValidationVerdict::Allow;
     }
-    // EXCEPT-006: apply tracked policy exceptions (ADR-073) before the
-    // verdict forms. Matching runs against the *repo* root's store —
-    // the temp workspace holds only materialised blobs — while the
-    // warning's workspace-relative path is what exception globs match.
-    let dispositions = exception_dispositions(repo_root, commit_sha, &visible);
+    let dispositions = exception_dispositions(repo_root, commit_sha, visible);
     let outcome = apply_exception_dispositions(diagnostics, &dispositions);
     for applied in &outcome.applied {
         // The recorded trail of exception use. `tracing` is this
@@ -313,10 +322,8 @@ fn exception_dispositions(
                     continue;
                 }
                 if verdict.is_downgrade() {
-                    downgrade.get_or_insert_with(|| {
-                        ExceptionDisposition::SuppressedDowngraded {
-                            exception_id: exception.id.clone(),
-                        }
+                    downgrade.get_or_insert_with(|| ExceptionDisposition::SuppressedDowngraded {
+                        exception_id: exception.id.clone(),
                     });
                 } else {
                     return ExceptionDisposition::Suppressed {

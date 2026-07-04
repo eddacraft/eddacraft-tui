@@ -153,7 +153,10 @@ fn annotate_downgrade(message: &str, exception_id: &str) -> String {
     if base_len <= base_budget {
         return format!("{message}{annotation}");
     }
-    let truncated: String = message.chars().take(base_budget.saturating_sub(3)).collect();
+    let truncated: String = message
+        .chars()
+        .take(base_budget.saturating_sub(3))
+        .collect();
     format!("{truncated}...{annotation}")
 }
 
@@ -259,9 +262,7 @@ mod tests {
             apply_exception_dispositions(input.clone(), &[ExceptionDisposition::NotCovered]);
         assert_eq!(
             outcome.verdict,
-            ValidationVerdict::Block {
-                diagnostics: input
-            },
+            ValidationVerdict::Block { diagnostics: input },
         );
         assert!(outcome.applied.is_empty());
     }
@@ -326,9 +327,7 @@ mod tests {
         let outcome = apply_exception_dispositions(input.clone(), &[suppressed("exc-1")]);
         assert_eq!(
             outcome.verdict,
-            ValidationVerdict::Block {
-                diagnostics: input
-            },
+            ValidationVerdict::Block { diagnostics: input },
         );
         assert!(outcome.applied.is_empty());
     }
