@@ -213,7 +213,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-007: Starter policy pack proof
 
-- **Status:** Done
+- **Status:** Merged 2026-07-04 via PR #3167
 - **Intent:** Ship one high-signal starter pack that proves real policy value
   before broad compliance-pack expansion.
 - **Expected Outcome:** A starter pack installs, validates, evaluates through

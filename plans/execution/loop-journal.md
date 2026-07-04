@@ -557,3 +557,21 @@ never with feature work.
 - Checkpoints raised: none.
 - Next: POLRESET-007 starter-pack proof (evidence + flip), then 008
   (EVALCI-005/006 report-only CI) and 009 (ATC/PATT depth).
+
+## Cycle — 2026-07-04 (POLRESET-007 / OPAE-008)
+
+- Items: starter-pack end-to-end proof (PR #3167) — 7-test chain over the
+  real anvil-baseline pack: install+provenance, admission, gate advisory
+  surfacing, pre-write projection, warnings-never-veto invariant, frozen
+  eval-v1 exercisability, vocabulary lockstep guard.
+- Validation: starter_policy_pack 7; policy_prewrite_routing 14;
+  gate::tests 141; policy 120; workspace clean.
+- Review: the proof itself caught a production bug — both surfaces dropped
+  the documented `warning` rule family (recognised warn/warnings only);
+  fixed via the shared policy_vocab module consumed by gate.rs AND
+  mcp/policy_prewrite.rs, regression-tested on both. Also survived a
+  stale-base race with PR #3165 (worktree created minutes before the merge
+  reached the local fetch) — caught by cross-checking the agent's
+  no-second-extractor claim against known merged state.
+- Checkpoints raised: none.
+- Next: POLRESET-008 (EVALCI-005/006 report-only CI), then 009 (ATC/PATT).

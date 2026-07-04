@@ -305,7 +305,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-008: Starter pack end-to-end proof
 
-- **Status:** Done
+- **Status:** Merged 2026-07-04 via PR #3167
 - **Intent:** Prove one high-signal policy pack across install, validation,
   evaluation, guidance, and report-only regression.
 - **Expected Outcome:** A starter pack demonstrates real policy value before broad
