@@ -4668,18 +4668,13 @@ archive.
 
 ### CIB-174: Align daemon bind-timeout copy with the real ceiling
 
-- **Status:** In Progress
-- **Intent:** The ensure-failure recovery copy says "the daemon did not become
-  ready within 10s" (`ensure.rs:322`, from `bind_timeout.as_secs()`), but an
-  in-flight probe can overrun by one `PROBE_TIMEOUT`, making the real ceiling
-  ~12s (`ensure.rs:346-347`, matching the `start.rs:283` comment).
-- **Expected Outcome:** The copy and the actual bound agree (either derive the
-  printed figure from `bind_timeout + probe_timeout` or clamp the wait to the
-  stated bound).
-- **Files:** `crates/anvil-intercept/src/ensure.rs`.
-- **Validation:** `cargo test -p anvil-intercept ensure`.
-- **Identified From:** User-journey pass 2026-07-04 (finding 13).
-- **Confidence:** high — one-line honesty fix.
+- **Status:** Merged 2026-07-04 via PR #3146
+- **Summary:** Ensure-failure recovery copy now names the effective wall-clock
+  bound, deriving the printed figure from `(bind_timeout + PROBE_TIMEOUT)` in
+  `crates/anvil-intercept/src/ensure.rs` (an in-flight probe can overrun
+  `bind_timeout` by one `PROBE_TIMEOUT` by design), and the `start.rs` fixture
+  literal was aligned to "12s". Pinned by a red-first `ensure_with` test through
+  the spawn+never-answer path (PR #3146).
 
 ### CIB-175: Actionable watcher-failure guidance off Linux
 
