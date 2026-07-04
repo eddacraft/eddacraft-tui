@@ -1918,3 +1918,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** none.
 - **Follow-up:** none.
 
+### 2026-07-04 — claude
+
+- **Task:** CIB-172 — the first-run smoke recipe's step 3 (`rm .anvil-smoke-test.ts`) fails in cmd.exe (`'rm' is not recognized`) with no `cfg!(windows)` branch, unlike the tutorial's `create_policy_directory_command`.
+- **Outcome:** Replaced the flat `RECIPE_LINES` const in `start.rs` with named `RECIPE_LINE_WRITE`/`RECIPE_LINE_EXPECT` consts plus branched `RECIPE_CLEANUP_UNIX` (`rm`) / `RECIPE_CLEANUP_WINDOWS` (`del`) consts and a `recipe_cleanup_line()` / `recipe_lines()` selector. Both cleanup variants are compiled and named on every host so each is directly testable regardless of build target. `render_first_run_recipe` and the two pinned-fixture tests now iterate `recipe_lines()`, staying green per platform. TDD: added `first_run_recipe_cleanup_is_platform_branched` asserting the Windows variant uses `del` and contains no `rm` (proven red as a compile error first).
+- **Worked:** Mirroring the tutorial's `cfg!(windows)` accessor pattern kept both variants compile-checked and testable on a Unix host without a Windows runner.
+- **Failed:** none.
+- **Friction:** none.
+- **Improvement:** none.
+- **Follow-up:** Step 1's `echo 'const KEY = "…"'` single-quote quoting is a cmd.exe quirk (cmd echoes the quotes literally) — out of scope here; worth a follow-up CIB if the Windows smoke path is exercised end-to-end.
+

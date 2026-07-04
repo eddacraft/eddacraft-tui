@@ -846,11 +846,34 @@ fn render_daemon_lifecycle_line(outcome: &anvil_intercept::ensure::EnsureOutcome
 /// away from a check that actually ships.
 const RECIPE_CHECK_NAME: &str = "secret-detection";
 
-const RECIPE_LINES: &[&str] = &[
-    "    1. echo 'const KEY = \"AKIAEXAMPLE1234567\";' >> .anvil-smoke-test.ts",
-    "    2. expect: `anvil status` reports a secret-detection finding in the baseline summary",
-    "    3. rm .anvil-smoke-test.ts when done",
-];
+const RECIPE_LINE_WRITE: &str =
+    "    1. echo 'const KEY = \"AKIAEXAMPLE1234567\";' >> .anvil-smoke-test.ts";
+const RECIPE_LINE_EXPECT: &str =
+    "    2. expect: `anvil status` reports a secret-detection finding in the baseline summary";
+
+// CIB-172: step 3 removes the throwaway smoke-test file. `rm` is a standard
+// utility under `sh` on Unix but is *not* a cmd.exe builtin (`'rm' is not
+// recognized`), so Windows must use `del`. Both variants are named and
+// compiled on every host so each is directly testable regardless of the build
+// target — mirroring the tutorial's `create_policy_directory_command`
+// (`crates/anvil-tui/src/surfaces/tutorial/paths.rs`).
+const RECIPE_CLEANUP_UNIX: &str = "    3. rm .anvil-smoke-test.ts when done";
+const RECIPE_CLEANUP_WINDOWS: &str = "    3. del .anvil-smoke-test.ts when done";
+
+/// The platform-appropriate cleanup step (step 3) for the smoke recipe.
+fn recipe_cleanup_line() -> &'static str {
+    if cfg!(windows) {
+        RECIPE_CLEANUP_WINDOWS
+    } else {
+        RECIPE_CLEANUP_UNIX
+    }
+}
+
+/// The full first-run smoke recipe, with the cleanup step selected for the
+/// host platform. Steps 1 and 2 are platform-neutral; only step 3 branches.
+fn recipe_lines() -> [&'static str; 3] {
+    [RECIPE_LINE_WRITE, RECIPE_LINE_EXPECT, recipe_cleanup_line()]
+}
 
 /// CIB-166: one next-step arbiter per ending. The diagnostic block's `next:`
 /// repair hint (rendered by `activation::render_human`) and the closing
@@ -941,7 +964,7 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active
         out,
         "  recipe (try this now — triggers `{RECIPE_CHECK_NAME}`):"
     );
-    for line in RECIPE_LINES {
+    for line in recipe_lines() {
         out.push_str(line);
         out.push('\n');
     }
@@ -1227,7 +1250,7 @@ mod tests {
             rendered.contains(RECIPE_CHECK_NAME),
             "recipe must reference a real shipping check ({RECIPE_CHECK_NAME}): {rendered}"
         );
-        for line in RECIPE_LINES {
+        for line in recipe_lines() {
             assert!(
                 rendered.contains(line),
                 "recipe missing pinned line: {line:?}\nfull render:\n{rendered}",
@@ -1314,7 +1337,7 @@ mod tests {
             rendered.contains("recipe: none"),
             "unsupported render must state the recipe is unavailable: {rendered}"
         );
-        for line in RECIPE_LINES {
+        for line in recipe_lines() {
             assert!(
                 !rendered.contains(line),
                 "unsupported render must NOT emit the .ts smoke line {line:?}: {rendered}"
@@ -1324,6 +1347,34 @@ mod tests {
             !rendered.contains("try this now"),
             "unsupported render must not invite the smoke test: {rendered}"
         );
+    }
+
+    /// CIB-172: the cleanup step (step 3) is platform-branched because `rm`
+    /// is not a cmd.exe builtin (`'rm' is not recognized`). Both variants are
+    /// compiled and named, so each is directly testable on any host regardless
+    /// of `cfg!(windows)` — mirroring `create_policy_directory_command`.
+    #[test]
+    fn first_run_recipe_cleanup_is_platform_branched() {
+        assert!(
+            RECIPE_CLEANUP_WINDOWS.contains("del .anvil-smoke-test.ts"),
+            "Windows cleanup step must use `del`: {RECIPE_CLEANUP_WINDOWS:?}"
+        );
+        assert!(
+            !RECIPE_CLEANUP_WINDOWS.contains("rm "),
+            "Windows cleanup step must not use `rm` (not a cmd.exe builtin): \
+             {RECIPE_CLEANUP_WINDOWS:?}"
+        );
+        assert!(
+            RECIPE_CLEANUP_UNIX.contains("rm .anvil-smoke-test.ts"),
+            "Unix cleanup step must use `rm`: {RECIPE_CLEANUP_UNIX:?}"
+        );
+        // The platform selector returns the host-appropriate variant.
+        let selected = recipe_cleanup_line();
+        if cfg!(windows) {
+            assert_eq!(selected, RECIPE_CLEANUP_WINDOWS);
+        } else {
+            assert_eq!(selected, RECIPE_CLEANUP_UNIX);
+        }
     }
 
     /// CIB-164 (unsupported honesty): the closing next-step line must stop

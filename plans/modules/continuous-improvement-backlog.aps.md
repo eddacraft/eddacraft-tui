@@ -4648,7 +4648,7 @@ archive.
 
 ### CIB-172: Windows variant for the first-run smoke recipe
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `RECIPE_LINES` (`start.rs:840-844`) step 3 is
   `rm .anvil-smoke-test.ts`, which fails in cmd.exe (`'rm' is not
   recognized`); there is no `cfg!(windows)` branch, unlike the tutorial's
