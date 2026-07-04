@@ -648,10 +648,15 @@ mod tests {
     #[test]
     fn root_budget_defaults_when_unset() {
         // Constructors without an explicit budget default to the pinned ceiling.
-        assert_eq!(AdmittedRoots::new_open().root_budget(), 32);
+        // Assert against the constant, not the literal, so the test tracks the
+        // default if it is ever tuned in `dos.rs`.
+        assert_eq!(
+            AdmittedRoots::new_open().root_budget(),
+            DEFAULT_MAX_ADMITTED_ROOTS
+        );
         assert_eq!(
             AdmittedRoots::new_allowlist_with_policy(AllowPolicy::default()).root_budget(),
-            32,
+            DEFAULT_MAX_ADMITTED_ROOTS,
         );
     }
 

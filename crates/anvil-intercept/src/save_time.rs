@@ -425,9 +425,15 @@ impl SaveTimeState {
     /// calls this with the operator-resolved `IpcLimits::max_admitted_roots`;
     /// without it the state defaults to
     /// [`DEFAULT_MAX_ADMITTED_ROOTS`](crate::dos::DEFAULT_MAX_ADMITTED_ROOTS).
+    ///
+    /// A `0` budget is clamped to `1` here — the same clamp
+    /// [`AdmittedRoots::with_root_budget`](crate::workspace_admission::AdmittedRoots::with_root_budget)
+    /// applies at enforcement time — so [`Self::root_budget`] always reports the
+    /// budget that is actually enforced rather than a raw `0` a later reader
+    /// might mistake for "admit nothing".
     #[must_use]
     pub fn with_root_budget(mut self, root_budget: usize) -> Self {
-        self.root_budget = root_budget;
+        self.root_budget = root_budget.max(1);
         self
     }
 
@@ -3911,6 +3917,26 @@ mod tests {
                 Err(SaveTimeError::RootBudgetExceeded { budget: 1, .. })
             ),
             "an admissible-but-over-budget root must be refused with RootBudgetExceeded, got {refused:?}",
+        );
+    }
+
+    /// CIB-154: `SaveTimeState::with_root_budget(0)` clamps to `1` up front, so
+    /// [`SaveTimeState::root_budget`] reports the actually-enforced budget rather
+    /// than a raw `0`. Mirrors the clamp in `AdmittedRoots::with_root_budget`;
+    /// keeps the reported and enforced budgets consistent for any caller that
+    /// reads `root_budget()` before an `AdmittedRoots` is materialised.
+    #[test]
+    fn save_time_state_root_budget_zero_clamps_to_one() {
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        )
+        .with_root_budget(0);
+        assert_eq!(
+            state.root_budget(),
+            1,
+            "a 0 budget must clamp to 1 at the state boundary",
         );
     }
 
