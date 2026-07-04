@@ -1,3 +1,4 @@
+pub mod attack_scenario;
 pub mod diagnostics;
 pub mod enforcement;
 mod events;

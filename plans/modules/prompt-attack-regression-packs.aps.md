@@ -1,8 +1,8 @@
 # Prompt Attack Regression Packs
 
-| ID   | Owner  | Status |
-| ---- | ------ | ------ |
-| PATT | @aneki | Ready  |
+| ID   | Owner  | Status      |
+| ---- | ------ | ----------- |
+| PATT | @aneki | In Progress |
 
 **Last reviewed:** 2026-05-25 (APSCAN-010 canonical-heading migration)
 
@@ -23,10 +23,14 @@ injection, exfiltration, and instruction-hijack scenarios before release.
 
 ### PATT-001: Define attack scenario schema
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Standardise prompt attack case representation.
 - **Expected Outcome:** Scenarios encode payload, objective, and expected safe behaviour.
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- attack_scenario_schema`
+- **Validated:** `crates/anvil-kernel-types/src/attack_scenario.rs` — `AttackScenario`
+  + `AttackCategory`/`SafeBehaviour` forward-compatible enums (serde-only, kebab-case,
+  `#[serde(other)] Unknown`); severity reuses `RiskSeverity`. 8 filtered tests green,
+  full crate + clippy `-D warnings` + fmt clean.
 
 ### PATT-002: Build attack pack runner
 
