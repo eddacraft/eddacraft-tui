@@ -8,8 +8,8 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Confirm `cargo test -p eddacraft-anvil --bin anvil -- pathext
-      binary_in_dir` passes on `main` post-merge — 5 tests green (agent: yes)
+- [ ] Confirm `cargo test -p eddacraft-anvil --bin anvil -- pathext binary_in_dir`
+      passes on `main` post-merge — 5 tests green (agent: yes)
 - [ ] On a Windows machine (or the Windows CI leg), verify the rewired
       `cfg(windows)` branch of `RealDetectionEnv::has_binary` end-to-end:
       install an editor CLI that ships as a `.cmd` shim (e.g. VS Code's
