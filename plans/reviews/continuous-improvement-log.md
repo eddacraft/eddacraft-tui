@@ -1981,4 +1981,11 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** `CARGO_TARGET_DIR` is redirected to `~/.cache/anvil-targets`, so the worktree-local `./target/debug/anvil` was stale — inspect the cache-dir binary, not `./target`, when eyeballing rendered CLI output.
 - **Improvement:** For "first-run orientation" copy on a required-subcommand root, prefer `before_help` (which the arg-required-else-help path already renders) over a bespoke bare-invocation branch.
 - **Follow-up:** none.
+- **Task:** CIB-178 — the activation language profile counted anvil's own writes (`.anvilrc`, `.anvil.toml`, `anvil/`, `.anvil-mcp-fallback.json`, installed workflow files), so live runs crept "(1 unclassified file)" → 4 → 6 as the tool inflated its own unclassified noise.
+- **Outcome:** Added an activation-only `is_anvil_owned_artifact(path, root)` predicate applied per-file in `profile_repo` alongside the existing `is_excluded_directory` walk filter (`activation/language_profile.rs`). It matches root-relative paths for `.anvilrc`, `.anvil.<ext>` config basenames, the root-level `anvil/` directory, `.anvil-mcp-fallback.json`, and `.github/workflows/{anvil,anvil-audit}.yml`. TDD: a fixture repo with user source plus every artefact asserts the unclassified count equals the baseline and is stable across two runs (proven red at 6 vs 0), plus a guard test that `src/anvil.rs`, a nested `vendor/anvil/`, and `.github/workflows/ci.yml` are NOT excluded. No change to `anvil-checks::filter`.
+- **Worked:** Matching on `strip_prefix(root)` component slices keeps every rule root-anchored where the artefact is root-anchored, so a slice pattern like `["anvil", ..]` cannot swallow a nested `vendor/anvil/` and user source is never silently dropped.
+- **Failed:** none.
+- **Friction:** none — the existing `.anvil` directory doc entry gave a template for documenting the activation-specific addition in the module doc.
+- **Improvement:** none.
+- **Follow-up:** none. The intent mentioned `plans/` creep too, but the plan deliberately scoped the exclusion to the enumerated artefacts (excluding `plans/` wholesale would risk dropping user planning docs).
 

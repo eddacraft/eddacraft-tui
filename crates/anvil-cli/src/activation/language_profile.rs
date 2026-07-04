@@ -18,7 +18,12 @@
 //!
 //! Detection uses file extensions only. Vendored / generated paths are
 //! filtered by an inline denylist matching `anvil-checks::filter`'s
-//! conventions.
+//! conventions. As an activation-specific addition (like the `.anvil`
+//! directory entry), anvil's own generated artefacts — `.anvilrc`,
+//! `.anvil.<ext>` config, the root-level `anvil/` directory, the MCP
+//! fallback descriptor, and installed workflow files — are excluded
+//! per-file via [`is_anvil_owned_artifact`] so the tool never counts its
+//! own writes as unclassified user source (CIB-178).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -392,6 +397,9 @@ pub fn profile_repo(root: &Path) -> RepoLanguageProfile {
             continue;
         }
         let path = entry.path();
+        if is_anvil_owned_artifact(path, root) {
+            continue;
+        }
         let Some(ext_with_dot) = extension_with_dot(path) else {
             unclassified += 1;
             continue;
@@ -503,6 +511,57 @@ fn is_excluded_directory(path: &Path) -> bool {
         return false;
     };
     EXCLUDED.contains(&name)
+}
+
+/// True when `path` is an anvil-generated artefact that the activation
+/// language profile must never count as user source (CIB-178).
+///
+/// Activation writes its own files into the working tree — `.anvilrc`,
+/// `.anvil.<ext>` config, a root-level `anvil/` directory, an MCP
+/// fallback descriptor, and installed CI workflow files. Left counted,
+/// these inflate the profile's `unclassified` tally, so live runs crept
+/// "(1 unclassified file)" → 4 → 6 as the tool counted its own writes,
+/// eroding the diagnostic's credibility.
+///
+/// This is an **activation-specific** exclusion — like the `.anvil`
+/// directory entry in [`is_excluded_directory`] — and is intentionally
+/// NOT mirrored into `anvil-checks::filter`, whose secret-scan call
+/// sites may want to target these paths explicitly.
+///
+/// The match is deliberately narrow and **root-anchored** wherever the
+/// artefact is root-anchored, so user source is never silently dropped:
+/// a `src/anvil.rs`, a non-anvil workflow (`.github/workflows/ci.yml`),
+/// or a nested `vendor/anvil/` directory are all still classified.
+fn is_anvil_owned_artifact(path: &Path, root: &Path) -> bool {
+    use std::path::Component;
+
+    let Ok(rel) = path.strip_prefix(root) else {
+        return false;
+    };
+    let components: Vec<&str> = rel
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(s) => s.to_str(),
+            _ => None,
+        })
+        .collect();
+
+    // Fixed root-anchored artefacts:
+    // - `.anvilrc` / `.anvil-mcp-fallback.json` — root-level single files.
+    // - `anvil/` — the root-level directory activation creates (a nested
+    //   `vendor/anvil/` is not root-anchored and stays classified).
+    // - installed anvil CI workflow files.
+    let fixed = matches!(
+        components.as_slice(),
+        [".anvilrc" | ".anvil-mcp-fallback.json"]
+            | ["anvil", ..]
+            | [".github", "workflows", "anvil.yml" | "anvil-audit.yml"]
+    );
+    // Root-level `.anvil.<ext>` config (e.g. `.anvil.toml`). The `.anvil.`
+    // prefix cannot match `.anvilrc` or `.anvil-mcp-fallback.json`.
+    let anvil_config = matches!(components.as_slice(), [name] if name.starts_with(".anvil."));
+
+    fixed || anvil_config
 }
 
 #[cfg(test)]
@@ -840,6 +899,69 @@ mod tests {
         assert_eq!(json["reason"], "unsupported");
         assert_eq!(json["by_language"]["Dart"], 3);
         assert_eq!(json["by_language"]["Go"], 1);
+    }
+
+    #[test]
+    fn anvil_owned_artefacts_are_excluded_and_stable_across_runs() {
+        // CIB-178: activation writes its own artefacts (.anvilrc, .anvil.toml,
+        // anvil/, .anvil-mcp-fallback.json, installed workflow files). These
+        // must NOT inflate the profile's `unclassified` count — otherwise the
+        // tool counts its own writes and the diagnostic creeps run-over-run.
+        let dir = TempDir::new().unwrap();
+        // User source.
+        touch(dir.path(), "src/main.rs");
+        touch(dir.path(), "src/app.ts");
+
+        // Baseline profile before any anvil-generated artefacts exist.
+        let baseline = profile_repo(dir.path());
+        assert_eq!(baseline.unclassified_files_seen, 0);
+
+        // Every anvil-generated artefact the activation flow writes.
+        touch(dir.path(), ".anvilrc");
+        touch(dir.path(), ".anvil.toml");
+        touch(dir.path(), "anvil/project-id");
+        touch(dir.path(), ".anvil-mcp-fallback.json");
+        touch(dir.path(), ".github/workflows/anvil.yml");
+        touch(dir.path(), ".github/workflows/anvil-audit.yml");
+
+        let first = profile_repo(dir.path());
+        assert_eq!(
+            first.unclassified_files_seen, baseline.unclassified_files_seen,
+            "anvil-owned artefacts must not inflate the unclassified count: {first:?}"
+        );
+        // Language entries are unchanged too — only anvil's own files were added.
+        assert_eq!(first.entries, baseline.entries);
+
+        // The item's acceptance: two consecutive runs are stable (no creep).
+        let second = profile_repo(dir.path());
+        assert_eq!(second, first);
+    }
+
+    #[test]
+    fn user_files_resembling_anvil_artefacts_are_not_excluded() {
+        // CIB-178 guard: the exclusion must be narrow. A user source file that
+        // merely mentions "anvil", a non-anvil workflow, and a non-root-anchored
+        // `anvil/` directory must all still be classified — user source can
+        // never be silently dropped.
+        let dir = TempDir::new().unwrap();
+        touch(dir.path(), "src/anvil.rs");
+        touch(dir.path(), "vendor/anvil/lib.rs");
+        touch(dir.path(), ".github/workflows/ci.yml");
+
+        let profile = profile_repo(dir.path());
+        let by_name: std::collections::BTreeMap<_, _> = profile
+            .entries
+            .iter()
+            .map(|e| (e.name.as_str(), e))
+            .collect();
+        assert_eq!(
+            by_name["Rust"].files_seen, 2,
+            "user Rust source must be counted: {profile:?}"
+        );
+        assert_eq!(
+            profile.unclassified_files_seen, 1,
+            "a non-anvil workflow (ci.yml) must still count: {profile:?}"
+        );
     }
 
     #[test]

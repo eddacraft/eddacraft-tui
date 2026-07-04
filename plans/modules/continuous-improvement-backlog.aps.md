@@ -4729,7 +4729,7 @@ archive.
 
 ### CIB-178: Exclude anvil-generated artefacts from the language profile
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** The activation language profile counts anvil's own writes: live
   runs crept "(1 unclassified file)" → 4 → 6 as activation created
   `.anvilrc`, `anvil/`, `plans/`, and workflow files — the tool inflates its
