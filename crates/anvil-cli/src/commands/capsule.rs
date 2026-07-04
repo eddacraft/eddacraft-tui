@@ -225,11 +225,17 @@ fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<()> {
     // check pass will feed real diagnostics here later (GITGOV-009+).
     let diagnostics = collect_diagnostics(&[]).context("rendering diagnostics")?;
 
+    // EXCEPT-009: name the active tracked grants in the capsule so
+    // verify can re-check scope/expiry/revocation/attribution.
+    let exceptions =
+        anvil_capsule::collect_exceptions(repo_root).context("collecting exception grants")?;
+
     let content = CapsuleContent {
         commits,
         digests,
         witness,
         diagnostics,
+        exceptions,
         producer,
     };
     let manifest = write_capsule(out, &content).context("writing capsule directory")?;
@@ -1560,6 +1566,9 @@ mod tests {
                 seq_end: Some(4),
             },
             diagnostics: collect_diagnostics(&[]).unwrap(),
+            exceptions: anvil_capsule::CollectedExceptions {
+                exceptions: Vec::new(),
+            },
             producer: Producer {
                 anvil_version: "0.8.0-beta".to_string(),
             },
@@ -1801,6 +1810,9 @@ mod tests {
             },
             witness: CollectedWitness::default(),
             diagnostics: collect_diagnostics(&[]).unwrap(),
+            exceptions: anvil_capsule::CollectedExceptions {
+                exceptions: Vec::new(),
+            },
             producer: Producer {
                 anvil_version: "0.8.0-beta".to_string(),
             },
@@ -1905,6 +1917,9 @@ mod tests {
                 seq_end: Some(5),
             },
             diagnostics: collect_diagnostics(&[]).unwrap(),
+            exceptions: anvil_capsule::CollectedExceptions {
+                exceptions: Vec::new(),
+            },
             producer: Producer {
                 anvil_version: "0.8.0-beta".to_string(),
             },

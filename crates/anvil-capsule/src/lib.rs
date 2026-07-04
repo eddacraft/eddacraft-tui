@@ -15,6 +15,7 @@ pub mod canonical;
 pub mod collect;
 pub mod collect_diagnostics;
 pub mod collect_digests;
+pub mod collect_exceptions;
 pub mod collect_witness;
 pub mod errors;
 pub mod format;
@@ -31,6 +32,7 @@ pub use collect_digests::{
     POLICY_FILE_CANDIDATES, PolicyDigest, RULES_DIGEST_SCHEMA, RulesDigest, ToolIdentity,
     collect_digests,
 };
+pub use collect_exceptions::{CollectedExceptions, collect_exceptions, collect_exceptions_at};
 pub use collect_witness::{CollectedWitness, collect_witness};
 pub use errors::CapsuleError;
 pub use format::{CapsuleContent, write_capsule};

@@ -15,6 +15,7 @@ use anvil_checks::secret::{SecretCheckConfig, scan_content_with_compiled_pattern
 use crate::collect::CommitsDocument;
 use crate::collect_diagnostics::CollectedDiagnostics;
 use crate::collect_digests::CollectedDigests;
+use crate::collect_exceptions::CollectedExceptions;
 use crate::collect_witness::CollectedWitness;
 use crate::errors::CapsuleError;
 use crate::manifest::{CapsuleManifest, CapsuleRange, Producer};
@@ -31,6 +32,8 @@ pub struct CapsuleContent {
     pub witness: CollectedWitness,
     /// The rendered SARIF diagnostics document (GITGOV-008).
     pub diagnostics: CollectedDiagnostics,
+    /// The collected active exception grants (EXCEPT-009).
+    pub exceptions: CollectedExceptions,
     /// Producer identity recorded in the manifest.
     pub producer: Producer,
 }
@@ -57,9 +60,12 @@ pub struct CapsuleContent {
 /// schema-valid SARIF document with empty `results[]` (never a 0-byte
 /// file).
 ///
+/// `exceptions.json` carries the active grants from the tracked
+/// exception store (EXCEPT-009); the verifier's `exceptions` check
+/// re-verifies each one (scope/expiry/revocation/attribution).
+///
 /// Placeholders written by this step (their collectors land later):
 ///
-/// - `exceptions.json` — `[]` (EXCEPT-009 collects applied records)
 /// - `edda-context.json` — `{}` (reference-only, gated on EDDA-SEAL)
 /// - `verification.json` — [`CapsuleVerification::from_checks`] with
 ///   no checks: the degraded placeholder GITGOV-009's verify step
@@ -99,7 +105,7 @@ pub fn write_capsule(
         ("rules.json", content.digests.rules.to_canonical_bytes()?),
         ("witness.ndjson", content.witness.ndjson.clone()),
         ("diagnostics.sarif", content.diagnostics.sarif.clone()),
-        ("exceptions.json", b"[]".to_vec()),
+        ("exceptions.json", content.exceptions.to_canonical_bytes()?),
         ("edda-context.json", b"{}".to_vec()),
         ("verification.json", verification.to_canonical_bytes()?),
         ("README.md", readme.into_bytes()),
@@ -348,6 +354,12 @@ mod tests {
     use crate::manifest::REQUIRED_FILES;
     use crate::verification::Verdict;
 
+    fn empty_exceptions() -> CollectedExceptions {
+        CollectedExceptions {
+            exceptions: Vec::new(),
+        }
+    }
+
     fn sample_content() -> CapsuleContent {
         CapsuleContent {
             commits: CommitsDocument {
@@ -378,6 +390,7 @@ mod tests {
             },
             witness: CollectedWitness::default(),
             diagnostics: crate::collect_diagnostics::collect_diagnostics(&[]).unwrap(),
+            exceptions: empty_exceptions(),
             producer: Producer {
                 anvil_version: "0.0.0-test".to_string(),
             },

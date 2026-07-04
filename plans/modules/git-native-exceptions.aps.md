@@ -115,11 +115,11 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Status:** Proposed
 
 ### EXCEPT-009: Capsule inclusion
-- **Intent:** Applied exceptions are collected into the capsule and re-verified during `anvil capsule verify` (scope/expiry/revocation).
+- **Intent:** Applied exceptions are collected into the capsule and re-verified during `anvil capsule verify` (scope/expiry/revocation). 2026-07-04: "applied" is approximated by "active at collect time" — the faithful relied-upon subset needs the gate's applied-exception record joined against a diagnostics source, and capsule create has no diagnostics source wired yet (`diagnostics.sarif` is an empty document for the same reason). The approximation is conservative for verification: a superset of anything the gate could have applied is collected and re-verified, so a since-revoked or expiring grant still degrades/blocks verify. Tightening to the true applied subset follows the create-side diagnostics wiring.
 - **Expected Outcome:** A capsule names the exceptions a change relied on; an expired/revoked one degrades or blocks verification.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- exceptions`
 - **Dependencies:** EXCEPT-005, GITGOV-009
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### EXCEPT-010: Gate store trust model (2026-07-04 council intake)
 - **Intent:** Close the trust-model gaps the EXCEPT-006 council flagged: (a) decide gate store provenance — the L4 gate loads `anvil/exceptions/store.json` from the live worktree (same pattern as `anvil/policy.yml`), so an uncommitted local grant satisfies the local pre-push gate while CI/`l4-validate` sees only committed grants, and a range validation applies one store snapshot to every commit in the range; decide worktree- vs commit-tree-scoped loading and bind the CI semantics explicitly. (b) Make the OPA evaluator path (`is_suppressed_at`) consult `ExceptionVerdict` so unattributed grants stop clean-suppressing there (they downgrade at the L4 gate but suppress silently in the evaluator today — pre-EXCEPT-006 behaviour, documented in-code). (c) Evaluate scope-breadth nudges: empty/`**` patterns are repo-wide and non-expiring grants are permanent; consider authoring-time warnings or default expiry.

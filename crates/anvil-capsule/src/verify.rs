@@ -503,11 +503,13 @@ mod tests {
         let range: BTreeSet<String> = commits.commits.iter().map(|c| c.sha.clone()).collect();
         let witness = collect_witness(repo, &range).unwrap();
         let diagnostics = collect_diagnostics(&[]).unwrap();
+        let exceptions = crate::collect_exceptions::collect_exceptions(repo).unwrap();
         let content = CapsuleContent {
             commits,
             digests,
             witness,
             diagnostics,
+            exceptions,
             producer: Producer {
                 anvil_version: "0.0.0-test".to_string(),
             },
@@ -626,6 +628,71 @@ mod tests {
         // manifest-digests still passes — the capsule's own files are intact.
         let manifest = v.checks.iter().find(|c| c.name == CHECK_MANIFEST).unwrap();
         assert_eq!(manifest.verdict, Verdict::Pass);
+    }
+
+    /// EXCEPT-009 end-to-end: a grant in the tracked store travels
+    /// through the real collect pipeline into exceptions.json and the
+    /// verifier re-verifies it — no hand-rewrite.
+    #[test]
+    fn exceptions_roundtrip_create_collects_active_grant_and_verify_passes() {
+        let (dir, base, head) = scratch_repo();
+        let now = Utc::now();
+        let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+        store.add(applied_exception(now));
+        let outcome = store.save(dir.path()).unwrap();
+        assert!(matches!(
+            outcome,
+            anvil_policy::exceptions::WriteOutcome::Written
+        ));
+
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+        let bytes = std::fs::read(out.join("exceptions.json")).unwrap();
+        let recorded: Vec<PolicyException> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(recorded.len(), 1, "grant must be collected at create time");
+
+        let v = verify_capsule_at(&out, dir.path(), now);
+        let check = v
+            .checks
+            .iter()
+            .find(|c| c.name == CHECK_EXCEPTIONS)
+            .unwrap();
+        assert_eq!(check.verdict, Verdict::Pass, "detail: {:?}", check.detail);
+    }
+
+    /// EXCEPT-009 end-to-end: an unattributed grant collected at
+    /// create time degrades verify through the real pipeline.
+    #[test]
+    fn exceptions_roundtrip_unattributed_grant_degrades_verify() {
+        let (dir, base, head) = scratch_repo();
+        let now = Utc::now();
+        let mut grant = applied_exception(now);
+        grant.owner = None;
+        grant.created_by = None;
+        let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+        store.add(grant);
+        let outcome = store.save(dir.path()).unwrap();
+        assert!(matches!(
+            outcome,
+            anvil_policy::exceptions::WriteOutcome::Written
+        ));
+
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+        let v = verify_capsule_at(&out, dir.path(), now);
+        let check = v
+            .checks
+            .iter()
+            .find(|c| c.name == CHECK_EXCEPTIONS)
+            .unwrap();
+        assert_eq!(
+            check.verdict,
+            Verdict::Degraded,
+            "detail: {:?}",
+            check.detail
+        );
     }
 
     fn applied_exception(now: chrono::DateTime<Utc>) -> PolicyException {
