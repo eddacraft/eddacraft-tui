@@ -1,0 +1,32 @@
+id: anvil-baseline
+name: Anvil Baseline Guardrails
+version: 1.0.0
+description: >-
+  Starter guardrails shaped over the working-tree diff: bound the size of a
+  change set, and ask for a review acknowledgement before secrets or CI
+  configuration change.
+owner: anvil-platform
+policies:
+  - path: policies/change_scope.rego
+    metadata:
+      id: change-scope
+      title: Bound change-set size
+      severity: medium
+      owner: anvil-platform
+      rationale: >-
+        Large change sets are hard to review and let risky edits slip through;
+        bounding change size keeps review effective.
+      scope: diff.changed_files
+      tags: [review, hygiene]
+  - path: policies/sensitive_paths.rego
+    metadata:
+      id: sensitive-paths
+      title: Require review for secrets and CI changes
+      severity: high
+      owner: anvil-platform
+      rationale: >-
+        Changes to CI configuration, credentials, or environment files can alter
+        build, deploy, or authentication behaviour and warrant a deliberate
+        second review.
+      scope: diff.changed_files
+      tags: [security, ci, secrets]
