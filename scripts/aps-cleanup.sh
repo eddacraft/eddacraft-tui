@@ -373,8 +373,8 @@ done
 log "Checking branch hygiene..."
 
 stale_branches=$(git branch -r --merged origin/main 2>/dev/null \
-  | grep -v 'HEAD\|main\|release/' \
-  | sed 's/^[[:space:]]*//' || true)
+  | sed 's/^[[:space:]]*//' \
+  | grep -vE '^origin/HEAD ->|^origin/main$|^origin/release/' || true)
 
 if [[ -n "$stale_branches" ]]; then
   count=$(echo "$stale_branches" | grep -c . || true)
