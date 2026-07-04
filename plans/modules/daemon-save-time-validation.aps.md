@@ -4,10 +4,10 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-07-04 (Sub-phase C shaped: DSV-046 design Done —
-ADR-101 Accepted, headless driver spec hardened with review pins — and
-DSV-047..051 filed Ready as the v0.9.0-beta usefulness cut-line; DSV-048
-In Progress.)
+**Last reviewed:** 2026-07-04 (Sub-phase C implementation underway: DSV-048
+Merged via PR #3186, DSV-047 Merged via PR #3191; DSV-049 → DSV-050 →
+DSV-051 remain the v0.9.0-beta usefulness cut-line — 049/050 sequential,
+050 depends on 049's wire field.)
 
 2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
 routing) confirmed in the v0.8.0-beta tag (record:
@@ -1160,7 +1160,27 @@ requirement). Architecture decided by
 
 #### DSV-047: Daemon `SaveTimeDriverSupervisor`
 
-- **Status:** In Progress (2026-07-05)
+- **Status:** Merged 2026-07-04 via PR #3191
+- **Progress (2026-07-04, delivery):** `save_time_driver.rs` lands the
+  supervisor honouring all four review pins (enqueue-only hook; no
+  auto-respawn; spawn-failure ⇒ `failed` never panic; `DaemonLauncher` seam
+  reused — `spawn_detached` now returns the child PID and
+  `DetachedCommandLauncher` gained `with_env` for the
+  `ANVIL_SAVE_TIME_DRIVER_LOG` handoff). Hardening added during review:
+  `stop_all` latches a shutdown flag checked under the drivers lock (held
+  across spawn→insert) so an in-flight spawn can never orphan its child;
+  `stop_all`/`reconcile_on_start` run via `spawn_blocking` on both daemon
+  exit paths; on start-time-capable platforms a driver is never *tracked*
+  without its PID-reuse discriminator (unreadable start time at spawn ⇒ the
+  just-spawned child is stopped immediately and reported `failed`), and the
+  startup reconcile never signals a bare-PID record. The artefact directory
+  is resolved by `save_time_driver::default_driver_dir()` with the child's
+  own precedence (`{ANVIL_HOME}/runtime/save-time-drivers/`) — deliberately
+  NOT the PID-file parent, which skips `runtime/` under `ANVIL_HOME`. Host
+  opt-in is `ForegroundOpts::with_save_time_drivers`, set only by the
+  production `anvil intercept start --foreground` entry (test/embedded hosts
+  must never re-exec their own binary); `ANVIL_NO_SAVE_TIME_DRIVER` opt-out
+  honoured on top. DSV-049 consumes `driver_status`/`status_snapshot`.
 - **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 1;
   design spec §Driver contract.
 - **Intent:** Consume durable membership changes and manage detached driver
@@ -1263,7 +1283,7 @@ requirement). Architecture decided by
   `crates/anvil-intercept/src/save_time_driver.rs`,
   `crates/anvil-cli/src/commands/status.rs`,
   `crates/anvil-cli/src/activation/{diagnostic,render}.rs`
-- **Dependencies:** DSV-047, ACTMO-017 (Merged)
+- **Dependencies:** DSV-047 (Merged 2026-07-04 via PR #3191), ACTMO-017 (Merged)
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -1347,5 +1367,5 @@ requirement). Architecture decided by
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
-| C — Headless background driver | 6 | 2/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047/049/050/051 Ready) | In Progress |
-| **Total** | **26** | **22/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
+| C — Headless background driver | 6 | 3/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049/050/051 Ready) | In Progress |
+| **Total** | **26** | **23/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
