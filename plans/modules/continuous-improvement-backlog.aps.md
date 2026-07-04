@@ -4120,37 +4120,14 @@ archive.
 
 ### CIB-153: Bind session lifecycle operations to the registering peer
 
-- **Status:** In Progress
-- **Intent:** Close the gap where any same-uid IPC client that knows or
-  guesses another session's id can heartbeat-keep-alive or force-unregister
-  a session it never registered, since `Heartbeat`/`UnregisterSession` carry
-  no peer-credential check today.
-- **Expected Outcome:** A session records the authenticated peer identity
-  (uid/pid/starttime) that registered it; `Heartbeat` and `UnregisterSession`
-  are rejected when the calling peer does not match the recorded owner
-  (mirroring the existing `ReportProcess` peer-pid contract), independent of
-  the separate telemetry-subscriber binding.
-- **Files:** `crates/anvil-intercept/src/{registry.rs,ipc.rs}`.
-- **Validation:** Dispatch-level tests (mirroring the existing
-  `dispatch_command_register_lineage_*` injected-`peer_pid` pattern) proving
-  a session registered under peer A's credentials rejects `Heartbeat`/
-  `UnregisterSession` from a different injected peer B, and still accepts
-  them from peer A; legacy/no-peer-credential paths continue to fail closed.
-- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
-  decomposition readiness pass 2026-07-02.
-- **Coordinates with:** MLP2-070/MLP2-074 peer-credential verification
-  pattern (`verify_lineage_claim`, `mint_subscriber_id`); CIB-114
-  Windows-peer authentication (sibling, different platform layer).
-  **Depends on deterministic multi-peer test coverage**: the existing
-  `dispatch_command` unit tests already inject synthetic `peer_pid` values
-  without a live second process, which is sufficient for the dispatch-level
-  contract above but does not prove true cross-process denial end-to-end;
-  no multi-process (distinct real-PID) daemon harness exists in `tests/`
-  today for that stronger proof.
-- **Confidence:** medium — the dispatch-level fix and its test are
-  low-risk and reuse an existing pattern, but the end-to-end
-  (real-process, real `SO_PEERCRED`) proof is gated on harness work not yet
-  in place.
+- **Status:** Merged 2026-07-04 via PR #3188
+- **Summary:** Sessions now record the authenticated peer identity (uid/pid/
+  starttime) at registration; `Heartbeat` and `UnregisterSession` are rejected
+  when the calling peer does not match the recorded owner (mirroring the
+  `ReportProcess` peer-pid contract), independent of the telemetry-subscriber
+  binding, and legacy/no-peer-credential paths fail closed. Dispatch-level
+  tests inject peer A/B credentials to prove cross-peer denial and same-peer
+  acceptance (`crates/anvil-intercept/src/{registry.rs,ipc.rs}`).
 
 ### CIB-154: Cap the number of workspace roots a connection may admit
 
