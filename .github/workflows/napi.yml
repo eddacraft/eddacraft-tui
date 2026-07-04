@@ -101,14 +101,15 @@ jobs:
       #   increasingly fail to schedule. This matches the napi-rs
       #   reference template since the macos-13 deprecation.
       matrix:
-        include: ${{ fromJSON(github.event_name == 'pull_request' &&
+        include:
+          ${{ fromJSON(github.event_name == 'pull_request' &&
           '[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
-            {"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""}]' ||
+          {"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""}]' ||
           '[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
-            {"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
-            {"target":"x86_64-apple-darwin","runner":"macos-14","extra_args":""},
-            {"target":"aarch64-apple-darwin","runner":"macos-14","extra_args":""},
-            {"target":"x86_64-pc-windows-msvc","runner":"windows-latest","extra_args":""}]') }}
+          {"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
+          {"target":"x86_64-apple-darwin","runner":"macos-14","extra_args":""},
+          {"target":"aarch64-apple-darwin","runner":"macos-14","extra_args":""},
+          {"target":"x86_64-pc-windows-msvc","runner":"windows-latest","extra_args":""}]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -252,11 +253,12 @@ jobs:
       # their build artefacts are not produced on `pull_request`); the
       # full spread runs on push / tags / dispatch.
       matrix:
-        include: ${{ fromJSON(github.event_name == 'pull_request' &&
+        include:
+          ${{ fromJSON(github.event_name == 'pull_request' &&
           '[{"runner":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"}]' ||
           '[{"runner":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"},
-            {"runner":"macos-14","target":"aarch64-apple-darwin"},
-            {"runner":"windows-latest","target":"x86_64-pc-windows-msvc"}]') }}
+          {"runner":"macos-14","target":"aarch64-apple-darwin"},
+          {"runner":"windows-latest","target":"x86_64-pc-windows-msvc"}]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
