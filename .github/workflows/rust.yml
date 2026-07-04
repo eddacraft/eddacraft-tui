@@ -420,12 +420,20 @@ jobs:
   cross-compile:
     name: Cross (${{ matrix.target }})
     # Run cross-compilation (incl. the Windows matrix) on release-gate
-    # events only: release-class PR-to-`main`, push to `main` or a
-    # `release/*` branch, and `workflow_dispatch` for operator-triggered
+    # events only: release-class PR-to-`main`, push to a `release/*`
+    # branch, and `workflow_dispatch` for operator-triggered
     # verification. Normal feat/fix/docs/chore PRs stay on the fast
     # Rust check/test/clippy/format path. Per CICD-008 platform
     # matrices are reserved for release-sensitive paths, nightly
     # assurance, and explicit dispatch.
+    #
+    # CI-cost 2026-07: pushes to `main` no longer fire this matrix. At
+    # ~90 merges/day the per-merge macOS (10x) + Windows (2x) legs were
+    # the single largest billable-minute line in the repo; the same
+    # six-target matrix now runs nightly in `ci-nightly.yml`
+    # (`cross-compile` job) plus on the release-class events above, so
+    # cross-platform breakage on `main` surfaces within a day instead
+    # of per merge.
     #
     # The head allowlist on PR-to-`main` keeps the cross-compile matrix
     # from firing on every normal post-cutover PR; only `release/*` and
@@ -464,8 +472,8 @@ jobs:
           needs.cross-compile-gate.result == 'success' &&
           (
             (
-              (github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
-                startsWith(github.ref, 'refs/heads/release/'))) ||
+              (github.event_name == 'push' &&
+                startsWith(github.ref, 'refs/heads/release/')) ||
               (github.event_name == 'pull_request' && github.base_ref == 'main' &&
                 github.event.pull_request.head.repo.full_name == github.repository &&
                 (startsWith(github.head_ref, 'release/') ||

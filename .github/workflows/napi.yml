@@ -79,34 +79,36 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      # CI-cost 2026-07: on `pull_request` only the two Linux legs build —
+      # macOS bills at 10x and Windows at 2x, and the `Cargo.lock` path
+      # filter routes every dependency bump through this matrix (~115
+      # billable minutes/run at the full spread). Push to `main`, `napi-v*`
+      # tags, and `workflow_dispatch` keep the full five-target canary, so
+      # darwin/windows artefacts are still proven on every merge and before
+      # any publish.
+      #
+      # Leg notes (also apply to the JSON below):
+      # - aarch64-unknown-linux-gnu cross-compiles with the Ubuntu-provided
+      #   aarch64 GNU toolchain (installed in the step below), not
+      #   napi-cross's bundled sysroot: that sysroot's GCC is too old to
+      #   build aws-lc-sys 0.41 (missing stdatomic.h, no `armv8.4-a+sha3`
+      #   -march, undeclared AT_HWCAP2). The stock toolchain is modern
+      #   enough and still avoids QEMU. Install tests on real arm64
+      #   hardware are tracked as a follow-up.
+      # - Both darwin targets build on macos-14 (Apple silicon) — the
+      #   x86_64 build cross-compiles via the `--target` flag below.
+      #   macos-13 (Intel) runners are EOL on GitHub-hosted infra and
+      #   increasingly fail to schedule. This matches the napi-rs
+      #   reference template since the macos-13 deprecation.
       matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            runner: ubuntu-latest
-            extra_args: ''
-          - target: aarch64-unknown-linux-gnu
-            runner: ubuntu-latest
-            # Cross-compiles with the Ubuntu-provided aarch64 GNU toolchain
-            # (installed in the step below), not napi-cross's bundled sysroot:
-            # that sysroot's GCC is too old to build aws-lc-sys 0.41 (missing
-            # stdatomic.h, no `armv8.4-a+sha3` -march, undeclared AT_HWCAP2).
-            # The stock toolchain is modern enough and still avoids QEMU.
-            # Install tests on real arm64 hardware are tracked as a follow-up.
-            extra_args: ''
-          - target: x86_64-apple-darwin
-            # Both darwin targets build on macos-14 (Apple silicon) — the
-            # x86_64 build cross-compiles via the `--target` flag below.
-            # macos-13 (Intel) runners are EOL on GitHub-hosted infra and
-            # increasingly fail to schedule. This matches the napi-rs
-            # reference template since the macos-13 deprecation.
-            runner: macos-14
-            extra_args: ''
-          - target: aarch64-apple-darwin
-            runner: macos-14
-            extra_args: ''
-          - target: x86_64-pc-windows-msvc
-            runner: windows-latest
-            extra_args: ''
+        include: ${{ fromJSON(github.event_name == 'pull_request' &&
+          '[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
+            {"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""}]' ||
+          '[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
+            {"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-latest","extra_args":""},
+            {"target":"x86_64-apple-darwin","runner":"macos-14","extra_args":""},
+            {"target":"aarch64-apple-darwin","runner":"macos-14","extra_args":""},
+            {"target":"x86_64-pc-windows-msvc","runner":"windows-latest","extra_args":""}]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -241,17 +243,20 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
+      # Only the targets where we have native runners — cross-compiled
+      # arm64-linux and x64-darwin install-tests have to happen elsewhere
+      # (see workflow comment + module follow-ups).
+      #
+      # CI-cost 2026-07: mirrors the build matrix above — PRs test the
+      # Linux artefact only (the darwin/windows legs would fail anyway:
+      # their build artefacts are not produced on `pull_request`); the
+      # full spread runs on push / tags / dispatch.
       matrix:
-        include:
-          # Only the targets where we have native runners — cross-compiled
-          # arm64-linux and x64-darwin install-tests have to happen
-          # elsewhere (see workflow comment + module follow-ups).
-          - runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - runner: macos-14
-            target: aarch64-apple-darwin
-          - runner: windows-latest
-            target: x86_64-pc-windows-msvc
+        include: ${{ fromJSON(github.event_name == 'pull_request' &&
+          '[{"runner":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"}]' ||
+          '[{"runner":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"},
+            {"runner":"macos-14","target":"aarch64-apple-darwin"},
+            {"runner":"windows-latest","target":"x86_64-pc-windows-msvc"}]') }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

@@ -51,8 +51,15 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          shared-key: rust-ci
-          save-if: 'false'
+          # CI-cost 2026-07: this job builds RELEASE-profile artefacts (the
+          # anvil binary + benches below) but used to restore the debug
+          # `rust-ci` cache — which never contains release deps — so every
+          # run cold-built the release dependency graph. Own key, saved on
+          # merges to `main` so PR runs restore a warm release cache. Cache
+          # contents only affect compile time, not the measured budgets —
+          # the benches run the built binary.
+          shared-key: rust-release-budget
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       # The watch bench needs inotify headroom; surface the limits in the log so
       # an exhausted-watches failure is one glance to diagnose, not a mystery.
       - name: Report inotify limits
@@ -189,7 +196,9 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          shared-key: rust-ci
+          # Restore the release-profile cache saved by the push-to-main leg
+          # above (dispatch-only job, so it never saves its own).
+          shared-key: rust-release-budget
           save-if: 'false'
       - name: Build release anvil binary
         run: cargo build -p eddacraft-anvil --release --bin anvil

@@ -143,7 +143,11 @@ assert_not_contains "${ci_workflow}" 'name: coverage-report-22.x'
 # shared fail-closed tail. We also pin the fail-fast first step positionally.
 FAILCLOSED_TAIL="( needs.detect-changes.result != 'success' || needs.detect-changes.outputs.source-changed == 'true' )"
 # Verbatim original trigger-context of each job (whitespace-normalised form).
-TRELEASE_TRIGGER="( (github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/'))) || (github.event_name == 'push' && github.ref == 'refs/heads/main') )"
+# CI-cost 2026-07: the release gate is release-class-PR-only — the
+# `push`-to-`main` arm moved to nightly assurance (ci-nightly.yml
+# `test-cross-platform`), so per-merge runs no longer pay the macOS (10x)
+# + Windows (2x) matrix.
+TRELEASE_TRIGGER="( github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository && (startsWith(github.head_ref, 'release/') || startsWith(github.head_ref, 'hotfix/')) )"
 BUILD_TRIGGER="github.event_name != 'pull_request'"
 EXPECTED_RELEASE_IF="always() && ${TRELEASE_TRIGGER} && ${FAILCLOSED_TAIL}"
 EXPECTED_BUILD_IF="always() && ${BUILD_TRIGGER} && ${FAILCLOSED_TAIL}"

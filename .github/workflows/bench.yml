@@ -14,13 +14,24 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/bench.yml'
+  schedule:
+    # CI-cost 2026-07: the Criterion + mid-edit baseline jobs run nightly
+    # (03:00 Perth; 19:00 UTC prev day, no DST) instead of on every
+    # bench-adjacent merge — the Criterion job alone is ~81 minutes, and
+    # per-merge runs mostly cancelled each other via the concurrency group
+    # anyway. Push events still run the cheap `bench-check` compile gate.
+    # Offset from ci-nightly (02:00 UTC) so the two nightly Rust builds
+    # don't compete for cache/runner throughput.
+    - cron: '0 19 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: bench-${{ github.ref }}
+  # Scoped per event so a merge-triggered `bench-check` run cannot cancel an
+  # in-flight nightly Criterion run (both share refs/heads/main).
+  group: bench-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -45,6 +56,9 @@ jobs:
     name: Criterion benchmarks
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     needs: bench-check
+    # CI-cost 2026-07: nightly/dispatch only — see the `schedule` trigger
+    # comment. Merge-triggered runs stop at `bench-check`.
+    if: github.event_name != 'push'
     # Criterion job typically takes ~81 minutes on GitHub-hosted runners (kernel bench step ~73 min).
     timeout-minutes: 120
     steps:
@@ -57,7 +71,7 @@ jobs:
         run: |
           set -o pipefail && cargo bench -p eddacraft-anvil-checks --bench checks -- --output-format bencher | tee checks-bench.txt
       - name: Run stress benchmarks (small config)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           set -o pipefail && cargo bench -p anvil-bench --bench stress -- --output-format bencher | tee stress-bench.txt
       - name: Run antipattern_scan benchmarks
@@ -84,6 +98,10 @@ jobs:
     name: Mid-edit baseline gate (RTAI-003)
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     needs: bench-check
+    # CI-cost 2026-07: nightly/dispatch only, alongside `criterion`. The
+    # ADR-031 SLO hard-fail still gates — it just reports on the nightly
+    # run instead of per merge.
+    if: github.event_name != 'push'
     timeout-minutes: 30
     # Hard fail on any p95 exceeding the ADR-031 SLO; soft warn on baseline
     # drift outside ±15%. Policy is documented inline in

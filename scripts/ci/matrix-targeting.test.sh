@@ -79,12 +79,14 @@ assert_step_contains() {
 }
 
 # ── ci.yml: test-release-gate gates on source-changed ───────────
-# Docs-only release PRs and docs-only release-sync pushes must not
-# spin up the macOS + Windows matrix.
+# Docs-only release PRs must not spin up the macOS + Windows matrix.
+# CI-cost 2026-07: pushes to `main` must not fire the gate either —
+# per-merge cross-platform Node coverage moved to ci-nightly.yml
+# (test-cross-platform), so the gate is release-class-PR-only.
 assert_contains "${ci_workflow}" '  test-release-gate:'
 assert_block_contains "${ci_workflow}" "^  test-release-gate:" "source-changed == 'true'"
 assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.base_ref == 'main'"
-assert_block_contains "${ci_workflow}" "^  test-release-gate:" "github.ref == 'refs/heads/main'"
+assert_block_not_contains "${ci_workflow}" "^  test-release-gate:" "github.ref == 'refs/heads/main'"
 # The release gate is the cross-platform Node gate. Rust coverage lives in rust.yml;
 # do not route this through the root test script, because pnpm appends --run to
 # cargo test and breaks on macOS/Windows.
@@ -94,14 +96,18 @@ assert_block_not_contains "${ci_workflow}" "^  test-release-gate:" "pnpm run tes
 # ── rust.yml: cross-compile is release-gate-only ────────────────
 # - Push to `dev` must NOT trigger cross-compile (dev is the integration
 #   branch during migration but not a release gate).
-# - Push to `main` and `release/*` must trigger.
-# - PR to `main` must trigger.
+# - CI-cost 2026-07: push to `main` must NOT trigger either — at ~90
+#   merges/day the macOS (10x) + Windows (2x) legs were the largest
+#   billable line in the repo. Nightly assurance (ci-nightly.yml
+#   `cross-compile`) owns main coverage now.
+# - Push to `release/*` must trigger.
+# - Release-class PR to `main` must trigger.
 # - `workflow_dispatch` is the operator override.
 # - The job must still gate on rust-changed when not dispatched.
 assert_contains "${rust_workflow}" '  workflow_dispatch: {}'
 assert_contains "${rust_workflow}" '  cross-compile:'
 assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.event_name == 'workflow_dispatch'"
-assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.ref == 'refs/heads/main'"
+assert_block_not_contains "${rust_workflow}" "^  cross-compile:" "github.ref == 'refs/heads/main'"
 assert_block_contains "${rust_workflow}" "^  cross-compile:" "refs/heads/release/"
 assert_block_contains "${rust_workflow}" "^  cross-compile:" "github.base_ref == 'main'"
 assert_block_contains "${rust_workflow}" "^  cross-compile:" "rust-changed == 'true'"
@@ -154,5 +160,15 @@ assert_contains "${ci_nightly_workflow}" "          - os: windows-latest"
 assert_contains "${ci_nightly_workflow}" "  schedule:"
 assert_contains "${ci_nightly_workflow}" 'scripts/ci/rust-coverage.sh'
 assert_contains "${ci_nightly_workflow}" 'shared-key: rust-coverage'
+# CI-cost 2026-07: the six-target Rust cross-compile matrix that left
+# rust.yml's push-to-main trigger must exist here instead, covering all
+# six release targets nightly.
+assert_contains "${ci_nightly_workflow}" "  cross-compile:"
+assert_block_contains "${ci_nightly_workflow}" "^  cross-compile:" "target: x86_64-unknown-linux-gnu"
+assert_block_contains "${ci_nightly_workflow}" "^  cross-compile:" "target: aarch64-unknown-linux-gnu"
+assert_block_contains "${ci_nightly_workflow}" "^  cross-compile:" "target: x86_64-apple-darwin"
+assert_block_contains "${ci_nightly_workflow}" "^  cross-compile:" "target: aarch64-apple-darwin"
+assert_block_contains "${ci_nightly_workflow}" "^  cross-compile:" "target: x86_64-pc-windows-msvc"
+assert_block_contains "${ci_nightly_workflow}" "^  cross-compile:" "target: aarch64-pc-windows-msvc"
 
 echo 'matrix-targeting workflow checks passed'

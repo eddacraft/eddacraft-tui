@@ -99,11 +99,16 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    # Run when: schedule (detect-changes skipped) OR Rust source changed.
+    # Run when: push to main with Rust changes, or schedule (detect-changes
+    # skipped). CI-cost 2026-07: `pull_request` no longer runs this job — the
+    # `cargo build --workspace` it needs is minutes of runner time per PR, and
+    # every merge to `main` re-scans the same code moments later, so PR runs
+    # only surfaced findings one merge earlier than the push scan does anyway.
+    # "Analyze (rust)" is not a required status check, so PR runs simply skip.
     # CIB-137: `result != 'success'` also runs the analysis when the classifier
-    # FAILED (fail closed) rather than skipping this required context.
+    # FAILED (fail closed) rather than skipping this context.
     if: |
-      always() &&
+      always() && github.event_name != 'pull_request' &&
       (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.rust-changed == 'true')
     steps:

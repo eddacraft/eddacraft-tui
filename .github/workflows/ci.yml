@@ -814,10 +814,17 @@ jobs:
   # consuming ~40k included minutes/month.
 
   # ── Job 3b: Release gate — cross-platform ──
-  # The gate fires on release-class PRs and on every push to `main`.
-  # Normal `feat/*` / `fix/*` / `docs/*` / `chore/*` PRs to `main` do
-  # not fire the gate; only `release/*` and `hotfix/*` head patterns
-  # do.
+  # The gate fires on release-class PRs only. Normal `feat/*` / `fix/*`
+  # / `docs/*` / `chore/*` PRs to `main` do not fire the gate; only
+  # `release/*` and `hotfix/*` head patterns do.
+  #
+  # CI-cost 2026-07: pushes to `main` no longer fire the gate. At ~90
+  # merges/day the per-merge macOS (10x) + Windows (2x) legs duplicated
+  # ci-nightly.yml's `test-cross-platform` job (same matrix, same
+  # `pnpm run test:js -- --run` surface) at ~two orders of magnitude
+  # higher frequency. Cross-platform Node regressions on `main` now
+  # surface via the nightly run; release-class PRs still pay the full
+  # matrix before a release ships.
   #
   # The `head.repo.full_name == github.repository` clause makes this
   # gate self-defending: a fork PR cannot trigger the expensive macOS
@@ -837,20 +844,19 @@ jobs:
     # CIB-156: also run on a FAILED classifier (result != 'success') so the
     # fail-fast step below fails this gate closed instead of silently skipping
     # it. The fail-closed clause is deliberately kept INSIDE the
-    # release/hotfix-PR-or-push-to-main trigger context: a release-PR author
-    # must not be able to skip the cross-platform gate by tampering with or
-    # inducing a failure in the classifier, but an ordinary feature PR that
-    # trips the classifier already goes red via the lint/typecheck/unit-tests
-    # guards, so we do not spin this heavy macOS+Windows matrix up on every
-    # classifier hiccup. On a successful classifier `result != 'success'` is
-    # false, so normal `source-changed` gating is unchanged.
+    # release/hotfix-PR trigger context: a release-PR author must not be able
+    # to skip the cross-platform gate by tampering with or inducing a failure
+    # in the classifier, but an ordinary feature PR that trips the classifier
+    # already goes red via the lint/typecheck/unit-tests guards, so we do not
+    # spin this heavy macOS+Windows matrix up on every classifier hiccup. On a
+    # successful classifier `result != 'success'` is false, so normal
+    # `source-changed` gating is unchanged.
     if: |
       always() && (
-        (github.event_name == 'pull_request' && github.base_ref == 'main' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          (startsWith(github.head_ref, 'release/') ||
-           startsWith(github.head_ref, 'hotfix/'))) ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        github.event_name == 'pull_request' && github.base_ref == 'main' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (startsWith(github.head_ref, 'release/') ||
+         startsWith(github.head_ref, 'hotfix/'))
       ) && (
         needs.detect-changes.result != 'success' ||
         needs.detect-changes.outputs.source-changed == 'true'
@@ -1090,10 +1096,10 @@ jobs:
           summary ""
           summary "**Parallel release gate:** \`Release Gate (Node 22.x, macos-latest)\`"
           summary "and \`Release Gate (Node 22.x, windows-latest)\` run in parallel"
-          summary "on push to \`main\` and on release-class PRs. Those are release-"
-          summary "gate evidence and are intentionally NOT aggregated by this"
-          summary "summary — check their job statuses for cross-platform integration"
-          summary "evidence."
+          summary "on release-class PRs (cross-platform coverage for \`main\` runs"
+          summary "nightly in \`ci-nightly.yml\`). Those are release-gate evidence"
+          summary "and are intentionally NOT aggregated by this summary — check"
+          summary "their job statuses for cross-platform integration evidence."
           summary ""
           summary "PR-only quick-skip paths inside the primary required jobs"
           summary "(Lint & Format, Type Check, Unit Tests, Docs Lint) and PR"

@@ -291,3 +291,86 @@ jobs:
             coverage-rust-summary.txt
             target/llvm-cov/html/
           retention-days: 14
+
+  # ── Cross-compile matrix (nightly assurance) ───────────────────
+  # CI-cost 2026-07: moved here from rust.yml's per-merge push-to-main
+  # trigger. The matrix mirrors rust.yml's `cross-compile` job (which
+  # still fires on release/* pushes, release-class PRs, and
+  # workflow_dispatch); this nightly leg keeps cross-platform breakage
+  # on `main` visible within a day without paying macOS (10x) +
+  # Windows (2x) runner multipliers on every merge.
+  cross-compile:
+    name: Cross (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            can_test: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            can_test: false
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            can_test: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            can_test: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            can_test: true
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            can_test: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          target: ${{ matrix.target }}
+
+      # Per-target cache: nightly runs on the default branch, so the saved
+      # cache is restorable by the next nightly. Keeps the 10x-billed macOS
+      # legs warm instead of cold-building the workspace every night.
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: cross-${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Install OPA
+        if: matrix.can_test
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          version: v1.16.1
+
+      - name: Verify OPA version
+        if: matrix.can_test
+        shell: bash
+        env:
+          EXPECTED_OPA_VERSION: '1.16.1'
+        run: |
+          installed=$(opa version | awk '/^Version:/ {print $2}')
+          if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
+            echo "::error::OPA version mismatch: installed=$installed expected=$EXPECTED_OPA_VERSION"
+            exit 1
+          fi
+          echo "OPA $installed installed"
+
+      - name: Build
+        run: cargo build --workspace --target ${{ matrix.target }}
+
+      - name: Smoke test
+        if: matrix.can_test
+        # `--no-fail-fast` so a failure in one test binary does not mask
+        # failures in later binaries — surfaces every platform-specific
+        # failure in a single run instead of one binary at a time.
+        run: cargo test --workspace --target ${{ matrix.target }} --no-fail-fast -- --test-threads=1
