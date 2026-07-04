@@ -4,10 +4,10 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-06-09 (A′ default-on routing complete — unset
-`ANVIL_WATCH_DAEMON` now routes `check` watches through a live save-time daemon,
-`ANVIL_WATCH_DAEMON=0` opts out, and explicit `=1` preserves the forced
-diagnostic path; focused CLI routing tests green locally.)
+**Last reviewed:** 2026-07-04 (Sub-phase C shaped: DSV-046 design Done —
+ADR-101 Accepted, headless driver spec hardened with review pins — and
+DSV-047..051 filed Ready as the v0.9.0-beta usefulness cut-line; DSV-048
+In Progress.)
 
 2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
 routing) confirmed in the v0.8.0-beta tag (record:
@@ -1172,6 +1172,17 @@ requirement). Architecture decided by
   reconcile drivers for all reloaded durable registrations; maintain PID registry
   under `{ANVIL_HOME}/runtime/save-time-drivers/`; honour non-empty
   `ANVIL_NO_SAVE_TIME_DRIVER`; stop all drivers on daemon shutdown.
+  **Review pins (2026-07-04):** (a) the membership hook only **enqueues** — the
+  supervisor consumes events on its own task, so spawn/PID-file I/O never runs
+  on the registry call path (`signal_membership` fires synchronously inside
+  `session.register` handling); (b) child death while the daemon lives does
+  **not** auto-respawn at cut-line — status reports `failed` honestly and the
+  respawn/backoff policy is an explicit follow-up decision, not an accident;
+  (c) spawn failure (including a stale `current_exe` path after a binary
+  upgrade) marks the driver `failed` and never panics the supervisor. Reuse the
+  `DaemonLauncher` trait + `DetachedCommandLauncher` in
+  `crates/anvil-intercept/src/ensure.rs` (in-crate; the trait is the
+  fake-launcher test seam).
 - **Validation:** `cargo test -p eddacraft-anvil-intercept save_time_driver` (new
   module tests with fake launcher); supervisor unit tests for spawn/stop/reconcile
   without a live filesystem.
@@ -1189,7 +1200,7 @@ requirement). Architecture decided by
 
 #### DSV-048: CLI `anvil watch --save-time-driver` headless mode
 
-- **Status:** Ready
+- **Status:** In Progress (2026-07-04)
 - **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 2;
   design spec §Spawn shape.
 - **Intent:** Provide a stable, headless entrypoint the supervisor can spawn without
@@ -1200,6 +1211,12 @@ requirement). Architecture decided by
   `watch_save_time` daemon routing (`DefaultOnWhenLive`), appends findings to the
   supervisor-provided log path (env `ANVIL_SAVE_TIME_DRIVER_LOG` or default under
   runtime), exits non-zero only on unrecoverable setup failure (not on findings).
+  **Review pin (2026-07-04) — log ownership:** the **child owns the findings
+  log** end-to-end (opens, appends, rotates/truncates at 1 MiB via the env
+  path); the supervisor redirects the child's stdout/stderr to a **separate**
+  crash-capture file (`<worktree-id>.spawn.log`), never to the findings log —
+  two writers plus rotate-under-a-held-redirect-fd is the failure mode this
+  split avoids.
 - **Validation:** `cargo test -p eddacraft-anvil -- watch_save_time_driver`; driver
   mode does not call `ensure_daemon` (mock/spy test).
 - **Files:** `crates/anvil-cli/src/commands/watch.rs`,
@@ -1222,7 +1239,10 @@ requirement). Architecture decided by
   | failed` (additive wire field); supervisor updates driver state; `anvil status`
   plain + `--json` render per-worktree driver state; activation diagnostic uses
   `registered ∧ driver_attached` for save-time-active `watching` copy (distinct from
-  membership-only `watching`).
+  membership-only `watching`). **Review pin (2026-07-04) — forward compat:** the
+  new enum ships with `#[serde(other)] Unknown` (consumers treat it fail-safe as
+  `absent`) from day one — the `AssuranceState::Bounded` lesson: without the
+  fallback, the next variant is a breaking wire change.
 - **Validation:** `cargo test -p eddacraft-anvil -- status_save_time_driver`;
   `apps/e2e` status JSON contract extended if applicable.
 - **Files:** `crates/anvil-intercept-proto/src/status.rs`,
@@ -1270,6 +1290,14 @@ requirement). Architecture decided by
   `apps/e2e/` for: `start --no-mcp` headless driver, planted finding in log,
   second worktree register, daemon restart reconciliation, `intercept stop`,
   `ANVIL_NO_SAVE_TIME_DRIVER`; docs index updated.
+  **Review pins (2026-07-04):** (a) the Windows daemon runs **parser-less**
+  (tree-sitter injection is Unix-only, DSV-010 scope-out), so the Windows
+  planted-finding assertion must plant an **antipattern-family** finding (works
+  parser-less) — never expect `Certified` coverage on that leg; (b) multi-driver
+  E2E cases use small fixture worktrees and serialise on the Linux leg (known
+  inotify-exhaustion risk on shared runners); (c) the Windows operator
+  verification checklist lives at
+  [`execution/DSV-051.windows.actions.md`](../execution/DSV-051.windows.actions.md).
 - **Validation:** `pnpm --filter @eddacraft/anvil-e2e test:smoke` (new cases);
   `pnpm run docs:check`
 - **Files:** `docs/runbooks/save-time-background-driver.md`,

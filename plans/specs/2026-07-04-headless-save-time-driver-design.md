@@ -94,16 +94,22 @@ Properties:
 
 - **Working directory:** worktree root.
 - **Detached:** same launcher pattern as DLIFE-002 (`CREATE_NO_WINDOW` on
-  Windows; stdout/stderr redirected to a per-worktree log under
-  `{ANVIL_HOME}/runtime/save-time-drivers/<worktree-id>.log`).
+  Windows; stdout/stderr redirected to a per-worktree **crash-capture** file
+  `{ANVIL_HOME}/runtime/save-time-drivers/<worktree-id>.spawn.log` — distinct
+  from the findings log below, which the child owns).
 - **No daemon lifecycle in the child:** the driver assumes the parent daemon is
   live; it does not offer or spawn a daemon (watch's `--no-daemon` equivalent
   is implicit in driver mode).
 - **Routing:** `ANVIL_WATCH_DAEMON` unset → `DefaultOnWhenLive` (DSV-021); the
   child talks to the already-running daemon only.
 - **Output:** plain/headless only — no TUI, no `[watching]` banners on stdout;
-  findings append to the driver log; optional one-line human summary on stderr
-  when a batch produces new findings (same severity discipline as plain watch).
+  findings append to the driver **findings log**
+  (`<worktree-id>.log`, path handed down via `ANVIL_SAVE_TIME_DRIVER_LOG`);
+  the **child owns that file end-to-end** — open, append, rotate/truncate at
+  1 MiB — the supervisor never writes to it (single-writer rule: rotation under
+  a supervisor-held redirect fd is the failure mode this avoids); optional
+  one-line human summary on stderr when a batch produces new findings (same
+  severity discipline as plain watch).
 - **Stop:** on `Unregistered` / `Reaped`, supervisor sends graceful terminate,
   waits bounded, then force-kills; clears PID record.
 - **Daemon shutdown:** supervisor stops all children before exit.

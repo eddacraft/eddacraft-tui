@@ -2,7 +2,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| OPAE | —     | high     | Proposed | 8/11      |
+| OPAE | —     | high     | In Progress | 8/11      |
 
 **Last reviewed:** 2026-07-04 (POLRESET-003: contracts reconciled with
 ADR-098, the accepted POLRESET-001 design gate).

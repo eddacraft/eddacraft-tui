@@ -43,7 +43,7 @@ lease) — and splits into **ACTMO-014..017** (Ready, cut-line), **ACTMO-018**
 (Ready, additive), and **ACTMO-019..021** (Proposed). The module moves to
 **20/22**; the cut-line usefulness shape depends on **DSV-047..051** (DSV-046 design
 Done 2026-07-04, [ADR-101](../decisions/101-headless-save-time-driver.md)). Counts
-are advisory (ADR-053) pending `pnpm aps:index` reconcile.
+reconciled via `pnpm aps:index` 2026-07-04 (advisory per ADR-053).
 
 ## Purpose
 
