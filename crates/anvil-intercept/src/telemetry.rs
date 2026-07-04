@@ -56,6 +56,17 @@ pub const DEGRADED_FENCE_CASCADE_CLEAR: &str = "degraded:fence-cascade-clear";
 /// has a single find-target, mirroring the sibling `DEGRADED_*` reasons.
 pub const DEGRADED_EMBEDDED_WITNESS: &str = "degraded:embedded-witness";
 
+/// ADR-098 AD-3: per-occurrence reason emitted when a [`ControlDecision`]
+/// this binary does not recognise (the forward-compat
+/// [`ControlDecision::Unknown`] variant) is observed. anvil-intercept and
+/// anvil are separate binaries, so cross-binary version skew is real: an
+/// unknown decision degrades to the safe `warn` default AND emits this
+/// event via `tracing::warn!` so the skew is observable rather than
+/// silently mis-handled (the ADR-036 daemon-stale precedent). Defined as
+/// a `pub const` so a future migration to a typed skew enum has a single
+/// find-target, mirroring the sibling `DEGRADED_*` reasons.
+pub const SKEW_UNKNOWN_DECISION: &str = "skew:unknown-decision";
+
 static PRODUCER_INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -485,27 +496,58 @@ pub fn notification_mapping(
 ) -> (NotificationClass, NotificationPriority) {
     match decision {
         ControlDecision::Allow => (NotificationClass::Info, NotificationPriority::Low),
-        ControlDecision::Warn => (NotificationClass::Warning, NotificationPriority::High),
-        ControlDecision::Block => (NotificationClass::Block, NotificationPriority::Critical),
-        // Fence is a veto that stops the write and fences the worktree —
-        // block-severity, no process signal. It shares `Block`'s
+        // `Unknown` degrades to the safe `warn` default (ADR-098 AD-3): a
+        // decision this consumer cannot interpret is surfaced as a
+        // warning, never escalated to a veto-class notification.
+        ControlDecision::Warn | ControlDecision::Unknown => {
+            (NotificationClass::Warning, NotificationPriority::High)
+        }
+        // `Fence` is a veto that stops the write and fences the worktree —
+        // block-severity, no process signal — so it shares `Block`'s
         // notification class and `Critical` priority (ADR-098 AD-3).
-        ControlDecision::Fence => (NotificationClass::Block, NotificationPriority::Critical),
+        ControlDecision::Block | ControlDecision::Fence => {
+            (NotificationClass::Block, NotificationPriority::Critical)
+        }
         ControlDecision::Interrupt => {
             (NotificationClass::Interrupt, NotificationPriority::Critical)
         }
-        // Unknown degrades to the safe `warn` default (ADR-098 AD-3): a
-        // decision this consumer cannot interpret is surfaced as a
-        // warning, never escalated to a veto-class notification.
-        ControlDecision::Unknown => (NotificationClass::Warning, NotificationPriority::High),
     }
 }
 
 fn ack_required(decision: ControlDecision) -> bool {
+    // ADR-098 AD-3 amendment 2: `Fence` is an enforcement action (the
+    // daemon fences the worktree), so it requires an acknowledgement just
+    // like `Block`/`Interrupt`. `Unknown` degrades to the safe `warn`
+    // default and never demands an ack; `Allow`/`Warn` never do either.
+    // This is a `matches!` (not a compiler-forced `match`), so the arms
+    // are pinned here deliberately — an unaudited fallthrough would let a
+    // fence-vetoed write slip past the ack gate.
     matches!(
         decision,
-        ControlDecision::Block | ControlDecision::Interrupt
+        ControlDecision::Block | ControlDecision::Fence | ControlDecision::Interrupt
     )
+}
+
+/// ADR-098 AD-3: emit the per-occurrence version-skew telemetry event
+/// when `decision` is the forward-compat [`ControlDecision::Unknown`]
+/// variant. Called at the mirror-stamp choke point
+/// ([`envelope_with_path`]) so a decision this binary cannot interpret is
+/// reported exactly once per envelope. The enforcement behaviour degrades
+/// to the safe `warn` default on its own (`ack_required(Unknown)` is
+/// `false`; [`notification_mapping`] maps `Unknown` to the warning class),
+/// so this function only records the observability signal — it does not
+/// rewrite the decision carried on the wire, which stays honest for
+/// downstream consumers.
+fn note_unknown_decision_skew(decision: ControlDecision) {
+    if matches!(decision, ControlDecision::Unknown) {
+        tracing::warn!(
+            target: "anvil_intercept::telemetry",
+            reason = SKEW_UNKNOWN_DECISION,
+            decision = decision.as_str(),
+            "control decision not recognised by this binary; treating as warn \
+             (cross-binary version skew)",
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -846,17 +888,25 @@ fn envelope_with_path(
         ),
         _ => None,
     };
-    let mirror = decision.map(|decision| NotificationMirror {
-        decision,
-        driver: INTERCEPT_DRIVER_ID.to_string(),
-        // RTAI-007: the mid-edit path is advisory — there is no ack
-        // return channel — so a mid-edit decision never requires an
-        // acknowledgement, even when it resolves to `block`. Only the
-        // save-time path (`mirror_path == None`) can demand an ack.
-        ack_required: mirror_path.is_none() && ack_required(decision),
-        control_correlation_id: context.control_correlation_id.clone(),
-        path: mirror_path,
-        gate_eval_id,
+    let mirror = decision.map(|decision| {
+        // ADR-098 AD-3: report a decision this binary cannot interpret
+        // exactly once, here at the single mirror-stamp choke point. The
+        // decision carried on the wire stays as received (Unknown
+        // round-trips for downstream honesty); the behaviour degrades to
+        // warn on its own via `ack_required` / `notification_mapping`.
+        note_unknown_decision_skew(decision);
+        NotificationMirror {
+            decision,
+            driver: INTERCEPT_DRIVER_ID.to_string(),
+            // RTAI-007: the mid-edit path is advisory — there is no ack
+            // return channel — so a mid-edit decision never requires an
+            // acknowledgement, even when it resolves to `block`. Only the
+            // save-time path (`mirror_path == None`) can demand an ack.
+            ack_required: mirror_path.is_none() && ack_required(decision),
+            control_correlation_id: context.control_correlation_id.clone(),
+            path: mirror_path,
+            gate_eval_id,
+        }
     });
 
     NotificationEnvelope {
@@ -1312,6 +1362,31 @@ mod tests {
             notification_mapping(ControlDecision::Interrupt),
             (NotificationClass::Interrupt, NotificationPriority::Critical),
         );
+        // ADR-098 AD-3: `Fence` is a veto — block-class, Critical
+        // priority (it stops the write and fences the worktree without
+        // signalling a process). `Unknown` degrades to the safe `warn`
+        // default and never escalates to a veto-class notification.
+        assert_eq!(
+            notification_mapping(ControlDecision::Fence),
+            (NotificationClass::Block, NotificationPriority::Critical),
+        );
+        assert_eq!(
+            notification_mapping(ControlDecision::Unknown),
+            (NotificationClass::Warning, NotificationPriority::High),
+        );
+    }
+
+    #[test]
+    fn ack_required_covers_fence_not_unknown() {
+        // ADR-098 AD-3 amendment 2: `Fence` is an enforcement action, so
+        // it demands an ack alongside `Block`/`Interrupt`. `Unknown`
+        // degrades to `warn` and never acks; `Allow`/`Warn` never do.
+        assert!(super::ack_required(ControlDecision::Block));
+        assert!(super::ack_required(ControlDecision::Fence));
+        assert!(super::ack_required(ControlDecision::Interrupt));
+        assert!(!super::ack_required(ControlDecision::Allow));
+        assert!(!super::ack_required(ControlDecision::Warn));
+        assert!(!super::ack_required(ControlDecision::Unknown));
     }
 
     #[test]

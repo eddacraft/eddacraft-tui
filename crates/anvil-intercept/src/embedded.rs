@@ -49,6 +49,9 @@
 //!
 //! | Resolved mode             | Embedded behaviour                                          |
 //! | ------------------------- | ----------------------------------------------------------- |
+//! | `Mode::Off`               | Always `Allow` with diagnostics — the ADR-098 AD-3 posture; |
+//! |                           | projects to always-`Allow` (same embedded behaviour as      |
+//! |                           | `Warn`; the daemon never enforces from the embedded path).  |
 //! | `Mode::Warn`              | Always `Allow` with diagnostics — the rule engine still     |
 //! |                           | produces them, but the decision stays `Allow`.              |
 //! | `Mode::Fence`             | Pipeline result returned as-is. The caller (CI, MCP shim)   |
@@ -205,10 +208,12 @@ fn downgrade_decision_if_observe(
         return enforce_allow_from(raw);
     }
     match config.mode {
-        // Warn-mode: rules still ran, but the decision is always
-        // Allow. Diagnostics flow on the side channel for
-        // operator visibility.
-        ConfigMode::Warn => enforce_allow_from(raw),
+        // Off / Warn: rules still ran, but the decision is always
+        // Allow. Diagnostics flow on the side channel for operator
+        // visibility. `Off` is a real posture since ADR-098 AD-3
+        // (projects to always-`Allow`); it lands here alongside `Warn`
+        // because the embedded pipeline never enforces — the daemon does.
+        ConfigMode::Off | ConfigMode::Warn => enforce_allow_from(raw),
         // Fence / Interrupt: the pipeline output is what the
         // daemon would surface — caller decides how to enforce.
         // Embedded mode itself does not fence; the daemon does.

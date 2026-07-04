@@ -12,32 +12,32 @@
 //! the policy contract and `plans/modules/intercept-daemon.aps.md`
 //! INTD-008 for the work-item scope.
 //!
-//! ## Mode reconciliation with RTAI-006
+//! ## Shared enforcement posture (ADR-098 AD-3)
 //!
-//! RTAI-006 in `crates/anvil-cli/src/mcp/enforcement.rs` resolves to a
-//! 3-variant enum (`Block | Warn | Off`) because the MCP
-//! `validate_write` tool only needs three decision modes. The daemon
-//! distinguishes "fence the worktree" from "interrupt the process
-//! group" — both are fence-on-error semantics, but the daemon picks
-//! between them based on whether attribution is certain.
+//! Since ADR-098 AD-3 the daemon [`Mode`] is the shared
+//! [`anvil_kernel_types::EnforcementMode`] — the daemon and the MCP shim
+//! (`crates/anvil-cli/src/mcp/enforcement.rs`) both fold into one posture
+//! type with one alias table, so the two surfaces can no longer drift on
+//! which values / aliases they accept. The single alias table lives in
+//! kernel-types; this module owns only IO, defaults, and the merge.
 //!
-//! Wave 1 brief: treat `block` and `interrupt` as the same
-//! fence-on-error semantic. The daemon canonical vocabulary is
-//! `warn | fence | interrupt`; the alias table accepted at this
-//! layer matches the proto-layer doc and is duplicated in the
-//! `Mode::parse` match arm.
-//!
-//! Daemon resolution (this module):
+//! Daemon resolution (via the shared [`Mode::parse`]):
 //!
 //! | Raw YAML value         | Resolved [`Mode`]        |
 //! | ---------------------- | ------------------------ |
+//! | `off` / `advisory` /   | `Mode::Off`              |
+//! | `proceed`              | (real posture now)       |
 //! | `warn`                 | `Mode::Warn`             |
 //! | `fence`                | `Mode::Fence`            |
 //! | `interrupt` / `block`  | `Mode::Interrupt`        |
-//! | `off` / `advisory` /   | `Mode::Warn` (clamped —  |
-//! | `proceed`              | INTD has no "off"        |
-//! |                        | branch)                  |
 //! | unknown / missing      | default (`Mode::Warn`)   |
+//!
+//! `off` is a real posture now — it projects to always-`Allow` in the
+//! embedded pipeline. Before AD-3 the daemon clamped `off`/`advisory`/
+//! `proceed` to `Warn` because it had no `off` branch; the shared type
+//! gives it one, and the `fence` / `interrupt` distinction (previously
+//! collapsed to `Block` at parse time by the MCP shim) is preserved for
+//! action-time projection.
 //!
 //! The daemon's default mode is `Warn` — observe-only-style
 //! defaults align with the planless-first principle. Operators
@@ -76,66 +76,18 @@ use thiserror::Error;
 /// `SessionConfigFile::per_worktree_max` for the rationale.
 pub const DEFAULT_PER_WORKTREE_MAX: usize = 16;
 
-/// Resolved enforcement strictness for the daemon.
+/// The daemon's resolved enforcement posture.
 ///
-/// Variants are ordered for stricter-wins comparison. Do not rely on
-/// the discriminant values — use [`Mode::stricter`] to merge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub enum Mode {
-    /// Diagnostics are surfaced as warnings; no fence, no interrupt.
-    /// The daemon's default — operators opt into stricter modes.
-    #[default]
-    Warn,
-    /// On rule violation, the daemon fences the worktree. Active
-    /// agent processes are not signalled; subsequent registrations
-    /// against the fenced worktree are refused.
-    Fence,
-    /// On rule violation, the daemon issues a process-group
-    /// interrupt against the attributing session, then fences. Only
-    /// honoured when attribution is certain — ambiguous ownership
-    /// is hard-capped at `Fence` per AD-3.
-    Interrupt,
-}
-
-impl Mode {
-    /// Parse a raw `.anvil.yaml` value into the daemon's mode enum.
-    /// Case-insensitive; whitespace trimmed. Unknown values return
-    /// `None` so the caller can fall back to the default.
-    ///
-    /// The alias table matches `EnforcementConfigFile.mode` doc
-    /// comment in `anvil_intercept_proto::enforcement_config`.
-    #[must_use]
-    pub fn parse(value: &str) -> Option<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            // RTAI-006-only aliases (off / advisory / proceed) are
-            // accepted by the daemon vocabulary but clamped to Warn
-            // — INTD has no "off" branch by spec, so a workspace
-            // mistakenly setting `off` on the daemon side still
-            // gets visibility (warnings + telemetry) instead of a
-            // silent no-op.
-            "warn" | "off" | "advisory" | "proceed" => Some(Self::Warn),
-            "fence" => Some(Self::Fence),
-            "interrupt" | "block" => Some(Self::Interrupt),
-            _ => None,
-        }
-    }
-
-    /// Canonical string form (for telemetry / status surfaces).
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Warn => "warn",
-            Self::Fence => "fence",
-            Self::Interrupt => "interrupt",
-        }
-    }
-
-    /// Return the stricter of two modes (project↔user merge).
-    #[must_use]
-    pub fn stricter(self, other: Self) -> Self {
-        if self >= other { self } else { other }
-    }
-}
+/// Since ADR-098 AD-3 this is the shared
+/// [`anvil_kernel_types::EnforcementMode`] — the daemon `Mode` and the
+/// MCP shim's `EnforcementMode` both fold into it, with one alias table
+/// and stricter-wins `Ord` (`off < warn < fence < interrupt`). The alias
+/// keeps the `config::Mode` name at the daemon call sites. `parse`,
+/// `as_str`, `stricter`, and the `Default` (`Warn`, ADR-002) all live on
+/// the shared type; `off` is a real posture now (previously clamped to
+/// `warn` because the daemon had no `off` branch) and projects to
+/// always-`Allow` in the embedded pipeline (`downgrade_decision_if_observe`).
+pub use anvil_kernel_types::EnforcementMode as Mode;
 
 /// Resolved policy for ambiguous-ownership change events.
 ///
@@ -579,10 +531,14 @@ mod tests {
     }
 
     #[test]
-    fn mode_parses_off_aliases_clamped_to_warn() {
-        assert_eq!(Mode::parse("off"), Some(Mode::Warn));
-        assert_eq!(Mode::parse("advisory"), Some(Mode::Warn));
-        assert_eq!(Mode::parse("proceed"), Some(Mode::Warn));
+    fn mode_parses_off_aliases_to_off_posture() {
+        // ADR-098 AD-3: `off` is a real posture now (the shared type has
+        // an `off` branch), so `off`/`advisory`/`proceed` resolve to
+        // `Off` rather than the pre-AD-3 `Warn` clamp. `Off` projects to
+        // always-`Allow` in the embedded pipeline.
+        assert_eq!(Mode::parse("off"), Some(Mode::Off));
+        assert_eq!(Mode::parse("advisory"), Some(Mode::Off));
+        assert_eq!(Mode::parse("proceed"), Some(Mode::Off));
     }
 
     #[test]
