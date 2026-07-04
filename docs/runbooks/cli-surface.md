@@ -343,7 +343,9 @@ a read-only worktree — re-run with `--verbose` for the underlying error)
 
 **Notes:** attribution (`created_by`/`revoked_by`) comes from local git config
 and is advisory — reviewers should check it against PR authorship. Grants are
-enforced at the L4 gate; an unattributed legacy grant only ever downgrades a
+enforced at the L4 gate **only once the store is committed**: gates read
+`anvil/exceptions/store.json` from the pushed commit's tree, never the worktree,
+so grant → commit → push. An unattributed legacy grant only ever downgrades a
 finding to a warning, it never silently suppresses it.
 
 **Examples:**

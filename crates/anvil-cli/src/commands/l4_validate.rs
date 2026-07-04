@@ -546,6 +546,97 @@ mod tests {
         "branches:\n  - pattern: \"*\"\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n"
     }
 
+    fn grant(policy_id: &str) -> anvil_policy::exceptions::PolicyException {
+        anvil_policy::exceptions::PolicyException {
+            schema_version: String::new(),
+            id: String::new(),
+            policy_id: policy_id.to_string(),
+            file_pattern: String::new(),
+            finding_hash: None,
+            reason: "e2e".to_string(),
+            owner: Some("team".to_string()),
+            created_by: Some("alice@example.test".to_string()),
+            created_at: chrono::Utc::now(),
+            expires_at: None,
+            revoked: None,
+        }
+    }
+
+    fn save_store(root: &Path, policy_id: &str) {
+        let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+        store.add(grant(policy_id));
+        let outcome = store.save(root).unwrap();
+        assert!(matches!(
+            outcome,
+            anvil_policy::exceptions::WriteOutcome::Written
+        ));
+    }
+
+    const AP_001_BODY: &str = "/* eslint-disable */\nimport { x } from './m';\n";
+
+    /// ADR-100 end-to-end through the REAL engine and the real range
+    /// wiring: a grant committed at the range head covers an earlier
+    /// finding commit in the same range.
+    #[test]
+    fn committed_grant_at_range_head_covers_earlier_commit_end_to_end() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        write_policy(&root, validate_at_l4_policy());
+        let leak_sha = git_commit(&root, "leak", AP_001_BODY, "leak.ts");
+        save_store(&root, "AP-001");
+        // save_store wrote the store into the worktree; the commit
+        // below stages it via `git add .` — the tip's tree carries it.
+        let store_sha = git_commit(&root, "grant", "", "placeholder.txt");
+
+        let args = L4ValidateArgs {
+            range: store_sha,
+            branch: Some("main".to_string()),
+            repo: Some(root.clone()),
+        };
+        let engine = crate::l4_engine::default_engine();
+        let outcome = run_with_engine(&args, &GlobalArgs::default(), engine.as_ref()).unwrap();
+        let leak = outcome
+            .commits
+            .iter()
+            .find(|c| c.commit_sha == leak_sha)
+            .expect("leak commit validated");
+        assert_eq!(
+            leak.verdict,
+            CommitVerdict::Allow,
+            "grant committed at the range head must cover the earlier commit",
+        );
+    }
+
+    /// ADR-100 end-to-end: the identical grant left uncommitted in the
+    /// worktree does NOT apply — the finding stands.
+    #[test]
+    fn worktree_only_grant_does_not_apply_end_to_end() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        write_policy(&root, validate_at_l4_policy());
+        let leak_sha = git_commit(&root, "leak", AP_001_BODY, "leak.ts");
+        save_store(&root, "AP-001");
+        // No commit: the store exists only in the worktree.
+
+        let args = L4ValidateArgs {
+            range: leak_sha.clone(),
+            branch: Some("main".to_string()),
+            repo: Some(root.clone()),
+        };
+        let engine = crate::l4_engine::default_engine();
+        let outcome = run_with_engine(&args, &GlobalArgs::default(), engine.as_ref()).unwrap();
+        let leak = outcome
+            .commits
+            .iter()
+            .find(|c| c.commit_sha == leak_sha)
+            .expect("leak commit validated");
+        assert!(
+            matches!(leak.verdict, CommitVerdict::Block { .. }),
+            "worktree-only grant must not apply, got {:?}",
+            leak.verdict,
+        );
+    }
+
     /// MLP2-046: with the default no-op engine, a fresh commit
     /// without an L3 witness routes to `EnginePending` and the
     /// binary's exit code degrades to `EXIT_PENDING`. Matches the

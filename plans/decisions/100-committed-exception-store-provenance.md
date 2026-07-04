@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (owner decision 2026-07-04)
 
 ## Date
 
@@ -87,8 +87,9 @@ workflow-compatible, and closes the council's finding:
 ## Consequences
 
 - **Positive:** gate verdicts are reproducible from the pushed ref alone;
-  suppression authority is always PR-visible; the capsule layer (EXCEPT-009)
-  and the gate now agree on what "the store" means for a given range.
+  suppression authority is always PR-visible. (Capsule create/verify still
+  read the worktree store — aligning them with tip-scoped semantics is a
+  follow-up, not delivered here.)
 - **Negative:** operators must commit the store before a grant takes effect
   at the gate (the CLI's grant success message and the operator guide say
   so); unmigrated repos lose silent legacy-grant influence on gates — an

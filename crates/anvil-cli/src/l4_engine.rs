@@ -77,7 +77,9 @@ use anvil_l4::{
     EngineUnavailableReason, ExceptionDisposition, Severity, ValidationDiagnostic,
     ValidationEngine, ValidationRequest, ValidationVerdict, apply_exception_dispositions,
 };
-use anvil_policy::exceptions::{ExceptionStore, ExceptionVerdict, verify_exception_at};
+use anvil_policy::exceptions::{
+    EXCEPTIONS_FILE, ExceptionStore, ExceptionVerdict, verify_exception_at,
+};
 use chrono::Utc;
 
 /// MLP2-016 production engine.
@@ -283,6 +285,7 @@ fn verdict_for_warnings(
         if applied.downgraded {
             tracing::warn!(
                 target: "anvil::l4_engine",
+                kind = "exception_applied_downgraded",
                 exception_id = ?applied.exception_id,
                 rule_id = %applied.rule_id,
                 commit = %short(commit_sha),
@@ -291,6 +294,7 @@ fn verdict_for_warnings(
         } else {
             tracing::info!(
                 target: "anvil::l4_engine",
+                kind = "exception_applied",
                 exception_id = ?applied.exception_id,
                 rule_id = %applied.rule_id,
                 commit = %short(commit_sha),
@@ -335,6 +339,7 @@ fn exception_dispositions(
         StoreFromTip::Unreadable(detail) => {
             tracing::warn!(
                 target: "anvil::l4_engine",
+                kind = "exception_store_unreadable",
                 commit = %short(commit_sha),
                 tip = %short(tip),
                 detail = %detail,
@@ -396,26 +401,76 @@ enum StoreFromTip {
 }
 
 /// ADR-100: read `anvil/exceptions/store.json` from `tip`'s tree via
-/// the batched blob reader (inherits its sha/path hygiene), bounded by
-/// the same 1 MiB cap as the filesystem loader.
+/// the batched blob reader (inherits its sha/path hygiene). The size
+/// is checked with `git cat-file -s` **before** the content read, so
+/// an oversized committed blob is refused without ever buffering it —
+/// genuine parity with the filesystem loader's `Read::take` bound
+/// rather than a buffer-then-reject (2026-07-04 council).
 fn load_committed_store(repo_root: &Path, tip: &str) -> StoreFromTip {
-    let blobs = match read_commit_blobs_batch(repo_root, tip, &["anvil/exceptions/store.json"]) {
+    match committed_store_size(repo_root, tip) {
+        StoreSize::Absent => return StoreFromTip::Absent,
+        StoreSize::Oversized(size) => {
+            return StoreFromTip::Unreadable(format!(
+                "store blob is {size} bytes; refusing past the {} byte bound",
+                anvil_policy::exceptions::MAX_STORE_BYTES,
+            ));
+        }
+        StoreSize::Unknown(detail) => return StoreFromTip::Unreadable(detail),
+        StoreSize::Within => {}
+    }
+    let blobs = match read_commit_blobs_batch(repo_root, tip, &[EXCEPTIONS_FILE]) {
         Ok(blobs) => blobs,
         Err(reason) => return StoreFromTip::Unreadable(format!("{reason:?}")),
     };
     let Some(Some(bytes)) = blobs.into_iter().next() else {
         return StoreFromTip::Absent;
     };
-    if bytes.len() as u64 > anvil_policy::exceptions::MAX_STORE_BYTES {
-        return StoreFromTip::Unreadable(format!(
-            "store blob is {} bytes; refusing past the {} byte bound",
-            bytes.len(),
-            anvil_policy::exceptions::MAX_STORE_BYTES,
-        ));
-    }
     match serde_json::from_slice::<ExceptionStore>(&bytes) {
         Ok(store) => StoreFromTip::Loaded(store),
         Err(e) => StoreFromTip::Unreadable(format!("parse error: {e}")),
+    }
+}
+
+/// Outcome of the pre-read size probe.
+enum StoreSize {
+    Absent,
+    Within,
+    Oversized(u64),
+    Unknown(String),
+}
+
+/// `git cat-file -s <tip>:anvil/exceptions/store.json` — object size
+/// without reading the body. A missing object exits non-zero, which is
+/// indistinguishable from other failures here, so a non-zero exit maps
+/// to `Absent` only when stderr names a resolution failure; anything
+/// else is `Unknown` (fail-safe upstream: no exceptions apply).
+fn committed_store_size(repo_root: &Path, tip: &str) -> StoreSize {
+    if !is_hex_sha(tip) || is_zero_sha(tip) {
+        return StoreSize::Unknown("tip is not a commit sha".to_string());
+    }
+    let output = match Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["cat-file", "-s", &format!("{tip}:{EXCEPTIONS_FILE}")])
+        .output()
+    {
+        Ok(output) => output,
+        Err(e) => return StoreSize::Unknown(format!("git spawn failed: {e}")),
+    };
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("does not exist") || stderr.contains("Not a valid object name") {
+            return StoreSize::Absent;
+        }
+        return StoreSize::Unknown(format!("cat-file -s failed: {}", stderr.trim()));
+    }
+    match String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<u64>()
+    {
+        Ok(size) if size > anvil_policy::exceptions::MAX_STORE_BYTES => StoreSize::Oversized(size),
+        Ok(_) => StoreSize::Within,
+        Err(e) => StoreSize::Unknown(format!("unparseable cat-file -s output: {e}")),
     }
 }
 
@@ -1279,6 +1334,38 @@ mod tests {
         assert!(
             matches!(verdict, ValidationVerdict::Block { .. }),
             "uncommitted grant must not suppress, got {verdict:?}",
+        );
+    }
+
+    /// ADR-100: a committed SYMLINK at the store path cannot smuggle
+    /// content — git stores the target path string as the blob, which
+    /// fails to parse → fail-safe, findings stand.
+    #[cfg(unix)]
+    #[test]
+    fn committed_symlink_store_does_not_apply() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let outside = root.join("outside.json");
+        save_exceptions(&root, vec![exception_for("AP-001", "src/**")]);
+        std::fs::rename(root.join("anvil/exceptions/store.json"), &outside).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("anvil/exceptions/store.json")).unwrap();
+        git_in(&root, &["add", "anvil/exceptions"]);
+        git_in(&root, &["commit", "-q", "-m", "symlinked store"]);
+        let tip = String::from_utf8(
+            Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_string();
+        let verdict = validate_commit(&root, &sha, Some(&tip));
+        assert!(
+            matches!(verdict, ValidationVerdict::Block { .. }),
+            "symlinked committed store must not apply, got {verdict:?}",
         );
     }
 

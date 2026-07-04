@@ -53,6 +53,16 @@ startup, and continued beta-reliability polish.
 
 ### Changed
 
+- **Policy exceptions apply only when committed** (ADR-100). The L4 gate
+  (pre-push hook, `anvil l4-validate`, audit-chain rescans) now reads
+  `anvil/exceptions/store.json` from the tree of the commit being validated
+  against — the pushed tip, the range head, or the audited branch tip — never
+  from the working tree. A grant takes effect once the store is committed; a
+  worktree-only grant no longer suppresses findings anywhere. Grant, commit the
+  store, then push — a grant commit at the tip covers earlier commits in the
+  same push. The legacy `.anvil/exceptions.json` never influences gates; run
+  `anvil exception migrate` and commit the tracked store.
+
 - **Richer, structured warning diagnostics.** User-facing warnings now render
   through `miette` with full source spans and code excerpts (CIB-071 Phase A/B).
   This improves readability and precision for `anvil check`, `anvil gate`, and

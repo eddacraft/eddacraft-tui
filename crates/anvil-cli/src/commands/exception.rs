@@ -198,6 +198,10 @@ fn grant_command(root: &Path, request: GrantRequest, global: &GlobalArgs) -> Res
         crate::output::json::print(&outcome)?;
     } else {
         crate::output::plain::success(&format!("granted exception {}", outcome.id));
+        crate::output::plain::dim(
+            "commit anvil/exceptions/store.json for the grant to take effect at the gate — \
+             gates read the store from the pushed commit's tree, never the worktree",
+        );
     }
     Ok(())
 }

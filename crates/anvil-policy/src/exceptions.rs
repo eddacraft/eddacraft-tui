@@ -257,8 +257,10 @@ pub enum MigrateOutcome {
 
 /// Tracked store path (ADR-073). Exceptions are durable governance state that
 /// must travel with the repository and be visible in PR review, so they live
-/// under `anvil/`, not the gitignored `.anvil/` runtime tree.
-const EXCEPTIONS_FILE: &str = "anvil/exceptions/store.json";
+/// under `anvil/`, not the gitignored `.anvil/` runtime tree. Public so gate
+/// loaders reading the store from a commit tree (ADR-100) share the one
+/// source of truth for the path.
+pub const EXCEPTIONS_FILE: &str = "anvil/exceptions/store.json";
 
 /// Legacy local store path. Read-only fallback for repositories written before
 /// the ADR-073 migration; [`ExceptionStore::save`] never writes here, and

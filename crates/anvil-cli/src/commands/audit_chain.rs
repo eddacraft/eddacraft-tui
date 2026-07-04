@@ -451,11 +451,13 @@ pub(crate) fn rescan_commits_with_budget<E: ValidationEngine + ?Sized>(
 ) -> (Vec<RuleDriftEntry>, bool) {
     let mut drift: Vec<RuleDriftEntry> = Vec::new();
     let mut partial = false;
-    // ADR-100: the audited checkout's HEAD tree carries suppression
-    // authority for the whole rescan — current committed grants apply
-    // to historical commits. Resolution failure applies no exceptions
-    // (fail-safe: drift rows surface rather than vanish).
-    let exceptions_tip = resolve_head_sha(repo_root);
+    // ADR-100: suppression authority for the rescan is the tip of the
+    // audited commit list itself (`list_commits` is `git rev-list`
+    // newest-first over the `--branch` argument), NOT the checkout's
+    // HEAD — auditing `release-1.0` from a `main` checkout must not
+    // apply `main`'s grants (2026-07-04 council HIGH). An empty list
+    // applies no exceptions (fail-safe: drift rows surface).
+    let exceptions_tip: Option<String> = commits.first().cloned();
     for (processed, sha) in commits.iter().enumerate() {
         if budget_exhausted(started, max_runtime) {
             partial = true;
@@ -490,22 +492,6 @@ pub(crate) fn rescan_commits_with_budget<E: ValidationEngine + ?Sized>(
         }
     }
     (drift, partial)
-}
-
-/// `git rev-parse HEAD` for the ADR-100 suppression-authority tip.
-/// `None` on any failure — the engine then applies no exceptions.
-fn resolve_head_sha(repo_root: &Path) -> Option<String> {
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(repo_root)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    (!sha.is_empty()).then_some(sha)
 }
 
 #[inline]

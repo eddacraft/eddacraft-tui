@@ -380,20 +380,20 @@ Suppressions without a reason trigger their own warning.
 
 ### Tracked exception store (foundation)
 
-Inline `@anvil-ignore` comments are the supported way to suppress findings
-today. Alongside them, anvil now has a tracked, project-level exception store at
-`anvil/exceptions/store.json`. An older `.anvil/exceptions.json`, if present, is
-still honoured as a read-only fallback. A non-destructive migration of the
-legacy file to the tracked path is defined (ADR-073) but is not yet surfaced as
-an operator command in this release.
+Inline `@anvil-ignore` comments suppress a finding at the offending line.
+Alongside them, anvil has a tracked, project-level exception store at
+`anvil/exceptions/store.json`, managed with
+`anvil exception grant|revoke|list|show|verify|migrate`. Valid grants are
+applied by the L4 gate (pre-push and `anvil l4-validate`) and re-verified in
+governance capsules.
 
-:::caution Enforcement not yet wired
+:::caution Grants count only when committed
 
-The exception store is a foundation only in this release. Hand-written entries
-in `anvil/exceptions/store.json` (or the legacy `.anvil/exceptions.json`) **do
-not yet suppress findings**, and there is no operator CLI for managing them yet
-— use inline `@anvil-ignore` comments for suppression. Enforcement and the
-management commands are tracked for a follow-up.
+Gates read the exception store from the tree of the commit being validated
+against, never from your working tree (ADR-100). Grant, commit
+`anvil/exceptions/store.json`, then push. The legacy `.anvil/exceptions.json` is
+readable by the CLI but never influences gates — promote it with
+`anvil exception migrate` and commit the result.
 
 :::
 
