@@ -11,9 +11,9 @@
 //! deterministic: outcomes preserve manifest order and nothing consults a clock
 //! or the network, so the same pack and observer always yield the same report.
 //!
-//! Constraints mirror the policy-pack loader
-//! ([`anvil_policy_engine::pack::manifest`], referenced here only for the
-//! posture it establishes):
+//! Constraints mirror the policy-pack loader in `anvil-policy-engine`'s
+//! `pack::manifest` (named in prose only — this crate does not depend on it —
+//! for the posture it establishes):
 //!
 //! - A missing pack file maps to [`PackLoadError::NotFound`]; no parse or I/O
 //!   failure is ever folded into a default — every failure propagates as
@@ -59,6 +59,10 @@ pub struct AttackPack {
     pub scenarios: Vec<AttackScenario>,
 }
 
+/// Maximum attack-pack file size (1 MiB), matching the policy-pack cap: a
+/// larger file is refused before reading.
+pub const MAX_ATTACK_PACK_BYTES: u64 = 1024 * 1024;
+
 /// A pack load or validation failure. User-facing text uses UK spelling.
 #[derive(Debug, Error)]
 pub enum PackLoadError {
@@ -82,6 +86,15 @@ pub enum PackLoadError {
         path: PathBuf,
         /// The parser's message.
         message: String,
+    },
+    /// The pack file exceeds [`MAX_ATTACK_PACK_BYTES`]; refused before reading
+    /// so a maliciously large pack cannot force an unbounded allocation.
+    #[error("attack pack `{path}` is {size} bytes, over the {} KiB cap", MAX_ATTACK_PACK_BYTES / 1024)]
+    TooLarge {
+        /// The pack path.
+        path: PathBuf,
+        /// The file's size in bytes.
+        size: u64,
     },
     /// A required pack-level field is present but blank.
     #[error("attack pack field `{field}` is blank; set a non-blank `{field}` value")]
@@ -123,6 +136,17 @@ pub enum PackLoadError {
 ///
 /// Returns a [`PackLoadError`] on any read, parse, or validation failure.
 pub fn load_pack(path: &Path) -> Result<AttackPack, PackLoadError> {
+    // Bounded read: decide from metadata before reading so a huge pack fails
+    // closed rather than exhausting memory (mirrors the policy-pack cap).
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.len() > MAX_ATTACK_PACK_BYTES => {
+            return Err(PackLoadError::TooLarge {
+                path: path.to_path_buf(),
+                size: meta.len(),
+            });
+        }
+        _ => {}
+    }
     let content = std::fs::read_to_string(path).map_err(|source| {
         if source.kind() == std::io::ErrorKind::NotFound {
             PackLoadError::NotFound(path.to_path_buf())
@@ -381,6 +405,23 @@ scenarios:
         assert_eq!(pack.id, "baseline-attacks");
         let ids: Vec<&str> = pack.scenarios.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(ids, ["override-basic", "context-leak-echo"]);
+    }
+
+    #[test]
+    fn attack_pack_runner_oversized_pack_is_refused_before_read() {
+        let dir = TempDir::new().expect("temp dir");
+        let path = dir.path().join("huge.yaml");
+        std::fs::write(
+            &path,
+            vec![b' '; usize::try_from(MAX_ATTACK_PACK_BYTES + 1).expect("cap fits usize")],
+        )
+        .expect("write oversized pack");
+        match load_pack(&path) {
+            Err(PackLoadError::TooLarge { size, .. }) => {
+                assert!(size > MAX_ATTACK_PACK_BYTES);
+            }
+            other => panic!("expected TooLarge, got {other:?}"),
+        }
     }
 
     #[test]
