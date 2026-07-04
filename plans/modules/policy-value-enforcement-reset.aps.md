@@ -197,7 +197,10 @@ modules named by each `Coordinates with` field.
   `cargo test -p eddacraft-anvil -- policy_prewrite_routing` (11: violation+interrupt
   vetoes, violation+warn does not, warn-family never vetoes, kill switch off yields
   no diagnostics, broken pack + uncompilable member warn not veto, budget-exhaustion
-  degradation, strictest-wins merge).
+  degradation, strictest-wins merge, deadline-exhaustion truncation). The whole
+  pre-write pass (discovery + compile + eval) runs under one wall-clock deadline
+  and truncates fail-open; per-call discovery + compile is uncached today
+  (warm-cache follow-up filed as OPAE-011).
 - **Intent:** Connect regorus-backed policy results to Anvil's existing
   enforcement vocabulary without changing the daemon boundary contract.
 - **Expected Outcome:** Policy outcomes can opt into `warn`, `fence`, or

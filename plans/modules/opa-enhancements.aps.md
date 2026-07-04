@@ -288,7 +288,8 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   posture, violation matches `escalated_decision`, no bare `block`) plus the full
   crate suite (97) and `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary`
   (7, proving no engine crate leaked toward the daemon). Consumed by POLRESET-006
-  on the MCP pre-write path.
+  on the MCP pre-write path, whose per-call discovery + compile is currently
+  uncached (bounded by a pass deadline; warm-cache follow-up filed as OPAE-011).
 - **Intent:** Map policy outcomes to Anvil's existing enforcement vocabulary.
 - **Expected Outcome:** Explicit policy modes can route to `warn`, `fence`, or
   `interrupt`; default behaviour remains warnings-first.
@@ -328,6 +329,24 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   supplies.
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_input_config`
 - **Dependencies:** OPAE-004, OPAE-007
+- **Confidence:** medium
+
+### OPAE-011: Compiled-policy cache for the pre-write path
+
+- **Status:** Proposed
+- **Intent:** Stop the MCP pre-write policy pass from repeating discovery,
+  manifest parse, and `regorus` compile on **every** `anvil_validate_write` call.
+  Filed from the POLRESET-006 review measurement: the pass is currently uncached
+  and roughly linear in pack count (~450 µs/pack/call for trivial packs,
+  unbounded for large real packs), capped today only by the pre-write pass
+  deadline (which *truncates* rather than *speeds up* a large pack set).
+- **Expected Outcome:** An mtime-keyed cache of loaded manifests and compiled
+  engines keyed on `(pack dir, manifest mtime, member mtimes)` so a **warm**
+  pre-write policy pass costs eval-only; the cold pass cost is unchanged; the
+  deadline (POLRESET-006) still bounds a cold or invalidated pass. Cache
+  invalidation is content-mtime driven so an edited pack recompiles.
+- **Validation:** `cargo test -p eddacraft-anvil -- policy_prewrite_cache`
+- **Dependencies:** OPAE-007
 - **Confidence:** medium
 
 ### OPAE-009: Policy authoring user docs

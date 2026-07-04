@@ -18,15 +18,41 @@
 //!    warning-class) and routes it onto a [`ControlDecision`] via the OPAE-007
 //!    [`route_policy_outcome`] contract with the resolved posture.
 //!
+//! ## One wall-clock deadline over the whole pass (ADR-098 AD-5)
+//!
+//! The interactive save path must stay fast, so the **entire** pass —
+//! discovery, manifest load, compile, AND eval — runs under a single wall-clock
+//! deadline (`Instant::now() + `[`pass budget`](PolicyPrewriteOutcome), the
+//! OPAE-006 [`PrewriteBudget`] value reused as the *total* pass budget, not just
+//! a per-eval ceiling). The deadline is checked before discovery, before each
+//! pack's compile, before each member `add_policy`, and before each eval; the
+//! per-eval engine `eval_timeout` is `min(remaining, eval budget)`. On
+//! exhaustion the pass stops immediately and the remaining packs collapse into a
+//! single **warning-class** truncation outcome — the packs already evaluated
+//! keep their findings, and truncation never vetoes. The deadline is operational
+//! timing only; it never enters any [`PolicyInput`] content.
+//!
 //! ## Fail-open, never a veto on machinery failure (ADR-098 AD-5)
 //!
 //! Every failure mode — a broken/unparseable pack, a member that will not
-//! compile, an evaluation error, a **budget timeout**, or even a panic deep in
-//! the engine — degrades that pack to a single **warning-class** outcome
+//! compile, an evaluation error, a **budget timeout / deadline exhaustion**, or
+//! even a panic deep in the engine — degrades to a **warning-class** outcome
 //! carrying the error text. It never becomes a veto and never crashes the tool
 //! call. Only a genuine `violation`-family finding under a `fence` / `interrupt`
 //! posture can veto a write, and the default posture stays warnings-first
 //! (ADR-002).
+//!
+//! ## Per-call cost
+//!
+//! - **No packs** (no `<workspace>/.anvil/policies/`): a single directory
+//!   `stat` (`symlink_metadata`) then an early-out — microseconds, no engine.
+//! - **With packs:** discovery + manifest parse + `regorus` compile currently
+//!   repeat on **every** call — there is no compiled-policy cache yet, so the
+//!   per-write cost is roughly linear in pack count (measured ~450 µs/pack for
+//!   trivial packs; unbounded for large real packs). That cost is capped only by
+//!   the pass deadline above: a slow or numerous pack set is *truncated*, never
+//!   allowed to stall the write. The mtime-keyed compiled-policy cache that makes
+//!   a warm pass eval-only is filed as **OPAE-011**.
 //!
 //! ## Additive, never replacing the scan
 //!
@@ -36,6 +62,7 @@
 //! never suppresses a scan finding.
 
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use anvil_intercept_rules::{PolicyOutcome, PolicySeverityClass, route_policy_outcome};
 use anvil_kernel_types::diagnostics::ControlDecision;
@@ -95,6 +122,16 @@ struct RoutedRecord {
     diagnostic: Diagnostic,
 }
 
+/// The outcome of evaluating a single pack under the pass deadline.
+enum PackEval {
+    /// The pack was evaluated; its (possibly empty) findings.
+    Findings(Vec<RoutedRecord>),
+    /// The pass deadline was reached mid-pack (before a member compile or the
+    /// eval); the caller collapses this and every remaining pack into one
+    /// truncation warning.
+    Truncated,
+}
+
 /// Whether pre-write policy evaluation is enabled, reading the
 /// [`POLICY_ENFORCEMENT_ENV`] kill switch (AD-5). Unset ⇒ enabled; `off` / `0`
 /// (case-insensitive, trimmed) ⇒ disabled; any other value ⇒ enabled.
@@ -118,6 +155,27 @@ pub(crate) fn evaluate(
     change_kind: ChangeKind,
     posture: EnforcementMode,
 ) -> PolicyPrewriteOutcome {
+    // Reuse the OPAE-006 adapter's tight default as the TOTAL pass budget — it
+    // bounds discovery + compile + eval, not just a single eval.
+    let pass_budget = PrewriteBudget::default().max_eval;
+    evaluate_with_budget(
+        workspace_root,
+        changed_path,
+        change_kind,
+        posture,
+        pass_budget,
+    )
+}
+
+/// [`evaluate`] with an explicit total-pass budget, so tests can force deadline
+/// exhaustion mid-pass without a real slow eval.
+fn evaluate_with_budget(
+    workspace_root: &Path,
+    changed_path: &str,
+    change_kind: ChangeKind,
+    posture: EnforcementMode,
+    pass_budget: Duration,
+) -> PolicyPrewriteOutcome {
     // Kill switch first (AD-5): a single debug-level log, never per-call spam.
     if !policy_enforcement_enabled() {
         tracing::debug!(
@@ -127,8 +185,14 @@ pub(crate) fn evaluate(
         return PolicyPrewriteOutcome::inert();
     }
 
+    // One wall-clock deadline over the WHOLE pass (AD-5). Operational timing
+    // only — it never enters any PolicyInput content.
+    let started = Instant::now();
+    let deadline = started + pass_budget;
+
     // Discovery failing open: a containment breach or unreadable policies dir
-    // must not block the write (AD-5) — degrade to no policy diagnostics.
+    // must not block the write (AD-5) — degrade to no policy diagnostics. The
+    // no-packs case (missing dir) is a single stat then this early-out.
     let loaded = match discover_and_load(workspace_root) {
         Ok(loaded) => loaded,
         Err(err) => {
@@ -145,34 +209,54 @@ pub(crate) fn evaluate(
     }
 
     // One deterministic pre-write input (OPAE-006), projected to the Rego pack
-    // shape. The budget is the adapter's tight, documented fail-open default.
+    // shape. Its budget carries the pass budget through; each pack's engine is
+    // then bounded by min(remaining, that budget).
     let prewrite = PrewriteInput::from_parts(
         WorkflowPhase::Save,
         [ChangedPath::new(changed_path, change_kind)],
         [],
         GraphFacts::default(),
-        PrewriteBudget::default(),
+        PrewriteBudget::new(pass_budget),
     );
     let policy_input = prewrite.to_policy_input();
-    let engine_config = prewrite.engine_config();
+    let base_config = prewrite.engine_config();
 
+    let total = loaded.len();
     let mut records: Vec<RoutedRecord> = Vec::new();
+    let mut evaluated = 0usize;
     for pack in &loaded {
+        // Deadline gate before each pack's expensive compile/eval work. On
+        // exhaustion, collapse this and every remaining pack into one
+        // truncation warning (never a veto) and stop.
+        if Instant::now() >= deadline {
+            records.push(truncation_record(evaluated, total, started, changed_path));
+            break;
+        }
         // Defence in depth (AD-5): the engine facade already guards regorus
         // panics, but wrap the whole per-pack evaluation so nothing — a panic
         // in a builtin, a poisoned lock — can crash the tool call. A caught
         // panic degrades the pack to a warning, exactly like any other failure.
         let pack_id = pack.pack.id.clone();
-        let evaluated = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            evaluate_pack(pack, &policy_input, &engine_config, changed_path)
+        let pack_eval = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            evaluate_pack(pack, &policy_input, &base_config, deadline, changed_path)
         }));
-        match evaluated {
-            Ok(pack_records) => records.extend(pack_records),
-            Err(_) => records.push(degraded_record(
-                &pack_id,
-                changed_path,
-                "policy evaluation panicked",
-            )),
+        match pack_eval {
+            Ok(PackEval::Findings(pack_records)) => {
+                records.extend(pack_records);
+                evaluated += 1;
+            }
+            Ok(PackEval::Truncated) => {
+                records.push(truncation_record(evaluated, total, started, changed_path));
+                break;
+            }
+            Err(_) => {
+                records.push(degraded_record(
+                    &pack_id,
+                    changed_path,
+                    "policy evaluation panicked",
+                ));
+                evaluated += 1;
+            }
         }
     }
 
@@ -189,15 +273,36 @@ pub(crate) fn evaluate(
     }
 }
 
-/// Evaluate a single pack, returning one [`RoutedRecord`] per finding — or a
-/// single fail-open warning-class record if the pack cannot be loaded,
-/// compiled, or evaluated (AD-5).
+/// Build an [`EngineConfig`] bounded by the time remaining until `deadline`, or
+/// `None` when the deadline has already passed (the caller truncates). The
+/// per-eval `eval_timeout` is `min(remaining, base eval budget)`.
+fn bounded_engine_config(base: &EngineConfig, deadline: Instant) -> Option<EngineConfig> {
+    let remaining = deadline.checked_duration_since(Instant::now())?;
+    if remaining.is_zero() {
+        return None;
+    }
+    let eval_timeout = Some(match base.eval_timeout {
+        Some(budget) => remaining.min(budget),
+        None => remaining,
+    });
+    Some(EngineConfig {
+        eval_timeout,
+        ..base.clone()
+    })
+}
+
+/// Evaluate a single pack under the pass `deadline`. Returns
+/// [`PackEval::Findings`] with one [`RoutedRecord`] per finding (or a single
+/// fail-open warning-class record if the pack cannot be loaded, compiled, or
+/// evaluated), or [`PackEval::Truncated`] if the deadline is reached before this
+/// pack's compile or eval completes (AD-5).
 fn evaluate_pack(
     pack: &LoadedPack,
     policy_input: &anvil_policy_engine::PolicyInput,
-    engine_config: &EngineConfig,
+    base_config: &EngineConfig,
+    deadline: Instant,
     changed_path: &str,
-) -> Vec<RoutedRecord> {
+) -> PackEval {
     let pack_id = pack.pack.id.as_str();
 
     // A broken / unparseable pack fails open to a warning: installation
@@ -206,42 +311,51 @@ fn evaluate_pack(
     let manifest = match &pack.manifest {
         Ok(manifest) => manifest,
         Err(err) => {
-            return vec![degraded_record(
+            return PackEval::Findings(vec![degraded_record(
                 pack_id,
                 changed_path,
                 &format!("pack manifest failed to load: {err}"),
-            )];
+            )]);
         }
     };
 
-    let mut engine = match Engine::new(engine_config.clone()) {
+    // Bound the engine's eval by the time remaining in the pass; a passed
+    // deadline truncates.
+    let Some(config) = bounded_engine_config(base_config, deadline) else {
+        return PackEval::Truncated;
+    };
+    let mut engine = match Engine::new(config) {
         Ok(engine) => engine,
         Err(err) => {
-            return vec![degraded_record(
+            return PackEval::Findings(vec![degraded_record(
                 pack_id,
                 changed_path,
                 &format!("policy engine unavailable: {err}"),
-            )];
+            )]);
         }
     };
     if let Err(err) = anvil_policy_engine::builtins::register_all(&mut engine) {
-        return vec![degraded_record(
+        return PackEval::Findings(vec![degraded_record(
             pack_id,
             changed_path,
             &format!("policy engine setup failed: {err}"),
-        )];
+        )]);
     }
 
     // Load the manifest's member policies. Member paths are already lexically
     // contained within the pack directory (validated at manifest load); join
     // and read. Any read / compile failure degrades the whole pack to a
-    // warning rather than blocking (AD-5).
+    // warning rather than blocking (AD-5). The deadline is checked before each
+    // compile so a large pack cannot overrun the pass.
     for entry in &manifest.policies {
+        if Instant::now() >= deadline {
+            return PackEval::Truncated;
+        }
         let member_path = pack.pack.dir.join(&entry.path);
         let source = match std::fs::read_to_string(&member_path) {
             Ok(source) => source,
             Err(err) => {
-                return vec![degraded_record(
+                return PackEval::Findings(vec![degraded_record(
                     pack_id,
                     changed_path,
                     &format!(
@@ -249,40 +363,48 @@ fn evaluate_pack(
                         entry.metadata.id,
                         member_path.display(),
                     ),
-                )];
+                )]);
             }
         };
         let name = entry.path.to_string_lossy().into_owned();
         if let Err(err) = engine.add_policy(name, source) {
-            return vec![degraded_record(
+            return PackEval::Findings(vec![degraded_record(
                 pack_id,
                 changed_path,
                 &format!("policy `{}` failed to compile: {err}", entry.metadata.id),
-            )];
+            )]);
         }
     }
 
-    // Evaluation. A regorus error / timeout is caught by the facade and
-    // surfaced as an `Err` here (the facade guards panics too); it degrades to
-    // a warning, never a veto (AD-5 fail-open budget).
+    // Deadline gate before the eval itself.
+    if Instant::now() >= deadline {
+        return PackEval::Truncated;
+    }
+
+    // Evaluation. A regorus error / timeout (the engine's own eval_timeout is
+    // min(remaining, budget)) is caught by the facade and surfaced as an `Err`
+    // here (the facade guards panics too); it degrades to a warning, never a
+    // veto (AD-5 fail-open budget).
     let value = match engine.eval(policy_input, POLICY_QUERY) {
         Ok(result) => result.value,
         Err(err) => {
-            return vec![degraded_record(
+            return PackEval::Findings(vec![degraded_record(
                 pack_id,
                 changed_path,
                 &format!("policy evaluation failed: {err}"),
-            )];
+            )]);
         }
     };
 
-    value
-        .as_ref()
-        .map(extract_policy_findings)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|finding| record_from_finding(pack_id, changed_path, &finding))
-        .collect()
+    PackEval::Findings(
+        value
+            .as_ref()
+            .map(extract_policy_findings)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|finding| record_from_finding(pack_id, changed_path, &finding))
+            .collect(),
+    )
 }
 
 /// A raw finding extracted from a `data.anvil.policies` result before routing.
@@ -508,6 +630,60 @@ fn degraded_record(pack_id: &str, changed_path: &str, message: &str) -> RoutedRe
     }
 }
 
+/// Build the single fail-open truncation record for the packs left unevaluated
+/// when the pass deadline is reached (AD-5). `evaluated` of `total` packs ran;
+/// the remainder are collapsed into this one warning-class outcome that warns
+/// but never vetoes under any posture. The packs already evaluated keep their
+/// findings.
+fn truncation_record(
+    evaluated: usize,
+    total: usize,
+    started: Instant,
+    changed_path: &str,
+) -> RoutedRecord {
+    let remaining = total.saturating_sub(evaluated);
+    let elapsed_ms = started.elapsed().as_millis();
+    let rule_id = "policy-truncated";
+    let diagnostic = Diagnostic::new(
+        format!(
+            "diag_policy_prewrite_truncated_{}",
+            sanitise_id_part(changed_path)
+        ),
+        // Warning, never error: exhausting the pass budget must not escalate to
+        // a veto under a strict posture.
+        Severity::Warning,
+        format!(
+            "Policy evaluation truncated after {elapsed_ms}ms: {evaluated} of {total} pack(s) \
+             evaluated; {remaining} remaining pack(s) skipped — failing open (the write is not \
+             blocked). Findings from the evaluated pack(s) still stand."
+        ),
+        Location {
+            file: changed_path.to_string(),
+            line: None,
+            column: None,
+            end_line: None,
+            end_column: None,
+        },
+        Category::Policy,
+        DiagnosticSource {
+            rule_id: rule_id.to_string(),
+            source_module: "anvil-cli::mcp::policy_prewrite".to_string(),
+        },
+        Mode::Unknown(PRE_WRITE_MODE.to_string()),
+    )
+    .with_remediation_hint(
+        "The pre-write policy pass hit its wall-clock budget before evaluating every pack (there \
+         is no compiled-policy cache yet — see OPAE-011). Reduce the installed pack count, or run \
+         `anvil gate` for a full, unbudgeted policy evaluation.",
+    );
+    RoutedRecord {
+        // Warning-class: routes to `warn` under every enforcing posture and
+        // never vetoes (OPAE-007).
+        outcome: PolicyOutcome::warning(rule_id),
+        diagnostic,
+    }
+}
+
 /// Strictest-wins merge of two [`ControlDecision`]s (the caller merges the
 /// scan decision with the routed policy decision). Ordering mirrors the
 /// enforcement escalation ladder: `allow < warn (= unknown) < block < fence <
@@ -539,11 +715,10 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::TempDir;
 
-    /// Write an installed-style pack: `<ws>/.anvil/policies/<id>/pack.yaml`
-    /// plus one member `.rego` under `policies/`. Returns the workspace dir.
-    fn install_pack(pack_id: &str, member_rego: &str) -> TempDir {
-        let ws = TempDir::new().expect("workspace");
-        let pack_dir = ws.path().join(".anvil/policies").join(pack_id);
+    /// Write an installed-style pack into an existing workspace:
+    /// `<ws>/.anvil/policies/<id>/pack.yaml` plus one member `.rego`.
+    fn write_pack(ws: &std::path::Path, pack_id: &str, member_rego: &str) {
+        let pack_dir = ws.join(".anvil/policies").join(pack_id);
         std::fs::create_dir_all(pack_dir.join("policies")).expect("pack dirs");
         std::fs::write(pack_dir.join("policies/policy.rego"), member_rego).expect("member rego");
         let manifest = format!(
@@ -564,6 +739,12 @@ mod tests {
              \x20     tags: [test]\n"
         );
         std::fs::write(pack_dir.join("pack.yaml"), manifest).expect("manifest");
+    }
+
+    /// Write a fresh workspace holding a single installed-style pack.
+    fn install_pack(pack_id: &str, member_rego: &str) -> TempDir {
+        let ws = TempDir::new().expect("workspace");
+        write_pack(ws.path(), pack_id, member_rego);
         ws
     }
 
@@ -772,6 +953,81 @@ warn contains msg if {
             "a budget-exhausted pack must never veto",
         );
         assert_eq!(record.diagnostic.severity, Severity::Warning);
+    }
+
+    #[test]
+    fn policy_prewrite_routing_deadline_exhaustion_truncates_fail_open() {
+        // AD-5: a zero pass budget with two packs installed exhausts the
+        // deadline before any pack's compile/eval, so the whole pass truncates
+        // into one warning-class outcome — no veto, no error, even under an
+        // interrupt posture. (First-N-evaluated-or-zero: zero here.)
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = TempDir::new().expect("workspace");
+            write_pack(ws.path(), "pack-a", VIOLATION_REGO);
+            write_pack(ws.path(), "pack-b", VIOLATION_REGO);
+
+            let outcome = evaluate_with_budget(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+                Duration::ZERO,
+            );
+
+            assert_eq!(
+                outcome.decision,
+                ControlDecision::Warn,
+                "truncation must never veto, even a violation pack under interrupt",
+            );
+            assert!(!outcome.decision.is_veto());
+            // Exactly the truncation warning, and nothing error-severity.
+            assert_eq!(outcome.diagnostics.len(), 1);
+            assert_eq!(outcome.diagnostics[0].severity, Severity::Warning);
+            assert!(
+                !outcome
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.severity == Severity::Error),
+                "truncation is fail-open — no error diagnostics: {:?}",
+                outcome.diagnostics,
+            );
+            let summary = &outcome.diagnostics[0].summary;
+            assert!(summary.contains("truncated"), "{summary}");
+            assert!(
+                summary.contains("0 of 2 pack(s)"),
+                "truncation names the counts: {summary}",
+            );
+        });
+    }
+
+    #[test]
+    fn policy_prewrite_routing_within_budget_evaluates_all_packs() {
+        // Sanity: with a generous pass budget both packs evaluate (the deadline
+        // gate is inert), proving truncation is budget-driven, not structural.
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = TempDir::new().expect("workspace");
+            write_pack(ws.path(), "pack-a", VIOLATION_REGO);
+            write_pack(ws.path(), "pack-b", WARN_REGO);
+
+            let outcome = evaluate_with_budget(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+                Duration::from_secs(30),
+            );
+            // The violation pack vetoes under interrupt; the warn pack adds a
+            // warning. No truncation diagnostic is present.
+            assert_eq!(outcome.decision, ControlDecision::Interrupt);
+            assert!(
+                !outcome
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.summary.contains("truncated")),
+                "no truncation under a generous budget: {:?}",
+                outcome.diagnostics,
+            );
+        });
     }
 
     #[test]
