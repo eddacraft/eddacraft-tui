@@ -4659,22 +4659,12 @@ archive.
 
 ### CIB-173: PATHEXT-aware editor detection on Windows
 
-- **Status:** In Progress
-- **Intent:** `detect_agents.rs:148-199` tries only a bare name (if it already
-  has an extension) plus a `.exe` fallback on Windows; editor CLIs commonly
-  ship as `.cmd`/`.bat` shims, so installed editors are missed and their MCP
-  config is silently not written (default install is detection-gated). Already
-  noted in-code as a follow-up.
-- **Expected Outcome:** Detection consults `PATHEXT` (bounded to the standard
-  executable set — `.exe`, `.cmd`, `.bat`, `.com`) while keeping the
-  no-execute-bit false-match guard rationale documented at
-  `detect_agents.rs:185-186`.
-- **Files:** `crates/anvil-cli/src/activation/detect_agents.rs`.
-- **Validation:** unit tests with temp PATH dirs containing `.cmd` shims;
-  existing detection tests stay green.
-- **Identified From:** User-journey pass 2026-07-04 (finding 12); in-code
-  documented follow-up at `detect_agents.rs:148-151`.
-- **Confidence:** high.
+- **Status:** Merged 2026-07-04 via PR #3144
+- **Summary:** Windows editor detection in `detect_agents.rs` now consults
+  `PATHEXT` (bounded to `.exe`, `.cmd`, `.bat`, `.com`) so `.cmd`/`.bat` editor
+  shims resolve and their MCP config is written, keeping the no-execute-bit
+  false-match guard rationale documented; covered by unit tests over temp PATH
+  dirs with `.cmd` shims.
 
 ### CIB-174: Align daemon bind-timeout copy with the real ceiling
 
