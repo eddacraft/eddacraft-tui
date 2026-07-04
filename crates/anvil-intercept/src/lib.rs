@@ -247,15 +247,29 @@ impl SessionDispatcher for RegistryDispatcher {
         Ok(())
     }
 
-    fn heartbeat(&self, id: &anvil_intercept_proto::SessionId) -> Result<(), RegistryError> {
-        SessionDispatcher::heartbeat(self.registry.as_ref(), id)
+    fn heartbeat(
+        &self,
+        id: &anvil_intercept_proto::SessionId,
+        peer_pid: Option<u32>,
+    ) -> Result<(), RegistryError> {
+        // CIB-153: thread the connection's authenticated peer through to
+        // the registry so the launcher-ownership check runs on the
+        // production path (pass-through, same shape as report_process).
+        SessionDispatcher::heartbeat(self.registry.as_ref(), id, peer_pid)
     }
 
-    fn unregister(&self, id: &anvil_intercept_proto::SessionId) -> Result<bool, RegistryError> {
+    fn unregister(
+        &self,
+        id: &anvil_intercept_proto::SessionId,
+        peer_pid: Option<u32>,
+    ) -> Result<bool, RegistryError> {
         // ACTMO-014: capture the durable worktree (if any) BEFORE removal so we
         // can prune the persisted store once the last durable session leaves.
         let durable_worktree = self.registry.durable_worktree_for(id);
-        let removed = SessionDispatcher::unregister(self.registry.as_ref(), id)?;
+        // CIB-153: the registry rejects a non-owning peer before any
+        // removal, so a failed ownership check leaves the durable store
+        // untouched (the `?` short-circuits before persist_durable_unregister).
+        let removed = SessionDispatcher::unregister(self.registry.as_ref(), id, peer_pid)?;
         if removed
             && let Some(worktree) = durable_worktree
             && !self.registry.is_registered(&worktree)

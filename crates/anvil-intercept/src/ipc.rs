@@ -465,12 +465,17 @@ impl SessionDispatcher for NoopDispatcher {
     fn heartbeat(
         &self,
         _id: &anvil_intercept_proto::SessionId,
+        _peer_pid: Option<u32>,
     ) -> Result<(), crate::registry::RegistryError> {
+        // No-op: NoopDispatcher carries no per-session state, so there
+        // is no launcher anchor to bind against (CIB-153). Listeners
+        // that need real ownership enforcement wire a SessionRegistry.
         Ok(())
     }
     fn unregister(
         &self,
         _id: &anvil_intercept_proto::SessionId,
+        _peer_pid: Option<u32>,
     ) -> Result<bool, crate::registry::RegistryError> {
         Ok(false)
     }
@@ -5178,14 +5183,23 @@ fn dispatch_command<D: SessionDispatcher>(
             Ok(json!({"ok": true}))
         }
         IpcCommand::Heartbeat { session_id } => {
+            // CIB-153: bind the heartbeat to the registering peer. The
+            // dispatcher rejects a `peer_pid` that does not match the
+            // session's stamped launcher pid, and fails closed on a
+            // missing peer credential — same ownership contract as
+            // `ReportProcess`. The typed `PeerOwnershipMismatch` is
+            // mapped to the wire error string here.
             dispatcher
-                .heartbeat(session_id)
+                .heartbeat(session_id, peer_pid)
                 .map_err(|err| err.to_string())?;
             Ok(json!({"ok": true}))
         }
         IpcCommand::UnregisterSession { session_id } => Ok(json!({
+            // CIB-153: same registering-peer binding as `Heartbeat` so a
+            // same-UID neighbour cannot force-unregister a session it
+            // never registered.
             "removed": dispatcher
-                .unregister(session_id)
+                .unregister(session_id, peer_pid)
                 .map_err(|err| err.to_string())?,
         })),
         IpcCommand::ReportProcess {
@@ -6248,6 +6262,116 @@ mod tests {
             "dispatcher.register must not be called when peer_pid is absent; calls={:?}",
             recorder.calls(),
         );
+    }
+
+    /// CIB-153: build a registry-backed dispatcher with one session
+    /// stamped to `launcher_pid`, ready for the lifecycle-ownership
+    /// dispatch tests. Uses a real [`SessionRegistry`] because the
+    /// ownership check lives in its `SessionDispatcher` impl (the
+    /// recorder carries no launcher anchor). `register_with_lineage`
+    /// stores the given pid/starttime verbatim, so the tests stay
+    /// platform-portable (no `/proc` read).
+    #[cfg(unix)]
+    fn registry_with_owned_session(
+        session: &str,
+        launcher_pid: u32,
+    ) -> (Arc<SessionRegistry>, tempfile::TempDir) {
+        use std::time::Instant;
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let registry = Arc::new(SessionRegistry::new());
+        let issued = AgentTag::new("anvil-run", "launcher", 1_700_003_000);
+        registry
+            .register_with_lineage(
+                &SessionId::new(session),
+                worktree.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                1_700_003_000,
+                Instant::now(),
+            )
+            .expect("register with lineage");
+        (registry, worktree)
+    }
+
+    /// CIB-153: a session registered under peer A's authenticated pid
+    /// rejects a `Heartbeat` from a different injected peer B at the
+    /// dispatch boundary, still accepts it from peer A, and fails
+    /// closed when no peer credential is present (`peer_pid = None`).
+    /// Mirrors the `dispatch_command_register_lineage_*` injected-pid
+    /// pattern but against a real registry so the ownership check runs.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_heartbeat_binds_to_registering_peer() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let peer_a = std::process::id();
+        let peer_b = peer_a.wrapping_add(1);
+        let (registry, _worktree) = registry_with_owned_session("hb-session", peer_a);
+        let command = IpcCommand::Heartbeat {
+            session_id: SessionId::new("hb-session"),
+        };
+
+        // Peer B (different injected pid) is rejected.
+        let err = dispatch_command(&command, &registry, Some(peer_b), None)
+            .expect_err("heartbeat from a non-owning peer must be rejected");
+        assert!(
+            err.contains("peer-ownership check failed"),
+            "error must name the ownership failure, got: {err}",
+        );
+
+        // No peer credential fails closed.
+        let err_none = dispatch_command(&command, &registry, None, None)
+            .expect_err("heartbeat without peer credentials must fail closed");
+        assert!(
+            err_none.contains("peer-ownership check failed"),
+            "error must name the ownership failure, got: {err_none}",
+        );
+
+        // Peer A (the registering peer) is accepted.
+        dispatch_command(&command, &registry, Some(peer_a), None)
+            .expect("heartbeat from the registering peer must be accepted");
+    }
+
+    /// CIB-153: the same registering-peer binding governs
+    /// `UnregisterSession` — a non-owning injected peer B (and the
+    /// no-credential path) cannot force-unregister the session, and it
+    /// survives the rejected calls; the owning peer A removes it.
+    #[cfg(unix)]
+    #[test]
+    fn dispatch_command_unregister_binds_to_registering_peer() {
+        use anvil_intercept_proto::IpcCommand;
+
+        let peer_a = std::process::id();
+        let peer_b = peer_a.wrapping_add(1);
+        let (registry, _worktree) = registry_with_owned_session("unreg-session", peer_a);
+        let command = IpcCommand::UnregisterSession {
+            session_id: SessionId::new("unreg-session"),
+        };
+
+        // Peer B is rejected and the session survives.
+        let err = dispatch_command(&command, &registry, Some(peer_b), None)
+            .expect_err("unregister from a non-owning peer must be rejected");
+        assert!(
+            err.contains("peer-ownership check failed"),
+            "error must name the ownership failure, got: {err}",
+        );
+        assert_eq!(
+            registry.active_sessions().len(),
+            1,
+            "a rejected unregister must not remove the session",
+        );
+
+        // No peer credential fails closed; session still survives.
+        dispatch_command(&command, &registry, None, None)
+            .expect_err("unregister without peer credentials must fail closed");
+        assert_eq!(registry.active_sessions().len(), 1);
+
+        // Peer A removes it.
+        let response = dispatch_command(&command, &registry, Some(peer_a), None)
+            .expect("unregister from the registering peer must be accepted");
+        assert_eq!(response["removed"], serde_json::json!(true));
+        assert!(registry.active_sessions().is_empty());
     }
 
     /// MLP2-070 / #1674: a `register-session` frame whose `pid` matches
@@ -7981,14 +8105,22 @@ mod tests {
             });
             Ok(())
         }
-        fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError> {
+        fn heartbeat(&self, id: &SessionId, _peer_pid: Option<u32>) -> Result<(), RegistryError> {
+            // CIB-153: the recorder carries no launcher anchor, so it
+            // no-ops the peer_pid. Ownership enforcement is exercised
+            // against a real SessionRegistry dispatcher in the
+            // dispatch_command_{heartbeat,unregister}_* tests below.
             self.calls
                 .lock()
                 .unwrap()
                 .push(RecordedCall::Heartbeat(id.as_str().to_owned()));
             Ok(())
         }
-        fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
+        fn unregister(
+            &self,
+            id: &SessionId,
+            _peer_pid: Option<u32>,
+        ) -> Result<bool, RegistryError> {
             self.calls
                 .lock()
                 .unwrap()

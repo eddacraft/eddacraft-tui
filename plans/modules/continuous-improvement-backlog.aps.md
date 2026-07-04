@@ -4120,7 +4120,7 @@ archive.
 
 ### CIB-153: Bind session lifecycle operations to the registering peer
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Close the gap where any same-uid IPC client that knows or
   guesses another session's id can heartbeat-keep-alive or force-unregister
   a session it never registered, since `Heartbeat`/`UnregisterSession` carry

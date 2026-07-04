@@ -385,8 +385,20 @@ pub trait SessionDispatcher: Send + Sync + 'static {
         agent_tag: Option<&AgentTag>,
         lineage: Option<&LineageAnchor>,
     ) -> Result<(), RegistryError>;
-    fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError>;
-    fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError>;
+    /// Refresh a session's heartbeat. CIB-153: bound to the
+    /// registering peer — implementations that maintain a lineage
+    /// anchor (the canonical [`SessionRegistry`] impl) reject a
+    /// `peer_pid` that does not match the launcher pid stamped at
+    /// `register` time, and fail closed (`peer_pid = None`, or a
+    /// session with no anchor) exactly like [`Self::report_process`].
+    /// Anchorless implementations (`NoopDispatcher`, test recorders)
+    /// treat the parameter as a no-op.
+    fn heartbeat(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<(), RegistryError>;
+    /// Remove a session. CIB-153: bound to the registering peer with
+    /// the same ownership contract as [`Self::heartbeat`] — a
+    /// same-UID neighbour that guesses a session id cannot
+    /// force-unregister a session it never registered.
+    fn unregister(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<bool, RegistryError>;
     fn list(&self) -> Vec<SessionRecord>;
 
     /// MLP2-074: narrow the session's lineage anchor onto the
@@ -538,6 +550,21 @@ struct RegistryEntry {
     /// `SessionRegistry::register` directly. Phase E wires the IPC
     /// accept-loop call; Phase D adds the field + accessors.
     subscriber_binding: Option<String>,
+    /// CIB-153: the authenticated pid of the peer that **registered**
+    /// this session (the launcher). Stamped once at
+    /// [`SessionRegistry::register_with_lineage`] from the daemon's
+    /// `SO_PEERCRED` view of the connecting peer — never a wire value —
+    /// and, unlike `record.pid`, is **not** narrowed by
+    /// [`SessionRegistry::update_lineage_anchor`] when the launcher
+    /// reports its spawned child. It is the stable owner identity the
+    /// session-lifecycle ownership check ([`SessionRegistry::verify_peer_owns`])
+    /// binds `Heartbeat` / `UnregisterSession` to, so the launcher can
+    /// still manage the session after `report_process` has re-pointed
+    /// the lineage anchor at the child. `None` for the legacy
+    /// lineage-less `register` path (no authenticated launcher), which
+    /// fails closed. Distinct from `subscriber_binding` (telemetry
+    /// ownership) per the CIB-153 Intent.
+    launcher_pid: Option<u32>,
     /// ACTMO-014: `true` when this entry is **durable worktree membership**
     /// (registered with an activation-spine [`AgentTag`], see
     /// [`AgentTag::is_durable_membership`]) rather than a live agent-session
@@ -817,6 +844,12 @@ impl SessionRegistry {
                     record: record.clone(),
                     last_heartbeat: now,
                     subscriber_binding: None,
+                    // CIB-153: the legacy `register` path carries no
+                    // authenticated launcher pid — sessions registered
+                    // this way have no lifecycle owner and fail closed on
+                    // `Heartbeat` / `UnregisterSession`. The lineage path
+                    // (`register_with_lineage`) stamps `Some(pid)` below.
+                    launcher_pid: None,
                     durable,
                 },
             );
@@ -867,6 +900,12 @@ impl SessionRegistry {
             let mut inner = self.lock();
             if let Some(entry) = inner.sessions.get_mut(id) {
                 entry.record = record.clone();
+                // CIB-153: bind the registering peer as the stable
+                // lifecycle owner. `pid` is the launcher's authenticated
+                // pid (dispatch's `verify_lineage_claim` constrains the
+                // wire anchor to `peer_pid`), and this field survives the
+                // `update_lineage_anchor` narrowing to the child.
+                entry.launcher_pid = Some(pid);
             }
             inner
                 .by_pid_lineage
@@ -1167,6 +1206,51 @@ impl SessionRegistry {
         }
 
         Ok(entry.record.clone())
+    }
+
+    /// CIB-153: verify that an authenticated `peer_pid` owns the
+    /// session before a lifecycle mutation (`Heartbeat` /
+    /// `UnregisterSession`) is allowed to proceed. Mirrors the
+    /// [`Self::update_lineage_anchor`] peer-ownership contract, but
+    /// binds against the **stable** launcher pid recorded at
+    /// [`Self::register_with_lineage`] (`RegistryEntry::launcher_pid`)
+    /// rather than the mutable `record.pid`: `report_process` narrows
+    /// `record.pid` onto the spawned child, yet the launcher keeps
+    /// sending the session's heartbeats and the final unregister, so
+    /// the owner identity must not move with the lineage anchor.
+    ///
+    /// Rejection cases, all with [`RegistryError::PeerOwnershipMismatch`]:
+    /// - the caller supplied no authenticated peer (`peer_pid = None`) —
+    ///   the legacy NDJSON wire and platforms without `SO_PEERCRED`
+    ///   surface this; fail closed rather than mutate on unauthenticated
+    ///   input (mirrors `report_process`'s "requires authenticated peer
+    ///   credentials" arm);
+    /// - the session was registered via the legacy lineage-less
+    ///   `register` path (`launcher_pid == None`) — no authenticated
+    ///   launcher was ever attributed, so no peer can claim it;
+    /// - the authenticated `peer_pid` does not equal the stamped
+    ///   launcher pid — a same-UID neighbour that guessed the id.
+    ///
+    /// An unknown session id returns `Ok(())` so the downstream
+    /// operation keeps its established semantics (heartbeat surfaces
+    /// [`RegistryError::UnknownSession`]; unregister is an idempotent
+    /// `Ok(false)` no-op) — there is no owned state to protect.
+    fn verify_peer_owns(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<(), RegistryError> {
+        let inner = self.lock();
+        let Some(entry) = inner.sessions.get(id) else {
+            return Ok(());
+        };
+        match (entry.launcher_pid, peer_pid) {
+            (Some(owner), Some(caller)) if owner == caller => Ok(()),
+            (expected, actual) => Err(RegistryError::PeerOwnershipMismatch {
+                session: id.clone(),
+                expected,
+                // A `None` peer supplies no pid; 0 is never a valid IPC
+                // peer (the swapper), so it reads as "no authenticated
+                // peer" in the error.
+                actual: actual.unwrap_or(0),
+            }),
+        }
     }
 
     /// Refresh the heartbeat for a session. Returns
@@ -1801,11 +1885,13 @@ impl SessionDispatcher for SessionRegistry {
         }
     }
 
-    fn heartbeat(&self, id: &SessionId) -> Result<(), RegistryError> {
+    fn heartbeat(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<(), RegistryError> {
+        self.verify_peer_owns(id, peer_pid)?;
         SessionRegistry::heartbeat(self, id, Instant::now())
     }
 
-    fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
+    fn unregister(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<bool, RegistryError> {
+        self.verify_peer_owns(id, peer_pid)?;
         SessionRegistry::unregister(self, id)
     }
 
@@ -2051,6 +2137,232 @@ mod tests {
         let evicted = registry.evict_stale(t45);
         assert_eq!(evicted, vec![sid("a")]);
         assert!(registry.active_sessions().is_empty());
+    }
+
+    /// CIB-153: a session registered under launcher pid A cannot be
+    /// heartbeat-refreshed by a same-UID peer B — the
+    /// `SessionDispatcher::heartbeat` ownership check rejects the
+    /// mismatch with the typed `PeerOwnershipMismatch`, exactly as
+    /// `update_lineage_anchor` does for `report_process`.
+    #[test]
+    fn dispatcher_heartbeat_rejects_peer_pid_mismatch() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "launcher", 1_700_002_000);
+        let launcher_pid: u32 = 4242;
+        registry
+            .register_with_lineage(
+                &sid("victim"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                1_700_002_000,
+                Instant::now(),
+            )
+            .expect("register");
+
+        let err = SessionDispatcher::heartbeat(&registry, &sid("victim"), Some(9_999))
+            .expect_err("peer pid 9999 != launcher pid 4242");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("victim"),
+                expected: Some(launcher_pid),
+                actual: 9_999,
+            }
+        );
+
+        // The owning peer is still accepted.
+        SessionDispatcher::heartbeat(&registry, &sid("victim"), Some(launcher_pid))
+            .expect("owner heartbeat");
+    }
+
+    /// CIB-153: heartbeat fails closed when the call carries no
+    /// authenticated peer (`peer_pid = None`, the legacy NDJSON / no
+    /// `SO_PEERCRED` path) — mirrors `report_process`'s "requires
+    /// authenticated peer credentials" arm.
+    #[test]
+    fn dispatcher_heartbeat_requires_peer_credentials() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "launcher", 1_700_002_100);
+        let launcher_pid: u32 = 4242;
+        registry
+            .register_with_lineage(
+                &sid("s"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                1_700_002_100,
+                Instant::now(),
+            )
+            .expect("register");
+
+        let err = SessionDispatcher::heartbeat(&registry, &sid("s"), None)
+            .expect_err("no peer credential must fail closed");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("s"),
+                expected: Some(launcher_pid),
+                actual: 0,
+            }
+        );
+    }
+
+    /// CIB-153: a session registered via the legacy lineage-less path
+    /// (`record.pid == None`) has no attributable owner, so even an
+    /// authenticated peer is rejected — no peer can claim an
+    /// anchorless session.
+    #[test]
+    fn dispatcher_heartbeat_rejects_session_registered_without_lineage() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        registry
+            .register(&sid("legacy"), wt.path(), None, Instant::now())
+            .expect("legacy register");
+
+        let err = SessionDispatcher::heartbeat(&registry, &sid("legacy"), Some(4242))
+            .expect_err("legacy register has no launcher pid");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("legacy"),
+                expected: None,
+                actual: 4242,
+            }
+        );
+    }
+
+    /// CIB-153: `unregister` carries the same registering-peer binding
+    /// as `heartbeat`. Peer B cannot force-unregister peer A's
+    /// session; the owning peer still can, and the session is only
+    /// removed on the authorised call.
+    #[test]
+    fn dispatcher_unregister_rejects_peer_pid_mismatch_then_accepts_owner() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "launcher", 1_700_002_200);
+        let launcher_pid: u32 = 4242;
+        registry
+            .register_with_lineage(
+                &sid("victim"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                1_700_002_200,
+                Instant::now(),
+            )
+            .expect("register");
+
+        let err = SessionDispatcher::unregister(&registry, &sid("victim"), Some(9_999))
+            .expect_err("peer pid 9999 != launcher pid 4242");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("victim"),
+                expected: Some(launcher_pid),
+                actual: 9_999,
+            }
+        );
+        // The rejected removal left the session in place.
+        assert_eq!(registry.active_sessions().len(), 1);
+
+        // No peer credential also fails closed.
+        let err_none = SessionDispatcher::unregister(&registry, &sid("victim"), None)
+            .expect_err("no peer credential must fail closed");
+        assert_eq!(
+            err_none,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("victim"),
+                expected: Some(launcher_pid),
+                actual: 0,
+            }
+        );
+
+        // The owning peer removes it.
+        let removed = SessionDispatcher::unregister(&registry, &sid("victim"), Some(launcher_pid))
+            .expect("owner unregister");
+        assert!(removed);
+        assert!(registry.active_sessions().is_empty());
+    }
+
+    /// CIB-153 regression: the registering launcher keeps ownership of
+    /// its session's lifecycle **after** `report_process` narrows the
+    /// lineage anchor onto the spawned child. This mirrors the real
+    /// anvil-run ordering (register → `report_process` → heartbeats →
+    /// unregister, all emitted by the launcher process): binding
+    /// against `record.pid` would strand the launcher once the anchor
+    /// moved to the child, so the check binds against the stable
+    /// `launcher_pid`. The child pid — now `record.pid` — is NOT an
+    /// owner and is rejected.
+    #[test]
+    fn dispatcher_lifecycle_survives_report_process_narrowing() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let issued = tag("anvil-run", "launcher", 1_700_002_300);
+        let launcher_pid: u32 = 4242;
+        let child_pid: u32 = 6_666;
+        registry
+            .register_with_lineage(
+                &sid("s"),
+                wt.path(),
+                None,
+                Some(&issued),
+                launcher_pid,
+                1_700_002_300,
+                Instant::now(),
+            )
+            .expect("register");
+
+        // Launcher narrows the anchor onto the spawned child; this
+        // rewrites `record.pid` to `child_pid`.
+        registry
+            .update_lineage_anchor(&sid("s"), child_pid, 1_700_002_400, launcher_pid)
+            .expect("narrow to child");
+
+        // The launcher still owns lifecycle: heartbeat + unregister
+        // from `launcher_pid` succeed even though `record.pid` is now
+        // the child.
+        SessionDispatcher::heartbeat(&registry, &sid("s"), Some(launcher_pid))
+            .expect("launcher heartbeat after narrowing");
+
+        // The child pid (now `record.pid`) is not the lifecycle owner.
+        let err = SessionDispatcher::heartbeat(&registry, &sid("s"), Some(child_pid))
+            .expect_err("child pid is not the lifecycle owner");
+        assert_eq!(
+            err,
+            RegistryError::PeerOwnershipMismatch {
+                session: sid("s"),
+                expected: Some(launcher_pid),
+                actual: child_pid,
+            }
+        );
+
+        assert!(
+            SessionDispatcher::unregister(&registry, &sid("s"), Some(launcher_pid))
+                .expect("launcher unregister after narrowing")
+        );
+        assert!(registry.active_sessions().is_empty());
+    }
+
+    /// CIB-153: unregistering an unknown/already-evicted id stays an
+    /// idempotent `Ok(false)` no-op regardless of `peer_pid` — there
+    /// is no owned state to protect, so the ownership check defers to
+    /// the operation's established semantics.
+    #[test]
+    fn dispatcher_unregister_unknown_id_is_idempotent_noop() {
+        let registry = SessionRegistry::new();
+        let removed = SessionDispatcher::unregister(&registry, &sid("ghost"), Some(4242))
+            .expect("unknown id is not an error");
+        assert!(!removed);
+        // Also with no peer credential.
+        let removed_none = SessionDispatcher::unregister(&registry, &sid("ghost"), None)
+            .expect("unknown id is not an error");
+        assert!(!removed_none);
     }
 
     /// Pin the boundary: a session at exactly TTL is alive; at TTL +
@@ -2451,19 +2763,37 @@ mod tests {
 
     /// `SessionDispatcher` trait dispatch works against the concrete
     /// registry — this is the surface INTD-002 calls into via
-    /// `Arc<dyn SessionDispatcher>`.
+    /// `Arc<dyn SessionDispatcher>`. CIB-153: the session is
+    /// registered with a lineage anchor so the launcher pid is stamped,
+    /// and the lifecycle calls carry the owning peer's pid.
     #[test]
     fn session_dispatcher_trait_dispatches_to_registry() {
+        use anvil_intercept_proto::session::LineageAnchor;
         let registry: Arc<dyn SessionDispatcher> = Arc::new(SessionRegistry::new());
         let wt = make_worktree();
+        let launcher_pid: u32 = 4242;
 
         registry
-            .register(&sid("a"), wt.path(), None, None)
+            .register(
+                &sid("a"),
+                wt.path(),
+                None,
+                Some(&LineageAnchor {
+                    pid: launcher_pid,
+                    pid_starttime: 1_700_003_100,
+                }),
+            )
             .expect("register");
         assert_eq!(registry.list().len(), 1);
 
-        registry.heartbeat(&sid("a")).expect("heartbeat");
-        assert!(registry.unregister(&sid("a")).expect("unregister"));
+        registry
+            .heartbeat(&sid("a"), Some(launcher_pid))
+            .expect("heartbeat");
+        assert!(
+            registry
+                .unregister(&sid("a"), Some(launcher_pid))
+                .expect("unregister")
+        );
         assert!(registry.list().is_empty());
     }
 

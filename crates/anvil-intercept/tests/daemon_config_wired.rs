@@ -160,6 +160,11 @@ async fn send_register_request(
     // session path) before the per-worktree cap check fires. The cap
     // test sends three distinct tags so the third register reaches
     // the MLP2-024 cap branch and surfaces SessionCapExceeded.
+    // CIB-153: register with a lineage anchor keyed to this test
+    // process's own pid — the daemon reads SO_PEERCRED and requires
+    // `lineage.pid == peer_pid`, stamping the session's launcher pid so
+    // the later `session.unregister` (over another connection from the
+    // same process) passes the registering-peer ownership check.
     let frame = json!({
         "jsonrpc": "2.0",
         "method": "session.register",
@@ -169,6 +174,10 @@ async fn send_register_request(
             "agent_tag": {
                 "driver_id": "anvil-run",
                 "claimed_agent_id": claimed_agent_id,
+                "pid_starttime": 1_700_000_000_u64,
+            },
+            "lineage": {
+                "pid": std::process::id(),
                 "pid_starttime": 1_700_000_000_u64,
             },
         },

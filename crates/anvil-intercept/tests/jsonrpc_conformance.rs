@@ -38,11 +38,11 @@ impl SessionDispatcher for RejectingDispatcher {
         Err(RegistryError::UnknownSession(SessionId::new("internal")))
     }
 
-    fn heartbeat(&self, _id: &SessionId) -> Result<(), RegistryError> {
+    fn heartbeat(&self, _id: &SessionId, _peer_pid: Option<u32>) -> Result<(), RegistryError> {
         Err(RegistryError::UnknownSession(SessionId::new("internal")))
     }
 
-    fn unregister(&self, _id: &SessionId) -> Result<bool, RegistryError> {
+    fn unregister(&self, _id: &SessionId, _peer_pid: Option<u32>) -> Result<bool, RegistryError> {
         Err(RegistryError::UnknownSession(SessionId::new("internal")))
     }
 
