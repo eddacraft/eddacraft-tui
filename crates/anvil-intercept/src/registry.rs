@@ -557,7 +557,7 @@ struct RegistryEntry {
     /// and, unlike `record.pid`, is **not** narrowed by
     /// [`SessionRegistry::update_lineage_anchor`] when the launcher
     /// reports its spawned child. It is the stable owner identity the
-    /// session-lifecycle ownership check ([`SessionRegistry::verify_peer_owns`])
+    /// session-lifecycle ownership check ([`SessionRegistry::peer_ownership_check`])
     /// binds `Heartbeat` / `UnregisterSession` to, so the launcher can
     /// still manage the session after `report_process` has re-pointed
     /// the lineage anchor at the child. `None` for the lineage-less
@@ -567,7 +567,7 @@ struct RegistryEntry {
     /// because they have no single owner pid to bind to — durable
     /// worktree memberships are separate one-shot CLI processes, and
     /// Windows registers `None` pending CIB-114. See
-    /// [`SessionRegistry::verify_peer_owns`] for the full reasoning.
+    /// [`SessionRegistry::peer_ownership_check`] for the full reasoning.
     /// Distinct from `subscriber_binding` (telemetry ownership) per the
     /// CIB-153 Intent.
     launcher_pid: Option<u32>,
@@ -1229,6 +1229,18 @@ impl SessionRegistry {
     /// sending the session's heartbeats and the final unregister, so
     /// the owner identity must not move with the lineage anchor.
     ///
+    /// This is a **pure predicate** over an `entry` the caller has
+    /// already looked up while holding the registry lock — it takes no
+    /// lock of its own. Copilot review (PR #3188) flagged that running
+    /// the check under one lock and the mutation under a *separate*
+    /// later lock is a TOCTOU: the id could be evicted and
+    /// re-registered between them, letting a stale pass authorise a
+    /// mutation on a different entry. The dispatcher `heartbeat` /
+    /// `unregister` paths therefore call this inline within the SAME
+    /// locked critical section as the mutation, exactly as
+    /// [`Self::update_lineage_anchor`] runs all checks before any
+    /// mutation under a single lock.
+    ///
     /// The check applies **only to sessions that carry a verified
     /// lineage anchor** (`launcher_pid == Some(_)`): those are live,
     /// single-continuous-process sessions where one launcher registers,
@@ -1260,9 +1272,12 @@ impl SessionRegistry {
     /// operation keeps its established semantics (heartbeat surfaces
     /// [`RegistryError::UnknownSession`]; unregister is an idempotent
     /// `Ok(false)` no-op) — there is no owned state to protect.
-    fn verify_peer_owns(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<(), RegistryError> {
-        let inner = self.lock();
-        let Some(entry) = inner.sessions.get(id) else {
+    fn peer_ownership_check(
+        entry: Option<&RegistryEntry>,
+        id: &SessionId,
+        peer_pid: Option<u32>,
+    ) -> Result<(), RegistryError> {
+        let Some(entry) = entry else {
             return Ok(());
         };
         match entry.launcher_pid {
@@ -1273,9 +1288,15 @@ impl SessionRegistry {
             None => Ok(()),
             Some(owner) => match peer_pid {
                 Some(caller) if owner == caller => Ok(()),
-                // A `None` peer supplies no pid; 0 is never a valid IPC
-                // peer (the swapper), so it reads as "no authenticated
-                // peer" in the error.
+                // A `None` peer carries no pid. We surface that in the
+                // error's `actual` field as `0`, used purely as a
+                // sentinel for "no authenticated peer" because
+                // `PeerOwnershipMismatch::actual` is a bare `u32` with
+                // no `Option` to represent absence — it is NOT a claim
+                // that 0 cannot be a valid pid (on Linux 0 is the
+                // scheduler/swapper and never a real IPC peer, but the
+                // guarantee relied on here is only that we use it as the
+                // unauthenticated sentinel).
                 _ => Err(RegistryError::PeerOwnershipMismatch {
                     session: id.clone(),
                     expected: Some(owner),
@@ -1290,6 +1311,19 @@ impl SessionRegistry {
     /// (or has already been evicted).
     pub fn heartbeat(&self, id: &SessionId, now: Instant) -> Result<(), RegistryError> {
         let mut inner = self.lock();
+        Self::heartbeat_locked(&mut inner, id, now)
+    }
+
+    /// Heartbeat mutation applied to an already-locked guard. Factored
+    /// out so the `SessionDispatcher::heartbeat` path can run the
+    /// peer-ownership check ([`Self::peer_ownership_check`]) and this
+    /// mutation under a single lock (Copilot PR #3188 TOCTOU fix),
+    /// while the lock-free public [`Self::heartbeat`] keeps its shape.
+    fn heartbeat_locked(
+        inner: &mut Inner,
+        id: &SessionId,
+        now: Instant,
+    ) -> Result<(), RegistryError> {
         let entry = inner
             .sessions
             .get_mut(id)
@@ -1582,39 +1616,64 @@ impl SessionRegistry {
     }
 
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
-        let (worktree_to_signal, membership_lost) = {
+        let outcome = {
             let mut inner = self.lock();
-            let Some(entry) = inner.sessions.remove(id) else {
-                return Ok(false);
-            };
-            let worktree = entry.record.worktree.clone();
-            let was_durable = entry.durable;
-            let key = (worktree.clone(), entry.record.agent_tag.clone());
-            inner.by_composite.remove(&key);
-            // MLP2-025: drop the lineage anchor too, if any. Linear
-            // scan over `by_pid_lineage` because we don't carry the
-            // (pid, starttime) on the SessionRecord — the index is the
-            // authoritative anchor.
-            inner.by_pid_lineage.retain(|_, sid| sid != id);
-            // DSV-040: signal warm-state reclamation only when the LAST
-            // session for this canonical worktree leaves. A still-live peer
-            // (MLP2-023 lets distinct agent tags coexist on one worktree)
-            // must keep the shared warm cache + assurance machine — firing
-            // per-session would thrash a live sibling's warm state into a
-            // cold rebuild. Computed under the lock so the survivor check sees
-            // a consistent `by_composite`.
-            let warm = if inner.by_composite.keys().any(|(wt, _)| wt == &worktree) {
-                None
-            } else {
-                Some(worktree.clone())
-            };
-            // ACTMO-014: durable membership is lost only when the removed
-            // session was durable AND no durable session for the worktree
-            // survives (symmetric with the warm-state last-session rule).
-            let membership_lost =
-                (was_durable && !inner.is_durable_member(&worktree)).then_some(worktree);
-            (warm, membership_lost)
+            Self::remove_session_locked(&mut inner, id)
         };
+        let Some(outcome) = outcome else {
+            return Ok(false);
+        };
+        self.fire_unregister_side_effects(outcome);
+        Ok(true)
+    }
+
+    /// Remove a session and update every derived index, returning the
+    /// deferred side-effect targets (`(warm_reclaim, membership_lost)`)
+    /// or `None` if the id was absent. Runs entirely on the caller's
+    /// already-held guard so the `SessionDispatcher::unregister` path
+    /// can fold its peer-ownership check
+    /// ([`Self::peer_ownership_check`]) into the SAME lock as the
+    /// removal (Copilot PR #3188 TOCTOU fix): the id cannot be evicted
+    /// and re-registered between check and mutate.
+    fn remove_session_locked(
+        inner: &mut Inner,
+        id: &SessionId,
+    ) -> Option<(Option<PathBuf>, Option<PathBuf>)> {
+        let entry = inner.sessions.remove(id)?;
+        let worktree = entry.record.worktree.clone();
+        let was_durable = entry.durable;
+        let key = (worktree.clone(), entry.record.agent_tag.clone());
+        inner.by_composite.remove(&key);
+        // MLP2-025: drop the lineage anchor too, if any. Linear
+        // scan over `by_pid_lineage` because we don't carry the
+        // (pid, starttime) on the SessionRecord — the index is the
+        // authoritative anchor.
+        inner.by_pid_lineage.retain(|_, sid| sid != id);
+        // DSV-040: signal warm-state reclamation only when the LAST
+        // session for this canonical worktree leaves. A still-live peer
+        // (MLP2-023 lets distinct agent tags coexist on one worktree)
+        // must keep the shared warm cache + assurance machine — firing
+        // per-session would thrash a live sibling's warm state into a
+        // cold rebuild. Computed under the lock so the survivor check sees
+        // a consistent `by_composite`.
+        let warm = if inner.by_composite.keys().any(|(wt, _)| wt == &worktree) {
+            None
+        } else {
+            Some(worktree.clone())
+        };
+        // ACTMO-014: durable membership is lost only when the removed
+        // session was durable AND no durable session for the worktree
+        // survives (symmetric with the warm-state last-session rule).
+        let membership_lost =
+            (was_durable && !inner.is_durable_member(&worktree)).then_some(worktree);
+        Some((warm, membership_lost))
+    }
+
+    /// Fire the post-removal hooks recorded by
+    /// [`Self::remove_session_locked`] once the registry lock has been
+    /// released.
+    fn fire_unregister_side_effects(&self, outcome: (Option<PathBuf>, Option<PathBuf>)) {
+        let (worktree_to_signal, membership_lost) = outcome;
         // MLP2-057: fire the hook AFTER the inner lock is released so a
         // slow consumer (a `SaveTimeState::invalidate` running under
         // its own mutex) does not extend the registry-lock window.
@@ -1628,7 +1687,6 @@ impl SessionRegistry {
         if let Some(worktree) = membership_lost {
             self.signal_membership(MembershipChange::Unregistered, &worktree);
         }
-        Ok(true)
     }
 
     /// ACTMO-014: the distinct worktrees in the durable membership set,
@@ -1918,13 +1976,31 @@ impl SessionDispatcher for SessionRegistry {
     }
 
     fn heartbeat(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<(), RegistryError> {
-        self.verify_peer_owns(id, peer_pid)?;
-        SessionRegistry::heartbeat(self, id, Instant::now())
+        // CIB-153 / Copilot PR #3188: check ownership and apply the
+        // heartbeat mutation in ONE locked critical section so the id
+        // cannot be evicted and re-registered between them (mirrors
+        // `update_lineage_anchor`'s all-checks-before-mutation, single-lock
+        // pattern).
+        let mut inner = self.lock();
+        SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
+        SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())
     }
 
     fn unregister(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<bool, RegistryError> {
-        self.verify_peer_owns(id, peer_pid)?;
-        SessionRegistry::unregister(self, id)
+        // CIB-153 / Copilot PR #3188: the ownership check and the
+        // removal share ONE lock guard — a stale successful check can no
+        // longer authorise a removal on a different entry re-registered
+        // under the same id in the gap.
+        let outcome = {
+            let mut inner = self.lock();
+            SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
+            SessionRegistry::remove_session_locked(&mut inner, id)
+        };
+        let Some(outcome) = outcome else {
+            return Ok(false);
+        };
+        self.fire_unregister_side_effects(outcome);
+        Ok(true)
     }
 
     fn list(&self) -> Vec<SessionRecord> {

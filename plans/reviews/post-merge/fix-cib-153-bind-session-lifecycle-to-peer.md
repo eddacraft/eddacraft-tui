@@ -1,6 +1,6 @@
 # Post-merge: fix-cib-153-bind-session-lifecycle-to-peer
 
-PR: <!-- filled once opened -->
+PR: [#3188](https://github.com/eddacraft/anvil-001/pull/3188)
 Branch: `fix/cib-153-bind-session-lifecycle-to-peer`
 APS: CIB-153 (module `continuous-improvement-backlog`)
 Merged: <!-- filled by cleanup agent -->
@@ -14,7 +14,7 @@ Verified: <!-- filled by cleanup agent -->
       yes): `cargo test -p eddacraft-anvil-intercept` shows
       `dispatch_command_heartbeat_binds_to_registering_peer` and
       `dispatch_command_unregister_binds_to_registering_peer` passing, plus the
-      registry-level `verify_peer_owns` unit tests (mismatch / no-credential /
+      registry-level `peer_ownership_check` unit tests (mismatch / no-credential /
       no-lineage / survives-narrowing / owner-only removal / unknown-id
       idempotent).
 - [ ] Step 3 — Decide whether to file a follow-up CIB item for a true
