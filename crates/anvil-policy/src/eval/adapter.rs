@@ -177,6 +177,41 @@ fn describe_exit(status: std::process::ExitStatus) -> String {
         .map_or_else(|| "signal".to_string(), |c| c.to_string())
 }
 
+/// Retry budget on `ETXTBSY` before giving up. Bounds worst-case added latency
+/// to ~2+4+8+16+32 = ~62 ms — negligible beside the per-suite timeout.
+const ETXTBSY_MAX_RETRIES: u32 = 5;
+
+/// Spawn a child, retrying on `ETXTBSY` ("Text file busy", os error 26).
+///
+/// Guards the classic multithreaded fork+exec race: `fork()` clones the whole
+/// process fd table, so a sibling thread mid-`write` on *any* freshly-created
+/// executable can leak a write-mode fd into another thread's forked child. The
+/// kernel's `deny_write_access` check is inode-scoped (the target file's
+/// `i_writecount`), not path-scoped, so this trips even across different paths,
+/// and a write-then-rename does *not* help — rename preserves the inode and its
+/// write-count. The condition is transient and self-healing (the sibling child
+/// reaches its own exec in microseconds, closing the inherited CLOEXEC fd), so a
+/// bounded retry is the ecosystem-standard fix here, not a mask for a real bug.
+/// Mirrors golang/go#22315 and rust-lang/rust#114554.
+fn spawn_with_etxtbsy_retry(
+    mut spawn: impl FnMut() -> std::io::Result<std::process::Child>,
+    max_attempts: u32,
+) -> std::io::Result<std::process::Child> {
+    /// `ETXTBSY` — "Text file busy". A raw constant avoids a `libc` dependency
+    /// for a single integer.
+    const ETXTBSY: i32 = 26;
+    let mut attempt = 0;
+    loop {
+        match spawn() {
+            Err(e) if e.raw_os_error() == Some(ETXTBSY) && attempt < max_attempts => {
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_millis(1u64 << attempt));
+            }
+            other => return other,
+        }
+    }
+}
+
 impl PolicyEvalRunner for SubprocessRunner {
     fn eval_json(&self, suite: &EvalSuite) -> Result<String, EvalHarnessError> {
         let exec_err =
@@ -185,17 +220,27 @@ impl PolicyEvalRunner for SubprocessRunner {
                 source,
             };
 
-        let mut child = Command::new(&self.program)
-            .args(Self::args(suite))
-            // EVALCI-002: null the child's stdin so a future upstream prompt (an
-            // auth or licence gate on `anvil policy eval`) reads EOF and fails
-            // fast, rather than blocking on an unanswerable prompt until the
-            // per-suite timeout burns the whole 60s budget.
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .map_err(|e| exec_err(Box::new(e)))?;
+        // Reconstruct the `Command` per attempt so each spawn gets fresh stdio
+        // pipes. The retry guards the ETXTBSY fork+exec race (see
+        // `spawn_with_etxtbsy_retry`), which is why the fixture-exec tests below
+        // no longer flake under parallel runs.
+        let mut child = spawn_with_etxtbsy_retry(
+            || {
+                Command::new(&self.program)
+                    .args(Self::args(suite))
+                    // EVALCI-002: null the child's stdin so a future upstream
+                    // prompt (an auth or licence gate on `anvil policy eval`)
+                    // reads EOF and fails fast, rather than blocking on an
+                    // unanswerable prompt until the per-suite timeout burns the
+                    // whole 60s budget.
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+            },
+            ETXTBSY_MAX_RETRIES,
+        )
+        .map_err(|e| exec_err(Box::new(e)))?;
 
         // Drain stdout/stderr on dedicated threads so a full OS pipe buffer
         // cannot wedge the child (a findings-heavy policy easily exceeds the
@@ -423,6 +468,66 @@ mod tests {
         let raw = r#"{"schema_version":"1.0.0","policy":"p","query":"q","findings":[]}"#;
         let err = normalise("s", raw).expect_err("contract");
         assert!(matches!(err, EvalHarnessError::Contract { .. }));
+    }
+
+    #[test]
+    fn spawn_retry_gives_up_after_max_attempts() {
+        // A spawn that *always* fails with ETXTBSY (os error 26) must exhaust
+        // exactly `max_attempts` retries and then surface the last error, not
+        // loop forever.
+        let mut calls = 0u32;
+        let err = spawn_with_etxtbsy_retry(
+            || {
+                calls += 1;
+                Err::<std::process::Child, _>(std::io::Error::from_raw_os_error(26))
+            },
+            3,
+        )
+        .expect_err("persistent ETXTBSY should surface after exhausting retries");
+        assert_eq!(err.raw_os_error(), Some(26), "last error is preserved");
+        // Initial attempt + 3 retries.
+        assert_eq!(calls, 4, "one initial call plus max_attempts retries");
+    }
+
+    #[test]
+    fn spawn_retry_does_not_retry_non_etxtbsy() {
+        // A permanent, unrelated error (ENOENT, os error 2 — "file not found")
+        // must propagate on the first attempt: retrying it would only slow real
+        // failures down for no benefit.
+        let mut calls = 0u32;
+        let err = spawn_with_etxtbsy_retry(
+            || {
+                calls += 1;
+                Err::<std::process::Child, _>(std::io::Error::from_raw_os_error(2))
+            },
+            5,
+        )
+        .expect_err("ENOENT must not be retried");
+        assert_eq!(err.raw_os_error(), Some(2));
+        assert_eq!(calls, 1, "a non-ETXTBSY error is not retried");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn spawn_retry_recovers_after_transient_etxtbsy() {
+        // The whole point: a transient ETXTBSY that clears must resolve to a
+        // successful spawn. Fail twice with os error 26, then spawn a real
+        // (trivial) child on the third attempt.
+        let mut calls = 0u32;
+        let mut child = spawn_with_etxtbsy_retry(
+            || {
+                calls += 1;
+                if calls < 3 {
+                    Err(std::io::Error::from_raw_os_error(26))
+                } else {
+                    Command::new("true").spawn()
+                }
+            },
+            5,
+        )
+        .expect("a transient ETXTBSY should recover once it clears");
+        let _ = child.wait();
+        assert_eq!(calls, 3, "retried twice, then succeeded");
     }
 
     #[test]

@@ -4713,21 +4713,36 @@ archive.
 
 ### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `eddacraft-anvil-policy` tests that write a fixture script and
-  immediately exec it (`eval::adapter::tests::eval_harness_exit_code_classification`,
+  immediately exec it via `SubprocessRunner::eval_json` (all five that route
+  through the `script()` helper:
+  `eval::adapter::tests::eval_harness_exit_code_classification`,
   `eval_harness_adapter_subprocess_drains_large_output_without_deadlock`,
-  `opa::tests::evaluate_passes_restricted_capabilities_to_opa`,
-  `evaluate_propagates_stderr_on_nonzero_exit`) flake intermittently under
-  parallel runs with "Text file busy (os error 26)" — the classic ETXTBSY
-  race: a concurrently-forked child still holds the script's write fd open
-  when another thread execs it. Observed repeatedly on 2026-07-04 across
-  unrelated EXCEPT-wave runs; disappears on retry, so it burns re-diagnosis
-  effort per encounter.
-- **Expected Outcome:** The fixture-exec helpers close/drop the write handle
-  before spawning (write to a temp name then rename, or write+close+exec via
-  a helper that pins the fd lifecycle), or the affected tests serialise their
-  spawns; the four tests pass repeatedly under a parallel full-crate run.
+  `eval_harness_adapter_subprocess_times_out_on_hanging_child`,
+  `eval_harness_adapter_subprocess_empty_stdout_surfaces_stderr`, and
+  `eval_harness_adapter_subprocess_null_stdin`) flake intermittently under
+  parallel runs with "Text file busy (os error 26)". Observed repeatedly on
+  2026-07-04 across unrelated EXCEPT-wave runs; disappears on retry, so it
+  burns re-diagnosis effort per encounter.
+- **Root Cause:** The classic multithreaded fork+exec race. `fork()` clones
+  the whole process fd table, so while one thread is mid-`std::fs::write` on
+  its fixture script another thread's `Command::spawn` can `fork()` a child
+  that inherits a duplicate of that write-mode fd. The kernel's
+  `deny_write_access` check is **inode-scoped** (`i_writecount`), not
+  path-scoped, so it trips even though the threads write different paths in
+  different tempdirs — if the first thread execs its script inside the narrow
+  fork-to-exec window before the sibling child's own `execve` closes the
+  CLOEXEC fd, it gets ETXTBSY. A write-to-temp-then-rename approach was
+  considered and **rejected**: rename preserves the underlying inode and its
+  write-count, so it is a no-op for this race (confirmed against
+  rust-lang/rust#114554).
+- **Expected Outcome:** A bounded ETXTBSY retry at the
+  `SubprocessRunner::eval_json` spawn site (extracted as the unit-testable
+  `spawn_with_etxtbsy_retry` helper, 5 attempts, exponential back-off) — the
+  ecosystem-standard fix for this POSIX design limitation (mirrors
+  golang/go#22315 and rust-lang/rust#114554). The five fixture-exec tests
+  pass repeatedly under a parallel full-crate run.
 - **Validation:** `for i in $(seq 1 20); do cargo test -p eddacraft-anvil-policy || exit 1; done`
   with zero ETXTBSY failures
 - **Dependencies:** —
