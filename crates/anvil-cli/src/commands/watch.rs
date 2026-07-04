@@ -67,6 +67,28 @@ pub struct WatchArgs {
     /// deterministically.
     #[arg(long = "no-daemon")]
     no_daemon: bool,
+
+    // DSV-048 / ADR-101: the supervisor spawn contract. Provenance ids live
+    // in this code comment, not the doc comment — CLIC-010 keeps plan/ADR
+    // identifiers out of user-visible help text.
+    /// Internal: run as the headless save-time driver the intercept daemon's
+    /// supervisor spawns per registered worktree. Forces plain headless
+    /// output (no TUI, no stdout banners), never offers or starts a daemon,
+    /// routes save-time checks through the already-running daemon, and
+    /// appends findings to the driver log (`ANVIL_SAVE_TIME_DRIVER_LOG`)
+    /// instead of stdout. Exits non-zero only on unrecoverable setup
+    /// failure — never on findings. The scope flags are rejected so the
+    /// supervisor argv contract stays canonical.
+    #[arg(
+        long = "save-time-driver",
+        requires = "worktree",
+        conflicts_with_all = ["file", "action", "plans", "source", "all", "patterns"]
+    )]
+    save_time_driver: bool,
+
+    /// Canonical worktree root to drive (save-time driver mode only).
+    #[arg(long, requires = "save_time_driver", value_name = "PATH")]
+    worktree: Option<PathBuf>,
 }
 
 impl WatchArgs {
@@ -96,6 +118,8 @@ impl WatchArgs {
             // lifecycle. `anvil start` already owns daemon startup for that
             // path (DLIFE-003), so the offer must stay off here.
             no_daemon: true,
+            save_time_driver: false,
+            worktree: None,
         }
     }
 }
@@ -117,8 +141,14 @@ const SOURCE_PATTERNS: &[&str] = &["src/**/*.ts", "src/**/*.tsx", "lib/**/*.ts"]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum WatchOutputMode {
     Json,
-    Plain { reason: PlainWatchReason },
+    Plain {
+        reason: PlainWatchReason,
+    },
     Tui,
+    /// DSV-048: headless save-time driver — no TUI, no stdout banners, no
+    /// per-event lines; findings go to the driver log, breadcrumbs to stderr
+    /// (the supervisor's crash-capture channel).
+    Driver,
 }
 
 impl WatchOutputMode {
@@ -530,6 +560,15 @@ struct WatchDaemonContext {
     platform_can_spawn: bool,
 }
 
+/// DSV-048: whether this run engages the daemon lifecycle (reuse / offer /
+/// fallback line) at all. Only a `check` watch routes through the save-time
+/// daemon, and driver mode never offers or starts one — the supervisor that
+/// spawned the driver owns the daemon lifecycle (ADR-101); the driver only
+/// talks to a daemon that already answers via the dispatcher's routing probe.
+fn watch_daemon_offer_applies(action: Option<&str>, save_time_driver: bool) -> bool {
+    action == Some("check") && !save_time_driver
+}
+
 /// Decide the watch daemon lifecycle plan. Pure; see [`WatchDaemonPlan`].
 ///
 /// Precedence (ADR-082 §"Settled startup mode"):
@@ -883,6 +922,10 @@ struct DispatcherInner {
     /// a `Mutex` because the worker thread owns the connection-lifecycle latch
     /// across coalesced dispatches.
     save_time: Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>>,
+    /// DSV-048: the driver-mode findings log. `Some` ⇒ daemon verdicts append
+    /// to this child-owned log (never stdout) with a one-line stderr summary
+    /// when a batch produces findings.
+    driver_log: Option<std::sync::Arc<crate::commands::watch_driver::DriverLog>>,
     /// Test-only override for `current_exe()`.
     #[cfg(test)]
     exe_override: Option<PathBuf>,
@@ -966,6 +1009,7 @@ fn recover<'a, T>(
 }
 
 impl ActionDispatcher {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         action: String,
         workspace_root: PathBuf,
@@ -973,6 +1017,7 @@ impl ActionDispatcher {
         no_tui_arg: bool,
         tui_parent: bool,
         sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
+        driver_log: Option<std::sync::Arc<crate::commands::watch_driver::DriverLog>>,
     ) -> Self {
         let save_time = build_save_time_client(&action, &workspace_root);
         Self(std::sync::Arc::new(DispatcherInner {
@@ -989,6 +1034,7 @@ impl ActionDispatcher {
             in_flight: std::sync::Mutex::new(None),
             worker: std::sync::Mutex::new(None),
             save_time,
+            driver_log,
             #[cfg(test)]
             exe_override: None,
         }))
@@ -1269,6 +1315,12 @@ impl DispatcherInner {
             reason = "daemon-absent",
             "save-time daemon unavailable; falling back to a scoped check",
         );
+        // DSV-048: keep the findings log honest about the degraded window —
+        // the subsequent subprocess findings land on the crash-capture
+        // channel (inherited stderr/stdout), not in this log.
+        if let Some(log) = self.driver_log.as_ref() {
+            let _ = log.append(format!("{}\n", fallback_advisory_line(assurance)).as_bytes());
+        }
         // The structured `tracing::warn!` above is the JSON-mode channel
         // (stderr, structured); the bare advisory line is for the human plain
         // surface only (WOUT-003 — do not mix unstructured text into JSON).
@@ -1331,6 +1383,29 @@ impl DispatcherInner {
         response: &anvil_intercept_proto::protocol::ValidatePathsResponse,
         elapsed: std::time::Duration,
     ) {
+        // DSV-048 driver mode: the findings log (child-owned) is the verdict
+        // surface — never stdout, and findings never touch an exit code. A
+        // non-empty batch also leaves a one-line stderr breadcrumb pointing
+        // at the log (stderr is the supervisor's crash-capture channel).
+        if let Some(log) = self.driver_log.as_ref() {
+            let mut block = Vec::new();
+            let render =
+                crate::commands::watch_save_time::render_daemon_verdict_plain(&mut block, response)
+                    .and_then(|()| log.append(&block));
+            if let Err(err) = render {
+                tracing::warn!(error = %err, path = %log.path().display(), "failed to append driver findings log");
+            }
+            if !response.diagnostics.is_empty() {
+                eprintln!(
+                    "{}",
+                    crate::commands::watch_driver::driver_summary_line(
+                        response.diagnostics.len(),
+                        log.path(),
+                    )
+                );
+            }
+            return;
+        }
         let exit_code = crate::commands::watch_save_time::verdict_exit_code(response);
         if self.sender.is_some() {
             self.send_result(
@@ -1427,6 +1502,7 @@ impl ActionDispatcher {
             // Subprocess-only by default in tests; the daemon-routing tests
             // exercise `WatchSaveTimeClient` directly in `watch_save_time`.
             save_time: None,
+            driver_log: None,
             exe_override,
         }))
     }
@@ -1449,17 +1525,47 @@ fn watcher_start_guidance(err: &anvil_kernel::watch::WatchError) -> Option<Strin
 
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
-    let workspace_root = crate::util::workspace_root()?;
-    let action = resolve_action(args.action.as_deref())?;
+    // DSV-048: driver mode pins the workspace root to the supervisor-supplied
+    // canonical worktree (never cwd discovery) and builds the findings log the
+    // child owns. A worktree that does not resolve is the one "unrecoverable
+    // setup failure" exit the driver contract allows. Canonicalise BEFORE
+    // deriving the default log path so the path-hashed log id is identical
+    // whether the caller passed the canonical root (the supervisor) or a
+    // relative/symlinked spelling (a manual run).
+    let workspace_root = match args.worktree.as_ref().filter(|_| args.save_time_driver) {
+        Some(worktree) => worktree.canonicalize().with_context(|| {
+            format!(
+                "save-time driver worktree does not resolve: {}",
+                worktree.display()
+            )
+        })?,
+        None => crate::util::workspace_root()?,
+    };
+    let driver_log = if args.save_time_driver {
+        let path = crate::commands::watch_driver::resolve_driver_log_path(&workspace_root)?;
+        Some(std::sync::Arc::new(
+            crate::commands::watch_driver::DriverLog::new(path),
+        ))
+    } else {
+        None
+    };
+    // Driver mode always runs the save-time `check` action (`--action`
+    // conflicts with `--save-time-driver` at the clap layer).
+    let action = if args.save_time_driver {
+        Some("check")
+    } else {
+        resolve_action(args.action.as_deref())?
+    };
 
     // DLIFE-004 (ADR-082): only the `check` watch routes through the save-time
-    // daemon, so the daemon lifecycle offer applies only there. Resolve it
-    // before the watcher starts so the (interactive) offer and any bounded
-    // start wait happen up front, not interleaved with file events. The line
-    // goes to stderr so the stdout NDJSON / plain event stream stays intact;
-    // `--json` suppresses it entirely. Reuse / fallback are non-interactive
-    // and side-effect-free; the offer can only appear in an interactive TTY.
-    if action == Some("check")
+    // daemon, so the daemon lifecycle offer applies only there — and never in
+    // driver mode (DSV-048). Resolve it before the watcher starts so the
+    // (interactive) offer and any bounded start wait happen up front, not
+    // interleaved with file events. The line goes to stderr so the stdout
+    // NDJSON / plain event stream stays intact; `--json` suppresses it
+    // entirely. Reuse / fallback are non-interactive and side-effect-free; the
+    // offer can only appear in an interactive TTY.
+    if watch_daemon_offer_applies(action, args.save_time_driver)
         && let Some(line) = ensure_watch_daemon(args.no_daemon, global.json, &workspace_root)
     {
         eprintln!("{line}");
@@ -1534,11 +1640,17 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let user_supplied_patterns = args.patterns.is_some() || args.source || args.plans;
     let filter = build_filter(user_supplied_patterns);
 
-    let output_mode = watch_output_mode(
-        global,
-        std::io::stdin().is_terminal(),
-        std::io::stdout().is_terminal(),
-    );
+    let output_mode = if args.save_time_driver {
+        // DSV-048: headless regardless of TTY state — the driver must never
+        // open a TUI or print banners even when spawned from a terminal.
+        WatchOutputMode::Driver
+    } else {
+        watch_output_mode(
+            global,
+            std::io::stdin().is_terminal(),
+            std::io::stdout().is_terminal(),
+        )
+    };
     let warmup_paths = if should_use_warmup_cache(&watch_root, &workspace_root, &patterns) {
         load_watch_warmup_cache(&workspace_root).unwrap_or(None)
     } else {
@@ -1619,6 +1731,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             global.no_tui,
             !non_tui,
             action_tx,
+            driver_log,
         )
     });
 
@@ -1632,7 +1745,11 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             }
             match event_rx.recv_timeout(std::time::Duration::from_millis(250)) {
                 Ok(event) => {
-                    if global.json {
+                    if matches!(output_mode, WatchOutputMode::Driver) {
+                        // DSV-048: no per-event stdout in driver mode — the
+                        // findings log carries verdicts, and event noise must
+                        // stay off the supervisor's crash-capture channel.
+                    } else if global.json {
                         let envelope = WatchEventEnvelope::from_engine_event(&event);
                         // `WatchEventEnvelope` only contains primitives,
                         // owned strings, and a `Copy` enum — `to_string`
@@ -2333,6 +2450,7 @@ mod tests {
             false,
             true,
             None,
+            None,
         );
         let mut notice = None;
         dispatcher.0.handle_daemon_fallback_warning(
@@ -2379,6 +2497,7 @@ mod tests {
             false,
             true,
             Some(tx),
+            None,
         );
 
         dispatcher
@@ -2748,6 +2867,7 @@ mod tests {
             false,
             false,
             false,
+            None,
             None,
         );
         // Simulate a scan already running so on_snapshot records paths for the
@@ -3447,6 +3567,162 @@ mod tests {
         assert!(
             !root.join(".anvil/insights-hint.json").exists(),
             "gated watch must not write the project hint state"
+        );
+    }
+
+    // ----- DSV-048 save-time driver mode tests -----
+
+    /// Driver mode never engages the daemon lifecycle (no ensure, no offer,
+    /// no spawn): the supervisor that spawned the driver owns the daemon
+    /// lifecycle (ADR-101), so `ensure_watch_daemon` must be unreachable.
+    /// This predicate is the single gate in `run()` in front of it.
+    #[test]
+    fn watch_save_time_driver_never_offers_or_ensures_daemon() {
+        assert!(watch_daemon_offer_applies(Some("check"), false));
+        assert!(!watch_daemon_offer_applies(Some("check"), true));
+        assert!(!watch_daemon_offer_applies(Some("gate"), false));
+        assert!(!watch_daemon_offer_applies(None, false));
+        assert!(!watch_daemon_offer_applies(None, true));
+    }
+
+    /// The supervisor argv contract (`anvil watch --save-time-driver
+    /// --worktree <PATH>`) is canonical: the flag requires the worktree, the
+    /// worktree requires the flag, and scope/action overrides are rejected
+    /// loudly rather than silently reinterpreted.
+    #[test]
+    fn watch_save_time_driver_argv_contract() {
+        assert!(
+            Wrapper::try_parse_from(["test", "--save-time-driver", "--worktree", "/ws"]).is_ok()
+        );
+        assert!(
+            Wrapper::try_parse_from(["test", "--save-time-driver"]).is_err(),
+            "--save-time-driver without --worktree must be rejected"
+        );
+        assert!(
+            Wrapper::try_parse_from(["test", "--worktree", "/ws"]).is_err(),
+            "--worktree without --save-time-driver must be rejected"
+        );
+        for (flag, value) in [
+            ("--action", Some("gate")),
+            ("--file", Some("src/a.ts")),
+            ("--patterns", Some("src/**")),
+            ("--plans", None),
+            ("--source", None),
+            ("--all", None),
+        ] {
+            let mut argv = vec!["test", "--save-time-driver", "--worktree", "/ws", flag];
+            if let Some(v) = value {
+                argv.push(v);
+            }
+            assert!(
+                Wrapper::try_parse_from(argv).is_err(),
+                "{flag} must conflict with --save-time-driver"
+            );
+        }
+        // --no-daemon stays accepted: it is redundant in driver mode (the
+        // driver never offers) but harmless, and rejecting it would break a
+        // supervisor that passes it belt-and-braces.
+        assert!(
+            Wrapper::try_parse_from([
+                "test",
+                "--save-time-driver",
+                "--worktree",
+                "/ws",
+                "--no-daemon"
+            ])
+            .is_ok()
+        );
+    }
+
+    /// Driver mode is headless by definition — it never opens the TUI and
+    /// never writes human banners, regardless of TTY state.
+    #[test]
+    fn watch_save_time_driver_mode_is_headless() {
+        assert!(!WatchOutputMode::Driver.writes_human_banners());
+        assert!(
+            !matches!(WatchOutputMode::Driver, WatchOutputMode::Tui),
+            "driver mode must be non-TUI"
+        );
+    }
+
+    /// A daemon verdict in driver mode appends the rendered findings to the
+    /// child-owned log — stdout stays silent and the TUI sender is unused.
+    #[cfg(unix)]
+    #[test]
+    fn watch_save_time_driver_verdict_appends_to_log_not_stdout() {
+        use anvil_intercept_proto::protocol::{
+            AssuranceState, Coverage, EvaluatedPath, ValidatePathsResponse, WorkspaceAssurance,
+        };
+        use anvil_kernel_types::diagnostics::{
+            Category, DiagnosticSource, KnownMode, Location, Mode, Severity,
+        };
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let log_path = dir.path().join("wt.log");
+        let inner_log = std::sync::Arc::new(crate::commands::watch_driver::DriverLog::new(
+            log_path.clone(),
+        ));
+        let inner = DispatcherInner {
+            action: "check".to_string(),
+            workspace_root: dir.path().to_path_buf(),
+            json: false,
+            no_tui_arg: true,
+            tui_parent: false,
+            sender: None,
+            running: AtomicBool::new(false),
+            pending: AtomicBool::new(false),
+            cancel: AtomicBool::new(false),
+            pending_paths: std::sync::Mutex::new(std::collections::BTreeSet::new()),
+            in_flight: std::sync::Mutex::new(None),
+            worker: std::sync::Mutex::new(None),
+            save_time: None,
+            driver_log: Some(std::sync::Arc::clone(&inner_log)),
+            exe_override: None,
+        };
+
+        let response = ValidatePathsResponse {
+            diagnostics: vec![anvil_kernel_types::Diagnostic::new(
+                "ap-driver-test",
+                Severity::Warning,
+                "planted driver finding",
+                Location {
+                    file: "src/a.ts".into(),
+                    line: Some(7),
+                    column: None,
+                    end_line: None,
+                    end_column: None,
+                },
+                Category::Antipattern,
+                DiagnosticSource {
+                    rule_id: "r".into(),
+                    source_module: "m".into(),
+                },
+                Mode::known(KnownMode::SaveTime),
+            )],
+            evaluated: vec![EvaluatedPath {
+                path: "src/a.ts".into(),
+                content_hash: Some("hash".into()),
+            }],
+            workspace_assurance: WorkspaceAssurance {
+                state: AssuranceState::Clean,
+                reason: None,
+                generation: 1,
+                last_full_scan: None,
+                scan_coverage: None,
+            },
+            coverage: Coverage::Certified,
+            check_families: vec![anvil_intercept_proto::protocol::CheckFamily::Antipattern],
+        };
+        inner.report_daemon_verdict(&response, std::time::Duration::from_millis(1));
+
+        let content = std::fs::read_to_string(&log_path).expect("driver log written");
+        assert!(
+            content.contains("ap-driver-test") && content.contains("src/a.ts:7"),
+            "findings render into the child-owned log, got: {content}"
+        );
+        assert!(
+            content.contains("finding(s)"),
+            "assurance trailer present: {content}"
         );
     }
 }
