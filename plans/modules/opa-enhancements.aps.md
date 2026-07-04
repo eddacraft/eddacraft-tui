@@ -176,8 +176,9 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   three producers via `From<&AssertionGuidance>`, `from_risk_guidance`, and
   `from_pack_finding`; deterministic context ordering, serde round-trip, UK
   spelling, no blocking flag (posture stays with OPAE-007), no exceptions-store
-  wiring. Validated by `cargo test -p eddacraft-anvil-policy-engine --
-  policy_guidance_contract` (11 tests) and the full crate suite.
+  wiring. Guidance also carries the producer's `message` (the "what failed"
+  text) verbatim. Validated by `cargo test -p eddacraft-anvil-policy-engine --
+  policy_guidance_contract` (12 tests) and the full crate suite.
 - **Intent:** Standardise policy failure output so policy breaches are actionable.
 - **Expected Outcome:** Results include rule id, policy source, rationale,
   changed-code context, remediation, and exception guidance.
@@ -198,9 +199,12 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   normalised source — the projections are proven to agree on changed paths. A
   `PrewriteBudget` carries the fail-open eval budget through to
   `EngineConfig::eval_timeout` (AD-5: timeout degrades to warn in the
-  enforcement layer, not here). Validated by
+  enforcement layer, not here). The projection is honest about the ADR-098 AD-4
+  scope limit — `to_policy_input` leaves `repo_state`/edge fields partial/empty
+  (no graph walk on the pre-write path) and `supports_edge_packs()` returns
+  false, steering edge-based packs to `anvil gate`. Validated by
   `cargo test -p eddacraft-anvil-policy-engine -- policy_prewrite_input`
-  (9 tests) and the full crate suite (164 passing).
+  (11 tests) and the full crate suite (167 passing).
 - **Intent:** Build the deterministic policy input needed for changed-code policy
   evaluation at save-time/pre-write boundaries.
 - **Expected Outcome:** Policy evaluation can consume changed paths, graph facts,

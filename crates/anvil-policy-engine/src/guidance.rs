@@ -11,10 +11,12 @@
 //! ## What the shape carries
 //!
 //! Leading with *how to fix it*, a [`PolicyGuidance`] carries the rule id, the
-//! [`PolicySource`] it came from (a closed enum), an optional rationale, the
-//! changed-code [`context`](PolicyGuidance::context) (the offending path(s) and
-//! span when known), the remediation text, and static-but-parameterised
-//! exception guidance naming `anvil exception grant` with the rule id.
+//! [`PolicySource`] it came from (a closed enum), the producer's `message` (the
+//! "what failed" text, carried through verbatim so a renderer never loses the
+//! description), an optional rationale, the changed-code
+//! [`context`](PolicyGuidance::context) (the offending path(s) and span when
+//! known), the remediation text, and static-but-parameterised exception
+//! guidance naming `anvil exception grant` with the rule id.
 //!
 //! ## What it deliberately does not carry
 //!
@@ -109,6 +111,10 @@ pub struct PolicyGuidance {
     pub rule_id: String,
     /// Where the failure came from (closed [`PolicySource`] set).
     pub source: PolicySource,
+    /// What failed — the producer's human-readable description of the breach.
+    /// Carried through verbatim so a renderer leads with remediation but never
+    /// loses the "what happened" text.
+    pub message: String,
     /// Why the rule exists, when the producer supplied a rationale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
@@ -146,6 +152,7 @@ impl PolicyGuidance {
         Self::build(
             rule_id.into(),
             PolicySource::Pack(pack.into()),
+            finding.message.clone(),
             None,
             context,
             remediation.into(),
@@ -168,6 +175,7 @@ impl PolicyGuidance {
         Self::build(
             risk_rule_id(guidance.code),
             PolicySource::Scanner(scanner.into()),
+            guidance.message.clone(),
             None,
             context,
             guidance.remediation.clone(),
@@ -179,6 +187,7 @@ impl PolicyGuidance {
     fn build(
         rule_id: String,
         source: PolicySource,
+        message: String,
         rationale: Option<String>,
         mut context: Vec<CodeContext>,
         remediation: String,
@@ -193,6 +202,7 @@ impl PolicyGuidance {
         Self {
             rule_id,
             source,
+            message,
             rationale,
             context,
             remediation,
@@ -215,6 +225,7 @@ impl From<&AssertionGuidance> for PolicyGuidance {
         Self::build(
             guidance.assertion_id.clone(),
             PolicySource::Assertion(guidance.assertion_id.clone()),
+            guidance.message.clone(),
             guidance.rationale.clone(),
             context,
             guidance.remediation.clone(),
@@ -308,6 +319,7 @@ mod tests {
         let g = PolicyGuidance::from(&assertion_guidance());
         assert_eq!(g.rule_id, "confine-to-src");
         assert_eq!(g.source, PolicySource::Assertion("confine-to-src".into()));
+        assert_eq!(g.message, "assertion `confine-to-src` failed: path escapes");
         assert_eq!(
             g.rationale.as_deref(),
             Some("Small scoped changes keep the blast radius small.")
@@ -324,6 +336,7 @@ mod tests {
         let g = PolicyGuidance::from_risk_guidance(&risk_guidance(), "prompt-scanner");
         assert_eq!(g.rule_id, "prompt-injection");
         assert_eq!(g.source, PolicySource::Scanner("prompt-scanner".into()));
+        assert_eq!(g.message, "untrusted marker present");
         assert!(g.rationale.is_none());
         assert_eq!(g.context, vec![CodeContext::path("prompt:user")]);
         assert_eq!(g.remediation, "Neutralise the flagged content.");
@@ -350,9 +363,28 @@ mod tests {
                 CodeContext::path("crates/app/src/ui.rs"),
             ]
         );
+        assert_eq!(g.message, "import crosses an architecture boundary");
         assert_eq!(
             g.remediation,
             "Route the call through the public API instead."
+        );
+    }
+
+    #[test]
+    fn policy_guidance_contract_carries_each_producer_message() {
+        // The "what failed" description must survive from every producer — a
+        // renderer leads with remediation but must not lose the description.
+        assert_eq!(
+            PolicyGuidance::from(&assertion_guidance()).message,
+            "assertion `confine-to-src` failed: path escapes"
+        );
+        assert_eq!(
+            PolicyGuidance::from_risk_guidance(&risk_guidance(), "s").message,
+            "untrusted marker present"
+        );
+        assert_eq!(
+            PolicyGuidance::from_pack_finding(&pack_finding(), "r", "p", "fix").message,
+            "import crosses an architecture boundary"
         );
     }
 

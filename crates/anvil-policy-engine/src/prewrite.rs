@@ -30,6 +30,30 @@
 //! daemon's `validate_paths` hot path, and `regorus` / `anvil-policy*` stay
 //! forbidden on the resident daemon. This adapter builds the input those
 //! off-daemon surfaces evaluate; it does not itself evaluate anything.
+//!
+//! ## Scope of the pre-write projection
+//!
+//! The pre-write path is **changed-path-shaped only**. [`to_policy_input`] runs
+//! on an interactive save path that deliberately does **not** perform a full
+//! workspace file walk or build a dependency graph (that is the always-on
+//! daemon's job, and ADR-098 AD-4 keeps policy off it). It therefore produces a
+//! [`PolicyInput`] populated only from the handed-in change set and optional
+//! [`GraphFacts`]:
+//!
+//! - Packs that read only the change set (`input.diff.changed_files`) work as
+//!   intended.
+//! - Packs that need the **whole repository file list** (`input.repo_state`) or
+//!   the **dependency edges** (`input.diff.new_edges` / `input.repo_state.edges`
+//!   — e.g. an architecture-boundary pack) do **not** see a complete graph here
+//!   and must run at `anvil gate`, where the full graph is available. The
+//!   pre-write projection leaves those fields partial/empty rather than
+//!   fabricating them with different semantics from the gate path.
+//!
+//! [`PrewriteInput::supports_edge_packs`] exposes this limit as a queryable,
+//! compiler-visible signal so a caller can steer edge-based packs to the gate
+//! instead of silently evaluating them against an empty edge set.
+//!
+//! [`to_policy_input`]: PrewriteInput::to_policy_input
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -98,6 +122,11 @@ impl Default for PrewriteBudget {
 
 impl PrewriteBudget {
     /// A budget with the given maximum eval duration.
+    ///
+    /// A **zero** duration means "no explicit budget" (unbounded), not
+    /// "instantly timed out": [`engine_config`](Self::engine_config) maps it to
+    /// [`EngineConfig::eval_timeout`] `None`. Any non-zero duration is a real
+    /// wall-clock ceiling.
     #[must_use]
     pub fn new(max_eval: Duration) -> Self {
         Self { max_eval }
@@ -106,10 +135,18 @@ impl PrewriteBudget {
     /// Project the budget onto an [`EngineConfig`], carrying `max_eval` through
     /// as the engine's [`eval_timeout`](EngineConfig::eval_timeout). Other
     /// engine knobs stay at their defaults.
+    ///
+    /// A zero `max_eval` maps to `eval_timeout: None` — an unset budget means
+    /// the engine is unbounded, never a ceiling of zero that would time out
+    /// every evaluation immediately. A non-zero `max_eval` is passed through as
+    /// `Some(max_eval)`.
     #[must_use]
     pub fn engine_config(&self) -> EngineConfig {
+        // Zero = "no explicit budget"; a real zero-duration ceiling would abort
+        // every eval instantly, which is never the intent.
+        let eval_timeout = (!self.max_eval.is_zero()).then_some(self.max_eval);
         EngineConfig {
-            eval_timeout: Some(self.max_eval),
+            eval_timeout,
             ..Default::default()
         }
     }
@@ -173,10 +210,26 @@ impl PrewriteInput {
 
     /// Project onto the facade's [`PolicyInput`] for Rego pack evaluation.
     ///
-    /// The change set becomes `diff.changed_files` (distinct paths, sorted);
-    /// `repo_state.files` is the union of the changed paths and any path named
-    /// in the [graph facts](GraphFacts). Reads only `self` — deterministic and
-    /// recomputation-free.
+    /// The [`PolicyInput`] wire shape is a stability contract (bound by Rego
+    /// packs), so this projection populates it without changing its shape — but
+    /// the pre-write path fills only the fields it can honestly know from the
+    /// handed-in facts (see [Scope of the pre-write projection](self)):
+    ///
+    /// - `diff.changed_files` — **complete**: the distinct changed paths, sorted.
+    ///   This is the field changed-path-shaped packs read, and the reason this
+    ///   projection exists.
+    /// - `repo_state.files` — **partial**: only the union of the changed paths
+    ///   and any path named in the [graph facts](GraphFacts), **not** a full
+    ///   workspace walk. A pack must not treat this as the complete file list at
+    ///   pre-write time.
+    /// - `repo_state.edges` / `diff.new_edges` — **empty**: no dependency graph
+    ///   is built on the pre-write path, so edge-based packs never fire here (see
+    ///   [`supports_edge_packs`](Self::supports_edge_packs)) and belong at
+    ///   `anvil gate`.
+    /// - `plans` / `decisions` / `baseline` — **empty/default**: not gathered at
+    ///   pre-write time.
+    ///
+    /// Reads only `self` — deterministic and recomputation-free.
     #[must_use]
     pub fn to_policy_input(&self) -> PolicyInput {
         // Paths are already sorted by `(path, kind)`, so equal path strings are
@@ -202,6 +255,23 @@ impl PrewriteInput {
             },
             ..Default::default()
         }
+    }
+
+    /// Whether the pre-write projection can support dependency-edge-based packs.
+    ///
+    /// Always `false`: the pre-write path builds no dependency graph, so
+    /// [`to_policy_input`](Self::to_policy_input) leaves `diff.new_edges` and
+    /// `repo_state.edges` empty (see [Scope of the pre-write projection](self)).
+    /// An edge-based pack (e.g. an architecture-boundary rule reading
+    /// `input.diff.new_edges`) would silently never fire here, so it must run at
+    /// `anvil gate` where the full graph is available. This is a queryable
+    /// signal a caller can surface to pack authors rather than relying on prose;
+    /// it is an associated constant behaviour, exposed as a method so a future
+    /// graph-carrying pre-write mode can make it conditional without a breaking
+    /// signature change.
+    #[must_use]
+    pub fn supports_edge_packs(&self) -> bool {
+        false
     }
 
     /// Project onto an [`AssertionContext`] for CPOL assertion evaluation.
@@ -364,6 +434,30 @@ mod tests {
         assert_eq!(
             input.engine_config().eval_timeout,
             Some(Duration::from_millis(75))
+        );
+    }
+
+    #[test]
+    fn policy_prewrite_input_does_not_support_edge_packs() {
+        // No graph is built on the pre-write path, so edge-based packs are not
+        // supported here and the projection leaves the edge sets empty.
+        let input = sample();
+        assert!(!input.supports_edge_packs());
+        let policy_input = input.to_policy_input();
+        assert!(policy_input.diff.new_edges.is_empty());
+        assert!(policy_input.repo_state.edges.is_empty());
+    }
+
+    #[test]
+    fn policy_prewrite_input_zero_budget_maps_to_no_timeout() {
+        // Zero means "no explicit budget" (unbounded), not "timed out instantly".
+        let unbounded = PrewriteBudget::new(Duration::ZERO);
+        assert_eq!(unbounded.engine_config().eval_timeout, None);
+        // A non-zero budget is still a real ceiling.
+        let bounded = PrewriteBudget::new(Duration::from_millis(50));
+        assert_eq!(
+            bounded.engine_config().eval_timeout,
+            Some(Duration::from_millis(50))
         );
     }
 
