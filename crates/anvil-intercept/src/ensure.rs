@@ -320,7 +320,12 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
             recovery: format!(
                 "the daemon did not become ready within {}s. \
                  See the daemon log at {} or run `anvil intercept start --foreground`.",
-                params.bind_timeout.as_secs(),
+                // Print the effective wall-clock ceiling: an in-flight probe can
+                // overrun `bind_timeout` by one `PROBE_TIMEOUT` (see
+                // `wait_until_answered` — the overrun is intentional), so the
+                // real bound is `bind_timeout + PROBE_TIMEOUT`, not `bind_timeout`
+                // alone (CIB-174).
+                (params.bind_timeout + PROBE_TIMEOUT).as_secs(),
                 params.log_path.display()
             ),
         }
@@ -1074,6 +1079,40 @@ mod tests {
             other => panic!("expected Failed, got {other:?}"),
         }
         assert_eq!(launcher.spawns(), 1, "spawned once before giving up");
+    }
+
+    #[test]
+    fn timeout_copy_names_the_real_ceiling_not_just_bind_timeout() {
+        // The recovery copy must name the *effective* wall-clock ceiling
+        // (`bind_timeout + PROBE_TIMEOUT`): an in-flight probe can overrun the
+        // bind_timeout by one `PROBE_TIMEOUT` (see `wait_until_answered` docs),
+        // so printing `bind_timeout` alone under-reports the real bound. CIB-174.
+        let fx = fixture();
+        let (probe, _ready) = FlagProbe::absent();
+        let launcher = FakeLauncher::never_binds();
+        let bind_timeout = Duration::from_millis(80);
+        let p = EnsureParams {
+            bind_timeout,
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { recovery } => {
+                let ceiling = (bind_timeout + PROBE_TIMEOUT).as_secs();
+                // Guard the fixture: the bare bind_timeout and the real ceiling
+                // must round to different whole seconds, or this asserts nothing.
+                assert_ne!(
+                    bind_timeout.as_secs(),
+                    ceiling,
+                    "test setup: bind_timeout seconds must differ from the ceiling"
+                );
+                assert!(
+                    recovery.contains(&format!("within {ceiling}s")),
+                    "recovery must name the real ceiling ({ceiling}s), got: {recovery}"
+                );
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
     }
 
     #[test]

@@ -1650,7 +1650,7 @@ mod tests {
     #[test]
     fn lifecycle_line_for_failure_surfaces_recovery_hint() {
         use anvil_intercept::ensure::EnsureOutcome;
-        let recovery = "the daemon did not become ready within 10s. See the daemon log at /run/x.";
+        let recovery = "the daemon did not become ready within 12s. See the daemon log at /run/x.";
         let line = render_daemon_lifecycle_line(&EnsureOutcome::Failed {
             recovery: recovery.to_owned(),
         });

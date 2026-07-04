@@ -1936,5 +1936,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Failed:** none.
 - **Friction:** the crate is `eddacraft-anvil`, not `anvil-cli`, so the item's `cargo test -p anvil-cli` invocation had to be redirected.
 - **Improvement:** cfg-gated helpers used only on Windows need `#[cfg_attr(not(windows), allow(dead_code))]` to stay clippy-clean on Unix while remaining test-reachable on all platforms.
+
+### 2026-07-04 — claude (CIB-174)
+
+- **Task:** CIB-174 — the ensure-failure recovery copy said "the daemon did not become ready within {bind_timeout}s" (`ensure.rs:322`), under-reporting the real bound: an in-flight probe can overrun `bind_timeout` by one `PROBE_TIMEOUT`, so the effective ceiling is `bind_timeout + PROBE_TIMEOUT` (documented as intentional at `ensure.rs:346-347`).
+- **Outcome:** TDD — added a red test driving `ensure_with` through the spawn+never-answer path with an 80ms `bind_timeout`, asserting the copy names `(bind_timeout + PROBE_TIMEOUT).as_secs()` (2s) rather than the bare `bind_timeout` (0s). Green fix derives the printed figure from `(params.bind_timeout + PROBE_TIMEOUT).as_secs()` (prefer derivation over clamping, since the overrun is documented as intentional), keeping the log-path hint intact. Aligned the independent `start.rs:1602` fixture literal to "12s" to match `watch.rs:1984`.
+- **Worked:** Deriving the expected ceiling from the `PROBE_TIMEOUT` constant inside the test keeps the assertion honest if the probe budget ever changes.
+- **Failed:** none.
+- **Friction:** Package id is `eddacraft-anvil-intercept`, not `anvil-intercept` as the Validation line reads — the latter is a target name.
+- **Improvement:** Recovery copy that quotes a timeout must quote the effective wall-clock bound, not the nominal budget, when the wait can overrun by design.
 - **Follow-up:** none.
 

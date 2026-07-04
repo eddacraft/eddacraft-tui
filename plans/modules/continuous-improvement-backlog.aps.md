@@ -4668,7 +4668,7 @@ archive.
 
 ### CIB-174: Align daemon bind-timeout copy with the real ceiling
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** The ensure-failure recovery copy says "the daemon did not become
   ready within 10s" (`ensure.rs:322`, from `bind_timeout.as_secs()`), but an
   in-flight probe can overrun by one `PROBE_TIMEOUT`, making the real ceiling
