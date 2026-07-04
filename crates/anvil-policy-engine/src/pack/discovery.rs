@@ -198,9 +198,21 @@ pub struct LoadedPack {
 /// the workspace root.
 pub fn discover_packs(workspace_root: &Path) -> Result<PackDiscovery, DiscoveryError> {
     let policies_dir = workspace_root.join(POLICIES_SUBDIR);
-    // Nothing installed yet is a normal state, not an error.
-    if !policies_dir.exists() {
-        return Ok(PackDiscovery::default());
+    // Nothing installed yet is a normal state, not an error — but only true
+    // absence qualifies: a broken `.anvil/policies` symlink is surfaced as an
+    // I/O error below (fail-closed; likely tampering or misconfiguration),
+    // never read as "missing".
+    match std::fs::symlink_metadata(&policies_dir) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(PackDiscovery::default());
+        }
+        Err(source) => {
+            return Err(DiscoveryError::Io {
+                path: policies_dir,
+                source,
+            });
+        }
+        Ok(_) => {}
     }
 
     // Workspace-scoped: the policies directory must resolve within the canonical
@@ -249,8 +261,15 @@ pub fn discover_packs(workspace_root: &Path) -> Result<PackDiscovery, DiscoveryE
                 &mut loose_policies,
                 &mut rejected,
             );
+        } else if entry.file_type().is_ok_and(|t| t.is_symlink()) && !path.exists() {
+            // A broken symlink is reported, not silently dropped — per-entry
+            // fail-closed, matching the module's Unresolvable contract.
+            rejected.push(RejectedEntry {
+                path: path.clone(),
+                reason: RejectionReason::Unresolvable,
+            });
         }
-        // Anything else — a non-`.rego` file, a broken symlink — is ignored.
+        // Anything else — a non-`.rego` regular file — is ignored.
     }
 
     packs.sort_by(|a, b| a.id.cmp(&b.id).then_with(|| a.dir.cmp(&b.dir)));
@@ -532,6 +551,34 @@ mod tests {
     // per-entry while a legitimate sibling is still discovered — one tampered
     // entry cannot hide the rest. Unix-only (symlink API).
     #[cfg(unix)]
+    #[cfg(unix)]
+    #[test]
+    fn policy_pack_discovery_broken_policies_dir_symlink_is_io_error() {
+        let root = TempDir::new().expect("root");
+        std::fs::create_dir_all(root.path().join(".anvil")).expect("mkdir .anvil");
+        std::os::unix::fs::symlink(
+            root.path().join("nonexistent-target"),
+            root.path().join(".anvil/policies"),
+        )
+        .expect("symlink");
+        let err = discover_packs(root.path()).expect_err("broken dir symlink fails closed");
+        assert!(matches!(err, DiscoveryError::Io { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn policy_pack_discovery_broken_entry_symlink_is_rejected() {
+        let root = TempDir::new().expect("root");
+        let dir = root.path().join(".anvil/policies");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::os::unix::fs::symlink(dir.join("gone.rego"), dir.join("dangling.rego"))
+            .expect("symlink");
+        let discovery = discover_packs(root.path()).expect("scan succeeds");
+        assert_eq!(discovery.rejected.len(), 1);
+        assert_eq!(discovery.rejected[0].reason, RejectionReason::Unresolvable);
+        assert!(discovery.packs.is_empty());
+    }
+
     #[test]
     fn policy_pack_discovery_symlink_escape_rejected() {
         // An external directory holding a would-be pack manifest.
