@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
+mod adversarial_trends;
 mod attack_regression;
 mod eval;
 mod eval_regression;
@@ -27,6 +28,9 @@ enum PolicyCommand {
     EvalRegression(eval_regression::EvalRegressionArgs),
     /// Run a prompt-attack regression pack and gate on the fail-policy verdict.
     AttackRegression(attack_regression::AttackRegressionArgs),
+    /// Show adversarial probe pass/fail trends by category from the eval
+    /// history.
+    ProbeTrends(adversarial_trends::ProbeTrendsArgs),
     /// List available policies
     List {
         /// Filter by category
@@ -203,6 +207,9 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
         }
         PolicyCommand::AttackRegression(attack_args) => {
             return attack_regression::run(attack_args, global);
+        }
+        PolicyCommand::ProbeTrends(trend_args) => {
+            return adversarial_trends::run(trend_args, global);
         }
         PolicyCommand::List { category, enabled } => {
             let mut policies = policy_catalogue();

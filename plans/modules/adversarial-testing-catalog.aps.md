@@ -66,10 +66,15 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-004: Add adversarial trend reporting
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Surface probe pass/fail trends by category over time.
 - **Expected Outcome:** Teams can spot recurring weak points and regressions.
-- **Validation:** `cargo test -p eddacraft-anvil -- adversarial_trends`
+- **Validation:** `cargo test -p eddacraft-anvil -- adversarial_trends` (green —
+  5 tests). Added `crates/anvil-cli/src/commands/policy/adversarial_trends.rs`:
+  the pure `category_trends` reporting function reads probe (`probe:<category>`)
+  runs from the eval store history, groups by category, and reports each
+  category's chronological pass/fail series and current health, surfaced via a
+  thin `anvil policy probe-trends` command. CLIC-010 help lints stay green.
 - **Dependencies:** ATC-003
 
 ## Execution

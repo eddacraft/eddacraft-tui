@@ -4,7 +4,7 @@
 | ------ | ------------------------------------------------------------------------------------------------ |
 | Source | [../modules/adversarial-testing-catalog.aps.md](../modules/adversarial-testing-catalog.aps.md)   |
 | Task   | ATC — Full module execution                                                                      |
-| Status | In Progress                                                                                       |
+| Status | Done                                                                                             |
 
 ## Prerequisites
 
@@ -40,5 +40,5 @@
 
 ## Completion
 
-- [ ] All checkpoints validated
-- [ ] Work items marked Done in source module
+- [x] All checkpoints validated
+- [x] Work items marked Done in source module
