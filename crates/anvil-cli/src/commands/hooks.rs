@@ -338,6 +338,109 @@ fn ensure_config_hook_support() -> Result<()> {
     bail!("{}", config_hook_support_error(version));
 }
 
+/// Whether the `#!/bin/sh` shebang that anvil's file-mode hooks rely on can
+/// actually be executed in the current git environment (CIB-176).
+///
+/// Activation-installed and `anvil hooks install` file hooks are `#!/bin/sh`
+/// scripts. On a POSIX host `sh` is effectively always present. Under Git for
+/// Windows the bundled MSYS `sh` usually lives beside the git binary — but a
+/// git lacking a bundled `sh` (and no `sh` on PATH) silently never runs the
+/// hooks, so the L3/L4 layer vanishes with no signal. We warn only on a
+/// definitive [`Missing`](HookInterpreterStatus::Missing) so a healthy Git for
+/// Windows layout never trips a false alarm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HookInterpreterStatus {
+    /// A POSIX `sh` was found — file hooks can execute.
+    Available,
+    /// No `sh` was found where one must be for the hooks to run — a
+    /// sh-less git. File hooks are on disk but will never execute.
+    Missing,
+    /// Could not determine (e.g. no git binary to anchor the Git for
+    /// Windows sibling probe, and no `sh` on PATH). Never warned on.
+    Unknown,
+}
+
+/// Core, injectable detection used by [`hook_interpreter_status`]. Kept free
+/// of real environment access so tests can simulate a sh-less git, a healthy
+/// Git for Windows layout, and a POSIX host on any platform.
+///
+/// `windows` selects the probe strategy; `path_entries` are the resolved
+/// `PATH` directories; `git_exe` is the resolved git binary path (used to
+/// anchor the Git for Windows `usr/bin/sh.exe` sibling probe); `exists`
+/// answers whether a candidate path is present on disk.
+fn detect_hook_interpreter(
+    windows: bool,
+    path_entries: &[PathBuf],
+    git_exe: Option<&Path>,
+    exists: &dyn Fn(&Path) -> bool,
+) -> HookInterpreterStatus {
+    if !windows {
+        // POSIX: `/bin/sh` is effectively always present; also honour a
+        // `sh` anywhere on PATH. A POSIX box with no `sh` at all is exotic
+        // enough that we return Unknown rather than false-alarm.
+        if exists(Path::new("/bin/sh")) || path_entries.iter().any(|d| exists(&d.join("sh"))) {
+            return HookInterpreterStatus::Available;
+        }
+        return HookInterpreterStatus::Unknown;
+    }
+
+    // Windows: an `sh.exe` on PATH is enough.
+    if path_entries.iter().any(|d| exists(&d.join("sh.exe"))) {
+        return HookInterpreterStatus::Available;
+    }
+
+    // Git for Windows ships an MSYS `sh` alongside the git binary. Probe the
+    // usual sibling locations relative to the git executable directory:
+    //   <git-exe-dir>/../usr/bin/sh.exe   (cmd/git.exe → usr/bin/sh.exe)
+    //   <git-exe-dir>/../../usr/bin/sh.exe (mingw64/bin/git.exe layout)
+    //   <git-exe-dir>/../bin/sh.exe        (usr/bin next to git-core exec-path)
+    if let Some(git_exe) = git_exe {
+        if let Some(dir) = git_exe.parent() {
+            let candidates = [
+                dir.join("..").join("usr").join("bin").join("sh.exe"),
+                dir.join("..")
+                    .join("..")
+                    .join("usr")
+                    .join("bin")
+                    .join("sh.exe"),
+                dir.join("..").join("bin").join("sh.exe"),
+            ];
+            if candidates.iter().any(|p| exists(p)) {
+                return HookInterpreterStatus::Available;
+            }
+        }
+        // We had a git binary to anchor the sibling probe and still found no
+        // `sh` — a definitive sh-less git.
+        return HookInterpreterStatus::Missing;
+    }
+
+    // No git binary to anchor sibling probing and no `sh` on PATH: cannot say
+    // for certain.
+    HookInterpreterStatus::Unknown
+}
+
+/// Resolve the first `git` (or `git.exe`) on `path_entries`, used to anchor
+/// the Git for Windows `sh.exe` sibling probe.
+fn resolve_git_exe(windows: bool, path_entries: &[PathBuf]) -> Option<PathBuf> {
+    let name = if windows { "git.exe" } else { "git" };
+    path_entries
+        .iter()
+        .map(|d| d.join(name))
+        .find(|p| p.exists())
+}
+
+/// Detect whether the `#!/bin/sh` hook interpreter is available in the live
+/// environment. Reads `PATH` and resolves the git binary, then delegates to
+/// [`detect_hook_interpreter`].
+pub(crate) fn hook_interpreter_status() -> HookInterpreterStatus {
+    let windows = cfg!(windows);
+    let path_entries: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    let git_exe = resolve_git_exe(windows, &path_entries);
+    detect_hook_interpreter(windows, &path_entries, git_exe.as_deref(), &|p| p.exists())
+}
+
 /// Run `git config <args>` inside `workspace_root` and return the captured
 /// stdout. Non-zero exits surface the recorded stderr.
 fn git_config(workspace_root: &Path, args: &[&str]) -> Result<String> {
@@ -875,8 +978,24 @@ pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<b
     // exist AND carry the anvil marker. `install_hook` skips (without error) a
     // pre-existing unmanaged hook, so a `created`/`updated`/`skipped` action does
     // not on its own prove anvil owns the hook — read the disk state back.
-    Ok(is_anvil_managed(&hooks_dir.join("pre-commit"))
-        && is_anvil_managed(&hooks_dir.join("pre-push")))
+    let managed = is_anvil_managed(&hooks_dir.join("pre-commit"))
+        && is_anvil_managed(&hooks_dir.join("pre-push"));
+
+    // CIB-176: the file hooks are `#!/bin/sh` scripts. If this git environment
+    // has no POSIX `sh` (a sh-less Git for Windows), git can never execute
+    // them — so do NOT let the first-run `verify:` block claim L3/L4 coverage.
+    // Only a *definitive* Missing suppresses the claim; Unknown/Available stay
+    // honest so a healthy layout is never penalised.
+    if managed && matches!(hook_interpreter_status(), HookInterpreterStatus::Missing) {
+        tracing::warn!(
+            workspace = %workspace_root.display(),
+            "activation: git hooks installed but no POSIX `sh` interpreter found — \
+             file hooks will not execute in this environment",
+        );
+        return Ok(false);
+    }
+
+    Ok(managed)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1014,6 +1133,20 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 println!("  pre-push:   Runs quality gates (anvil gate)");
                 crate::output::plain::blank();
                 println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
+            }
+
+            // CIB-176: file hooks are `#!/bin/sh` scripts. Warn honestly when
+            // this git environment has no POSIX `sh` to run them, so the user
+            // is not left believing an installed-but-inert hook is protecting
+            // them. Only a definitive Missing warns.
+            if matches!(hook_interpreter_status(), HookInterpreterStatus::Missing) {
+                crate::output::plain::warn(
+                    "No POSIX `sh` interpreter was found on PATH or alongside git. The \
+                     installed file hooks are `#!/bin/sh` scripts and will not execute in \
+                     this environment, so commit/push gates will not run. Install Git for \
+                     Windows (which bundles `sh`) or add `sh` to PATH; on Git 2.54+ you can \
+                     instead use `anvil hooks install --config`.",
+                );
             }
         }
         HooksCommand::Uninstall {
@@ -2082,6 +2215,108 @@ mod tests {
         assert_eq!(json["third_party_managers"][1], "lefthook");
         assert_eq!(json["foreign_config_entries"], 2);
         assert_eq!(json["core_hooks_path"], ".my-hooks");
+    }
+
+    // ----------------- CIB-176 (sh-less git detection) -----------------
+
+    /// A truthy `exists` closure over a fixed allow-list of present paths,
+    /// so the detector can be driven without touching the real filesystem.
+    fn present(paths: &[&str]) -> impl Fn(&Path) -> bool + use<> {
+        let owned: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+        move |p: &Path| owned.iter().any(|q| q == p)
+    }
+
+    /// POSIX host: `/bin/sh` present → Available. This is the unix-pass case
+    /// the live `hook_interpreter_status()` hits on every dev/CI box.
+    #[test]
+    fn hook_interpreter_unix_with_bin_sh_is_available() {
+        let exists = present(&["/bin/sh"]);
+        assert_eq!(
+            detect_hook_interpreter(false, &[], None, &exists),
+            HookInterpreterStatus::Available,
+        );
+    }
+
+    /// POSIX host without `/bin/sh` but a `sh` on PATH still resolves.
+    #[test]
+    fn hook_interpreter_unix_with_path_sh_is_available() {
+        let path = vec![PathBuf::from("/usr/local/bin")];
+        let exists = present(&["/usr/local/bin/sh"]);
+        assert_eq!(
+            detect_hook_interpreter(false, &path, None, &exists),
+            HookInterpreterStatus::Available,
+        );
+    }
+
+    /// The live detector on this (POSIX) host must report Available — the
+    /// `#!/bin/sh` hooks really can run here.
+    #[cfg(unix)]
+    #[test]
+    fn hook_interpreter_status_live_is_available_on_unix() {
+        assert_eq!(hook_interpreter_status(), HookInterpreterStatus::Available);
+    }
+
+    /// Simulated sh-less Git for Windows: a real git binary is present to
+    /// anchor the sibling probe, but no `sh.exe` exists anywhere → Missing.
+    /// This is the definitive case the install/doctor surfaces warn on.
+    #[test]
+    fn hook_interpreter_windows_sh_less_git_is_missing() {
+        let path = vec![PathBuf::from(r"C:\Windows\System32")];
+        let git_exe = PathBuf::from(r"C:\Program Files\Git\cmd\git.exe");
+        // Only the git binary exists — no sh.exe on PATH or beside git.
+        let exists = present(&[r"C:\Program Files\Git\cmd\git.exe"]);
+        assert_eq!(
+            detect_hook_interpreter(true, &path, Some(&git_exe), &exists),
+            HookInterpreterStatus::Missing,
+        );
+    }
+
+    /// Healthy Git for Windows layout: `sh.exe` sits at the standard
+    /// `<git>/cmd/../usr/bin/sh.exe` sibling location → Available, no false
+    /// alarm.
+    #[test]
+    fn hook_interpreter_windows_healthy_git_for_windows_is_available() {
+        let git_exe = PathBuf::from(r"C:\Program Files\Git\cmd\git.exe");
+        let sibling = git_exe
+            .parent()
+            .unwrap()
+            .join("..")
+            .join("usr")
+            .join("bin")
+            .join("sh.exe");
+        let sibling_str = sibling.to_string_lossy().into_owned();
+        let git_str = git_exe.to_string_lossy().into_owned();
+        let exists = present(&[git_str.as_str(), sibling_str.as_str()]);
+        assert_eq!(
+            detect_hook_interpreter(true, &[], Some(&git_exe), &exists),
+            HookInterpreterStatus::Available,
+        );
+    }
+
+    /// Windows with `sh.exe` on PATH is Available regardless of the git layout.
+    /// Build the expected path with `join` (as the detector does) so the test
+    /// is host-agnostic — on a POSIX host `join` uses `/`, not `\`.
+    #[test]
+    fn hook_interpreter_windows_sh_on_path_is_available() {
+        let dir = PathBuf::from(r"C:\tools\bin");
+        let sh = dir.join("sh.exe");
+        let sh_str = sh.to_string_lossy().into_owned();
+        let exists = present(&[sh_str.as_str()]);
+        assert_eq!(
+            detect_hook_interpreter(true, &[dir], None, &exists),
+            HookInterpreterStatus::Available,
+        );
+    }
+
+    /// Windows with no git binary to anchor sibling probing and no `sh` on
+    /// PATH is Unknown — never a false Missing warning.
+    #[test]
+    fn hook_interpreter_windows_no_git_no_sh_is_unknown() {
+        let exists = present(&[]);
+        assert_eq!(
+            detect_hook_interpreter(true, &[], None, &exists),
+            HookInterpreterStatus::Unknown,
+        );
     }
 
     /// `hook.<event>.enabled` semantics: Git's default when the key is

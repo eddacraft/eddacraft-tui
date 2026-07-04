@@ -4686,7 +4686,7 @@ archive.
 
 ### CIB-176: Detect sh-less git before relying on `#!/bin/sh` hooks
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Activation-installed hooks are `#!/bin/sh` scripts
   (`hooks.rs:72-92`). Under standard Git for Windows this works (bundled
   MSYS sh), but a git lacking a bundled `sh` silently never executes them —

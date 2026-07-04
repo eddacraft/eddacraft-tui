@@ -12,7 +12,8 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::commands::hooks::{
-    config_hooks_enabled, list_config_hook_commands, resolve_file_mode_hook_paths,
+    HookInterpreterStatus, config_hooks_enabled, hook_interpreter_status,
+    list_config_hook_commands, resolve_file_mode_hook_paths,
 };
 use crate::commands::protection_claim_section;
 use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
@@ -116,6 +117,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_anvil_dir_writable(),
         check_plans_dir(),
         check_hooks_installed(),
+        check_hook_interpreter(),
         check_registry_patterns_compile(),
         check_project_id(),
         check_state_boundary(),
@@ -592,6 +594,74 @@ fn check_hooks_installed() -> DiagnosticCheck {
                         .to_string(),
                 ),
             }
+        },
+    }
+}
+
+/// CIB-176: file-mode git hooks are `#!/bin/sh` scripts. Under a git that
+/// lacks a POSIX `sh` (a sh-less Git for Windows, no `sh` on PATH) they are on
+/// disk but silently never execute — the commit/push protection layer vanishes
+/// with no signal. Surface that honestly. Skipped when no file-mode hook is
+/// installed (there is nothing whose interpreter could be missing), and only a
+/// definitive [`HookInterpreterStatus::Missing`] warns so a healthy Git for
+/// Windows layout never trips a false alarm.
+fn check_hook_interpreter() -> DiagnosticCheck {
+    check_hook_interpreter_at(Path::new("."), hook_interpreter_status())
+}
+
+fn check_hook_interpreter_at(root: &Path, status: HookInterpreterStatus) -> DiagnosticCheck {
+    let file_hooks_installed = ["pre-commit", "pre-push"].iter().any(|event| {
+        resolve_file_mode_hook_paths(root, event)
+            .iter()
+            .any(|p| p.exists())
+    });
+
+    if !file_hooks_installed {
+        return DiagnosticCheck {
+            name: "hook-interpreter".to_string(),
+            category: "Hooks".to_string(),
+            status: CheckStatus::Skipped,
+            message: "no file-mode git hook installed — nothing to interpret".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    match status {
+        HookInterpreterStatus::Available | HookInterpreterStatus::Unknown => DiagnosticCheck {
+            name: "hook-interpreter".to_string(),
+            category: "Hooks".to_string(),
+            status: CheckStatus::Pass,
+            message: "file-mode hook interpreter (`sh`) available".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        },
+        HookInterpreterStatus::Missing => DiagnosticCheck {
+            name: "hook-interpreter".to_string(),
+            category: "Hooks".to_string(),
+            status: CheckStatus::Warn,
+            message: "file-mode hooks installed but no `sh` interpreter found — they will not run"
+                .to_string(),
+            details: Some(
+                "Your git installation has no bundled POSIX `sh` and none is on PATH, so the \
+                 `#!/bin/sh` commit/push hooks are inert — the gate never runs."
+                    .to_string(),
+            ),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: "Install Git for Windows (which bundles `sh`) or add `sh` to PATH so the \
+                          file hooks can execute. On Git 2.54+ you can instead switch to \
+                          config-mode hooks with `anvil hooks install --config`, which need no \
+                          `sh` interpreter."
+                    .to_string(),
+                command: Some("anvil hooks install --config".to_string()),
+                doc_url: Some(
+                    "https://github.com/eddacraft/anvil-001/blob/main/docs/guides/git-hook-compatibility.md"
+                        .to_string(),
+                ),
+            },
         },
     }
 }
@@ -2300,6 +2370,79 @@ mod tests {
     }
 
     // --- Check structure validation ---
+
+    // --- CIB-176: hook-interpreter check ---
+
+    /// No file-mode hook installed → the check is Skipped (nothing whose
+    /// interpreter could be missing).
+    #[test]
+    fn hook_interpreter_check_skipped_without_installed_hooks() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".git/hooks")).unwrap();
+        let check = check_hook_interpreter_at(tmp.path(), HookInterpreterStatus::Missing);
+        assert_eq!(check.name, "hook-interpreter");
+        assert_eq!(check.status, CheckStatus::Skipped);
+    }
+
+    /// A file-mode hook is installed and `sh` is missing (simulated sh-less
+    /// git) → Warn with remediation copy pointing at the config-mode escape.
+    #[test]
+    fn hook_interpreter_check_warns_on_sh_less_git_with_installed_hook() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hooks = tmp.path().join(".git/hooks");
+        std::fs::create_dir_all(&hooks).unwrap();
+        std::fs::write(hooks.join("pre-commit"), "#!/bin/sh\nexit 0\n").unwrap();
+
+        let check = check_hook_interpreter_at(tmp.path(), HookInterpreterStatus::Missing);
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check.message.contains("will not run"),
+            "message must say the hooks will not run: {}",
+            check.message
+        );
+        assert!(
+            check
+                .remediation
+                .command
+                .as_deref()
+                .is_some_and(|c| c.contains("--config")),
+            "remediation should offer the config-mode escape hatch",
+        );
+    }
+
+    /// A file-mode hook is installed and `sh` is available (the unix-pass
+    /// path) → Pass.
+    #[test]
+    fn hook_interpreter_check_passes_when_interpreter_available() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hooks = tmp.path().join(".git/hooks");
+        std::fs::create_dir_all(&hooks).unwrap();
+        std::fs::write(hooks.join("pre-commit"), "#!/bin/sh\nexit 0\n").unwrap();
+
+        let check = check_hook_interpreter_at(tmp.path(), HookInterpreterStatus::Available);
+        assert_eq!(check.status, CheckStatus::Pass);
+    }
+
+    /// Unknown must not raise a false alarm on an installed hook — it Passes.
+    #[test]
+    fn hook_interpreter_check_unknown_does_not_false_alarm() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hooks = tmp.path().join(".git/hooks");
+        std::fs::create_dir_all(&hooks).unwrap();
+        std::fs::write(hooks.join("pre-commit"), "#!/bin/sh\nexit 0\n").unwrap();
+
+        let check = check_hook_interpreter_at(tmp.path(), HookInterpreterStatus::Unknown);
+        assert_eq!(check.status, CheckStatus::Pass);
+    }
+
+    #[test]
+    fn run_all_checks_includes_hook_interpreter_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "hook-interpreter"),
+            "hook-interpreter must be registered in run_all_checks",
+        );
+    }
 
     #[test]
     fn all_checks_have_non_empty_names() {

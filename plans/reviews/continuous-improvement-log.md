@@ -1953,4 +1953,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** The item's validation string `cargo test -p eddacraft-anvil-kernel watcher` is a name filter that matches none of the new `failure_guidance_*` test names; ran `--test watcher_integration` to exercise them.
 - **Improvement:** none.
 - **Follow-up:** capacity.rs Linux preflight intentionally untouched (existing tests cover it).
+### 2026-07-04 — claude (autonomous)
+
+- **Task:** CIB-176 — detect sh-less git before relying on `#!/bin/sh` hooks. Activation-installed and `anvil hooks install` file hooks are `#!/bin/sh` scripts; under a git lacking a bundled/PATH `sh` (a sh-less Git for Windows) they are on disk but never execute, so the L3/L4 layer vanishes with no signal.
+- **Outcome:** Added an injectable `detect_hook_interpreter(windows, path_entries, git_exe, exists)` core in `hooks.rs` returning `HookInterpreterStatus::{Available,Missing,Unknown}` — POSIX checks `/bin/sh`+PATH; Windows probes PATH `sh.exe` then Git-for-Windows `usr/bin/sh.exe` siblings anchored on the git binary, warning only on a definitive Missing. Wired into `install_activation_hooks_silent` (returns `false` on Missing so the `verify:` L3/L4 line stays honest, CIB-164) and the file-mode `hooks install` arm (honest warning). Added a `hook-interpreter` doctor check (Warn+UK remediation pointing at `--config`, Skipped when no file hook installed, Pass on Available/Unknown). TDD: core unit tests for sh-less simulation, healthy Git-for-Windows layout, and unix pass proven red first; doctor check tests for skipped/warn/pass; existing hooks_config_mode.rs + doctor_missing_git.rs stay green.
+- **Worked:** Splitting a pure injectable core from the environment-reading wrapper let the Windows sh-less and Git-for-Windows-healthy paths be tested deterministically on a POSIX CI host.
+- **Failed:** none.
+- **Friction:** Windows path literals compared against `PathBuf::join` output mismatched on a POSIX host (join uses `/`, not `\`); building the expected path via `join` fixed it. Rust 2024 `impl Trait` lifetime capture needed `+ use<>` on a test helper.
+- **Improvement:** When simulating another OS's path layout in a cross-platform test, construct expected paths with the same `Path::join` the code under test uses rather than backslash string literals.
+- **Follow-up:** none.
 
