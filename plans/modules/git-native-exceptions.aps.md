@@ -112,18 +112,18 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** A downstream operator knows to commit the store, why a worktree changed, and how to migrate.
 - **Validation:** `pnpm docs:check` (docs/guides/policy-exceptions.md; aps/adr surface failures pre-exist on main)
 - **Dependencies:** EXCEPT-004
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3156
 
 ### EXCEPT-009: Capsule inclusion
 - **Intent:** Applied exceptions are collected into the capsule and re-verified during `anvil capsule verify` (scope/expiry/revocation). 2026-07-04: "applied" is approximated by "active at collect time" — the faithful relied-upon subset needs the gate's applied-exception record joined against a diagnostics source, and capsule create has no diagnostics source wired yet (`diagnostics.sarif` is an empty document for the same reason). The approximation is conservative for verification: a superset of anything the gate could have applied is collected and re-verified, so a since-revoked or expiring grant still degrades/blocks verify. Tightening to the true applied subset follows the create-side diagnostics wiring.
 - **Expected Outcome:** A capsule names the exceptions a change relied on; an expired/revoked one degrades or blocks verification.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- exceptions`
 - **Dependencies:** EXCEPT-005, GITGOV-009
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3155
 
 ### EXCEPT-010: Gate store trust model (2026-07-04 council intake)
-- **Intent:** Close the trust-model gaps the EXCEPT-006 council flagged: (a) decide gate store provenance — the L4 gate loads `anvil/exceptions/store.json` from the live worktree (same pattern as `anvil/policy.yml`), so an uncommitted local grant satisfies the local pre-push gate while CI/`l4-validate` sees only committed grants, and a range validation applies one store snapshot to every commit in the range; decide worktree- vs commit-tree-scoped loading and bind the CI semantics explicitly. (b) Make the OPA evaluator path (`is_suppressed_at`) consult `ExceptionVerdict` so unattributed grants stop clean-suppressing there (they downgrade at the L4 gate but suppress silently in the evaluator today — pre-EXCEPT-006 behaviour, documented in-code). (c) Evaluate scope-breadth nudges: empty/`**` patterns are repo-wide and non-expiring grants are permanent; consider authoring-time warnings or default expiry.
-- **Expected Outcome:** A recorded provenance decision enforced by the gate loader; evaluator and gate agree on unattributed-grant handling; overly broad grants are visible at authoring time.
-- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` and `cargo test -p eddacraft-anvil --bin anvil -- l4_engine`
+- **Intent:** Decide gate store provenance — the L4 gate loads `anvil/exceptions/store.json` from the live worktree (same pattern as `anvil/policy.yml`), so an uncommitted local grant satisfies the local pre-push gate while CI/`l4-validate` sees only committed grants, and a range validation applies one store snapshot to every commit in the range; decide worktree- vs commit-tree-scoped loading and bind the CI semantics explicitly. 2026-07-04 scope reduction: the item's original (b) — make the OPA evaluator's `is_suppressed_at` consult `ExceptionVerdict` — was mooted by ADR-098 PR-C deleting the OPA-subprocess evaluator; `is_suppressed_at`/`filter_suppressed` have no production callers (dead-code disposition belongs to the OPAE rebuild). Original (c) — scope-breadth nudges — shipped via EXCEPT-004's grant-time warnings (repo-wide scope, missing expiry).
+- **Expected Outcome:** A recorded provenance decision (ADR or decision-log entry) enforced by the gate loader, with CI semantics bound explicitly.
+- **Validation:** decision record per `docs/guides/adr-process.md` + `cargo test -p eddacraft-anvil --bin anvil -- l4_engine`
 - **Dependencies:** EXCEPT-006
-- **Status:** Proposed
+- **Status:** Proposed (owner decision required — provenance is an ADR-level trust-model choice)
