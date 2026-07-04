@@ -208,10 +208,19 @@ fn migrate_command(root: &Path, global: &GlobalArgs) -> Result<()> {
     let outcome = ExceptionStore::migrate(root)
         .context("migrate legacy exception store into the tracked tree")?;
     if global.json {
+        if let MigrateOutcome::SkippedReadOnly { detail } = &outcome {
+            // Explicit-write contract: a migration that did not persist
+            // must not exit zero; the error (with detail) travels on
+            // stderr, keeping stdout JSON-pure.
+            bail!(
+                "exception store migration skipped (read-only worktree or permission \
+                 misconfiguration): {detail}"
+            );
+        }
         let token = match &outcome {
             MigrateOutcome::Migrated => "migrated",
             MigrateOutcome::NothingToDo => "nothing-to-do",
-            MigrateOutcome::SkippedReadOnly { .. } => "skipped-read-only",
+            MigrateOutcome::SkippedReadOnly { .. } => unreachable!("handled above"),
         };
         crate::output::json::print(&serde_json::json!({ "outcome": token }))?;
         return Ok(());
@@ -231,6 +240,7 @@ fn migrate_command(root: &Path, global: &GlobalArgs) -> Result<()> {
             } else {
                 crate::output::plain::dim("re-run with --verbose for the underlying error");
             }
+            bail!("exception store migration skipped");
         }
     }
     Ok(())
@@ -389,7 +399,15 @@ fn run_revoke(root: &Path, id: &str, reason: &str, revoked_by: String) -> Result
         reason: reason.to_string(),
     };
     let mut applied = false;
+    let mut ambiguous = false;
     let write = ExceptionStore::update(root, |store| {
+        // Re-check ambiguity under the lock: a concurrent writer could
+        // have introduced a duplicate id since the pre-check, and a
+        // first-match revoke would half-kill it.
+        if store.exceptions.iter().filter(|ex| ex.id == id).count() > 1 {
+            ambiguous = true;
+            return;
+        }
         if let Some(ex) = store
             .exceptions
             .iter_mut()
@@ -400,6 +418,12 @@ fn run_revoke(root: &Path, id: &str, reason: &str, revoked_by: String) -> Result
         }
     })
     .context("exception store write refused")?;
+    if ambiguous {
+        bail!(
+            "multiple records share id {id} — the store is ambiguous; fix \
+             anvil/exceptions/store.json before revoking"
+        );
+    }
     if !applied && write == WriteOutcome::Written {
         bail!("exception {id} changed concurrently; re-run the revocation");
     }

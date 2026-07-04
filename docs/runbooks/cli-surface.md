@@ -318,14 +318,14 @@ store.
 
 **Subcommands:**
 
-| Subcommand    | Description                                                              |
-| ------------- | ------------------------------------------------------------------------ |
-| `grant`       | Grant a scoped, attributed exception. Refuses unattributed records.      |
-| `revoke <id>` | Revoke a grant, preserving the audit trail (soft delete).                |
-| `list`        | List exceptions with their verdicts.                                     |
-| `show <id>`   | Show a single exception in full.                                         |
-| `verify`      | List plus per-verdict summary counts; always exits zero.                 |
-| `migrate`     | Copy the legacy local store into the tracked store (explicit, one-time). |
+| Subcommand                    | Description                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `grant`                       | Grant a scoped, attributed exception. Refuses unattributed records.               |
+| `revoke <id> --reason <TEXT>` | Revoke a grant, preserving the audit trail (soft delete); `--reason` is required. |
+| `list`                        | List exceptions with their verdicts.                                              |
+| `show <id>`                   | Show a single exception in full.                                                  |
+| `verify`                      | List plus per-verdict summary counts; always exits zero.                          |
+| `migrate`                     | Copy the legacy local store into the tracked store (explicit, one-time).          |
 
 **`grant` flags:**
 
