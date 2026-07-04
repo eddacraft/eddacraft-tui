@@ -25,6 +25,7 @@ pub mod builtins;
 pub mod context;
 pub mod coverage;
 pub mod determinism;
+pub mod guidance;
 pub mod input;
 pub mod io_risk;
 pub mod pack;
@@ -34,6 +35,7 @@ pub mod trace;
 
 pub use coverage::{Coverage, FileCoverage};
 pub use determinism::{Builtin, BuiltinError, DeterminismClass};
+pub use guidance::{CodeContext, PolicyGuidance, PolicySource, Span};
 pub use input::PolicyInput;
 pub use result::{EvalReport, Finding, PostProcessOptions, ResultError, Severity};
 pub use trace::Trace;

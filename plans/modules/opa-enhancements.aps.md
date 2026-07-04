@@ -169,11 +169,21 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-005: Remediation-first policy guidance contract
 
-- **Status:** Proposed
+- **Status:** Done — `crates/anvil-policy-engine/src/guidance.rs` adds the unified
+  `PolicyGuidance` output shape (rule id, closed `PolicySource` enum, rationale,
+  changed-code `CodeContext`/`Span`, remediation, and static-but-parameterised
+  exception guidance naming `anvil exception grant`). One vocabulary over all
+  three producers via `From<&AssertionGuidance>`, `from_risk_guidance`, and
+  `from_pack_finding`; deterministic context ordering, serde round-trip, UK
+  spelling, no blocking flag (posture stays with OPAE-007), no exceptions-store
+  wiring. Validated by `cargo test -p eddacraft-anvil-policy-engine --
+  policy_guidance_contract` (11 tests) and the full crate suite.
 - **Intent:** Standardise policy failure output so policy breaches are actionable.
 - **Expected Outcome:** Results include rule id, policy source, rationale,
   changed-code context, remediation, and exception guidance.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_guidance_contract`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_guidance_contract`
+  (drift correction: the item previously cited the doomed `-p eddacraft-anvil-policy`
+  OPA crate; the guidance contract lives in the regorus engine crate)
 - **Dependencies:** OPAE-003, CPOL-003
 - **Confidence:** high
 
