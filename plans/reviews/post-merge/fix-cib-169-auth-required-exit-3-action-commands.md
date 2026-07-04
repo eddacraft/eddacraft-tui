@@ -1,6 +1,6 @@
 # Post-merge: fix-cib-169-auth-required-exit-3-action-commands
 
-PR: <!-- filled at PR creation -->
+PR: #3180
 Branch: `fix/cib-169-auth-required-exit-3-action-commands`
 APS: CIB-169 (module `continuous-improvement-backlog`)
 Merged: <!-- filled by cleanup agent -->
