@@ -4603,25 +4603,14 @@ archive.
 
 ### CIB-169: Reconcile `anvil start`'s exit-0-on-auth-required with `&&` chaining
 
-- **Status:** In Progress
-- **Owner decision (2026-07-04):** auth-required propagates a distinct
-  non-zero exit (exit 3) on action commands, superseding issue #1822's
-  exit-0 mapping there; consistent with the MCP-install non-zero rationale.
-  A breaking change in beta, so the `--help` exit-code table and CHANGELOG
-  must call it out. No `--strict` flag. Read-only/status surfaces keep
-  their existing contract.
-- **Intent:** `anvil start && deploy-assuming-protection` currently advances
-  past a completely unactivated repo because the auth wall exits 0
-  (`main.rs:523-524`).
-- **Expected Outcome:** Auth-required exits 3 on `start` (and sibling action
-  commands sharing the wall), the exit-code table in `--help` and the docs
-  are updated, and the auth-required message stays actionable.
-- **Files:** `crates/anvil-cli/src/main.rs`, help/exit-code docs.
-- **Validation:** `cargo test -p eddacraft-anvil auth` exit-code assertions;
-  scripted `anvil start && echo reached` transcript matching the decided
-  contract.
-- **Identified From:** User-journey pass 2026-07-04 (finding 8).
-- **Confidence:** high — decided 2026-07-04; the remap is a single site.
+- **Status:** Merged 2026-07-04 via PR #3180
+- **Summary:** Auth-required now propagates a distinct exit 3 on action
+  commands (`anvil start` and siblings sharing the wall), superseding issue
+  #1822's exit-0 mapping so `anvil start && deploy` no longer advances past
+  an unactivated repo; read-only/status surfaces keep their contract. The
+  `--help` exit-code table and CHANGELOG call out the beta breaking change;
+  no `--strict` flag. Covered by `cargo test -p eddacraft-anvil auth`
+  exit-code assertions.
 
 ### CIB-170: Make showcase findings unmistakably examples in discovery
 
