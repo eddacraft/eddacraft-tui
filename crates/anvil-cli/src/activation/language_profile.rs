@@ -538,23 +538,33 @@ fn is_anvil_owned_artifact(path: &Path, root: &Path) -> bool {
     let Ok(rel) = path.strip_prefix(root) else {
         return false;
     };
-    let components: Vec<&str> = rel
+    // Bail on any non-plain or non-UTF8 component rather than skipping it:
+    // dropping segments could collapse an unrelated path onto an anvil
+    // pattern, and "never silently drop user source" wins over excluding
+    // an exotic path.
+    let components: Vec<&str> = match rel
         .components()
-        .filter_map(|c| match c {
+        .map(|c| match c {
             Component::Normal(s) => s.to_str(),
             _ => None,
         })
-        .collect();
+        .collect::<Option<Vec<&str>>>()
+    {
+        Some(components) => components,
+        None => return false,
+    };
 
     // Fixed root-anchored artefacts:
     // - `.anvilrc` / `.anvil-mcp-fallback.json` — root-level single files.
-    // - `anvil/` — the root-level directory activation creates (a nested
-    //   `vendor/anvil/` is not root-anchored and stays classified).
+    // - `anvil/` — the root-level directory activation creates; the pattern
+    //   requires a second component so a root-level *file* named `anvil`
+    //   stays classified (a nested `vendor/anvil/` is not root-anchored and
+    //   stays classified too).
     // - installed anvil CI workflow files.
     let fixed = matches!(
         components.as_slice(),
         [".anvilrc" | ".anvil-mcp-fallback.json"]
-            | ["anvil", ..]
+            | ["anvil", _, ..]
             | [".github", "workflows", "anvil.yml" | "anvil-audit.yml"]
     );
     // Root-level `.anvil.<ext>` config (e.g. `.anvil.toml`). The `.anvil.`
@@ -962,6 +972,39 @@ mod tests {
             profile.unclassified_files_seen, 1,
             "a non-anvil workflow (ci.yml) must still count: {profile:?}"
         );
+    }
+
+    #[test]
+    fn root_level_file_named_anvil_is_not_excluded() {
+        // CIB-178 guard: the `anvil/` pattern targets the root *directory*
+        // activation creates; a root-level extensionless file named `anvil`
+        // (e.g. a user script or a copied binary) is user content.
+        let dir = TempDir::new().unwrap();
+        assert!(!is_anvil_owned_artifact(
+            &dir.path().join("anvil"),
+            dir.path()
+        ));
+        assert!(is_anvil_owned_artifact(
+            &dir.path().join("anvil/project.json"),
+            dir.path()
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_component_never_collapses_onto_an_anvil_pattern() {
+        // CIB-178 guard: an un-decodable path segment must make the matcher
+        // bail (path stays classified), not be skipped — skipping could
+        // collapse `anvil-ish/<non-utf8>/…` style paths onto an owned pattern.
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+        let dir = TempDir::new().unwrap();
+        let weird = dir
+            .path()
+            .join(".github")
+            .join(OsStr::from_bytes(b"\xff\xfe"))
+            .join("workflows/anvil.yml");
+        assert!(!is_anvil_owned_artifact(&weird, dir.path()));
     }
 
     #[test]
