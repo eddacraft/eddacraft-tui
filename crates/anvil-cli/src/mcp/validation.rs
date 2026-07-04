@@ -10,7 +10,11 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anvil_intercept::enforcement::{EnforcementPipeline, ProposedChange};
-#[cfg(unix)]
+// MLP2-075: the Windows branch of `query_protection_claim` resolves the
+// named pipe via `ipc::resolve_pipe_name`, so this import must cover
+// windows too — a unix-only gate fails E0433 on the msvc cross legs
+// (which Linux CI cannot see).
+#[cfg(any(unix, windows))]
 use anvil_intercept::ipc;
 // MLP2-075: also consumed by the Windows pipe client below.
 #[cfg(any(unix, windows))]

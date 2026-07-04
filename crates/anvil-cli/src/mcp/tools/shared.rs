@@ -262,32 +262,27 @@ fn handle_real_path(handle: &File) -> Option<PathBuf> {
 
 /// macOS exposes the path backing an open fd via `fcntl(F_GETPATH)`, the
 /// platform analogue of Linux `/proc/self/fd`.
+///
+/// Goes through `nix`'s safe `F_GETPATH` wrapper (which owns the
+/// `MAXPATHLEN` buffer handling) rather than a raw `libc::fcntl` call:
+/// the workspace forbids `unsafe_code`, so the original hand-rolled
+/// binding could never compile on this target — caught by the Cross
+/// (x86_64/aarch64-apple-darwin) legs, not by Linux CI.
 #[cfg(target_os = "macos")]
 fn handle_real_path(handle: &File) -> Option<PathBuf> {
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt as _;
-    use std::os::unix::io::AsRawFd as _;
+    use nix::fcntl::{FcntlArg, fcntl};
 
-    // F_GETPATH writes a NUL-terminated path of at most `MAXPATHLEN`
-    // (== PATH_MAX == 1024) bytes into the caller-provided buffer.
-    let mut buf = vec![0_u8; libc::PATH_MAX as usize];
-    // SAFETY: `buf` is `PATH_MAX` bytes and stays live for the call; the fd
-    // is valid for the lifetime of `handle`. F_GETPATH only writes within
-    // the buffer and NUL-terminates.
-    let rc = unsafe {
-        libc::fcntl(
-            handle.as_raw_fd(),
-            libc::F_GETPATH,
-            buf.as_mut_ptr().cast::<libc::c_char>(),
-        )
-    };
-    if rc != 0 {
-        tracing::warn!("fcntl(F_GETPATH) failed; falling back to O_NOFOLLOW-only containment");
-        return None;
+    let mut path = PathBuf::new();
+    match fcntl(handle, FcntlArg::F_GETPATH(&mut path)) {
+        Ok(_) => Some(path),
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "fcntl(F_GETPATH) failed; falling back to O_NOFOLLOW-only containment"
+            );
+            None
+        }
     }
-    let nul = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-    buf.truncate(nul);
-    Some(PathBuf::from(OsString::from_vec(buf)))
 }
 
 /// Platforms without a fd→path primitive wired: rely on `O_NOFOLLOW`
