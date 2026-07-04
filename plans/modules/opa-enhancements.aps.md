@@ -189,7 +189,18 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-006: Save-time/pre-write policy input adapter
 
-- **Status:** Proposed
+- **Status:** Done — `crates/anvil-policy-engine/src/prewrite.rs` adds
+  `PrewriteInput::from_parts` (deterministic, no clock/fs/env per ADR-040 D-2)
+  assembling changed paths + kinds (reusing `context::ChangedPath`), workflow
+  phase, config pairs, and a minimal additive-friendly `GraphFacts` (per-path
+  boundaries + dependent counts). It projects into BOTH `PolicyInput`
+  (`to_policy_input`) and `AssertionContext` (`to_assertion_context`) from one
+  normalised source — the projections are proven to agree on changed paths. A
+  `PrewriteBudget` carries the fail-open eval budget through to
+  `EngineConfig::eval_timeout` (AD-5: timeout degrades to warn in the
+  enforcement layer, not here). Validated by
+  `cargo test -p eddacraft-anvil-policy-engine -- policy_prewrite_input`
+  (9 tests) and the full crate suite (164 passing).
 - **Intent:** Build the deterministic policy input needed for changed-code policy
   evaluation at save-time/pre-write boundaries.
 - **Expected Outcome:** Policy evaluation can consume changed paths, graph facts,
@@ -200,7 +211,9 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   `daemon_dep_boundary.rs` forbids `regorus`/`anvil-policy*` on the daemon.
   Pre-write evaluation carries a tight fail-open budget (timeout degrades to
   warn + log, never blocks the write).
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_prewrite_input`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_prewrite_input`
+  (drift correction: the item previously cited the doomed `-p eddacraft-anvil-policy`
+  OPA crate; the adapter lives in the regorus engine crate)
 - **Dependencies:** OPAE-003, CPOL-002, POLRESET-004
 - **Confidence:** medium
 
