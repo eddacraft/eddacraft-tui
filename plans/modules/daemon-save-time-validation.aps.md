@@ -1200,7 +1200,21 @@ requirement). Architecture decided by
 
 #### DSV-048: CLI `anvil watch --save-time-driver` headless mode
 
-- **Status:** In Progress (2026-07-04)
+- **Status:** Merged 2026-07-04 via PR #3186
+- **Progress (2026-07-04, delivery):** shipped as designed plus review
+  hardening: new `crates/anvil-cli/src/commands/watch_driver.rs` (child-owned
+  `DriverLog` — append + Windows-safe remove-then-rename rotation to `.1` at
+  1 MiB; log-path resolution `ANVIL_SAVE_TIME_DRIVER_LOG` → runtime-dir
+  default mirroring the daemon PID-file precedence; leaf+SHA-256-prefix log
+  naming), `WatchOutputMode::Driver` (headless regardless of TTY),
+  `watch_daemon_offer_applies` gate (driver never offers/ensures a daemon),
+  `DispatcherInner.driver_log` verdict sink with one-line stderr breadcrumb.
+  Argv contract enforced at the clap layer (`--worktree` mutually required;
+  `--action`/`--file`/`--patterns`/`--exclude`/`--plans`/`--source`/`--all`
+  conflict). Worktree canonicalised before the log id is derived. 10 new
+  `watch_save_time_driver*` tests; live-daemon E2E deferred to DSV-051 (local
+  smoke blocked by the beta licence wall, exit 3). Post-merge plan:
+  [`reviews/post-merge/feat-dsv-048-save-time-driver.md`](../reviews/post-merge/feat-dsv-048-save-time-driver.md).
 - **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 2;
   design spec §Spawn shape.
 - **Intent:** Provide a stable, headless entrypoint the supervisor can spawn without
@@ -1333,5 +1347,5 @@ requirement). Architecture decided by
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
-| C — Headless background driver | 6 | 1/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-047..051 Ready cut-line) | In Progress |
-| **Total** | **26** | **21/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
+| C — Headless background driver | 6 | 2/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047/049/050/051 Ready) | In Progress |
+| **Total** | **26** | **22/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
