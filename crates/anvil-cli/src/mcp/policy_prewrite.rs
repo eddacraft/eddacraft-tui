@@ -90,6 +90,11 @@ pub(crate) const POLICY_ENFORCEMENT_ENV: &str = "ANVIL_POLICY_ENFORCEMENT";
 /// evaluate identically on both off-daemon surfaces.
 const POLICY_QUERY: &str = "data.anvil.policies";
 
+/// Per-member source cap on the pre-write path (1 MiB, matching the gate's
+/// per-policy cap): an oversized member degrades fail-open rather than
+/// stalling the pass between deadline checks with an unbounded read.
+const PREWRITE_MAX_POLICY_BYTES: u64 = 1024 * 1024;
+
 /// The outcome of a pre-write policy evaluation: the routed enforcement
 /// decision plus the diagnostics to surface. `decision` is
 /// [`ControlDecision::Allow`] and `diagnostics` is empty when policy is
@@ -352,6 +357,23 @@ fn evaluate_pack(
             return PackEval::Truncated;
         }
         let member_path = pack.pack.dir.join(&entry.path);
+        // Bounded read: decide from metadata before reading so a huge member
+        // cannot stall the pass between deadline checks (fail-open).
+        if let Ok(meta) = std::fs::metadata(&member_path)
+            && meta.len() > PREWRITE_MAX_POLICY_BYTES
+        {
+            return PackEval::Findings(vec![degraded_record(
+                pack_id,
+                changed_path,
+                &format!(
+                    "policy `{}` exceeds the {} KiB pre-write size cap ({} bytes); \
+                         failing open — evaluate it via `anvil gate` instead",
+                    entry.metadata.id,
+                    PREWRITE_MAX_POLICY_BYTES / 1024,
+                    meta.len()
+                ),
+            )]);
+        }
         let source = match std::fs::read_to_string(&member_path) {
             Ok(source) => source,
             Err(err) => {
@@ -402,7 +424,8 @@ fn evaluate_pack(
             .map(extract_policy_findings)
             .unwrap_or_default()
             .into_iter()
-            .map(|finding| record_from_finding(pack_id, changed_path, &finding))
+            .enumerate()
+            .map(|(ordinal, finding)| record_from_finding(pack_id, changed_path, &finding, ordinal))
             .collect(),
     )
 }
@@ -505,7 +528,12 @@ fn resolve_class(severity: &str, default_class: PolicySeverityClass) -> PolicySe
 
 /// Build a routed record from a real finding: a [`PolicyGuidance`]-derived
 /// diagnostic plus the engine-free [`PolicyOutcome`] for routing.
-fn record_from_finding(pack_id: &str, changed_path: &str, finding: &RawFinding) -> RoutedRecord {
+fn record_from_finding(
+    pack_id: &str,
+    changed_path: &str,
+    finding: &RawFinding,
+    ordinal: usize,
+) -> RoutedRecord {
     let finding_severity = match finding.class {
         PolicySeverityClass::Violation => FindingSeverity::Error,
         PolicySeverityClass::Warning => FindingSeverity::Warning,
@@ -527,7 +555,7 @@ fn record_from_finding(pack_id: &str, changed_path: &str, finding: &RawFinding) 
         pack_id.to_string(),
         "Review the flagged change against the policy, then adjust it or request an exception.",
     );
-    let diagnostic = guidance_to_diagnostic(&guidance, finding.class, changed_path);
+    let diagnostic = guidance_to_diagnostic(&guidance, finding.class, changed_path, ordinal);
     RoutedRecord {
         outcome: PolicyOutcome {
             rule_id: finding.policy_id.clone(),
@@ -542,6 +570,7 @@ fn guidance_to_diagnostic(
     guidance: &PolicyGuidance,
     class: PolicySeverityClass,
     changed_path: &str,
+    ordinal: usize,
 ) -> Diagnostic {
     let severity = match class {
         PolicySeverityClass::Violation => Severity::Error,
@@ -559,9 +588,16 @@ fn guidance_to_diagnostic(
         PolicySource::Scanner(name) => format!("anvil-policy-engine::scanner::{name}"),
     };
     Diagnostic::new(
+        // Pack label + per-pack ordinal keep ids unique when one rule emits
+        // several findings for the same path, or two packs share a rule name.
         format!(
-            "diag_policy_prewrite_{}_{}",
+            "diag_policy_prewrite_{}_{}_{}_{ordinal}",
             sanitise_id_part(changed_path),
+            sanitise_id_part(match &guidance.source {
+                PolicySource::Pack(p) => p,
+                PolicySource::Assertion(id) => id,
+                PolicySource::Scanner(n) => n,
+            }),
             sanitise_id_part(&guidance.rule_id),
         ),
         severity,
