@@ -84,7 +84,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** Operators manage exceptions from the CLI; revocation preserves history. 2026-07-04: also ships `verify` (surfaces EXCEPT-005 verdicts plus summary counts, exits zero) and `migrate` (the ADR-073 explicit legacy→tracked promotion step); grant refuses unattributed records (including invisible-unicode attribution) and duplicate ids, warns on repo-wide scope / missing expiry; id-addressed verbs refuse ambiguous stores. Contract note: on a skipped write (read-only worktree), explicit-write commands warn **and exit non-zero** — the module's warn-not-block posture applies to gates and checks, not to a human-invoked write that did not persist.
 - **Validation:** `cargo test -p eddacraft-anvil --bin anvil exception` and `cargo test -p eddacraft-anvil --test exception`
 - **Dependencies:** EXCEPT-003, EXCEPT-007
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3153
 
 ### EXCEPT-005: Scope/expiry verification
 - **Intent:** `anvil exception verify` validates scope globs, expiry at evaluation time, and revocation status.
@@ -110,9 +110,9 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 ### EXCEPT-008: Operator write semantics + guidance
 - **Intent:** Document the operator contract for the tracked store: `anvil/exceptions/store.json` is committed like `anvil/baseline.json`; writes happen only via explicit grant/revoke (EXCEPT-004), so checks never dirty a worktree; evaluate `.gitattributes` (`merge=union`) for concurrent-branch grant conflicts; an upgrade note covers the legacy→tracked migration step.
 - **Expected Outcome:** A downstream operator knows to commit the store, why a worktree changed, and how to migrate.
-- **Validation:** `pnpm docs:check`
+- **Validation:** `pnpm docs:check` (docs/guides/policy-exceptions.md; aps/adr surface failures pre-exist on main)
 - **Dependencies:** EXCEPT-004
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### EXCEPT-009: Capsule inclusion
 - **Intent:** Applied exceptions are collected into the capsule and re-verified during `anvil capsule verify` (scope/expiry/revocation). 2026-07-04: "applied" is approximated by "active at collect time" — the faithful relied-upon subset needs the gate's applied-exception record joined against a diagnostics source, and capsule create has no diagnostics source wired yet (`diagnostics.sarif` is an empty document for the same reason). The approximation is conservative for verification: a superset of anything the gate could have applied is collected and re-verified, so a since-revoked or expiring grant still degrades/blocks verify. Tightening to the true applied subset follows the create-side diagnostics wiring.

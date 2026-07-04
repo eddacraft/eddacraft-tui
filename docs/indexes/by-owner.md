@@ -168,6 +168,12 @@
 | [Edda Stack Architecture](../../docs/architecture/edda-stack.md) | `docs/architecture/edda-stack.md`  | Spec | Derived   | EDDA  | Live     |
 | [System Specification](../../docs/architecture/system-spec.md)   | `docs/architecture/system-spec.md` | Spec | Derived   | EDDA  | Proposed |
 
+## EXCEPT
+
+| Document                                                    | Path                               | Type  | Authority     | Owner  | Status |
+| ----------------------------------------------------------- | ---------------------------------- | ----- | ------------- | ------ | ------ |
+| [Policy Exceptions](../../docs/guides/policy-exceptions.md) | `docs/guides/policy-exceptions.md` | Guide | Authoritative | EXCEPT | Live   |
+
 ## FLAGCAT
 
 | Document                                                                | Path                                     | Type  | Authority     | Owner   | Status |
