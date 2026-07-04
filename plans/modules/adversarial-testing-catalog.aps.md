@@ -50,10 +50,18 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-003: Integrate probe execution into eval harness
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Execute adversarial probes in CI and local eval runs.
 - **Expected Outcome:** Probe outcomes appear in eval regression summaries.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- adversarial_eval_integration`
+  (green — 6 tests). Added `crates/anvil-policy/src/adversarial/execution.rs`:
+  a `ProbeExecutor` injection point, `run_probe_pack`, and
+  `ProbeRunReport::to_eval_summaries` which projects a probe run onto the
+  **unchanged** `EvalRunSummary`/`EvalFinding` types — one synthetic
+  `probe:<category>` suite each — so probes flow through the existing
+  regression diff and store. Frozen `eval --json` v1 / EVALCI baseline shape
+  untouched: no eval type gains or loses a field; the category rides in the
+  existing `suite` string.
 - **Dependencies:** ATC-002, EVAL-002
 
 ### ATC-004: Add adversarial trend reporting
