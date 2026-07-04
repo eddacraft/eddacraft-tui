@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 343 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 342 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1110,7 +1110,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `cobs` | 0.3.0 | MIT License | https://github.com/jamesmunns/cobs.rs |
 | `fallible-iterator` | 0.3.0 | MIT License | https://github.com/sfackler/rust-fallible-iterator |
 | `terminal_size` | 0.4.4 | MIT License | https://github.com/eminence/terminal-size |
-| `which` | 8.0.4 | MIT License | https://github.com/harryfei/which-rs.git |
 | `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
 | `schannel` | 0.1.29 | MIT License | https://github.com/steffengy/schannel-rs |
 | `fixedbitset` | 0.5.7 | MIT License | https://github.com/petgraph/fixedbitset |
