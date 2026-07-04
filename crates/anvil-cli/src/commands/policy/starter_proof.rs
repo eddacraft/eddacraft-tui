@@ -175,7 +175,7 @@ fn warning_diagnostic(message: &str) -> Diagnostic {
             end_line: None,
             end_column: None,
         },
-        Category::Other,
+        Category::Policy,
         DiagnosticSource {
             rule_id: "sensitive-paths".to_string(),
             source_module: PACK_ID.to_string(),
