@@ -124,18 +124,44 @@ fn count_policy_test_files(test_path: &str) -> usize {
         .count()
 }
 
+/// Render an anvil-checks severity to the stable `list`/`explain` string form.
+fn severity_label(severity: anvil_checks::antipattern::WarningSeverity) -> &'static str {
+    use anvil_checks::antipattern::WarningSeverity;
+    match severity {
+        WarningSeverity::Error => "error",
+        WarningSeverity::Warning => "warning",
+        WarningSeverity::Info => "info",
+    }
+}
+
 fn policy_catalogue() -> Vec<PolicyEntry> {
-    let mut policies: Vec<PolicyEntry> = anvil_policy::library::builtin_policies()
-        .into_iter()
-        .map(|p| PolicyEntry {
-            id: p.id,
-            name: p.name,
-            category: p.category,
-            enabled: p.enabled,
-            description: p.description,
-            severity: p.severity,
+    use anvil_checks::antipattern::{LoadRegistryOptions, load_compiled_registry};
+
+    // Source the catalogue from the canonical anvil-checks AP registry
+    // (`patterns/compiled/registry.json`, with a compile-time embedded
+    // fallback), rather than a hand-maintained mirror. The registry has no
+    // dedicated one-line description field: `name` maps from the pattern
+    // `title` and `description` from its `family_name`; the richer
+    // `nudge`/`explanation`/`suggestion` prose has no column in the stable
+    // output contract and is not surfaced here.
+    let result = load_compiled_registry(&LoadRegistryOptions::default());
+    let mut policies: Vec<PolicyEntry> = result
+        .registry
+        .map(|registry| {
+            registry
+                .patterns
+                .into_iter()
+                .map(|pattern| PolicyEntry {
+                    id: pattern.id,
+                    name: pattern.title,
+                    category: pattern.category,
+                    enabled: pattern.enabled,
+                    description: pattern.family_name,
+                    severity: severity_label(pattern.severity).to_string(),
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
 
     policies.push(PolicyEntry {
         id: "ARCH-001".into(),
@@ -449,6 +475,27 @@ mod tests {
         assert!(
             policies.len() >= 2,
             "should have at least the ARCH policies"
+        );
+    }
+
+    #[test]
+    fn catalogue_is_sourced_from_the_ap_registry() {
+        let policies = policy_catalogue();
+        // The registry patterns are present alongside the two synthetic ARCH
+        // entries, proving the catalogue reads the AP registry rather than the
+        // retired hardcoded mirror.
+        assert!(
+            policies.len() > 2,
+            "expected registry patterns plus the ARCH entries, got {}",
+            policies.len()
+        );
+        let ap_001 = policies.iter().find(|p| p.id == "AP-001");
+        assert!(ap_001.is_some(), "AP-001 should come from the registry");
+        let ap_001 = ap_001.unwrap();
+        assert!(!ap_001.name.is_empty(), "registry name maps from title");
+        assert!(
+            !ap_001.description.is_empty(),
+            "registry description maps from family_name"
         );
     }
 

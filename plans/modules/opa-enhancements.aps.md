@@ -127,7 +127,20 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-003: Regorus-backed user policy load path
 
-- **Status:** Proposed
+- **Status:** Done — PR-B repoint landed. `anvil gate`'s `run_check_policy` now
+  discovers `.anvil/policies/*.rego` (excluding `*_test.rego`), evaluates through
+  the `anvil-policy-engine` regorus facade, and reads violations/warnings from
+  `data.anvil.policies`; `anvil policy list`/`explain` read the canonical
+  anvil-checks AP registry instead of the hardcoded `builtin_policies()` mirror.
+  Parity evidence: `cargo test -p eddacraft-anvil-policy` (153 passed —
+  eval-regression harness and exceptions untouched) and
+  `cargo test -p eddacraft-anvil -- policy` (74 passed), including new gate-check
+  fixtures (violation fails, warning does not fail, no bundle skips, uncompilable
+  `.rego` reported not skipped, `*_test.rego` excluded). Behaviour deltas vs the
+  OPA path: the opa-binary-missing silent skip is removed; policy compile errors
+  are now reported check failures (fail-fast); the gate policy input adopts the
+  canonical `PolicyInput` v1 shape. PR-C (mechanical deletion of the OPA modules)
+  follows this.
 - **Intent:** Load validated user policies through the ADR-040 policy-engine
   facade.
 - **Expected Outcome:** User-authored Rego reaches regorus through the same facade
