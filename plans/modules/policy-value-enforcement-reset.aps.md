@@ -253,7 +253,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-008: Report-only policy regression CI
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Promote the already-hardened EVALCI path into visible report-only
   policy regression coverage.
 - **Expected Outcome:** Every PR gets a non-blocking eval-regression report over a
@@ -263,6 +263,13 @@ modules named by each `Coordinates with` field.
 - **Dependencies:** POLRESET-007, EVALCI-001..004
 - **Coordinates with:** EVALCI-005, EVALCI-006
 - **Confidence:** high
+- **Validation notes:** Delivered via EVALCI-005/006. Every Rust-affecting PR
+  and push now gets the non-blocking `Policy eval-regression (report-only)` step
+  in `.github/workflows/rust-tests.yml` (`continue-on-error: true`), running the
+  first-wave arch-boundary suite (`ci/eval/suites.json` +
+  `policies/eval/arch_boundary.rego`) against the committed baseline
+  (`ci/eval/baseline/history.jsonl`). `eval_regression_command` tests (10)
+  green.
 
 ### POLRESET-009: Adversarial policy depth
 

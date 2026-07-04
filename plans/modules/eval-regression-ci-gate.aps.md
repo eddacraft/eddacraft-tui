@@ -107,7 +107,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-005: First-wave arch-boundary eval suite
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Author `policies/eval/arch_boundary.rego` plus a hermetic
   `arch_boundary.input.json` and `ci/eval/suites.json`; extend `opa test` and
   `regal lint` to cover `policies/eval/`.
@@ -115,10 +115,23 @@ for the deferred wiring step this module picks up.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_suite_manifest_parses`
   (plus `opa test policies/eval/`)
 - **Dependencies:** EVALCI-002, EVALCI-003
+- **Validation notes:** `policies/eval/arch_boundary.rego` (package
+  `anvil.policies.arch_boundary`, findings over `input.diff.new_edges` — new
+  edges only, ADR-003; crossing edge is `warning`, ADR-002) plus
+  `arch_boundary_test.rego` (positive/negative/baseline-not-reflagged/threshold)
+  and hermetic `arch_boundary.input.json`; manifest `ci/eval/suites.json` binds
+  the frozen `EvalSuite` shape (one arch-boundary suite, query
+  `data.anvil.policies.arch_boundary.findings`). `opa test policies/eval/`
+  green (4/4); `cargo test -p eddacraft-anvil-policy -- eval_suite_manifest_parses`
+  green (added to `crates/anvil-policy/src/eval/port.rs`, binds the committed
+  manifest). `opa test`/`regal lint` extended to `policies/eval/` in `ci.yml`
+  and `rust-tests.yml` (the `policies/**/*` classifier already triggers
+  opa-test/regal on eval-policy changes). Regal not installed locally — CI runs
+  the pinned v0.41.1.
 
 ### EVALCI-006: Report-only CI step plus committed baseline
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Add a `continue-on-error: true` eval-regression step to the
   rust-tests.yml Test job (build anvil, absolute `--anvil-bin`,
   `--store ci/eval/baseline`), and seed a one-record-per-suite baseline written
@@ -127,6 +140,24 @@ for the deferred wiring step this module picks up.
 - **Validation:** `cargo test -p eddacraft-anvil -- eval_regression_command`
   (command contract) plus workflow lints
 - **Dependencies:** EVALCI-001, EVALCI-004, EVALCI-005
+- **Validation notes:** `Policy eval-regression (report-only)` step added to the
+  `rust-tests.yml` Test job (after the tui gates): `continue-on-error: true`,
+  builds `cargo build -p eddacraft-anvil --bin anvil` (debug, cheapest — no
+  guaranteed pre-existing artefact) and runs `anvil policy eval-regression`
+  with absolute `--anvil-bin "$PWD/target/debug/anvil"`,
+  `--suites ci/eval/suites.json`, `--store ci/eval/baseline`; no
+  `--fail-on-regression` (report-only, ADR-002) and no `--update-baseline`
+  (never mutates the baseline from CI). `ANVIL_DEV=1` bypasses the local
+  licence pre-check so the subprocess `anvil policy eval` runs ungated (`policy`
+  is in `CLI_GATED_COMMANDS`). Report goes to the job log and step summary.
+  **Baseline mechanism:** committed `ci/eval/baseline/history.jsonl` (one
+  deterministic-seed record per suite), read-only compare on PR/push; refresh
+  is a documented operator command (`ci/eval/README.md`), not an automatic
+  main-push commit — CI cannot push to main and council decision 3 forbids
+  auto-update-on-every-merge (baseline poisoning), so the ambiguous
+  "written on main push" is resolved to the operator-refresh path. Existing
+  `eval_regression_command` tests (10) stay green; workflow yaml passes
+  `oxfmt --check`.
 
 ### EVALCI-007: Phase-2 promotion to visible non-required failure
 

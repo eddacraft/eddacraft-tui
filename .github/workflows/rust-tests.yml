@@ -204,3 +204,41 @@ jobs:
       - name: Run eddacraft-tui release check (all features)
         if: steps.gate.outputs.run == 'true'
         run: cargo check -p eddacraft-tui --all-features --release
+
+      # EVALCI-006: report-only policy trust-regression check. Runs the shipped
+      # `anvil policy eval-regression` command against the committed first-wave
+      # suite (ci/eval/suites.json) and diffs each run against the committed
+      # baseline under ci/eval/baseline/. `continue-on-error: true` keeps this a
+      # non-blocking report inside the required Test gate (report-only phase;
+      # ADR-002, warnings over blocks) — no `--fail-on-regression`. The baseline
+      # is never updated from CI (council 2026-07-01 decision 3: no per-merge
+      # baseline poisoning); it is refreshed only by a deliberate operator
+      # command — see ci/eval/README.md. The absolute `--anvil-bin` is required
+      # because `current_exe()` in CI resolves to the test binary, not the
+      # product CLI. `ANVIL_DEV=1` skips the local licence pre-check so the
+      # subprocess `anvil policy eval` runs ungated in CI.
+      - name: Policy eval-regression (report-only)
+        if: steps.gate.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          ANVIL_DEV: '1'
+        shell: bash
+        run: |
+          cargo build -p eddacraft-anvil --bin anvil
+          anvil_bin="$PWD/target/debug/anvil"
+          # Capture to a file rather than piping the CLI's stdout straight into
+          # `tee`: the report renderer closes fd 1 after its own writes, which a
+          # live reader observes as a truncated stream. A file redirect gets the
+          # whole report; then fan it out to the job log and the step summary.
+          report="$(mktemp)"
+          "$anvil_bin" policy eval-regression \
+            --suites ci/eval/suites.json \
+            --store ci/eval/baseline \
+            --anvil-bin "$anvil_bin" >"$report" || true
+          cat "$report"
+          {
+            echo '## Policy eval-regression (report-only)'
+            echo '```'
+            cat "$report"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
