@@ -280,12 +280,16 @@ fn unclassified_files_surface_in_json_output() {
     // CLAWP-059: pin the EXACT count. A `>= 2` lower bound let the
     // classified `src/a.ts` (or any future miscount) silently inflate
     // the tally without failing. The unclassified inputs here are
-    // `Makefile`, `README`, and `.anvilrc` (a dotfile, which carries no
-    // `Path::extension()` and so is not registry-classifiable); the
-    // classified `src/a.ts` must NOT contribute.
+    // `Makefile` and `README`; the classified `src/a.ts` must NOT
+    // contribute.
+    //
+    // CIB-178: `.anvilrc` is an anvil-owned artefact and is deliberately
+    // excluded from the unclassified count so the tool does not inflate
+    // its own "unclassified" noise across activation runs — so it must
+    // NOT contribute either.
     assert_eq!(
-        unclassified, 3,
-        "expected exactly Makefile + README + .anvilrc as unclassified (src/a.ts is classified), got {unclassified}: {parsed}"
+        unclassified, 2,
+        "expected exactly Makefile + README as unclassified (src/a.ts is classified, .anvilrc is anvil-owned per CIB-178), got {unclassified}: {parsed}"
     );
 }
 
