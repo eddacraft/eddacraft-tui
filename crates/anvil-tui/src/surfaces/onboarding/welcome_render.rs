@@ -19,6 +19,11 @@ const LOGO_LINES: &[&str] = &[
     "████         ████",
 ];
 
+/// Rows the brandmark occupies — the layout maths below must track the art.
+const LOGO_HEIGHT: usize = LOGO_LINES.len();
+#[allow(clippy::cast_possible_truncation)]
+const LOGO_HEIGHT_U16: u16 = LOGO_HEIGHT as u16;
+
 const TAGLINE: &str = "anvil catches architecture drift at save-time";
 const SUBTITLE: &str = "Let's get you set up.";
 
@@ -41,8 +46,8 @@ pub fn render(
     // Full mode: 2 lines per item + 1 blank between = item_count * 3 - 1
     // Compact mode: 1 line per item (no descriptions, no blanks)
     let full_menu_height = item_count * 3 - 1;
-    // logo(7) + blank(1) + tagline(1) + subtitle(1) + spacer(1) + menu
-    let full_content_height = 7 + 1 + 1 + 1 + 1 + full_menu_height;
+    // logo + blank(1) + tagline(1) + subtitle(1) + spacer(1) + menu
+    let full_content_height = LOGO_HEIGHT + 1 + 1 + 1 + 1 + full_menu_height;
     #[allow(clippy::cast_possible_truncation)]
     let compact = (full_content_height as u16) > area.height;
 
@@ -53,23 +58,23 @@ pub fn render(
     };
 
     // In compact mode, surface a one-line resize hint — but only when the
-    // terminal has genuine spare height for it: top padding(1) + logo(7) +
+    // terminal has genuine spare height for it: top padding(1) + logo +
     // blank(1) + the full compact menu + hint(1). Showing it under contention
     // is unsafe — ratatui holds the `Min(menu_h)` menu at full size and lets
-    // the fixed `Length(7)` logo absorb the shortfall, silently squeezing a
+    // the fixed-`Length` logo absorb the shortfall, silently squeezing a
     // row (or more) out of the brandmark. That is the exact defect CIB-179
     // exists to prevent, so the hint must never be traded for logo integrity.
     #[allow(clippy::cast_possible_truncation)]
-    let hint_min_height = (1 + 7 + 1 + menu_height + 1) as u16;
+    let hint_min_height = (1 + LOGO_HEIGHT + 1 + menu_height + 1) as u16;
     let show_hint = compact && area.height >= hint_min_height;
     let hint_h: u16 = u16::from(show_hint);
 
-    // In compact mode: logo(7) + blank(1) + menu + optional hint(1)
-    // In full mode: logo(7) + blank(1) + tagline(1) + subtitle(1) + spacer(1) + menu
+    // In compact mode: logo + blank(1) + menu + optional hint(1)
+    // In full mode: logo + blank(1) + tagline(1) + subtitle(1) + spacer(1) + menu
     let content_height = if compact {
-        7 + 1 + menu_height + usize::from(show_hint)
+        LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint)
     } else {
-        7 + 1 + 1 + 1 + 1 + menu_height
+        LOGO_HEIGHT + 1 + 1 + 1 + 1 + menu_height
     };
 
     #[allow(clippy::cast_possible_truncation)]
@@ -81,21 +86,21 @@ pub fn render(
     let chunks = if compact {
         Layout::vertical([
             Constraint::Length(top_pad),
-            Constraint::Length(7),      // Logo
-            Constraint::Length(1),      // Blank
-            Constraint::Min(menu_h),    // Menu items
-            Constraint::Length(hint_h), // Resize hint (0 when it doesn't fit)
+            Constraint::Length(LOGO_HEIGHT_U16), // Logo
+            Constraint::Length(1),               // Blank
+            Constraint::Min(menu_h),             // Menu items
+            Constraint::Length(hint_h),          // Resize hint (0 when it doesn't fit)
         ])
         .split(area)
     } else {
         Layout::vertical([
             Constraint::Length(top_pad),
-            Constraint::Length(7),   // Logo
-            Constraint::Length(1),   // Blank
-            Constraint::Length(1),   // Tagline
-            Constraint::Length(1),   // Subtitle
-            Constraint::Length(1),   // Spacer
-            Constraint::Min(menu_h), // Menu items
+            Constraint::Length(LOGO_HEIGHT_U16), // Logo
+            Constraint::Length(1),               // Blank
+            Constraint::Length(1),               // Tagline
+            Constraint::Length(1),               // Subtitle
+            Constraint::Length(1),               // Spacer
+            Constraint::Min(menu_h),             // Menu items
         ])
         .split(area)
     };

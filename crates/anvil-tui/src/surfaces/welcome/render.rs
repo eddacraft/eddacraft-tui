@@ -20,6 +20,11 @@ const LOGO_LINES: &[&str] = &[
     "████         ████",
 ];
 
+/// Rows the brandmark occupies — the layout maths below must track the art.
+const LOGO_HEIGHT: usize = LOGO_LINES.len();
+#[allow(clippy::cast_possible_truncation)]
+const LOGO_HEIGHT_U16: u16 = LOGO_HEIGHT as u16;
+
 const TAGLINE: &str = "Structural governance for AI-assisted development";
 
 /// Muted one-line hint shown in compact mode to explain that resizing the
@@ -35,7 +40,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     // Full mode: 2 lines per item + 1 blank between = 3*N-1
     // Compact mode: 1 line per item (no descriptions, no blanks)
     let full_menu_height = menu_item_count * 3 - 1;
-    let full_content_height = 7 + 1 + 1 + 2 + full_menu_height;
+    let full_content_height = LOGO_HEIGHT + 1 + 1 + 2 + full_menu_height;
     #[allow(clippy::cast_possible_truncation)]
     let compact = (full_content_height as u16) > area.height;
 
@@ -46,23 +51,23 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     };
 
     // In compact mode, surface a one-line resize hint — but only when the
-    // terminal has genuine spare height for it: top padding(1) + logo(7) +
+    // terminal has genuine spare height for it: top padding(1) + logo +
     // blank(1) + the full compact menu + hint(1). Showing it under contention
     // is unsafe — ratatui holds the `Min(menu_h)` menu at full size and lets
-    // the fixed `Length(7)` logo absorb the shortfall, silently squeezing a
+    // the fixed-`Length` logo absorb the shortfall, silently squeezing a
     // row (or more) out of the brandmark. That is the exact defect CIB-179
     // exists to prevent, so the hint must never be traded for logo integrity.
     #[allow(clippy::cast_possible_truncation)]
-    let hint_min_height = (1 + 7 + 1 + menu_height + 1) as u16;
+    let hint_min_height = (1 + LOGO_HEIGHT + 1 + menu_height + 1) as u16;
     let show_hint = compact && area.height >= hint_min_height;
     let hint_h: u16 = u16::from(show_hint);
 
-    // In compact mode: logo(7) + blank(1) + menu(N) + optional hint(1)
-    // In full mode: logo(7) + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
+    // In compact mode: logo + blank(1) + menu(N) + optional hint(1)
+    // In full mode: logo + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
     let content_height = if compact {
-        7 + 1 + menu_height + usize::from(show_hint)
+        LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint)
     } else {
-        7 + 1 + 1 + 2 + menu_height
+        LOGO_HEIGHT + 1 + 1 + 2 + menu_height
     };
 
     // Centre vertically — at least 1 row gap from header
@@ -74,21 +79,21 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
 
     let chunks = if compact {
         Layout::vertical([
-            Constraint::Length(top_pad), // Top padding
-            Constraint::Length(7),       // Logo
-            Constraint::Length(1),       // Blank
-            Constraint::Min(menu_h),     // Menu items (compact)
-            Constraint::Length(hint_h),  // Resize hint (0 when it doesn't fit)
+            Constraint::Length(top_pad),         // Top padding
+            Constraint::Length(LOGO_HEIGHT_U16), // Logo
+            Constraint::Length(1),               // Blank
+            Constraint::Min(menu_h),             // Menu items (compact)
+            Constraint::Length(hint_h),          // Resize hint (0 when it doesn't fit)
         ])
         .split(area)
     } else {
         Layout::vertical([
-            Constraint::Length(top_pad), // Top padding
-            Constraint::Length(7),       // Logo
-            Constraint::Length(1),       // Blank
-            Constraint::Length(1),       // Tagline
-            Constraint::Length(2),       // Spacer
-            Constraint::Min(menu_h),     // Menu items (flexible — absorbs overflow)
+            Constraint::Length(top_pad),         // Top padding
+            Constraint::Length(LOGO_HEIGHT_U16), // Logo
+            Constraint::Length(1),               // Blank
+            Constraint::Length(1),               // Tagline
+            Constraint::Length(2),               // Spacer
+            Constraint::Min(menu_h),             // Menu items (flexible — absorbs overflow)
         ])
         .split(area)
     };

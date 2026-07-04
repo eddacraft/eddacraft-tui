@@ -4751,7 +4751,8 @@ archive.
   invariant sweep (heights 8–32, `hint_shown ⇒ logo == 7 rows`) plus boundary and
   snapshot tests in `crates/anvil-tui/src/surfaces/welcome/render.rs` and
   `.../onboarding/welcome_render.rs`; no hard gate added (adaptive layout stays).
-- **Validation:** `cargo test -p anvil-tui` compact-mode snapshots at 40x12.
+- **Validation:** `cargo test -p eddacraft-anvil-tui` compact-mode tests at
+  40x12.
 - **Identified From:** User-journey pass 2026-07-04 (finding 18).
 - **Confidence:** high — additive rendering only.
 
