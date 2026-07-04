@@ -196,6 +196,9 @@ pub fn run_with_engine(
 
     let commits = resolve_range(&repo_root, &args.range)
         .with_context(|| format!("resolve range {range}", range = args.range))?;
+    // `git rev-list` order is new → old, so the first commit is the
+    // range head (ADR-100 suppression-authority tip).
+    let exceptions_tip: Option<String> = commits.first().cloned();
 
     // MLP2-062: verify the active + archive witness chain before
     // treating any `commit_sha` line as L3 evidence. Pre-fix the CI /
@@ -221,7 +224,14 @@ pub fn run_with_engine(
             CommitDecision::Block(BlockKind::UnwitnessedCommit) => CommitVerdict::UnwitnessedBlock,
             CommitDecision::NeedsL4Validation => {
                 needed_engine_at_least_once = true;
-                let request = request_for(commit.clone(), rule.clone(), &repo_root);
+                // ADR-100: the range head's tree carries suppression
+                // authority for every commit in the range.
+                let request = request_for(
+                    commit.clone(),
+                    rule.clone(),
+                    &repo_root,
+                    exceptions_tip.clone(),
+                );
                 match engine.validate(&request) {
                     ValidationVerdict::Allow => {
                         all_engine_unavailable_when_needed = false;

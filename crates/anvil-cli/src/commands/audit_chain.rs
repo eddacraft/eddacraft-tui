@@ -451,6 +451,11 @@ pub(crate) fn rescan_commits_with_budget<E: ValidationEngine + ?Sized>(
 ) -> (Vec<RuleDriftEntry>, bool) {
     let mut drift: Vec<RuleDriftEntry> = Vec::new();
     let mut partial = false;
+    // ADR-100: the audited checkout's HEAD tree carries suppression
+    // authority for the whole rescan — current committed grants apply
+    // to historical commits. Resolution failure applies no exceptions
+    // (fail-safe: drift rows surface rather than vanish).
+    let exceptions_tip = resolve_head_sha(repo_root);
     for (processed, sha) in commits.iter().enumerate() {
         if budget_exhausted(started, max_runtime) {
             partial = true;
@@ -468,6 +473,7 @@ pub(crate) fn rescan_commits_with_budget<E: ValidationEngine + ?Sized>(
             commit_sha: sha.clone(),
             branch_rule: branch_rule.clone(),
             repo_root: repo_root.to_path_buf(),
+            exceptions_tip_sha: exceptions_tip.clone(),
         };
         if let ValidationVerdict::Block { diagnostics } = engine.validate(&request) {
             let rule_ids: Vec<String> = diagnostics.iter().map(|d| d.rule_id.clone()).collect();
@@ -484,6 +490,22 @@ pub(crate) fn rescan_commits_with_budget<E: ValidationEngine + ?Sized>(
         }
     }
     (drift, partial)
+}
+
+/// `git rev-parse HEAD` for the ADR-100 suppression-authority tip.
+/// `None` on any failure — the engine then applies no exceptions.
+fn resolve_head_sha(repo_root: &Path) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!sha.is_empty()).then_some(sha)
 }
 
 #[inline]

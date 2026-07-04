@@ -72,6 +72,9 @@ Subcommand flags are documented in the CLI surface runbook
 The L4 gate (pre-push hook and `anvil l4-validate`) applies only **valid**
 grants:
 
+- Only **committed** grants count: the gate reads the store from the pushed
+  tip's tree, so an uncommitted worktree grant never satisfies it — locally or
+  in CI (ADR-100).
 - An attributed, in-date, in-scope grant suppresses its matching finding.
 - An **unattributed** grant (legacy v0 shape) is never silently honoured: the
   finding stays visible, downgraded to a warning annotated with the grant id.
@@ -100,9 +103,10 @@ double-entry is caught at the next write.
 ## Upgrading From the Legacy Store
 
 Repositories that used exceptions before ADR-073 have a local, gitignored
-`.anvil/exceptions.json`. Those grants keep working read-only, but grant and
-revoke refuse to modify a legacy-origin store until you promote it —
-`anvil exception migrate` is the promotion path:
+`.anvil/exceptions.json`. Those grants are still readable by the CLI, but they
+never influence gates: gates read only the committed tracked store (ADR-100),
+and grant and revoke refuse to modify a legacy-origin store until you promote it
+— `anvil exception migrate` is the promotion path:
 
 ```
 $ anvil exception migrate

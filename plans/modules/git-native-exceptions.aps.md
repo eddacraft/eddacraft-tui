@@ -123,7 +123,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 
 ### EXCEPT-010: Gate store trust model (2026-07-04 council intake)
 - **Intent:** Decide gate store provenance — the L4 gate loads `anvil/exceptions/store.json` from the live worktree (same pattern as `anvil/policy.yml`), so an uncommitted local grant satisfies the local pre-push gate while CI/`l4-validate` sees only committed grants, and a range validation applies one store snapshot to every commit in the range; decide worktree- vs commit-tree-scoped loading and bind the CI semantics explicitly. 2026-07-04 scope reduction: the item's original (b) — make the OPA evaluator's `is_suppressed_at` consult `ExceptionVerdict` — was mooted by ADR-098 PR-C deleting the OPA-subprocess evaluator; `is_suppressed_at`/`filter_suppressed` have no production callers (dead-code disposition belongs to the OPAE rebuild). Original (c) — scope-breadth nudges — shipped via EXCEPT-004's grant-time warnings (repo-wide scope, missing expiry).
-- **Expected Outcome:** A recorded provenance decision (ADR or decision-log entry) enforced by the gate loader, with CI semantics bound explicitly.
-- **Validation:** decision record per `docs/guides/adr-process.md` + `cargo test -p eddacraft-anvil --bin anvil -- l4_engine`
+- **Expected Outcome:** A recorded provenance decision (ADR or decision-log entry) enforced by the gate loader, with CI semantics bound explicitly. 2026-07-04 owner decision: **tip-of-pushed-range tree loading (ADR-100)** — suppression authority must be committed; pre-push uses `local_sha`, `l4-validate` uses the range head, audit-chain uses the audited checkout's HEAD; tip-without-store/unreadable/oversized = no exceptions (fail-safe); legacy local store never influences gates.
+- **Validation:** ADR-100 + `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (incl. `uncommitted_worktree_grant_does_not_apply`)
 - **Dependencies:** EXCEPT-006
-- **Status:** Proposed (owner decision required — provenance is an ADR-level trust-model choice)
+- **Status:** In Progress

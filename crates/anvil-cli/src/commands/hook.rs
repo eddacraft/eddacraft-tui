@@ -574,7 +574,12 @@ fn run_pre_push_with_engine(
                 CommitDecision::NeedsL4Validation => {
                     // MLP2-016: route through ValidationEngine instead
                     // of an unconditional InternalError emit.
-                    let request = request_for(commit.clone(), rule.clone(), repo_root);
+                    let request = request_for(
+                        commit.clone(),
+                        rule.clone(),
+                        repo_root,
+                        Some(push_ref.local_sha.clone()),
+                    );
                     match engine.validate(&request) {
                         ValidationVerdict::Allow => {}
                         ValidationVerdict::Block { diagnostics } => {
@@ -2855,7 +2860,7 @@ mod tests {
             on_block: OnBlock::Reject,
             on_warn: OnWarn::Allow,
         };
-        let request = request_for("deadbeef".repeat(5), rule, Path::new("/work/repo"));
+        let request = request_for("deadbeef".repeat(5), rule, Path::new("/work/repo"), None);
         assert_eq!(request.commit_sha, "deadbeef".repeat(5));
         assert_eq!(request.branch_rule.pattern, "main");
         assert_eq!(request.repo_root, Path::new("/work/repo"));
@@ -2890,7 +2895,7 @@ mod tests {
             on_block: OnBlock::Reject,
             on_warn: OnWarn::Allow,
         };
-        let req = request_for("c".repeat(40), rule, Path::new("/work/repo"));
+        let req = request_for("c".repeat(40), rule, Path::new("/work/repo"), None);
         let verdict = anvil_l4::validate_at_l4(&BlockingEngine, &req);
         match verdict {
             ValidationVerdict::Block { diagnostics } => {
@@ -3024,7 +3029,7 @@ mod tests {
             on_block: OnBlock::Reject,
             on_warn: OnWarn::Allow,
         };
-        let req = request_for("d".repeat(40), rule, Path::new("/work/repo"));
+        let req = request_for("d".repeat(40), rule, Path::new("/work/repo"), None);
         let verdict = anvil_l4::validate_at_l4(&NoOpValidationEngine, &req);
         assert_eq!(
             verdict,

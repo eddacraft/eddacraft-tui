@@ -91,7 +91,11 @@ pub struct CommitAntipatternEngine;
 
 impl ValidationEngine for CommitAntipatternEngine {
     fn validate(&self, request: &ValidationRequest) -> ValidationVerdict {
-        validate_commit(&request.repo_root, &request.commit_sha)
+        validate_commit(
+            &request.repo_root,
+            &request.commit_sha,
+            request.exceptions_tip_sha.as_deref(),
+        )
     }
 }
 
@@ -106,13 +110,23 @@ pub fn default_engine() -> Box<dyn ValidationEngine> {
 
 /// Core validation pipeline, factored out so tests can drive it
 /// without constructing a [`ValidationRequest`].
-fn validate_commit(repo_root: &Path, commit_sha: &str) -> ValidationVerdict {
-    validate_commit_with_tempdir(repo_root, commit_sha, tempfile::TempDir::new)
+fn validate_commit(
+    repo_root: &Path,
+    commit_sha: &str,
+    exceptions_tip: Option<&str>,
+) -> ValidationVerdict {
+    validate_commit_with_tempdir(
+        repo_root,
+        commit_sha,
+        exceptions_tip,
+        tempfile::TempDir::new,
+    )
 }
 
 fn validate_commit_with_tempdir<F>(
     repo_root: &Path,
     commit_sha: &str,
+    exceptions_tip: Option<&str>,
     make_tempdir: F,
 ) -> ValidationVerdict
 where
@@ -222,7 +236,7 @@ where
         .iter()
         .filter(|w| w.suppressed.is_none())
         .collect();
-    verdict_for_warnings(repo_root, commit_sha, &visible)
+    verdict_for_warnings(repo_root, commit_sha, exceptions_tip, &visible)
 }
 
 /// Map the scanner's visible warnings onto the gate verdict, applying
@@ -233,6 +247,7 @@ where
 fn verdict_for_warnings(
     repo_root: &Path,
     commit_sha: &str,
+    exceptions_tip: Option<&str>,
     visible: &[&Warning],
 ) -> ValidationVerdict {
     let diagnostics: Vec<ValidationDiagnostic> = visible
@@ -249,7 +264,7 @@ fn verdict_for_warnings(
     if diagnostics.is_empty() {
         return ValidationVerdict::Allow;
     }
-    let dispositions = exception_dispositions(repo_root, commit_sha, visible);
+    let dispositions = exception_dispositions(repo_root, commit_sha, exceptions_tip, visible);
     let outcome = apply_exception_dispositions(diagnostics, &dispositions);
     for applied in &outcome.applied {
         // The recorded trail of exception use. `tracing` is this
@@ -287,11 +302,16 @@ fn verdict_for_warnings(
 }
 
 /// EXCEPT-006: compute one [`ExceptionDisposition`] per visible
-/// warning from the tracked exception store (`anvil/exceptions/`,
-/// ADR-073).
+/// warning from the exception store committed in the suppression-
+/// authority tip's tree (`anvil/exceptions/store.json`, ADR-073 +
+/// ADR-100).
 ///
-/// - Store unreadable → no exceptions apply (fail-safe: findings
-///   stand, the gate blocks rather than silently admitting).
+/// - The store is read from the **tip commit's tree**, never the
+///   worktree: suppression authority must be committed to count
+///   (ADR-100). No tip, no store in the tip, or an unreadable /
+///   oversized / malformed store blob → no exceptions apply
+///   (fail-safe: findings stand, the gate blocks rather than
+///   silently admitting).
 /// - Revoked / expired / invalid-scope grants never apply
 ///   (`verify_exception_at` precedence).
 /// - When both an attributed and an unattributed grant cover the same
@@ -300,23 +320,29 @@ fn verdict_for_warnings(
 fn exception_dispositions(
     repo_root: &Path,
     commit_sha: &str,
+    exceptions_tip: Option<&str>,
     warnings: &[&Warning],
 ) -> Vec<ExceptionDisposition> {
     let not_covered = vec![ExceptionDisposition::NotCovered; warnings.len()];
     if warnings.is_empty() {
         return not_covered;
     }
-    let store = match ExceptionStore::load(repo_root) {
-        Ok(store) => store,
-        Err(err) => {
+    let Some(tip) = exceptions_tip else {
+        return not_covered;
+    };
+    let store = match load_committed_store(repo_root, tip) {
+        StoreFromTip::Absent => return not_covered,
+        StoreFromTip::Unreadable(detail) => {
             tracing::warn!(
                 target: "anvil::l4_engine",
                 commit = %short(commit_sha),
-                error = %err,
-                "exception store unreadable; no exceptions applied",
+                tip = %short(tip),
+                detail = %detail,
+                "committed exception store unreadable; no exceptions applied",
             );
             return not_covered;
         }
+        StoreFromTip::Loaded(store) => store,
     };
     let now = Utc::now();
     // Verdicts depend only on the grant and `now`, so classify each
@@ -355,6 +381,42 @@ fn exception_dispositions(
             downgrade.unwrap_or(ExceptionDisposition::NotCovered)
         })
         .collect()
+}
+
+/// Outcome of reading the exception store from a commit tree.
+enum StoreFromTip {
+    /// The tip's tree has no `anvil/exceptions/store.json` — an
+    /// honest empty store, not an error.
+    Absent,
+    /// The blob exists but could not be used (git failure, oversized,
+    /// malformed JSON). Fail-safe: no exceptions apply.
+    Unreadable(String),
+    /// The committed store, parsed.
+    Loaded(ExceptionStore),
+}
+
+/// ADR-100: read `anvil/exceptions/store.json` from `tip`'s tree via
+/// the batched blob reader (inherits its sha/path hygiene), bounded by
+/// the same 1 MiB cap as the filesystem loader.
+fn load_committed_store(repo_root: &Path, tip: &str) -> StoreFromTip {
+    let blobs = match read_commit_blobs_batch(repo_root, tip, &["anvil/exceptions/store.json"]) {
+        Ok(blobs) => blobs,
+        Err(reason) => return StoreFromTip::Unreadable(format!("{reason:?}")),
+    };
+    let Some(Some(bytes)) = blobs.into_iter().next() else {
+        return StoreFromTip::Absent;
+    };
+    if bytes.len() as u64 > anvil_policy::exceptions::MAX_STORE_BYTES {
+        return StoreFromTip::Unreadable(format!(
+            "store blob is {} bytes; refusing past the {} byte bound",
+            bytes.len(),
+            anvil_policy::exceptions::MAX_STORE_BYTES,
+        ));
+    }
+    match serde_json::from_slice::<ExceptionStore>(&bytes) {
+        Ok(store) => StoreFromTip::Loaded(store),
+        Err(e) => StoreFromTip::Unreadable(format!("parse error: {e}")),
+    }
 }
 
 /// `git diff-tree --no-commit-id --name-only -r --root
@@ -903,7 +965,7 @@ mod tests {
     #[test]
     fn validate_commit_allows_when_no_scannable_files() {
         let (_tmp, root, sha) = commit_with_file("plain text\n", "README.txt");
-        let verdict = validate_commit(&root, &sha);
+        let verdict = validate_commit(&root, &sha, None);
         assert_eq!(verdict, ValidationVerdict::Allow);
     }
 
@@ -915,7 +977,7 @@ mod tests {
     fn validate_commit_returns_engine_unavailable_when_git_fails() {
         let tmp = TempDir::new().unwrap();
         // No git init -> `git diff-tree` fails.
-        let verdict = validate_commit(tmp.path(), &"a".repeat(40));
+        let verdict = validate_commit(tmp.path(), &"a".repeat(40), None);
         assert_eq!(
             verdict,
             ValidationVerdict::EngineUnavailable {
@@ -931,7 +993,7 @@ mod tests {
     #[test]
     fn tempdir_failure_reports_io_error() {
         let (_tmp, root, sha) = commit_with_file("export const x = 1;\n", "src/foo.ts");
-        let verdict = validate_commit_with_tempdir(&root, &sha, || {
+        let verdict = validate_commit_with_tempdir(&root, &sha, None, || {
             Err(std::io::Error::other("tempdir allocation failed"))
         });
         assert_eq!(
@@ -974,7 +1036,7 @@ mod tests {
             .trim()
             .to_string();
 
-        let verdict = validate_commit_with_tempdir(&root, &sha, || {
+        let verdict = validate_commit_with_tempdir(&root, &sha, None, || {
             let workspace = TempDir::new()?;
             std::fs::write(workspace.path().join("src"), "not a directory")?;
             Ok(workspace)
@@ -992,7 +1054,7 @@ mod tests {
     #[test]
     fn validate_commit_refuses_zero_sha() {
         let tmp = TempDir::new().unwrap();
-        let verdict = validate_commit(tmp.path(), &"0".repeat(40));
+        let verdict = validate_commit(tmp.path(), &"0".repeat(40), None);
         assert_eq!(
             verdict,
             ValidationVerdict::EngineUnavailable {
@@ -1024,7 +1086,7 @@ mod tests {
         .unwrap()
         .trim()
         .to_string();
-        let verdict = validate_commit(&root, &sha);
+        let verdict = validate_commit(&root, &sha, None);
         assert_eq!(verdict, ValidationVerdict::Allow);
     }
 
@@ -1037,7 +1099,7 @@ mod tests {
     fn validate_commit_blocks_on_known_antipattern() {
         let content = "/* eslint-disable */\nimport { x } from './m';\n";
         let (_tmp, root, sha) = commit_with_file(content, "src/leak.ts");
-        let verdict = validate_commit(&root, &sha);
+        let verdict = validate_commit(&root, &sha, None);
         let ValidationVerdict::Block { diagnostics } = verdict else {
             panic!("expected Block, got {verdict:?}");
         };
@@ -1058,7 +1120,7 @@ mod tests {
     fn warn_only_antipattern_admits_under_on_warn_allow() {
         let content = "/* eslint-disable */\nimport { x } from './m';\n";
         let (_tmp, root, sha) = commit_with_file(content, "src/leak.ts");
-        let verdict = validate_commit(&root, &sha);
+        let verdict = validate_commit(&root, &sha, None);
         let ValidationVerdict::Block { diagnostics } = verdict else {
             panic!("expected Block carrier, got {verdict:?}");
         };
@@ -1110,13 +1172,30 @@ mod tests {
         assert_eq!(outcome, WriteOutcome::Written);
     }
 
+    /// Write the store AND commit it, returning the store commit's sha
+    /// — the ADR-100 suppression-authority tip. Mirrors the real
+    /// workflow: the grant commit lands after the finding commit and
+    /// covers it from the tip.
+    fn commit_exceptions(root: &Path, exceptions: Vec<PolicyException>) -> String {
+        save_exceptions(root, exceptions);
+        git_in(root, &["add", "anvil/exceptions"]);
+        git_in(root, &["commit", "-q", "-m", "grant exceptions"]);
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .expect("git available");
+        String::from_utf8(out.stdout).unwrap().trim().to_string()
+    }
+
     /// EXCEPT-006: a valid, attributed exception covering the rule and
     /// file suppresses the finding — the gate recomputes to `Allow`.
     #[test]
     fn active_exception_suppresses_finding_and_allows() {
         let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
-        save_exceptions(&root, vec![exception_for("AP-001", "src/**")]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![exception_for("AP-001", "src/**")]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         assert_eq!(verdict, ValidationVerdict::Allow);
     }
 
@@ -1129,8 +1208,8 @@ mod tests {
         let mut ex = exception_for("AP-001", "src/**");
         ex.owner = None;
         ex.created_by = None;
-        save_exceptions(&root, vec![ex]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![ex]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         let ValidationVerdict::Block { diagnostics } = verdict else {
             panic!("expected Block carrier, got {verdict:?}");
         };
@@ -1153,8 +1232,8 @@ mod tests {
         let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
         let mut ex = exception_for("AP-001", "src/**");
         ex.expires_at = Some(Utc::now() - Duration::days(1));
-        save_exceptions(&root, vec![ex]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![ex]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         let ValidationVerdict::Block { diagnostics } = verdict else {
             panic!("expected Block, got {verdict:?}");
         };
@@ -1179,11 +1258,39 @@ mod tests {
             revoked_by: "bob".to_string(),
             reason: "no longer needed".to_string(),
         });
-        save_exceptions(&root, vec![ex]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![ex]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         assert!(
             matches!(verdict, ValidationVerdict::Block { .. }),
             "revoked grant must not suppress, got {verdict:?}",
+        );
+    }
+
+    /// ADR-100 (2026-07-04 council PoC): an uncommitted, worktree-only
+    /// grant must NOT satisfy the gate — suppression authority must be
+    /// committed in the tip's tree. This is the zero-trace self-grant
+    /// regression test.
+    #[test]
+    fn uncommitted_worktree_grant_does_not_apply() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        // Worktree-only store: written, never committed.
+        save_exceptions(&root, vec![exception_for("AP-001", "src/**")]);
+        let verdict = validate_commit(&root, &sha, Some(&sha));
+        assert!(
+            matches!(verdict, ValidationVerdict::Block { .. }),
+            "uncommitted grant must not suppress, got {verdict:?}",
+        );
+    }
+
+    /// ADR-100: no tip means no exceptions — findings stand.
+    #[test]
+    fn missing_tip_applies_no_exceptions() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let _tip = commit_exceptions(&root, vec![exception_for("AP-001", "src/**")]);
+        let verdict = validate_commit(&root, &sha, None);
+        assert!(
+            matches!(verdict, ValidationVerdict::Block { .. }),
+            "tip-less validation must apply no exceptions, got {verdict:?}",
         );
     }
 
@@ -1196,8 +1303,8 @@ mod tests {
         let mut unattributed = exception_for("AP-001", "src/**");
         unattributed.owner = None;
         unattributed.created_by = None;
-        save_exceptions(&root, vec![unattributed, exception_for("AP-001", "src/**")]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![unattributed, exception_for("AP-001", "src/**")]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         assert_eq!(
             verdict,
             ValidationVerdict::Allow,
@@ -1213,8 +1320,8 @@ mod tests {
         let mut unattributed = exception_for("AP-001", "src/**");
         unattributed.owner = None;
         unattributed.created_by = None;
-        save_exceptions(&root, vec![exception_for("AP-001", "src/**"), unattributed]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![exception_for("AP-001", "src/**"), unattributed]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         assert_eq!(verdict, ValidationVerdict::Allow);
     }
 
@@ -1225,7 +1332,21 @@ mod tests {
         let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
         std::fs::create_dir_all(root.join("anvil/exceptions")).unwrap();
         std::fs::write(root.join("anvil/exceptions/store.json"), "{not json").unwrap();
-        let verdict = validate_commit(&root, &sha);
+        git_in(&root, &["add", "anvil/exceptions"]);
+        git_in(&root, &["commit", "-q", "-m", "malformed store"]);
+        let tip = String::from_utf8(
+            Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_string();
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         assert!(
             matches!(verdict, ValidationVerdict::Block { .. }),
             "malformed store must leave findings standing, got {verdict:?}",
@@ -1237,8 +1358,8 @@ mod tests {
     #[test]
     fn out_of_scope_exception_leaves_finding_standing() {
         let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
-        save_exceptions(&root, vec![exception_for("AP-001", "vendor/**")]);
-        let verdict = validate_commit(&root, &sha);
+        let tip = commit_exceptions(&root, vec![exception_for("AP-001", "vendor/**")]);
+        let verdict = validate_commit(&root, &sha, Some(&tip));
         assert!(
             matches!(verdict, ValidationVerdict::Block { .. }),
             "out-of-scope grant must not suppress, got {verdict:?}",
@@ -1256,6 +1377,7 @@ mod tests {
         let engine = default_engine();
         let request = ValidationRequest {
             commit_sha: sha,
+            exceptions_tip_sha: None,
             branch_rule: anvil_l4::BranchRule {
                 pattern: "main".to_string(),
                 require: anvil_l4::Requirement::L4OrL3,
@@ -1319,7 +1441,7 @@ mod tests {
             .trim()
             .to_string();
         let start = Instant::now();
-        let verdict = validate_commit(&root, &sha);
+        let verdict = validate_commit(&root, &sha, None);
         let elapsed = start.elapsed();
         // The fixture intentionally contains no antipattern triggers,
         // so the verdict is `Allow`. The point of the test is wall

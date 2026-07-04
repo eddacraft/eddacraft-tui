@@ -72,6 +72,13 @@ pub struct ValidationRequest {
     /// shell out to git or read the commit's tree resolve paths
     /// relative to this.
     pub repo_root: PathBuf,
+    /// Commit whose tree carries suppression authority: the tip of
+    /// the pushed range (pre-push `local_sha`, `l4-validate` range
+    /// head) or the audited checkout's HEAD. Exceptions apply only if
+    /// committed in this tree — configuration may be local, authority
+    /// must be committed (ADR-100). `None` applies no exceptions
+    /// (fail-safe: findings stand).
+    pub exceptions_tip_sha: Option<String>,
 }
 
 /// MLP2-016: outcome of a server-side `validate_at_l4` call.
@@ -218,11 +225,13 @@ pub fn request_for(
     commit_sha: impl Into<String>,
     branch_rule: BranchRule,
     repo_root: impl AsRef<Path>,
+    exceptions_tip_sha: Option<String>,
 ) -> ValidationRequest {
     ValidationRequest {
         commit_sha: commit_sha.into(),
         branch_rule,
         repo_root: repo_root.as_ref().to_path_buf(),
+        exceptions_tip_sha,
     }
 }
 
@@ -242,7 +251,7 @@ mod tests {
     }
 
     fn request(sha: &str) -> ValidationRequest {
-        request_for(sha, rule(), Path::new("/tmp/test-repo"))
+        request_for(sha, rule(), Path::new("/tmp/test-repo"), None)
     }
 
     /// Default no-op engine returns `EngineUnavailable { NotImplemented }`.
@@ -336,7 +345,7 @@ mod tests {
     /// field reorder cannot break call sites silently.
     #[test]
     fn request_for_carries_caller_inputs_unchanged() {
-        let req = request_for("deadbeef", rule(), Path::new("/work/repo"));
+        let req = request_for("deadbeef", rule(), Path::new("/work/repo"), None);
         assert_eq!(req.commit_sha, "deadbeef");
         assert_eq!(req.branch_rule.pattern, "main");
         assert_eq!(req.repo_root, Path::new("/work/repo"));
