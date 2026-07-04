@@ -317,6 +317,38 @@ stale global `oxfmt` on PATH.
 
 See CIB-032 in `plans/modules/continuous-improvement-backlog.aps.md`.
 
+## Default-branch anchor auto-heal
+
+The worktree that has the default branch (`main`) checked out — the "anchor",
+normally the primary clone — is a **read-only anchor**. Do not do branch work in
+it and do not leave uncommitted changes there. Create work in a disposable
+worktree (`wt switch --create <branch>`), never by editing the anchor directly.
+
+Why this matters: `wt` keeps the local `main` ref fast-forwarded to `origin` via
+an in-process git-library ref write. That write moves `refs/heads/main` but does
+**not** update the anchor's working tree, so the anchor is left stranded one or
+more merges behind `HEAD`. `git status` in the anchor then renders the gap as a
+phantom "revert of merged work" — dozens of files that look modified but are
+only the inverse of what was merged since the anchor last synced. If the anchor
+is also dirty, the next fast-forward can no longer update its tree, so the
+strand persists and deepens with every merge to `origin`.
+
+`scripts/dev/heal-primary-anchor.sh` resyncs the anchor. It is wired as `wt`
+`post-switch` / `post-merge` / `post-remove` hooks in `.config/wt.toml`, so it
+runs automatically after every `wt` mutation, and is safe to run by hand:
+
+```sh
+bash scripts/dev/heal-primary-anchor.sh
+```
+
+It is a no-op when the anchor is clean. It only ever hard-resets when it can
+**prove** the anchor holds a pure strand (its tracked working state is
+byte-identical to a committed ancestor of `HEAD`, with no untracked files).
+Anything it cannot prove is a strand — genuine uncommitted work — is preserved
+with `git stash`, never discarded. Recover any such stash with
+`git -C <anchor> stash list`. Covered by
+`scripts/dev/heal-primary-anchor.test.sh`.
+
 ## Related Docs
 
 - [Branching Strategy](branching-strategy.md)

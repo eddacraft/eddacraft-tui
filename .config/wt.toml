@@ -53,3 +53,20 @@ build = "pnpm run build"
 # Show dev URL in wt list
 [list]
 url = "http://localhost:{{ branch | hash_port }}"
+
+# Resync the default-branch anchor after every wt mutation. wt fast-forwards the
+# local main ref via an in-process ref write that does NOT update the working
+# tree of the worktree with main checked out (the "anchor"/primary), stranding
+# it behind HEAD so `git status` there shows a phantom "revert of merged work".
+# The heal is a no-op when the anchor is clean and only hard-resets a PROVABLE
+# strand (byte-identical to a committed ancestor); genuine changes are preserved
+# via git stash. See docs/guides/worktree-policy.md § "Default-branch anchor
+# auto-heal".
+[[post-switch]]
+heal-anchor = "bash scripts/dev/heal-primary-anchor.sh"
+
+[[post-merge]]
+heal-anchor = "bash scripts/dev/heal-primary-anchor.sh"
+
+[[post-remove]]
+heal-anchor = "bash scripts/dev/heal-primary-anchor.sh"
