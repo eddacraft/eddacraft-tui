@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 141/181  |
+| CIB | —     | In Progress | 145/181  |
 
 ## Purpose
 
@@ -3549,19 +3549,11 @@ archive.
 
 ### CIB-129: Cover the `anvil-rayon-init` half-cores pool cap with a test
 
-- **Status:** Draft
-- **Intent:** Add regression coverage for the half-cores global rayon pool cap,
-  which is currently untested even though `cap_threads` was factored out as a
-  pure function specifically to be unit-testable.
-- **Expected Outcome:** a unit test pins `cap_threads == (num_cpus / 2).max(1)`
-  across representative core counts; optionally a subprocess/integration smoke
-  asserts `init_global()` applies the cap before any `par_iter`.
-- **Validation:** `cargo test -p eddacraft-anvil-rayon-init`.
-- **Files:** `crates/anvil-rayon-init/src/lib.rs`.
-- **Identified From:** clawpatch 2026-07-02 triage
-  (`fnd_sig-feat-library-8a1266b4d7`, low / test-gap);
-  `plans/reviews/2026-07-02-clawpatch-triage.md`.
-- **Confidence:** high.
+- **Status:** Done
+- **Summary:** Already covered — `cap_threads_is_half_cores_minimum_one` in
+  `crates/anvil-rayon-init/src/lib.rs` pins `cap_threads` across representative
+  core counts (predates this item, commit `1b1fecdb2`). Reconciled 2026-07-05
+  after a readiness-gate check found the item stale relative to current main.
 
 ### CIB-130: Rust test-hardening batch (2026-07-02 clawpatch tail)
 
@@ -3586,21 +3578,13 @@ archive.
 
 ### CIB-131: Harden dogfood FP classifier path handling
 
-- **Status:** Draft
-- **Intent:** Stop `scripts/dogfood/external-fp/classify.py` from accepting
-  warning file paths that escape the checked-out repository, and make the
-  worksheet build tolerate an absent output directory.
-- **Expected Outcome:** paths resolving outside the repo root are rejected or
-  normalised (no traversal); the worksheet build creates its output directory
-  when missing instead of failing.
-- **Validation:** manual dogfood run of `classify.py` against a repo-escaping
-  warning path and an absent output dir; add a focused unit test if the harness
-  supports it.
-- **Files:** `scripts/dogfood/external-fp/classify.py`.
-- **Identified From:** clawpatch 2026-07-02 triage (`classify.py`
-  medium / confirmed-bug path-escape + low / confirmed-bug output-dir-absent);
-  `plans/reviews/2026-07-02-clawpatch-triage.md`.
-- **Confidence:** high.
+- **Status:** Merged 2026-06-19 via commit `a4b3a31c5`
+- **Summary:** Already fixed — `scripts/dogfood/external-fp/classify.py`'s
+  `source_line()` rejects any path resolving outside the repo root (guarded
+  `relative_to`), and `build()` creates the worksheet output directory when
+  missing. Landed before the 2026-07-02 clawpatch triage that (re-)identified
+  it. Reconciled 2026-07-05 after a readiness-gate check found the item stale
+  relative to current main.
 
 ### CIB-132: Precise SSL detection in `admin-key-manage`
 
