@@ -1676,7 +1676,6 @@ dependencies = [
  "fs2",
  "glob",
  "hex",
- "regex",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1684,8 +1683,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "wait-timeout",
- "walkdir",
- "which",
  "workspace-hack",
 ]
 

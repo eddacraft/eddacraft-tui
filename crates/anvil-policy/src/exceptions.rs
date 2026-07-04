@@ -5,9 +5,23 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::evaluator::Violation;
-
 const EXCEPTION_SCHEMA_VERSION: &str = "anvil.exception.v1";
+
+/// A policy finding that an exception can suppress.
+///
+/// A plain data struct describing a single violation (rule, file, message,
+/// severity, and optional category / fingerprint). It moved here from the
+/// deleted OPA `evaluator` module in ADR-098 PR-C; the exceptions store is
+/// its only remaining consumer.
+#[derive(Debug, Clone, Serialize)]
+pub struct Violation {
+    pub policy_id: String,
+    pub file: String,
+    pub message: String,
+    pub severity: String,
+    pub category: Option<String>,
+    pub fingerprint: Option<String>,
+}
 
 /// A policy exception that suppresses matching violations.
 #[derive(Debug, Clone, Serialize)]

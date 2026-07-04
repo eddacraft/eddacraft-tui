@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "Anvil policy engine — evaluation, library loading, policy lifecycle"
+description = "Anvil policy support — git-native exceptions store, eval-regression harness, and policy config"
 
 [lib]
 name = "anvil_policy"
@@ -14,13 +14,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }
-walkdir = { workspace = true }
-regex = { workspace = true }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 sha2 = "0.11"
 hex = "0.4"
 wait-timeout = "0.2"
-which = "8"
 tempfile.workspace = true
 fs2 = "0.4"
 glob = "0.3"

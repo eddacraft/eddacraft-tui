@@ -1,8 +1,8 @@
 # OPA Policy Testing Guide
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                       |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-07-04 against ADR-098 (Rust OPA-subprocess suite removal), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                              |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-07-04 against ADR-098 (Rust OPA-subprocess module removal, PR-C), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -134,8 +134,12 @@ skips automatically when `opa` is not on `PATH` and `ANVIL_OPA_PATH` is unset.
 The Rust OPA-subprocess integration suites (`opa_capabilities.rs`,
 `opa_real_binary.rs`) were deleted under ADR-098 AD-1 (PR-A of the
 OPA-to-regorus replace-then-delete sequence). The remaining OPA-subprocess
-modules in `crates/anvil-policy` are deleted in PR-C once the `anvil gate`
-policy check migrates to the regorus facade (OPAE-003).
+modules in `crates/anvil-policy` (`opa`, `evaluator`, `loader`, `bundle`,
+`library`, `profiles`, `config_view`) were deleted in PR-C, now that the
+`anvil gate` policy check has migrated to the regorus facade (OPAE-003, PR-B).
+The crate retains only the git-native exceptions store, the eval-regression
+harness, and `.anvil.yaml` policy config; the `Violation` struct moved into the
+`exceptions` module.
 
 ### Via the product regorus engine
 
