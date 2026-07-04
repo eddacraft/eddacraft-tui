@@ -4797,6 +4797,6 @@ archive.
   before spawning (write to a temp name then rename, or write+close+exec via
   a helper that pins the fd lifecycle), or the affected tests serialise their
   spawns; the four tests pass repeatedly under a parallel full-crate run.
-- **Validation:** `for i in 1..20: cargo test -p eddacraft-anvil-policy` with
-  zero ETXTBSY failures
+- **Validation:** `for i in $(seq 1 20); do cargo test -p eddacraft-anvil-policy || exit 1; done`
+  with zero ETXTBSY failures
 - **Dependencies:** —
