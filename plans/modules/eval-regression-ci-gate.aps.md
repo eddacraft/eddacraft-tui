@@ -107,7 +107,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-005: First-wave arch-boundary eval suite
 
-- **Status:** Done
+- **Status:** Merged 2026-07-04 via PR #3170
 - **Intent:** Author `policies/eval/arch_boundary.rego` plus a hermetic
   `arch_boundary.input.json` and `ci/eval/suites.json`; extend `opa test` and
   `regal lint` to cover `policies/eval/`.
@@ -131,7 +131,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-006: Report-only CI step plus committed baseline
 
-- **Status:** Done
+- **Status:** Merged 2026-07-04 via PR #3170
 - **Intent:** Add a `continue-on-error: true` eval-regression step to the
   rust-tests.yml Test job (build anvil, absolute `--anvil-bin`,
   `--store ci/eval/baseline`), and seed a one-record-per-suite baseline written

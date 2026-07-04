@@ -575,3 +575,20 @@ never with feature work.
   no-second-extractor claim against known merged state.
 - Checkpoints raised: none.
 - Next: POLRESET-008 (EVALCI-005/006 report-only CI), then 009 (ATC/PATT).
+
+## Cycle — 2026-07-04 (POLRESET-008 / EVALCI-005+006)
+
+- Items: report-only eval-regression CI (PR #3170): policies/eval/
+  arch_boundary suite + hermetic fixture + suites.json (bound to the
+  shipped Vec<EvalSuite> schema); continue-on-error step in the required
+  Test job; committed baseline, operator-refresh only (council decision 3
+  ambiguity resolved: CI cannot push to main — documented in
+  ci/eval/README.md).
+- Validation: eval_suite_manifest_parses; eval_regression_command 10/10;
+  opa test policies/eval 4/4; anvil-policy 104/104; workspace clean.
+- Discoveries: report renderer closes fd 1 truncating piped stdout
+  (worked around, filed #3169); ANVIL_DEV=1 confirmed as the documented
+  dev bypass for gated subprocess runs in CI.
+- Checkpoints raised: none.
+- Next: POLRESET-009 (adversarial depth — ATC/PATT), the module's final
+  item.

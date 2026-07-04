@@ -253,7 +253,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-008: Report-only policy regression CI
 
-- **Status:** Done
+- **Status:** Merged 2026-07-04 via PR #3170
 - **Intent:** Promote the already-hardened EVALCI path into visible report-only
   policy regression coverage.
 - **Expected Outcome:** Every PR gets a non-blocking eval-regression report over a
