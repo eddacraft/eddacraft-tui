@@ -16,6 +16,10 @@ check() { # name  got  want
   if [ "$2" = "$3" ]; then echo "ok: $1"; else echo "FAIL: $1 (want '$3' got '$2')"; fail=1; fi
 }
 
+# Count stashes without tripping `set -e`: `grep -c` exits 1 on zero matches,
+# which would fail the surrounding command substitution.
+stash_count() { git -C "$1" stash list | wc -l | tr -d ' '; }
+
 new_repo() { # n  -> echoes repo path with two commits (c1: v1, c2: v2)
   local repo="$tmp/repo$1"
   git init -q -b main "$repo"
@@ -37,7 +41,7 @@ git -C "$repo" update-ref refs/heads/main "$c2"     # advance ref only → stran
 check "strand: healed to clean"      "$(git -C "$repo" status --porcelain)"        ""
 check "strand: HEAD unchanged (c2)"  "$(git -C "$repo" rev-parse HEAD)"            "$c2"
 check "strand: tree resynced to v2"  "$(cat "$repo/f.txt")"                        "v2"
-check "strand: no stash created"     "$(git -C "$repo" stash list | grep -c .)"    "0"
+check "strand: no stash created"     "$(stash_count "$repo")"    "0"
 
 # ── Case 2: genuine uncommitted work must be preserved, not reset ──────────────
 repo=$(new_repo 2)
@@ -45,7 +49,7 @@ printf 'REAL WORK\n' >"$repo/f.txt"                 # real edit atop HEAD, not a
 printf 'new\n' >"$repo/untracked.txt"               # + an untracked file
 ( cd "$repo" && bash "$heal" ) >/dev/null 2>&1 || true
 check "real work: tree cleaned"      "$(git -C "$repo" status --porcelain)"        ""
-check "real work: stashed once"      "$(git -C "$repo" stash list | grep -c .)"    "1"
+check "real work: stashed once"      "$(stash_count "$repo")"    "1"
 git -C "$repo" stash pop -q
 check "real work: tracked recovered" "$(cat "$repo/f.txt")"                        "REAL WORK"
 check "real work: untracked recovered" "$(cat "$repo/untracked.txt")"             "new"
@@ -54,6 +58,6 @@ check "real work: untracked recovered" "$(cat "$repo/untracked.txt")"           
 repo=$(new_repo 3)
 ( cd "$repo" && bash "$heal" ) >/dev/null 2>&1 || true
 check "clean: still clean"           "$(git -C "$repo" status --porcelain)"        ""
-check "clean: no stash created"      "$(git -C "$repo" stash list | grep -c .)"    "0"
+check "clean: no stash created"      "$(stash_count "$repo")"    "0"
 
 if [ "$fail" = 0 ]; then echo "ALL PASS"; else echo "FAILURES"; exit 1; fi
