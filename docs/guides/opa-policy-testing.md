@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-07-04 against ADR-098 (Rust OPA-subprocess module removal, PR-C), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
 
-| Upstream                                                                                                                                                                                                                  | Downstream                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `crates/anvil-policy-engine` (regorus facade), `crates/anvil-policy` (pack/legacy OPA helpers), `policies/fixtures/`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/decisions/040-rust-policy-engine-regorus.md` | Policy authors, Rego fixture tests, pack validation, policy governance planning, gate evaluation |
+| Upstream                                                                                                                                                                                                                                                   | Downstream                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `crates/anvil-policy-engine` (regorus facade), `crates/anvil-policy` (exceptions store, eval-regression harness, policy config), `policies/fixtures/`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/decisions/040-rust-policy-engine-regorus.md` | Policy authors, Rego fixture tests, pack validation, policy governance planning, gate evaluation |
 
 How to write, test, and ship Rego policies for Anvil. The shipping product
 runtime is ADR-040's Rust/regorus facade in `crates/anvil-policy-engine`; the
