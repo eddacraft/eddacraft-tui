@@ -1,3 +1,4 @@
+pub mod adversarial;
 pub mod attack_scenario;
 pub mod diagnostics;
 pub mod enforcement;
@@ -13,6 +14,7 @@ pub mod session;
 pub mod trust;
 pub mod watch_event;
 
+pub use adversarial::{ExpectedOutcome, PayloadClass, Probe, ProbeCategory};
 pub use diagnostics::{
     Category, ControlDecision, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location,
     Mode, Severity,

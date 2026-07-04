@@ -1,8 +1,8 @@
 # Adversarial Testing Catalog
 
-| ID  | Owner  | Status |
-| --- | ------ | ------ |
-| ATC | @aneki | Ready  |
+| ID  | Owner  | Status      |
+| --- | ------ | ----------- |
+| ATC | @aneki | In Progress |
 
 **Last reviewed:** 2026-05-25 (APSCAN-004 canonical-heading migration)
 
@@ -24,10 +24,14 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-001: Define adversarial probe taxonomy
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Standardise categories, payload classes, and expected outcomes.
 - **Expected Outcome:** Probe catalog supports traceable and versioned test assets.
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- adversarial_taxonomy`
+  (green — 8 tests). Added `crates/anvil-kernel-types/src/adversarial.rs`:
+  `ProbeCategory`, `PayloadClass`, `ExpectedOutcome` (each with a `#[serde(other)]
+  Unknown` fallback, kebab-case wire form) and the versioned `Probe` record.
+  Serde-only, additive to the wire crate.
 
 ### ATC-002: Implement probe pack registry
 
