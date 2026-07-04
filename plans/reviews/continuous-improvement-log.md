@@ -1971,5 +1971,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Failed:** none.
 - **Friction:** No test pinned the pre-existing bare-array `hooks install --json` shape, so confirming the array→object change was safe required grepping docs + integration tests rather than a contract test.
 - **Improvement:** Emit-once-then-branch: compute advisory data before the output-mode split and render it inside each branch, so no diagnostic can leak onto stdout after a JSON payload.
+
+### 2026-07-04 — claude (CIB-177)
+
+- **Task:** CIB-177 — bare `anvil` fails clap's required-subcommand parse and renders the full 40+-command long help at exit 2, so a first-time user's first contact is a wall of commands with `welcome`/`start` buried mid-list.
+- **Outcome:** Added a `before_help` banner on the root `Cli` command (`New to Anvil? Run \`anvil welcome\` for a guided tour, or \`anvil start\` to activate protection in this repository.`), sourced from a new `help_layout::FIRST_RUN_POINTER` const kept beside the CLI-surface layout policy. Parsing and the exit-2 contract are untouched; the `after_help` EXIT CODES block is preserved. TDD: a unit test (`root_help_leads_with_first_run_pointer`, asserts both pointers render before `Commands:`) and an integration test (`tests/bare_invocation.rs`, spawns the bare binary, asserts exit 2 + pointer-before-commands + EXIT CODES footer) were proven red first.
+- **Worked:** `before_help` renders ahead of the about/usage/commands body in clap's required-subcommand error path, so the orientation leads without any custom error handling. Keeping the copy identifier-free kept `lint_internal_identifiers` and the CLIC-010 layout lint green with no changes to those lints.
+- **Failed:** none.
+- **Friction:** `CARGO_TARGET_DIR` is redirected to `~/.cache/anvil-targets`, so the worktree-local `./target/debug/anvil` was stale — inspect the cache-dir binary, not `./target`, when eyeballing rendered CLI output.
+- **Improvement:** For "first-run orientation" copy on a required-subcommand root, prefer `before_help` (which the arg-required-else-help path already renders) over a bespoke bare-invocation branch.
 - **Follow-up:** none.
 

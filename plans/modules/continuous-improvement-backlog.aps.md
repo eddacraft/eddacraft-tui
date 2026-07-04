@@ -4706,7 +4706,7 @@ archive.
 
 ### CIB-177: Give bare `anvil` a first-run pointer instead of a 40-command dump
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Plain `anvil` fails clap parsing (required subcommand,
   `main.rs:163-169`) and prints the full 40+-command help at exit 2;
   `welcome`/`start` are buried mid-list, so the very first contact for a new

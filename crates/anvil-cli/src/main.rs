@@ -150,6 +150,7 @@ pub struct GlobalArgs {
     version,
     about,
     long_about = None,
+    before_help = help_layout::FIRST_RUN_POINTER,
     after_help = "\
 EXIT CODES:
   0  Success (incl. pre-dispatch auth-required on action commands)
@@ -1464,6 +1465,35 @@ mod tests {
         assert!(
             help.contains("WHEN TO USE:"),
             "missing when-to-use:\n{help}"
+        );
+    }
+
+    #[test]
+    fn root_help_leads_with_first_run_pointer() {
+        // CIB-177: bare `anvil` renders the full long help; a first-time user
+        // should meet a short orientation naming `anvil welcome` (tour) and
+        // `anvil start` (activate) *before* the wall of commands, not buried
+        // mid-list. Assert both pointers render ahead of the command list.
+        let mut command = augmented_cli_command();
+        let help = command.render_long_help().to_string();
+
+        let welcome = help
+            .find("anvil welcome")
+            .expect("first-run pointer names `anvil welcome`");
+        let start = help
+            .find("anvil start")
+            .expect("first-run pointer names `anvil start`");
+        let commands = help
+            .find("Commands:")
+            .expect("root help lists the commands");
+
+        assert!(
+            welcome < commands,
+            "`anvil welcome` pointer must appear before the command list:\n{help}"
+        );
+        assert!(
+            start < commands,
+            "`anvil start` pointer must appear before the command list:\n{help}"
         );
     }
 
