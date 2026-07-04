@@ -629,11 +629,25 @@ fn check_hook_interpreter_at(root: &Path, status: HookInterpreterStatus) -> Diag
     }
 
     match status {
-        HookInterpreterStatus::Available | HookInterpreterStatus::Unknown => DiagnosticCheck {
+        HookInterpreterStatus::Available => DiagnosticCheck {
             name: "hook-interpreter".to_string(),
             category: "Hooks".to_string(),
             status: CheckStatus::Pass,
             message: "file-mode hook interpreter (`sh`) available".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        },
+        // Unknown means the probe was indeterminate, not that `sh` is present.
+        // Keep it a (non-alarming) Pass so a probe we could not complete never
+        // trips a false warning, but say so honestly rather than claiming the
+        // interpreter is available.
+        HookInterpreterStatus::Unknown => DiagnosticCheck {
+            name: "hook-interpreter".to_string(),
+            category: "Hooks".to_string(),
+            status: CheckStatus::Pass,
+            message: "file-mode hook interpreter (`sh`) presence could not be determined"
+                .to_string(),
             details: None,
             auto_fixable: false,
             remediation: Remediation::default(),
@@ -2433,6 +2447,16 @@ mod tests {
 
         let check = check_hook_interpreter_at(tmp.path(), HookInterpreterStatus::Unknown);
         assert_eq!(check.status, CheckStatus::Pass);
+        assert!(
+            !check.message.contains("available"),
+            "Unknown must not claim the interpreter is available: {}",
+            check.message
+        );
+        assert!(
+            check.message.contains("could not be determined"),
+            "Unknown message must reflect the indeterminate probe: {}",
+            check.message
+        );
     }
 
     #[test]
