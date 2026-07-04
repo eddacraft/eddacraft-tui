@@ -1519,8 +1519,15 @@ mod tests {
 
         let options = workflow_picker_options(dir.path(), &candidates);
 
+        // The returned options must correspond 1:1 to the input candidates, in
+        // order — otherwise a helper that duplicated or dropped a workflow could
+        // still pass the unticked check below.
         assert_eq!(options.len(), candidates.len());
-        for (workflow, _label, selected) in &options {
+        for ((workflow, _label, selected), expected) in options.iter().zip(candidates.iter()) {
+            assert_eq!(
+                workflow, expected,
+                "picker options must match the input candidates 1:1 and in order",
+            );
             assert!(
                 !selected,
                 "picker option for {workflow} must default to unticked (CIB-165)",

@@ -8,10 +8,11 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Confirm `cargo test -p eddacraft-anvil --bins -- workflow_picker` passes
-      on `main` post-merge — including the two new tests
-      `workflow_picker_options_default_every_candidate_unticked` and
-      `workflow_install_with_empty_selection_writes_nothing` (agent: yes)
+- [ ] Confirm `cargo test -p eddacraft-anvil --bins --
+      workflow_picker_options_default_every_candidate_unticked
+      workflow_install_with_empty_selection_writes_nothing` passes on `main`
+      post-merge — both filters run (libtest OR-combines them), so the two new
+      tests are exercised (agent: yes)
 - [ ] Manual TTY verification (unit tests cover the extracted helper, not the
       rendered `demand::MultiSelect`): in a scratch repo without
       `.github/workflows/anvil*.yml`, run `anvil start` in an interactive
