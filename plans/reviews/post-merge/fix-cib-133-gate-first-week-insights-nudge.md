@@ -1,6 +1,6 @@
 # Post-merge: fix-cib-133-gate-first-week-insights-nudge
 
-PR: <!-- filled after PR creation -->
+PR: #3185
 Branch: `fix/cib-133-gate-first-week-insights-nudge`
 APS: CIB-133 (module `continuous-improvement-backlog`)
 Merged: <!-- filled by cleanup agent -->
