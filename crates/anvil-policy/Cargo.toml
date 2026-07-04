@@ -10,6 +10,11 @@ description = "Anvil policy support — git-native exceptions store, eval-regres
 name = "anvil_policy"
 
 [dependencies]
+# PATT: the attack-scenario schema (AttackScenario, SafeBehaviour, Confidence)
+# is the wire vocabulary the pack runner loads and normalises. It lives in the
+# dependency-light wire-types crate, already in this binary's tree, so this adds
+# no new shipped crate.
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }

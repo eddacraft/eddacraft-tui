@@ -34,11 +34,17 @@ injection, exfiltration, and instruction-hijack scenarios before release.
 
 ### PATT-002: Build attack pack runner
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Execute scenario packs deterministically across environments.
 - **Expected Outcome:** Runner emits normalised outcomes and confidence metadata.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- attack_pack_runner`
 - **Dependencies:** PATT-001
+- **Validated:** `crates/anvil-policy/src/attack/runner.rs` — `AttackPack`
+  (`deny_unknown_fields`, fail-closed loader mirroring the policy-pack manifest
+  taxonomy) + `run_pack` over an injected `DefenceObserver` seam; normalised
+  `ScenarioOutcome`s (fail-closed pass rule, bounded `Confidence`, manifest
+  order). Baseline `ConformanceObserver` shipped until a live defence is wired.
+  12 filtered tests green, full crate + clippy `-D warnings` + fmt clean.
 
 ### PATT-003: Connect fail policy and CI gates
 

@@ -9,7 +9,9 @@
 //! - [`exceptions`] — the git-native policy exceptions store.
 //! - [`eval`] — the eval-regression harness.
 //! - [`config`] — `.anvil.yaml` policy configuration loading.
+//! - [`attack`] — the prompt-attack regression pack runner (PATT-002).
 
+pub mod attack;
 pub mod config;
 pub mod eval;
 pub mod exceptions;
