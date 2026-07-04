@@ -485,8 +485,9 @@ fn workflow_display_path(root: &Path, path: &Path) -> String {
 
 /// Offer GitHub Actions workflow installation.
 ///
-/// Interactive sessions show a pre-selected list of absent workflow files. A
-/// plain Enter accepts the default set; toggling entries off opts out. In
+/// Interactive sessions show an unticked list of absent workflow files. Every
+/// entry starts unselected (CIB-165), so a plain Enter writes nothing; the
+/// operator must tick a workflow to consent to installing it. In
 /// non-interactive sessions we skip entirely so customer repos are not modified
 /// without an operator seeing the list.
 fn ensure_github_actions_workflows(
@@ -516,6 +517,23 @@ fn pending_workflows(root: &Path) -> Vec<WorkflowTemplate> {
         .collect()
 }
 
+/// Build the `(workflow, label, selected)` tuples backing the interactive
+/// picker.
+///
+/// Every candidate defaults to `selected = false` (CIB-165): a plain
+/// Enter-through therefore selects nothing and writes no CI files, so a hurried
+/// operator never silently adds workflows to a shared repo. Ticking a workflow
+/// is the explicit consent.
+fn workflow_picker_options(
+    root: &Path,
+    candidates: &[WorkflowTemplate],
+) -> Vec<(WorkflowTemplate, String, bool)> {
+    candidates
+        .iter()
+        .map(|workflow| (*workflow, workflow.label(root), false))
+        .collect()
+}
+
 fn show_workflow_picker(
     root: &Path,
     candidates: &[WorkflowTemplate],
@@ -523,14 +541,16 @@ fn show_workflow_picker(
     use demand::{DemandOption, MultiSelect};
 
     let mut picker = MultiSelect::new("Install or enable GitHub Actions workflows?")
-        .description("Selected workflows are written only if absent. Space toggles; Enter accepts.")
+        .description(
+            "Nothing is selected by default. Space ticks a workflow; Enter installs your \
+             ticked selection (writing each only if absent).",
+        )
         .filterable(false)
         .min(0)
         .max(candidates.len());
 
-    for workflow in candidates {
-        let label = workflow.label(root);
-        picker = picker.option(DemandOption::new(*workflow).label(&label).selected(true));
+    for (workflow, label, selected) in workflow_picker_options(root, candidates) {
+        picker = picker.option(DemandOption::new(workflow).label(&label).selected(selected));
     }
 
     let _raw_guard = WorkflowRawModeCleanupGuard;
@@ -1486,6 +1506,43 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&audit_target).unwrap(),
             crate::commands::audit_chain::audit_workflow_template(),
+        );
+    }
+
+    #[test]
+    fn workflow_picker_options_default_every_candidate_unticked() {
+        // CIB-165 — both picker options must start unselected, so a hurried
+        // Enter-through selects nothing and writes no CI files to a shared
+        // repo. Ticking a workflow is the explicit consent.
+        let dir = TempDir::new().unwrap();
+        let candidates = [WorkflowTemplate::PrValidation, WorkflowTemplate::Audit];
+
+        let options = workflow_picker_options(dir.path(), &candidates);
+
+        assert_eq!(options.len(), candidates.len());
+        for (workflow, _label, selected) in &options {
+            assert!(
+                !selected,
+                "picker option for {workflow} must default to unticked (CIB-165)",
+            );
+        }
+    }
+
+    #[test]
+    fn workflow_install_with_empty_selection_writes_nothing() {
+        // CIB-165 — an Enter-through leaves the selection empty; installing an
+        // empty selection must not create `.github/` or any workflow file.
+        let dir = TempDir::new().unwrap();
+
+        let written = install_selected_workflows(dir.path(), &[]).unwrap();
+
+        assert!(
+            written.is_empty(),
+            "empty selection must write no workflow files"
+        );
+        assert!(
+            !dir.path().join(".github").exists(),
+            "empty selection must not create the .github directory"
         );
     }
 

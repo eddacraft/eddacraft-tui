@@ -4485,7 +4485,7 @@ archive.
 
 ### CIB-165: Default the GitHub Actions workflow picker to unticked
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Owner decision (2026-07-04):** default-unticked. Both workflow options
   start unselected; the user must actively tick to get CI files written, so a
   hurried Enter-through writes nothing. No extra confirm step and no separate

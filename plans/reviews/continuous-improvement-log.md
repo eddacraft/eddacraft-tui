@@ -2010,3 +2010,14 @@ a backlog. Promote repeated friction or executable follow-up work to
 
 
 
+
+### 2026-07-04 — claude (CIB-165)
+
+- **Task:** CIB-165 — default the interactive GitHub Actions workflow picker to unticked so a hurried Enter-through in `anvil start` writes no CI files to a shared repo.
+- **Outcome:** Extracted a pure `workflow_picker_options(root, candidates) -> Vec<(WorkflowTemplate, String, bool)>` helper (every candidate `selected = false`) and had `show_workflow_picker` build `DemandOption`s from it, replacing the inline `.selected(true)`. Updated the `ensure_github_actions_workflows` doc comment and the `MultiSelect` description to say nothing is selected by default and ticking is the consent. TDD: added `workflow_picker_options_default_every_candidate_unticked` and `workflow_install_with_empty_selection_writes_nothing` (empty selection writes no files and never creates `.github/`), proven red (helper missing) then green.
+- **Worked:** Splitting the option construction out of the `demand`-driven picker made the default assertable in a plain unit test without a TTY; the empty-selection install test pins the Enter-through-writes-nothing property directly against `install_selected_workflows`.
+- **Failed:** none.
+- **Friction:** `show_workflow_picker` itself still needs an interactive terminal, so the default is verified through the extracted helper rather than by driving the picker.
+- **Improvement:** When a default lives inside a TTY-only widget builder, extract the value-producing step into a pure function so the policy (here: unticked-by-default) is unit-testable independent of the UI library.
+- **Follow-up:** none.
+
