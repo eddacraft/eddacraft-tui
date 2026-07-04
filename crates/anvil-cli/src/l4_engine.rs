@@ -77,7 +77,7 @@ use anvil_l4::{
     EngineUnavailableReason, ExceptionDisposition, Severity, ValidationDiagnostic,
     ValidationEngine, ValidationRequest, ValidationVerdict, apply_exception_dispositions,
 };
-use anvil_policy::exceptions::{ExceptionStore, verify_exception_at};
+use anvil_policy::exceptions::{ExceptionStore, ExceptionVerdict, verify_exception_at};
 use chrono::Utc;
 
 /// MLP2-016 production engine.
@@ -254,17 +254,31 @@ fn verdict_for_warnings(
     for applied in &outcome.applied {
         // The recorded trail of exception use. `tracing` is this
         // surface's established machine-readable channel (see the
-        // pre-push hook's engine_unavailable event); witness-envelope
-        // and capsule inclusion build on the same applied record
-        // (EXCEPT-009).
-        tracing::info!(
-            target: "anvil::l4_engine",
-            exception_id = %applied.exception_id,
-            rule_id = %applied.rule_id,
-            commit = %short(commit_sha),
-            downgraded = applied.downgraded,
-            "policy exception applied to L4 finding",
-        );
+        // pre-push hook's engine_unavailable event); durable
+        // witness-envelope and capsule inclusion build on the same
+        // applied record (EXCEPT-009). An unattributed application is
+        // a trust fault, so it records at `warn` — visible under the
+        // CLI's default `warn` filter; a clean attributed suppression
+        // is authorised success and stays at `info` (ADR-038
+        // silent-on-success), also surfaced by the annotated Warn
+        // diagnostic the operator sees.
+        if applied.downgraded {
+            tracing::warn!(
+                target: "anvil::l4_engine",
+                exception_id = %applied.exception_id,
+                rule_id = %applied.rule_id,
+                commit = %short(commit_sha),
+                "unattributed policy exception applied to L4 finding (downgraded to warn)",
+            );
+        } else {
+            tracing::info!(
+                target: "anvil::l4_engine",
+                exception_id = %applied.exception_id,
+                rule_id = %applied.rule_id,
+                commit = %short(commit_sha),
+                "policy exception applied to L4 finding",
+            );
+        }
     }
     outcome.verdict
 }
@@ -302,23 +316,27 @@ fn exception_dispositions(
         }
     };
     let now = Utc::now();
-    let active = store.active_exceptions_at(now);
-    if active.is_empty() {
+    // Verdicts depend only on the grant and `now`, so classify each
+    // grant once (not per warning) and keep only the ones that apply.
+    let applicable: Vec<(&anvil_policy::exceptions::PolicyException, ExceptionVerdict)> = store
+        .active_exceptions_at(now)
+        .into_iter()
+        .map(|ex| (ex, verify_exception_at(ex, now)))
+        .filter(|(_, verdict)| verdict.applies())
+        .collect();
+    if applicable.is_empty() {
         return not_covered;
     }
     warnings
         .iter()
         .map(|warning| {
             let mut downgrade: Option<ExceptionDisposition> = None;
-            for exception in &active {
-                let verdict = verify_exception_at(exception, now);
-                if !verdict.applies()
-                    || !exception.covers_finding(
-                        &warning.id,
-                        &warning.location.file,
-                        warning.fingerprint.as_deref(),
-                    )
-                {
+            for (exception, verdict) in &applicable {
+                if !exception.covers_finding(
+                    &warning.id,
+                    &warning.location.file,
+                    warning.fingerprint.as_deref(),
+                ) {
                     continue;
                 }
                 if verdict.is_downgrade() {
@@ -1163,6 +1181,51 @@ mod tests {
         assert!(
             matches!(verdict, ValidationVerdict::Block { .. }),
             "revoked grant must not suppress, got {verdict:?}",
+        );
+    }
+
+    /// EXCEPT-006 council: attributed grant wins over an unattributed
+    /// one covering the same finding — clean suppression, independent
+    /// of store order. Unattributed first…
+    #[test]
+    fn attributed_grant_beats_unattributed_listed_after_it() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let mut unattributed = exception_for("AP-001", "src/**");
+        unattributed.owner = None;
+        unattributed.created_by = None;
+        save_exceptions(&root, vec![unattributed, exception_for("AP-001", "src/**")]);
+        let verdict = validate_commit(&root, &sha);
+        assert_eq!(
+            verdict,
+            ValidationVerdict::Allow,
+            "attributed grant must clean-suppress regardless of store order",
+        );
+    }
+
+    /// …and attributed first (both orders pinned so a future
+    /// first-match refactor cannot silently regress the precedence).
+    #[test]
+    fn attributed_grant_beats_unattributed_listed_before_it() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        let mut unattributed = exception_for("AP-001", "src/**");
+        unattributed.owner = None;
+        unattributed.created_by = None;
+        save_exceptions(&root, vec![exception_for("AP-001", "src/**"), unattributed]);
+        let verdict = validate_commit(&root, &sha);
+        assert_eq!(verdict, ValidationVerdict::Allow);
+    }
+
+    /// EXCEPT-006 council: a malformed store fails safe — findings
+    /// stand, the gate never silently admits on a bookkeeping error.
+    #[test]
+    fn malformed_exception_store_fails_safe_findings_stand() {
+        let (_tmp, root, sha) = commit_with_file(AP_001_CONTENT, "src/leak.ts");
+        std::fs::create_dir_all(root.join("anvil/exceptions")).unwrap();
+        std::fs::write(root.join("anvil/exceptions/store.json"), "{not json").unwrap();
+        let verdict = validate_commit(&root, &sha);
+        assert!(
+            matches!(verdict, ValidationVerdict::Block { .. }),
+            "malformed store must leave findings standing, got {verdict:?}",
         );
     }
 

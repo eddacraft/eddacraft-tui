@@ -94,9 +94,9 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Status:** Merged 2026-06-08 via PR #2413
 
 ### EXCEPT-006: L3/L4 integration
-- **Intent:** Apply only valid exceptions during pre-commit/pre-push evaluation; record exception use.
-- **Expected Outcome:** Gates suppress only matching, valid findings; use is recorded.
-- **Validation:** `cargo test -p eddacraft-anvil-l4 -- exceptions`
+- **Intent:** Apply only valid exceptions during gate evaluation; record exception use. The only rule-evaluation seam today is the L4 gate (`CommitAntipatternEngine`, serving the pre-push hook and `anvil l4-validate`); pre-commit (L3) writes witness lines without evaluating rules, so it inherits the engine-level seam when scanner integration lands (2026-07-04 council).
+- **Expected Outcome:** Gates suppress only matching, valid findings — attributed grants suppress cleanly, unattributed grants downgrade to an annotated warn (ADR-073, never silently honoured), revoked/expired/out-of-scope grants leave findings standing; store-read failures fail safe (findings stand). Use is recorded via the gate's tracing channel (unattributed applications at `warn`, visible under the default filter); durable witness/capsule recording is EXCEPT-009.
+- **Validation:** `cargo test -p eddacraft-anvil-l4 -- exceptions` and `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (gate-integration tests live in the CLI engine)
 - **Dependencies:** EXCEPT-005, EXCEPT-007
 - **Status:** In Progress
 
@@ -119,4 +119,11 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** A capsule names the exceptions a change relied on; an expired/revoked one degrades or blocks verification.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- exceptions`
 - **Dependencies:** EXCEPT-005, GITGOV-009
+- **Status:** Proposed
+
+### EXCEPT-010: Gate store trust model (2026-07-04 council intake)
+- **Intent:** Close the trust-model gaps the EXCEPT-006 council flagged: (a) decide gate store provenance — the L4 gate loads `anvil/exceptions/store.json` from the live worktree (same pattern as `anvil/policy.yml`), so an uncommitted local grant satisfies the local pre-push gate while CI/`l4-validate` sees only committed grants, and a range validation applies one store snapshot to every commit in the range; decide worktree- vs commit-tree-scoped loading and bind the CI semantics explicitly. (b) Make the OPA evaluator path (`is_suppressed_at`) consult `ExceptionVerdict` so unattributed grants stop clean-suppressing there (they downgrade at the L4 gate but suppress silently in the evaluator today — pre-EXCEPT-006 behaviour, documented in-code). (c) Evaluate scope-breadth nudges: empty/`**` patterns are repo-wide and non-expiring grants are permanent; consider authoring-time warnings or default expiry.
+- **Expected Outcome:** A recorded provenance decision enforced by the gate loader; evaluator and gate agree on unattributed-grant handling; overly broad grants are visible at authoring time.
+- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` and `cargo test -p eddacraft-anvil --bin anvil -- l4_engine`
+- **Dependencies:** EXCEPT-006
 - **Status:** Proposed

@@ -142,11 +142,26 @@ fn verdict_for(diagnostics: Vec<ValidationDiagnostic>) -> ValidationVerdict {
 /// [`ValidationDiagnostic`] messages are ≤200 chars by contract.
 const MESSAGE_CHAR_BUDGET: usize = 200;
 
+/// Cap on the exception-id portion of the downgrade annotation. Ids in
+/// the tracked store are operator-editable free text with no schema
+/// length bound, so the annotation clamps them: generated ids
+/// (`exc_` + 24 hex chars) fit untouched, a hand-authored oversized id
+/// cannot blow the message contract.
+const ANNOTATION_ID_CHAR_BUDGET: usize = 64;
+
 /// Append the downgrade annotation, truncating the *base* message if
-/// the combination would exceed the message contract — the annotation
-/// (the "why is this Warn now" signal) is never cut.
+/// the combination would exceed the message contract. The exception id
+/// is itself clamped to [`ANNOTATION_ID_CHAR_BUDGET`] and stripped of
+/// control characters (the store is operator-editable; an embedded
+/// newline or ANSI escape must not forge extra diagnostic lines), so
+/// the combined message always honours [`MESSAGE_CHAR_BUDGET`].
 fn annotate_downgrade(message: &str, exception_id: &str) -> String {
-    let annotation = format!(" [unattributed exception {exception_id}: downgraded to warn]");
+    let safe_id: String = exception_id
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(ANNOTATION_ID_CHAR_BUDGET)
+        .collect();
+    let annotation = format!(" [unattributed exception {safe_id}: downgraded to warn]");
     let annotation_len = annotation.chars().count();
     let base_budget = MESSAGE_CHAR_BUDGET.saturating_sub(annotation_len);
     let base_len = message.chars().count();
@@ -338,6 +353,32 @@ mod tests {
         let outcome = apply_exception_dispositions(vec![], &[]);
         assert_eq!(outcome.verdict, ValidationVerdict::Allow);
         assert!(outcome.applied.is_empty());
+    }
+
+    /// An oversized, control-character-laden exception id (the tracked
+    /// store is operator-editable free text) is clamped and sanitised:
+    /// the message stays within contract and cannot carry forged
+    /// diagnostic lines or terminal escapes.
+    #[test]
+    fn downgrade_annotation_clamps_hostile_exception_id() {
+        let hostile_id = format!("evil\n{}\x1b[31m", "i".repeat(300));
+        let outcome = apply_exception_dispositions(
+            vec![diag("AP-001", Severity::Block, "finding")],
+            &[downgraded(&hostile_id)],
+        );
+        let ValidationVerdict::Block { diagnostics } = &outcome.verdict else {
+            panic!("expected Block, got {:?}", outcome.verdict);
+        };
+        let message = &diagnostics[0].message;
+        assert!(
+            message.chars().count() <= 200,
+            "hostile id must not blow the contract: {} chars",
+            message.chars().count(),
+        );
+        assert!(
+            !message.chars().any(char::is_control),
+            "control characters must be stripped: {message:?}",
+        );
     }
 
     /// The downgrade annotation respects the [`ValidationDiagnostic`]

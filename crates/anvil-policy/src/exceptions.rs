@@ -161,14 +161,34 @@ pub enum ExceptionError {
     )]
     LegacyOriginNotMigrated,
     /// A path component under the workspace's `anvil/` governance tree is
-    /// a symlink — refusing to write through it (hostile-repo
-    /// write-outside-worktree gadget). Mirrors `anvil-witness`'s guard.
-    #[error("refusing to write through symlinked governance path: {path}")]
+    /// a symlink — refusing to read or write through it (hostile-repo
+    /// redirect-outside-worktree gadget; a committed symlink would also
+    /// let gate reads consume content from an unreviewed location).
+    /// Mirrors `anvil-witness`'s guard.
+    #[error("refusing to access symlinked governance path: {path}")]
     SymlinkedPath {
         /// The offending symlinked component.
         path: std::path::PathBuf,
     },
+    /// The store file exceeds [`MAX_STORE_BYTES`]. Bounding the read
+    /// keeps the L3/L4 gate hot path (EXCEPT-006) from paying an
+    /// unbounded allocation for an oversized or maliciously padded
+    /// tracked store — the same discipline as
+    /// `anvil_config::read_to_string_bounded` (MLP2-063).
+    #[error(
+        "exception store is {size} bytes; refusing to read past the {MAX_STORE_BYTES}-byte bound"
+    )]
+    Oversized {
+        /// Size of the offending store file in bytes.
+        size: u64,
+    },
 }
+
+/// Upper bound on a readable exception store file. Mirrors
+/// `anvil_config::MAX_CONFIG_FILE_BYTES` (1 MiB, MLP2-063) — far above
+/// any legitimate store, low enough that gate evaluation never pays an
+/// unbounded read.
+pub const MAX_STORE_BYTES: u64 = 1024 * 1024;
 
 /// Where a loaded store's data came from. Carried (non-serialised) on
 /// [`ExceptionStore`] so write paths can refuse to silently promote
@@ -261,17 +281,29 @@ impl ExceptionStore {
     pub fn load(workspace_root: &Path) -> Result<Self, ExceptionError> {
         let tracked = workspace_root.join(EXCEPTIONS_FILE);
         if tracked.exists() {
+            // EXCEPT-006 read-side guard: a hostile repository can
+            // *commit* a symlinked governance path (git tracks
+            // symlinks), redirecting gate reads to unreviewed content.
+            // Writes have refused this since EXCEPT-007; reads must
+            // match now that the store feeds gate verdicts.
+            refuse_symlinked_store_paths(workspace_root)?;
             return Self::load_from(&tracked, StoreSource::Tracked);
         }
         let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
         if legacy.exists() {
+            refuse_symlinked_legacy_paths(workspace_root)?;
             return Self::load_from(&legacy, StoreSource::Legacy);
         }
         Ok(Self::empty())
     }
 
     /// Reads and parses a store from an explicit path, tagging its origin.
+    /// Refuses stores larger than [`MAX_STORE_BYTES`] before allocating.
     fn load_from(path: &Path, source: StoreSource) -> Result<Self, ExceptionError> {
+        let size = std::fs::symlink_metadata(path)?.len();
+        if size > MAX_STORE_BYTES {
+            return Err(ExceptionError::Oversized { size });
+        }
         let content = std::fs::read_to_string(path)?;
         let mut store: Self =
             serde_json::from_str(&content).map_err(|e| ExceptionError::Parse(e.to_string()))?;
@@ -513,6 +545,31 @@ fn refuse_symlinked_store_paths(workspace_root: &Path) -> Result<(), ExceptionEr
     for path in [anvil, dir, &store, &dir.join(LOCK_FILE_NAME)] {
         // symlink_metadata (not exists()) so a *dangling* symlink — which
         // exists() reports as absent — is still refused.
+        match std::fs::symlink_metadata(path) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(ExceptionError::SymlinkedPath {
+                    path: path.to_path_buf(),
+                });
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
+}
+
+/// Read-side twin of [`refuse_symlinked_store_paths`] for the legacy
+/// local store: refuse a symlinked `.anvil/` directory or
+/// `.anvil/exceptions.json` file. The legacy tree is conventionally
+/// gitignored, but a hostile repository controls its own `.gitignore`
+/// and could commit a symlink here too.
+fn refuse_symlinked_legacy_paths(workspace_root: &Path) -> Result<(), ExceptionError> {
+    let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
+    let dir = legacy
+        .parent()
+        .expect("LEGACY_EXCEPTIONS_FILE has a parent");
+    for path in [dir, &legacy] {
         match std::fs::symlink_metadata(path) {
             Ok(meta) if meta.file_type().is_symlink() => {
                 return Err(ExceptionError::SymlinkedPath {
@@ -852,6 +909,61 @@ mod tests {
         ex.owner = Some("team-platform".to_string());
         ex.created_by = Some("alice@example.test".to_string());
         ex
+    }
+
+    // --- EXCEPT-006 read-path hardening ---
+
+    /// A committed symlink at `anvil/exceptions` must refuse the read —
+    /// gate verdicts must never consume store content from an
+    /// unreviewed redirect target (read-side twin of the EXCEPT-007
+    /// write guard).
+    #[cfg(unix)]
+    #[test]
+    fn load_refuses_symlinked_exceptions_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("store.json"), r#"{"exceptions":[]}"#).unwrap();
+        std::fs::create_dir_all(root.join("anvil")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("anvil/exceptions")).unwrap();
+        let err = ExceptionStore::load(root).expect_err("symlinked dir must refuse");
+        assert!(
+            matches!(err, ExceptionError::SymlinkedPath { .. }),
+            "{err:?}"
+        );
+    }
+
+    /// A symlinked legacy `.anvil/exceptions.json` must refuse the
+    /// read-fallback for the same reason.
+    #[cfg(unix)]
+    #[test]
+    fn load_refuses_symlinked_legacy_store() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let outside = tmp.path().join("outside.json");
+        std::fs::write(&outside, r#"{"exceptions":[]}"#).unwrap();
+        std::fs::create_dir_all(root.join(".anvil")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join(".anvil/exceptions.json")).unwrap();
+        let err = ExceptionStore::load(root).expect_err("symlinked legacy must refuse");
+        assert!(
+            matches!(err, ExceptionError::SymlinkedPath { .. }),
+            "{err:?}"
+        );
+    }
+
+    /// A store past [`MAX_STORE_BYTES`] refuses before allocating —
+    /// the gate hot path never pays an unbounded read (MLP2-063
+    /// discipline).
+    #[test]
+    fn load_refuses_oversized_store() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("anvil/exceptions")).unwrap();
+        let padding = "x".repeat(usize::try_from(MAX_STORE_BYTES).unwrap() + 1);
+        std::fs::write(root.join("anvil/exceptions/store.json"), padding).unwrap();
+        let err = ExceptionStore::load(root).expect_err("oversized store must refuse");
+        assert!(matches!(err, ExceptionError::Oversized { .. }), "{err:?}");
     }
 
     // --- EXCEPT-006 scope matching for gate findings ---
