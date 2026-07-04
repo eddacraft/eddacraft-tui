@@ -191,7 +191,11 @@ impl AttackPack {
 pub struct Observation {
     /// The behaviour the defence exhibited.
     pub behaviour: SafeBehaviour,
-    /// How confident the observer is in that reading.
+    /// How confident the observer is in that reading. **Informational-only
+    /// today:** neither the pass rule nor the gate consults it, so a
+    /// low-confidence match passes exactly like a certain one. A future PR
+    /// wiring a live observer must decide whether/how confidence affects the
+    /// gate decision.
     pub confidence: Confidence,
 }
 

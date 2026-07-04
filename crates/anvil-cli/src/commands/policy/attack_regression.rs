@@ -121,7 +121,7 @@ fn parse_threshold(raw: &str) -> Result<RiskSeverity, String> {
 
 #[derive(Debug, Args)]
 pub struct AttackRegressionArgs {
-    /// Path to an attack pack YAML file (a PATT-002 pack of scenario fixtures).
+    /// Path to an attack pack YAML file (a set of scenario fixtures).
     #[arg(long, value_name = "PATH")]
     pack: PathBuf,
 

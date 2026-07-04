@@ -273,7 +273,7 @@ fn finding(path: &[String], kind: HelpLayoutFindingKind) -> HelpLayoutFinding {
 const INTERNAL_ID_PREFIXES: &[&str] = &[
     "ADR", "DISTRIB", "DLIFE", "DSV", "LAUNCH", "MLP2", "MLP", "RCLI3", "RCLI", "CIB", "CLIC",
     "KDS", "USAGE", "GCTX", "V050F", "OPMODEL", "INTD", "TRACE", "FLAGM", "SARIFOUT", "APSCAN",
-    "RSTLAN", "GITGOV", "POLENG", "DASH",
+    "RSTLAN", "GITGOV", "POLENG", "DASH", "PATT", "ATC", "OPAE", "POLRESET", "POLVAL", "EVALCI",
 ];
 
 /// Render the long help of every visible command and report any user-visible
