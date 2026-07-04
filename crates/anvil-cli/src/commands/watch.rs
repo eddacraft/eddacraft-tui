@@ -1432,6 +1432,21 @@ impl ActionDispatcher {
     }
 }
 
+/// Map a kernel [`anvil_kernel::watch::WatchError`] to actionable,
+/// platform-aware start-failure guidance (CIB-175). Returns `None` for
+/// non-watcher failures (config parse, missing root, …), which already carry
+/// their own descriptive message.
+fn watcher_start_guidance(err: &anvil_kernel::watch::WatchError) -> Option<String> {
+    use anvil_kernel::watch::WatchError;
+    use anvil_kernel::watcher::WatcherError;
+    match err {
+        WatchError::Watcher(WatcherError::Notify(notify_err)) => {
+            Some(anvil_kernel::watcher::failure_guidance(notify_err))
+        }
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = crate::util::workspace_root()?;
@@ -1563,8 +1578,18 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 
     let (event_tx, event_rx) = mpsc::channel();
 
-    let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx)
-        .context("starting kernel watcher")?;
+    let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx).map_err(|err| {
+        // CIB-175: surface an actionable, platform-aware guidance line for a
+        // watcher-start failure instead of the raw
+        // "starting kernel watcher: notify error: …" chain. The original
+        // `WatchError` stays as the anyhow source, so `--json`/debug keep the
+        // full chain (`{err:#}` renders "<guidance>: watcher error: notify
+        // error: …").
+        match watcher_start_guidance(&err) {
+            Some(guidance) => anyhow::Error::new(err).context(guidance),
+            None => anyhow::Error::new(err).context("starting kernel watcher"),
+        }
+    })?;
 
     let shutdown = Arc::new(AtomicBool::new(false));
     let shutdown_flag = Arc::clone(&shutdown);

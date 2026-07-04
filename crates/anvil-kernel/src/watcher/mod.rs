@@ -49,6 +49,64 @@ pub enum WatcherError {
     Recv(#[from] mpsc::RecvTimeoutError),
 }
 
+/// Platform-aware guidance for the OS file-watch limit being exhausted
+/// (inotify `max_user_watches` on Linux; the equivalent kernel cap
+/// elsewhere). Shared between the hard-start-failure guidance
+/// ([`failure_guidance`]) and the partial-registration diagnostic emitted by
+/// `watch::run_watch`, so both surfaces stay correct off Linux rather than
+/// hardcoding inotify wording everywhere.
+///
+/// Returns a fragment naming the cause and next step; callers frame it with
+/// their own leading context.
+pub fn watch_limit_guidance() -> &'static str {
+    if cfg!(target_os = "linux") {
+        "OS file-watch limit reached (inotify `fs.inotify.max_user_watches` \
+         exhausted) — raise it with `sudo sysctl fs.inotify.max_user_watches=524288` \
+         (persist it in /etc/sysctl.conf), close watch-heavy processes (tsserver, nx \
+         daemon, editors), or narrow the watch with `--exclude`"
+    } else {
+        "OS file-watch limit reached — close watch-heavy processes or reduce scope \
+         with `--exclude`, or report it if it persists"
+    }
+}
+
+/// Produce an actionable, platform-aware guidance line for a watcher-start
+/// failure. The returned string names the likely *cause* and a concrete
+/// *next step* (raise a limit, reduce scope, retry, report) so a hard failure
+/// surfaces as human guidance rather than a raw `notify` chain
+/// (`starting kernel watcher: notify error: …`).
+///
+/// Pure and deterministic: it inspects only `err.kind`, so it is safe to unit
+/// test by synthesising `notify::Error` values. The caller keeps the
+/// underlying error chain intact for `--json`/debug output and appends this
+/// line to the rendered surface.
+pub fn failure_guidance(err: &notify::Error) -> String {
+    match &err.kind {
+        notify::ErrorKind::MaxFilesWatch => {
+            format!("{}, then retry.", watch_limit_guidance())
+        }
+        notify::ErrorKind::Io(io_err) => {
+            format!(
+                "file-watch I/O error ({io_err}) — likely a directory-permission or \
+                 open-file-descriptor limit; check the watch path's permissions and your \
+                 open-file limit (`ulimit -n`), then retry."
+            )
+        }
+        notify::ErrorKind::PathNotFound => {
+            "the watch path no longer exists — confirm the directory is present and retry; \
+             if it persists, report it."
+                .to_string()
+        }
+        notify::ErrorKind::WatchNotFound
+        | notify::ErrorKind::InvalidConfig(_)
+        | notify::ErrorKind::Generic(_) => {
+            "the file watcher could not start — retry, and if it persists, report it with \
+             the full error above."
+                .to_string()
+        }
+    }
+}
+
 /// Diagnostics returned from [`watch_directories`] so callers can surface
 /// partial failure — e.g. when the OS-level watch limit
 /// (`fs.inotify.max_user_watches` on Linux) is reached partway through

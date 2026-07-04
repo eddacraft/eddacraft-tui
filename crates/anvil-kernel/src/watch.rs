@@ -624,9 +624,11 @@ pub fn run_watch(
         // sees why changes in some subtrees will be missed.
         if setup_diagnostics.failed > 0 {
             let hint = if setup_diagnostics.limit_exhausted {
-                " — OS watch limit reached; raise `fs.inotify.max_user_watches` or close other watch-heavy processes (tsserver, nx daemon, editors)"
+                // Platform-aware copy (CIB-175): inotify sysctl wording only on
+                // Linux, generic reduce-scope guidance elsewhere.
+                format!(" — {}", crate::watcher::watch_limit_guidance())
             } else {
-                ""
+                String::new()
             };
             let sample = if setup_diagnostics.sample_errors.is_empty() {
                 String::new()

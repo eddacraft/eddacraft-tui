@@ -4678,7 +4678,7 @@ archive.
 
 ### CIB-175: Actionable watcher-failure guidance off Linux
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** The inotify-headroom preflight is
   `cfg(target_os = "linux")`-only (`capacity.rs:68-84`); on macOS/Windows a
   watcher hard failure surfaces as a raw anyhow chain

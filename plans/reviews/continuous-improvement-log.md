@@ -1946,4 +1946,11 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Package id is `eddacraft-anvil-intercept`, not `anvil-intercept` as the Validation line reads — the latter is a target name.
 - **Improvement:** Recovery copy that quotes a timeout must quote the effective wall-clock bound, not the nominal budget, when the wait can overrun by design.
 - **Follow-up:** none.
+- **Task:** CIB-175 — actionable, platform-aware watcher-start failure guidance off Linux.
+- **Outcome:** Added pure `failure_guidance(&notify::Error)` + shared `watch_limit_guidance()` in `anvil-kernel/src/watcher/mod.rs` (Linux inotify sysctl wording cfg-gated; generic reduce-scope copy elsewhere; Io→permission/fd, PathNotFound→retry, Generic→retry/report). Refactored the hardcoded inotify hint in `watch.rs` partial-registration path to reuse it, and downcast `WatchError::Watcher(Notify)` in the CLI `run_watch` failure to append the guidance as anyhow context (raw chain preserved for `--json`/debug). Four cfg-gated unit tests synthesise notify errors and assert cause+next-step per platform.
+- **Worked:** notify 8.2 exposes `Error::new`/`io`/`path_not_found`/`generic` constructors, so synthesising errors for unit tests needed no fake trait-object seam.
+- **Failed:** none.
+- **Friction:** The item's validation string `cargo test -p eddacraft-anvil-kernel watcher` is a name filter that matches none of the new `failure_guidance_*` test names; ran `--test watcher_integration` to exercise them.
+- **Improvement:** none.
+- **Follow-up:** capacity.rs Linux preflight intentionally untouched (existing tests cover it).
 

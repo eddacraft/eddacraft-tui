@@ -42,6 +42,7 @@ workspace-hack.workspace = true
 
 [dev-dependencies]
 criterion = { workspace = true }
+notify = { workspace = true }
 tempfile.workspace = true
 
 [[bench]]

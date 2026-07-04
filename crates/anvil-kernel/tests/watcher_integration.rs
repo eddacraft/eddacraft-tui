@@ -2,7 +2,10 @@ use std::fs;
 use std::time::Duration;
 
 use anvil_kernel::watcher::filter::FileFilter;
-use anvil_kernel::watcher::{WatchSetupDiagnostics, WatcherConfig, start_watcher};
+use anvil_kernel::watcher::{
+    WatchSetupDiagnostics, WatcherConfig, failure_guidance, start_watcher,
+};
+use notify::{Error as NotifyError, ErrorKind as NotifyErrorKind};
 
 #[test]
 fn detects_parseable_file_creation() {
@@ -104,4 +107,85 @@ fn setup_diagnostics_default_is_all_zero() {
     assert!(!d.root_failed);
     assert!(!d.limit_exhausted);
     assert!(d.sample_errors.is_empty());
+}
+
+// CIB-175: watcher-start failures should render a human line that names the
+// likely cause and a concrete next step, per platform, rather than a raw
+// `notify` chain. The assertions here synthesise `notify::Error` values and
+// check the copy names a cause + next step, with cfg-gated platform wording.
+
+#[test]
+fn failure_guidance_max_files_watch_names_limit_and_next_step() {
+    let err = NotifyError::new(NotifyErrorKind::MaxFilesWatch);
+    let msg = failure_guidance(&err);
+    let lower = msg.to_lowercase();
+    // Names the cause.
+    assert!(
+        lower.contains("limit"),
+        "should name the OS watch-limit cause: {msg}"
+    );
+    // Names a next step (reduce scope or close processes).
+    assert!(
+        msg.contains("--exclude") || lower.contains("close"),
+        "should give an actionable next step: {msg}"
+    );
+
+    #[cfg(target_os = "linux")]
+    assert!(
+        msg.contains("max_user_watches"),
+        "Linux copy should name the inotify sysctl: {msg}"
+    );
+    #[cfg(not(target_os = "linux"))]
+    assert!(
+        !msg.contains("max_user_watches"),
+        "non-Linux copy should stay generic (no inotify sysctl wording): {msg}"
+    );
+}
+
+#[test]
+fn failure_guidance_io_names_permission_or_fd_and_retry() {
+    let err = NotifyError::io(std::io::Error::new(
+        std::io::ErrorKind::PermissionDenied,
+        "permission denied",
+    ));
+    let msg = failure_guidance(&err);
+    let lower = msg.to_lowercase();
+    assert!(
+        lower.contains("permission") || lower.contains("descriptor"),
+        "I/O copy should name a permission/fd cause: {msg}"
+    );
+    assert!(
+        lower.contains("retry"),
+        "I/O copy should give a next step: {msg}"
+    );
+}
+
+#[test]
+fn failure_guidance_path_not_found_suggests_retry() {
+    let err = NotifyError::path_not_found();
+    let msg = failure_guidance(&err);
+    let lower = msg.to_lowercase();
+    assert!(
+        lower.contains("exist"),
+        "path-not-found copy should name the missing-path cause: {msg}"
+    );
+    assert!(
+        lower.contains("retry"),
+        "path-not-found copy should give a next step: {msg}"
+    );
+}
+
+#[test]
+fn failure_guidance_generic_falls_back_to_retry_and_report() {
+    let err = NotifyError::generic("opaque internal failure");
+    let msg = failure_guidance(&err);
+    let lower = msg.to_lowercase();
+    assert!(
+        lower.contains("retry"),
+        "generic copy should suggest retry: {msg}"
+    );
+    assert!(
+        lower.contains("report"),
+        "generic copy should suggest reporting: {msg}"
+    );
 }
