@@ -2,11 +2,10 @@ id: anvil-baseline
 name: Anvil Baseline Guardrails
 version: 1.0.0
 description: >-
-  Advisory starter guardrails shaped over the working-tree diff: flag large
-  change sets, and flag changes to secrets or CI configuration for review.
-  Advisory by design in slice 1 — every finding surfaces as a warning and never
-  fails the gate; blocking behaviour arrives via Anvil's posture-driven
-  enforcement routing, not via Rego severity.
+  Advisory starter guardrails shaped over the working-tree diff: flag large change sets, and flag
+  changes to secrets or CI configuration for review. Advisory by design in slice 1 — every finding
+  surfaces as a warning and never fails the gate; blocking behaviour arrives via Anvil's
+  posture-driven enforcement routing, not via Rego severity.
 owner: anvil-platform
 policies:
   - path: policies/change_scope.rego
@@ -16,8 +15,8 @@ policies:
       severity: medium
       owner: anvil-platform
       rationale: >-
-        Large change sets are hard to review and let risky edits slip through;
-        flagging change size keeps review effective.
+        Large change sets are hard to review and let risky edits slip through; flagging change size
+        keeps review effective.
       scope: diff.changed_files
       tags: [review, hygiene]
   - path: policies/sensitive_paths.rego
@@ -27,8 +26,7 @@ policies:
       severity: high
       owner: anvil-platform
       rationale: >-
-        Changes to CI configuration, credentials, or environment files can alter
-        build, deploy, or authentication behaviour and warrant a deliberate
-        second review.
+        Changes to CI configuration, credentials, or environment files can alter build, deploy, or
+        authentication behaviour and warrant a deliberate second review.
       scope: diff.changed_files
       tags: [security, ci, secrets]
