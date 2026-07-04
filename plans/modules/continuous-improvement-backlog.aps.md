@@ -4751,7 +4751,12 @@ archive.
 
 ### CIB-180: Decide whether MCP tier tokens should read as pending, not done
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-04 via PR #3177
+- **Summary:** Render-time gloss only: `render.rs` appends a "(pending
+  restart)" qualifier beside tier tokens that read as done while a
+  restart-required headline is active; machine tokens stay byte-stable
+  (JSON/`--verify` asserted unchanged) and are documented as observed-probe
+  state.
 - **Owner decision (2026-07-04):** render-time gloss (option b). The
   machine tokens stay byte-stable; `render.rs` adds a human-facing pending
   qualifier next to the label (e.g. "(pending restart)") where the tier
