@@ -1849,7 +1849,8 @@ mod tests {
 
         assert!(h.contains("state: watching"), "got: {h}");
         assert!(
-            h.contains("intercept daemon") && h.contains("MCP pre-write remains optional"),
+            h.contains("intercept daemon")
+                && h.contains("MCP pre-write validation remains an optional upgrade"),
             "no-MCP daemon-backed watching must keep MCP framed as optional: {h}"
         );
         assert!(
