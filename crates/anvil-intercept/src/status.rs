@@ -2065,6 +2065,96 @@ mod tests {
         assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Attached);
     }
 
+    /// End-to-end: a driver whose spawn fails reaches the wire as
+    /// `Failed`, not silently `Absent`. Drives a real supervisor with a
+    /// failing launcher factory (DSV-047 records `failed` honestly, no
+    /// auto-respawn) so the overlay's `Failed` arm is exercised through
+    /// the provider — not just the pure `to_wire` mapping. DSV-047's
+    /// whole point is honest driver-death reporting, so the wire must
+    /// carry it.
+    #[test]
+    fn provider_overlays_failed_driver_onto_wire_snapshot() {
+        use std::io;
+        use std::path::Path;
+
+        use anvil_intercept_proto::SessionId;
+        use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
+
+        use crate::ensure::DaemonLauncher;
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+        use crate::save_time_driver::{
+            DriverLauncherFactory, ProcessControl, SaveTimeDriverSupervisor,
+        };
+
+        struct FailFactory;
+        impl DriverLauncherFactory for FailFactory {
+            fn launcher_for(
+                &self,
+                _worktree: &Path,
+                _findings_log: &Path,
+            ) -> io::Result<Box<dyn DaemonLauncher + Send + Sync>> {
+                // A stale `current_exe` after a binary upgrade, or any
+                // spawn refusal, lands here → the supervisor marks the
+                // driver `Failed`.
+                Err(io::Error::new(io::ErrorKind::NotFound, "current_exe gone"))
+            }
+        }
+        struct AliveProcs;
+        impl ProcessControl for AliveProcs {
+            fn start_time(&self, _pid: u32) -> Option<u64> {
+                Some(1)
+            }
+            fn is_alive(&self, _pid: u32, _recorded_start_time: Option<u64>) -> bool {
+                true
+            }
+            fn supports_start_time(&self) -> bool {
+                true
+            }
+            fn terminate(&self, _pid: u32) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let worktree = std::fs::canonicalize(tmp.path()).expect("canonicalise worktree");
+        let dir = tmp.path().join("save-time-drivers");
+
+        let registry = Arc::new(SessionRegistry::new());
+        let supervisor =
+            SaveTimeDriverSupervisor::new(dir, Box::new(FailFactory), Box::new(AliveProcs));
+        assert!(registry.set_membership_hook(supervisor.membership_hook()));
+
+        let spine = AgentTag::new("anvil-start", ACTIVATION_SPINE_CLAIMED_AGENT_ID, 0);
+        registry
+            .register(
+                &SessionId::new("sess-failed"),
+                &worktree,
+                Some(&spine),
+                Instant::now(),
+            )
+            .expect("register");
+        assert_eq!(supervisor.process_pending(), 1);
+
+        let fence_path = tmp.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::clone(&registry),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.9.0-beta",
+        )
+        .with_save_time_supervisor(supervisor.clone());
+
+        let wire = provider.query_status().to_wire();
+        let entry = wire
+            .worktrees
+            .iter()
+            .find(|w| w.worktree == worktree)
+            .expect("worktree present in snapshot");
+        assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Failed);
+    }
+
     /// A provider with no supervisor wired leaves every worktree at the
     /// `Absent` default — embedded / test surfaces never over-claim a
     /// driver attachment.
