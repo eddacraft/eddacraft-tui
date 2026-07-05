@@ -322,6 +322,57 @@ fn status_json_claim_round_trips_through_protection_claim_type() {
     assert_eq!(re_emitted["surfaces"], claim_value["surfaces"]);
 }
 
+/// DSV-049: when `anvil status --json` emits `save_time_driver` (only
+/// when a daemon answered and the cwd worktree is registered — omitted
+/// otherwise, which is the fresh-tempdir case here), its value must be
+/// from the documented closed set. Mirrors the `claim` value-set
+/// discipline so a future driver-state rename surfaces in this contract
+/// test before an editor extension or CI hook breaks.
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn status_json_save_time_driver_is_in_closed_set_when_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_status_json(dir.path(), home.path());
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let doc: serde_json::Value = serde_json::from_str(&stdout).expect("status JSON must parse");
+
+    if let Some(value) = doc.get("save_time_driver") {
+        let state = value
+            .as_str()
+            .expect("save_time_driver, when present, is a string");
+        let allowed = ["attached", "absent", "failed", "unknown"];
+        assert!(
+            allowed.contains(&state),
+            "save_time_driver {state:?} not in the DSV-049 closed set {allowed:?}",
+        );
+    }
+}
+
+/// DSV-049: the schema documents `save_time_driver` with the exact
+/// closed set the emitter uses (`save_time_driver_str`). Pinning the
+/// schema file directly guards against the field's value set drifting
+/// out of sync with the wire enum — the same reason the `claim`
+/// worktree/surface enums are pinned by the runtime test above.
+#[test]
+fn schema_documents_save_time_driver_closed_set() {
+    let schema = load_schema();
+    let enum_values = schema
+        .pointer("/properties/save_time_driver/enum")
+        .and_then(|v| v.as_array())
+        .expect("schema must document save_time_driver with an enum");
+    let names: Vec<&str> = enum_values
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    assert_eq!(
+        names,
+        ["attached", "absent", "failed", "unknown"],
+        "schema save_time_driver enum must match the wire closed set; got {names:?}",
+    );
+}
+
 /// Pin the schema file itself — typo in `$id`, the `const` lock, or
 /// the required-fields list would be invisible to the runtime
 /// emission test above. Reading the schema in-process guards that

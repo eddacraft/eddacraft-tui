@@ -149,6 +149,11 @@
           }
         }
       }
+    },
+    "save_time_driver": {
+      "description": "DSV-049: the current worktree's headless save-time driver state from the daemon snapshot. Present only when a daemon answered AND the current worktree is registered, so consumers can distinguish 'no daemon evidence' (key omitted) from an explicit 'absent'. `unknown` is the forward-compat fallback a consumer surfaces for a driver state emitted by a newer daemon; treat it fail-safe as 'absent' (no attachment evidence). Additive-optional under `additionalProperties: true`; a renamed or removed value requires a schema-version bump.",
+      "type": "string",
+      "enum": ["attached", "absent", "failed", "unknown"]
     }
   }
 }
