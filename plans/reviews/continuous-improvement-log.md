@@ -75,7 +75,7 @@ a backlog. Promote repeated friction or executable follow-up work to
   repo-local `.opencode/skills/` directories.
 - **Improvement:** Mandatory closeout rules need explicit no-write exceptions,
   and skill inventories should be checked against the filesystem when touched.
-- **Follow-up:** none
+- **Follow-up:** none.
 
 ### 2026-05-25 — claude
 
