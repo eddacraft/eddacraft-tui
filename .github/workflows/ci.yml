@@ -205,7 +205,8 @@ jobs:
       # which covers scripts/docs/* and scripts/aps/*) instead of the much
       # broader markdownlint-required (any *.md), so a plans/*.md-only PR
       # doesn't pay for a ~280s tool self-test on every run. Content
-      # correctness is still enforced unconditionally by `docs:check` above.
+      # correctness is unaffected: `docs:check` above still gates on
+      # markdownlint-required exactly as it did before this change.
       - name: Run docs-check fixture tests
         if:
           needs.detect-changes.result != 'success' ||
