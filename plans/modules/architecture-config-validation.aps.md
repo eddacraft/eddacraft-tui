@@ -7,7 +7,12 @@
 | ------- | ----- | -------- | ------ |
 | ARCHCFG | —     | high     | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-06 (ARCHCFG-006..014 added — the public guide
+`docs/guides/custom-architecture-policies.md` documents a CLI surface
+(`init`, `check`, `watch`, `visualise`, `list`, `impact`, `export`, `debug`)
+that does not exist in `crates/anvil-cli/src/commands/architecture.rs`; only
+`validate` and `show` are real. See ARCHCFG-006 for the design gate before any
+of ARCHCFG-007..014 proceed.)
 
 ## Purpose
 
@@ -116,3 +121,166 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-003
 - **Validation:** Manual doc review
 - **Confidence:** medium
+
+### ARCHCFG-006: Design gate — resolve the missing-command surface
+
+- **Intent:** Determine, before building anything, which of the eight
+  CLI commands documented in `docs/guides/custom-architecture-policies.md`
+  (`init`, `check`, `watch`, `visualise`, `list`, `impact`, `export`, `debug`)
+  are genuinely correct to build, in what shape, and how each relates to
+  capability that may already exist elsewhere in Anvil. The guide's frontmatter
+  claims these are "Live" and reviewed against this module's CLI file; they are
+  not — only `validate` and `show` exist. Ship a decision, not more drift.
+- **Expected Outcome:** A decision record (an ADR if the shape is genuinely new
+  surface, otherwise a documented scope update to this module) resolves each
+  candidate command as build / defer / reject / redirect-to-existing-command,
+  with a one-line rationale citing the specific overlap or gap found. At
+  minimum it must answer:
+  - **init** — no scaffold exists today (`resolve_arch_config` tells users to
+    "create `.anvil/architecture.yaml` manually"); the guide's quickstart and
+    every tutorial step downstream assume it exists. Highest-confidence yes;
+    the open question is shape only (`--template` support, which templates).
+  - **check** — the guide describes running real dependency analysis against
+    the codebase, but that already exists as the `import-boundaries` gate
+    check (legacy alias `architecture`, `crates/anvil-cli/src/commands/check_catalog.rs`,
+    run via `anvil gate --only-checks architecture`). This module's own Out of
+    Scope excludes "Dependency analysis and gate evaluation." Decide: redirect
+    the guide to the existing gate check, or build `check` as a thin
+    convenience wrapper over it — do not build a second analysis engine.
+  - **watch** — `anvil watch` already exists as a general daemon (DSV
+    modules). Decide whether `architecture watch` is a new standalone loop or
+    an architecture-scoped view/filter registered with the existing daemon.
+  - **visualise** / **export** — `anvil architecture show --json` already
+    returns the full structured definition (layers, patterns, depends_on,
+    rules count). Decide whether these are genuinely new data paths or just
+    new renderers (mermaid, markdown) over `show`'s existing output.
+  - **list** — overlaps with the existing `show` command; decide whether it is
+    a distinct view (e.g. layer names only, or violations) or the guide
+    inventing a synonym that should be corrected to `show`.
+  - **impact** — Anvil already has graph-based impact analysis
+    (`anvil_impact_of_change`, `anvil_find_dependents`). Decide whether
+    `architecture impact --rule` is a thin, architecture-scoped wrapper over
+    that existing capability rather than a new engine.
+  - **debug** — no existing equivalent found; the least-justified candidate.
+    Requires the clearest standalone case before it proceeds past Draft.
+  - **check --fix / --baseline-all** — baseline-accepting flags align with
+    Anvil's own "new edges only — baseline existing state, warn on new
+    violations" principle (`.claude/rules/architecture.md`), so this is
+    plausibly legitimate despite this module's "Auto-fixing configuration
+    issues" Out of Scope line (that line is about auto-fixing the config
+    file's own structure, a different concern). Decide where a baseline
+    mechanism should live: `validate`, a new `check`, or `gate`.
+- **Scope:** Decision-making and scope resolution only
+- **Non-scope:** Implementation of any candidate command
+- **Dependencies:** —
+- **Validation:** Decision record exists (ADR or module-scope update);
+  `pnpm aps:active-lint` passes with ARCHCFG-007..014 statuses reflecting the
+  verdict (Draft retained where deferred/rejected, Ready where the gate
+  approves proceeding)
+- **Confidence:** high
+
+### ARCHCFG-007: `anvil architecture init`
+
+- **Intent:** Scaffold `.anvil/architecture.yaml` so a project can adopt
+  architecture validation without hand-writing the schema from scratch
+- **Expected Outcome:** `anvil architecture init` (optionally `--template
+  <name>`) writes a valid starter `architecture.yaml` that passes
+  `anvil architecture validate` unmodified
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
+- **Non-scope:** Template authoring beyond one or two starter shapes; auto-detecting an existing project's real layers
+- **Dependencies:** ARCHCFG-006
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_init`
+- **Confidence:** high
+
+### ARCHCFG-008: `anvil architecture check`
+
+- **Intent:** Resolve the naming collision between the guide's `check`
+  (real dependency analysis) and the already-shipped `import-boundaries` gate
+  check, per the ARCHCFG-006 verdict
+- **Expected Outcome:** Either the guide is corrected to point at
+  `anvil gate --only-checks architecture`, or `anvil architecture check`
+  exists as a thin wrapper over that same check — never a second analysis
+  engine
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`,
+  `docs/guides/custom-architecture-policies.md`
+- **Non-scope:** New dependency-analysis logic
+- **Dependencies:** ARCHCFG-006
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_check`
+- **Confidence:** medium
+
+### ARCHCFG-009: `anvil architecture watch`
+
+- **Intent:** Surface architecture violations live as code changes, per the
+  ARCHCFG-006 verdict on standalone-loop vs existing-daemon integration
+- **Expected Outcome:** Architecture violations appear in the chosen watch
+  surface without a second independent file-watching loop
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`, or the existing
+  watch daemon integration point per the ARCHCFG-006 decision
+- **Non-scope:** A new file-watching mechanism if the existing daemon can host this
+- **Dependencies:** ARCHCFG-006, ARCHCFG-008
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_watch`
+- **Confidence:** low
+
+### ARCHCFG-010: `anvil architecture visualise`
+
+- **Intent:** Render the architecture definition as a diagram (starting with
+  Mermaid, per the guide)
+- **Expected Outcome:** `anvil architecture visualise --format mermaid`
+  produces a diagram from the same definition `show` already parses
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
+- **Non-scope:** A general-purpose diagramming engine; formats beyond Mermaid
+  in the first pass
+- **Dependencies:** ARCHCFG-006
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_visualise`
+- **Confidence:** medium
+
+### ARCHCFG-011: `anvil architecture list`
+
+- **Intent:** Resolve whether `list` is a distinct view or a guide-invented
+  synonym for `show`, per the ARCHCFG-006 verdict
+- **Expected Outcome:** Either the guide is corrected to use `show`, or `list`
+  ships as a genuinely distinct, narrower view (e.g. layer names only)
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`,
+  `docs/guides/custom-architecture-policies.md`
+- **Non-scope:** Duplicating `show`'s full output under a new name
+- **Dependencies:** ARCHCFG-006
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_list`
+- **Confidence:** low
+
+### ARCHCFG-012: `anvil architecture impact`
+
+- **Intent:** Show which files or layers are affected by a proposed rule
+  change, reusing Anvil's existing graph-based impact analysis rather than
+  building a new one
+- **Expected Outcome:** `anvil architecture impact --rule "<rule>"` returns an
+  architecture-scoped projection of the existing impact/dependents graph query
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
+- **Non-scope:** A new impact-analysis engine independent of the existing
+  graph query path
+- **Dependencies:** ARCHCFG-006
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_impact`
+- **Confidence:** low
+
+### ARCHCFG-013: `anvil architecture export`
+
+- **Intent:** Export the architecture definition and/or a validation report
+  in a shareable format (starting with Markdown, per the guide)
+- **Expected Outcome:** `anvil architecture export --format markdown`
+  produces a document from the same definition `show --json` already exposes
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
+- **Non-scope:** Formats beyond Markdown in the first pass
+- **Dependencies:** ARCHCFG-006
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_export`
+- **Confidence:** medium
+
+### ARCHCFG-014: `anvil architecture debug`
+
+- **Intent:** Explain, for one layer, why it does or does not pass validation
+  or the import-boundaries check
+- **Expected Outcome:** `anvil architecture debug --layer <name>` reproduces
+  the reasoning behind that layer's current pass/fail state
+- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
+- **Non-scope:** A general debugger; interactive/REPL tooling
+- **Dependencies:** ARCHCFG-006, ARCHCFG-008
+- **Validation:** `cargo test -p eddacraft-anvil -- architecture_debug`
+- **Confidence:** low
