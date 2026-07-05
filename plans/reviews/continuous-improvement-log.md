@@ -2090,3 +2090,12 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** On APS closeout tasks, first grep for the work-item marker in
   current code/tests before assuming code needs to be written.
 - **Follow-up:** none
+### 2026-07-06 — opencode
+
+- **Task:** DSV-050 activation copy and driver-status closeout.
+- **Outcome:** Split attached-driver versus not-attached copy, added status driver counts, and fixed related first-run recipe over-claims.
+- **Worked:** Re-running quick Council after each fix exposed adjacent activation-surface over-claims before PR handoff.
+- **Failed:** Initial wording treated `save_time_driver_attached == false` as "starting" rather than the broader not-attached state.
+- **Friction:** The driver state is currently a boolean on activation diagnostics, so copy cannot distinguish absent, failed, unknown, and starting without sending users to `intercept status`.
+- **Improvement:** When user-facing copy is derived from a collapsed boolean, phrase the false branch as the only proven fact and point to the richer diagnostic surface.
+- **Follow-up:** none.

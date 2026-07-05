@@ -849,7 +849,7 @@ const RECIPE_CHECK_NAME: &str = "secret-detection";
 const RECIPE_LINE_WRITE: &str =
     "    1. echo 'const KEY = \"AKIAEXAMPLE1234567\";' >> .anvil-smoke-test.ts";
 const RECIPE_LINE_EXPECT: &str =
-    "    2. expect: `anvil status` reports a secret-detection finding in the baseline summary";
+    "    2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding";
 
 // CIB-172: step 3 removes the throwaway smoke-test file. `rm` is a standard
 // utility under `sh` on Unix but is *not* a cmd.exe builtin (`'rm' is not
@@ -909,8 +909,10 @@ fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str
     // of the smoke-test language coverage).
     if diag.mcp_pre_write_live() {
         "  Next: MCP pre-write protection is live; run `anvil status` to see posture any time."
-    } else if diag.daemon_attestation.attests_worktree() {
+    } else if diag.daemon_attestation.attests_worktree() && diag.save_time_driver_attached {
         "  Next: daemon-backed save-time validation is armed; run `anvil intercept status` to inspect the daemon."
+    } else if diag.daemon_attestation.attests_worktree() {
+        "  Next: save-time driver is not attached; run `anvil intercept status` to inspect the daemon."
     } else if diag.all_languages_unsupported {
         "  Next: no supported languages detected here yet — anvil has nothing to validate in this repo, so there is no save-time step to run."
     } else {
@@ -936,7 +938,7 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active
     } else if diag.mcp_pre_write_wired_or_live() {
         out.push_str("    - L0 mcp pre-write (pending — restart required)\n");
     }
-    if diag.daemon_attestation.attests_worktree() {
+    if diag.daemon_attestation.attests_worktree() && diag.save_time_driver_attached {
         out.push_str("    - L2 daemon-backed save-time\n");
     } else if matches!(diag.watch, activation::diagnostic::WatchTier::Running) {
         out.push_str("    - L2 save-time watch\n");
@@ -1158,16 +1160,31 @@ mod tests {
     }
 
     #[test]
-    fn next_step_names_daemon_status_when_save_time_daemon_is_armed() {
+    fn start_save_time_driver_copy_registered_without_driver_says_not_attached() {
         let diag = daemon_attested_diagnostic();
         let line = start_next_step_line(&diag);
         assert!(
             !line.contains("anvil watch"),
-            "daemon-backed save-time is already armed; got: {line}",
+            "registered worktree should not fall back to foreground watch, got: {line}",
+        );
+        assert!(
+            line.contains("save-time driver is not attached"),
+            "registered without an attached driver should avoid armed copy, got: {line}",
+        );
+    }
+
+    #[test]
+    fn start_save_time_driver_copy_names_intercept_status_when_driver_attached() {
+        let mut diag = daemon_attested_diagnostic();
+        diag.save_time_driver_attached = true;
+        let line = start_next_step_line(&diag);
+        assert!(
+            !line.contains("anvil watch"),
+            "attached save-time driver is already validating saves; got: {line}",
         );
         assert!(
             line.contains("anvil intercept status"),
-            "daemon-backed next step should name status inspection, got: {line}",
+            "attached-driver next step should name the daemon status surface, got: {line}",
         );
     }
 
@@ -1257,6 +1274,10 @@ mod tests {
                 "recipe missing pinned line: {line:?}\nfull render:\n{rendered}",
             );
         }
+        assert!(
+            !rendered.contains("anvil status") && !rendered.contains("baseline summary"),
+            "smoke recipe must use a real scanning surface, not stale status baseline evidence: {rendered}"
+        );
     }
 
     /// Recipe enumerates the layers honestly: a `Protecting` diagnostic
@@ -1283,8 +1304,15 @@ mod tests {
 
         let daemon_backed = render_first_run_recipe(&daemon_attested_diagnostic(), true);
         assert!(
-            daemon_backed.contains("L2 daemon-backed save-time"),
-            "daemon-attested render must name the active save-time layer: {daemon_backed}"
+            !daemon_backed.contains("L2 daemon-backed save-time"),
+            "daemon-attested render without an attached driver must not claim active save-time: {daemon_backed}"
+        );
+        let mut attached = daemon_attested_diagnostic();
+        attached.save_time_driver_attached = true;
+        let attached_daemon_backed = render_first_run_recipe(&attached, true);
+        assert!(
+            attached_daemon_backed.contains("L2 daemon-backed save-time"),
+            "daemon-attested render with an attached driver must name the active save-time layer: {attached_daemon_backed}"
         );
 
         // Hook coverage is only claimed when hooks were actually installed

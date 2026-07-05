@@ -715,7 +715,7 @@ fn watching_meaning(d: &ActivationDiagnostic) -> &'static str {
         if d.save_time_driver_attached {
             "The intercept daemon is attesting this worktree and a save-time driver is attached, so files are validated on save through the daemon-backed spine — not just membership. MCP pre-write validation is an optional upgrade; wire an MCP client and run `anvil start --verify` to graduate to it."
         } else {
-            "The intercept daemon is attesting this worktree, so writes are being validated through the daemon-backed spine — not just save-time watch. MCP pre-write validation is an optional upgrade; wire an MCP client and run `anvil start --verify` to graduate to it."
+            "The intercept daemon is attesting this worktree, but no save-time driver is attached. Run `anvil intercept status` to inspect whether the driver is absent, failed, or still starting; MCP pre-write validation remains an optional upgrade."
         }
     } else {
         "Save-time watch is the active fallback: anvil validates files after they are written to disk, which is weaker than MCP pre-write validation that can block a bad write before it lands. Wire an MCP client and run `anvil start --verify` to graduate to pre-write protection."
@@ -897,10 +897,15 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 // MCP client is configured, restarting would change nothing, so
                 // keep MCP framed as an optional upgrade and do not nag
                 // (ACTMO-003 — the spine is the protection, MCP is the bonus).
+                if !d.save_time_driver_attached {
+                    return Some(
+                        "save-time driver is not attached; run `anvil intercept status` to inspect the daemon.",
+                    );
+                }
                 return Some(if mcp_restart_pending {
-                    "the intercept daemon attests this worktree, so you are covered now; your MCP client is configured — restart your editor to upgrade to pre-write protection, then re-run `anvil start --verify`."
+                    "daemon-backed save-time validation is armed; run `anvil intercept status` to inspect the daemon. Your MCP client is configured — restart your editor to upgrade to pre-write protection, then re-run `anvil start --verify`."
                 } else {
-                    "the intercept daemon is registered for this worktree; MCP pre-write remains optional, and `anvil intercept status` shows the daemon-backed surface."
+                    "daemon-backed save-time validation is armed; run `anvil intercept status` to inspect the daemon."
                 });
             }
             // Council remediation: the next step depends on whether
@@ -1681,14 +1686,13 @@ mod tests {
         );
     }
 
-    /// CIB-167 Council (major): `Watching` is also reached when the
-    /// daemon-backed spine attests this worktree (`Enforced` /
-    /// `Promoted`), NOT only via save-time watch. In that case the
-    /// `meaning:` line must credit the daemon-backed spine and must NOT
-    /// attribute the protection to save-time watch — otherwise it
-    /// understates what is actually validating writes.
+    /// DSV-050: daemon-attested watching without an attached save-time
+    /// driver is membership/registration evidence, not active on-save
+    /// validation. The copy must say the driver is not attached and point at
+    /// the daemon status surface rather than claiming files are already being
+    /// validated.
     #[test]
-    fn daemon_backed_watching_meaning_credits_spine_not_save_time_watch() {
+    fn daemon_backed_watching_without_driver_says_driver_is_not_attached() {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
         d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
@@ -1704,12 +1708,17 @@ mod tests {
             .unwrap_or_else(|| panic!("Watching render must have a meaning line: {h}"));
         let lower = meaning.to_lowercase();
         assert!(
-            lower.contains("daemon-backed spine") && lower.contains("intercept daemon"),
-            "daemon-backed watching meaning must credit the daemon-backed spine: {meaning}"
+            lower.contains("no save-time driver is attached"),
+            "membership-only watching meaning must say the driver is not attached: {meaning}"
         );
         assert!(
-            !lower.contains("save-time watch is the active fallback"),
-            "daemon-backed watching meaning must not attribute protection to save-time watch: {meaning}"
+            !lower.contains("writes are being validated")
+                && !lower.contains("files are validated on save"),
+            "membership-only watching meaning must not over-claim active validation: {meaning}"
+        );
+        assert!(
+            meaning.contains("anvil intercept status"),
+            "membership-only watching meaning must point at status inspection: {meaning}"
         );
     }
 
@@ -1753,10 +1762,13 @@ mod tests {
             .find(|l| l.trim_start().starts_with("meaning:"))
             .unwrap_or_else(|| panic!("Watching render must have a meaning line: {h}"));
         assert!(
-            !meaning
-                .to_lowercase()
-                .contains("save-time driver is attached"),
-            "membership-only watching must not claim a driver is attached: {meaning}"
+            !meaning.to_lowercase().contains("driver is attached, so")
+                && !meaning.to_lowercase().contains("validated on save"),
+            "membership-only watching must not claim attached-driver validation: {meaning}"
+        );
+        assert!(
+            h.contains("next: save-time driver is not attached; run `anvil intercept status`"),
+            "membership-only watching next hint must name the unattached driver and status surface: {h}"
         );
     }
 
@@ -1796,6 +1808,7 @@ mod tests {
         d.mcp
             .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
         d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+        d.save_time_driver_attached = true;
 
         let h = render_human(&d);
 
@@ -1806,7 +1819,7 @@ mod tests {
         // Council S4: leads with current coverage and never frames the restart
         // as required — the spine already protects this worktree.
         assert!(
-            h.contains("covered now"),
+            h.contains("daemon-backed save-time validation is armed"),
             "daemon-backed watching must affirm current coverage: {h}"
         );
         assert!(

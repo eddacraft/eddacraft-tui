@@ -1140,6 +1140,11 @@ fn render_status_lines_with_pid(status: &DaemonStatusV1, daemon_pid: Option<u32>
         "sessions:  {active_session_count} active   ({session_word})",
     );
     let _ = writeln!(out, "fences:    {}", status.fences.len());
+    let (active_save_time_drivers, failed_save_time_drivers) = save_time_driver_counts(status);
+    let _ = writeln!(
+        out,
+        "drivers:   {active_save_time_drivers} save-time active, {failed_save_time_drivers} failed",
+    );
     out.push_str(&render_latency_line_for_wire(
         status.latency.mid_edit.as_ref(),
     ));
@@ -1147,6 +1152,33 @@ fn render_status_lines_with_pid(status: &DaemonStatusV1, daemon_pid: Option<u32>
     let _ = writeln!(out, "control:   anvil intercept stop");
     out.push('\n');
     out
+}
+
+fn save_time_driver_counts(status: &DaemonStatusV1) -> (usize, usize) {
+    use anvil_intercept_proto::status::SaveTimeDriverStatusV1;
+
+    let mut by_worktree = std::collections::BTreeMap::new();
+    for worktree in &status.worktrees {
+        let existing = by_worktree
+            .entry(worktree.worktree.clone())
+            .or_insert(SaveTimeDriverStatusV1::Absent);
+        *existing = match (*existing, worktree.save_time_driver) {
+            (SaveTimeDriverStatusV1::Attached, _) | (_, SaveTimeDriverStatusV1::Attached) => {
+                SaveTimeDriverStatusV1::Attached
+            }
+            (SaveTimeDriverStatusV1::Failed, _) | (_, SaveTimeDriverStatusV1::Failed) => {
+                SaveTimeDriverStatusV1::Failed
+            }
+            _ => SaveTimeDriverStatusV1::Absent,
+        };
+    }
+    by_worktree
+        .values()
+        .fold((0, 0), |(active, failed), driver| match driver {
+            SaveTimeDriverStatusV1::Attached => (active + 1, failed),
+            SaveTimeDriverStatusV1::Failed => (active, failed + 1),
+            SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Unknown => (active, failed),
+        })
 }
 
 fn daemon_pid_for_display() -> Option<u32> {
@@ -1289,6 +1321,7 @@ fn run_start(args: &StartArgs) -> Result<()> {
 mod tests {
     use anvil_intercept_proto::status::{
         DaemonStatusV1, HealthStateV1, IpcStateV1, LatencyMidEditMapV1, LatencyRollupV1,
+        SaveTimeDriverStatusV1, WorktreeStatusV1,
     };
 
     use super::*;
@@ -1597,6 +1630,81 @@ mod tests {
         }];
         let rendered = render_status_lines(&status);
         assert!(rendered.contains("sessions:  1 active"));
+    }
+
+    #[test]
+    fn cli_status_renders_zero_save_time_driver_counts() {
+        let rendered = render_status_lines(&empty_status());
+        assert!(
+            rendered.contains("drivers:   0 save-time active, 0 failed"),
+            "status must expose zero active and failed save-time driver counts; got:\n{rendered}",
+        );
+    }
+
+    #[test]
+    fn cli_status_renders_save_time_driver_count_and_failed_count() {
+        let mut status = empty_status();
+        status.worktrees = vec![
+            WorktreeStatusV1 {
+                worktree: std::path::PathBuf::from("/tmp/attached"),
+                session_id: anvil_intercept_proto::SessionId::new("attached"),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Attached,
+            },
+            WorktreeStatusV1 {
+                worktree: std::path::PathBuf::from("/tmp/failed"),
+                session_id: anvil_intercept_proto::SessionId::new("failed"),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Failed,
+            },
+            WorktreeStatusV1 {
+                worktree: std::path::PathBuf::from("/tmp/absent"),
+                session_id: anvil_intercept_proto::SessionId::new("absent"),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Absent,
+            },
+        ];
+
+        let rendered = render_status_lines(&status);
+        assert!(
+            rendered.contains("drivers:   1 save-time active, 1 failed"),
+            "status must expose active and failed save-time driver counts; got:\n{rendered}",
+        );
+    }
+
+    #[test]
+    fn cli_status_deduplicates_save_time_driver_counts_by_worktree() {
+        let mut status = empty_status();
+        status.worktrees = vec![
+            WorktreeStatusV1 {
+                worktree: std::path::PathBuf::from("/tmp/wt"),
+                session_id: anvil_intercept_proto::SessionId::new("failed"),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Failed,
+            },
+            WorktreeStatusV1 {
+                worktree: std::path::PathBuf::from("/tmp/wt"),
+                session_id: anvil_intercept_proto::SessionId::new("attached"),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Attached,
+            },
+        ];
+
+        let rendered = render_status_lines(&status);
+        assert!(
+            rendered.contains("drivers:   1 save-time active, 0 failed"),
+            "duplicate worktree entries should count once, with attached winning: {rendered}",
+        );
     }
 
     #[test]

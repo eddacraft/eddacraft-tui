@@ -1305,16 +1305,20 @@ requirement). Architecture decided by
 
 #### DSV-050: Activation copy — honest armed posture without `anvil watch`
 
-- **Status:** Ready
+- **Status:** Done
 - **Source:** ACTMO-006; design spec; CIB-162..166 class (misleading next-step).
 - **Intent:** When the supervisor attaches a driver for the current worktree,
   `anvil start` must not recommend a foreground `anvil watch`.
 - **Expected Outcome:** `start.rs` next-step arbitration: driver attached ⇒ point
   to `anvil intercept status` / log path, not `anvil watch`; driver absent but
-  registered ⇒ honest "save-time driver starting" or "run `anvil workspace
-  register`" guidance; `anvil intercept status` reports active driver count;
+  registered ⇒ honest "save-time driver is not attached" guidance; `anvil
+  intercept status` reports active driver count;
   activation render tests updated.
-- **Validation:** `cargo test -p eddacraft-anvil -- start_save_time_driver_copy`
+- **Validation:** `cargo test -p eddacraft-anvil -- start_save_time_driver_copy`;
+  `cargo test -p eddacraft-anvil -- cli_status_renders_save_time_driver_count_and_failed_count`;
+  `cargo test -p eddacraft-anvil -- cli_status_deduplicates_save_time_driver_counts_by_worktree`;
+  `cargo test -p eddacraft-anvil -- first_run_recipe_layer_lines_reflect_diagnostic`;
+  `cargo test -p eddacraft-anvil -- daemon_backed_watching_without_driver_says_driver_is_not_attached`
 - **Files:** `crates/anvil-cli/src/commands/{start,intercept}.rs`,
   `crates/anvil-cli/src/activation/render.rs`
 - **Dependencies:** DSV-049, ACTMO-006 (Merged)
