@@ -91,7 +91,8 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 ### Future
 
 - DOCSYNC-011: Dashboard feature documentation
-- DOCSYNC-012: Policy governance documentation updates
+- DOCSYNC-012: Policy governance documentation updates — rewrite the public
+  policy tutorial for the POLRESET/regorus pack model (see status table note)
 - DOCSYNC-013: Multi-language support documentation
 - DOCSYNC-021: Refresh docs for 0.3.2-beta/0.3.3-beta and current repo topology
 - DOCSYNC-022: Refresh current public docs for final release scope and 0.4.0-beta watch filtering
@@ -135,7 +136,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-009 | Done   | All `pnpm anvil`/`npx anvil` refs replaced in public docs |
 | DOCSYNC-010 | Done   | Beta guide updated for 0.3.0-beta, Node.js dep removed |
 | DOCSYNC-011 | Draft  |                                               |
-| DOCSYNC-012 | Draft  |                                               |
+| DOCSYNC-012 | Draft  | Gap found 2026-07-06 while closing POLRESET (Done 10/10): the only public policy doc, `docs/public/anvil/tutorials/policies.md` (last touched 2026-06-26), still documents the pre-reset workflow — a standalone `opa` binary, loose `.rego` files under `.anvil/policies/`, and `anvil policy test` printing "not yet implemented" (still true for that legacy path — `crates/anvil-cli/src/commands/policy/mod.rs:390` — but irrelevant now). None of the POLRESET-era pack model is public: `anvil policy install`, `pack.yaml` manifests, the `anvil-baseline` starter pack, `anvil policy validate`, report-only eval-regression CI, `anvil exception grant`, or opt-in `warn`/`fence`/`interrupt` enforcement (`ANVIL_POLICY_ENFORCEMENT`). Rewrite scope: replace the tutorial end-to-end around the pack workflow; source of truth is `docs/guides/policy-validation.md`, `opa-policy-testing.md`, `policy-exceptions.md`, and `plans/modules/policy-value-enforcement-reset.aps.md`. Adversarial probes (ATC/PATT) are regression tooling, not user-facing — leave out of the public tutorial. |
 | DOCSYNC-013 | Draft  |                                               |
 | DOCSYNC-016 | Draft  | Origin: operations-reviewer OPS-002 (RSCAN-008 council) |
 | DOCSYNC-021 | Done   | 0.3.2/0.3.3 public release docs, auth quickstarts, README and repo-topology docs refreshed |
