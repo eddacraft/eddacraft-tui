@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anvil_intercept_proto::protocol::{AssuranceState, WorkspaceAssurance};
-use anvil_intercept_proto::status::DaemonStatusV1;
+use anvil_intercept_proto::status::{DaemonStatusV1, SaveTimeDriverStatusV1};
 use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
 use anvil_tui::surfaces::status::{
@@ -642,15 +642,35 @@ fn render_registered_worktrees(snapshot: Option<&DaemonStatusV1>, cwd: Option<&P
     for worktree in &registered {
         let display = norm(worktree);
         let label = membership_label(snapshot, worktree);
+        let driver = driver_segment(snapshot, worktree);
         let is_cwd = cwd.as_deref() == Some(display.as_path());
         cwd_listed |= is_cwd;
         let marker = if is_cwd { " (current)" } else { "" };
-        let _ = writeln!(out, "  {} [{label}]{marker}", display.display());
+        let _ = writeln!(out, "  {} [{label}]{driver}{marker}", display.display());
     }
     if cwd.is_some() && !cwd_listed {
         let _ = writeln!(out, "  (current directory is not registered)");
     }
     out
+}
+
+/// DSV-049: the save-time driver segment appended to a registered worktree's
+/// plain line. Silent for `Absent`/`Unknown` so the common case (driver
+/// supervision off, or nothing attached) stays byte-identical to the
+/// pre-DSV-049 surface; surfaced only when there is real attachment evidence
+/// (`attached`) or an honest failure (`failed`). `Unknown` — a driver state
+/// from a newer daemon — folds to silent, matching the wire contract's
+/// "treat unknown fail-safe as absent" rule.
+fn driver_segment(snapshot: &DaemonStatusV1, worktree: &Path) -> &'static str {
+    let overlay = snapshot
+        .worktrees
+        .iter()
+        .find(|entry| entry.worktree == worktree);
+    match overlay.map(|entry| entry.save_time_driver) {
+        Some(SaveTimeDriverStatusV1::Attached) => " driver: attached",
+        Some(SaveTimeDriverStatusV1::Failed) => " driver: failed",
+        _ => "",
+    }
 }
 
 /// ACTMO-017 membership axis: a registered worktree is `cascaded` or `fenced`
@@ -819,6 +839,19 @@ fn assurance_state_str(state: AssuranceState) -> &'static str {
         // Deser-only forward-compat fallback (ADR-085): never produced locally,
         // surfaced fail-safe (never "clean") if a newer daemon sends it.
         AssuranceState::Unknown => "unknown",
+    }
+}
+
+/// DSV-049: closed-set wire string for a [`SaveTimeDriverStatusV1`] (matches
+/// the proto kebab-case serialiser; used for the `--json` surface). `Unknown`
+/// — a driver state from a newer daemon — surfaces honestly as `"unknown"` for
+/// machine consumers, distinct from the plain surface which folds it to silent.
+fn save_time_driver_str(state: SaveTimeDriverStatusV1) -> &'static str {
+    match state {
+        SaveTimeDriverStatusV1::Attached => "attached",
+        SaveTimeDriverStatusV1::Absent => "absent",
+        SaveTimeDriverStatusV1::Failed => "failed",
+        SaveTimeDriverStatusV1::Unknown => "unknown",
     }
 }
 
@@ -1459,6 +1492,14 @@ struct StatusOutput {
     /// (`additionalProperties: true`).
     #[serde(skip_serializing_if = "Option::is_none")]
     save_time: Option<SaveTimeOutput>,
+
+    /// DSV-049: the current worktree's save-time driver state from the daemon
+    /// snapshot (`attached` / `absent` / `failed` / `unknown`). Present only
+    /// when a daemon answered AND the worktree is registered (so consumers can
+    /// tell "no daemon evidence" apart from an explicit `absent`); omitted
+    /// otherwise so v1 output stays unchanged (`additionalProperties: true`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    save_time_driver: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -1553,6 +1594,15 @@ fn print_json(
             reason: st.assurance.reason.map(watch_save_time::stale_reason_str),
             confined: st.confined,
             last_full_scan: st.assurance.last_full_scan.clone(),
+        }),
+        // DSV-049: the cwd worktree's driver state, mirroring the cwd-centric
+        // `claim` / `save_time` fields. `None` (omitted) when no daemon
+        // answered or the worktree is not registered — no over-claim.
+        save_time_driver: daemon_snapshot.and_then(|snap| {
+            snap.worktrees
+                .iter()
+                .find(|w| w.worktree == worktree)
+                .map(|w| save_time_driver_str(w.save_time_driver))
         }),
     };
 
@@ -2390,6 +2440,7 @@ mod tests {
             all_languages_unsupported: false,
             language_profile: activation::language_profile::RepoLanguageProfile::default(),
             daemon_attestation: activation::daemon_evidence::DaemonAttestation::NotProbed,
+            save_time_driver_attached: false,
         };
         let data = StatusData {
             hooks: Vec::new(),
@@ -2601,6 +2652,7 @@ mod tests {
                 fenced,
                 cascaded: false,
                 cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Absent,
             }],
             fences: if fenced {
                 vec![FenceStateV1 {
@@ -2667,6 +2719,7 @@ mod tests {
                 fenced: false,
                 cascaded: false,
                 cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Absent,
             },
             WorktreeStatusV1 {
                 worktree: wt_b.to_path_buf(),
@@ -2674,6 +2727,7 @@ mod tests {
                 fenced: true,
                 cascaded: false,
                 cascade_since: None,
+                save_time_driver: SaveTimeDriverStatusV1::Absent,
             },
         ];
 
@@ -2697,6 +2751,108 @@ mod tests {
     fn render_registered_worktrees_degrades_when_daemon_unavailable() {
         let out = render_registered_worktrees(None, None);
         assert!(out.contains("(daemon unavailable)"), "{out}");
+    }
+
+    /// DSV-049: the plain registered-worktrees section surfaces the
+    /// save-time driver state per worktree — `attached` and `failed`
+    /// are shown as an explicit `driver: …` segment; `absent` stays
+    /// silent so the pre-DSV-049 surface is byte-identical for the
+    /// common (supervision-off) case.
+    #[test]
+    fn status_save_time_driver_segment_renders_attached_failed_and_silent_absent() {
+        let attached = Path::new("/tmp/anvil-status-drv-attached");
+        let failed = Path::new("/tmp/anvil-status-drv-failed");
+        let absent = Path::new("/tmp/anvil-status-drv-absent");
+
+        let mut snapshot = snapshot_with_session_at(attached, false, false);
+        let durable = |wt: &Path, id: &str| {
+            use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
+            SessionRecord {
+                id: SessionId::new(id),
+                worktree: wt.to_path_buf(),
+                pid: None,
+                pgid: None,
+                started_at_unix: 0,
+                last_heartbeat_unix: 0,
+                status: SessionStatus::Active,
+                agent_tag: Some(AgentTag::new(
+                    "anvil-start",
+                    ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+                    0,
+                )),
+                daemon_issued_tag: None,
+            }
+        };
+        snapshot.sessions = vec![
+            durable(attached, "da"),
+            durable(failed, "df"),
+            durable(absent, "dn"),
+        ];
+        let entry = |wt: &Path, id: &str, drv: SaveTimeDriverStatusV1| WorktreeStatusV1 {
+            worktree: wt.to_path_buf(),
+            session_id: SessionId::new(id),
+            fenced: false,
+            cascaded: false,
+            cascade_since: None,
+            save_time_driver: drv,
+        };
+        snapshot.worktrees = vec![
+            entry(attached, "da", SaveTimeDriverStatusV1::Attached),
+            entry(failed, "df", SaveTimeDriverStatusV1::Failed),
+            entry(absent, "dn", SaveTimeDriverStatusV1::Absent),
+        ];
+
+        let out = render_registered_worktrees(Some(&snapshot), None);
+        assert!(
+            out.contains("anvil-status-drv-attached [registered] driver: attached"),
+            "{out}"
+        );
+        assert!(
+            out.contains("anvil-status-drv-failed [registered] driver: failed"),
+            "{out}"
+        );
+        // Absent: no driver segment — byte-identical to the pre-DSV-049 line.
+        assert!(
+            out.contains("anvil-status-drv-absent [registered]\n"),
+            "absent driver must stay silent: {out}"
+        );
+        assert!(!out.contains("driver: absent"), "{out}");
+    }
+
+    /// DSV-049: the `--json` wire-string mapper covers every proto arm,
+    /// including the forward-compat `Unknown` (surfaced honestly to
+    /// machine consumers as `"unknown"`, unlike the plain surface which
+    /// folds it to silent).
+    #[test]
+    fn status_save_time_driver_str_maps_every_arm() {
+        assert_eq!(
+            save_time_driver_str(SaveTimeDriverStatusV1::Attached),
+            "attached"
+        );
+        assert_eq!(
+            save_time_driver_str(SaveTimeDriverStatusV1::Absent),
+            "absent"
+        );
+        assert_eq!(
+            save_time_driver_str(SaveTimeDriverStatusV1::Failed),
+            "failed"
+        );
+        assert_eq!(
+            save_time_driver_str(SaveTimeDriverStatusV1::Unknown),
+            "unknown"
+        );
+    }
+
+    /// DSV-049: an `Unknown` driver state (from a newer daemon) folds to
+    /// silent on the plain surface — the wire contract's "treat unknown
+    /// fail-safe as absent" rule, so an older CLI never renders an
+    /// unrecognised state as coverage.
+    #[test]
+    fn status_save_time_driver_segment_treats_unknown_as_silent() {
+        let wt = Path::new("/tmp/anvil-status-drv-unknown");
+        let mut snapshot = snapshot_with_session_at(wt, false, false);
+        snapshot.worktrees[0].save_time_driver = SaveTimeDriverStatusV1::Unknown;
+        assert_eq!(driver_segment(&snapshot, wt), "");
     }
 
     #[test]

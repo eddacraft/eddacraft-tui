@@ -704,7 +704,19 @@ fn needs_action_meaning(d: &ActivationDiagnostic) -> &'static str {
 /// `repair_hint` split.
 fn watching_meaning(d: &ActivationDiagnostic) -> &'static str {
     if d.daemon_attestation.attests_worktree() {
-        "The intercept daemon is attesting this worktree, so writes are being validated through the daemon-backed spine — not just save-time watch. MCP pre-write validation is an optional upgrade; wire an MCP client and run `anvil start --verify` to graduate to it."
+        // DSV-049: within daemon-attested watching, distinguish
+        // save-time-*active* watching (registered ∧ a save-time driver
+        // attached — files are actually scanned on save) from
+        // membership-only watching (the spine attests the worktree but no
+        // driver is attached, so there is no on-save scan yet). Attributing
+        // active save-time coverage when no driver is attached would
+        // over-claim; stating only membership when a driver IS attached
+        // would understate what is running.
+        if d.save_time_driver_attached {
+            "The intercept daemon is attesting this worktree and a save-time driver is attached, so files are validated on save through the daemon-backed spine — not just membership. MCP pre-write validation is an optional upgrade; wire an MCP client and run `anvil start --verify` to graduate to it."
+        } else {
+            "The intercept daemon is attesting this worktree, so writes are being validated through the daemon-backed spine — not just save-time watch. MCP pre-write validation is an optional upgrade; wire an MCP client and run `anvil start --verify` to graduate to it."
+        }
     } else {
         "Save-time watch is the active fallback: anvil validates files after they are written to disk, which is weaker than MCP pre-write validation that can block a bad write before it lands. Wire an MCP client and run `anvil start --verify` to graduate to pre-write protection."
     }
@@ -978,6 +990,7 @@ mod tests {
             all_languages_unsupported: false,
             language_profile: super::super::language_profile::RepoLanguageProfile::default(),
             daemon_attestation: super::super::daemon_evidence::DaemonAttestation::NotProbed,
+            save_time_driver_attached: false,
         }
     }
 
@@ -1697,6 +1710,53 @@ mod tests {
         assert!(
             !lower.contains("save-time watch is the active fallback"),
             "daemon-backed watching meaning must not attribute protection to save-time watch: {meaning}"
+        );
+    }
+
+    /// DSV-049: daemon-attested watching with a save-time driver
+    /// *attached* is save-time-active — the `meaning:` line must state
+    /// that files are validated on save (distinct from membership-only
+    /// watching, and distinct from the daemon-absent save-time-watch
+    /// fallback).
+    #[test]
+    fn driver_attached_watching_meaning_states_on_save_validation() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+        d.save_time_driver_attached = true;
+        assert_eq!(d.protection_state(), ProtectionState::Watching);
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("Watching render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            lower.contains("save-time driver is attached") && lower.contains("on save"),
+            "driver-attached watching must state on-save validation: {meaning}"
+        );
+    }
+
+    /// DSV-049: daemon-attested watching WITHOUT a driver attached is
+    /// membership-only — it must NOT claim a driver is attached, so the
+    /// copy never over-claims active on-save coverage. Pins the split
+    /// against the driver-attached branch above.
+    #[test]
+    fn membership_only_watching_meaning_does_not_claim_driver_attached() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+        assert!(!d.save_time_driver_attached);
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("Watching render must have a meaning line: {h}"));
+        assert!(
+            !meaning
+                .to_lowercase()
+                .contains("save-time driver is attached"),
+            "membership-only watching must not claim a driver is attached: {meaning}"
         );
     }
 

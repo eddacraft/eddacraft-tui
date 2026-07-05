@@ -221,6 +221,15 @@ pub struct ActivationDiagnostic {
     /// [`super::daemon_evidence::DaemonAttestation::NotProbed`].
     #[serde(default)]
     pub daemon_attestation: super::daemon_evidence::DaemonAttestation,
+    /// DSV-049: `true` when the daemon snapshot reports a supervised
+    /// save-time driver *attached* to this worktree. Read from the same
+    /// probe as `daemon_attestation`, it lets the `Watching` render
+    /// distinguish save-time-*active* watching (registered ∧ driver
+    /// attached) from membership-only watching. `false` for synthetic
+    /// test fixtures, when no daemon answered, or when the driver is
+    /// absent / failed / an unrecognised (forward-compat) state.
+    #[serde(default)]
+    pub save_time_driver_attached: bool,
 }
 
 impl ActivationDiagnostic {
@@ -369,10 +378,11 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     // path is in the orchestrator. The fresh entry uses
     // `current_exe()` as the canonical command path so tier
     // classification compares against what we'd actually install.
-    let (mcp, mcp_last_error, daemon_attestation): (
+    let (mcp, mcp_last_error, daemon_attestation, save_time_driver_attached): (
         BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
         Option<String>,
         super::daemon_evidence::DaemonAttestation,
+        bool,
     ) = match std::env::current_exe() {
         Ok(exe) => {
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
@@ -389,15 +399,31 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
             // distinguish "pre-restart" from "daemon not running" /
             // "daemon unenforced" when emitting the
             // `ReadyRestartRequired` repair hint.
-            let attestation = if matches!(config, ConfigStatus::Valid) {
-                super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
-                    &mut probe_results,
-                    root,
+            //
+            // DSV-049: the same probe also reports whether a supervised
+            // save-time driver is attached to this worktree, so the
+            // `Watching` render can distinguish save-time-active watching
+            // (registered ∧ driver attached) from membership-only watching.
+            if matches!(config, ConfigStatus::Valid) {
+                let outcome =
+                    super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
+                        &mut probe_results,
+                        root,
+                    );
+                (
+                    probe_results,
+                    None,
+                    outcome.attestation,
+                    outcome.save_time_driver_attached,
                 )
             } else {
-                super::daemon_evidence::DaemonAttestation::NotProbed
-            };
-            (probe_results, None, attestation)
+                (
+                    probe_results,
+                    None,
+                    super::daemon_evidence::DaemonAttestation::NotProbed,
+                    false,
+                )
+            }
         }
         Err(e) => {
             // Couldn't resolve current_exe (rare — typically only fails
@@ -415,6 +441,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
                     "could not resolve current_exe; MCP probe skipped ({e})"
                 )),
                 super::daemon_evidence::DaemonAttestation::NotProbed,
+                false,
             )
         }
     };
@@ -479,6 +506,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
         all_languages_unsupported,
         language_profile,
         daemon_attestation,
+        save_time_driver_attached,
     }
 }
 
@@ -719,6 +747,7 @@ mod tests {
             all_languages_unsupported: false,
             language_profile: super::super::language_profile::RepoLanguageProfile::default(),
             daemon_attestation: super::super::daemon_evidence::DaemonAttestation::NotProbed,
+            save_time_driver_attached: false,
         }
     }
 

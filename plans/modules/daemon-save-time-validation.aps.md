@@ -1265,7 +1265,7 @@ requirement). Architecture decided by
 
 #### DSV-049: `save_time_driver` status wire + derivation
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decisions 4–5;
   ADR-094 decision 6 assurance axis; ACTMO-017 soft-dep.
 - **Intent:** Make driver attachment observable so `watching` is evidence-backed.

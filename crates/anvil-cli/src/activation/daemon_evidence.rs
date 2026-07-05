@@ -58,7 +58,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use anvil_intercept::status::build_protection_claim_from_wire;
-use anvil_intercept_proto::status::DaemonStatusV1;
+use anvil_intercept_proto::status::{DaemonStatusV1, SaveTimeDriverStatusV1};
 use anvil_kernel_types::protection_claim::{
     ProtectionClaim, SurfaceClaimState, WorktreeClaimState,
 };
@@ -253,15 +253,51 @@ fn emit_skip_event(reason: SkipReason, worktree_claim_state: Option<&'static str
 pub(super) fn promote_to_live_validation_when_daemon_attests(
     map: &mut BTreeMap<McpClientId, McpProbeResult>,
     worktree: &Path,
-) -> DaemonAttestation {
+) -> DaemonProbeOutcome {
     let canonical = canonicalise_for_activation(worktree);
 
     let Some(snapshot) = query_daemon_for_activation() else {
         emit_skip_event(SkipReason::DaemonUnreachable, None);
-        return DaemonAttestation::Unreachable;
+        return DaemonProbeOutcome {
+            attestation: DaemonAttestation::Unreachable,
+            save_time_driver_attached: false,
+        };
     };
 
-    evaluate_and_promote(map, &snapshot, &canonical, SystemTime::now())
+    let attestation = evaluate_and_promote(map, &snapshot, &canonical, SystemTime::now());
+    // DSV-049: read the per-worktree save-time driver signal from the same
+    // snapshot, so the diagnostic can distinguish save-time-*active* watching
+    // (registered ∧ driver attached) from membership-only watching. Independent
+    // of the MCP-promotion verdict — a worktree can be `Enforced` (spine only)
+    // with or without a driver attached.
+    let save_time_driver_attached = worktree_driver_attached(&snapshot, &canonical);
+    DaemonProbeOutcome {
+        attestation,
+        save_time_driver_attached,
+    }
+}
+
+/// DSV-049: outcome of the activation daemon probe — the MCP-promotion
+/// attestation plus whether a supervised save-time driver is attached to this
+/// worktree. Bundled so [`super::diagnostic::verify_with_home`] carries both
+/// signals onto the [`super::diagnostic::ActivationDiagnostic`] from a single
+/// daemon round-trip.
+pub(super) struct DaemonProbeOutcome {
+    pub attestation: DaemonAttestation,
+    pub save_time_driver_attached: bool,
+}
+
+/// DSV-049: true when the daemon snapshot reports a `save_time_driver` of
+/// [`SaveTimeDriverStatusV1::Attached`] for `worktree`. `Failed`, `Absent`,
+/// and the forward-compat `Unknown` all read as "not attached" — only live
+/// attachment is evidence for save-time-active watching copy (the wire
+/// contract's "treat unknown fail-safe as absent" rule).
+fn worktree_driver_attached(snapshot: &DaemonStatusV1, worktree: &Path) -> bool {
+    snapshot
+        .worktrees
+        .iter()
+        .filter(|w| w.worktree == worktree)
+        .any(|w| w.save_time_driver == SaveTimeDriverStatusV1::Attached)
 }
 
 /// Canonicalise `worktree` using the same `std::fs::canonicalize` +
@@ -569,12 +605,27 @@ mod tests {
     }
 
     fn make_worktree_status(session_id: &str, worktree: &Path, fenced: bool) -> WorktreeStatusV1 {
+        make_worktree_status_with_driver(
+            session_id,
+            worktree,
+            fenced,
+            anvil_intercept_proto::status::SaveTimeDriverStatusV1::Absent,
+        )
+    }
+
+    fn make_worktree_status_with_driver(
+        session_id: &str,
+        worktree: &Path,
+        fenced: bool,
+        save_time_driver: anvil_intercept_proto::status::SaveTimeDriverStatusV1,
+    ) -> WorktreeStatusV1 {
         WorktreeStatusV1 {
             worktree: worktree.to_path_buf(),
             session_id: SessionId::new(session_id),
             fenced,
             cascaded: false,
             cascade_since: None,
+            save_time_driver,
         }
     }
 
@@ -618,6 +669,55 @@ mod tests {
         );
         map.insert(McpClientId::Cursor, make_probe(McpTier::RestartRequired));
         map
+    }
+
+    /// DSV-049: `worktree_driver_attached` is true only for a live
+    /// `Attached` driver on the matching worktree. `Absent`, `Failed`,
+    /// and a mismatched worktree all read as not-attached — only live
+    /// attachment is evidence for save-time-active watching.
+    #[test]
+    fn worktree_driver_attached_reads_only_live_attachment() {
+        use anvil_intercept_proto::status::SaveTimeDriverStatusV1;
+
+        let worktree = PathBuf::from("/tmp/wt-dsv049-attached");
+        let other = PathBuf::from("/tmp/wt-dsv049-other");
+        let heartbeat = 1_716_336_050;
+
+        let attached = make_snapshot(
+            &worktree,
+            vec![make_session("s1", &worktree, heartbeat)],
+            vec![make_worktree_status_with_driver(
+                "s1",
+                &worktree,
+                false,
+                SaveTimeDriverStatusV1::Attached,
+            )],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+        assert!(worktree_driver_attached(&attached, &worktree));
+        // Same snapshot, different worktree → not attached.
+        assert!(!worktree_driver_attached(&attached, &other));
+
+        for state in [
+            SaveTimeDriverStatusV1::Absent,
+            SaveTimeDriverStatusV1::Failed,
+            SaveTimeDriverStatusV1::Unknown,
+        ] {
+            let snapshot = make_snapshot(
+                &worktree,
+                vec![make_session("s1", &worktree, heartbeat)],
+                vec![make_worktree_status_with_driver(
+                    "s1", &worktree, false, state,
+                )],
+                IpcStateV1::Serving,
+                heartbeat,
+            );
+            assert!(
+                !worktree_driver_attached(&snapshot, &worktree),
+                "{state:?} must not read as attached",
+            );
+        }
     }
 
     /// CIB-162: every daemon-attestation skip event MUST emit below the

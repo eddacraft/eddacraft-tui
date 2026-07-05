@@ -49,7 +49,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anvil_intercept_proto::SessionRecord;
 use anvil_intercept_proto::status::{
-    DaemonStatusV1, FenceStateV1, HealthStateV1, IpcStateV1, LatencyMidEditMapV1, WorktreeStatusV1,
+    DaemonStatusV1, FenceStateV1, HealthStateV1, IpcStateV1, LatencyMidEditMapV1,
+    SaveTimeDriverStatusV1, WorktreeStatusV1,
 };
 use anvil_kernel_types::protection_claim::{
     ProtectionClaim, SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
@@ -151,6 +152,29 @@ pub struct WorktreeStatus {
     /// MLP2-026: Unix seconds at which the cascade was engaged.
     /// `None` when not cascaded.
     pub cascade_since: Option<u64>,
+    /// DSV-049: the save-time driver's attachment state for this
+    /// worktree. `Absent` by default; [`DaemonStatusProvider`] overlays
+    /// the live supervisor snapshot per query. Maps to
+    /// [`anvil_intercept_proto::status::SaveTimeDriverStatusV1`] on the
+    /// wire.
+    pub save_time_driver: SaveTimeDriverState,
+}
+
+/// DSV-049: daemon-side mirror of
+/// [`anvil_intercept_proto::status::SaveTimeDriverStatusV1`]. The daemon
+/// is the producer, so there is no `Unknown` arm — the wire's
+/// forward-compat catch-all only exists for older *consumers* reading a
+/// newer daemon's snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SaveTimeDriverState {
+    /// A supervised driver is attached and alive.
+    Attached,
+    /// No driver attached. The default.
+    #[default]
+    Absent,
+    /// Spawn failed, or the child died while the daemon lives (DSV-047
+    /// reports this honestly; no auto-respawn at cut-line).
+    Failed,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -197,6 +221,11 @@ impl DaemonStatus {
                     fenced: w.fenced,
                     cascaded: w.cascaded,
                     cascade_since: w.cascade_since,
+                    save_time_driver: match w.save_time_driver {
+                        SaveTimeDriverState::Attached => SaveTimeDriverStatusV1::Attached,
+                        SaveTimeDriverState::Absent => SaveTimeDriverStatusV1::Absent,
+                        SaveTimeDriverState::Failed => SaveTimeDriverStatusV1::Failed,
+                    },
                 })
                 .collect(),
             fences: self
@@ -306,6 +335,11 @@ pub fn build_status(
                 fenced,
                 cascaded: cascade_since.is_some(),
                 cascade_since,
+                // DSV-049: `build_status` is the pure, supervisor-free
+                // constructor; the driver overlay is applied by
+                // `DaemonStatusProvider::query_status` post-build (the
+                // same post-hoc pattern as `status.telemetry`).
+                save_time_driver: SaveTimeDriverState::Absent,
             }
         })
         .collect();
@@ -388,6 +422,12 @@ pub struct DaemonStatusProvider {
     /// DSV-044: optional telemetry broadcaster reference. `None` for tests and
     /// embedded status snapshots that do not expose subscriber delivery state.
     broadcaster: Option<Arc<TelemetryBroadcaster>>,
+    /// DSV-049: optional save-time driver supervisor. `None` for embedded /
+    /// test surfaces and for daemons started without
+    /// `ForegroundOpts::with_save_time_drivers`. When present, `query_status`
+    /// overlays each worktree's `save_time_driver` state from the supervisor's
+    /// live snapshot.
+    save_time_supervisor: Option<crate::save_time_driver::SaveTimeDriverSupervisor>,
 }
 
 impl std::fmt::Debug for DaemonStatusProvider {
@@ -417,6 +457,7 @@ impl DaemonStatusProvider {
             rule_cache: None,
             scan_buffer: None,
             broadcaster: None,
+            save_time_supervisor: None,
         }
     }
 
@@ -444,6 +485,20 @@ impl DaemonStatusProvider {
     #[must_use]
     pub fn with_broadcaster(mut self, broadcaster: Arc<TelemetryBroadcaster>) -> Self {
         self.broadcaster = Some(broadcaster);
+        self
+    }
+
+    /// DSV-049: attach the daemon's save-time driver supervisor. After
+    /// attachment, `query_status` overlays each worktree's
+    /// `save_time_driver` state from the supervisor's live
+    /// `status_snapshot()`. Tests + embedded harnesses skip this
+    /// builder; every worktree then reports the `Absent` default.
+    #[must_use]
+    pub fn with_save_time_supervisor(
+        mut self,
+        supervisor: crate::save_time_driver::SaveTimeDriverSupervisor,
+    ) -> Self {
+        self.save_time_supervisor = Some(supervisor);
         self
     }
 }
@@ -507,6 +562,26 @@ impl StatusProvider for DaemonStatusProvider {
             subscriber_count: b.subscriber_count(),
             dropped_envelopes: b.dropped_envelopes(),
         });
+        // DSV-049: overlay the per-worktree save-time driver state from the
+        // supervisor's live snapshot so `save_time_driver` reflects exactly
+        // what the supervisor is currently tracking. A worktree with no
+        // supervisor entry keeps the `Absent` default `build_status` set — the
+        // honest "no attachment evidence" state.
+        if let Some(supervisor) = &self.save_time_supervisor {
+            let snapshot = supervisor.status_snapshot();
+            for worktree in &mut status.worktrees {
+                if let Some(driver) = snapshot.get(&worktree.worktree) {
+                    worktree.save_time_driver = match driver {
+                        crate::save_time_driver::DriverStatus::Attached { .. } => {
+                            SaveTimeDriverState::Attached
+                        }
+                        crate::save_time_driver::DriverStatus::Failed => {
+                            SaveTimeDriverState::Failed
+                        }
+                    };
+                }
+            }
+        }
         status
     }
 }
@@ -1833,5 +1908,199 @@ mod tests {
             claim.surfaces[0].identifier,
             "anvil-run/claude-code-1#1700000042"
         );
+    }
+
+    // DSV-049 — save-time driver status wire.
+
+    /// `build_status` defaults every worktree's driver to `Absent`; the
+    /// wire projection carries the state explicitly for each producer
+    /// arm. Pins the daemon-side → wire enum mapping.
+    #[test]
+    fn save_time_driver_maps_each_state_to_wire() {
+        let started = Instant::now();
+        for (state, tag) in [
+            (SaveTimeDriverState::Attached, "attached"),
+            (SaveTimeDriverState::Absent, "absent"),
+            (SaveTimeDriverState::Failed, "failed"),
+        ] {
+            let mut status = build_status(
+                vec![sample_session("sess-1", "/tmp/wt-driver")],
+                &[],
+                &[],
+                None,
+                started,
+                started + Duration::from_secs(1),
+                "0.9.0-beta",
+                IpcState::Serving,
+                None,
+                None,
+                0,
+            );
+            status.worktrees[0].save_time_driver = state;
+            let json = serde_json::to_value(status.to_wire()).expect("serialise");
+            assert_eq!(
+                json["worktrees"][0]["save_time_driver"], tag,
+                "{state:?} must wire as {tag}",
+            );
+        }
+    }
+
+    /// `build_status` (the supervisor-free constructor) leaves the
+    /// driver `Absent` — the overlay is a `query_status` concern. Pins
+    /// that the pure path never over-claims attachment.
+    #[test]
+    fn build_status_defaults_driver_to_absent() {
+        let started = Instant::now();
+        let status = build_status(
+            vec![sample_session("sess-1", "/tmp/wt-driver")],
+            &[],
+            &[],
+            None,
+            started,
+            started + Duration::from_secs(1),
+            "0.9.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+            0,
+        );
+        assert_eq!(
+            status.worktrees[0].save_time_driver,
+            SaveTimeDriverState::Absent
+        );
+    }
+
+    /// End-to-end: a provider wired with a live supervisor overlays the
+    /// per-worktree driver state onto its wire snapshot. Drives a real
+    /// `SaveTimeDriverSupervisor` (via test seams) through a `Registered`
+    /// event so the worktree's driver reaches `Attached`, then asserts
+    /// the provider's wire output reflects it. This pins the
+    /// `.with_save_time_supervisor()` wire-up so a refactor that leaves
+    /// the overlay disconnected reproduces the MLP2-025b "spec
+    /// implemented, zero callers" failure.
+    #[test]
+    fn provider_overlays_attached_driver_onto_wire_snapshot() {
+        use std::io;
+        use std::path::Path;
+
+        use anvil_intercept_proto::SessionId;
+        use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
+
+        use crate::ensure::DaemonLauncher;
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+        use crate::save_time_driver::{
+            DriverLauncherFactory, ProcessControl, SaveTimeDriverSupervisor,
+        };
+
+        struct OkLauncher;
+        impl DaemonLauncher for OkLauncher {
+            fn spawn_detached(&self, _log_path: &Path) -> io::Result<u32> {
+                Ok(4321)
+            }
+        }
+        struct OkFactory;
+        impl DriverLauncherFactory for OkFactory {
+            fn launcher_for(
+                &self,
+                _worktree: &Path,
+                _findings_log: &Path,
+            ) -> io::Result<Box<dyn DaemonLauncher + Send + Sync>> {
+                Ok(Box::new(OkLauncher))
+            }
+        }
+        struct AliveProcs;
+        impl ProcessControl for AliveProcs {
+            fn start_time(&self, _pid: u32) -> Option<u64> {
+                Some(1)
+            }
+            fn is_alive(&self, _pid: u32, _recorded_start_time: Option<u64>) -> bool {
+                true
+            }
+            fn supports_start_time(&self) -> bool {
+                true
+            }
+            fn terminate(&self, _pid: u32) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let worktree = std::fs::canonicalize(tmp.path()).expect("canonicalise worktree");
+        let dir = tmp.path().join("save-time-drivers");
+
+        let registry = Arc::new(SessionRegistry::new());
+        let supervisor =
+            SaveTimeDriverSupervisor::new(dir, Box::new(OkFactory), Box::new(AliveProcs));
+        assert!(registry.set_membership_hook(supervisor.membership_hook()));
+
+        let spine = AgentTag::new("anvil-start", ACTIVATION_SPINE_CLAIMED_AGENT_ID, 0);
+        registry
+            .register(
+                &SessionId::new("sess-overlay"),
+                &worktree,
+                Some(&spine),
+                Instant::now(),
+            )
+            .expect("register");
+        // Drain the Registered event → spawn → Attached entry.
+        assert_eq!(supervisor.process_pending(), 1);
+
+        let fence_path = tmp.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::clone(&registry),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.9.0-beta",
+        )
+        .with_save_time_supervisor(supervisor.clone());
+
+        let wire = provider.query_status().to_wire();
+        let entry = wire
+            .worktrees
+            .iter()
+            .find(|w| w.worktree == worktree)
+            .expect("worktree present in snapshot");
+        assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Attached);
+    }
+
+    /// A provider with no supervisor wired leaves every worktree at the
+    /// `Absent` default — embedded / test surfaces never over-claim a
+    /// driver attachment.
+    #[test]
+    fn provider_without_supervisor_reports_absent_driver() {
+        use anvil_intercept_proto::SessionId;
+
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let worktree = std::fs::canonicalize(tmp.path()).expect("canonicalise worktree");
+        let registry = Arc::new(SessionRegistry::new());
+        registry
+            .register(
+                &SessionId::new("sess-nodrv"),
+                &worktree,
+                None,
+                Instant::now(),
+            )
+            .expect("register");
+
+        let fence_path = tmp.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::clone(&registry),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.9.0-beta",
+        );
+        let wire = provider.query_status().to_wire();
+        let entry = wire
+            .worktrees
+            .iter()
+            .find(|w| w.worktree == worktree)
+            .expect("worktree present");
+        assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Absent);
     }
 }

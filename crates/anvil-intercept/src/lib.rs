@@ -1788,22 +1788,29 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // `scan_buffer` calls. The provider is built BEFORE the
         // listener so the listener gets a status feed wired in from
         // the first connection.
-        let status_provider: Arc<dyn status::StatusProvider> = Arc::new(
-            status::DaemonStatusProvider::new(
-                Arc::clone(&daemon_state.registry),
-                Arc::clone(&daemon_state.fence_store),
-                scan_buffer.latency().clone(),
-                Instant::now(),
-                env!("CARGO_PKG_VERSION"),
-            )
-            // MLP2-058: wire `in_flight_evaluations` from the same
-            // service the listener serves with. The rule_cache field
-            // on `DaemonStatusProvider` stays `None` until MLP2-014
-            // lands its production cache wire-up — the optional
-            // wire shape preserves forward-compat.
-            .with_scan_buffer(scan_buffer.clone())
-            .with_broadcaster(Arc::clone(&daemon_state.broadcaster)),
-        );
+        let mut status_provider_impl = status::DaemonStatusProvider::new(
+            Arc::clone(&daemon_state.registry),
+            Arc::clone(&daemon_state.fence_store),
+            scan_buffer.latency().clone(),
+            Instant::now(),
+            env!("CARGO_PKG_VERSION"),
+        )
+        // MLP2-058: wire `in_flight_evaluations` from the same
+        // service the listener serves with. The rule_cache field
+        // on `DaemonStatusProvider` stays `None` until MLP2-014
+        // lands its production cache wire-up — the optional
+        // wire shape preserves forward-compat.
+        .with_scan_buffer(scan_buffer.clone())
+        .with_broadcaster(Arc::clone(&daemon_state.broadcaster));
+        // DSV-049: overlay per-worktree save-time driver state from the
+        // supervisor when one is running (opt-in via
+        // `ForegroundOpts::with_save_time_drivers`). Absent supervisor ⇒
+        // every worktree reports `absent`, matching the pre-DSV-049 surface.
+        if let Some(supervisor) = &driver_supervisor {
+            status_provider_impl =
+                status_provider_impl.with_save_time_supervisor(supervisor.clone());
+        }
+        let status_provider: Arc<dyn status::StatusProvider> = Arc::new(status_provider_impl);
 
         // MLP2-025b: install the production cross-check capability.
         // Currently Linux-only — MLP2-027 (macOS) and MLP2-028

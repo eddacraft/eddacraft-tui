@@ -149,6 +149,42 @@ impl DaemonStatusV1 {
     }
 }
 
+/// DSV-049 (ADR-101 decisions 4–5): observability of the headless
+/// save-time driver's attachment to a worktree, so `watching` copy is
+/// evidence-backed rather than membership-inferred. A worktree is
+/// save-time-*active* only when its driver is [`Self::Attached`] —
+/// distinct from membership-only registration (ADR-094 decision 6
+/// assurance axis).
+///
+/// Wire values are kebab-case: `attached`, `absent`, `failed`. The
+/// `#[serde(other)] Unknown` catch-all ships from day one: a driver
+/// state added by a newer daemon (e.g. `starting`) deserialises to
+/// `Unknown` on an older consumer instead of failing the whole
+/// snapshot parse. That is the `AssuranceState::Bounded` lesson —
+/// without the fallback, the next variant is a breaking wire change.
+/// Consumers MUST treat `Unknown` fail-safe as `Absent` (no attachment
+/// evidence); it is never rendered as coverage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SaveTimeDriverStatusV1 {
+    /// A supervised save-time driver is attached and alive for this
+    /// worktree.
+    Attached,
+    /// No save-time driver is attached. The default, and the fail-safe
+    /// state consumers collapse [`Self::Unknown`] into.
+    #[default]
+    Absent,
+    /// A driver was requested but its spawn failed, or the child died
+    /// while the daemon lives. DSV-047 reports this honestly and does
+    /// not auto-respawn at cut-line.
+    Failed,
+    /// Forward-compat catch-all: a driver state emitted by a newer
+    /// daemon this consumer does not recognise. Treated as `Absent`
+    /// for every evidence decision.
+    #[serde(other)]
+    Unknown,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorktreeStatusV1 {
     pub worktree: PathBuf,
@@ -165,6 +201,14 @@ pub struct WorktreeStatusV1 {
     /// case (None) compact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cascade_since: Option<u64>,
+    /// DSV-049: whether a supervised save-time driver is attached to
+    /// this worktree. Always present on the wire (`#[serde(default)]`,
+    /// no skip) — like `cascaded`, operators reading a snapshot see the
+    /// state explicitly. A pre-DSV-049 daemon omits the key; it
+    /// deserialises to the `Absent` default (the honest fail-safe — no
+    /// attachment evidence).
+    #[serde(default)]
+    pub save_time_driver: SaveTimeDriverStatusV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -543,5 +587,83 @@ mod tests {
             "generated_at_unix must always be present on the wire (even at 0): {json}",
         );
         assert_eq!(json["generated_at_unix"], 0_u64);
+    }
+
+    fn worktree_status(save_time_driver: SaveTimeDriverStatusV1) -> WorktreeStatusV1 {
+        WorktreeStatusV1 {
+            worktree: PathBuf::from("/tmp/wt-dsv049"),
+            session_id: SessionId::new("sess-dsv049"),
+            fenced: false,
+            cascaded: false,
+            cascade_since: None,
+            save_time_driver,
+        }
+    }
+
+    /// DSV-049: the three producer-emitted driver states wire as their
+    /// kebab-case tags and round-trip byte-equivalently.
+    #[test]
+    fn save_time_driver_states_round_trip_as_kebab_case() {
+        for (state, tag) in [
+            (SaveTimeDriverStatusV1::Attached, "attached"),
+            (SaveTimeDriverStatusV1::Absent, "absent"),
+            (SaveTimeDriverStatusV1::Failed, "failed"),
+        ] {
+            let wt = worktree_status(state);
+            let json: serde_json::Value = serde_json::to_value(&wt).expect("serialise");
+            assert_eq!(
+                json["save_time_driver"], tag,
+                "{state:?} must wire as {tag}"
+            );
+            let back: WorktreeStatusV1 = serde_json::from_value(json).expect("deserialise");
+            assert_eq!(back.save_time_driver, state);
+        }
+    }
+
+    /// DSV-049: `save_time_driver` is always present on the wire (no
+    /// skip-if), so operators reading a snapshot see the state
+    /// explicitly — the same posture as `cascaded`.
+    #[test]
+    fn save_time_driver_absent_is_present_on_wire_not_skipped() {
+        let wt = worktree_status(SaveTimeDriverStatusV1::Absent);
+        let json: serde_json::Value = serde_json::to_value(&wt).expect("serialise");
+        assert_eq!(json["save_time_driver"], "absent");
+    }
+
+    /// DSV-049: a pre-DSV-049 daemon omits the `save_time_driver` key
+    /// entirely. It must deserialise to the `Absent` default (the
+    /// fail-safe — no attachment evidence), not fail the parse.
+    #[test]
+    fn pre_dsv049_worktree_status_defaults_driver_to_absent() {
+        let json = serde_json::json!({
+            "worktree": "/tmp/wt-legacy",
+            "session_id": "sess-legacy",
+            "fenced": false,
+        });
+        let parsed: WorktreeStatusV1 = serde_json::from_value(json).expect("deserialise");
+        assert_eq!(parsed.save_time_driver, SaveTimeDriverStatusV1::Absent);
+        assert_eq!(
+            SaveTimeDriverStatusV1::default(),
+            SaveTimeDriverStatusV1::Absent
+        );
+    }
+
+    /// DSV-049 review pin (forward compat): a driver state added by a
+    /// newer daemon (here a hypothetical `starting`) deserialises to
+    /// `Unknown` on this consumer — the whole snapshot still parses.
+    /// The `AssuranceState::Bounded` lesson: the `#[serde(other)]`
+    /// fallback keeps the next variant from being a breaking wire
+    /// change.
+    #[test]
+    fn unknown_driver_state_from_newer_daemon_deserialises_to_unknown() {
+        let json = serde_json::json!({
+            "worktree": "/tmp/wt-future",
+            "session_id": "sess-future",
+            "fenced": false,
+            "cascaded": false,
+            "save_time_driver": "starting",
+        });
+        let parsed: WorktreeStatusV1 = serde_json::from_value(json).expect("forward-compat parse");
+        assert_eq!(parsed.save_time_driver, SaveTimeDriverStatusV1::Unknown);
     }
 }
