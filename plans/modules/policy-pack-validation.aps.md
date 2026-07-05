@@ -45,7 +45,14 @@ before gate evaluation so policies do not fail silently.
 
 ## Out of Scope
 
-- Policy authoring wizards or generators
+- Policy authoring wizards or generators — deferred, not rejected (2026-07-06):
+  the exclusion targets a generator that produces *novel* custom policy logic
+  from user intent (an authoring wizard / NL-to-Rego assistant), which is a
+  substantially harder problem than pack scaffolding. The prerequisite this
+  once waited on — a real base pack to generate from — is now satisfied by
+  CPACKS' `anvil-baseline` starter pack (POLRESET-007). Revisit only as a
+  deliberate scope change here (or in OPAE, which separately excludes
+  natural-language policy generation), not a drive-by addition.
 - Remote bundle signing (covered by OPA-020)
 - Auto-fixing policy errors
 
