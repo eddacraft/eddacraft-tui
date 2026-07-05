@@ -2075,3 +2075,18 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** For the multithreaded-fork+exec ETXTBSY race, don't chase fd-lifecycle or write-then-rename fixes — the race lives entirely in another thread's fork-to-exec window against your file's inode, so a bounded retry at the spawn call site is the only correct, self-healing fix.
 - **Follow-up:** none.
 
+### 2026-07-05 — opencode
+
+- **Task:** Complete DSV-049 via dev-workflow in a new Worktrunk worktree.
+- **Outcome:** Found the implementation already present on `origin/main`; reconciled
+  APS/NBI state to mark DSV-049 Merged and promote DSV-050 as the next item.
+- **Worked:** Targeted Rust tests quickly separated implementation completeness from
+  stale plan state.
+- **Failed:** Initial validation command filter for intercept status tests was too
+  narrow and matched zero tests before rerunning the broader `save_time_driver`
+  filter.
+- **Friction:** Stale APS status can make already-landed code look like active
+  implementation work.
+- **Improvement:** On APS closeout tasks, first grep for the work-item marker in
+  current code/tests before assuming code needs to be written.
+- **Follow-up:** none

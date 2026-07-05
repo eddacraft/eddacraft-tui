@@ -4,10 +4,10 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-07-04 (Sub-phase C implementation underway: DSV-048
-Merged via PR #3186, DSV-047 Merged via PR #3191; DSV-049 → DSV-050 →
-DSV-051 remain the v0.9.0-beta usefulness cut-line — 049/050 sequential,
-050 depends on 049's wire field.)
+**Last reviewed:** 2026-07-05 (Sub-phase C implementation underway: DSV-048
+Merged via PR #3186, DSV-047 Merged via PR #3191, DSV-049 Merged on `main` with
+status wire validation evidence; DSV-050 → DSV-051 remain the v0.9.0-beta usefulness
+cut-line.)
 
 2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
 routing) confirmed in the v0.8.0-beta tag (record:
@@ -1265,7 +1265,19 @@ requirement). Architecture decided by
 
 #### DSV-049: `save_time_driver` status wire + derivation
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-05 — implementation present on `origin/main` at
+  `370167883` (`feat(daemon): surface save-time driver in status (DSV-049)`) and
+  `de3721a67` (`test(daemon): pin Failed driver overlay through the provider
+  (DSV-049)`) when validated in `feat/dsv-049-status-wire`; closeout reconciles
+  stale APS state.
+  Delivered `SaveTimeDriverStatusV1` with `#[serde(other)] Unknown`, the
+  `WorktreeStatusV1.save_time_driver` additive field, daemon provider overlay from
+  `SaveTimeDriverSupervisor::status_snapshot`, plain/JSON status rendering, and
+  activation evidence helpers that treat unknown/absent fail-safe.
+- **Validation evidence (2026-07-05):**
+  `cargo test -p eddacraft-anvil -- status_save_time_driver`;
+  `cargo test -p eddacraft-anvil-intercept-proto save_time_driver`;
+  `cargo test -p eddacraft-anvil -- driver_attached`.
 - **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decisions 4–5;
   ADR-094 decision 6 assurance axis; ACTMO-017 soft-dep.
 - **Intent:** Make driver attachment observable so `watching` is evidence-backed.
@@ -1367,5 +1379,5 @@ requirement). Architecture decided by
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
-| C — Headless background driver | 6 | 3/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049/050/051 Ready) | In Progress |
-| **Total** | **26** | **23/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
+| C — Headless background driver | 6 | 4/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049 Merged 2026-07-05; DSV-050/051 Ready) | In Progress |
+| **Total** | **26** | **24/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
