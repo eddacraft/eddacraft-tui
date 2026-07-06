@@ -101,6 +101,12 @@
 | ----------------------------------------------------------- | ------------------------------ | ------- | ------------- | ----- | ------ |
 | [CLI Surface Reference](../../docs/runbooks/cli-surface.md) | `docs/runbooks/cli-surface.md` | Runbook | Authoritative | CLIC  | Live   |
 
+## CLICT
+
+| Document                                                                   | Path                                       | Type  | Authority | Owner | Status |
+| -------------------------------------------------------------------------- | ------------------------------------------ | ----- | --------- | ----- | ------ |
+| [CLI Command Truth Review](../../docs/reviews/cli-command-truth-review.md) | `docs/reviews/cli-command-truth-review.md` | Guide | Advisory  | CLICT | Live   |
+
 ## CMDSH
 
 | Document                                                                                    | Path                                          | Type  | Authority     | Owner | Status |

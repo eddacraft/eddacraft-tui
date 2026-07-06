@@ -1,8 +1,8 @@
 # CLI Command Truth Review
 
-| Type   | Authority | Owner | Status | Freshness                                    |
-| ------ | --------- | ----- | ------ | -------------------------------------------- |
-| Review | Advisory  | CLICT | WIP    | Opened 2026-07-06 — architecture slice first |
+| Type  | Authority | Owner | Status | Freshness                                    |
+| ----- | --------- | ----- | ------ | -------------------------------------------- |
+| Guide | Advisory  | CLICT | Live   | Opened 2026-07-06 — architecture slice first |
 
 | Upstream                                                                    | Downstream                                      |
 | --------------------------------------------------------------------------- | ----------------------------------------------- |

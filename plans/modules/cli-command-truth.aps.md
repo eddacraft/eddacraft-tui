@@ -3,9 +3,9 @@
 
 # CLI Command Truth
 
-| ID    | Owner | Priority | Status      |
-| ----- | ----- | -------- | ----------- |
-| CLICT | —     | high     | In Progress |
+| ID    | Owner | Priority | Status      | Progress |
+| ----- | ----- | -------- | ----------- | -------- |
+| CLICT | —     | high     | In Progress | 0/5      |
 
 **Last reviewed:** 2026-07-06
 
