@@ -177,7 +177,19 @@ pub enum DefinitionValidationError {
         right_layer: String,
         right_pattern: String,
     },
+    #[error(
+        "layer '{left_layer}' pattern '{left_pattern}' and layer '{right_layer}' pattern '{right_pattern}' are too complex to check for overlap safely"
+    )]
+    PatternOverlapComplexityExceeded {
+        left_layer: String,
+        left_pattern: String,
+        right_layer: String,
+        right_pattern: String,
+    },
 }
+
+/// Upper bound on generated glob witnesses during overlap checks.
+const MAX_PATTERN_WITNESSES: usize = 64;
 
 /// Severity for architecture definition diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -297,13 +309,22 @@ pub fn validate_definition(
         for (right_name, right_layer) in layer_entries.iter().skip(left_index + 1) {
             for left_pattern in &left_layer.patterns {
                 for right_pattern in &right_layer.patterns {
-                    if layer_patterns_overlap(left_pattern, right_pattern) {
-                        errors.push(DefinitionValidationError::OverlappingLayerPatterns {
+                    match layer_patterns_overlap(left_pattern, right_pattern) {
+                        Some(true) => errors.push(DefinitionValidationError::OverlappingLayerPatterns {
                             left_layer: (*left_name).clone(),
                             left_pattern: left_pattern.clone(),
                             right_layer: (*right_name).clone(),
                             right_pattern: right_pattern.clone(),
-                        });
+                        }),
+                        Some(false) => {}
+                        None => errors.push(
+                            DefinitionValidationError::PatternOverlapComplexityExceeded {
+                                left_layer: (*left_name).clone(),
+                                left_pattern: left_pattern.clone(),
+                                right_layer: (*right_name).clone(),
+                                right_pattern: right_pattern.clone(),
+                            },
+                        ),
                     }
                 }
             }
@@ -389,15 +410,24 @@ pub fn diagnose_definition(
         for (right_name, right_layer) in layer_entries.iter().skip(left_index + 1) {
             for left_pattern in &left_layer.patterns {
                 for right_pattern in &right_layer.patterns {
-                    if layer_patterns_overlap(left_pattern, right_pattern) {
-                        diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                    match layer_patterns_overlap(left_pattern, right_pattern) {
+                        Some(true) => diagnostics.push(ArchitectureDefinitionDiagnostic::error(
                             "overlapping-layer-patterns",
                             format!(
                                 "Layer \"{left_name}\" pattern \"{left_pattern}\" overlaps with layer \"{right_name}\" pattern \"{right_pattern}\""
                             ),
                             format!("layers.{right_name}.patterns"),
                             right_pattern,
-                        ));
+                        )),
+                        Some(false) => {}
+                        None => diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                            "pattern-overlap-complexity-exceeded",
+                            format!(
+                                "Layer \"{left_name}\" pattern \"{left_pattern}\" and layer \"{right_name}\" pattern \"{right_pattern}\" are too complex to check for overlap safely"
+                            ),
+                            format!("layers.{right_name}.patterns"),
+                            right_pattern,
+                        )),
                     }
                 }
             }
@@ -432,23 +462,30 @@ pub fn diagnose_definition(
     diagnostics
 }
 
-fn layer_patterns_overlap(left: &str, right: &str) -> bool {
+/// `None` means the overlap check was aborted because witness generation exceeded
+/// [`MAX_PATTERN_WITNESSES`].
+fn layer_patterns_overlap(left: &str, right: &str) -> Option<bool> {
     let Ok(left_pattern) = Pattern::new(left) else {
-        return false;
+        return Some(false);
     };
     let Ok(right_pattern) = Pattern::new(right) else {
-        return false;
+        return Some(false);
     };
 
-    pattern_witnesses(left)
-        .into_iter()
-        .any(|witness| right_pattern.matches(&witness) && left_pattern.matches(&witness))
-        || pattern_witnesses(right)
-            .into_iter()
-            .any(|witness| left_pattern.matches(&witness) && right_pattern.matches(&witness))
+    let left_witnesses = pattern_witnesses(left)?;
+    let right_witnesses = pattern_witnesses(right)?;
+
+    Some(
+        left_witnesses
+            .iter()
+            .any(|witness| right_pattern.matches(witness) && left_pattern.matches(witness))
+            || right_witnesses
+                .iter()
+                .any(|witness| left_pattern.matches(witness) && right_pattern.matches(witness)),
+    )
 }
 
-fn pattern_witnesses(pattern: &str) -> Vec<String> {
+fn pattern_witnesses(pattern: &str) -> Option<Vec<String>> {
     let normalised = pattern.trim().replace('\\', "/");
     let mut witnesses = vec![String::new()];
 
@@ -466,12 +503,15 @@ fn pattern_witnesses(pattern: &str) -> Vec<String> {
                 }
             }
         }
+        if next.len() > MAX_PATTERN_WITNESSES {
+            return None;
+        }
         witnesses = next;
     }
 
     witnesses.sort();
     witnesses.dedup();
-    witnesses
+    Some(witnesses)
 }
 
 fn segment_candidates(segment: &str) -> Vec<String> {
@@ -658,6 +698,44 @@ mod tests {
                 DefinitionValidationError::OverlappingLayerPatterns { .. }
             )
         }));
+    }
+
+    #[test]
+    fn diagnose_definition_rejects_overly_complex_overlap_patterns() {
+        let mut layers = BTreeMap::new();
+        layers.insert(
+            "left".into(),
+            LayerDefinition {
+                patterns: vec!["*/*/*/*/*/*/*/*".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "right".into(),
+            LayerDefinition {
+                patterns: vec!["domain/*".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+
+        let def = ArchitectureDefinition {
+            schema_version: ARCHITECTURE_DEFINITION_VERSION.into(),
+            template: ArchitectureTemplate::Custom,
+            layers,
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        };
+
+        let diagnostics = diagnose_definition(&def);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "pattern-overlap-complexity-exceeded" && d.is_error()),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]

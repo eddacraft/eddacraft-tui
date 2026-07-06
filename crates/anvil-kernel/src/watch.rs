@@ -15,6 +15,7 @@ use crate::parser::extract::{FileSymbols, ImportEdge, ReexportEdge, extract_symb
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::config_validator::{
     ArchitectureConfigValidationError, parse_validated_architecture_config,
+    read_architecture_config_capped,
 };
 use crate::policy::engine::PolicyEngine;
 use crate::policy::invariants::cross_layer::CrossLayerViolation;
@@ -672,11 +673,19 @@ pub fn run_watch(
 fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, WatchError> {
     match path {
         Some(path) => {
-            let yaml = std::fs::read_to_string(path).map_err(|e| WatchError::ConfigIo {
+            let yaml = read_architecture_config_capped(path).map_err(|e| WatchError::ConfigIo {
                 path: path.to_path_buf(),
                 source: e,
             })?;
-            Ok(parse_validated_architecture_config(&yaml)?)
+            match parse_validated_architecture_config(&yaml) {
+                Ok(config) => Ok(config),
+                Err(ArchitectureConfigValidationError::Parse(error)) => {
+                    Err(WatchError::ConfigParse(error))
+                }
+                Err(err @ ArchitectureConfigValidationError::Invalid(_)) => {
+                    Err(WatchError::ConfigValidation(err))
+                }
+            }
         }
         None => Ok(ArchitectureConfig { layers: Vec::new() }),
     }

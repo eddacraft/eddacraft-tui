@@ -1,7 +1,12 @@
 use std::collections::{HashMap, HashSet};
+use std::io::Read;
+use std::path::Path;
 
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::config_diagnostics::ArchitectureConfigDiagnostic;
+
+/// Keep in sync with `anvil_architecture::ARCHITECTURE_YAML_MAX_SIZE`.
+pub const ARCHITECTURE_CONFIG_MAX_BYTES: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArchitectureConfigValidationReport {
@@ -69,6 +74,34 @@ pub fn validate_architecture_config(
     config: &ArchitectureConfig,
 ) -> ArchitectureConfigValidationReport {
     ArchitectureConfigValidator.validate(config)
+}
+
+/// Read an architecture config file with the same hard size cap as
+/// `anvil-architecture` YAML parsing.
+pub fn read_architecture_config_capped(path: &Path) -> Result<String, std::io::Error> {
+    let file = std::fs::File::open(path)?;
+    let size = file.metadata()?.len();
+    if size > ARCHITECTURE_CONFIG_MAX_BYTES {
+        return Err(architecture_config_over_cap(path));
+    }
+
+    let mut contents = String::with_capacity(usize::try_from(size).unwrap_or(0));
+    file.take(ARCHITECTURE_CONFIG_MAX_BYTES.saturating_add(1))
+        .read_to_string(&mut contents)?;
+    if contents.len() as u64 > ARCHITECTURE_CONFIG_MAX_BYTES {
+        return Err(architecture_config_over_cap(path));
+    }
+    Ok(contents)
+}
+
+fn architecture_config_over_cap(path: &Path) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!(
+            "{} exceeds the {ARCHITECTURE_CONFIG_MAX_BYTES}-byte read cap",
+            path.display()
+        ),
+    )
 }
 
 pub fn parse_validated_architecture_config(
@@ -333,6 +366,17 @@ layers:
                 .iter()
                 .any(|d| d.code == "empty-layer" && !d.is_error())
         );
+    }
+
+    #[test]
+    fn read_architecture_config_capped_rejects_oversized_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("architecture.yaml");
+        std::fs::write(&path, vec![b'a'; (ARCHITECTURE_CONFIG_MAX_BYTES + 1) as usize]).unwrap();
+
+        let err = read_architecture_config_capped(&path).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("read cap"));
     }
 
     #[test]
