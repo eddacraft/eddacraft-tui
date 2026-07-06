@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner | Status | Freshness                                    |
 | ----- | --------- | ----- | ------ | -------------------------------------------- |
-| Guide | Advisory  | CLICT | Live   | Opened 2026-07-06 — architecture slice first |
+| Guide | Advisory  | CLICT | Live   | Last updated 2026-07-06 — full runtime registry + slices 1–5 audited |
 
 | Upstream                                                                    | Downstream                                      |
 | --------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -89,6 +89,106 @@ For each command family:
    complete.
 6. **Open APS item** — docs reconciliation before build decisions where scope is
    unclear.
+
+---
+
+## Command families (runtime truth)
+
+**Source of truth:** `cargo run --bin anvil -- --help` and per-command `--help`,
+captured 2026-07-06 against `target/debug/anvil` on `main`. Registration lives
+in `crates/anvil-cli/src/main.rs` (`Commands` enum); dispatch in
+`crates/anvil-cli/src/commands/`.
+
+**Count:** **45** top-level command families (plus `help`). **18** expose
+subcommands; **27** are flat (flags and/or positional args only).
+
+### Registry
+
+| #   | Command         | Shape        | Runtime surface (2026-07-06)                                                                                                                                                                                                                         | Runbook section | CLICT slice |
+| --- | --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ----------- |
+| 1   | `audit`         | Flat         | `[--format auto\|tui\|plain\|json\|sarif] [--json] [--no-tui] [-v]` — full-project audit                                                                                                                                                             | Yes             | Tier 2      |
+| 2   | `audit-chain`   | Flat         | Witness-chain walk for bypassed protection                                                                                                                                                                                                           | Yes             | Tier 2      |
+| 3   | `check`         | Flat         | `[FILES…] [--changed] [--staged] [--since <ref>] [--all]` — planless `antipattern-scan` + `secret-detection` only                                                                                                                                    | Yes             | Tier 2      |
+| 4   | `report-fp`     | Flat         | `[--list] <check-id> <file:line> [--include-snippet]`                                                                                                                                                                                                | Yes             | Tier 2      |
+| 5   | `doctor`        | Flat         | `[--fix] [--json] [--no-tui] [-v]`                                                                                                                                                                                                                   | Yes             | Tier 2      |
+| 6   | `config`        | Subcommands  | `show`, `set`, `convert`                                                                                                                                                                                                                           | Yes             | Tier 2      |
+| 7   | `drift`         | Subcommands  | `snapshot`, `compare`, `report`, `list`, `migrate`                                                                                                                                                                                                   | Yes             | **Slice 3** |
+| 8   | `edda`          | Subcommands  | `list`, `show`                                                                                                                                                                                                                                       | Yes             | Tier 2      |
+| 9   | `ember`         | Subcommands  | `list`                                                                                                                                                                                                                                               | Yes             | Tier 2      |
+| 10  | `exception`     | Subcommands  | `grant`, `revoke`, `list`, `show`, `verify`, `migrate`                                                                                                                                                                                               | Yes             | Slice 2\*   |
+| 11  | `status`        | Flat         | Project health snapshot (`--verify` read-only probe)                                                                                                                                                                                                 | Yes             | Tier 2      |
+| 12  | `start`         | Flat         | Activation orchestrator: `[--verify] [--watch] [--format yaml\|yml\|json\|toml] [--new-identity] [--why]`                                                                                                                                          | Yes             | Tier 2      |
+| 13  | `tutorial`      | Flat         | Interactive guided tutorial                                                                                                                                                                                                                          | Yes             | Tier 2      |
+| 14  | `welcome`       | Flat         | Welcome / quick-start screen                                                                                                                                                                                                                         | Yes             | Tier 2      |
+| 15  | `init`          | Flat         | `[--force]` — writes project config                                                                                                                                                                                                                  | Yes             | Tier 2      |
+| 16  | `insights`      | Flat         | Local-only weekly activity views                                                                                                                                                                                                                     | Yes             | Tier 2      |
+| 17  | `kindling`      | Subcommands  | `usage top\|unused\|flags\|principals`                                                                                                                                                                                                               | Yes             | Tier 2      |
+| 18  | `migrate`       | Subcommands  | `format`, `schema` (bare `anvil migrate` → `format`)                                                                                                                                                                                                 | Yes             | Tier 2      |
+| 19  | `intercept`     | Subcommands  | `start`, `status`, `unblock`, `stop`                                                                                                                                                                                                                 | Partial†        | **Slice 6** |
+| 20  | `workspace`     | Subcommands  | `mode`, `allow`, `deny`, `register`, `unregister`, `list`, `install-hook`                                                                                                                                                                            | Partial†        | **Slice 6** |
+| 21  | `l4-validate`   | Flat         | Explicit commit-range L4 policy validation (CI lane)                                                                                                                                                                                                   | Yes             | Tier 2      |
+| 22  | `licenses`      | Flat         | Third-party licence attribution                                                                                                                                                                                                                      | Yes             | Tier 2      |
+| 23  | `mcp-config`    | Flat         | Generate editor MCP config (claude-code, cursor, windsurf, vscode)                                                                                                                                                                                   | Yes             | Tier 2      |
+| 24  | `mcp`           | Subcommands  | `install`, `serve`                                                                                                                                                                                                                                   | Yes             | Tier 2      |
+| 25  | `plan`          | Subcommands  | `dashboard`                                                                                                                                                                                                                                          | Yes             | Tier 2      |
+| 26  | `dashboard`     | Positional   | `[NAME]` where `NAME` ∈ `architecture`, `drift`, `suppressions` (omit → picker)                                                                                                                                                                      | Yes             | Tier 2      |
+| 27  | `new`           | Flat         | Scaffold from template                                                                                                                                                                                                                               | Yes             | Tier 2      |
+| 28  | `wizard`        | Flat         | Guided project setup                                                                                                                                                                                                                                 | Yes             | Tier 2      |
+| 29  | `admin`         | Subcommands  | `list`, `show`, `revoke`, `audit`, `send-migration`, `email-update`, `approve`, `invite`, `auth`                                                                                                                                                     | Yes             | Tier 2      |
+| 30  | `gate`          | Flat         | `[PLAN] [-p\|--profile dev\|ci\|production\|ai] [--only-checks …] [--skip-checks …] [--fail-fast] [--progress] [--format …]`                                                                                                                        | Yes             | **Slice 5** |
+| 31  | `gate-config`   | Flat         | `[-l\|--list] [-e\|--enable <check>] [-d\|--disable <check>]`                                                                                                                                                                                       | Yes             | Slice 5\*   |
+| 32  | `watch`         | Flat         | `[-f\|--file …] [-a\|--action check\|gate\|none] [--plans] [--source] [--all] [--patterns …] [--exclude …] [--debounce <ms>]`                                                                                                                         | Yes             | **Slice 4** |
+| 33  | `export`        | Flat         | `[SOURCE] [--to aps\|json\|yaml] [--format llms.txt\|mcp-resource\|prompt-fragment] [-o OUTPUT] [--compact]`                                                                                                                                        | Yes             | Tier 2      |
+| 34  | `hooks`         | Subcommands  | `install`, `uninstall`, `status`                                                                                                                                                                                                                     | Yes             | Tier 2      |
+| 35  | `hook`          | Subcommands  | `pre-commit`, `pre-push`, `post-commit`, `post-merge`, `post-rewrite`, `bootstrap`                                                                                                                                                                   | Yes             | Tier 2      |
+| 36  | `baseline`      | Subcommands  | `verify`                                                                                                                                                                                                                                             | Yes             | Tier 2      |
+| 37  | `capsule`       | Subcommands  | `create`, `verify`, `explain`, `prune`                                                                                                                                                                                                               | Yes             | Tier 2      |
+| 38  | `architecture`  | Subcommands  | `validate`, `show`                                                                                                                                                                                                                                   | Yes             | **Slice 1** |
+| 39  | `auth`          | Subcommands  | `login`, `logout`, `whoami`, `refresh`                                                                                                                                                                                                               | Yes             | Tier 2      |
+| 40  | `policy`        | Subcommands  | `eval`, `eval-regression`, `attack-regression`, `probe-trends`, `list`, `explain`, `diff`, `validate`, `install`, `show`, `test` (stub)                                                                                                              | Partial‡        | **Slice 2** |
+| 41  | `gctx`          | Subcommands  | `egress enable\|disable\|status`                                                                                                                                                                                                                     | Yes             | Tier 2      |
+| 42  | `update`        | Flat         | `[--check] [--version <ver>] [--force]`                                                                                                                                                                                                              | Yes             | Tier 2      |
+| 43  | `uninstall`     | Flat         | `[--global]` — project state or user state + daemon                                                                                                                                                                                                  | Yes             | Tier 2      |
+| 44  | `validate`      | Positional   | `<PLAN> [--format …] [--no-validate-hash]` — APS plan file validation                                                                                                                                                                                | Yes             | Tier 2      |
+| 45  | `version`       | Flat         | Install-method-aware version + upgrade guidance                                                                                                                                                                                                      | Yes             | Tier 2      |
+
+† **Runbook partial:** `docs/runbooks/cli-surface.md` omits subcommands that
+exist in `--help` (see slice 6).
+
+‡ **Runbook partial:** policy section lists six subcommands; runtime registers
+eleven (`install`, `show`, `eval-regression`, `attack-regression`,
+`probe-trends` missing from runbook synopsis).
+
+\* Bundled into the parent slice's CLICT reconciliation item (exception with
+policy; `gate-config` with gate).
+
+### Gate check names (runtime catalog)
+
+Canonical names from `crates/anvil-cli/src/commands/check_catalog.rs`
+(`CHECK_DEFINITIONS`, 2026-07-06):
+
+| Stable ID     | Canonical name       | Aliases        | Gate-supported |
+| ------------- | -------------------- | -------------- | -------------- |
+| ANV-CORE-001  | `secret-detection`   | `secret`       | Yes            |
+| ANV-CORE-002  | `import-boundaries`| `architecture` | Yes          |
+| ANV-CORE-003  | `antipattern-scan`   | —              | Yes            |
+| ANV-CORE-004  | `policy`             | —              | Yes            |
+| ANV-CORE-005  | `lint`               | —              | Yes            |
+| ANV-CORE-006  | `test`               | —              | Yes            |
+| ANV-CORE-007  | `coverage`           | —              | Yes            |
+| ANV-CORE-008  | `dependency`         | —              | Yes            |
+| ANV-CORE-009  | `command-safety`     | —              | Yes            |
+
+`anvil check` honours only the planless subset (`antipattern-scan`,
+`secret-detection`). All gate-supported checks run under `anvil gate`.
+
+### Priority tiers
+
+| Tier       | Families                                                                 | CLICT work        |
+| ---------- | ------------------------------------------------------------------------ | ----------------- |
+| **Tier 1** | `architecture`, `policy`, `drift`, `watch`, `gate` (+ `exception`)       | CLICT-001..005    |
+| **Tier 2** | Remaining 38 families — runbook-first spot-check                           | CLICT-007         |
+| **Tier 1½**| `intercept`, `workspace` — runbook missing shipped subcommands           | CLICT-006         |
 
 ---
 
@@ -207,14 +307,297 @@ No code or doc content changed in that PR — planning only. CLICT-001 complemen
 it by fixing user-facing documentation now rather than waiting for build
 verdicts.
 
+### Reconciliation checklist (architecture)
+
+- [ ] `docs/guides/custom-architecture-policies.md` — remove or redirect eight
+      absent subcommands
+- [ ] `plans/completed.aps.md` / `completed-index.aps.md` — correct OPA-004,
+      TUI-015 false-complete rows
+- [ ] `CHANGELOG.md` — correct or supersede `visualise` claim
+- [ ] Review doc slice 1 marked reconciled
+
+---
+
+## Slice 2: `anvil policy` + `anvil exception` (2026-07-06)
+
+**Context:** POLRESET completed 2026-07-05 (10/10). Internal guides were reviewed
+2026-07-04; public tutorial was not. DOCSYNC-012 tracks the public tutorial
+rewrite; CLICT-002 owns the broader reconciliation.
+
+### Documentation layers (conflicting claims)
+
+| Source                                        | Authority             | Claims vs runtime (2026-07-06)                                                                                                                                      |
+| --------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/public/anvil/tutorials/policies.md`     | Public tutorial       | **Stale** — standalone `opa` binary required; loose `.rego` drop-in; `anvil policy test` as primary workflow; no `install`/`validate`/pack model                   |
+| `docs/runbooks/cli-surface.md` §policy        | Authoritative runbook | **Partial** — six subcommands documented; missing `install`, `show`, `eval-regression`, `attack-regression`, `probe-trends`                                          |
+| `docs/guides/policy-validation.md`             | Authoritative guide   | **Current** — pack admission, `pack.yaml`, `anvil policy validate` (reviewed 2026-07-04)                                                                            |
+| `docs/guides/opa-policy-testing.md`           | Authoritative guide   | **Current** — regorus path, fixture layout, Go OPA as reference-only (reviewed 2026-07-04)                                                                          |
+| `docs/guides/policy-exceptions.md`            | Authoritative guide   | **Current** — `anvil exception *` contract (reviewed 2026-07-04)                                                                                                    |
+| `docs/public/anvil/beta-testing-guide.md`     | Public ops            | **Partial** — only `policy list` / `explain`; no POLRESET workflow                                                                                                  |
+| `docs/public/anvil/releases/changelog.md`     | Release notes         | **Partial** — frames `anvil policy` as experimental; incomplete subcommand list                                                                                     |
+| `docs/archive/planning/opa-policy-engine.md`  | Archived              | **Historical** — `anvil policy init`, loose-file workflow (must stay archived; agents may still cite)                                                               |
+| `plans/modules/documentation-sync.aps.md`     | APS                   | **DOCSYNC-012** Draft — public tutorial rewrite scoped to POLRESET pack model                                                                                       |
+
+**Runtime truth** (`anvil policy --help`): **11** subcommands — `eval`,
+`eval-regression`, `attack-regression`, `probe-trends`, `list`, `explain`,
+`diff`, `validate`, `install`, `show`, `test`.
+
+### Command-by-command map (`anvil policy`)
+
+| #   | Subcommand          | In CLI? | Code location                                              | Engine / behaviour                                      | Tests                          |
+| --- | ------------------- | ------- | ---------------------------------------------------------- | ------------------------------------------------------- | ------------------------------ |
+| 1   | `eval`              | Yes     | `commands/policy/eval.rs`                                  | Regorus via `anvil-policy-engine`                       | Unit + schema snapshot         |
+| 2   | `eval-regression`   | Yes     | `commands/policy/eval_regression.rs`                         | Report-only CI harness (`ci/eval/`)                     | Unit + CI                      |
+| 3   | `attack-regression` | Yes     | `commands/policy/attack_regression.rs`                       | Prompt-attack pack gate                                 | Unit                           |
+| 4   | `probe-trends`      | Yes     | `commands/policy/adversarial_trends.rs`                    | ATC eval-history trends                                 | Unit                           |
+| 5   | `list`              | Yes     | `commands/policy/mod.rs`                                   | Policy metadata listing                                 | Arg-parse tests                |
+| 6   | `explain`           | Yes     | same                                                       | Policy explanation                                      | Arg-parse tests                |
+| 7   | `diff`              | Yes     | same                                                       | Policy file diff                                        | Arg-parse tests                |
+| 8   | `validate`          | Yes     | `commands/policy/validate.rs`                              | Pack admission (`anvil-policy-engine/src/pack/`)        | Unit + starter_proof           |
+| 9   | `install`           | Yes     | `commands/policy/install.rs`                               | Bundled `anvil-baseline` starter pack                   | starter_proof + install tests  |
+| 10  | `show`              | Yes     | same                                                       | Preview starter pack without install                    | install tests                  |
+| 11  | `test`              | Yes     | `commands/policy/mod.rs`                                   | **Stub** — discovers `*_test.rego`, prints not implemented | Arg-parse only              |
+
+Documented but **absent:** `anvil policy init` (archive only; use `install`).
+
+### Related surfaces (policy ecosystem)
+
+| Surface                         | Role                                      | Doc freshness                          |
+| ------------------------------- | ----------------------------------------- | -------------------------------------- |
+| `anvil gate --only-checks policy` | Regorus gate evaluation                 | Public ops mentions; thin on packs   |
+| `anvil exception grant\|…`      | Scoped exceptions before blocking modes   | Guide + runbook + `operations/config` current |
+| `ANVIL_POLICY_ENFORCEMENT`      | Opt-in `warn`/`fence`/`interrupt`       | Internal guides only; not public       |
+| MCP `anvil_validate_write`      | Pre-write policy enforcement            | `integrations/mcp.md` — separate audit |
+| `anvil policy eval --json`      | Machine contract v1                     | `docs/specs/policy-eval-output-v1.md` current |
+
+### Test coverage gaps (policy)
+
+| Layer                     | Covers                         | Gap                                           |
+| ------------------------- | ------------------------------ | --------------------------------------------- |
+| `policy/mod.rs` (19 tests)| Arg parsing, stub `test` path  | No E2E for `install` → `gate --only-checks policy` |
+| `starter_proof`           | End-to-end starter pack        | Not wired to public tutorial                  |
+| E2E (`apps/e2e`)          | Gate workflow                  | No `anvil policy *` suite                     |
+
+### Documentation drift hotspots (policy)
+
+1. **`docs/public/anvil/tutorials/policies.md`** — highest priority; entire
+   workflow is pre-POLRESET (DOCSYNC-012).
+2. **`docs/runbooks/cli-surface.md` §policy** — synopsis and subcommand table
+   missing five shipped commands.
+3. **`docs/public/anvil/beta-testing-guide.md`** — policy section incomplete.
+4. **`docs/architecture/tutorial-as-built.md`** — still centres on stub
+   `anvil policy test` as tutorial truth.
+5. **Archive false-complete** — `docs/archive/planning/TODO.md` marks `policy
+   init` complete; redirect to `install`.
+
+Accurate today: internal guides (`policy-validation`, `opa-policy-testing`,
+`policy-exceptions`), specs (`policy-input-v1`, `policy-eval-output-v1`).
+
+### APS cross-links (policy)
+
+| Item          | Module   | Role                                                              |
+| ------------- | -------- | ----------------------------------------------------------------- |
+| **CLICT-002** | CLICT    | Docs reconciliation — runbook, public surfaces, archive redirects |
+| **DOCSYNC-012** | DOCSYNC | Public tutorial end-to-end rewrite (coordinate with CLICT-002)  |
+| **POLRESET**  | (Done)   | Product truth source; no further build items in CLICT scope       |
+
+### Reconciliation checklist (policy)
+
+- [ ] Runbook policy section lists all 11 subcommands; notes `test` is stub
+- [ ] Public tutorial rewritten around `install` → `validate` → `gate` flow
+- [ ] Beta guide + changelog updated for post-POLRESET surface
+- [ ] `tutorial-as-built.md` references pack workflow
+- [ ] Archive/TODO false-complete rows corrected or marked superseded
+
+---
+
+## Slice 3: `anvil drift` (2026-07-06)
+
+### Documentation layers
+
+| Source                                    | Authority       | Claims vs runtime                                                                                    |
+| ----------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| `docs/runbooks/cli-surface.md` §drift     | Runbook         | **Aligned** — five subcommands match `--help`                                                        |
+| `docs/public/anvil/tutorials/drift.md`    | Public tutorial | **Drift** — wrong snapshot filename; documents absent `--overwrite` flag                             |
+| `docs/public/anvil/beta-testing-guide.md` | Public ops      | Mentions `drift report`, `drift migrate` — aligned                                                   |
+| `docs/public/anvil/guides/dashboard.md`   | Public guide    | `anvil dashboard drift` — aligned                                                                    |
+
+**Runtime truth:** `snapshot`, `compare`, `report`, `list`, `migrate`.
+
+### Command-by-command map
+
+| #   | Subcommand | In CLI? | Code                         | Behaviour notes                                              | Tests        |
+| --- | ---------- | ------- | ---------------------------- | ------------------------------------------------------------ | ------------ |
+| 1   | `snapshot` | Yes     | `commands/drift.rs`          | Saves `.anvil/snapshots/snapshot-<name>.json` (prefix required) | Extensive unit |
+| 2   | `compare`  | Yes     | same                         | Resolves name with/without `snapshot-` prefix                | Unit         |
+| 3   | `report`   | Yes     | same                         | Compares latest two valid snapshots                          | Unit         |
+| 4   | `list`     | Yes     | same                         | Lists snapshots in `.anvil/snapshots/`                       | Unit         |
+| 5   | `migrate`  | Yes     | same                         | Schema upgrade + optional `--prune-backups`                  | Unit         |
+
+### Documentation drift hotspots (drift)
+
+1. **Public tutorial** shows `Snapshot saved to .anvil/snapshots/baseline.json`
+   — runtime writes `snapshot-baseline.json` (`SNAPSHOT_PREFIX` in `drift.rs`).
+2. **Public tutorial** documents `anvil drift snapshot --name baseline
+   --overwrite` — **no `--overwrite` flag** exists; named snapshots fail if the
+   file already exists.
+3. **Prerequisite** says `anvil check --all` — drift is architecture-graph
+   based; gate/import-boundaries is the closer prerequisite (wording fix).
+
+Runbook and beta guide are otherwise aligned.
+
+### APS cross-links (drift)
+
+| Item          | Module | Role                                           |
+| ------------- | ------ | ---------------------------------------------- |
+| **CLICT-003** | CLICT  | Fix public tutorial paths/flags; prerequisite wording |
+
+### Reconciliation checklist (drift)
+
+- [ ] `docs/public/anvil/tutorials/drift.md` — `snapshot-<name>.json` paths
+- [ ] Remove `--overwrite` example; document rename/delete workflow instead
+- [ ] Prerequisite references `gate` / import-boundaries where appropriate
+
+---
+
+## Slice 4: `anvil watch` (2026-07-06)
+
+### Documentation layers
+
+| Source                                              | Authority       | Claims vs runtime                                                                                 |
+| --------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| `docs/runbooks/cli-surface.md` §watch               | Runbook         | **Aligned** — flags match `--help`                                                                |
+| `docs/public/anvil/integrations/watch-output.md`    | Public spec     | **Current** — NDJSON lifecycle, daemon default, `--json` purity (DSV-era)                         |
+| `docs/guides/custom-architecture-policies.md`       | Guide (stale)   | **Wrong command** — `anvil architecture watch` (does not exist; use `anvil watch`)                |
+| `docs/public/anvil/releases/changelog.md`         | Release notes   | Documents `--action` default change — aligned with runtime                                        |
+| `docs/public/anvil/guides/save-time-validation.md`| Public guide    | Thin on flags; no false commands                                                                  |
+
+**Runtime truth:** flat command — `[--file] [--action check|gate|none] [--plans]
+[--source] [--all] [--patterns] [--exclude] [--debounce]`.
+
+### Wiring and substitutes
+
+| Documented surface              | Runtime substitute                    | Notes                                      |
+| ------------------------------- | ------------------------------------- | ------------------------------------------ |
+| `anvil architecture watch`      | `anvil watch` (default action `check`) | Architecture boundaries via kernel watcher |
+| `anvil start --watch`           | `anvil start --watch`                 | Honest fallback when MCP pre-write absent  |
+| Daemon-backed save-time         | `anvil intercept start` + MCP         | Documented in `watch-output.md`            |
+
+### Test coverage gaps (watch)
+
+| Layer              | Covers                    | Gap                              |
+| ------------------ | ------------------------- | -------------------------------- |
+| `watch.rs` (many)  | Arg parsing, filter logic | —                                |
+| E2E save-time      | `save-time-driver.e2e`    | No full `anvil watch --json` E2E |
+
+### Documentation drift hotspots (watch)
+
+1. **`custom-architecture-policies.md`** — `anvil architecture watch` (fixed by
+   CLICT-001 overlap).
+2. **Default `--action` narrative** — changelog documents v0.8+ default `check`;
+   some older public copy may still imply architecture-only default (spot-check
+   during reconciliation).
+
+### APS cross-links (watch)
+
+| Item          | Module | Role                                                        |
+| ------------- | ------ | ----------------------------------------------------------- |
+| **CLICT-004** | CLICT  | Architecture-watch redirects; default-action copy alignment |
+| **CLICT-001** | CLICT  | Overlap on `architecture watch` wording in architecture guide |
+
+### Reconciliation checklist (watch)
+
+- [ ] No remaining `anvil architecture watch` in live guides
+- [ ] Public docs state default `--action check` and `--action none` for arch-only
+- [ ] `watch-output.md` cross-linked from public quickstart where relevant
+
+---
+
+## Slice 5: `anvil gate` + `gate-config` + check vocabulary (2026-07-06)
+
+### Documentation layers
+
+| Source                                    | Authority              | Claims vs runtime                                                                                      |
+| ----------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| `docs/runbooks/cli-surface.md` §gate      | Runbook                | **Aligned** — flags and profiles match                                                                 |
+| `docs/architecture/quality-model.md`      | Authoritative concept  | **Partial** — uses `architecture` check noun; runtime canonical name is `import-boundaries` (alias `architecture`) |
+| `docs/public/anvil/concepts/gates.md`     | Public concept         | **Mostly aligned** — documents `import-boundaries` + legacy `architecture` alias                       |
+| `docs/public/anvil/operations/config.md`  | Public ops             | Check table uses canonical names — aligned                                                             |
+| `docs/public/anvil/concepts/sessions.md`| Public concept         | Sample output still says `architecture` check name in places                                           |
+| `crates/anvil-cli/src/commands/check.rs`  | Runtime help text      | Correctly directs profile checks to `anvil gate`                                                       |
+
+**Runtime truth (`gate`):** flat — optional `[PLAN]` positional;
+`--profile dev|ci|production|ai`; `--only-checks` / `--skip-checks` accept
+canonical names and aliases per `check_catalog.rs`.
+
+**Runtime truth (`gate-config`):** flat — `--list`, `--enable`, `--disable`.
+
+### Check-name drift map
+
+| Doc term            | Runtime canonical   | Alias accepted | Verdict    |
+| ------------------- | ------------------- | -------------- | ---------- |
+| `architecture`      | `import-boundaries` | `architecture` | Redirect   |
+| `secret`            | `secret-detection`  | `secret`       | Redirect   |
+| `antipattern-scan`  | `antipattern-scan`  | —              | Aligned    |
+| `policy`            | `policy`            | —              | Aligned    |
+| `import-boundaries` | `import-boundaries` | —              | Aligned    |
+
+### Documentation drift hotspots (gate)
+
+1. **`quality-model.md`** — conceptual `architecture` check vs canonical
+   `import-boundaries` (teach alias explicitly).
+2. **`sessions.md` / sample JSON** — legacy `architecture` name in examples.
+3. **`gates.md`** — already documents alias; ensure all public tutorials use
+   consistent vocabulary.
+4. **Planned rename note** in runbook (`gate-config` → `anvil gate config`) —
+   not implemented; docs must not imply it exists.
+
+### APS cross-links (gate)
+
+| Item          | Module | Role                                                       |
+| ------------- | ------ | ---------------------------------------------------------- |
+| **CLICT-005** | CLICT  | Quality-model + public copy alignment; alias callouts      |
+| **CLICT-001** | CLICT  | `architecture check` → `gate --only-checks import-boundaries` |
+
+### Reconciliation checklist (gate)
+
+- [ ] `quality-model.md` teaches canonical names with alias table
+- [ ] Public sample output uses `import-boundaries` (note `architecture` alias)
+- [ ] Runbook `gate-config` planned-rename stays clearly future tense
+
+---
+
+## Slice 6: `anvil intercept` + `anvil workspace` (2026-07-06)
+
+**Tier 1½** — runbook gaps on shipped subcommands (not yet in original slice
+queue).
+
+### Runbook vs runtime gaps
+
+| Command     | In `--help` but missing from runbook synopsis        |
+| ----------- | ---------------------------------------------------- |
+| `workspace` | `register`, `unregister`, `install-hook` (ACTMO)     |
+| `intercept` | Runbook aligned on `start/status/unblock/stop`       |
+
+`workspace` runbook lists only `mode|allow|deny|list`; runtime adds worktree
+registration and guided git-alias hook install (ACTMO-015/020).
+
+### APS cross-links
+
+| Item          | Module | Role                                    |
+| ------------- | ------ | --------------------------------------- |
+| **CLICT-006** | CLICT  | Runbook + public ops for daemon/workspace |
+
 ---
 
 ## Slice queue
 
-| #   | Command family       | CLICT item | Status      | Notes                                                        |
-| --- | -------------------- | ---------- | ----------- | ------------------------------------------------------------ |
-| 1   | `anvil architecture` | CLICT-001  | **Audited** | Slice 1 complete; reconciliation Ready                       |
-| 2   | `anvil policy`       | CLICT-002  | **Queued**  | Guides, OPA/regorus docs, `anvil policy *` vs runtime        |
-| 3   | `anvil drift`        | CLICT-003  | **Queued**  | Tutorial/docs vs `drift snapshot/compare/report/list`        |
-| 4   | `anvil watch`        | CLICT-004  | **Queued**  | Daemon docs, architecture-watch conflation, NDJSON lifecycle |
-| 5   | `anvil gate`         | CLICT-005  | **Queued**  | Check aliases, profile docs, quality-model vocabulary        |
+| #   | Command family                         | CLICT item | Status       | Notes                                                                 |
+| --- | -------------------------------------- | ---------- | ------------ | --------------------------------------------------------------------- |
+| 1   | `anvil architecture`                   | CLICT-001  | **Audited**  | Slice 1 complete; reconciliation Ready                                  |
+| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Audited**  | POLRESET drift; DOCSYNC-012 coordinates public tutorial             |
+| 3   | `anvil drift`                          | CLICT-003  | **Audited**  | Public tutorial filename/`--overwrite` bugs                           |
+| 4   | `anvil watch`                          | CLICT-004  | **Audited**  | `architecture watch` conflation; default `--action` copy                |
+| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Audited**  | `import-boundaries` vs `architecture` vocabulary                      |
+| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Audited**  | Runbook missing workspace subcommands                                 |
+| 7   | Tier 2 runbook alignment (39 families)   | CLICT-007  | **Queued**   | Spot-check remaining families; fix runbook-only gaps                    |

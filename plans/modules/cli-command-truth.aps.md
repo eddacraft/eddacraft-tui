@@ -5,9 +5,10 @@
 
 | ID    | Owner | Priority | Status      | Progress |
 | ----- | ----- | -------- | ----------- | -------- |
-| CLICT | —     | high     | In Progress | 0/5      |
+| CLICT | —     | high     | In Progress | 0/7      |
 
-**Last reviewed:** 2026-07-06
+**Last reviewed:** 2026-07-06 (runtime registry + slices 1–6 audited in
+`docs/reviews/cli-command-truth-review.md`)
 
 ## Purpose
 
@@ -69,6 +70,10 @@ build verdicts when redirects are already known.
 - [architecture-config-validation](./architecture-config-validation.aps.md) —
   ARCHCFG-006..014 for architecture *build* decisions; CLICT-001 for architecture
   *docs* reconciliation
+- [documentation-sync](./documentation-sync.aps.md) — DOCSYNC-012 public policy
+  tutorial (coordinate with CLICT-002)
+- [policy-value-enforcement-reset](./policy-value-enforcement-reset.aps.md) —
+  POLRESET product truth for CLICT-002 policy slice
 
 ## Acceptance Criteria
 
@@ -117,62 +122,125 @@ build verdicts when redirects are already known.
 
 ### CLICT-002: Policy docs reconciliation
 
-- **Intent:** Audit and reconcile `anvil policy` documentation against runtime
-  subcommands and the regorus-backed policy engine path.
-- **Expected Outcome:** Slice 2 in `cli-command-truth-review.md`; guides and
-  public docs match `anvil policy --help`; false-complete or legacy OPA claims
-  corrected.
-- **Scope:** `docs/guides/`, `docs/public/anvil/`, `docs/runbooks/cli-surface.md`
-  (policy section), review doc slice 2
-- **Non-scope:** Policy engine implementation (OPAE, POLENG, etc.)
+- **Intent:** Reconcile `anvil policy` and `anvil exception` documentation with
+  the post-POLRESET runtime (pack model, starter `install`, `validate`,
+  eval-regression CI, exceptions) per slice 2 in
+  `docs/reviews/cli-command-truth-review.md`.
+- **Expected Outcome:**
+  - `docs/runbooks/cli-surface.md` §policy lists all 11 subcommands; notes
+    `test` is a discovery stub.
+  - `docs/public/anvil/tutorials/policies.md` rewritten around
+    `install` → `validate` → `gate --only-checks policy` (coordinate with
+    DOCSYNC-012 — same PR or CLICT leads and DOCSYNC-012 closes on merge).
+  - Beta guide, changelog, and `tutorial-as-built.md` aligned; archive
+    `policy init` claims redirected to `install`.
+  - Internal guides remain authoritative; public docs cite them.
+  - Slice 2 reconciliation checklist closed.
+- **Scope:** `docs/runbooks/cli-surface.md` (policy + exception), `docs/public/anvil/`
+  policy surfaces, `docs/architecture/tutorial-as-built.md`, review doc slice 2,
+  archive false-complete rows (`docs/archive/planning/TODO.md`)
+- **Non-scope:** Policy engine implementation; adversarial probe user docs
+  (`eval-regression`/`attack-regression` stay operator/CI focused)
+- **Coordinates with:** [documentation-sync](./documentation-sync.aps.md)
+  DOCSYNC-012
 - **Dependencies:** —
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
-  against `cargo run --bin anvil -- policy --help`
-- **Confidence:** medium
-- **Status:** Proposed
+  against `cargo run --bin anvil -- policy --help` and `exception --help`
+- **Confidence:** high
+- **Status:** Ready
 
 ### CLICT-003: Drift docs reconciliation
 
-- **Intent:** Audit and reconcile `anvil drift` documentation against runtime
-  subcommands (`snapshot`, `compare`, `report`, `list`, etc.).
-- **Expected Outcome:** Slice 3 in review doc; tutorial and ops docs match
-  `anvil drift --help`.
-- **Scope:** `docs/public/anvil/tutorials/drift.md` (if present), drift
-  surfaces in guides/runbooks, review doc slice 3
+- **Intent:** Fix public drift tutorial drift: snapshot filename prefix
+  (`snapshot-<name>.json`), remove non-existent `--overwrite` flag, and
+  correct prerequisites per slice 3 in `cli-command-truth-review.md`.
+- **Expected Outcome:**
+  - `docs/public/anvil/tutorials/drift.md` matches `drift.rs` snapshot naming.
+  - No documented flags absent from `--help`.
+  - Slice 3 reconciliation checklist closed.
+- **Scope:** `docs/public/anvil/tutorials/drift.md`, review doc slice 3
 - **Non-scope:** Drift engine or baseline implementation
 - **Dependencies:** —
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- drift --help`
-- **Confidence:** medium
-- **Status:** Proposed
+- **Confidence:** high
+- **Status:** Ready
 
 ### CLICT-004: Watch docs reconciliation
 
-- **Intent:** Audit and reconcile `anvil watch` documentation against the
-  daemon-backed watch surface; resolve conflation with documented-but-absent
-  `anvil architecture watch`.
-- **Expected Outcome:** Slice 4 in review doc; watch lifecycle/NDJSON docs match
-  runtime; architecture-watch redirects explicit where needed.
-- **Scope:** `docs/public/anvil/`, watch sections in runbooks/guides, review
+- **Intent:** Resolve `anvil architecture watch` conflation; align public copy
+  with default `--action check` and `--action none` for architecture-only watch
+  per slice 4 in `cli-command-truth-review.md`.
+- **Expected Outcome:**
+  - No live doc teaches `anvil architecture watch`.
+  - Public quickstart/ops cross-link `integrations/watch-output.md` where
+    `--json` consumers are the audience.
+  - Default `--action` change (v0.8+) consistently described.
+  - Slice 4 reconciliation checklist closed.
+- **Scope:** `docs/public/anvil/`, watch sections in guides/runbooks, review
   doc slice 4
 - **Non-scope:** Watch daemon implementation (DSV modules)
-- **Dependencies:** CLICT-001 (architecture-watch wording may overlap)
+- **Dependencies:** CLICT-001 (architecture-watch wording in
+  `custom-architecture-policies.md`)
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- watch --help`
-- **Confidence:** medium
-- **Status:** Proposed
+- **Confidence:** high
+- **Status:** Ready
 
 ### CLICT-005: Gate docs reconciliation
 
-- **Intent:** Audit and reconcile `anvil gate` / `gate-config` documentation
-  against check aliases, profiles, and quality-model vocabulary.
-- **Expected Outcome:** Slice 5 in review doc; check-name aliases (`architecture`
-  vs `import-boundaries`) and profile docs match `gate.rs` / `check_catalog.rs`.
-- **Scope:** `docs/architecture/quality-model.md`, gate surfaces in public docs
-  and runbooks, review doc slice 5
-- **Non-scope:** Gate engine or check implementation
-- **Dependencies:** CLICT-001 (import-boundaries / architecture alias)
+- **Intent:** Align quality-model and public gate vocabulary with
+  `check_catalog.rs` canonical names (`import-boundaries`, `secret-detection`)
+  while documenting legacy aliases (`architecture`, `secret`) per slice 5.
+- **Expected Outcome:**
+  - `docs/architecture/quality-model.md` teaches canonical check names + alias
+    table sourced from `CHECK_DEFINITIONS`.
+  - Public sample output (`sessions.md`, tutorials) uses canonical names with
+    alias callouts where legacy names appear.
+  - Runbook `gate-config` planned rename stays future tense.
+  - Slice 5 reconciliation checklist closed.
+- **Scope:** `docs/architecture/quality-model.md`, `docs/public/anvil/concepts/`,
+  gate surfaces in runbooks, review doc slice 5
+- **Non-scope:** Gate engine or check implementation; renaming `gate-config`
+- **Dependencies:** CLICT-001 (architecture check redirect wording)
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
-  against `cargo run --bin anvil -- gate --help`
+  against `cargo run --bin anvil -- gate --help` and `check_catalog.rs`
+- **Confidence:** high
+- **Status:** Ready
+
+### CLICT-006: Intercept and workspace runbook reconciliation
+
+- **Intent:** Close runbook gaps for daemon workspace registration surfaced in
+  slice 6: `workspace register`, `unregister`, `install-hook` (ACTMO-015/020).
+- **Expected Outcome:**
+  - `docs/runbooks/cli-surface.md` §workspace documents all seven subcommands.
+  - Public ops (`operations/config.md` or intercept docs) mention worktree
+    registration where operators need it.
+  - Slice 6 reconciliation checklist closed.
+- **Scope:** `docs/runbooks/cli-surface.md` (workspace, intercept), relevant
+  public ops surfaces, review doc slice 6
+- **Non-scope:** ACTMO implementation; intercept daemon behaviour changes
+- **Dependencies:** —
+- **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
+  against `workspace --help` and `intercept --help`
+- **Confidence:** high
+- **Status:** Ready
+
+### CLICT-007: Tier 2 runbook alignment sweep
+
+- **Intent:** Spot-check the remaining **38** command families in the runtime
+  registry (tier 2) against `docs/runbooks/cli-surface.md` and fix runbook-only
+  gaps without full slice write-ups unless drift is found.
+- **Expected Outcome:**
+  - Registry table in `cli-command-truth-review.md` updated: tier 2 families
+    marked **aligned** or linked to a fix commit.
+  - Any newly discovered false-complete APS/CHANGELOG claims filed as follow-up
+    items (not inline TODOs).
+  - Acceptance criterion "each audited command family has a slice" satisfied via
+    tier 1/1½ slices + tier 2 sweep note.
+- **Scope:** `docs/runbooks/cli-surface.md`, `docs/reviews/cli-command-truth-review.md`
+- **Non-scope:** Public tutorial rewrites for low-traffic commands; code changes
+- **Dependencies:** CLICT-001..006 (priority families first)
+- **Validation:** `pnpm run docs:check`; scripted `--help` vs runbook synopsis diff
 - **Confidence:** medium
 - **Status:** Proposed
