@@ -70,77 +70,32 @@ struct ValidationResult {
     layers: usize,
     rules: usize,
     issues: Vec<String>,
+    warnings: Vec<String>,
+    diagnostics: Vec<anvil_architecture::ArchitectureDefinitionDiagnostic>,
 }
 
 fn parse_architecture(path: &std::path::Path) -> Result<ArchDefinition> {
-    let content =
-        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let definition = anvil_architecture::parse_architecture_definition_file(path)
+        .with_context(|| format!("parsing {}", path.display()))?;
 
-    let value: serde_yaml::Value =
-        serde_yaml::from_str(&content).with_context(|| format!("parsing {}", path.display()))?;
-
-    let template = value
-        .get("template")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    let mut layers = Vec::new();
-    if let Some(layers_map) = value.get("layers").and_then(|v| v.as_mapping()) {
-        for (name, def) in layers_map {
-            let name_str = name.as_str().unwrap_or("unknown").to_string();
-            let patterns = def
-                .get("patterns")
-                .and_then(|v| v.as_sequence())
-                .map(|seq| {
-                    seq.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let depends_on = def
-                .get("depends_on")
-                .and_then(|v| v.as_sequence())
-                .map(|seq| {
-                    seq.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default();
-            layers.push(LayerInfo {
-                name: name_str,
-                patterns,
-                depends_on,
-            });
-        }
-    }
-
-    let rules_count = value
-        .get("rules")
-        .and_then(|v| v.as_sequence())
-        .map_or(0, std::vec::Vec::len);
-
-    Ok(ArchDefinition {
-        template,
-        layers,
-        rules_count,
-    })
+    Ok(ArchDefinition::from_definition(&definition))
 }
 
 fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
-    let def = parse_architecture(path)?;
-    let mut issues = Vec::new();
-
-    for layer in &def.layers {
-        for dep in &layer.depends_on {
-            if !def.layers.iter().any(|l| l.name == *dep) {
-                issues.push(format!(
-                    "Layer \"{}\" depends on unknown layer \"{}\"",
-                    layer.name, dep
-                ));
-            }
-        }
-    }
+    let definition = anvil_architecture::parse_architecture_definition_file(path)
+        .with_context(|| format!("parsing {}", path.display()))?;
+    let def = ArchDefinition::from_definition(&definition);
+    let diagnostics = anvil_architecture::diagnose_definition(&definition);
+    let issues = diagnostics
+        .iter()
+        .filter(|d| d.is_error())
+        .map(|d| d.message.clone())
+        .collect::<Vec<_>>();
+    let warnings = diagnostics
+        .iter()
+        .filter(|d| !d.is_error())
+        .map(|d| d.message.clone())
+        .collect::<Vec<_>>();
 
     Ok(ValidationResult {
         valid: issues.is_empty(),
@@ -148,7 +103,29 @@ fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
         layers: def.layers.len(),
         rules: def.rules_count,
         issues,
+        warnings,
+        diagnostics,
     })
+}
+
+impl ArchDefinition {
+    fn from_definition(definition: &anvil_architecture::ArchitectureDefinition) -> Self {
+        let layers = definition
+            .layers
+            .iter()
+            .map(|(name, layer)| LayerInfo {
+                name: name.clone(),
+                patterns: layer.patterns.clone(),
+                depends_on: layer.depends_on.clone(),
+            })
+            .collect();
+
+        Self {
+            template: definition.template.to_string(),
+            layers,
+            rules_count: definition.rules.len(),
+        }
+    }
 }
 
 pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
@@ -172,7 +149,13 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
                 if !result.issues.is_empty() {
                     println!();
                     for issue in &result.issues {
-                        crate::output::plain::warn(issue);
+                        crate::output::plain::error(issue);
+                    }
+                }
+                if !result.warnings.is_empty() {
+                    println!();
+                    for warning in &result.warnings {
+                        crate::output::plain::warn(warning);
                     }
                 }
             }
@@ -284,7 +267,7 @@ mod tests {
         let file = dir.path().join("arch.yaml");
         std::fs::write(
             &file,
-            "template: layered\nlayers:\n  ui:\n    patterns:\n      - \"src/ui/**\"\n    depends_on:\n      - domain\n  domain:\n    patterns:\n      - \"src/domain/**\"\n",
+            "template: layered\nlayers:\n  ui:\n    patterns:\n      - \"src/ui/**\"\n    depends_on:\n      - domain\n  domain:\n    patterns:\n      - \"src/domain/**\"\n    depends_on: []\n",
         )
         .unwrap();
 
@@ -306,7 +289,7 @@ mod tests {
         let file = dir.path().join("arch.yaml");
         std::fs::write(
             &file,
-            "template: custom\nrules:\n  - name: no-cross-import\n  - name: no-circular\n",
+            "template: custom\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: []\n  domain:\n    patterns: [\"src/domain/**\"]\n    depends_on: []\nrules:\n  - name: no-cross-import\n    from: ui\n    to: domain\n  - name: no-circular\n    from: domain\n    to: ui\n",
         )
         .unwrap();
 
@@ -321,7 +304,7 @@ mod tests {
         std::fs::write(&file, "layers: {}").unwrap();
 
         let def = parse_architecture(&file).unwrap();
-        assert_eq!(def.template, "unknown");
+        assert_eq!(def.template, "custom");
     }
 
     #[test]
@@ -339,7 +322,7 @@ mod tests {
         let file = dir.path().join("arch.yaml");
         std::fs::write(
             &file,
-            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: [domain]\n  domain:\n    patterns: [\"src/domain/**\"]\n",
+            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: [domain]\n  domain:\n    patterns: [\"src/domain/**\"]\n    depends_on: []\n",
         )
         .unwrap();
 
@@ -366,10 +349,127 @@ mod tests {
     }
 
     #[test]
+    fn architecture_validate_maps_unknown_dependency_to_layer_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: [domain]\n",
+        )
+        .unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+
+        assert!(!result.valid);
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.code == "unknown-layer-dependency"
+                    && d.section == "layers.ui.depends_on"
+                    && d.key == "domain"
+            }),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn architecture_validate_blocks_overlapping_layer_patterns() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  app:\n    patterns: [\"src/**\"]\n    depends_on: []\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: []\n",
+        )
+        .unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+
+        assert!(!result.valid);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "overlapping-layer-patterns" && d.is_error())
+        );
+    }
+
+    #[test]
+    fn architecture_validate_warns_for_empty_layer_patterns() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  empty:\n    patterns: []\n    depends_on: []\n",
+        )
+        .unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+
+        assert!(result.valid);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "empty-layer" && !d.is_error())
+        );
+        assert_eq!(result.warnings.len(), 1);
+    }
+
+    #[test]
+    fn architecture_validate_rejects_wrong_typed_layers() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, "template: custom\nlayers: definitely-not-a-map\n").unwrap();
+
+        let err = validate_architecture(&file).unwrap_err();
+
+        assert!(err.to_string().contains("parsing"));
+    }
+
+    #[test]
+    fn architecture_validate_rejects_over_cap_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        let max_yaml_size = usize::try_from(anvil_architecture::ARCHITECTURE_YAML_MAX_SIZE)
+            .expect("architecture YAML size cap fits usize");
+        let content = " ".repeat(max_yaml_size + 1);
+        std::fs::write(&file, content).unwrap();
+
+        let err = validate_architecture(&file).unwrap_err();
+
+        let error_chain = format!("{err:#}");
+        assert!(error_chain.contains("exceeds"), "{error_chain}");
+    }
+
+    #[test]
+    fn architecture_validate_maps_unknown_rule_layer_to_rule_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: []\nrules:\n  - name: no-ui-to-domain\n    from: ui\n    to: domain\n",
+        )
+        .unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+
+        assert!(!result.valid);
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.code == "unknown-rule-layer"
+                    && d.section == "rules.no-ui-to-domain"
+                    && d.key == "domain"
+            }),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
     fn validate_no_layers_is_valid() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("arch.yaml");
-        std::fs::write(&file, "template: empty\n").unwrap();
+        std::fs::write(&file, "template: custom\n").unwrap();
 
         let result = validate_architecture(&file).unwrap();
         assert!(result.valid);

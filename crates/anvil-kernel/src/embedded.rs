@@ -12,6 +12,9 @@ use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file}
 use crate::parser::Parser;
 use crate::parser::extract::{ImportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
+use crate::policy::config_validator::{
+    ArchitectureConfigValidationError, parse_validated_architecture_config,
+};
 use crate::policy::engine::{PolicyEngine, Violation};
 use crate::policy::invariants::cross_layer::CrossLayerViolation;
 use crate::policy::invariants::new_dependency::NewDependencyIntroduction;
@@ -32,6 +35,8 @@ pub enum EmbeddedError {
     },
     #[error("architecture config parse error: {0}")]
     ConfigParse(#[from] serde_yaml::Error),
+    #[error("architecture config validation error: {0}")]
+    ConfigValidation(#[from] ArchitectureConfigValidationError),
     #[error("walkdir error: {0}")]
     Walk(#[from] walkdir::Error),
 }
@@ -71,16 +76,7 @@ pub fn run_embedded_cancellable(
 
     let filter = config.filter.clone().unwrap_or_default();
 
-    let arch_config = match &config.architecture_config {
-        Some(path) => {
-            let yaml = std::fs::read_to_string(path).map_err(|e| EmbeddedError::ConfigIo {
-                path: path.clone(),
-                source: e,
-            })?;
-            ArchitectureConfig::from_yaml(&yaml)?
-        }
-        None => ArchitectureConfig { layers: Vec::new() },
-    };
+    let arch_config = load_architecture_config(config.architecture_config.as_deref())?;
 
     let (event_tx, event_rx) = mpsc::channel();
     let emitter = EventEmitter::new(event_tx, EngineId::Rust);
@@ -281,6 +277,19 @@ fn collect_files(root: &Path, filter: &FileFilter) -> Result<Vec<PathBuf>, Embed
     Ok(files)
 }
 
+fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, EmbeddedError> {
+    match path {
+        Some(path) => {
+            let yaml = std::fs::read_to_string(path).map_err(|e| EmbeddedError::ConfigIo {
+                path: path.to_path_buf(),
+                source: e,
+            })?;
+            Ok(parse_validated_architecture_config(&yaml)?)
+        }
+        None => Ok(ArchitectureConfig { layers: Vec::new() }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +320,28 @@ layers:
         )
         .unwrap();
         config_path
+    }
+
+    #[test]
+    fn architecture_config_loader_rejects_overlapping_paths() {
+        let tmp = TempDir::new().unwrap();
+        let config_path = tmp.path().join("architecture.yaml");
+        fs::write(
+            &config_path,
+            r#"
+layers:
+  - name: app
+    paths: ["src/*"]
+    allowed_imports: [app]
+  - name: ui
+    paths: ["src/ui/*"]
+    allowed_imports: [ui]
+"#,
+        )
+        .unwrap();
+
+        let err = load_architecture_config(Some(&config_path)).unwrap_err();
+        assert!(err.to_string().contains("overlaps"));
     }
 
     #[test]

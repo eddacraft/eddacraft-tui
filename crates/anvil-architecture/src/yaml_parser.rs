@@ -12,14 +12,15 @@ use crate::definition::{
     get_default_options,
 };
 use crate::types::Layer;
-use crate::util::atomic_write;
+use crate::util::{atomic_write, read_to_string_capped};
 
 /// File name for the architecture definition.
 pub const ARCHITECTURE_YAML_FILENAME: &str = "architecture.yaml";
 
 /// Maximum architecture YAML file size (1 MiB) — guards against
 /// billion-laughs YAML expansion attacks.
-pub(crate) const MAX_YAML_SIZE: u64 = 1024 * 1024;
+pub const ARCHITECTURE_YAML_MAX_SIZE: u64 = 1024 * 1024;
+pub(crate) const MAX_YAML_SIZE: u64 = ARCHITECTURE_YAML_MAX_SIZE;
 
 type LayersRecord = BTreeMap<String, Layer>;
 
@@ -61,35 +62,24 @@ pub fn parse_architecture_definition(
     workspace_root: &Path,
 ) -> Result<ArchitectureDefinition, YamlParseError> {
     let yaml_path = get_architecture_yaml_path(workspace_root);
+    parse_architecture_definition_file(&yaml_path)
+}
+
+/// Parse an architecture definition from an explicit YAML path.
+pub fn parse_architecture_definition_file(
+    yaml_path: &Path,
+) -> Result<ArchitectureDefinition, YamlParseError> {
     let yaml_str = yaml_path.display().to_string();
 
     if !yaml_path.exists() {
         return Err(YamlParseError::NotFound(yaml_str));
     }
 
-    // Read with a hard size cap to guard against symlinks to special files
-    // (e.g. /dev/zero) where metadata.len() can be misleading.
-    let content = {
-        use std::io::Read;
-        let file = std::fs::File::open(&yaml_path).map_err(|e| YamlParseError::Io {
+    let content =
+        read_to_string_capped(yaml_path, MAX_YAML_SIZE).map_err(|e| YamlParseError::Io {
             path: yaml_str.clone(),
             source: e,
         })?;
-        let mut buf = String::new();
-        let bytes_read = file
-            .take(MAX_YAML_SIZE + 1)
-            .read_to_string(&mut buf)
-            .map_err(|e| YamlParseError::Io {
-                path: yaml_str.clone(),
-                source: e,
-            })?;
-        if bytes_read as u64 > MAX_YAML_SIZE {
-            return Err(YamlParseError::InvalidYaml(format!(
-                "architecture.yaml exceeds {MAX_YAML_SIZE} byte limit"
-            )));
-        }
-        buf
-    };
 
     let definition: ArchitectureDefinition =
         serde_yaml::from_str(&content).map_err(|e| YamlParseError::InvalidYaml(e.to_string()))?;
@@ -706,13 +696,13 @@ mod tests {
 
         let result = parse_architecture_definition(tmp.path());
         match result {
-            Err(YamlParseError::InvalidYaml(msg)) => {
+            Err(YamlParseError::Io { source, .. }) => {
                 assert!(
-                    msg.contains("byte limit"),
-                    "expected size-limit error, got: {msg}"
+                    source.to_string().contains("read cap"),
+                    "expected size-limit error, got: {source}"
                 );
             }
-            other => panic!("expected InvalidYaml size-limit error, got: {other:?}"),
+            other => panic!("expected IO size-limit error, got: {other:?}"),
         }
     }
 }

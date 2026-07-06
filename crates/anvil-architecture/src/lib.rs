@@ -20,7 +20,9 @@ pub use baseline::{
     load_baseline, merge_violations, save_baseline,
 };
 pub use definition::{
-    ArchitectureDefinition, ArchitectureTemplate, get_available_templates, validate_definition,
+    ArchitectureDefinition, ArchitectureDefinitionDiagnostic,
+    ArchitectureDefinitionDiagnosticSeverity, ArchitectureTemplate, diagnose_definition,
+    get_available_templates, validate_definition,
 };
 pub use detection::detect_rust_entry_points;
 pub use python_detection::detect_python_entry_points;
@@ -37,6 +39,7 @@ pub use validator::{
     validate_with_edges, validate_with_files_and_edges,
 };
 pub use yaml_parser::{
-    architecture_yaml_exists, create_definition_from_template, get_template_defaults,
-    merge_with_template, parse_architecture_definition, write_architecture_yaml,
+    ARCHITECTURE_YAML_MAX_SIZE, architecture_yaml_exists, create_definition_from_template,
+    get_template_defaults, merge_with_template, parse_architecture_definition,
+    parse_architecture_definition_file, write_architecture_yaml,
 };

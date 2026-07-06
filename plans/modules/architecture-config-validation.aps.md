@@ -69,6 +69,7 @@ undefined layers, and incomplete definitions before analysis runs.
 
 ### ARCHCFG-001: Semantic validation rules
 
+- **Status:** Done
 - **Intent:** Define semantic rules for architecture config integrity
 - **Expected Outcome:** Validator detects overlaps, duplicates, and unknowns
 - **Scope:** `crates/anvil-kernel/src/policy/config.rs` (extends KERN-030 loader)
@@ -77,10 +78,12 @@ undefined layers, and incomplete definitions before analysis runs.
   - `crates/anvil-kernel/src/policy/config_validator.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** —
 - **Validation:** `cargo test -p eddacraft-anvil-kernel -- architecture_config_validator`
+- **Closeout:** Done 2026-07-06 — `cargo test -p eddacraft-anvil-kernel -- architecture_config_validator` passed; broader `architecture_config` kernel filter passed.
 - **Confidence:** high
 
 ### ARCHCFG-002: Diagnostic mapping
 
+- **Status:** Done
 - **Intent:** Surface validation errors with clear configuration locations
 - **Expected Outcome:** Errors map to section keys and rule ids
 - **Scope:** `crates/anvil-kernel/src/policy/config_diagnostics.rs`
@@ -89,10 +92,12 @@ undefined layers, and incomplete definitions before analysis runs.
   - `crates/anvil-kernel/src/policy/config_diagnostics.rs` (including `#[cfg(test)]` unit tests)
 - **Dependencies:** ARCHCFG-001
 - **Validation:** `cargo test -p eddacraft-anvil-kernel -- architecture_config_diagnostics`
+- **Closeout:** Done 2026-07-06 — `cargo test -p eddacraft-anvil-kernel -- architecture_config_diagnostics` passed; diagnostics include severity, code, section, and key.
 - **Confidence:** medium
 
 ### ARCHCFG-003: CLI validation command
 
+- **Status:** Done
 - **Intent:** Provide a direct validation entry point for users and CI
 - **Expected Outcome:** `anvil architecture validate` returns structured output
 - **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
@@ -101,10 +106,12 @@ undefined layers, and incomplete definitions before analysis runs.
   - `crates/anvil-cli/src/commands/architecture.rs` (validate subcommand, including colocated tests)
 - **Dependencies:** ARCHCFG-001, ARCHCFG-002
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_validate`
+- **Closeout:** Done 2026-07-06 — `cargo test -p eddacraft-anvil -- architecture_validate` passed; broader CLI `architecture` filter passed.
 - **Confidence:** medium
 
 ### ARCHCFG-004: Gate preflight integration
 
+- **Status:** Done
 - **Intent:** Prevent architecture checks from running on invalid config
 - **Expected Outcome:** Gate preflight blocks with validation report
 - **Scope:** `crates/anvil-cli/src/commands/gate.rs`
@@ -113,6 +120,7 @@ undefined layers, and incomplete definitions before analysis runs.
   - `crates/anvil-cli/src/commands/gate.rs` (preflight integration, including colocated tests)
 - **Dependencies:** ARCHCFG-001
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_config_preflight`
+- **Closeout:** Done 2026-07-06 — `cargo test -p eddacraft-anvil -- architecture_config_preflight` passed; broader CLI `architecture` filter passed.
 - **Confidence:** medium
 
 ### ARCHCFG-005: Documentation and examples

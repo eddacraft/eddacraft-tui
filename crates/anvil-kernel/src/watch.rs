@@ -13,6 +13,9 @@ use crate::graph::{
 use crate::parser::Parser;
 use crate::parser::extract::{FileSymbols, ImportEdge, ReexportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
+use crate::policy::config_validator::{
+    ArchitectureConfigValidationError, parse_validated_architecture_config,
+};
 use crate::policy::engine::PolicyEngine;
 use crate::policy::invariants::cross_layer::CrossLayerViolation;
 use crate::policy::invariants::new_dependency::NewDependencyIntroduction;
@@ -36,6 +39,8 @@ pub enum WatchError {
     },
     #[error("architecture config parse error: {0}")]
     ConfigParse(#[from] serde_yaml::Error),
+    #[error("architecture config validation error: {0}")]
+    ConfigValidation(#[from] ArchitectureConfigValidationError),
     #[error("watcher error: {0}")]
     Watcher(#[from] crate::watcher::WatcherError),
     #[error("invalid watch pattern: {0}")]
@@ -576,16 +581,7 @@ pub fn run_watch(
         return Err(WatchError::RootNotFound(config.root.clone()));
     }
 
-    let arch_config = match &config.architecture_config {
-        Some(path) => {
-            let yaml = std::fs::read_to_string(path).map_err(|e| WatchError::ConfigIo {
-                path: path.clone(),
-                source: e,
-            })?;
-            ArchitectureConfig::from_yaml(&yaml)?
-        }
-        None => ArchitectureConfig { layers: Vec::new() },
-    };
+    let arch_config = load_architecture_config(config.architecture_config.as_deref())?;
 
     let filter = config.watcher.filter.clone().unwrap_or_default();
     let pattern_filter =
@@ -673,12 +669,44 @@ pub fn run_watch(
     })
 }
 
+fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, WatchError> {
+    match path {
+        Some(path) => {
+            let yaml = std::fs::read_to_string(path).map_err(|e| WatchError::ConfigIo {
+                path: path.to_path_buf(),
+                source: e,
+            })?;
+            Ok(parse_validated_architecture_config(&yaml)?)
+        }
+        None => Ok(ArchitectureConfig { layers: Vec::new() }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
     use tempfile::TempDir;
+
+    #[test]
+    fn architecture_config_loader_rejects_unknown_allowed_imports() {
+        let tmp = TempDir::new().unwrap();
+        let config_path = tmp.path().join("architecture.yaml");
+        fs::write(
+            &config_path,
+            r#"
+layers:
+  - name: api
+    paths: ["src/api/*"]
+    allowed_imports: [domain]
+"#,
+        )
+        .unwrap();
+
+        let err = load_architecture_config(Some(&config_path)).unwrap_err();
+        assert!(err.to_string().contains("unknown layer"));
+    }
 
     #[test]
     fn starts_and_stops_cleanly() {

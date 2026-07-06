@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use glob::Pattern;
 use serde::{Deserialize, Serialize};
 
 use crate::types::Layer;
@@ -165,6 +166,71 @@ pub enum DefinitionValidationError {
     UnknownRuleLayer { rule: String, layer: String },
     #[error("schema version '{version}' is not supported (expected {expected})")]
     UnsupportedVersion { version: String, expected: String },
+    #[error("layer '{layer}' contains an empty pattern")]
+    EmptyLayerPattern { layer: String },
+    #[error(
+        "layer '{left_layer}' pattern '{left_pattern}' overlaps with layer '{right_layer}' pattern '{right_pattern}'"
+    )]
+    OverlappingLayerPatterns {
+        left_layer: String,
+        left_pattern: String,
+        right_layer: String,
+        right_pattern: String,
+    },
+}
+
+/// Severity for architecture definition diagnostics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchitectureDefinitionDiagnosticSeverity {
+    Error,
+    Warning,
+}
+
+/// Structured diagnostic for `.anvil/architecture.yaml` definition checks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ArchitectureDefinitionDiagnostic {
+    pub severity: ArchitectureDefinitionDiagnosticSeverity,
+    pub code: String,
+    pub message: String,
+    pub section: String,
+    pub key: String,
+}
+
+impl ArchitectureDefinitionDiagnostic {
+    pub fn error(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        section: impl Into<String>,
+        key: impl Into<String>,
+    ) -> Self {
+        Self {
+            severity: ArchitectureDefinitionDiagnosticSeverity::Error,
+            code: code.into(),
+            message: message.into(),
+            section: section.into(),
+            key: key.into(),
+        }
+    }
+
+    pub fn warning(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        section: impl Into<String>,
+        key: impl Into<String>,
+    ) -> Self {
+        Self {
+            severity: ArchitectureDefinitionDiagnosticSeverity::Warning,
+            code: code.into(),
+            message: message.into(),
+            section: section.into(),
+            key: key.into(),
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.severity == ArchitectureDefinitionDiagnosticSeverity::Error
+    }
 }
 
 /// Extract the leading major number from a `MAJOR[.MINOR[.PATCH]]` version
@@ -208,12 +274,38 @@ pub fn validate_definition(
 
     // Check layer dependency references
     for (name, layer) in &definition.layers {
+        for pattern in &layer.patterns {
+            if pattern.trim().is_empty() {
+                errors.push(DefinitionValidationError::EmptyLayerPattern {
+                    layer: name.clone(),
+                });
+            }
+        }
+
         for dep in &layer.depends_on {
             if !definition.layers.contains_key(dep) {
                 errors.push(DefinitionValidationError::UnknownLayerDependency {
                     owner: name.clone(),
                     layer: dep.clone(),
                 });
+            }
+        }
+    }
+
+    let layer_entries: Vec<_> = definition.layers.iter().collect();
+    for (left_index, (left_name, left_layer)) in layer_entries.iter().enumerate() {
+        for (right_name, right_layer) in layer_entries.iter().skip(left_index + 1) {
+            for left_pattern in &left_layer.patterns {
+                for right_pattern in &right_layer.patterns {
+                    if layer_patterns_overlap(left_pattern, right_pattern) {
+                        errors.push(DefinitionValidationError::OverlappingLayerPatterns {
+                            left_layer: (*left_name).clone(),
+                            left_pattern: left_pattern.clone(),
+                            right_layer: (*right_name).clone(),
+                            right_pattern: right_pattern.clone(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -239,6 +331,173 @@ pub fn validate_definition(
     } else {
         Err(errors)
     }
+}
+
+/// Produce structured diagnostics for an architecture definition.
+pub fn diagnose_definition(
+    definition: &ArchitectureDefinition,
+) -> Vec<ArchitectureDefinitionDiagnostic> {
+    let mut diagnostics = Vec::new();
+
+    if !is_schema_version_compatible(&definition.schema_version) {
+        diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+            "unsupported-schema-version",
+            format!(
+                "Schema version '{}' is not supported (expected {})",
+                definition.schema_version, ARCHITECTURE_DEFINITION_VERSION
+            ),
+            "schema_version",
+            &definition.schema_version,
+        ));
+    }
+
+    for (name, layer) in &definition.layers {
+        if layer.patterns.is_empty() {
+            diagnostics.push(ArchitectureDefinitionDiagnostic::warning(
+                "empty-layer",
+                format!("Layer \"{name}\" does not match any patterns"),
+                format!("layers.{name}.patterns"),
+                "patterns",
+            ));
+        }
+
+        for pattern in &layer.patterns {
+            if pattern.trim().is_empty() {
+                diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                    "empty-layer-pattern",
+                    format!("Layer \"{name}\" contains an empty pattern"),
+                    format!("layers.{name}.patterns"),
+                    "patterns",
+                ));
+            }
+        }
+
+        for dep in &layer.depends_on {
+            if !definition.layers.contains_key(dep) {
+                diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                    "unknown-layer-dependency",
+                    format!("Layer \"{name}\" depends on unknown layer \"{dep}\""),
+                    format!("layers.{name}.depends_on"),
+                    dep,
+                ));
+            }
+        }
+    }
+
+    let layer_entries: Vec<_> = definition.layers.iter().collect();
+    for (left_index, (left_name, left_layer)) in layer_entries.iter().enumerate() {
+        for (right_name, right_layer) in layer_entries.iter().skip(left_index + 1) {
+            for left_pattern in &left_layer.patterns {
+                for right_pattern in &right_layer.patterns {
+                    if layer_patterns_overlap(left_pattern, right_pattern) {
+                        diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                            "overlapping-layer-patterns",
+                            format!(
+                                "Layer \"{left_name}\" pattern \"{left_pattern}\" overlaps with layer \"{right_name}\" pattern \"{right_pattern}\""
+                            ),
+                            format!("layers.{right_name}.patterns"),
+                            right_pattern,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    for rule in &definition.rules {
+        if !definition.layers.contains_key(&rule.from) {
+            diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                "unknown-rule-layer",
+                format!(
+                    "Rule \"{}\" references unknown layer \"{}\"",
+                    rule.name, rule.from
+                ),
+                format!("rules.{}", rule.name),
+                &rule.from,
+            ));
+        }
+        if !definition.layers.contains_key(&rule.to) {
+            diagnostics.push(ArchitectureDefinitionDiagnostic::error(
+                "unknown-rule-layer",
+                format!(
+                    "Rule \"{}\" references unknown layer \"{}\"",
+                    rule.name, rule.to
+                ),
+                format!("rules.{}", rule.name),
+                &rule.to,
+            ));
+        }
+    }
+
+    diagnostics
+}
+
+fn layer_patterns_overlap(left: &str, right: &str) -> bool {
+    let Ok(left_pattern) = Pattern::new(left) else {
+        return false;
+    };
+    let Ok(right_pattern) = Pattern::new(right) else {
+        return false;
+    };
+
+    pattern_witnesses(left)
+        .into_iter()
+        .any(|witness| right_pattern.matches(&witness) && left_pattern.matches(&witness))
+        || pattern_witnesses(right)
+            .into_iter()
+            .any(|witness| left_pattern.matches(&witness) && right_pattern.matches(&witness))
+}
+
+fn pattern_witnesses(pattern: &str) -> Vec<String> {
+    let normalised = pattern.trim().replace('\\', "/");
+    let mut witnesses = vec![String::new()];
+
+    for segment in normalised.split('/') {
+        let candidates = segment_candidates(segment);
+        let mut next = Vec::new();
+        for prefix in &witnesses {
+            for candidate in &candidates {
+                if candidate.is_empty() {
+                    next.push(prefix.clone());
+                } else if prefix.is_empty() {
+                    next.push(candidate.clone());
+                } else {
+                    next.push(format!("{prefix}/{candidate}"));
+                }
+            }
+        }
+        witnesses = next;
+    }
+
+    witnesses.sort();
+    witnesses.dedup();
+    witnesses
+}
+
+fn segment_candidates(segment: &str) -> Vec<String> {
+    if segment == "**" {
+        return vec!["x".into(), "domain".into(), "ui".into(), "x/y".into()];
+    }
+
+    if !segment.contains('*') && !segment.contains('?') && !segment.contains('[') {
+        return vec![segment.to_string()];
+    }
+
+    let sample = segment
+        .replace("**", "x")
+        .replace('*', "sample")
+        .replace('?', "x");
+    vec![
+        sample,
+        segment
+            .replace("**", "domain")
+            .replace('*', "domain")
+            .replace('?', "x"),
+        segment
+            .replace("**", "ui")
+            .replace('*', "ui")
+            .replace('?', "x"),
+    ]
 }
 
 /// Get default architecture options.
@@ -361,6 +620,82 @@ mod tests {
             &errors[0],
             DefinitionValidationError::UnknownLayerDependency { .. }
         ));
+    }
+
+    #[test]
+    fn validate_definition_rejects_overlapping_layer_patterns() {
+        let mut layers = BTreeMap::new();
+        layers.insert(
+            "app".into(),
+            LayerDefinition {
+                patterns: vec!["src/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "ui".into(),
+            LayerDefinition {
+                patterns: vec!["src/ui/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+
+        let def = ArchitectureDefinition {
+            schema_version: ARCHITECTURE_DEFINITION_VERSION.into(),
+            template: ArchitectureTemplate::Custom,
+            layers,
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        };
+
+        let errors = validate_definition(&def).unwrap_err();
+        assert!(errors.iter().any(|e| {
+            matches!(
+                e,
+                DefinitionValidationError::OverlappingLayerPatterns { .. }
+            )
+        }));
+    }
+
+    #[test]
+    fn diagnose_definition_detects_mid_pattern_glob_overlap() {
+        let mut layers = BTreeMap::new();
+        layers.insert(
+            "rust_modules".into(),
+            LayerDefinition {
+                patterns: vec!["src/*/*.rs".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "domain".into(),
+            LayerDefinition {
+                patterns: vec!["src/domain/*".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+
+        let def = ArchitectureDefinition {
+            schema_version: ARCHITECTURE_DEFINITION_VERSION.into(),
+            template: ArchitectureTemplate::Custom,
+            layers,
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        };
+
+        let diagnostics = diagnose_definition(&def);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "overlapping-layer-patterns" && d.is_error()),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]

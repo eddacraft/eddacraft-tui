@@ -1600,6 +1600,28 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
         }
     };
 
+    let diagnostics = anvil_architecture::diagnose_definition(&definition);
+    let errors = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.is_error())
+        .collect::<Vec<_>>();
+    if !errors.is_empty() {
+        return CheckResult {
+            name: "architecture".to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!(
+                "Architecture config preflight failed:\n{}",
+                errors
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ),
+            requires_config: false,
+        };
+    }
+
     // Collect source files once and share between edge extraction and validation
     // to avoid redundant directory walks (RCLI-053).
     let source_files = anvil_architecture::collect_source_files(project_root, &definition);
@@ -4048,6 +4070,42 @@ mod tests {
         std::fs::write(anvil_dir.join("architecture.yaml"), "bad: [unclosed").unwrap();
         let result = run_check_architecture(tmp.path());
         assert!(!result.passed);
+    }
+
+    #[test]
+    fn architecture_config_preflight_blocks_unknown_layer_dependency() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: [domain]\n",
+        )
+        .unwrap();
+
+        let result = run_check_architecture(tmp.path());
+
+        assert!(!result.passed);
+        assert!(result.message.contains("preflight"));
+        assert!(result.message.contains("unknown layer"));
+    }
+
+    #[test]
+    fn architecture_config_preflight_blocks_overlapping_layers() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            "template: custom\nlayers:\n  app:\n    patterns: [\"src/**\"]\n    depends_on: []\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: []\n",
+        )
+        .unwrap();
+
+        let result = run_check_architecture(tmp.path());
+
+        assert!(!result.passed);
+        assert!(result.message.contains("preflight"));
+        assert!(result.message.contains("overlaps"));
     }
 
     // ── Policy check tests ──────────────────────────────────────────
