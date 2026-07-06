@@ -1391,4 +1391,4 @@ requirement). Architecture decided by
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
 | C — Headless background driver | 6 | 5/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049 Merged 2026-07-05; DSV-050 Merged 2026-07-05 via PR #3200; DSV-051 In Progress) | In Progress |
-| **Total** | **26** | **24/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
+| **Total** | **26** | **25/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
