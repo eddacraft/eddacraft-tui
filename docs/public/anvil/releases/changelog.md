@@ -52,8 +52,9 @@ All notable changes to anvil are documented here.
   piped runs never start, offer, or prompt — they fall back deterministically —
   and `--verify` stays read-only and never starts a daemon.
   `anvil intercept start --foreground` remains the low-level operator and
-  debugging surface, and is the only launch mode on Windows until background
-  launch lands there. See the
+  debugging surface. The DSV-051 headless-driver closeout adds the registered
+  worktree driver path on Windows too; Windows verification remains manual and
+  parser-less at this cut-line. See the
   [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
 - **Warning diagnostics include source spans.** Finding-emitting CLI surfaces
   now render richer diagnostics with source excerpts while preserving JSON/SARIF

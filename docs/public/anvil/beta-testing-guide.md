@@ -632,9 +632,11 @@ One sentence describing what happened.
 - **`anvil start` / `anvil watch` manage the daemon.** As of `v0.8.1-beta`, an
   interactive `anvil start` auto-starts the per-user daemon in the background
   and an interactive `anvil watch` offers to start one (Linux and macOS); a
-  daemon already running is reused. `anvil intercept start --foreground` remains
-  the operator/debug surface — run it in headless sessions, and it is the only
-  launch mode on Windows until background launch lands there.
+  daemon already running is reused. DSV-051 adds the headless save-time driver
+  path for registered worktrees, including the Windows named-pipe path. Windows
+  verification still uses the manual checklist because detached-process and
+  console-window observations need a real Windows session, and coverage is
+  parser-less at this cut-line.
 - **Fences survive daemon restart.** On Unix, use
   `anvil intercept unblock --worktree <PATH>` for worktree-scoped recovery. On
   Windows, worktree-scoped unblock is not supported yet; stop and restart the

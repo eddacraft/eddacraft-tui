@@ -10,9 +10,9 @@ sidebar_position: 6
 
 # Save-Time Validation
 
-| Type        | Authority     | Owner                                                                                                                                          | Status | Freshness                                                                 |
-| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------- |
-| Public docs | Authoritative | UJ ([`plans/archive/modules/user-journey.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/user-journey.aps.md)) | Live   | Last reviewed 2026-06-10 against `main` for the v0.8.0-beta save-time arc |
+| Type        | Authority     | Owner                                                                                                                                          | Status | Freshness                                                     |
+| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------- |
+| Public docs | Authoritative | UJ ([`plans/archive/modules/user-journey.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/user-journey.aps.md)) | Live   | Last reviewed 2026-07-06 for DSV-051 headless driver closeout |
 
 | Upstream                                                                 | Downstream                                                            |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
@@ -24,7 +24,9 @@ This guide is the one place that explains how the pieces fit — the watcher, th
 daemon, assurance states, confinement, and what happens when the daemon is not
 there. For per-flag reference detail, see the
 [configuration reference](../operations/config.md); for the editor/agent
-pre-write surface, see the [MCP integration guide](../integrations/mcp.md).
+pre-write surface, see the [MCP integration guide](../integrations/mcp.md). For
+operator recovery around the detached save-time child, use the
+[save-time background driver runbook](../../../runbooks/save-time-background-driver.md).
 
 ## What is watched
 
@@ -55,6 +57,12 @@ routes each save through the daemon instead of spawning a per-save subprocess
 scan. The daemon validates the changed-path delta against its warm model, so
 watch and the editor/agent MCP `anvil_validate_write` tool converge on the same
 verdict path — same inputs, same verdict, faster than a cold subprocess.
+
+The `v0.9.0-beta` headless driver path lets `anvil start` attach that same
+save-time validation in the background for registered worktrees. When attached,
+`anvil status --json` reports `save_time_driver: "attached"`; when absent or
+failed, inspect `anvil intercept status` and the driver runbook above instead of
+starting a foreground `anvil watch` by default.
 
 The daemon only ever receives workspace-relative paths for files under an
 admitted root; it re-derives file identity from disk and never trusts client
@@ -90,9 +98,10 @@ Opting out and non-interactive behaviour:
   prompt.** They fall back deterministically to the scoped check, so automation
   never hangs waiting for consent or pollutes a JSON stream.
 - **`--verify` is read-only and never starts a daemon.**
-- **Windows** background launch is not yet available; `start`/`watch` use the
-  scoped fallback there until that path lands (tracked with the save-time
-  Windows gap). `anvil intercept start --foreground` works on every OS.
+- **Windows** uses the named-pipe daemon path and DSV-051's manual driver
+  checklist for detached-process verification. The Windows daemon is parser-less
+  at this cut-line, so planted-driver verification should use an
+  antipattern-family finding and should not require `Certified` coverage.
 
 ## Assurance states
 
@@ -191,12 +200,12 @@ recover, only to understand.
 
 The daemon serves owner-only IPC on every supported OS — Unix domain socket on
 macOS and Linux, named pipe on Windows. The MCP `anvil_validate_write`
-daemon-status correlation has had Windows parity since `v0.7.1-beta`; serving
-the save-time verbs themselves on Windows is still in progress, so watch and
-status on Windows currently report `unavailable{daemon-absent}` and fall back
-exactly as they do against an absent daemon. Save-time routing is exercised most
-heavily on macOS and Linux in this beta; see the
-[beta testing guide](../beta-testing-guide.md) for current known limitations.
+daemon-status correlation has had Windows parity since `v0.7.1-beta`; the
+DSV-051 headless-driver cut-line keeps Windows verification manual because the
+detached process and console-window observations need a real Windows session.
+Save-time routing is exercised most heavily on macOS and Linux in this beta; see
+the [beta testing guide](../beta-testing-guide.md) for current known
+limitations.
 
 ## Related pages
 

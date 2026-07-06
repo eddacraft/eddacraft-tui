@@ -161,6 +161,12 @@
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | --------- | ----- | ------ |
 | [Driver Framework + intercept-proto — As-Built](../../docs/architecture/driver-framework-as-built.md) | `docs/architecture/driver-framework-as-built.md` | As-built | Derived   | DRVR  | Live   |
 
+## DSV
+
+| Document                                                                                             | Path                                           | Type    | Authority     | Owner | Status |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Save-Time Background Driver — Operator Runbook](../../docs/runbooks/save-time-background-driver.md) | `docs/runbooks/save-time-background-driver.md` | Runbook | Authoritative | DSV   | Live   |
+
 ## EDDA
 
 | Document                                                         | Path                               | Type | Authority | Owner | Status   |

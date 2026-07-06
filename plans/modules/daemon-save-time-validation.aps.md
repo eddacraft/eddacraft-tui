@@ -1305,7 +1305,7 @@ requirement). Architecture decided by
 
 #### DSV-050: Activation copy — honest armed posture without `anvil watch`
 
-- **Status:** Done
+- **Status:** Merged 2026-07-05 via PR #3200
 - **Source:** ACTMO-006; design spec; CIB-162..166 class (misleading next-step).
 - **Intent:** When the supervisor attaches a driver for the current worktree,
   `anvil start` must not recommend a foreground `anvil watch`.
@@ -1331,7 +1331,7 @@ requirement). Architecture decided by
 
 #### DSV-051: Runbook + E2E regression matrix
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Source:** RELEASE-PLAN cut criteria; design spec §Validation matrix.
 - **Intent:** Prove the usefulness addendum end-to-end and document operator
   recovery paths.
@@ -1348,8 +1348,15 @@ requirement). Architecture decided by
   inotify-exhaustion risk on shared runners); (c) the Windows operator
   verification checklist lives at
   [`execution/DSV-051.windows.actions.md`](../execution/DSV-051.windows.actions.md).
-- **Validation:** `pnpm --filter @eddacraft/anvil-e2e test:smoke` (new cases);
-  `pnpm run docs:check`
+- **Validation evidence (2026-07-06):**
+  `pnpm --filter @eddacraft/anvil-e2e exec vitest run smoke/save-time-driver.e2e.test.ts`
+  passes (3/3 DSV-051 driver tests); `pnpm run aps:index:check`,
+  `pnpm run aps:active-lint`, `pnpm run docs:check`, `pnpm run lint:md`,
+  `pnpm run format:check`, and `git diff --check` pass. Broader
+  `pnpm --filter @eddacraft/anvil-e2e test:smoke` remains blocked by the
+  existing `smoke/smoke.e2e.test.ts` Rust MCP launch shim expectation
+  (`gateUnavailable` vs `allow`), reproduced standalone after rebuilding
+  `target/debug/anvil`; the new DSV-051 smoke file passes in that run.
 - **Files:** `docs/runbooks/save-time-background-driver.md`,
   `apps/e2e/src/**/*save*time*driver*.e2e.test.ts`, public activation docs cross-links
 - **Dependencies:** DSV-047, DSV-048, DSV-049, DSV-050
@@ -1383,5 +1390,5 @@ requirement). Architecture decided by
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
-| C — Headless background driver | 6 | 4/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049 Merged 2026-07-05; DSV-050/051 Ready) | In Progress |
+| C — Headless background driver | 6 | 5/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049 Merged 2026-07-05; DSV-050 Merged 2026-07-05 via PR #3200; DSV-051 In Progress) | In Progress |
 | **Total** | **26** | **24/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |

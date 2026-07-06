@@ -40,6 +40,12 @@ gate. The same `ProtectionState` enum
 `anvil status --verify`, `anvil doctor`, the protection-loop tutorial path, and
 JSON consumers — there is one renderer, surfaces cannot drift.
 
+DSV-051 adds the operator runbook for the headless save-time driver:
+[`docs/runbooks/save-time-background-driver.md`](../runbooks/save-time-background-driver.md).
+Activation copy points at `anvil intercept status` when daemon-backed state
+needs inspection, and only claims daemon-backed save-time validation is armed
+when the diagnostic proves `save_time_driver_attached`.
+
 ## Architecture diagram
 
 ```text
