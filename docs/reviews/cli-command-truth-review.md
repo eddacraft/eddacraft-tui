@@ -593,12 +593,12 @@ registration and guided git-alias hook install (ACTMO-015/020).
 
 ## Slice queue
 
-| #   | Command family                         | CLICT item | Status          | Notes                                                    |
-| --- | -------------------------------------- | ---------- | --------------- | -------------------------------------------------------- |
-| 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes        |
-| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide          |
+| #   | Command family                         | CLICT item | Status          | Notes                                                     |
+| --- | -------------------------------------- | ---------- | --------------- | --------------------------------------------------------- |
+| 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes         |
+| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide           |
 | 3   | `anvil drift`                          | CLICT-003  | **Reconciling** | PR #3209 — tutorial snapshot paths, `--overwrite` removed |
-| 4   | `anvil watch`                          | CLICT-004  | **Audited**     | `architecture watch` conflation; default `--action` copy |
-| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Audited**     | `import-boundaries` vs `architecture` vocabulary         |
-| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Audited**     | Runbook missing workspace subcommands                    |
-| 7   | Tier 2 runbook alignment (38 families) | CLICT-007  | **Queued**      | Spot-check remaining families; fix runbook-only gaps     |
+| 4   | `anvil watch`                          | CLICT-004  | **Audited**     | `architecture watch` conflation; default `--action` copy  |
+| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Audited**     | `import-boundaries` vs `architecture` vocabulary          |
+| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Audited**     | Runbook missing workspace subcommands                     |
+| 7   | Tier 2 runbook alignment (38 families) | CLICT-007  | **Queued**      | Spot-check remaining families; fix runbook-only gaps      |
