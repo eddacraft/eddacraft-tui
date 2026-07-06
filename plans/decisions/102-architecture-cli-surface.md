@@ -30,9 +30,9 @@ proceed. The ground truth found during the gate:
   `crates/anvil-cli/src/commands/check_catalog.rs`), run via
   `anvil gate --only-checks architecture`. ARCHCFG's own Out of Scope excludes
   "Dependency analysis and gate evaluation".
-- **Watching already ships.** `anvil watch --run none` is documented in
+- **Watching already ships.** `anvil watch --action none` is documented in
   `crates/anvil-cli/src/commands/watch.rs` as "an architecture/dependency-only
-  watch with no code-quality scan"; `--run gate` runs the gate (including
+  watch with no code-quality scan"; `--action gate` runs the gate (including
   import-boundaries) on change, and the save-time daemon (ADR-101) supervises
   durable watchers.
 - **The structured definition is already exposed.**
@@ -52,7 +52,7 @@ Per-command verdicts:
 | `init` | **Build** (ARCHCFG-007 → Ready) | Non-interactive scaffold that writes a `.anvil/architecture.yaml` passing `anvil architecture validate` unmodified; optional `--template <layered\|hexagonal>`, default `layered`. The guide's "interactive wizard" framing is dropped. |
 | `check` | **Redirect** (ARCHCFG-008 → Ready, rescoped to guide reconciliation) | The guide points at `anvil gate --only-checks architecture`. No wrapper command: a second entry point would need its own baseline, exit-code, and output semantics kept in sync with gate — drift by construction. |
 | `check --fix` / `--baseline-all` | **Redirect** | Baseline acceptance belongs to the existing baseline machinery (`anvil baseline`, ADR-039), never an architecture-local baseline writer. |
-| `watch` | **Redirect** (ARCHCFG-009 → Draft, guide fix folds into ARCHCFG-008) | `anvil watch --run none` already is the architecture/dependency-only watch; `--run gate` includes import-boundaries. No second file-watching loop. |
+| `watch` | **Redirect** (ARCHCFG-009 → Draft, guide fix folds into ARCHCFG-008) | `anvil watch --action none` already is the architecture/dependency-only watch; `--action gate` includes import-boundaries. No second file-watching loop. |
 | `visualise` | **Build** (ARCHCFG-010 → Ready) | Renderer over the definition `show` already parses; `--format mermaid` only in the first pass. A new renderer, not a new data path. |
 | `list` | **Reject** (ARCHCFG-011 → Draft, rejected) | Guide-invented synonym: `show` already lists layers, patterns, dependencies, and rule count. Guide corrected to `show` via ARCHCFG-008. |
 | `impact` | **Defer** (ARCHCFG-012 → Draft) | *(Reframed by the 2026-07-06 amendment.)* Not a graph-tools projection: `anvil_impact_of_change` answers the inverse question (changed paths → dependents). The honest shape is a config dry-run diff — run the import-boundaries analysis under the current and a proposed `.anvil/architecture.yaml` and diff the violation sets (`impact --file <proposed.yaml>`), dropping the `--rule "<string>"` DSL entirely. Deferred behind the ARCHCFG-015 usage gate: it needs the check to accept an injected config, and its consumer (a team evolving a mature config) cannot exist before `init` ships. |
@@ -96,7 +96,7 @@ Scope explicitly excludes.
   test for new `architecture` subcommand proposals.
 - **Negative:** anyone pattern-matching on the published guide text loses
   `check`/`watch`/`list` spellings; the redirect targets
-  (`gate --only-checks architecture`, `watch --run none`) are less
+  (`gate --only-checks architecture`, `watch --action none`) are less
   discoverable than a dedicated subcommand.
 - **Risks:** deferred items (`impact`, `export`, `debug`) linger as Draft
   zombies; the rejected `list` could be re-proposed without new evidence.

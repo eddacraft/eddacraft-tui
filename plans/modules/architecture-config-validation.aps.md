@@ -186,7 +186,7 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Status:** Complete: 2026-07-06
 - **Resolution:** ADR-102 (`plans/decisions/102-architecture-cli-surface.md`).
   Verdicts: build `init` (007) and `visualise` (010); redirect `check` →
-  `anvil gate --only-checks architecture`, `watch` → `anvil watch --run
+  `anvil gate --only-checks architecture`, `watch` → `anvil watch --action
   none|gate`, baseline flags → `anvil baseline`/ADR-039; reject `list`
   (synonym of `show`); defer `impact`, `export`, `debug` behind the
   ARCHCFG-015 usage gate (added by the 2026-07-06 ADR-102 amendment).
@@ -216,7 +216,7 @@ undefined layers, and incomplete definitions before analysis runs.
   ADR-102 verdicts so the guide documents only shipped commands
 - **Expected Outcome:** The guide's quickstart, CLI Commands section, and
   troubleshooting are corrected: `check` → `anvil gate --only-checks
-  architecture`; `watch` → `anvil watch --run none|gate`; `list` → `anvil
+  architecture`; `watch` → `anvil watch --action none|gate`; `list` → `anvil
   architecture show`; `check --fix`/`--baseline-all` → the existing baseline
   machinery (`anvil baseline`, ADR-039); commands still deferred by ADR-102
   (`impact`, `export`, `debug`) are removed or marked planned; the frontmatter
@@ -247,8 +247,8 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_watch`
 - **Confidence:** low
 - **Status:** Draft
-- **Gate verdict (ADR-102):** Redirect — no new command. `anvil watch --run
-  none` already is the architecture/dependency-only watch and `--run gate`
+- **Gate verdict (ADR-102):** Redirect — no new command. `anvil watch --action
+  none` already is the architecture/dependency-only watch and `--action gate`
   includes the import-boundaries check; the guide correction lands via
   ARCHCFG-008. Re-open only with an ADR-102 amendment and demand evidence.
 
