@@ -10,9 +10,10 @@ anvil evaluates custom Rego policies through an in-process engine (regorus).
 This tutorial walks through installing a starter pack, validating it, and
 running it through the gate.
 
-For pack authoring detail see the internal guides
-[`policy-validation`](../../../guides/policy-validation.md) and
-[`opa-policy-testing`](../../../guides/opa-policy-testing.md).
+For pack authoring detail see the repo guides
+[`policy-validation`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/policy-validation.md)
+and
+[`opa-policy-testing`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/opa-policy-testing.md).
 
 ## Prerequisites
 
@@ -118,13 +119,13 @@ anvil policy validate .anvil/policies/
 ```
 
 For Rego conventions and fixture layout, see
-[`opa-policy-testing`](../../../guides/opa-policy-testing.md).
+[`opa-policy-testing`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/opa-policy-testing.md).
 
 ## 6. Exceptions and Enforcement
 
 Scoped, expiring exceptions live in `anvil/exceptions/store.json` and are
 managed with `anvil exception grant|revoke|list|verify` — see
-[`policy-exceptions`](../../../guides/policy-exceptions.md).
+[`policy-exceptions`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/policy-exceptions.md).
 
 Opt-in save-time enforcement (`warn`, `fence`, `interrupt`) is controlled by
 `ANVIL_POLICY_ENFORCEMENT` (defaults to report-only). See

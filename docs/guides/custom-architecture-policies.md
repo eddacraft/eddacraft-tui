@@ -18,7 +18,7 @@ Boundary enforcement, live feedback, and export use other surfaces:
 ```bash
 # Create .anvil/architecture.yaml (edit manually or copy a template — see below)
 
-# Syntax check the definition file (shallow YAML parse)
+# Validate the definition file (YAML parse + depends_on reference checks)
 anvil architecture validate
 
 # Full import-boundary enforcement
