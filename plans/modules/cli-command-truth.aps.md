@@ -118,7 +118,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- architecture --help`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
 
 ### CLICT-002: Policy docs reconciliation
 
@@ -147,7 +147,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- policy --help` and `exception --help`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
 
 ### CLICT-003: Drift docs reconciliation
 
@@ -164,7 +164,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- drift --help`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
 
 ### CLICT-004: Watch docs reconciliation
 

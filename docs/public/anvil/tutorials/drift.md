@@ -13,7 +13,8 @@ snapshots over time.
 ## Prerequisites
 
 - anvil initialised with architecture boundaries configured
-- At least one successful `anvil check --all` run
+- Architecture boundaries configured (`.anvil/architecture.yaml`) and at least
+  one successful `anvil gate --only-checks import-boundaries` run
 
 The drift commands are identical on macOS, Linux, and Windows. On Windows,
 PowerShell displays snapshot paths with backslashes on disk, but the snapshot
@@ -39,7 +40,7 @@ Capturing snapshot: baseline
   Edges:    12
   Files:    28
 
-Snapshot saved to .anvil/snapshots/baseline.json
+Snapshot saved to .anvil/snapshots/snapshot-baseline.json
 ```
 
 A snapshot records every module and every dependency edge at a point in time.
@@ -92,7 +93,7 @@ Capturing snapshot: after-changes
   Edges:    14
   Files:    31
 
-Snapshot saved to .anvil/snapshots/after-changes.json
+Snapshot saved to .anvil/snapshots/snapshot-after-changes.json
 ```
 
 ## 5. Compare Snapshots
@@ -172,9 +173,9 @@ Checking drift...
 Drift budget exceeded.
 ```
 
-:::info Update the baseline periodically as your architecture evolves. Run
-`anvil drift snapshot --name baseline --overwrite` after a planned refactor to
-reset the reference point. :::
+:::info Update the baseline periodically as your architecture evolves. Named
+snapshots cannot be silently overwritten — choose a new name or remove the old
+`snapshot-<name>.json` file under `.anvil/snapshots/` before recapturing. :::
 
 ## Workflow Tips
 

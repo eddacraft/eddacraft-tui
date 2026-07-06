@@ -483,7 +483,7 @@ Task-level detail for all completed work is archived in
 | OPA-001 | opa    | Architecture YAML schema (Zod)      | Complete    | high     |
 | OPA-002 | opa    | YAML parser with template expansion | Complete    | high     |
 | OPA-003 | opa    | DC config generator from YAML       | Complete    | high     |
-| OPA-004 | opa    | `anvil architecture init` command   | Complete    | high     |
+| OPA-004 | opa    | Architecture init templates (crate API); CLI `init` not registered — ARCHCFG-007 | Complete    | high     |
 | OPA-005 | opa    | Architecture context extraction     | Complete    | high     |
 | OPA-006 | opa    | OPA input schema enhancement        | Complete    | high     |
 | OPA-007 | opa    | Gate runner integration             | Complete    | high     |
@@ -563,7 +563,7 @@ Task-level detail for all completed work is archived in
 | TUI-009 | tui    | `anvil watch` real-time dashboard | Complete | medium   |
 | TUI-013 | tui    | `<MermaidDiagram />` component + `layersToMermaid()` helper | Complete | high |
 | TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Complete | high |
-| TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Complete | high |
+| TUI-015 | tui    | Mermaid helpers shipped; CLI `visualise` not registered — `anvil dashboard architecture` | Complete | high |
 
 ### Task Status — 0.1.0 (HTML/CSS Support)
 

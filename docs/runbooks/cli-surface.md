@@ -1391,30 +1391,42 @@ $ anvil auth logout
 ## anvil policy
 
 **Class:** Admin **Purpose:** Manage and evaluate policies. **When to use:** To
-evaluate, list, explain, diff, validate, or test Anvil policy files.
+install starter packs, validate pack manifests, evaluate Rego, run
+trust-regression CI locally, or inspect active policies.
 
-**Synopsis:** `anvil policy <eval|list|explain|diff|validate|test>`
+**Synopsis:**
+`anvil policy <eval|eval-regression|attack-regression|probe-trends|list|explain|diff|validate|install|show|test>`
 
 **Subcommands:**
 
-| Subcommand                          | Description                                       |
-| ----------------------------------- | ------------------------------------------------- |
-| `eval`                              | Evaluate a Rego policy against an input document. |
-| `list [--category <c>] [--enabled]` | List available policies.                          |
-| `explain <policy-id>`               | Explain a specific policy.                        |
-| `diff <base> <head>`                | Show policy differences.                          |
-| `validate [file]`                   | Validate policy configuration.                    |
-| `test [path] [--list-files]`        | Run policy tests.                                 |
+| Subcommand                             | Description                                                                        |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| `eval`                                 | Evaluate a Rego policy against an input document.                                  |
+| `eval-regression`                      | Run trust-regression eval suites against the persisted baseline (report-only).     |
+| `attack-regression`                    | Run a prompt-attack regression pack and gate on the fail-policy verdict.           |
+| `probe-trends`                         | Show adversarial probe pass/fail trends by category from eval history.             |
+| `list [--category <c>] [--enabled]`    | List available policies.                                                           |
+| `explain <policy-id>`                  | Explain a specific policy.                                                         |
+| `diff <base> <head>`                   | Show policy differences.                                                           |
+| `validate [path]`                      | Validate a policy pack (`pack.yaml`, metadata, structure, tests).                  |
+| `install [pack-id] [--list] [--force]` | Install a bundled starter pack into `.anvil/policies/`.                            |
+| `show [pack-id]`                       | Show a bundled starter pack without installing it.                                 |
+| `test [path] [--list-files]`           | Discover policy test files (**execution stub** — use `opa test` or pack validate). |
+
+Gate evaluation uses the regorus engine in-process; the Go `opa` binary is
+reference-only for `opa test` parity. See `docs/guides/policy-validation.md`.
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
 **Examples:**
 
 ```
+$ anvil policy install --list
+$ anvil policy install anvil-baseline
+$ anvil policy validate .anvil/policies/
 $ anvil policy list
-$ anvil policy eval
-$ anvil policy validate
-$ anvil policy test
+$ anvil policy eval --json policies/fixtures/example.rego
+$ anvil gate --only-checks policy
 ```
 
 ---

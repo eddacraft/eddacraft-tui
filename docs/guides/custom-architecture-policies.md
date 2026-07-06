@@ -1,8 +1,8 @@
 # Custom Architecture Policies Guide
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                                  |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-05-25 against `plans/modules/architecture-config-validation.aps.md` and `crates/anvil-cli/src/commands/architecture.rs` |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                   |
+| ----- | --------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-07-06 against `anvil architecture --help`, `docs/runbooks/cli-surface.md`, and CLICT-001 |
 
 | Upstream                                                                                                                           | Downstream                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -12,16 +12,28 @@ Define and enforce your own architectural boundaries without writing any Rego.
 
 ## Quick Start
 
+`anvil architecture` registers only **`validate`** and **`show`** today.
+Boundary enforcement, live feedback, and export use other surfaces:
+
 ```bash
-# Create an architecture definition
-anvil architecture init
+# Create .anvil/architecture.yaml (edit manually or copy a template — see below)
 
-# Check your architecture
-anvil architecture check
+# Syntax check the definition file (shallow YAML parse)
+anvil architecture validate
 
-# Watch for violations as you code
-anvil architecture watch
+# Full import-boundary enforcement
+anvil gate --only-checks import-boundaries
+
+# Save-time feedback while coding
+anvil watch
+
+# Interactive architecture-health dashboard
+anvil dashboard architecture
 ```
+
+Planned CLI subcommands (`init`, `check`, `visualise`, …) are tracked under
+ARCHCFG-006..014 in
+[`plans/modules/architecture-config-validation.aps.md`](../../plans/modules/architecture-config-validation.aps.md).
 
 ---
 
@@ -543,34 +555,34 @@ baseline:
 
 ## CLI Commands
 
+### Registered under `anvil architecture`
+
 ```bash
-# Initialise architecture (interactive wizard)
-anvil architecture init
-anvil architecture init --template hexagonal
-
-# Validate your definition file
-anvil architecture validate
-
-# Check architecture violations
-anvil architecture check
-anvil architecture check --fix  # Auto-add to baseline
-
-# Watch mode
-anvil architecture watch
-
-# Visualise dependencies
-anvil architecture visualise
-anvil architecture visualise --format mermaid
-
-# List layers and modules
-anvil architecture list
-
-# Show what would be affected by a new rule
-anvil architecture impact --rule "domain cannot import infrastructure"
-
-# Export architecture as documentation
-anvil architecture export --format markdown
+anvil architecture validate    # Parse .anvil/architecture.yaml; basic ref checks
+anvil architecture show        # Print the active definition
 ```
+
+### Substitute surfaces (same capability, different command)
+
+| Documented / planned name            | Use instead                                                  |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `anvil architecture init`            | Create `.anvil/architecture.yaml` manually (templates below) |
+| `anvil architecture check`           | `anvil gate --only-checks import-boundaries`                 |
+| `anvil architecture watch`           | `anvil watch` (default `--action check`)                     |
+| `anvil architecture visualise`       | `anvil dashboard architecture` (TUI)                         |
+| `anvil architecture export`          | `anvil export --format prompt-fragment` (agent context)      |
+| `anvil architecture list` / `impact` | `anvil architecture show`; gate output for violations        |
+| `anvil architecture debug`           | `anvil doctor`; gate verbose output                          |
+
+```bash
+anvil gate --only-checks import-boundaries
+anvil watch
+anvil dashboard architecture
+anvil export --format prompt-fragment
+```
+
+Candidate first-class subcommands remain in ARCHCFG-007..014 (blocked on
+ARCHCFG-006 design gate).
 
 ---
 
@@ -700,20 +712,21 @@ rules:
 
 ### "Too many violations"
 
-Use baseline to acknowledge existing issues:
+Use baseline to acknowledge existing issues, then re-run the gate check:
 
 ```bash
-anvil architecture check --baseline-all
+anvil gate --only-checks import-boundaries
 ```
+
+Refresh `anvil/baseline.json` through the documented baseline workflow when you
+intentionally adopt new findings.
 
 ### "Rule doesn't match my files"
 
-Check path patterns:
-
-```bash
-anvil architecture debug --layer domain
-# Shows which files match the layer
-```
+Check path patterns in `.anvil/architecture.yaml` and confirm files are under
+the watched tree. `anvil architecture show` prints the loaded definition; gate
+verbose output (`anvil gate --only-checks import-boundaries -v`) lists matched
+violations.
 
 ### "False positives"
 

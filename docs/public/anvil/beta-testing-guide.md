@@ -529,14 +529,18 @@ architecture changes over time.
 Explore available policies:
 
 ```bash
+anvil policy install --list
+anvil policy install anvil-baseline
+anvil policy validate .anvil/policies/
 anvil policy list
-anvil policy explain ARCH-001
+anvil policy explain <policy-id>
+anvil gate --only-checks policy
 ```
 
-Useful feedback includes whether policy names, severity, and explanations match
-the issue you saw in the scan output. AP-\* anti-pattern explanations are not a
-policy surface in this release; use the scan output and rule catalogue details
-until the Rust explain command lands.
+Useful feedback includes whether pack install, validation, policy names,
+severity, and explanations match the issue you saw in the scan output. AP-\*
+anti-pattern explanations are not a policy surface in this release; use the scan
+output and rule catalogue details until the Rust explain command lands.
 
 ### Integrations
 
