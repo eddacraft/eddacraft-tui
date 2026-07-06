@@ -370,9 +370,12 @@ layers:
 
     #[test]
     fn read_architecture_config_capped_rejects_oversized_file() {
+        const OVERSIZE_BYTES: usize = 1024 * 1024 + 1;
+        assert_eq!(ARCHITECTURE_CONFIG_MAX_BYTES, 1024 * 1024);
+
         let tmp = tempfile::TempDir::new().unwrap();
         let path = tmp.path().join("architecture.yaml");
-        std::fs::write(&path, vec![b'a'; (ARCHITECTURE_CONFIG_MAX_BYTES + 1) as usize]).unwrap();
+        std::fs::write(&path, vec![b'a'; OVERSIZE_BYTES]).unwrap();
 
         let err = read_architecture_config_capped(&path).unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
