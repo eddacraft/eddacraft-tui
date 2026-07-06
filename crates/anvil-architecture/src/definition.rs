@@ -316,7 +316,7 @@ pub fn validate_definition(
                                 left_pattern: left_pattern.clone(),
                                 right_layer: (*right_name).clone(),
                                 right_pattern: right_pattern.clone(),
-                            })
+                            });
                         }
                         Some(false) => {}
                         None => errors.push(
