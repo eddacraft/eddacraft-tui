@@ -310,12 +310,14 @@ pub fn validate_definition(
             for left_pattern in &left_layer.patterns {
                 for right_pattern in &right_layer.patterns {
                     match layer_patterns_overlap(left_pattern, right_pattern) {
-                        Some(true) => errors.push(DefinitionValidationError::OverlappingLayerPatterns {
-                            left_layer: (*left_name).clone(),
-                            left_pattern: left_pattern.clone(),
-                            right_layer: (*right_name).clone(),
-                            right_pattern: right_pattern.clone(),
-                        }),
+                        Some(true) => {
+                            errors.push(DefinitionValidationError::OverlappingLayerPatterns {
+                                left_layer: (*left_name).clone(),
+                                left_pattern: left_pattern.clone(),
+                                right_layer: (*right_name).clone(),
+                                right_pattern: right_pattern.clone(),
+                            })
+                        }
                         Some(false) => {}
                         None => errors.push(
                             DefinitionValidationError::PatternOverlapComplexityExceeded {

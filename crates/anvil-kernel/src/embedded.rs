@@ -281,10 +281,11 @@ fn collect_files(root: &Path, filter: &FileFilter) -> Result<Vec<PathBuf>, Embed
 fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, EmbeddedError> {
     match path {
         Some(path) => {
-            let yaml = read_architecture_config_capped(path).map_err(|e| EmbeddedError::ConfigIo {
-                path: path.to_path_buf(),
-                source: e,
-            })?;
+            let yaml =
+                read_architecture_config_capped(path).map_err(|e| EmbeddedError::ConfigIo {
+                    path: path.to_path_buf(),
+                    source: e,
+                })?;
             match parse_validated_architecture_config(&yaml) {
                 Ok(config) => Ok(config),
                 Err(ArchitectureConfigValidationError::Parse(error)) => {
