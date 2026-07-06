@@ -11,9 +11,13 @@
 build `init` + `visualise` (ARCHCFG-007/010 Ready), redirect `check`/`watch`/
 baseline flags to existing gate/watch/baseline machinery (ARCHCFG-008 Ready as
 guide reconciliation), reject `list` as a `show` synonym, defer
-`impact`/`export`/`debug` pending demand. Only `validate` and `show` exist in
-`crates/anvil-cli/src/commands/architecture.rs` today; ARCHCFG-008 reconciles
-the guide `docs/guides/custom-architecture-policies.md` with reality.)
+`impact`/`export`/`debug` behind the ARCHCFG-015 usage gate. Same-day ADR-102
+amendment: `impact` reframed as a config dry-run diff (not a graph-tools
+projection), `export` collides with the existing top-level `anvil export`,
+`debug` if promoted is `show --layer --files`. Only `validate` and `show`
+exist in `crates/anvil-cli/src/commands/architecture.rs` today; ARCHCFG-008
+reconciles the guide `docs/guides/custom-architecture-policies.md` with
+reality.)
 
 ## Purpose
 
@@ -184,7 +188,8 @@ undefined layers, and incomplete definitions before analysis runs.
   Verdicts: build `init` (007) and `visualise` (010); redirect `check` →
   `anvil gate --only-checks architecture`, `watch` → `anvil watch --run
   none|gate`, baseline flags → `anvil baseline`/ADR-039; reject `list`
-  (synonym of `show`); defer `impact`, `export`, `debug` pending demand.
+  (synonym of `show`); defer `impact`, `export`, `debug` behind the
+  ARCHCFG-015 usage gate (added by the 2026-07-06 ADR-102 amendment).
   ARCHCFG-008 rescoped to guide reconciliation and carries all guide
   corrections (check/watch/list/quickstart/freshness claim).
 
@@ -283,22 +288,25 @@ undefined layers, and incomplete definitions before analysis runs.
 
 ### ARCHCFG-012: `anvil architecture impact`
 
-- **Intent:** Show which files or layers are affected by a proposed rule
-  change, reusing Anvil's existing graph-based impact analysis rather than
-  building a new one
-- **Expected Outcome:** `anvil architecture impact --rule "<rule>"` returns an
-  architecture-scoped projection of the existing impact/dependents graph query
+- **Intent:** Preview which existing imports a proposed architecture config
+  change would newly violate (or newly resolve), as a dry-run diff of the
+  import-boundaries analysis
+- **Expected Outcome:** `anvil architecture impact --file <proposed.yaml>`
+  runs the import-boundaries check under the current and the proposed config
+  and reports the violation-set diff
 - **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
-- **Non-scope:** A new impact-analysis engine independent of the existing
-  graph query path
-- **Dependencies:** ARCHCFG-006
+- **Non-scope:** A new analysis engine; a `--rule "<string>"` DSL (dropped per
+  the ADR-102 2026-07-06 amendment); the graph impact tools
+  (`anvil_impact_of_change` answers the inverse question — changed paths →
+  dependents)
+- **Dependencies:** ARCHCFG-006, ARCHCFG-015
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_impact`
 - **Confidence:** low
 - **Status:** Draft
-- **Gate verdict (ADR-102):** Defer. Must be a projection over
-  `anvil_impact_of_change`/`anvil_find_dependents` if built, but the
-  `--rule "<string>"` parsing shape is unproven and there is no demand
-  evidence. Revisit after `init`/`validate` adoption.
+- **Gate verdict (ADR-102, amended 2026-07-06):** Defer behind the
+  ARCHCFG-015 usage gate. Reframed from graph-tools projection to config
+  dry-run diff; needs the import-boundaries check to accept an injected
+  config, and its consumer persona cannot exist before `init` ships.
 
 ### ARCHCFG-013: `anvil architecture export`
 
@@ -308,13 +316,18 @@ undefined layers, and incomplete definitions before analysis runs.
   produces a document from the same definition `show --json` already exposes
 - **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
 - **Non-scope:** Formats beyond Markdown in the first pass
-- **Dependencies:** ARCHCFG-006
+- **Dependencies:** ARCHCFG-006, ARCHCFG-010, ARCHCFG-015
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_export`
 - **Confidence:** medium
 - **Status:** Draft
-- **Gate verdict (ADR-102):** Defer. `show --json` already serves machine
-  consumers; a Markdown export should reuse ARCHCFG-010's renderer plumbing
-  once it exists. Revisit after ARCHCFG-010 ships.
+- **Gate verdict (ADR-102, amended 2026-07-06):** Defer behind the
+  ARCHCFG-015 usage gate. `show --json` already serves machine consumers, and
+  a substantial top-level `anvil export` already exists
+  (`crates/anvil-cli/src/commands/export.rs` — plan conversion + constraint
+  export), so the open question is surface ownership: extend `anvil export`,
+  ship a namespace-local `architecture export`, or fold into
+  `visualise --format markdown`. Decide after ARCHCFG-010 ships the renderer
+  plumbing the latter two options would share.
 
 ### ARCHCFG-014: `anvil architecture debug`
 
@@ -323,12 +336,45 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Expected Outcome:** `anvil architecture debug --layer <name>` reproduces
   the reasoning behind that layer's current pass/fail state
 - **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
-- **Non-scope:** A general debugger; interactive/REPL tooling
-- **Dependencies:** ARCHCFG-006, ARCHCFG-008
+- **Non-scope:** A general debugger; interactive/REPL tooling; a standalone
+  `debug` subcommand (per the ADR-102 2026-07-06 amendment the shape, if
+  promoted, is a flag on an existing command)
+- **Dependencies:** ARCHCFG-006, ARCHCFG-008, ARCHCFG-015
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_debug`
 - **Confidence:** low
 - **Status:** Draft
-- **Gate verdict (ADR-102):** Defer — the least-justified candidate. The real
-  troubleshooting need ("which files match this layer") is better served as an
-  explain flag on `validate`/`show` if demand appears; no standalone case
-  today.
+- **Gate verdict (ADR-102, amended 2026-07-06):** Defer behind the
+  ARCHCFG-015 usage gate. The underlying need is real — nothing today shows
+  which files a layer's globs actually capture, the first confusion once
+  `init` ships — but it is ~a flag's worth of behaviour:
+  `show --layer <name> --files` (preferred) or `validate --explain`, never a
+  subcommand.
+
+### ARCHCFG-015: Usage gate — re-verdict the deferred architecture commands
+
+- **Intent:** Re-evaluate the ADR-102 deferred commands (`impact`, `export`,
+  `debug`) — and sweep docs for any other documented-but-missing architecture
+  surface — against real usage signal, so deferrals get a dated verdict
+  instead of rotting as undated Drafts
+- **Expected Outcome:** A dated amendment to ADR-102 giving each deferred
+  candidate a fresh build / defer / reject verdict, each citing the specific
+  usage evidence (issue, support question, telemetry, explicit user request)
+  or its absence; ARCHCFG-012/013/014 statuses and shapes updated to match.
+  Working shapes going in: `impact` as a config dry-run diff
+  (`--file <proposed.yaml>`, current-vs-proposed violation sets); `export`
+  resolving ownership against the existing top-level `anvil export` (extend
+  it, namespace-local, or `visualise --format markdown`); `debug` as
+  `show --layer <name> --files` rather than a subcommand
+- **Trigger (usage gate, not time-based):** Open only when ARCHCFG-007
+  (`init`) and ARCHCFG-010 (`visualise`) have shipped in a release **and** at
+  least one concrete usage signal names a deferred capability; until then this
+  item stays Draft by design
+- **Scope:** Decision-making only — ADR-102 amendment plus this module's item
+  statuses
+- **Non-scope:** Implementation of any candidate command
+- **Dependencies:** ARCHCFG-007, ARCHCFG-010
+- **Validation:** ADR-102 carries the dated amendment;
+  `pnpm aps:active-lint` passes with ARCHCFG-012..014 statuses reflecting the
+  new verdicts
+- **Confidence:** high
+- **Status:** Draft

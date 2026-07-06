@@ -55,9 +55,9 @@ Per-command verdicts:
 | `watch` | **Redirect** (ARCHCFG-009 → Draft, guide fix folds into ARCHCFG-008) | `anvil watch --run none` already is the architecture/dependency-only watch; `--run gate` includes import-boundaries. No second file-watching loop. |
 | `visualise` | **Build** (ARCHCFG-010 → Ready) | Renderer over the definition `show` already parses; `--format mermaid` only in the first pass. A new renderer, not a new data path. |
 | `list` | **Reject** (ARCHCFG-011 → Draft, rejected) | Guide-invented synonym: `show` already lists layers, patterns, dependencies, and rule count. Guide corrected to `show` via ARCHCFG-008. |
-| `impact` | **Defer** (ARCHCFG-012 → Draft) | If ever built it must be a projection over the existing graph impact tools, but the `--rule "<string>"` parsing shape is unproven and there is no demand evidence. Revisit after `init`/`validate` adoption. |
-| `export` | **Defer** (ARCHCFG-013 → Draft) | `show --json` already serves machine consumers; a Markdown export should reuse ARCHCFG-010's renderer plumbing once that exists rather than grow parallel rendering code now. |
-| `debug` | **Defer** (ARCHCFG-014 → Draft) | The real troubleshooting need ("which files match this layer") is better served as an explain flag on `validate`/`show` if demand appears; no standalone case today. |
+| `impact` | **Defer** (ARCHCFG-012 → Draft) | *(Reframed by the 2026-07-06 amendment.)* Not a graph-tools projection: `anvil_impact_of_change` answers the inverse question (changed paths → dependents). The honest shape is a config dry-run diff — run the import-boundaries analysis under the current and a proposed `.anvil/architecture.yaml` and diff the violation sets (`impact --file <proposed.yaml>`), dropping the `--rule "<string>"` DSL entirely. Deferred behind the ARCHCFG-015 usage gate: it needs the check to accept an injected config, and its consumer (a team evolving a mature config) cannot exist before `init` ships. |
+| `export` | **Defer** (ARCHCFG-013 → Draft) | `show --json` already serves machine consumers, and *(2026-07-06 amendment)* a substantial top-level `anvil export` already exists (plan conversion + constraint export), so the real question is which surface owns architecture-as-Markdown: extend `anvil export`, a namespace-local `architecture export`, or `visualise --format markdown`. Decide at the ARCHCFG-015 usage gate, after ARCHCFG-010 ships the renderer plumbing two of those options would share. |
+| `debug` | **Defer** (ARCHCFG-014 → Draft) | The underlying need is real and cheap — there is no way today to see which files a layer's globs actually capture, the first confusion users will hit once `init` ships. *(2026-07-06 amendment)* If promoted at the ARCHCFG-015 usage gate it is a flag, not a subcommand: `show --layer <name> --files` (preferred) or `validate --explain`. |
 
 Cross-cutting principles:
 
@@ -101,18 +101,50 @@ Scope explicitly excludes.
 - **Risks:** deferred items (`impact`, `export`, `debug`) linger as Draft
   zombies; the rejected `list` could be re-proposed without new evidence.
 - **Mitigations:** each ARCHCFG item carries its verdict inline with a pointer
-  here; re-opening a deferred/rejected item requires demand evidence and an
-  amendment to this ADR.
+  here. Deferred items re-enter only through **ARCHCFG-015**, a usage-gated
+  design review that re-verdicts them (and sweeps for any other
+  documented-but-missing architecture surface) once shipped commands generate
+  adoption signal; its outcome lands as a dated amendment to this ADR.
+  Re-opening a rejected or redirected item still requires demand evidence and
+  an amendment here.
+
+## Amendments
+
+### 2026-07-06 — deferral corrections and the usage gate
+
+Same-day amendment following a deeper pass on the three deferred commands:
+
+- **`impact` substrate corrected.** The original rationale named
+  `anvil_impact_of_change`/`anvil_find_dependents` as the substrate; those
+  answer "changed paths → dependents", the inverse of the guide's question
+  ("proposed rule → violating edges"). The candidate shape is now a config
+  dry-run diff (`impact --file <proposed.yaml>` comparing import-boundaries
+  violations under current vs proposed config); the `--rule "<string>"` DSL is
+  dropped. Verdict unchanged: defer.
+- **`export` collision recorded.** A substantial top-level `anvil export`
+  (plan conversion + constraint export,
+  `crates/anvil-cli/src/commands/export.rs`) was missed in the original
+  survey. The open question is surface ownership, decided after ARCHCFG-010.
+  Verdict unchanged: defer.
+- **`debug` shape recorded.** If promoted, it is `show --layer <name> --files`
+  (or `validate --explain`) — a flag on existing commands, never a
+  subcommand. Verdict unchanged: defer.
+- **Re-entry mechanism named.** ARCHCFG-015 (usage-gated design review) now
+  owns deferral re-entry, replacing per-item "amendment + demand evidence"
+  with one explicit gate: it opens only once `init` and `visualise` have
+  shipped **and** a concrete usage signal (issue, support question, telemetry,
+  explicit request) names a deferred capability.
 
 ## References
 
 - Related ADRs: ADR-039 (baseline policy), ADR-056 (`--format` output
   selector conventions, relevant to `visualise`), ADR-101 (save-time watch
   drivers)
-- APS modules: ARCHCFG-006..014
+- APS modules: ARCHCFG-006..015
   (`plans/modules/architecture-config-validation.aps.md`)
 - Code: `crates/anvil-cli/src/commands/architecture.rs`,
   `crates/anvil-cli/src/commands/check_catalog.rs`,
   `crates/anvil-cli/src/commands/watch.rs`,
-  `crates/anvil-cli/src/commands/baseline.rs`
+  `crates/anvil-cli/src/commands/baseline.rs`,
+  `crates/anvil-cli/src/commands/export.rs`
 - Docs: `docs/guides/custom-architecture-policies.md`
