@@ -35,11 +35,22 @@ pub enum EmbeddedError {
         source: std::io::Error,
     },
     #[error("architecture config parse error: {0}")]
-    ConfigParse(#[from] serde_yaml::Error),
+    ConfigParse(serde_yaml::Error),
     #[error("architecture config validation error: {0}")]
-    ConfigValidation(#[from] ArchitectureConfigValidationError),
+    ConfigValidation(ArchitectureConfigValidationError),
     #[error("walkdir error: {0}")]
     Walk(#[from] walkdir::Error),
+}
+
+impl From<ArchitectureConfigValidationError> for EmbeddedError {
+    fn from(error: ArchitectureConfigValidationError) -> Self {
+        match error {
+            ArchitectureConfigValidationError::Parse(parse_error) => Self::ConfigParse(parse_error),
+            invalid @ ArchitectureConfigValidationError::Invalid(_) => {
+                Self::ConfigValidation(invalid)
+            }
+        }
+    }
 }
 
 pub struct EmbeddedConfig {
@@ -286,15 +297,7 @@ fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, E
                     path: path.to_path_buf(),
                     source: e,
                 })?;
-            match parse_validated_architecture_config(&yaml) {
-                Ok(config) => Ok(config),
-                Err(ArchitectureConfigValidationError::Parse(error)) => {
-                    Err(EmbeddedError::ConfigParse(error))
-                }
-                Err(err @ ArchitectureConfigValidationError::Invalid(_)) => {
-                    Err(EmbeddedError::ConfigValidation(err))
-                }
-            }
+            Ok(parse_validated_architecture_config(&yaml)?)
         }
         None => Ok(ArchitectureConfig { layers: Vec::new() }),
     }

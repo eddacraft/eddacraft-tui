@@ -39,15 +39,26 @@ pub enum WatchError {
         source: std::io::Error,
     },
     #[error("architecture config parse error: {0}")]
-    ConfigParse(#[from] serde_yaml::Error),
+    ConfigParse(serde_yaml::Error),
     #[error("architecture config validation error: {0}")]
-    ConfigValidation(#[from] ArchitectureConfigValidationError),
+    ConfigValidation(ArchitectureConfigValidationError),
     #[error("watcher error: {0}")]
     Watcher(#[from] crate::watcher::WatcherError),
     #[error("invalid watch pattern: {0}")]
     Pattern(#[from] PatternError),
     #[error("watch loop terminated unexpectedly")]
     ThreadPanicked,
+}
+
+impl From<ArchitectureConfigValidationError> for WatchError {
+    fn from(error: ArchitectureConfigValidationError) -> Self {
+        match error {
+            ArchitectureConfigValidationError::Parse(parse_error) => Self::ConfigParse(parse_error),
+            invalid @ ArchitectureConfigValidationError::Invalid(_) => {
+                Self::ConfigValidation(invalid)
+            }
+        }
+    }
 }
 
 pub struct WatchConfig {
@@ -677,15 +688,7 @@ fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, W
                 path: path.to_path_buf(),
                 source: e,
             })?;
-            match parse_validated_architecture_config(&yaml) {
-                Ok(config) => Ok(config),
-                Err(ArchitectureConfigValidationError::Parse(error)) => {
-                    Err(WatchError::ConfigParse(error))
-                }
-                Err(err @ ArchitectureConfigValidationError::Invalid(_)) => {
-                    Err(WatchError::ConfigValidation(err))
-                }
-            }
+            Ok(parse_validated_architecture_config(&yaml)?)
         }
         None => Ok(ArchitectureConfig { layers: Vec::new() }),
     }
