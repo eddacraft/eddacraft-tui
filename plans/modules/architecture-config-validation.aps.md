@@ -5,14 +5,15 @@
 
 | ID   | Owner | Priority | Status |
 | ------- | ----- | -------- | ------ |
-| ARCHCFG | —     | high     | Draft  |
+| ARCHCFG | —     | high     | In Progress |
 
-**Last reviewed:** 2026-07-06 (ARCHCFG-006..014 added — the public guide
-`docs/guides/custom-architecture-policies.md` documents a CLI surface
-(`init`, `check`, `watch`, `visualise`, `list`, `impact`, `export`, `debug`)
-that does not exist in `crates/anvil-cli/src/commands/architecture.rs`; only
-`validate` and `show` are real. See ARCHCFG-006 for the design gate before any
-of ARCHCFG-007..014 proceed.)
+**Last reviewed:** 2026-07-06 (ARCHCFG-006 design gate resolved via ADR-102:
+build `init` + `visualise` (ARCHCFG-007/010 Ready), redirect `check`/`watch`/
+baseline flags to existing gate/watch/baseline machinery (ARCHCFG-008 Ready as
+guide reconciliation), reject `list` as a `show` synonym, defer
+`impact`/`export`/`debug` pending demand. Only `validate` and `show` exist in
+`crates/anvil-cli/src/commands/architecture.rs` today; ARCHCFG-008 reconciles
+the guide `docs/guides/custom-architecture-policies.md` with reality.)
 
 ## Purpose
 
@@ -178,6 +179,14 @@ undefined layers, and incomplete definitions before analysis runs.
   verdict (Draft retained where deferred/rejected, Ready where the gate
   approves proceeding)
 - **Confidence:** high
+- **Status:** Complete: 2026-07-06
+- **Resolution:** ADR-102 (`plans/decisions/102-architecture-cli-surface.md`).
+  Verdicts: build `init` (007) and `visualise` (010); redirect `check` →
+  `anvil gate --only-checks architecture`, `watch` → `anvil watch --run
+  none|gate`, baseline flags → `anvil baseline`/ADR-039; reject `list`
+  (synonym of `show`); defer `impact`, `export`, `debug` pending demand.
+  ARCHCFG-008 rescoped to guide reconciliation and carries all guide
+  corrections (check/watch/list/quickstart/freshness claim).
 
 ### ARCHCFG-007: `anvil architecture init`
 
@@ -187,26 +196,38 @@ undefined layers, and incomplete definitions before analysis runs.
   <name>`) writes a valid starter `architecture.yaml` that passes
   `anvil architecture validate` unmodified
 - **Scope:** `crates/anvil-cli/src/commands/architecture.rs`
-- **Non-scope:** Template authoring beyond one or two starter shapes; auto-detecting an existing project's real layers
+- **Non-scope:** Template authoring beyond one or two starter shapes; auto-detecting an existing project's real layers; an interactive wizard (dropped per ADR-102 — the scaffold is non-interactive)
 - **Dependencies:** ARCHCFG-006
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_init`
 - **Confidence:** high
+- **Status:** Ready
+- **Gate verdict (ADR-102):** Build. Non-interactive scaffold; optional
+  `--template <layered|hexagonal>`, default `layered`; output must pass
+  `anvil architecture validate` unmodified.
 
-### ARCHCFG-008: `anvil architecture check`
+### ARCHCFG-008: Guide reconciliation — redirect `check`, `watch`, `list`
 
-- **Intent:** Resolve the naming collision between the guide's `check`
-  (real dependency analysis) and the already-shipped `import-boundaries` gate
-  check, per the ARCHCFG-006 verdict
-- **Expected Outcome:** Either the guide is corrected to point at
-  `anvil gate --only-checks architecture`, or `anvil architecture check`
-  exists as a thin wrapper over that same check — never a second analysis
-  engine
-- **Scope:** `crates/anvil-cli/src/commands/architecture.rs`,
-  `docs/guides/custom-architecture-policies.md`
-- **Non-scope:** New dependency-analysis logic
+- **Intent:** Reconcile `docs/guides/custom-architecture-policies.md` with the
+  ADR-102 verdicts so the guide documents only shipped commands
+- **Expected Outcome:** The guide's quickstart, CLI Commands section, and
+  troubleshooting are corrected: `check` → `anvil gate --only-checks
+  architecture`; `watch` → `anvil watch --run none|gate`; `list` → `anvil
+  architecture show`; `check --fix`/`--baseline-all` → the existing baseline
+  machinery (`anvil baseline`, ADR-039); commands still deferred by ADR-102
+  (`impact`, `export`, `debug`) are removed or marked planned; the frontmatter
+  freshness claim reflects the actual review date. No new command ships — a
+  wrapper was rejected as a second entry point whose semantics would have to
+  track gate forever
+- **Scope:** `docs/guides/custom-architecture-policies.md`
+- **Non-scope:** New dependency-analysis logic; any change under `crates/`
 - **Dependencies:** ARCHCFG-006
-- **Validation:** `cargo test -p eddacraft-anvil -- architecture_check`
-- **Confidence:** medium
+- **Validation:** Manual doc review — every command in the guide exists in
+  `anvil --help` output (or is explicitly marked planned)
+- **Confidence:** high
+- **Status:** Ready
+- **Gate verdict (ADR-102):** Redirect. Rescoped from "build or redirect
+  `architecture check`" to the docs-only reconciliation carrying all
+  redirect/reject corrections.
 
 ### ARCHCFG-009: `anvil architecture watch`
 
@@ -220,6 +241,11 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006, ARCHCFG-008
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_watch`
 - **Confidence:** low
+- **Status:** Draft
+- **Gate verdict (ADR-102):** Redirect — no new command. `anvil watch --run
+  none` already is the architecture/dependency-only watch and `--run gate`
+  includes the import-boundaries check; the guide correction lands via
+  ARCHCFG-008. Re-open only with an ADR-102 amendment and demand evidence.
 
 ### ARCHCFG-010: `anvil architecture visualise`
 
@@ -233,6 +259,10 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_visualise`
 - **Confidence:** medium
+- **Status:** Ready
+- **Gate verdict (ADR-102):** Build. A renderer over the definition `show`
+  already parses — a new renderer, not a new data path. `--format mermaid`
+  only in the first pass; follow ADR-056 `--format` conventions.
 
 ### ARCHCFG-011: `anvil architecture list`
 
@@ -246,6 +276,10 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_list`
 - **Confidence:** low
+- **Status:** Draft
+- **Gate verdict (ADR-102):** Reject — guide-invented synonym. `show` already
+  lists layers, patterns, dependencies, and rule count; the guide correction
+  lands via ARCHCFG-008. Re-open only with an ADR-102 amendment.
 
 ### ARCHCFG-012: `anvil architecture impact`
 
@@ -260,6 +294,11 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_impact`
 - **Confidence:** low
+- **Status:** Draft
+- **Gate verdict (ADR-102):** Defer. Must be a projection over
+  `anvil_impact_of_change`/`anvil_find_dependents` if built, but the
+  `--rule "<string>"` parsing shape is unproven and there is no demand
+  evidence. Revisit after `init`/`validate` adoption.
 
 ### ARCHCFG-013: `anvil architecture export`
 
@@ -272,6 +311,10 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_export`
 - **Confidence:** medium
+- **Status:** Draft
+- **Gate verdict (ADR-102):** Defer. `show --json` already serves machine
+  consumers; a Markdown export should reuse ARCHCFG-010's renderer plumbing
+  once it exists. Revisit after ARCHCFG-010 ships.
 
 ### ARCHCFG-014: `anvil architecture debug`
 
@@ -284,3 +327,8 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006, ARCHCFG-008
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_debug`
 - **Confidence:** low
+- **Status:** Draft
+- **Gate verdict (ADR-102):** Defer — the least-justified candidate. The real
+  troubleshooting need ("which files match this layer") is better served as an
+  explain flag on `validate`/`show` if demand appears; no standalone case
+  today.
