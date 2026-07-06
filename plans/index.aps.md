@@ -408,8 +408,10 @@ table.
 **Active work below still leads with the just-shipped `v0.8.0` window's
 module family** — Graph Substrate (GV2, now 18/20 with the A′ slice shipped, the
 v0.9 contracts Merged — Phase 1 complete — and the GV2-026 depth lever + GV2-030
-sealed-snapshot no-leak guard Merged), Hardening & Maintenance (DSV, Sub-phase B
-Blocked), and Intercept Loop (MLP2 enforcement substrate) — then the rest of
+sealed-snapshot no-leak guard Merged), Hardening & Maintenance (DSV, Done —
+Sub-phase C headless driver landed 2026-07-06 via PR #3205, Complete blocked
+only on v0.9 release evidence), and Intercept Loop (MLP2 enforcement
+substrate) — then the rest of
 the active modules, then the [Dormant](#dormant-not-yet-scheduled) band. The
 v0.8.0/v0.8.1 tag-complete modules (UJ, TUIDASH, RSTLAN, GITGOV, GHCLIAUTH,
 INTR) have been archived to `plans/archive/modules/`; their index rows below

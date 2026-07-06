@@ -4,13 +4,13 @@
 | ------ | ------------------------------------------------------------------------------ |
 | Source | [../modules/eval-regression-ci-gate.aps.md](../modules/eval-regression-ci-gate.aps.md) |
 | Task   | EVALCI — Full module execution                                                 |
-| Status | Proposed                                                                       |
+| Status | In Progress                                                                    |
 
 ## Prerequisites
 
-- [ ] Module authorised (status flipped from Proposed to Ready)
-- [ ] eval-harness-integration available (EVAL Done; items Merged via PR #3013)
-- [ ] rust-tests.yml Test job has pinned OPA + Regal + rust-ci cache
+- [x] Module authorised (EVALCI-001..004 authorised Ready 2026-07-01)
+- [x] eval-harness-integration available (EVAL Done; items Merged via PR #3013)
+- [x] rust-tests.yml Test job has pinned OPA + Regal + rust-ci cache
 
 ## Steps
 
@@ -18,31 +18,37 @@
 
 - **Checkpoint:** A failing run cannot be persisted as baseline.
 - **Validate:** `cargo test -p eddacraft-anvil -- eval_regression_ratchet_baseline`
+- **Status:** Merged 2026-07-01 via PR #3023 (EVALCI-001)
 
 ### 2. Null the eval subprocess stdin
 
 - **Checkpoint:** A prompting suite fails fast, not at timeout.
 - **Validate:** `cargo test -p eddacraft-anvil-policy -- eval_harness_adapter_subprocess_null_stdin`
+- **Status:** Merged 2026-07-01 via PR #3023 (EVALCI-002)
 
 ### 3. Classify non-{0,1} suite exit as execution-error
 
 - **Checkpoint:** Infra failures are errors, not regressions.
 - **Validate:** `cargo test -p eddacraft-anvil-policy -- eval_harness_exit_code_classification`
+- **Status:** Merged 2026-07-01 via PR #3023 (EVALCI-003)
 
 ### 4. Make per-suite failures fail-open
 
 - **Checkpoint:** One broken suite still yields an aggregate report.
 - **Validate:** `cargo test -p eddacraft-anvil -- eval_regression_command_fail_open`
+- **Status:** Merged 2026-07-01 via PR #3023 (EVALCI-004)
 
 ### 5. Author the first-wave arch-boundary suite
 
 - **Checkpoint:** A deterministic hermetic gating suite and manifest exist.
 - **Validate:** `cargo test -p eddacraft-anvil-policy -- eval_suite_manifest_parses`
+- **Status:** Merged 2026-07-04 via PR #3170 (EVALCI-005)
 
 ### 6. Wire report-only CI step with committed baseline
 
 - **Checkpoint:** Every PR emits a non-blocking eval-regression report.
 - **Validate:** `cargo test -p eddacraft-anvil -- eval_regression_command`
+- **Status:** Merged 2026-07-04 via PR #3170 (EVALCI-006)
 
 ### 7. Promote to visible non-required failure
 
