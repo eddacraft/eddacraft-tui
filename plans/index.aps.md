@@ -119,7 +119,7 @@ NBI review note (2026-07-06, DSV Sub-phase C landed): **DSV-048**, **DSV-047**,
 **DSV-049**, **DSV-050**, and **DSV-051** are Merged, closing the
 RELEASE-PLAN usefulness addendum implementation gate. DSV awaits release evidence
 before Released/Shipped and Complete lifecycle advancement.
-**DSV** promoted to NBI rank 1; **DASH** demoted to rank 2. Bookkeeping-only.
+**DASH** promoted to NBI rank 1. Bookkeeping-only.
 
 NBI review note (2026-07-03, INSEC first wave delivered): **INSEC-001..006**
 removed from the NBI table — the insecure-construction first wave is Merged
