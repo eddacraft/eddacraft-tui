@@ -2099,3 +2099,17 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** The driver state is currently a boolean on activation diagnostics, so copy cannot distinguish absent, failed, unknown, and starting without sending users to `intercept status`.
 - **Improvement:** When user-facing copy is derived from a collapsed boolean, phrase the false branch as the only proven fact and point to the richer diagnostic surface.
 - **Follow-up:** none.
+
+### 2026-07-06 — opencode
+
+- **Task:** Post-merge APS closeout for DSV-051.
+- **Outcome:** Marked DSV-051 Merged, reconciled DSV to 26/26 Done, and promoted
+  DASH as the next NBI.
+- **Worked:** Verifying the merged PR and syncing `main` first avoided updating stale
+  branch state.
+- **Failed:** none.
+- **Friction:** Post-merge APS state is not advanced automatically when a PR lands,
+  so the NBI can still point at completed work until a bookkeeping pass runs.
+- **Improvement:** Treat merged-PR notifications as a trigger to check both the work
+  item status and the NBI row before offering cleanup.
+- **Follow-up:** none.

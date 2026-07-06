@@ -2,12 +2,13 @@
 
 | ID  | Owner | Status      |
 | --- | ----- | ----------- |
-| DSV | Josh  | In Progress |
+| DSV | Josh  | Done |
 
-**Last reviewed:** 2026-07-05 (Sub-phase C implementation underway: DSV-048
+**Last reviewed:** 2026-07-06 (Sub-phase C implementation merged: DSV-048
 Merged via PR #3186, DSV-047 Merged via PR #3191, DSV-049 Merged on `main` with
-status wire validation evidence; DSV-050 → DSV-051 remain the v0.9.0-beta usefulness
-cut-line.)
+status wire validation evidence, DSV-050 Merged via PR #3200, and DSV-051 Merged
+via PR #3205. DSV now awaits release evidence before Released/Shipped and
+Complete lifecycle advancement.)
 
 2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
 routing) confirmed in the v0.8.0-beta tag (record:
@@ -1331,7 +1332,7 @@ requirement). Architecture decided by
 
 #### DSV-051: Runbook + E2E regression matrix
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Source:** RELEASE-PLAN cut criteria; design spec §Validation matrix.
 - **Intent:** Prove the usefulness addendum end-to-end and document operator
   recovery paths.
@@ -1357,6 +1358,7 @@ requirement). Architecture decided by
   existing `smoke/smoke.e2e.test.ts` Rust MCP launch shim expectation
   (`gateUnavailable` vs `allow`), reproduced standalone after rebuilding
   `target/debug/anvil`; the new DSV-051 smoke file passes in that run.
+- **Merged:** 2026-07-06 via PR #3205 (`717299e37`).
 - **Files:** `docs/runbooks/save-time-background-driver.md`,
   `apps/e2e/src/**/*save*time*driver*.e2e.test.ts`, public activation docs cross-links
 - **Dependencies:** DSV-047, DSV-048, DSV-049, DSV-050
@@ -1390,5 +1392,5 @@ requirement). Architecture decided by
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
 | B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
-| C — Headless background driver | 6 | 5/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049 Merged 2026-07-05; DSV-050 Merged 2026-07-05 via PR #3200; DSV-051 In Progress) | In Progress |
-| **Total** | **26** | **25/26 done** | **In Progress (Sub-phase C is the v0.9 usefulness gate)** |
+| C — Headless background driver | 6 | 6/6 done (DSV-046 design Done 2026-07-04 — ADR-101; DSV-048 Merged 2026-07-04 via PR #3186; DSV-047 Merged 2026-07-04 via PR #3191; DSV-049 Merged 2026-07-05; DSV-050 Merged 2026-07-05 via PR #3200; DSV-051 Merged 2026-07-06 via PR #3205) | Done (all Merged; awaiting release) |
+| **Total** | **26** | **26/26 done** | **Done (awaiting release evidence before Complete)** |
