@@ -1,8 +1,8 @@
 # Development Guides
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                     |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-11 against `docs/guides/documentation-governance.md` and `docs/guides/` |
+| Type   | Authority | Owner | Status | Freshness                                                                                     |
+| ------ | --------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
+| README | Advisory  | AICON | Live   | Last reviewed 2026-07-07 against `docs/guides/documentation-governance.md` and `docs/guides/` |
 
 | Upstream                                  | Downstream                |
 | ----------------------------------------- | ------------------------- |
@@ -41,6 +41,8 @@ How-to guides for developers working on Anvil.
 ### Testing & Workflow
 
 - [Testing Guide](testing.md) — Test strategy and practices
+- [Repository Operations](repository-operations.md) — Local repository
+  management, `gx`, and Worktrunk boundaries
 - [Branching Strategy](branching-strategy.md) — Main-first branch, Worktrunk,
   and cleanup model
 - [Worktree Policy](worktree-policy.md) — How to manage permanent and disposable

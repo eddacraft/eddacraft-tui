@@ -1,19 +1,21 @@
 # Documentation Governance
 
-| Type  | Authority     | Owner  | Status | Freshness                                                                        |
-| ----- | ------------- | ------ | ------ | -------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-11 against `plans/modules/documentation-governance.aps.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                               |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------- |
+| Guide | Authoritative | AICON | Live   | Last reviewed 2026-07-07 against `AGENTS.md`, `plans/project-context.md`, and AICON-004 |
 
-| Upstream                                                                           | Downstream                                                                           |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `plans/modules/documentation-governance.aps.md`, `AGENTS.md`, `plans/aps-rules.md` | `docs/README.md`, `docs/guides/README.md`, `AGENTS.md`, future `docs-workflow` skill |
+| Upstream                                                                                                               | Downstream                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `plans/archive/modules/documentation-governance.aps.md`, `AGENTS.md`, `plans/project-context.md`, `plans/aps-rules.md` | `docs/README.md`, `docs/guides/README.md`, `AGENTS.md`, future `docs-workflow` skill |
 
 Documentation is operational knowledge for humans and agents. It exists to make
 engineering behaviour deterministic: what to read, what to trust, what to
 update, and what must be verified before work is closed.
 
-This guide is owned by APS module `DOCGOV` and is the seed for a future
-`docs-workflow` skill.
+This guide was seeded by the archived `DOCGOV` APS module. AICON currently owns
+agent-contract routing and authority-link maintenance for this surface; future
+executable improvements should be tracked in APS rather than copied into
+`AGENTS.md`.
 
 ## Authority Model
 

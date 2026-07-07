@@ -43,8 +43,9 @@ Use Worktrunk-managed worktrees from `main` for task branches. See
 `docs/guides/branching-strategy.md` and `docs/guides/worktree-policy.md`.
 
 For APS vocabulary, status extensions, progress counters, release metadata,
-feature flags, repository operations, commit format, and local validation
-policy, read `plans/project-context.md`.
+feature flags, commit format, and local validation policy, read
+`plans/project-context.md`. For repository-management commands and local setup,
+read `docs/guides/repository-operations.md`.
 
 ## Architecture And Scope
 

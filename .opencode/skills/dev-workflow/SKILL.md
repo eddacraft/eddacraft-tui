@@ -21,6 +21,11 @@ Routing layer for the development lifecycle. Invoke this skill first for every
 non-trivial Anvil task, including documentation/configuration changes and review
 remediation. Every task follows this sequence — do not skip stages.
 
+For shared repository behaviour, read `AGENTS.md`. For the authoritative
+skill/agent/command inventory, read
+`docs/guides/agent-surface-inventory.md`; the table below is only this
+OpenCode adapter's routing snapshot.
+
 ```
 APS Truth Gate → APS (Ready) → Worktrunk Branch → TDD Code → Review → PR → Merged → cleanup offer → Released/Shipped → continuous-improvement note
 ```
@@ -56,8 +61,8 @@ from the agent runtime (OpenCode native skills, Claude Code globals, or
 | Commands (`.claude/commands/`) | `/council` (see [`.claude/commands/council.md`](../../../.claude/commands/council.md)), `/plan`, `/release`, others                                          | `/test`, `/debug`, `/delegate`, `/commit`                                                                                                                                                                                                               |
 
 If a referenced skill or agent is not vendored locally, it is expected to be
-available via the agent runtime — not vendored drift. CIB-002 is the open work
-item for producing the definitive inventory.
+available via the agent runtime — not vendored drift. The definitive inventory is
+`docs/guides/agent-surface-inventory.md`.
 
 ## Stage Map
 

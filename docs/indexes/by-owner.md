@@ -43,6 +43,15 @@
 | ----------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
 | [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
 
+## AICON
+
+| Document                                                                  | Path                                      | Type   | Authority     | Owner | Status |
+| ------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ----- | ------ |
+| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md)   | `docs/guides/agent-surface-inventory.md`  | Guide  | Authoritative | AICON | Live   |
+| [Development Guides](../../docs/guides/README.md)                         | `docs/guides/README.md`                   | README | Advisory      | AICON | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md) | `docs/guides/documentation-governance.md` | Guide  | Authoritative | AICON | Live   |
+| [Repository Operations](../../docs/guides/repository-operations.md)       | `docs/guides/repository-operations.md`    | Guide  | Authoritative | AICON | Live   |
+
 ## APGOV
 
 | Document                                                                | Path                                | Type     | Authority | Owner | Status |
@@ -83,11 +92,10 @@
 
 ## CIB
 
-| Document                                                                                               | Path                                     | Type    | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------------------------ | ---------------------------------------- | ------- | ------------- | ----- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                         | `docs/runbooks/admin-cli.md`             | Runbook | Authoritative | CIB   | Live   |
-| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md)                                | `docs/guides/agent-surface-inventory.md` | Guide   | Authoritative | CIB   | Live   |
-| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`    | Spec    | Authoritative | CIB   | Live   |
+| Document                                                                                               | Path                                  | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                         | `docs/runbooks/admin-cli.md`          | Runbook | Authoritative | CIB   | Live   |
+| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md` | Spec    | Authoritative | CIB   | Live   |
 
 ## CLAR
 
@@ -134,8 +142,6 @@
 | [Anvil Architecture](../../docs/architecture/overview.md)                                                       | `docs/architecture/overview.md`                | Guide  | Derived       | DOCGOV | Live   |
 | [Anvil — Full Architecture (Current vs Proposed End State)](../../docs/architecture/anvil-full-architecture.md) | `docs/architecture/anvil-full-architecture.md` | Spec   | Derived       | DOCGOV | Live   |
 | [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)                                  | `docs/guides/architecture-diagrams.md`         | Guide  | Authoritative | DOCGOV | Live   |
-| [Development Guides](../../docs/guides/README.md)                                                               | `docs/guides/README.md`                        | README | Advisory      | DOCGOV | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)                                       | `docs/guides/documentation-governance.md`      | Guide  | Authoritative | DOCGOV | Live   |
 | [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)                                         | `docs/governance/tags-catalogue.md`            | Guide  | Authoritative | DOCGOV | Live   |
 | [Internal Engineering Documentation](../../docs/README.md)                                                      | `docs/README.md`                               | README | Advisory      | DOCGOV | Live   |
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                   | `docs/guides/release-doc-checklist.md`         | Guide  | Advisory      | DOCGOV | Live   |

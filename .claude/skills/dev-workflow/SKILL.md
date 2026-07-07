@@ -7,6 +7,10 @@ description: Use at the start of any development task to route to the correct sk
 
 Routing layer for the development lifecycle. Every non-trivial task follows this sequence - do not skip stages.
 
+For shared repository behaviour, read `AGENTS.md`. For the authoritative
+skill/agent/command inventory, read `docs/guides/agent-surface-inventory.md`.
+This file only records the Claude Code-facing adapter for the shared workflow.
+
 ```
 Plan Truth Gate -> Isolate -> TDD Code -> Verify -> Review -> PR -> Cleanup
 ```
@@ -108,6 +112,8 @@ present) auto-advances post-merge states when release evidence is recorded.
 
 ## Project References
 
+- Shared agent contract: `AGENTS.md`
+- Agent surface inventory: `docs/guides/agent-surface-inventory.md`
 - Branching strategy: project-specific, commonly `docs/guides/branching-strategy.md`
 - Worktree policy: project-specific, commonly `docs/guides/worktree-policy.md`
 - APS rules: `plans/aps-rules.md` when present

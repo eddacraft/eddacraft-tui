@@ -1,16 +1,29 @@
 # Testing Best Practices
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                      |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-05-25 against `AGENTS.md` and current TypeScript/Rust test command surfaces |
+| Type  | Authority     | Owner | Status | Freshness                                                                               |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-07-07 against `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
 
-| Upstream                                                                                                                         | Downstream                                                     |
-| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `AGENTS.md`, `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml` | `docs/guides/README.md`, `pnpm test`, `cargo test --workspace` |
+| Upstream                                                                                                                                                                  | Downstream                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `AGENTS.md`, `plans/project-context.md`, `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `policies/` | `docs/guides/README.md`, `AGENTS.md`, `pnpm test`, `cargo test --workspace`, `opa test` |
 
 This guide covers testing conventions and best practices for the Anvil monorepo.
 TypeScript packages use **Vitest**; Rust crates use **cargo test** with
 **insta** (snapshot testing) and **criterion** (benchmarks).
+
+`AGENTS.md` intentionally links here instead of carrying the full test
+catalogue. This guide owns stack-specific command selection, E2E conventions,
+coverage notes, and OPA/Regal policy-test notes.
+
+## Test Stack
+
+| Stack           | Location                                              | Runner                                             |
+| --------------- | ----------------------------------------------------- | -------------------------------------------------- |
+| TypeScript unit | `packages/**/__tests__`, co-located `*.test.ts` files | Vitest via Nx                                      |
+| Rust unit       | `crates/**/src/**/tests`, co-located module tests     | `cargo test`                                       |
+| E2E             | `apps/e2e/src/**/*.e2e.test.ts`                       | Vitest workspace using `apps/e2e/vitest.config.ts` |
+| Rego policy     | `policies/fixtures/*.rego` and policy package tests   | `opa test`; Regal for linting where configured     |
 
 ## Quick Reference
 
@@ -28,6 +41,9 @@ cargo test -p eddacraft-anvil-kernel   # Test specific crate
 cargo test -p eddacraft-anvil-checks -- secret  # Filter by test name
 cargo insta review           # Review snapshot changes
 cargo bench -p eddacraft-anvil-checks  # Run criterion benchmarks
+
+# Rego / policy checks
+opa test policies/fixtures   # Run policy fixture tests when OPA is installed
 ```
 
 ---
@@ -221,6 +237,27 @@ Have a small number of tests that:
 ---
 
 ## Anvil-Specific Patterns
+
+### E2E Harness
+
+E2E tests live under `apps/e2e/src/**/*.e2e.test.ts` and run through the Vitest
+workspace config at `apps/e2e/vitest.config.ts`. Keep E2E tests focused on
+observable CLI, daemon, hook, or workflow behaviour that cannot be proven with a
+unit test alone. Use isolated HOME/runtime directories and temporary workspaces
+so tests do not mutate the developer's real Anvil, Git, or editor state.
+
+### Coverage
+
+Use `pnpm test:coverage` when a change needs coverage evidence. Coverage output
+is evidence, not a design target: prefer meaningful boundary and regression
+tests over assertions written only to raise a percentage.
+
+### OPA And Regal
+
+Policy fixtures live under `policies/fixtures/`. Use `opa test` for Rego policy
+behaviour and Regal where the policy surface has lint configuration. Keep policy
+fixtures small and name them after the behaviour they prove so failed checks map
+back to the policy intent quickly.
 
 ### Golden File Testing (Hash Stability)
 

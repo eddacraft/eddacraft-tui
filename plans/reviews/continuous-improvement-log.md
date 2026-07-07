@@ -2129,3 +2129,20 @@ a backlog. Promote repeated friction or executable follow-up work to
   or carry the planning artefact into the execution worktree before editing the
   implementation surface.
 - **Follow-up:** AICON-002..005 remain ready.
+
+### 2026-07-07 — opencode
+
+- **Task:** Complete AICON-002..005 via dev-workflow.
+- **Outcome:** AICON is Done 5/5 with testing, repository operations, authority
+  links, and adapter thinness reconciled.
+- **Worked:** Completing the dependent AICON items together made the guide routing
+  and generated docs indexes consistent in one pass.
+- **Failed:** Initial `format:check` failed before running `oxfmt`; quick review
+  then found missing Claude adapter and inventory links. Validation was rerun
+  after both fixes.
+- **Friction:** Stored AICON rollups needed an explicit `pnpm aps:index` reconcile
+  once all item statuses were Done, and adapter parity required checking all
+  three runtime surfaces.
+- **Improvement:** For module-closing docs batches, run docs index and APS count
+  reconciliation before the first final validation pass.
+- **Follow-up:** none.

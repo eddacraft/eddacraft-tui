@@ -3,6 +3,10 @@
 **For shared agent conventions (planning, commits, scope, code quality), see
 `@AGENTS.md`.**
 
+For the shared inventory of skills, agents, and commands, see
+`@docs/guides/agent-surface-inventory.md`. This file only records Claude
+Code-specific adapter details.
+
 ## Commands
 
 No build or test commands in this config layer — the monorepo uses `pnpm` and
@@ -56,5 +60,5 @@ release prep. For quick reviews, use `/review` instead.
 ## Gotchas
 
 - This repo uses ESM (`"type": "module"` in package.json)
-- TypeScript is a devDependency but there's no tsconfig or source code to
-  compile
+- TypeScript config exists for package and app surfaces; use the repo validation
+  scripts rather than inferring build coverage from this adapter.

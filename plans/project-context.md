@@ -2,11 +2,11 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                                            |
 | ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
-| Guide | Authoritative | APSCAN | Live   | Last reviewed 2026-05-25 against `plans/archive/modules/aps-canonical-alignment.aps.md` (APSCAN archived) |
+| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-07-07 against `AGENTS.md`, AICON-004, and `docs/guides/repository-operations.md` |
 
 | Upstream                                                  | Downstream                                      |
 | --------------------------------------------------------- | ----------------------------------------------- |
-| `plans/aps-rules.md`, `AGENTS.md`, `docs/guides/documentation-governance.md` | `AGENTS.md`, `plans/aps-rules.md`, agents using APS |
+| `plans/aps-rules.md`, `AGENTS.md`, `docs/guides/documentation-governance.md`, `docs/guides/repository-operations.md` | `AGENTS.md`, `plans/aps-rules.md`, agents using APS |
 
 This file records Anvil-specific planning, execution, release, and documentation
 rules that deliberately sit outside portable APS guidance. Keep
@@ -310,15 +310,11 @@ CI is authoritative. Local validation gives evidence before commit/PR.
 
 ## Repository Operations
 
-Use `gx` for repository management. Never use raw `git clone` for repository
-setup.
-
-| Task | Command |
-| ---- | ------- |
-| Clone a repo | `gx clone <url-or-name>` |
-| Jump to a project | `gx <name>` |
-| Scaffold configs | `gx init` |
-| List projects | `gx list` |
+Repository setup and local repository-management commands are owned by
+[`docs/guides/repository-operations.md`](../docs/guides/repository-operations.md).
+This project context only records the workflow consequence: implementation work
+uses Worktrunk-managed worktrees from `main`, and agents must not bypass the
+repository manager for normal setup.
 
 ## Commit Format
 

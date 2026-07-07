@@ -5,7 +5,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| AICON | —     | In Progress | 1/5      |
+| AICON | —     | Done        | 5/5      |
 
 ## Purpose
 
@@ -90,7 +90,7 @@ and made authority drift more likely.
 
 ### AICON-002: Rehome testing detail
 
-- **Status:** Ready
+- **Status:** Done 2026-07-07 on `docs/aicon-001-agent-contract`.
 - **Intent:** Ensure detailed test infrastructure guidance has one guide-owned
   home outside the root agent contract.
 - **Expected Outcome:** `docs/guides/testing.md` owns the stack table, local test
@@ -108,10 +108,14 @@ and made authority drift more likely.
   - `pnpm run format:check`
 - **Dependencies:** none
 - **Confidence:** high
+- **Closeout:** `docs/guides/testing.md` now owns the stack table, command
+  selection, E2E harness, coverage, and OPA/Regal notes; `AGENTS.md` and
+  `docs/guides/README.md` route to the guide instead of duplicating the
+  catalogue.
 
 ### AICON-003: Create repository-operations guide
 
-- **Status:** Ready
+- **Status:** Done 2026-07-07 on `docs/aicon-001-agent-contract`.
 - **Intent:** Move `gx` and local repository-management expectations out of the
   always-loaded agent contract.
 - **Expected Outcome:** A guide owns repository setup and management conventions,
@@ -129,10 +133,13 @@ and made authority drift more likely.
   - `pnpm run format:check`
 - **Dependencies:** none
 - **Confidence:** high
+- **Closeout:** Added `docs/guides/repository-operations.md` as the authoritative
+  home for `gx`, local setup expectations, and Worktrunk boundary links; root
+  and guide-index routing now point to it.
 
 ### AICON-004: Reconcile authority links
 
-- **Status:** Ready
+- **Status:** Done 2026-07-07 on `docs/aicon-001-agent-contract`.
 - **Intent:** Make the destination documents explicitly own the detail that root
   `AGENTS.md` routes away from.
 - **Expected Outcome:** `plans/project-context.md`,
@@ -154,10 +161,15 @@ and made authority drift more likely.
   - `pnpm run aps:index:check`
 - **Dependencies:** AICON-002, AICON-003
 - **Confidence:** medium
+- **Closeout:** Refreshed authority metadata and prose in
+  `plans/project-context.md`, `docs/guides/documentation-governance.md`, and
+  `docs/guides/agent-surface-inventory.md` so each destination document names
+  its current upstreams/downstreams and explains archived `DOCGOV` inheritance
+  where relevant.
 
 ### AICON-005: Verify tool-specific adapters stay thin
 
-- **Status:** Ready
+- **Status:** Done 2026-07-07 on `docs/aicon-001-agent-contract`.
 - **Intent:** Confirm runtime-specific instruction surfaces remain adapters over
   the shared root contract instead of duplicating generic procedure text.
 - **Expected Outcome:** `CLAUDE.md`, `.opencode/skills/dev-workflow/SKILL.md`,
@@ -169,6 +181,7 @@ and made authority drift more likely.
   permissions.
 - **Files:**
   - `CLAUDE.md`
+  - `.claude/skills/dev-workflow/SKILL.md`
   - `.opencode/skills/dev-workflow/SKILL.md`
   - `.codex/skills/dev-workflow/SKILL.md`
   - `docs/guides/agent-surface-inventory.md`
@@ -177,6 +190,11 @@ and made authority drift more likely.
   - `pnpm run format:check`
 - **Dependencies:** AICON-001
 - **Confidence:** medium
+- **Closeout:** Reviewed `CLAUDE.md`, `.claude/skills/dev-workflow/SKILL.md`,
+  `.opencode/skills/dev-workflow/SKILL.md`, and
+  `.codex/skills/dev-workflow/SKILL.md`; added explicit routing back to
+  `AGENTS.md` and `docs/guides/agent-surface-inventory.md` where adapter
+  thinness was implicit.
 
 ## Success Criteria
 
