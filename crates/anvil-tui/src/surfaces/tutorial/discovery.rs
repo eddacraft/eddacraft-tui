@@ -129,31 +129,44 @@ impl ScanResults {
     /// - Drift / CI / `DeveloperAcceleration` -> all findings (cross-cutting)
     #[must_use]
     pub fn filter_by_domain(&self, path: TutorialPath) -> ScanResults {
-        let filtered_findings: Vec<Finding> = match path {
-            TutorialPath::Policy => self
-                .findings
-                .iter()
-                .filter(|f| matches!(f.source, FindingSource::AntiPattern | FindingSource::Secret))
-                .cloned()
-                .collect(),
-            TutorialPath::Architecture => self
-                .findings
-                .iter()
-                .filter(|f| matches!(f.source, FindingSource::Architecture))
-                .cloned()
-                .collect(),
-            TutorialPath::ProtectionLoop
-            | TutorialPath::DeveloperAcceleration
-            | TutorialPath::Drift
-            | TutorialPath::CI => self.findings.clone(),
-        };
         ScanResults {
-            findings: filtered_findings,
+            findings: self
+                .findings
+                .iter()
+                .filter(|f| Self::domain_includes(path, f.source))
+                .cloned()
+                .collect(),
             files_scanned: self.files_scanned,
             duration_ms: self.duration_ms,
             truncated: self.truncated,
             files_skipped_by_ignore: self.files_skipped_by_ignore,
             is_showcase: self.is_showcase,
+        }
+    }
+
+    /// Count the findings relevant to a tutorial domain without cloning.
+    /// Same domain mapping as [`filter_by_domain`](Self::filter_by_domain);
+    /// used on render-hot paths (WOW-003 picker counts, WOW-004 baseline)
+    /// where only the count matters.
+    #[must_use]
+    pub fn count_by_domain(&self, path: TutorialPath) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| Self::domain_includes(path, f.source))
+            .count()
+    }
+
+    /// Whether findings from `source` belong to `path`'s tutorial domain.
+    fn domain_includes(path: TutorialPath, source: FindingSource) -> bool {
+        match path {
+            TutorialPath::Policy => {
+                matches!(source, FindingSource::AntiPattern | FindingSource::Secret)
+            }
+            TutorialPath::Architecture => matches!(source, FindingSource::Architecture),
+            TutorialPath::ProtectionLoop
+            | TutorialPath::DeveloperAcceleration
+            | TutorialPath::Drift
+            | TutorialPath::CI => true,
         }
     }
 }

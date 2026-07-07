@@ -632,18 +632,7 @@ fn command_bar_line<'a>(
     effect: Option<super::CommandEffect>,
     theme: &EddaCraftTheme,
 ) -> Line<'a> {
-    let mut spans = vec![
-        Span::styled(
-            "$ ",
-            Style::default()
-                .fg(theme.accent())
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            command,
-            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
-        ),
-    ];
+    let mut spans = prompt_spans(command, theme);
     match effect {
         Some(super::CommandEffect::MutatesRepo) => spans.push(Span::styled(
             "  [writes to your repo]",
@@ -660,11 +649,10 @@ fn command_bar_line<'a>(
     Line::from(spans)
 }
 
-/// WOW-002: the prompt line while a command reveal is in flight — the
-/// revealed prefix plus a block cursor, reading as anvil typing the command
-/// into the terminal. Deterministic: content depends only on tick count.
-fn reveal_bar_line<'a>(reveal: &'a super::CommandReveal, theme: &EddaCraftTheme) -> Line<'a> {
-    Line::from(vec![
+/// The shared prompt + command spans of the WOW-001/WOW-002 command bar, so
+/// the pre-Enter frame and the mid-reveal frame can never drift apart.
+fn prompt_spans<'a>(command: &'a str, theme: &EddaCraftTheme) -> Vec<Span<'a>> {
+    vec![
         Span::styled(
             "$ ",
             Style::default()
@@ -672,16 +660,24 @@ fn reveal_bar_line<'a>(reveal: &'a super::CommandReveal, theme: &EddaCraftTheme)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            reveal.visible(),
+            command,
             Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            "\u{258c}",
-            Style::default()
-                .fg(theme.accent())
-                .add_modifier(Modifier::BOLD),
-        ),
-    ])
+    ]
+}
+
+/// WOW-002: the prompt line while a command reveal is in flight — the
+/// revealed prefix plus a block cursor, reading as anvil typing the command
+/// into the terminal. Deterministic: content depends only on tick count.
+fn reveal_bar_line<'a>(reveal: &'a super::CommandReveal, theme: &EddaCraftTheme) -> Line<'a> {
+    let mut spans = prompt_spans(reveal.visible(), theme);
+    spans.push(Span::styled(
+        "\u{258c}",
+        Style::default()
+            .fg(theme.accent())
+            .add_modifier(Modifier::BOLD),
+    ));
+    Line::from(spans)
 }
 
 fn path_is_done(state: &TutorialState, path: super::TutorialPath) -> bool {
@@ -712,6 +708,12 @@ fn build_paths_progress<'a>(state: &'a TutorialState, theme: &'a EddaCraftTheme)
         .collect()
 }
 
+/// "finding" / "findings" for a count — the delta line reads on the number
+/// it ends with.
+fn findings_noun(count: usize) -> &'static str {
+    if count == 1 { "finding" } else { "findings" }
+}
+
 /// WOW-004: one honest sentence about the re-scan result. The copy names
 /// the re-scan (it really ran) and never claims anvil fixed anything.
 fn completion_delta_line(delta: super::FindingsDelta, theme: &EddaCraftTheme) -> Line<'static> {
@@ -719,20 +721,23 @@ fn completion_delta_line(delta: super::FindingsDelta, theme: &EddaCraftTheme) ->
     let (msg, color) = match after.cmp(&before) {
         std::cmp::Ordering::Less => (
             format!(
-                "Re-scanned your repo: {before} \u{2192} {after} findings in this domain \u{2014} {} fewer than when you started.",
+                "Re-scanned your repo: {before} \u{2192} {after} {} in this domain \u{2014} {} fewer than when you started.",
+                findings_noun(after),
                 before - after
             ),
             theme.success(),
         ),
         std::cmp::Ordering::Equal => (
             format!(
-                "Re-scanned your repo: {before} findings in this domain \u{2014} same as when you started."
+                "Re-scanned your repo: {before} {} in this domain \u{2014} same as when you started.",
+                findings_noun(before)
             ),
             theme.muted(),
         ),
         std::cmp::Ordering::Greater => (
             format!(
-                "Re-scanned your repo: {before} \u{2192} {after} findings in this domain \u{2014} {} more than when you started.",
+                "Re-scanned your repo: {before} \u{2192} {after} {} in this domain \u{2014} {} more than when you started.",
+                findings_noun(after),
                 after - before
             ),
             theme.warning(),
@@ -1504,6 +1509,15 @@ mod tests {
         snapshot_complete_with_delta(
             "snapshot_complete_phase_delta_regressed",
             &complete_state_with_delta(2, 4),
+        );
+    }
+
+    /// WOW-004: an ending count of 1 must read "1 finding", not "1 findings".
+    #[test]
+    fn snapshot_complete_phase_delta_singular() {
+        snapshot_complete_with_delta(
+            "snapshot_complete_phase_delta_singular",
+            &complete_state_with_delta(2, 1),
         );
     }
 

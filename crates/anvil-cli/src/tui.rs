@@ -292,20 +292,27 @@ fn tutorial_loop(
         })?;
 
         if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()?
-                && key.kind == KeyEventKind::Press
-            {
-                // While the inline editor is open, letters must be typed as
-                // text rather than consumed as navigation/quit commands. The
-                // default KeyHandler maps j/k/h/l→arrows, q→quit and
-                // space→toggle, so it cannot enter those characters — switch
-                // to a text-input map.
-                let action = if state.is_editing() {
-                    map_key_text(key)
-                } else {
-                    KeyHandler::map(key)
-                };
-                state.handle_key(action);
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    // While the inline editor is open, letters must be typed
+                    // as text rather than consumed as navigation/quit
+                    // commands. The default KeyHandler maps j/k/h/l→arrows,
+                    // q→quit and space→toggle, so it cannot enter those
+                    // characters — switch to a text-input map.
+                    let action = if state.is_editing() {
+                        map_key_text(key)
+                    } else {
+                        KeyHandler::map(key)
+                    };
+                    state.handle_key(action);
+                }
+                _ => {
+                    // Non-input events (resize, focus, key release/repeat)
+                    // must not starve the reveal pacing — a stream of them
+                    // would otherwise freeze the animation and defer the
+                    // command's execution indefinitely (WOW-002).
+                    state.reveal_tick();
+                }
             }
         } else {
             // Poll timeout (fixed 100ms): the deterministic pacing tick for

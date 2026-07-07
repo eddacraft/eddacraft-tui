@@ -45,6 +45,18 @@ fn timed_loading(
     Ok(())
 }
 
+/// Build the tutorial state for an entry point that ran discovery: threads
+/// the scan results through and wires the WOW-004 read-only completion
+/// re-scan (same scanner as discovery; a failed re-scan means no delta).
+fn tutorial_state_with_scan(
+    results: anvil_tui::surfaces::tutorial::discovery::ScanResults,
+) -> anvil_tui::surfaces::tutorial::TutorialState {
+    let mut state = anvil_tui::surfaces::tutorial::TutorialState::new();
+    state.set_scan_results(results);
+    state.set_completion_rescan(|| scan_project().ok());
+    state
+}
+
 fn remove_fixed_finding(
     results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
     request: &FixRequest,
@@ -135,12 +147,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
                 match run_discovery(&mut terminal, &theme)? {
                     Some(results) => {
-                        let mut tutorial_state =
-                            anvil_tui::surfaces::tutorial::TutorialState::new();
-                        tutorial_state.set_scan_results(results);
-                        // WOW-004: completion delta re-scan — read-only,
-                        // same scanner as discovery; errors mean no delta.
-                        tutorial_state.set_completion_rescan(|| scan_project().ok());
+                        let mut tutorial_state = tutorial_state_with_scan(results);
                         let exit = run_tutorial_with_fix(
                             &mut terminal,
                             &theme,
@@ -1283,10 +1290,7 @@ fn run_welcome_hub(
             Some(QuickStartOption::RunTutorial) => {
                 welcome.status_message = None;
                 if let Some(results) = run_discovery(terminal, theme)? {
-                    let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
-                    tutorial_state.set_scan_results(results);
-                    // WOW-004: completion delta re-scan (read-only).
-                    tutorial_state.set_completion_rescan(|| scan_project().ok());
+                    let mut tutorial_state = tutorial_state_with_scan(results);
                     let sub_exit =
                         run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)?;
                     if sub_exit == SurfaceExit::Quit {
@@ -1321,11 +1325,7 @@ fn run_welcome_hub(
                     Ok(OnboardingOutcome::Quit) => break,
                     Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
                         if let Some(results) = run_discovery(terminal, theme)? {
-                            let mut tutorial_state =
-                                anvil_tui::surfaces::tutorial::TutorialState::new();
-                            tutorial_state.set_scan_results(results);
-                            // WOW-004: completion delta re-scan (read-only).
-                            tutorial_state.set_completion_rescan(|| scan_project().ok());
+                            let mut tutorial_state = tutorial_state_with_scan(results);
                             let sub_exit = run_tutorial_with_fix(
                                 terminal,
                                 theme,

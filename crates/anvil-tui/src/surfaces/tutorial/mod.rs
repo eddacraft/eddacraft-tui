@@ -245,6 +245,11 @@ pub struct TutorialState {
     /// completes; absent — or returning `None` — the completion screen
     /// renders unchanged.
     pub completion_rescan: Option<Box<dyn Fn() -> Option<ScanResults>>>,
+    /// WOW-004: the chosen domain's finding count at the moment the path was
+    /// loaded. Captured eagerly because the fix flow prunes `scan_results`
+    /// in place mid-walk — the delta must compare against what the user
+    /// actually started with, or an applied fix erases its own win.
+    pub completion_baseline: Option<usize>,
     /// WOW-004: computed findings delta for the chosen domain.
     pub completion_delta: Option<FindingsDelta>,
     /// Pending fix request emitted when the user presses `f`.
@@ -297,6 +302,7 @@ impl TutorialState {
             wants_watch_demo: false,
             reveal: None,
             completion_rescan: None,
+            completion_baseline: None,
             completion_delta: None,
             pending_fix: None,
             editor: None,
@@ -443,7 +449,7 @@ impl TutorialState {
         if results.is_showcase {
             return None;
         }
-        let count = results.filter_by_domain(path).findings.len();
+        let count = results.count_by_domain(path);
         (count > 0).then_some(count)
     }
 
@@ -475,6 +481,14 @@ impl TutorialState {
         self.current_step = 0;
         self.chosen_path = Some(path);
         self.domain_findings = self.scan_results.as_ref().map(|r| r.filter_by_domain(path));
+        // WOW-004: snapshot the opening count now — `scan_results` may be
+        // pruned by the fix flow before the walk completes. Showcase data is
+        // never a real baseline (CIB-170).
+        self.completion_baseline = self
+            .scan_results
+            .as_ref()
+            .filter(|r| !r.is_showcase)
+            .map(|r| r.count_by_domain(path));
         self.phase = TutorialPhase::Running;
     }
 
@@ -518,11 +532,7 @@ impl TutorialState {
         // For steps with a command, re-execute it then verify.
         // For steps without a command, verify directly (e.g. FileExists).
         if let Some(ref cmd) = step.command.clone() {
-            let result = executor::execute_command(cmd);
-            let success = result.success;
-            self.steps[self.current_step].output = Some(result);
-            if success && self.run_verify_current() {
-                self.advance_step();
+            if self.execute_current_command(cmd) {
                 return true;
             }
         } else if let Some(ref verify) = step.verify {
@@ -596,29 +606,26 @@ impl TutorialState {
 
     /// WOW-004: compute the before/after findings count for the chosen
     /// domain. No-op — leaving the completion screen unchanged — without a
-    /// re-scan hook, without opening scan results, or when either scan is
-    /// showcase data (CIB-170: example findings are never counted as real).
+    /// re-scan hook, without an opening baseline (no scan, or showcase data;
+    /// CIB-170: example findings are never counted as real), or when the
+    /// re-scan fails or returns showcase data.
     fn compute_completion_delta(&mut self) {
         let Some(rescan) = self.completion_rescan.as_ref() else {
             return;
         };
-        let Some(opening) = self.scan_results.as_ref() else {
+        let Some(before) = self.completion_baseline else {
             return;
         };
-        if opening.is_showcase {
-            return;
-        }
         let Some(path) = self.chosen_path else {
             return;
         };
-        let before = opening.filter_by_domain(path).findings.len();
         let Some(rescanned) = rescan() else {
             return;
         };
         if rescanned.is_showcase {
             return;
         }
-        let after = rescanned.filter_by_domain(path).findings.len();
+        let after = rescanned.count_by_domain(path);
         self.completion_delta = Some(FindingsDelta { before, after });
     }
 
@@ -712,12 +719,21 @@ impl TutorialState {
             return;
         }
 
-        // WOW-002: while a command reveal is in flight, any key fast-forwards
-        // to the fully revealed command and executes it immediately. The user
-        // already committed to running it with Enter — a keypress here only
-        // skips the animation, never cancels the run.
+        // WOW-002: while a command reveal is in flight, keys fast-forward to
+        // the fully revealed command and execute it immediately — except
+        // Back/Quit. The reveal window is the user's last chance to back out
+        // before the run (CIB-165 consent posture), and q must never become
+        // a "run it now" key: Esc aborts the pending command, q aborts it
+        // and quits.
         if self.reveal.is_some() {
-            self.finish_reveal();
+            match action {
+                Action::Back => self.reveal = None,
+                Action::Quit => {
+                    self.reveal = None;
+                    self.should_quit = true;
+                }
+                _ => self.finish_reveal(),
+            }
             return;
         }
 
@@ -728,17 +744,13 @@ impl TutorialState {
             match action {
                 // 'r' — clear output/verify state and re-execute the command
                 Action::Character('r') => {
-                    if let Some(step) = self.steps.get_mut(self.current_step) {
+                    let cmd = self.steps.get_mut(self.current_step).and_then(|step| {
                         step.output = None;
                         step.verify_result = None;
-                        if let Some(cmd) = step.command.clone() {
-                            let result = executor::execute_command(&cmd);
-                            let succeeded = result.success;
-                            step.output = Some(result);
-                            if succeeded && self.run_verify_current() {
-                                self.advance_step();
-                            }
-                        }
+                        step.command.clone()
+                    });
+                    if let Some(cmd) = cmd {
+                        self.execute_current_command(&cmd);
                     }
                 }
                 // 's' — skip: mark complete and advance without re-running
@@ -825,15 +837,25 @@ impl TutorialState {
         let Some(reveal) = self.reveal.take() else {
             return;
         };
-        let result = executor::execute_command(&reveal.command);
+        self.execute_current_command(&reveal.command);
+    }
+
+    /// Execute `cmd` for the current step, store its output, verify, and
+    /// advance on success. Returns whether the step advanced. Shared by
+    /// reveal completion, failed-step retry, and watch-triggered re-runs so
+    /// the execution contract lives in one place.
+    fn execute_current_command(&mut self, cmd: &str) -> bool {
+        let result = executor::execute_command(cmd);
         let succeeded = result.success;
         if let Some(step) = self.steps.get_mut(self.current_step) {
             step.output = Some(result);
         }
         if succeeded && self.run_verify_current() {
             self.advance_step();
+            return true;
         }
         // On command failure we stay on the same step (retry/skip take over).
+        false
     }
 
     /// Whether the current step offers inline editing (`e`).
@@ -859,6 +881,7 @@ impl TutorialState {
                 self.current_step = 0;
                 self.chosen_path = None;
                 self.domain_findings = None;
+                self.completion_baseline = None;
                 self.completion_delta = None;
             }
             Action::Back => self.wants_back = true,
@@ -880,7 +903,7 @@ impl crate::surface::Surface for TutorialState {
                 if self.is_editing() {
                     "type to edit  enter newline  ctrl-s save  esc cancel"
                 } else if self.is_revealing() {
-                    "any key fast-forward"
+                    "any key run now  esc cancel  q quit"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
                 } else if self.current_step_is_editable() {
@@ -932,6 +955,7 @@ impl crate::surface::Surface for TutorialState {
         self.chosen_path = None;
         self.scan_results = None;
         self.domain_findings = None;
+        self.completion_baseline = None;
         self.completion_delta = None;
         self.resuming_notice = None;
         // static_mode, static_notice, and completed_paths are intentionally
@@ -1654,6 +1678,38 @@ mod tests {
     }
 
     #[test]
+    fn esc_during_reveal_cancels_without_executing() {
+        // The reveal window is the user's last chance to back out before
+        // the run (CIB-165): Esc aborts the pending command entirely.
+        let mut state = state_with_command_step("echo should_not_run");
+        state.handle_key(Action::Select);
+        assert!(state.is_revealing());
+
+        state.handle_key(Action::Back);
+
+        assert!(!state.is_revealing());
+        assert!(state.steps[0].output.is_none(), "command must not run");
+        assert!(!state.steps[0].completed);
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert!(!state.wants_back, "esc mid-reveal cancels, not backs out");
+    }
+
+    #[test]
+    fn quit_during_reveal_quits_without_executing() {
+        // q must never become a "run it now" key: it aborts the pending
+        // command and quits.
+        let mut state = state_with_command_step("echo should_not_run");
+        state.handle_key(Action::Select);
+        assert!(state.is_revealing());
+
+        state.handle_key(Action::Quit);
+
+        assert!(!state.is_revealing());
+        assert!(state.steps[0].output.is_none(), "command must not run");
+        assert!(state.should_quit);
+    }
+
+    #[test]
     fn reveal_failed_command_lands_in_retry_skip_state() {
         // The failed-step contract is unchanged: a command that fails after
         // the reveal leaves the step in the retry/skip state.
@@ -1711,7 +1767,7 @@ mod tests {
         let mut state = state_with_command_step("echo hello");
         state.handle_key(Action::Select);
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
-        assert_eq!(help, "any key fast-forward");
+        assert_eq!(help, "any key run now  esc cancel  q quit");
     }
 
     #[test]
@@ -1900,10 +1956,26 @@ mod tests {
         assert_eq!(state.phase, TutorialPhase::Complete);
     }
 
+    /// Build a Policy-path state through the real `load_steps` seam (so the
+    /// WOW-004 baseline is captured), then swap in harmless plain steps so
+    /// completing the walk never executes real commands.
+    fn delta_state(opening: ScanResults) -> TutorialState {
+        let mut state = TutorialState::new();
+        state.set_scan_results(opening);
+        state.load_steps(TutorialPath::Policy);
+        state.steps = vec![TutorialStep {
+            title: "Step".to_string(),
+            description: "desc".to_string(),
+            instruction: "enter".to_string(),
+            ..TutorialStep::default()
+        }];
+        state.current_step = 0;
+        state
+    }
+
     #[test]
     fn completion_delta_improved() {
-        let mut state = state_with_plain_steps(2); // chosen_path = Policy
-        state.set_scan_results(policy_scan_results(3));
+        let mut state = delta_state(policy_scan_results(3));
         state.set_completion_rescan(|| Some(policy_scan_results(1)));
 
         complete_all_steps(&mut state);
@@ -1919,8 +1991,7 @@ mod tests {
 
     #[test]
     fn completion_delta_unchanged() {
-        let mut state = state_with_plain_steps(1);
-        state.set_scan_results(policy_scan_results(2));
+        let mut state = delta_state(policy_scan_results(2));
         state.set_completion_rescan(|| Some(policy_scan_results(2)));
 
         complete_all_steps(&mut state);
@@ -1936,8 +2007,7 @@ mod tests {
 
     #[test]
     fn completion_delta_regressed() {
-        let mut state = state_with_plain_steps(1);
-        state.set_scan_results(policy_scan_results(1));
+        let mut state = delta_state(policy_scan_results(1));
         state.set_completion_rescan(|| Some(policy_scan_results(4)));
 
         complete_all_steps(&mut state);
@@ -1953,8 +2023,7 @@ mod tests {
 
     #[test]
     fn completion_delta_absent_without_rescan_hook() {
-        let mut state = state_with_plain_steps(1);
-        state.set_scan_results(policy_scan_results(2));
+        let mut state = delta_state(policy_scan_results(2));
 
         complete_all_steps(&mut state);
 
@@ -1972,12 +2041,33 @@ mod tests {
     }
 
     #[test]
+    fn completion_delta_baseline_survives_fix_pruning() {
+        // The welcome fix flow prunes scan_results in place when a finding
+        // is fixed mid-walk. The delta's 'before' must stay the opening
+        // count, or an applied fix erases its own win from the summary.
+        let mut state = delta_state(policy_scan_results(3));
+        state.set_completion_rescan(|| Some(policy_scan_results(2)));
+
+        // Simulate remove_fixed_finding: one finding pruned mid-walk.
+        state.scan_results.as_mut().unwrap().findings.pop();
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(
+            state.completion_delta,
+            Some(FindingsDelta {
+                before: 3,
+                after: 2
+            })
+        );
+    }
+
+    #[test]
     fn completion_delta_absent_when_opening_scan_is_showcase() {
         // CIB-170: showcase counts are examples, not a real baseline.
-        let mut state = state_with_plain_steps(1);
         let mut results = policy_scan_results(2);
         results.is_showcase = true;
-        state.set_scan_results(results);
+        let mut state = delta_state(results);
         state.set_completion_rescan(|| Some(policy_scan_results(0)));
 
         complete_all_steps(&mut state);
@@ -1987,8 +2077,7 @@ mod tests {
 
     #[test]
     fn completion_delta_absent_when_rescan_fails() {
-        let mut state = state_with_plain_steps(1);
-        state.set_scan_results(policy_scan_results(2));
+        let mut state = delta_state(policy_scan_results(2));
         state.set_completion_rescan(|| None);
 
         complete_all_steps(&mut state);
@@ -1998,8 +2087,7 @@ mod tests {
 
     #[test]
     fn completion_delta_cleared_when_choosing_another_path() {
-        let mut state = state_with_plain_steps(1);
-        state.set_scan_results(policy_scan_results(1));
+        let mut state = delta_state(policy_scan_results(1));
         state.set_completion_rescan(|| Some(policy_scan_results(0)));
         complete_all_steps(&mut state);
         assert!(state.completion_delta.is_some());
@@ -2011,8 +2099,7 @@ mod tests {
 
     #[test]
     fn completion_delta_cleared_on_reset() {
-        let mut state = state_with_plain_steps(1);
-        state.set_scan_results(policy_scan_results(1));
+        let mut state = delta_state(policy_scan_results(1));
         state.set_completion_rescan(|| Some(policy_scan_results(0)));
         complete_all_steps(&mut state);
         assert!(state.completion_delta.is_some());

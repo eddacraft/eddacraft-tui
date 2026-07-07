@@ -69,7 +69,13 @@ evidence affordances and personalization on top of the repaired baseline.
   informational steps; Space's skip-without-running behaviour is discoverable.
 - **Scope:** `TutorialStep` gains a declared mutating/read-only marker set in
   `paths.rs`; render + help-text changes; snapshot coverage for both variants.
-- **Non-scope:** No change to execution semantics or key handling.
+- **Non-scope:** No change to execution semantics — commands still run only
+  on Enter. (Reconciled 2026-07-08 during implementation: the original "no
+  key-handling change" wording contradicted this module's own constraint
+  "Space-advances-without-running is preserved" — before this item, space
+  was a silent no-op on command steps, leaving no way to decline a command.
+  Resolution: space now advances command steps without executing, pinned by
+  `toggle_skips_command_step_without_executing`.)
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/{mod,render,paths}.rs`
 - **Validation:** `cargo test -p anvil-tui` (new snapshots: command step
   before execution, read-only vs mutating badge; help-text drift tests)
