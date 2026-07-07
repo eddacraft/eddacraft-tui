@@ -1,8 +1,8 @@
 # First-Run Wow — Tutorial and Welcome Surface Uplift
 
-| ID  | Owner | Status | Progress |
-| --- | ----- | ------ | -------- |
-| WOW | Josh  | Ready  | 0/6      |
+| ID  | Owner | Status      | Progress |
+| --- | ----- | ----------- | -------- |
+| WOW | Josh  | In Progress | 0/6      |
 
 **Last reviewed:** 2026-07-08 — module created via planning-workflow from the
 operator's first-run-experience review (interactive session): the tutorial's
@@ -60,7 +60,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-001: Command-step evidence affordance
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/wow` (2026-07-08), PR pending
 - **Intent:** A user can tell before pressing Enter whether the current
   tutorial step executes a real command, and whether it mutates their repo.
 - **Expected Outcome:** Command steps render the command distinctly (prompt
@@ -77,7 +77,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-002: Typed-command execution presentation
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/wow` (2026-07-08), PR pending
 - **Dependencies:** WOW-001
 - **Intent:** Executing a command reads as anvil visibly driving the
   terminal, making the run-for-real behaviour unmistakable at the moment it
@@ -95,7 +95,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-003: Personalized path picker
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/wow` (2026-07-08), PR pending
 - **Intent:** The tutorial path picker shows each path's relevance to the
   user's repo using the discovery scan already threaded into the tutorial.
 - **Expected Outcome:** When scan results are present, each path row shows its
@@ -109,7 +109,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-004: Completion findings delta
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/wow` (2026-07-08), PR pending
 - **Intent:** Tutorial completion shows the user what changed in their repo
   during the walk instead of only offering the next path.
 - **Expected Outcome:** The complete phase can present a before/after findings
