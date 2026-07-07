@@ -4711,6 +4711,45 @@ archive.
   question deferred to the owner as a rendered-contract decision.
 - **Confidence:** high — decided 2026-07-04 (render-only, non-breaking).
 
+### CIB-182: First-user CLI command-path batch (local test 2026-07-07)
+
+- **Status:** Ready
+- **Intent:** Close the gap between ADR-082's interactive `anvil start` daily
+  path and what first users actually see when running `welcome` → `start` →
+  `status` → `watch` → `check` locally — especially false daemon-down signals,
+  blocking pickers, and recovery copy that steers to `intercept start
+  --foreground`.
+- **Expected Outcome:** A new user following quickstart/local-dev guidance
+  reaches `state: protecting` in one real-terminal `anvil start` without
+  manual intercept launch; `anvil status` daemon line agrees with `anvil
+  intercept status`; verify recipe and `anvil check` agree; non-interactive
+  recovery copy leads with "run `anvil start` in a terminal".
+- **Validation:** Re-run the audit repro in
+  [`plans/audits/2026-07-07-local-cli-first-user-test.md`](../audits/2026-07-07-local-cli-first-user-test.md);
+  each linked GitHub issue closes with an integration or transcript check.
+- **Identified From:** Local CLI command-path test session 2026-07-07 (this
+  workspace, debug build).
+- **Confidence:** high — reproduced on live binary before filing.
+- **Coordinates with:** CIB-165 (workflow picker default-unticked — merged;
+  discoverability gap remains), CIB-166/167 (activation copy — merged;
+  non-interactive/intercept recovery drift remains), ADR-082 (daemon lifecycle).
+- **Tracks (GitHub):**
+  - [#3216](https://github.com/eddacraft/anvil-001/issues/3216) — status PID
+    parse / daemon probe mismatch (**P0**)
+  - [#3217](https://github.com/eddacraft/anvil-001/issues/3217) — workflow
+    picker blocks first `start` (**P1**)
+  - [#3218](https://github.com/eddacraft/anvil-001/issues/3218) —
+    non-interactive recovery over-directs to intercept (**P1**)
+  - [#3221](https://github.com/eddacraft/anvil-001/issues/3221) — verify
+    recipe / secret-detection gap (**P1**)
+  - [#3220](https://github.com/eddacraft/anvil-001/issues/3220) — `ANVIL_HOME`
+    permissions cascade (**P2**)
+  - [#3219](https://github.com/eddacraft/anvil-001/issues/3219) — watch warm-up
+    completion signal (**P2**)
+  - [#3222](https://github.com/eddacraft/anvil-001/issues/3222) — status TUI
+    blocks PTY/scripts (**P2**)
+- **Epic:** [#3223](https://github.com/eddacraft/anvil-001/issues/3223)
+
 ### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests
 
 - **Status:** Merged 2026-07-05 via PR #3194
