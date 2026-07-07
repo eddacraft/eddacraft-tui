@@ -112,6 +112,42 @@ pub enum CommandEffect {
     MutatesRepo,
 }
 
+/// WOW-002: characters of the command revealed per TUI tick. The tutorial
+/// loop ticks on its fixed 100ms poll timeout, so pacing is deterministic —
+/// N ticks always show the same prefix — and snapshot-testable.
+pub const REVEAL_CHARS_PER_TICK: usize = 3;
+
+/// WOW-002: an in-flight typed-command reveal on the current step. On Enter
+/// the command is "typed" into the step's prompt line at a fixed interval
+/// before it executes, so running-for-real is unmistakable at the moment it
+/// happens. Any keypress fast-forwards to the full command and executes it
+/// immediately. Driven by [`TutorialState::reveal_tick`] from the TUI loop's
+/// existing tick — no threads, no wall-clock in rendered content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandReveal {
+    command: String,
+    /// Number of characters currently visible.
+    shown: usize,
+}
+
+impl CommandReveal {
+    fn new(command: String) -> Self {
+        Self { command, shown: 0 }
+    }
+
+    /// The currently revealed prefix of the command.
+    pub fn visible(&self) -> &str {
+        match self.command.char_indices().nth(self.shown) {
+            Some((idx, _)) => &self.command[..idx],
+            None => &self.command,
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        self.shown >= self.command.chars().count()
+    }
+}
+
 /// Output captured after running a step's command.
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
@@ -192,6 +228,9 @@ pub struct TutorialState {
     /// Set to true when the tutorial wants to launch the watch mode demo.
     /// The TUI loop exits and the CLI command handles the transition.
     pub wants_watch_demo: bool,
+    /// WOW-002: in-flight typed-command reveal on the current step. `Some`
+    /// between Enter on a command step and the command's execution.
+    pub reveal: Option<CommandReveal>,
     /// Pending fix request emitted when the user presses `f`.
     pub pending_fix: Option<FixRequest>,
     /// Active inline editor, opened with `e` on a step that has an
@@ -240,6 +279,7 @@ impl TutorialState {
             completed_paths: Vec::new(),
             resuming_notice: None,
             wants_watch_demo: false,
+            reveal: None,
             pending_fix: None,
             editor: None,
             edit_path: None,
@@ -603,6 +643,15 @@ impl TutorialState {
             return;
         }
 
+        // WOW-002: while a command reveal is in flight, any key fast-forwards
+        // to the fully revealed command and executes it immediately. The user
+        // already committed to running it with Enter — a keypress here only
+        // skips the animation, never cancels the run.
+        if self.reveal.is_some() {
+            self.finish_reveal();
+            return;
+        }
+
         // When a command has failed or verification has failed, only retry
         // (r) and skip (s) are active; everything else is ignored except
         // Back and Quit.
@@ -647,14 +696,10 @@ impl TutorialState {
                     self.wants_watch_demo = true;
                 } else if let Some(step) = self.steps.get(self.current_step) {
                     if let Some(cmd) = step.command.clone() {
-                        // Execute the command and store the output.
-                        let result = executor::execute_command(&cmd);
-                        let succeeded = result.success;
-                        self.steps[self.current_step].output = Some(result);
-                        if succeeded && self.run_verify_current() {
-                            self.advance_step();
-                        }
-                        // On command failure we stay on the same step.
+                        // WOW-002: don't execute yet — start the typed
+                        // reveal. The command runs when the reveal completes
+                        // (via ticks or a fast-forwarding keypress).
+                        self.reveal = Some(CommandReveal::new(cmd));
                     } else {
                         // No command — informational step, advance immediately.
                         self.advance_step();
@@ -683,6 +728,43 @@ impl TutorialState {
             Action::Quit => self.should_quit = true,
             _ => {}
         }
+    }
+
+    /// WOW-002: whether a typed-command reveal is in flight. The renderer
+    /// swaps the command bar for the partially typed prompt line while true.
+    pub fn is_revealing(&self) -> bool {
+        self.reveal.is_some()
+    }
+
+    /// WOW-002: advance the in-flight reveal by one fixed interval. Called by
+    /// the TUI loop on its existing poll tick; executes the command once the
+    /// full command is visible. No-op when no reveal is active.
+    pub fn reveal_tick(&mut self) {
+        let Some(reveal) = self.reveal.as_mut() else {
+            return;
+        };
+        let total = reveal.command.chars().count();
+        reveal.shown = (reveal.shown + REVEAL_CHARS_PER_TICK).min(total);
+        if reveal.is_complete() {
+            self.finish_reveal();
+        }
+    }
+
+    /// Complete the reveal and execute the revealed command — the same
+    /// execute → verify → advance sequence Enter performed before WOW-002.
+    fn finish_reveal(&mut self) {
+        let Some(reveal) = self.reveal.take() else {
+            return;
+        };
+        let result = executor::execute_command(&reveal.command);
+        let succeeded = result.success;
+        if let Some(step) = self.steps.get_mut(self.current_step) {
+            step.output = Some(result);
+        }
+        if succeeded && self.run_verify_current() {
+            self.advance_step();
+        }
+        // On command failure we stay on the same step (retry/skip take over).
     }
 
     /// Whether the current step offers inline editing (`e`).
@@ -727,6 +809,8 @@ impl crate::surface::Surface for TutorialState {
             TutorialPhase::Running => {
                 if self.is_editing() {
                     "type to edit  enter newline  ctrl-s save  esc cancel"
+                } else if self.is_revealing() {
+                    "any key fast-forward"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
                 } else if self.current_step_is_editable() {
@@ -766,6 +850,7 @@ impl crate::surface::Surface for TutorialState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.reveal = None;
         self.pending_fix = None;
         self.editor = None;
         self.edit_path = None;
@@ -926,6 +1011,19 @@ mod tests {
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
         state
+    }
+
+    /// Press Enter on a command step, then fast-forward the WOW-002 typed
+    /// reveal with a second keypress so the command actually executes.
+    /// Mirrors a user hitting a key mid-reveal. Only valid on command steps —
+    /// on informational steps the second key would advance an extra step.
+    fn select_and_run(state: &mut TutorialState) {
+        state.handle_key(Action::Select);
+        assert!(
+            state.is_revealing(),
+            "Enter on a command step must start the reveal"
+        );
+        state.handle_key(Action::Select);
     }
 
     #[test]
@@ -1241,7 +1339,7 @@ mod tests {
         let mut state = state_with_command_step("echo hello");
         assert_eq!(state.current_step, 0);
 
-        state.handle_key(Action::Select);
+        select_and_run(&mut state);
 
         // Command succeeds — step is completed and phase moves to Complete
         // (only one step in this state)
@@ -1259,7 +1357,7 @@ mod tests {
         // Use a command that will always fail with exit code 1.
         let mut state = state_with_command_step("exit 1");
 
-        state.handle_key(Action::Select);
+        select_and_run(&mut state);
 
         // Command fails — step stays current and is not completed.
         assert_eq!(state.current_step, 0);
@@ -1275,7 +1373,7 @@ mod tests {
     #[test]
     fn failed_command_help_text_shows_retry_skip() {
         let mut state = state_with_command_step("exit 1");
-        state.handle_key(Action::Select); // executes and fails
+        select_and_run(&mut state); // executes and fails
 
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
         assert_eq!(help, "r retry  s skip  esc back  q quit");
@@ -1312,7 +1410,7 @@ mod tests {
     #[test]
     fn skip_after_failure_advances_without_re_running() {
         let mut state = state_with_command_step("exit 1");
-        state.handle_key(Action::Select); // fails
+        select_and_run(&mut state); // fails
 
         assert!(state.current_step_failed());
 
@@ -1325,7 +1423,7 @@ mod tests {
     #[test]
     fn back_from_failed_command_exits_tutorial() {
         let mut state = state_with_command_step("exit 1");
-        state.handle_key(Action::Select); // fails
+        select_and_run(&mut state); // fails
 
         state.handle_key(Action::Back);
 
@@ -1432,6 +1530,129 @@ mod tests {
         assert!(state.steps[0].output.is_none());
     }
 
+    // --- WOW-002: typed-command execution presentation ---
+
+    #[test]
+    fn select_on_command_step_starts_reveal_without_executing() {
+        let mut state = state_with_command_step("echo hello");
+        state.handle_key(Action::Select);
+
+        assert!(state.is_revealing());
+        assert_eq!(state.reveal.as_ref().unwrap().visible(), "");
+        assert!(
+            state.steps[0].output.is_none(),
+            "command must not run until the reveal completes"
+        );
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert_eq!(state.current_step, 0);
+    }
+
+    #[test]
+    fn reveal_ticks_show_fixed_prefixes_then_execute() {
+        // "echo hello" is 10 chars; at 3 chars/tick the prefixes are
+        // deterministic and the 4th tick completes and executes.
+        let mut state = state_with_command_step("echo hello");
+        state.handle_key(Action::Select);
+
+        state.reveal_tick();
+        assert_eq!(state.reveal.as_ref().unwrap().visible(), "ech");
+        state.reveal_tick();
+        assert_eq!(state.reveal.as_ref().unwrap().visible(), "echo h");
+        state.reveal_tick();
+        assert_eq!(state.reveal.as_ref().unwrap().visible(), "echo hell");
+        state.reveal_tick(); // clamps to 10 → complete → executes
+
+        assert!(!state.is_revealing());
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+        assert!(state.steps[0].output.as_ref().unwrap().success);
+    }
+
+    #[test]
+    fn any_key_completes_reveal_instantly_and_executes() {
+        let mut state = state_with_command_step("echo hello");
+        state.handle_key(Action::Select);
+        assert!(state.is_revealing());
+
+        // An arbitrary key — not Enter — fast-forwards and runs the command.
+        state.handle_key(Action::Character('x'));
+
+        assert!(!state.is_revealing());
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].output.as_ref().unwrap().success);
+    }
+
+    #[test]
+    fn reveal_failed_command_lands_in_retry_skip_state() {
+        // The failed-step contract is unchanged: a command that fails after
+        // the reveal leaves the step in the retry/skip state.
+        let mut state = state_with_command_step("exit 1");
+        select_and_run(&mut state);
+
+        assert!(!state.is_revealing());
+        assert!(state.current_step_failed());
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(help, "r retry  s skip  esc back  q quit");
+    }
+
+    #[test]
+    fn static_mode_select_does_not_reveal() {
+        let mut state = state_with_command_step("echo should_not_run");
+        state.enable_static_mode();
+
+        state.handle_key(Action::Select);
+
+        assert!(!state.is_revealing());
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].output.is_none());
+    }
+
+    #[test]
+    fn retry_after_failure_executes_without_reveal() {
+        // Failed-step retry behaviour is unchanged by WOW-002: 'r'
+        // re-executes immediately, no animation.
+        let mut state = state_with_command_step("echo retry_direct");
+        state.steps[0].output = Some(CommandOutput {
+            stdout: String::new(),
+            stderr: "simulated failure".to_string(),
+            success: false,
+            exit_code: Some(1),
+        });
+        assert!(state.current_step_failed());
+
+        state.handle_key(Action::Character('r'));
+
+        assert!(!state.is_revealing());
+        assert_eq!(state.phase, TutorialPhase::Complete);
+    }
+
+    #[test]
+    fn reveal_tick_is_noop_without_reveal() {
+        let mut state = state_with_command_step("echo hello");
+        state.reveal_tick();
+        assert!(!state.is_revealing());
+        assert!(state.steps[0].output.is_none());
+        assert_eq!(state.current_step, 0);
+    }
+
+    #[test]
+    fn revealing_help_text_offers_fast_forward() {
+        let mut state = state_with_command_step("echo hello");
+        state.handle_key(Action::Select);
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(help, "any key fast-forward");
+    }
+
+    #[test]
+    fn reveal_cleared_on_reset() {
+        let mut state = state_with_command_step("echo hello");
+        state.handle_key(Action::Select);
+        assert!(state.is_revealing());
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+        assert!(!state.is_revealing());
+    }
+
     // --- Scan results threading tests ---
 
     use discovery::{Finding, FindingSeverity, FindingSource, ScanResults};
@@ -1527,7 +1748,7 @@ mod tests {
             Verify::OutputContains("hello".to_string()),
             "Output should contain hello.",
         );
-        state.handle_key(Action::Select);
+        select_and_run(&mut state);
 
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
@@ -1542,7 +1763,7 @@ mod tests {
             Verify::OutputContains("world".to_string()),
             "Output should contain world.",
         );
-        state.handle_key(Action::Select);
+        select_and_run(&mut state);
 
         assert_eq!(state.phase, TutorialPhase::Running);
         assert_eq!(state.current_step, 0);
@@ -1561,7 +1782,7 @@ mod tests {
             Verify::OutputContains("world".to_string()),
             "Output should contain world.",
         );
-        state.handle_key(Action::Select); // verify fails
+        select_and_run(&mut state); // verify fails
         assert!(state.current_step_failed());
 
         state.handle_key(Action::Character('s')); // skip
@@ -2079,7 +2300,7 @@ mod tests {
     #[test]
     fn notifications_include_failure_when_command_fails() {
         let mut state = state_with_command_step("exit 1");
-        state.handle_key(Action::Select);
+        select_and_run(&mut state);
         let notifications = state.notifications();
         let failure = notifications
             .iter()
@@ -2096,7 +2317,7 @@ mod tests {
             Verify::OutputContains("world".to_string()),
             "Output should contain world.",
         );
-        state.handle_key(Action::Select);
+        select_and_run(&mut state);
         let notifications = state.notifications();
         assert!(
             notifications
@@ -2155,7 +2376,7 @@ mod tests {
             Verify::OutputContains("world".to_string()),
             "Output should contain world.",
         );
-        state.handle_key(Action::Select); // command succeeds, verify fails
+        select_and_run(&mut state); // command succeeds, verify fails
         assert!(state.current_step_failed());
 
         state.handle_key(Action::Character('s')); // skip

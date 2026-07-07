@@ -509,11 +509,17 @@ fn render_step_content(
     // effect before Enter is pressed, so running-for-real is never a
     // surprise. Static mode keeps the plain walkthrough — Enter doesn't run
     // anything there, so a prompt-styled bar would over-promise.
+    // WOW-002: while the reveal is in flight the bar becomes the prompt line
+    // the command is being typed into.
     if let Some(cmd) = &step.command
         && !state.static_mode
     {
         lines.push(Line::default());
-        lines.push(command_bar_line(cmd, step.effect, theme));
+        if let Some(reveal) = &state.reveal {
+            lines.push(reveal_bar_line(reveal, theme));
+        } else {
+            lines.push(command_bar_line(cmd, step.effect, theme));
+        }
     }
 
     // Show a watching hint when the step has a watch_path and isn't in static mode.
@@ -631,6 +637,30 @@ fn command_bar_line<'a>(
         None => {}
     }
     Line::from(spans)
+}
+
+/// WOW-002: the prompt line while a command reveal is in flight — the
+/// revealed prefix plus a block cursor, reading as anvil typing the command
+/// into the terminal. Deterministic: content depends only on tick count.
+fn reveal_bar_line<'a>(reveal: &'a super::CommandReveal, theme: &EddaCraftTheme) -> Line<'a> {
+    Line::from(vec![
+        Span::styled(
+            "$ ",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            reveal.visible(),
+            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "\u{258c}",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])
 }
 
 fn path_is_done(state: &TutorialState, path: super::TutorialPath) -> bool {
@@ -1096,6 +1126,36 @@ mod tests {
         state.steps[0].title = "Create Policy Directory".to_string();
         state.steps[0].instruction = "Run: mkdir -p .anvil/policies".to_string();
         state.steps[0].command = Some("mkdir -p .anvil/policies".to_string());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// WOW-002: mid-reveal, the prompt line shows the deterministic prefix
+    /// for the tick count (2 ticks × 3 chars = "anvil ") plus the block
+    /// cursor. Pins that the reveal is snapshot-stable — no wall-clock.
+    #[test]
+    fn snapshot_command_step_mid_reveal() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = command_step_state(super::super::CommandEffect::ReadOnly);
+        state.handle_key(eddacraft_tui::keyboard::Action::Select);
+        state.reveal_tick();
+        state.reveal_tick();
         let theme = EddaCraftTheme;
 
         terminal

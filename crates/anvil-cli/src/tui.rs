@@ -291,20 +291,26 @@ fn tutorial_loop(
             state.render(frame, content, theme);
         })?;
 
-        if event::poll(Duration::from_millis(100))?
-            && let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-        {
-            // While the inline editor is open, letters must be typed as text
-            // rather than consumed as navigation/quit commands. The default
-            // KeyHandler maps j/k/h/l→arrows, q→quit and space→toggle, so it
-            // cannot enter those characters — switch to a text-input map.
-            let action = if state.is_editing() {
-                map_key_text(key)
-            } else {
-                KeyHandler::map(key)
-            };
-            state.handle_key(action);
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                // While the inline editor is open, letters must be typed as
+                // text rather than consumed as navigation/quit commands. The
+                // default KeyHandler maps j/k/h/l→arrows, q→quit and
+                // space→toggle, so it cannot enter those characters — switch
+                // to a text-input map.
+                let action = if state.is_editing() {
+                    map_key_text(key)
+                } else {
+                    KeyHandler::map(key)
+                };
+                state.handle_key(action);
+            }
+        } else {
+            // Poll timeout (fixed 100ms): the deterministic pacing tick for
+            // an in-flight typed-command reveal (WOW-002). No-op otherwise.
+            state.reveal_tick();
         }
 
         if state.should_quit() || state.should_back() || state.wants_watch_demo {
