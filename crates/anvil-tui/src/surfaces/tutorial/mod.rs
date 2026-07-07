@@ -148,6 +148,15 @@ impl CommandReveal {
     }
 }
 
+/// WOW-004: before/after findings count for the chosen domain, shown on the
+/// completion screen. `before` is the session's opening scan; `after` comes
+/// from a read-only re-scan run when the tutorial completes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FindingsDelta {
+    pub before: usize,
+    pub after: usize,
+}
+
 /// Output captured after running a step's command.
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
@@ -231,6 +240,13 @@ pub struct TutorialState {
     /// WOW-002: in-flight typed-command reveal on the current step. `Some`
     /// between Enter on a command step and the command's execution.
     pub reveal: Option<CommandReveal>,
+    /// WOW-004: read-only re-scan hook supplied by the CLI entry point
+    /// (reuses the discovery scanner). Called once, when the tutorial
+    /// completes; absent — or returning `None` — the completion screen
+    /// renders unchanged.
+    pub completion_rescan: Option<Box<dyn Fn() -> Option<ScanResults>>>,
+    /// WOW-004: computed findings delta for the chosen domain.
+    pub completion_delta: Option<FindingsDelta>,
     /// Pending fix request emitted when the user presses `f`.
     pub pending_fix: Option<FixRequest>,
     /// Active inline editor, opened with `e` on a step that has an
@@ -280,6 +296,8 @@ impl TutorialState {
             resuming_notice: None,
             wants_watch_demo: false,
             reveal: None,
+            completion_rescan: None,
+            completion_delta: None,
             pending_fix: None,
             editor: None,
             edit_path: None,
@@ -563,8 +581,45 @@ impl TutorialState {
                 self.current_step += 1;
             } else {
                 self.phase = TutorialPhase::Complete;
+                // WOW-004: re-scan once, at the moment the walk completes.
+                self.compute_completion_delta();
             }
         }
+    }
+
+    /// WOW-004: register the read-only re-scan used to compute the
+    /// completion findings delta. Supplied by the CLI so the state machine
+    /// stays scanner-agnostic (and tests stay deterministic).
+    pub fn set_completion_rescan(&mut self, rescan: impl Fn() -> Option<ScanResults> + 'static) {
+        self.completion_rescan = Some(Box::new(rescan));
+    }
+
+    /// WOW-004: compute the before/after findings count for the chosen
+    /// domain. No-op — leaving the completion screen unchanged — without a
+    /// re-scan hook, without opening scan results, or when either scan is
+    /// showcase data (CIB-170: example findings are never counted as real).
+    fn compute_completion_delta(&mut self) {
+        let Some(rescan) = self.completion_rescan.as_ref() else {
+            return;
+        };
+        let Some(opening) = self.scan_results.as_ref() else {
+            return;
+        };
+        if opening.is_showcase {
+            return;
+        }
+        let Some(path) = self.chosen_path else {
+            return;
+        };
+        let before = opening.filter_by_domain(path).findings.len();
+        let Some(rescanned) = rescan() else {
+            return;
+        };
+        if rescanned.is_showcase {
+            return;
+        }
+        let after = rescanned.filter_by_domain(path).findings.len();
+        self.completion_delta = Some(FindingsDelta { before, after });
     }
 
     /// Returns true if the current step has failed command output or failed
@@ -804,6 +859,7 @@ impl TutorialState {
                 self.current_step = 0;
                 self.chosen_path = None;
                 self.domain_findings = None;
+                self.completion_delta = None;
             }
             Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
@@ -876,6 +932,7 @@ impl crate::surface::Surface for TutorialState {
         self.chosen_path = None;
         self.scan_results = None;
         self.domain_findings = None;
+        self.completion_delta = None;
         self.resuming_notice = None;
         // static_mode, static_notice, and completed_paths are intentionally
         // preserved — they represent environment/session state, not transient.
@@ -1808,6 +1865,160 @@ mod tests {
         for path in &state.paths.clone() {
             assert_eq!(state.picker_finding_count(*path), None);
         }
+    }
+
+    // --- WOW-004: completion findings delta ---
+
+    /// Real (non-showcase) scan results with `n` policy-domain findings.
+    fn policy_scan_results(n: usize) -> ScanResults {
+        ScanResults {
+            findings: (0..n)
+                .map(|i| Finding {
+                    file: format!("src/file{i}.rs"),
+                    line: Some(i + 1),
+                    severity: FindingSeverity::Warning,
+                    source: FindingSource::AntiPattern,
+                    title: "anti-pattern".to_string(),
+                    message: "test".to_string(),
+                    suggestion: "fix".to_string(),
+                    warning_id: None,
+                })
+                .collect(),
+            files_scanned: 10,
+            duration_ms: 5,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase: false,
+        }
+    }
+
+    /// Drive a plain-steps state to completion.
+    fn complete_all_steps(state: &mut TutorialState) {
+        while state.phase == TutorialPhase::Running {
+            state.handle_key(Action::Select);
+        }
+        assert_eq!(state.phase, TutorialPhase::Complete);
+    }
+
+    #[test]
+    fn completion_delta_improved() {
+        let mut state = state_with_plain_steps(2); // chosen_path = Policy
+        state.set_scan_results(policy_scan_results(3));
+        state.set_completion_rescan(|| Some(policy_scan_results(1)));
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(
+            state.completion_delta,
+            Some(FindingsDelta {
+                before: 3,
+                after: 1
+            })
+        );
+    }
+
+    #[test]
+    fn completion_delta_unchanged() {
+        let mut state = state_with_plain_steps(1);
+        state.set_scan_results(policy_scan_results(2));
+        state.set_completion_rescan(|| Some(policy_scan_results(2)));
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(
+            state.completion_delta,
+            Some(FindingsDelta {
+                before: 2,
+                after: 2
+            })
+        );
+    }
+
+    #[test]
+    fn completion_delta_regressed() {
+        let mut state = state_with_plain_steps(1);
+        state.set_scan_results(policy_scan_results(1));
+        state.set_completion_rescan(|| Some(policy_scan_results(4)));
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(
+            state.completion_delta,
+            Some(FindingsDelta {
+                before: 1,
+                after: 4
+            })
+        );
+    }
+
+    #[test]
+    fn completion_delta_absent_without_rescan_hook() {
+        let mut state = state_with_plain_steps(1);
+        state.set_scan_results(policy_scan_results(2));
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(state.completion_delta, None);
+    }
+
+    #[test]
+    fn completion_delta_absent_without_opening_scan() {
+        let mut state = state_with_plain_steps(1);
+        state.set_completion_rescan(|| Some(policy_scan_results(0)));
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(state.completion_delta, None);
+    }
+
+    #[test]
+    fn completion_delta_absent_when_opening_scan_is_showcase() {
+        // CIB-170: showcase counts are examples, not a real baseline.
+        let mut state = state_with_plain_steps(1);
+        let mut results = policy_scan_results(2);
+        results.is_showcase = true;
+        state.set_scan_results(results);
+        state.set_completion_rescan(|| Some(policy_scan_results(0)));
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(state.completion_delta, None);
+    }
+
+    #[test]
+    fn completion_delta_absent_when_rescan_fails() {
+        let mut state = state_with_plain_steps(1);
+        state.set_scan_results(policy_scan_results(2));
+        state.set_completion_rescan(|| None);
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(state.completion_delta, None);
+    }
+
+    #[test]
+    fn completion_delta_cleared_when_choosing_another_path() {
+        let mut state = state_with_plain_steps(1);
+        state.set_scan_results(policy_scan_results(1));
+        state.set_completion_rescan(|| Some(policy_scan_results(0)));
+        complete_all_steps(&mut state);
+        assert!(state.completion_delta.is_some());
+
+        state.handle_key(Action::Select); // back to path select
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert_eq!(state.completion_delta, None);
+    }
+
+    #[test]
+    fn completion_delta_cleared_on_reset() {
+        let mut state = state_with_plain_steps(1);
+        state.set_scan_results(policy_scan_results(1));
+        state.set_completion_rescan(|| Some(policy_scan_results(0)));
+        complete_all_steps(&mut state);
+        assert!(state.completion_delta.is_some());
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+        assert_eq!(state.completion_delta, None);
     }
 
     // --- Verification integration tests ---

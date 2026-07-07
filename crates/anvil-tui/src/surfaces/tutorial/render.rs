@@ -712,6 +712,35 @@ fn build_paths_progress<'a>(state: &'a TutorialState, theme: &'a EddaCraftTheme)
         .collect()
 }
 
+/// WOW-004: one honest sentence about the re-scan result. The copy names
+/// the re-scan (it really ran) and never claims anvil fixed anything.
+fn completion_delta_line(delta: super::FindingsDelta, theme: &EddaCraftTheme) -> Line<'static> {
+    let super::FindingsDelta { before, after } = delta;
+    let (msg, color) = match after.cmp(&before) {
+        std::cmp::Ordering::Less => (
+            format!(
+                "Re-scanned your repo: {before} \u{2192} {after} findings in this domain \u{2014} {} fewer than when you started.",
+                before - after
+            ),
+            theme.success(),
+        ),
+        std::cmp::Ordering::Equal => (
+            format!(
+                "Re-scanned your repo: {before} findings in this domain \u{2014} same as when you started."
+            ),
+            theme.muted(),
+        ),
+        std::cmp::Ordering::Greater => (
+            format!(
+                "Re-scanned your repo: {before} \u{2192} {after} findings in this domain \u{2014} {} more than when you started.",
+                after - before
+            ),
+            theme.warning(),
+        ),
+    };
+    Line::from(Span::styled(msg, Style::default().fg(color)))
+}
+
 fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -754,13 +783,23 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
             Style::default().fg(theme.fg()),
         )),
         Line::default(),
+    ];
+
+    // WOW-004: what the walk changed in the user's repo, from a read-only
+    // re-scan against the session's opening scan. Absent without scan data.
+    if let Some(delta) = state.completion_delta {
+        lines.push(completion_delta_line(delta, theme));
+        lines.push(Line::default());
+    }
+
+    lines.extend([
         Line::from(vec![Span::styled(
             format!("Progress: {completed_count} of {all_paths} paths  "),
             Style::default().fg(theme.muted()),
         )]),
         Line::from(progress_spans),
         Line::default(),
-    ];
+    ]);
 
     if let Some(next) = next_path {
         lines.push(Line::from(vec![
@@ -1405,6 +1444,67 @@ mod tests {
 
         let buf = terminal.backend().buffer().clone();
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Build a completed-tutorial state with a WOW-004 findings delta set.
+    fn complete_state_with_delta(before: usize, after: usize) -> TutorialState {
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        state.phase = TutorialPhase::Complete;
+        state.completion_delta = Some(super::super::FindingsDelta { before, after });
+        state
+    }
+
+    fn snapshot_complete_with_delta(name: &str, state: &TutorialState) {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(state),
+                    Surface::help_text(state),
+                    &theme,
+                );
+                render(frame, content, state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(name, crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// WOW-004: fewer findings after the walk — the improved delta line.
+    #[test]
+    fn snapshot_complete_phase_delta_improved() {
+        snapshot_complete_with_delta(
+            "snapshot_complete_phase_delta_improved",
+            &complete_state_with_delta(5, 3),
+        );
+    }
+
+    /// WOW-004: same count — honest "unchanged" copy, no false win.
+    #[test]
+    fn snapshot_complete_phase_delta_unchanged() {
+        snapshot_complete_with_delta(
+            "snapshot_complete_phase_delta_unchanged",
+            &complete_state_with_delta(4, 4),
+        );
+    }
+
+    /// WOW-004: more findings than at the start — reported, not hidden.
+    #[test]
+    fn snapshot_complete_phase_delta_regressed() {
+        snapshot_complete_with_delta(
+            "snapshot_complete_phase_delta_regressed",
+            &complete_state_with_delta(2, 4),
+        );
     }
 
     // --- strip_ansi tests ---
