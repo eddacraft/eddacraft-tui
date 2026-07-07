@@ -2114,7 +2114,7 @@ a backlog. Promote repeated friction or executable follow-up work to
   item status and the NBI row before offering cleanup.
 - **Follow-up:** none.
 
-### 2026-07-07 — opencode
+### 2026-07-07 — opencode — AICON-001
 
 - **Task:** Complete AICON-001 in a new Worktrunk worktree.
 - **Outcome:** Root `AGENTS.md` was reduced to a lean shared contract, and the new
@@ -2130,7 +2130,7 @@ a backlog. Promote repeated friction or executable follow-up work to
   implementation surface.
 - **Follow-up:** AICON-002..005 remain ready.
 
-### 2026-07-07 — opencode
+### 2026-07-07 — opencode — AICON-002..005
 
 - **Task:** Complete AICON-002..005 via dev-workflow.
 - **Outcome:** AICON is Done 5/5 with testing, repository operations, authority
