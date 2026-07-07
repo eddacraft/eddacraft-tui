@@ -614,4 +614,4 @@ the registration and persistence details for operators.
 | 4   | `anvil watch`                          | CLICT-004  | **Done**        | Watch command/default-action docs reconciled              |
 | 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                |
 | 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled           |
-| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Ready**       | Spot-check remaining families; fix runbook-only gaps      |
+| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Proposed**    | Spot-check remaining families; fix runbook-only gaps      |

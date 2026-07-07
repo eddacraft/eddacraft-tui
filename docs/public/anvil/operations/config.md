@@ -428,8 +428,10 @@ anvil watch --action none                # Architecture/dependency watch only, n
 Bare names match only that exact path. To exclude a directory's contents, use a
 glob such as `vendor/**` rather than `vendor`.
 
-For automation, `--json` is global: use `anvil --json watch`, not
-`anvil watch --json`. The stream is newline-delimited JSON; see
+For automation, prefer placing the global `--json` flag before the subcommand
+(`anvil --json watch`) so examples match the NDJSON contract. Because `--json`
+is a clap global flag, `anvil watch --json` also parses; use one form
+consistently. The stream is newline-delimited JSON; see
 [Watch JSON Output](../integrations/watch-output.md) before wiring editor
 sidecars, dashboards, or shell pipelines to it.
 

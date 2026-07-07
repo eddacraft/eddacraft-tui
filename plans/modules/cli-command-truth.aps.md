@@ -229,7 +229,7 @@ build verdicts when redirects are already known.
 
 ### CLICT-007: Tier 2 runbook alignment sweep
 
-- **Intent:** Spot-check the remaining **38** command families in the runtime
+- **Intent:** Spot-check the remaining **36** command families in the runtime
   registry (tier 2) against `docs/runbooks/cli-surface.md` and fix runbook-only
   gaps without full slice write-ups unless drift is found.
 - **Expected Outcome:**

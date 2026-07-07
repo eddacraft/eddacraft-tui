@@ -199,9 +199,11 @@ workspace assurance state you can read at any time with `anvil status`. Set
 start one (`anvil start` auto-starts it instead); pass `--no-daemon` to skip the
 offer, or `ANVIL_WATCH_DAEMON=0` to also disable reuse of a live daemon. See
 `anvil watch --help` for the routing and lifecycle details. If you are consuming
-watch output from a script, put the global `--json` flag before the subcommand
+watch output from a script, prefer the global-flag-first form
 (`anvil --json watch`) and follow the
-[Watch JSON Output](integrations/watch-output.md) NDJSON contract.
+[Watch JSON Output](integrations/watch-output.md) NDJSON contract. The
+equivalent `anvil watch --json` form also parses because `--json` is global; use
+one form consistently in scripts.
 
 To walk this path end to end — activation, a deliberately bad save, and reading
 the finding anvil raises in your own repo — follow
