@@ -29,6 +29,7 @@ rayon = { workspace = true }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 criterion = { workspace = true }
 ignore = "0.4"
+temp-env = "0.3"
 
 [[bench]]
 name = "stress"

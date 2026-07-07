@@ -2,6 +2,7 @@
 
 pub mod budget;
 pub mod churn;
+pub mod cli_command;
 pub mod fixture;
 pub mod measure;
 pub mod proc_sampler;

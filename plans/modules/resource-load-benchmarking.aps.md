@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Priority | Status      | Progress |
 | --- | ------ | -------- | ----------- | -------- |
-| RLB | @aneki | high     | In Progress | 7/8      |
+| RLB | @aneki | high     | In Progress | 7/9      |
 
 **Last reviewed:** 2026-05-31 — filed from the beta-tester high-CPU report;
 tracked in GH [#2156](https://github.com/eddacraft/anvil-001/issues/2156).
@@ -16,6 +16,12 @@ changed file (measured 1 agent 6.55 → 0.08 cores). The remaining items stay
 2026-06-12: RLB-002/-003/-004/-005/-008 confirmed in the v0.8.0-beta tag
 (record: plans/releases/v0.8.0-beta.md) and advanced to Released/Shipped;
 RLB-006 remains Proposed.
+
+2026-07-07: RLB-009 added from the CLI command benchmark tool investigation
+(`docs/reviews/cli-command-benchmark-tool-investigation.md`) to cover
+finite-command process-level benchmarking inside `anvil-bench`; RLB-009 is
+Ready and coordinates with TCOV-026 for routine benchmark/history-schema
+alignment.
 
 ## Purpose
 
@@ -151,3 +157,37 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
   reproducible in CI.
 - **Validation:** `pnpm bench` (or a dispatchable workflow) runs the harness and the budgets gate.
 - **Dependencies:** RLB-002, RLB-003, RLB-004, RLB-005
+
+### RLB-009: Per-command CLI benchmark runner
+
+- **Status:** Done 2026-07-07 — `anvil-bench-command` runner implemented in `crates/anvil-bench` with safe temp state, redacted argv JSON, direct Anvil argv execution, timeout cleanup, CARGO_TARGET_DIR-aware binary resolution, README guardrails, and `status --verify` smoke evidence. Routine-suite/history integration intentionally deferred until comparable baselines exist; manual workflow documented.
+- **Intent:** Add an Anvil-specific runner that measures individual finite
+  `anvil` CLI commands end-to-end with repeat/warmup controls, isolated state,
+  safe argument redaction, and structured JSON reports.
+- **Expected Outcome:** Operators can benchmark one CLI command without editing
+  Criterion benches or the routine `pnpm bench` script; curated command
+  benchmarks can be normalised into `benchmarks/history/` when the JSON shape is
+  stable. The runner executes only the resolved `anvil` binary, defaults to
+  temporary state/fixtures, records no raw argument values by default, and reuses
+  `anvil-bench` process cleanup plus Linux process-tree CPU/RSS sampling.
+- **Scope:** `crates/anvil-bench` command-runner binary/library, deterministic
+  fixture selection for finite commands, safe benchmark environment defaults,
+  per-iteration + aggregate JSON output, optional routine-suite/history-schema
+  integration for a small curated command set.
+- **Non-scope:** Generic shell benchmarking; long-running `watch`, intercept
+  daemon, MCP, or concurrent process benchmarks already owned by RLB-002..005;
+  new product CLI commands; automated CI gating on noisy local command timings.
+- **Files:** `crates/anvil-bench/src/cli_command.rs`,
+  `crates/anvil-bench/src/bin/anvil-bench-command.rs`,
+  `crates/anvil-bench/tests/cli_command.rs`, `crates/anvil-bench/src/lib.rs`,
+  `crates/anvil-bench/README.md`, optional `scripts/bench/run.sh`,
+  optional `scripts/bench/to-history.py`, optional `benchmarks/README.md`.
+- **Dependencies:** RLB-002 process-tree sampling and spawn helpers;
+  investigation note `docs/reviews/cli-command-benchmark-tool-investigation.md`;
+  coordinates with TCOV-026 when routine-suite/history surfaces are changed.
+- **Validation:** `cargo test -p anvil-bench cli_command`;
+  `cargo clippy -p anvil-bench --all-targets -- -D warnings`;
+  `ANVIL_BENCH_ANVIL_BIN=target/release/anvil cargo run -p anvil-bench --bin anvil-bench-command -- --name status-verify --repeat 3 --warmup 1 --fixture empty -- status --verify`;
+  `pnpm docs:check` if docs/history surfaces change.
+- **Closeout:** Done 2026-07-07 — targeted tests and clippy passed; release `status --verify` smoke emitted 3 successful samples. Full `cargo test -p anvil-bench`, APS/docs/format validation run at branch closeout.
+- **Confidence:** high

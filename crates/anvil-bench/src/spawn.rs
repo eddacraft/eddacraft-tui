@@ -60,17 +60,44 @@ fn resolve_configured_anvil_binary(path: PathBuf) -> Result<PathBuf> {
         return Ok(from_cwd);
     }
 
+    if let Some(path) = resolve_against_cargo_target_dir(&path) {
+        return Ok(path);
+    }
+
     Ok(Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join(path))
 }
 
 fn workspace_target_anvil(profile: &str) -> PathBuf {
+    if let Some(target_dir) = std::env::var_os("CARGO_TARGET_DIR") {
+        let candidate = PathBuf::from(target_dir).join(profile).join("anvil");
+        if candidate.exists() {
+            return candidate;
+        }
+    }
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("target")
         .join(profile)
         .join("anvil")
+}
+
+fn resolve_against_cargo_target_dir(path: &Path) -> Option<PathBuf> {
+    let mut components = path.components();
+    if components.next()?.as_os_str() != "target" {
+        return None;
+    }
+    let profile = components.next()?.as_os_str();
+    let binary = components.next()?.as_os_str();
+    if binary != "anvil" || components.next().is_some() {
+        return None;
+    }
+    Some(
+        PathBuf::from(std::env::var_os("CARGO_TARGET_DIR")?)
+            .join(profile)
+            .join(binary),
+    )
 }
 
 /// A spawned child that is killed and reaped on drop, with a liveness check so
@@ -143,9 +170,21 @@ mod tests {
 
     #[test]
     fn env_binary_path_is_resolved_before_child_changes_dir() {
-        let path = resolve_configured_anvil_binary(PathBuf::from("target/debug/anvil")).unwrap();
-        assert!(path.is_absolute());
-        assert!(path.ends_with("target/debug/anvil"));
+        temp_env::with_var("CARGO_TARGET_DIR", None::<&str>, || {
+            let path =
+                resolve_configured_anvil_binary(PathBuf::from("target/debug/anvil")).unwrap();
+            assert!(path.is_absolute());
+            assert!(path.ends_with("target/debug/anvil"));
+        });
+    }
+
+    #[test]
+    fn target_relative_configured_path_honours_cargo_target_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_var("CARGO_TARGET_DIR", Some(dir.path()), || {
+            let path = resolve_against_cargo_target_dir(Path::new("target/release/anvil")).unwrap();
+            assert_eq!(path, dir.path().join("release").join("anvil"));
+        });
     }
 
     #[test]

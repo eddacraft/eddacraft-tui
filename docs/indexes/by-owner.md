@@ -388,6 +388,12 @@
 | [Rollback Bad Published Release](../../docs/runbooks/rollback-bad-published-release.md)   | `docs/runbooks/rollback-bad-published-release.md`  | Runbook | Authoritative | RELORCH | Live   |
 | [Rollback Bad main](../../docs/runbooks/rollback-bad-main.md)                             | `docs/runbooks/rollback-bad-main.md`               | Runbook | Authoritative | RELORCH | Live   |
 
+## RLB
+
+| Document                                                                                                   | Path                                                       | Type  | Authority | Owner | Status |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ----- | --------- | ----- | ------ |
+| [CLI Command Benchmark Tool Investigation](../../docs/reviews/cli-command-benchmark-tool-investigation.md) | `docs/reviews/cli-command-benchmark-tool-investigation.md` | Guide | Advisory  | RLB   | Draft  |
+
 ## RLB (plans/modules/resource-load-benchmarking.aps.md)
 
 | Document                                                                                  | Path                                | Type  | Authority     | Owner                                                 | Status |

@@ -53,12 +53,33 @@ Active
 - **watch_resource_budget** -- Release-binary `anvil watch` CPU/RSS budget
   check. Included in `pnpm bench`; skip with `-- --skip-resource-budget` when
   you only need Criterion micro-benchmarks.
+- **anvil-bench-command** -- Manual finite-command runner for one `anvil` CLI
+  command at a time. It executes only the resolved Anvil binary, defaults to a
+  temporary `ANVIL_HOME` and fixture, disables usage/observation writes, records
+  redacted argv shapes by default, and emits per-iteration JSON. This is not yet
+  part of the curated `pnpm bench` routine/history suite; wire a small stable
+  set only after the report shape has a comparable baseline.
 
-Run a single bench:
+Run a single Criterion bench:
 
 ```bash
 cargo bench -p anvil-bench --bench antipattern_scan
 ```
+
+Benchmark one finite Anvil CLI command end-to-end:
+
+```bash
+cargo build -p eddacraft-anvil --release --bin anvil
+ANVIL_BENCH_ANVIL_BIN=target/release/anvil \
+  cargo run -p anvil-bench --bin anvil-bench-command -- \
+  --name status-verify --repeat 30 --warmup 5 --fixture empty -- \
+  status --verify
+```
+
+If the worktree relocates Cargo output with `CARGO_TARGET_DIR`, the runner
+resolves `target/release/anvil` through that target directory. Use
+`--include-raw-argv` only for reviewed local diagnostics; reports otherwise
+store redacted argument shapes so secrets are not persisted.
 
 Run the full routine suite:
 
