@@ -268,10 +268,20 @@ fn render_resuming_notice(
     }
 }
 
+/// WOW-003: the per-domain finding-count suffix appended to a picker row
+/// when real scan findings exist for the path's domain.
+fn picker_count_suffix(count: usize) -> String {
+    if count == 1 {
+        "  ·  1 finding in your repo".to_string()
+    } else {
+        format!("  ·  {count} findings in your repo")
+    }
+}
+
 /// Render width (display columns) of a single path's line in the
 /// selector. Mirrors the spans built in `render_path_select` so the
 /// height calculation stays in sync with what is actually drawn.
-fn path_line_width(path: TutorialPath, done: bool) -> u16 {
+fn path_line_width(path: TutorialPath, done: bool, finding_count: Option<usize>) -> u16 {
     // ">> " or "   " indicator
     let mut width: usize = 3;
     if done {
@@ -282,6 +292,9 @@ fn path_line_width(path: TutorialPath, done: bool) -> u16 {
     // "  " gap between label and description
     width += 2;
     width += UnicodeWidthStr::width(path.description());
+    if let Some(count) = finding_count {
+        width += UnicodeWidthStr::width(picker_count_suffix(count).as_str());
+    }
     if done {
         // "  (redo)"
         width += 8;
@@ -299,7 +312,7 @@ fn path_select_inner_rows(state: &TutorialState, inner_width: u16) -> u16 {
     let mut rows: u32 = 0;
     for path in &state.paths {
         let done = state.completed_paths.contains(path);
-        let width = path_line_width(*path, done);
+        let width = path_line_width(*path, done, state.picker_finding_count(*path));
         let wraps = width.saturating_sub(1) / inner_width + 1;
         rows = rows.saturating_add(u32::from(wraps));
     }
@@ -373,6 +386,14 @@ fn render_path_select(
                 format!("  {}", path.description()),
                 Style::default().fg(theme.muted()),
             ));
+            // WOW-003: show what this path is worth on the user's own repo.
+            // Absent for no-scan, zero-finding, and showcase results.
+            if let Some(count) = state.picker_finding_count(*path) {
+                spans.push(Span::styled(
+                    picker_count_suffix(count),
+                    Style::default().fg(theme.accent()),
+                ));
+            }
             if done {
                 spans.push(Span::styled("  (redo)", Style::default().fg(theme.muted())));
             }
@@ -1052,6 +1073,112 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let mut state = TutorialState::new();
         state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Real (non-showcase) scan results with findings across domains, for
+    /// the WOW-003 picker personalization snapshots.
+    fn picker_scan_results() -> super::super::discovery::ScanResults {
+        use super::super::discovery::{Finding, FindingSeverity, FindingSource, ScanResults};
+        ScanResults {
+            findings: vec![
+                Finding {
+                    file: "src/main.rs".to_string(),
+                    line: Some(10),
+                    severity: FindingSeverity::Error,
+                    source: FindingSource::AntiPattern,
+                    title: "anti-pattern".to_string(),
+                    message: "test".to_string(),
+                    suggestion: "fix".to_string(),
+                    warning_id: Some("AP-003".to_string()),
+                },
+                Finding {
+                    file: "src/lib.rs".to_string(),
+                    line: Some(20),
+                    severity: FindingSeverity::Warning,
+                    source: FindingSource::Architecture,
+                    title: "boundary".to_string(),
+                    message: "test".to_string(),
+                    suggestion: "fix".to_string(),
+                    warning_id: None,
+                },
+                Finding {
+                    file: "src/auth.rs".to_string(),
+                    line: Some(3),
+                    severity: FindingSeverity::Error,
+                    source: FindingSource::Secret,
+                    title: "secret".to_string(),
+                    message: "test".to_string(),
+                    suggestion: "fix".to_string(),
+                    warning_id: None,
+                },
+            ],
+            files_scanned: 120,
+            duration_ms: 250,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase: false,
+        }
+    }
+
+    /// WOW-003: with real scan findings present, each picker row carries its
+    /// per-domain count so the choice is grounded in the user's own repo.
+    #[test]
+    fn snapshot_path_select_with_finding_counts() {
+        let backend = TestBackend::new(100, 22);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.set_scan_results(picker_scan_results());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// WOW-003: a clean repo (scan ran, zero findings) falls back to the
+    /// exact pre-personalization picker copy — no counts, no new noise.
+    #[test]
+    fn snapshot_path_select_clean_repo() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.set_scan_results(super::super::discovery::ScanResults {
+            findings: Vec::new(),
+            files_scanned: 42,
+            duration_ms: 10,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase: false,
+        });
         let theme = EddaCraftTheme;
 
         terminal

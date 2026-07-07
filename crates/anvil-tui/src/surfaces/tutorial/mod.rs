@@ -415,6 +415,20 @@ impl TutorialState {
         self.scan_results = Some(results);
     }
 
+    /// WOW-003: per-domain finding count for the path picker. `Some(n)` only
+    /// when real scan results are present and the domain has at least one
+    /// finding. Zero-finding and no-scan cases fall back to the standard
+    /// picker copy, and showcase-derived counts are never presented as real
+    /// findings (CIB-170), so `is_showcase` results yield `None`.
+    pub fn picker_finding_count(&self, path: TutorialPath) -> Option<usize> {
+        let results = self.scan_results.as_ref()?;
+        if results.is_showcase {
+            return None;
+        }
+        let count = results.filter_by_domain(path).findings.len();
+        (count > 0).then_some(count)
+    }
+
     fn next_fix_request(&self) -> Option<FixRequest> {
         let mut best: Option<(FindingSeverity, FixRequest)> = None;
         for finding in &self.domain_findings.as_ref()?.findings {
@@ -1736,6 +1750,64 @@ mod tests {
         <TutorialState as crate::surface::Surface>::reset(&mut state);
         assert!(state.scan_results.is_none());
         assert!(state.domain_findings.is_none());
+    }
+
+    // --- WOW-003: personalized path picker ---
+
+    #[test]
+    fn picker_finding_count_none_without_scan() {
+        let state = TutorialState::new();
+        for path in &state.paths.clone() {
+            assert_eq!(state.picker_finding_count(*path), None);
+        }
+    }
+
+    #[test]
+    fn picker_finding_count_per_domain() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        // make_scan_results: 1 AntiPattern (policy domain) + 1 Architecture.
+        assert_eq!(state.picker_finding_count(TutorialPath::Policy), Some(1));
+        assert_eq!(
+            state.picker_finding_count(TutorialPath::Architecture),
+            Some(1)
+        );
+        // Cross-cutting domains see all findings.
+        assert_eq!(state.picker_finding_count(TutorialPath::Drift), Some(2));
+        assert_eq!(
+            state.picker_finding_count(TutorialPath::ProtectionLoop),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn picker_finding_count_zero_findings_is_none() {
+        // Clean repo: scan ran but found nothing — fall back to plain copy.
+        let mut state = TutorialState::new();
+        state.set_scan_results(ScanResults {
+            findings: Vec::new(),
+            files_scanned: 42,
+            duration_ms: 10,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase: false,
+        });
+        for path in &state.paths.clone() {
+            assert_eq!(state.picker_finding_count(*path), None);
+        }
+    }
+
+    #[test]
+    fn picker_finding_count_showcase_is_none() {
+        // CIB-170: showcase examples must never be presented as real
+        // findings — no counts on the picker.
+        let mut state = TutorialState::new();
+        let mut results = make_scan_results();
+        results.is_showcase = true;
+        state.set_scan_results(results);
+        for path in &state.paths.clone() {
+            assert_eq!(state.picker_finding_count(*path), None);
+        }
     }
 
     // --- Verification integration tests ---
