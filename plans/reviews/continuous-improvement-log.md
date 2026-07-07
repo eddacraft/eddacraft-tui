@@ -2113,3 +2113,19 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Treat merged-PR notifications as a trigger to check both the work
   item status and the NBI row before offering cleanup.
 - **Follow-up:** none.
+
+### 2026-07-07 — opencode
+
+- **Task:** Complete AICON-001 in a new Worktrunk worktree.
+- **Outcome:** Root `AGENTS.md` was reduced to a lean shared contract, and the new
+  AICON module records AICON-001 as done with remaining routing cleanups queued.
+- **Worked:** Creating an isolated worktree avoided disturbing the dirty main
+  worktree while allowing the root contract rewrite to proceed.
+- **Failed:** First format check failed on `AGENTS.md`; repository formatter fixed
+  the issue before final validation.
+- **Friction:** The AICON plan existed only as uncommitted state in the original
+  worktree, so the new task branch had to carry the module and index row too.
+- **Improvement:** When a follow-up asks to execute a just-created APS module, land
+  or carry the planning artefact into the execution worktree before editing the
+  implementation surface.
+- **Follow-up:** AICON-002..005 remain ready.
