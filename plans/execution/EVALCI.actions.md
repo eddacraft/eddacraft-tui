@@ -8,7 +8,7 @@
 
 ## Prerequisites
 
-- [x] Module authorised (EVALCI-001..004 authorised Ready 2026-07-01)
+- [x] Module authorised (EVALCI-001..004 status flipped Proposed to Ready 2026-07-01)
 - [x] eval-harness-integration available (EVAL Done; items Merged via PR #3013)
 - [x] rust-tests.yml Test job has pinned OPA + Regal + rust-ci cache
 
