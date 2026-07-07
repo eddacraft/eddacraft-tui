@@ -505,6 +505,17 @@ fn render_step_content(
         )),
     ];
 
+    // WOW-001: command steps surface the exact command and its declared
+    // effect before Enter is pressed, so running-for-real is never a
+    // surprise. Static mode keeps the plain walkthrough — Enter doesn't run
+    // anything there, so a prompt-styled bar would over-promise.
+    if let Some(cmd) = &step.command
+        && !state.static_mode
+    {
+        lines.push(Line::default());
+        lines.push(command_bar_line(cmd, step.effect, theme));
+    }
+
     // Show a watching hint when the step has a watch_path and isn't in static mode.
     if step.watch_path.is_some() && !state.static_mode {
         let (_, g_current, _) = progress_glyphs();
@@ -517,63 +528,109 @@ fn render_step_content(
     }
 
     if let Some(output) = &step.output {
-        lines.push(Line::default());
-        let status_color = if output.success {
-            theme.success()
-        } else {
-            theme.error()
-        };
-        let status_label = if output.success {
-            "✓ success"
-        } else {
-            "✗ failed"
-        };
-        let exit_label = output
-            .exit_code
-            .map_or_else(|| " (no exit code)".to_string(), |c| format!(" (exit {c})"));
-        lines.push(Line::from(Span::styled(
-            format!("{status_label}{exit_label}"),
-            Style::default()
-                .fg(status_color)
-                .add_modifier(Modifier::BOLD),
-        )));
-
-        if !output.stdout.is_empty() {
-            let (stdout_lines, has_more) = collect_lines(&output.stdout);
-            for line in &stdout_lines {
-                lines.push(Line::from(Span::styled(
-                    line.clone(),
-                    Style::default().fg(theme.fg()),
-                )));
-            }
-            if has_more {
-                lines.push(Line::from(Span::styled(
-                    "… (more lines truncated)",
-                    Style::default().fg(theme.muted()),
-                )));
-            }
-        }
-        if !output.stderr.is_empty() {
-            let (stderr_lines, has_more) = collect_lines(&output.stderr);
-            for line in &stderr_lines {
-                lines.push(Line::from(Span::styled(
-                    line.clone(),
-                    Style::default().fg(theme.error()),
-                )));
-            }
-            if has_more {
-                lines.push(Line::from(Span::styled(
-                    "… (more lines truncated)",
-                    Style::default().fg(theme.muted()),
-                )));
-            }
-        }
+        push_output_lines(&mut lines, output, theme);
     }
 
     frame.render_widget(
         Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
         inner,
     );
+}
+
+/// Append a command's captured status/stdout/stderr to the step content.
+fn push_output_lines(
+    lines: &mut Vec<Line<'_>>,
+    output: &super::CommandOutput,
+    theme: &EddaCraftTheme,
+) {
+    lines.push(Line::default());
+    let status_color = if output.success {
+        theme.success()
+    } else {
+        theme.error()
+    };
+    let status_label = if output.success {
+        "✓ success"
+    } else {
+        "✗ failed"
+    };
+    let exit_label = output
+        .exit_code
+        .map_or_else(|| " (no exit code)".to_string(), |c| format!(" (exit {c})"));
+    lines.push(Line::from(Span::styled(
+        format!("{status_label}{exit_label}"),
+        Style::default()
+            .fg(status_color)
+            .add_modifier(Modifier::BOLD),
+    )));
+
+    if !output.stdout.is_empty() {
+        let (stdout_lines, has_more) = collect_lines(&output.stdout);
+        for line in &stdout_lines {
+            lines.push(Line::from(Span::styled(
+                line.clone(),
+                Style::default().fg(theme.fg()),
+            )));
+        }
+        if has_more {
+            lines.push(Line::from(Span::styled(
+                "… (more lines truncated)",
+                Style::default().fg(theme.muted()),
+            )));
+        }
+    }
+    if !output.stderr.is_empty() {
+        let (stderr_lines, has_more) = collect_lines(&output.stderr);
+        for line in &stderr_lines {
+            lines.push(Line::from(Span::styled(
+                line.clone(),
+                Style::default().fg(theme.error()),
+            )));
+        }
+        if has_more {
+            lines.push(Line::from(Span::styled(
+                "… (more lines truncated)",
+                Style::default().fg(theme.muted()),
+            )));
+        }
+    }
+}
+
+/// WOW-001: the prompt-styled command bar for a command step. Renders the
+/// command visually apart from the prose plus a badge naming its declared
+/// effect, so the user knows before pressing Enter whether the step writes
+/// to their repo.
+fn command_bar_line<'a>(
+    command: &'a str,
+    effect: Option<super::CommandEffect>,
+    theme: &EddaCraftTheme,
+) -> Line<'a> {
+    let mut spans = vec![
+        Span::styled(
+            "$ ",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            command,
+            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
+        ),
+    ];
+    match effect {
+        Some(super::CommandEffect::MutatesRepo) => spans.push(Span::styled(
+            "  [writes to your repo]",
+            Style::default()
+                .fg(theme.warning())
+                .add_modifier(Modifier::BOLD),
+        )),
+        Some(super::CommandEffect::ReadOnly) => spans.push(Span::styled(
+            "  [read-only]",
+            Style::default().fg(theme.success()),
+        )),
+        None => {}
+    }
+    Line::from(spans)
 }
 
 fn path_is_done(state: &TutorialState, path: super::TutorialPath) -> bool {
@@ -965,6 +1022,80 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let mut state = TutorialState::new();
         state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Build a Running state with one command step of the given effect and
+    /// short copy, so the WOW-001 command bar and badge stay inside the
+    /// 80x20 snapshot viewport (real path descriptions wrap past it).
+    fn command_step_state(effect: super::super::CommandEffect) -> TutorialState {
+        let mut state = TutorialState::new();
+        state.steps = vec![super::super::TutorialStep {
+            title: "Run the verifier".to_string(),
+            description: "A short step that runs a real command.".to_string(),
+            instruction: "Run: anvil start --verify".to_string(),
+            command: Some("anvil start --verify".to_string()),
+            effect: Some(effect),
+            ..super::super::TutorialStep::default()
+        }];
+        state.phase = TutorialPhase::Running;
+        state.chosen_path = Some(TutorialPath::ProtectionLoop);
+        state
+    }
+
+    /// WOW-001: a read-only command step must show the prompt-styled command
+    /// bar with the `[read-only]` badge and the command-step footer help
+    /// BEFORE the command has executed.
+    #[test]
+    fn snapshot_command_step_read_only_badge() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = command_step_state(super::super::CommandEffect::ReadOnly);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// WOW-001: a mutating command step must show the `[writes to your repo]`
+    /// badge so a repo write is never a surprise.
+    #[test]
+    fn snapshot_command_step_mutating_badge() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = command_step_state(super::super::CommandEffect::MutatesRepo);
+        state.steps[0].title = "Create Policy Directory".to_string();
+        state.steps[0].instruction = "Run: mkdir -p .anvil/policies".to_string();
+        state.steps[0].command = Some("mkdir -p .anvil/policies".to_string());
         let theme = EddaCraftTheme;
 
         terminal

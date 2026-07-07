@@ -1,5 +1,5 @@
-use super::TutorialStep;
 use super::verify::Verify;
+use super::{CommandEffect, TutorialStep};
 
 /// Starting content for the Policy path's inline editor — a minimal Rego rule
 /// the user can edit in place. Illustrative: the step only verifies the file
@@ -51,9 +51,11 @@ fn step_with_command(
     description: &str,
     instruction: &str,
     command: &str,
+    effect: CommandEffect,
 ) -> TutorialStep {
     TutorialStep {
         command: Some(command.to_string()),
+        effect: Some(effect),
         ..step(title, description, instruction)
     }
 }
@@ -63,11 +65,13 @@ fn step_with_verify(
     description: &str,
     instruction: &str,
     command: &str,
+    effect: CommandEffect,
     verify: Verify,
     hint: &str,
 ) -> TutorialStep {
     TutorialStep {
         command: Some(command.to_string()),
+        effect: Some(effect),
         verify: Some(verify),
         verify_hint: Some(hint.to_string()),
         ..step(title, description, instruction)
@@ -173,6 +177,7 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
             "Now run the safe verifier. `anvil start --verify` is read-only — it probes config (.anvilrc), the MCP client entries of any MCP-capable editor it detects (for example Cursor or Claude Code), the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. Watch-fallback liveness probing is not yet wired; the verifier reports `watch: not requested` until a future PR introspects a running watcher. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
             "Run: anvil start --verify",
             "anvil start --verify",
+            CommandEffect::ReadOnly,
         ),
     ]
 }
@@ -206,6 +211,7 @@ pub fn developer_acceleration_steps() -> Vec<TutorialStep> {
             "Run the read-only verifier. `anvil start --verify` probes your config, the MCP client entries of any MCP-capable editor it detects, the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. `protecting` means pre-write validation is live for your agent's edits; anything else names the next concrete step. It changes nothing — mutating activation is `anvil start` (no `--verify`).",
             "Run: anvil start --verify",
             "anvil start --verify",
+            CommandEffect::ReadOnly,
         ),
         TutorialStep {
             watch_demo: true,
@@ -220,6 +226,7 @@ pub fn developer_acceleration_steps() -> Vec<TutorialStep> {
             "anvil exposes your codebase's identity and graph context to the agent over MCP, so it writes code that respects your symbols and boundaries from the start. Source text stays local by default — only identity-level context is shared unless you opt in. `anvil gctx egress status` shows the effective snippet-egress state for this workspace and where it comes from. It is read-only.",
             "Run: anvil gctx egress status",
             "anvil gctx egress status",
+            CommandEffect::ReadOnly,
         ),
         step(
             "Wire it up for real",
@@ -238,6 +245,8 @@ pub fn policy_steps() -> Vec<TutorialStep> {
         ),
         TutorialStep {
             command: Some(create_policy_directory_command().to_string()),
+            // Creates `.anvil/policies/` in the user's repo.
+            effect: Some(CommandEffect::MutatesRepo),
             verify: Some(Verify::FileExists(".anvil/policies".to_string())),
             verify_hint: Some("The directory was not created. Check permissions.".to_string()),
             watch_path: Some(".anvil/policies".to_string()),
@@ -262,6 +271,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             "Before enforcing a policy, confirm anvil can discover it. `anvil policy test` walks `.anvil/policies/` and reports the Rego test files it finds. Test execution is not yet wired up in the Rust CLI — for now, run `opa test .anvil/policies` directly to exercise Rego logic.",
             "Run: anvil policy test to list your Rego test files.",
             "anvil policy test",
+            CommandEffect::ReadOnly,
             Verify::ExitCode(0),
             "anvil policy test exited non-zero — check the output for details.",
         ),
@@ -300,6 +310,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "Validate the architecture definition in .anvil/architecture.yaml. This checks that layers, boundaries, and allowed-import rules are well-formed before enforcement.",
             "Run: anvil architecture validate",
             "anvil architecture validate",
+            CommandEffect::ReadOnly,
             Verify::ExitCode(0),
             "Validation failed. Check your architecture.yaml.",
         ),
@@ -308,6 +319,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "See how anvil parses your architecture. The `show` command prints the template name, each layer's patterns and dependencies, and the rule count from `.anvil/architecture.yaml`.",
             "Run: anvil architecture show",
             "anvil architecture show",
+            CommandEffect::ReadOnly,
         ),
         step(
             "Validate Boundaries",
@@ -334,6 +346,7 @@ pub fn drift_steps() -> Vec<TutorialStep> {
             "Take an initial snapshot of your current state. anvil serialises the config and architecture into a versioned snapshot stored in .anvil/snapshots/.",
             "Run: anvil drift snapshot --name baseline",
             "anvil drift snapshot --name baseline",
+            CommandEffect::MutatesRepo,
             Verify::ExitCode(0),
             "Capture failed. Is your project initialised?",
         ),
@@ -342,12 +355,14 @@ pub fn drift_steps() -> Vec<TutorialStep> {
             "After making structural changes, capture a second snapshot. anvil stores each snapshot by name so you can compare them later.",
             "Run: anvil drift snapshot --name current",
             "anvil drift snapshot --name current",
+            CommandEffect::MutatesRepo,
         ),
         step_with_command(
             "Compare Snapshots",
             "Now compare the two snapshots. anvil shows a structured diff highlighting exactly what changed in your configuration or layer definitions.",
             "Run: anvil drift compare baseline current",
             "anvil drift compare baseline current",
+            CommandEffect::ReadOnly,
         ),
         TutorialStep {
             watch_demo: true,
@@ -392,6 +407,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
             "anvil auto-detects CI environments and adjusts its output. Use the `--json` flag to produce machine-readable output suitable for downstream tooling.",
             "Run: anvil status --json to preview JSON output.",
             "anvil status --json",
+            CommandEffect::ReadOnly,
             Verify::OutputContains("\"status\":".to_string()),
             "Expected JSON output with status field.",
         ),
@@ -744,6 +760,35 @@ mod tests {
         );
         assert!(steps[4].verify_hint.is_some());
         assert!(steps[5].command.is_none(), "Summary should have no command");
+    }
+
+    /// WOW-001: effects are declared honestly — the steps that write into
+    /// the user's repo carry `MutatesRepo`, the inspect-only ones `ReadOnly`.
+    #[test]
+    fn command_effects_are_declared_honestly() {
+        let policy = policy_steps();
+        assert_eq!(policy[1].effect, Some(CommandEffect::MutatesRepo)); // mkdir
+        assert_eq!(policy[3].effect, Some(CommandEffect::ReadOnly)); // policy test
+
+        let drift = drift_steps();
+        assert_eq!(drift[1].effect, Some(CommandEffect::MutatesRepo)); // snapshot
+        assert_eq!(drift[2].effect, Some(CommandEffect::MutatesRepo)); // snapshot
+        assert_eq!(drift[3].effect, Some(CommandEffect::ReadOnly)); // compare
+
+        // The read-only verifier closes both value-first paths.
+        assert_eq!(
+            protection_loop_steps().last().unwrap().effect,
+            Some(CommandEffect::ReadOnly)
+        );
+        let dev = developer_acceleration_steps();
+        assert_eq!(dev[2].effect, Some(CommandEffect::ReadOnly));
+        assert_eq!(dev[4].effect, Some(CommandEffect::ReadOnly));
+
+        let arch = architecture_steps();
+        assert_eq!(arch[2].effect, Some(CommandEffect::ReadOnly));
+        assert_eq!(arch[3].effect, Some(CommandEffect::ReadOnly));
+
+        assert_eq!(ci_steps()[4].effect, Some(CommandEffect::ReadOnly));
     }
 
     #[test]

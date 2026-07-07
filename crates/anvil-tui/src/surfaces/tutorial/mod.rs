@@ -100,6 +100,18 @@ pub enum TutorialPhase {
     Complete,
 }
 
+/// WOW-001: declared execution effect of a command step, authored alongside
+/// the command in `paths.rs`. Drives the runs-in-your-repo / read-only badge
+/// and the step-aware footer help so the user knows **before** pressing Enter
+/// whether the step runs a real command and whether it mutates their repo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandEffect {
+    /// The command only inspects state — it never writes to the repo.
+    ReadOnly,
+    /// The command creates or modifies files in the user's repo.
+    MutatesRepo,
+}
+
 /// Output captured after running a step's command.
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
@@ -117,6 +129,9 @@ pub struct TutorialStep {
     pub instruction: String,
     /// Optional shell command to execute when the user presses Enter.
     pub command: Option<String>,
+    /// WOW-001: declared effect of `command`. `Some` on every command step
+    /// (pinned by a test in `paths.rs`); `None` on informational steps.
+    pub effect: Option<CommandEffect>,
     pub completed: bool,
     /// Captured output from the last execution of `command`.
     pub output: Option<CommandOutput>,
@@ -647,17 +662,13 @@ impl TutorialState {
                 }
             }
             Action::Toggle => {
-                // In static mode, Toggle (space) advances any step since
-                // commands are never executed.
-                if self.static_mode {
-                    self.advance_step();
-                } else if let Some(step) = self.steps.get(self.current_step)
-                    && step.command.is_none()
-                {
-                    // Toggle only advances informational steps — it does not
-                    // execute commands, preventing accidental shell invocation.
-                    self.advance_step();
-                }
+                // Toggle (space) advances every step WITHOUT executing its
+                // command — the skip-without-running escape hatch (WOW-001,
+                // CIB-165 consent posture). A user who declines a command
+                // step must be able to move past it; execution stays
+                // exclusively on Enter, so accidental shell invocation via
+                // space remains impossible.
+                self.advance_step();
             }
             Action::Character('f') => {
                 if let Some(request) = self.next_fix_request() {
@@ -679,6 +690,14 @@ impl TutorialState {
         self.steps
             .get(self.current_step)
             .is_some_and(|s| s.edit_target.is_some())
+    }
+
+    /// WOW-001: whether the current step executes a shell command on Enter.
+    /// Drives the command/informational split in the footer help.
+    pub fn current_step_has_command(&self) -> bool {
+        self.steps
+            .get(self.current_step)
+            .is_some_and(|s| s.command.is_some())
     }
 
     fn handle_complete(&mut self, action: Action) {
@@ -714,10 +733,18 @@ impl crate::surface::Surface for TutorialState {
                     "e edit inline  space next  esc back  q quit"
                 } else if self.static_mode {
                     "enter next  esc back  q quit"
+                } else if self.current_step_has_command() {
+                    // WOW-001: command steps say what Enter really does and
+                    // make the skip-without-running escape hatch visible.
+                    if self.next_fix_request().is_some() {
+                        "enter run command  space skip without running  f fix  esc back  q quit"
+                    } else {
+                        "enter run command  space skip without running  esc back  q quit"
+                    }
                 } else if self.next_fix_request().is_some() {
-                    "enter run/next  space next  f fix  esc back  q quit"
+                    "enter next  space next  f fix  esc back  q quit"
                 } else {
-                    "enter run/next  space next  esc back  q quit"
+                    "enter next  space next  esc back  q quit"
                 }
             }
             TutorialPhase::Complete => "enter choose another  esc back  q quit",
@@ -859,16 +886,7 @@ mod tests {
                 title: format!("Step {i}"),
                 description: format!("Description {i}"),
                 instruction: format!("Press enter to continue ({i})."),
-                command: None,
-                completed: false,
-                output: None,
-                verify: None,
-                verify_result: None,
-                verify_hint: None,
-                watch_path: None,
-                watch_demo: false,
-                edit_target: None,
-                seed_template: None,
+                ..TutorialStep::default()
             })
             .collect();
         state.phase = TutorialPhase::Running;
@@ -884,15 +902,8 @@ mod tests {
             description: "A step with a command.".to_string(),
             instruction: format!("Run: {command}"),
             command: Some(command.to_string()),
-            completed: false,
-            output: None,
-            verify: None,
-            verify_result: None,
-            verify_hint: None,
-            watch_path: None,
-            watch_demo: false,
-            edit_target: None,
-            seed_template: None,
+            effect: Some(CommandEffect::ReadOnly),
+            ..TutorialStep::default()
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -907,15 +918,10 @@ mod tests {
             description: "A step with verification.".to_string(),
             instruction: format!("Run: {command}"),
             command: Some(command.to_string()),
-            completed: false,
-            output: None,
+            effect: Some(CommandEffect::ReadOnly),
             verify: Some(verify),
-            verify_result: None,
             verify_hint: Some(hint.to_string()),
-            watch_path: None,
-            watch_demo: false,
-            edit_target: None,
-            seed_template: None,
+            ..TutorialStep::default()
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1327,14 +1333,84 @@ mod tests {
     }
 
     #[test]
-    fn toggle_does_not_execute_command_step() {
+    fn toggle_skips_command_step_without_executing() {
+        // WOW-001: space is the skip-without-running escape hatch (CIB-165
+        // consent posture). It advances past a command step but must never
+        // execute the command — execution stays exclusively on Enter.
         let mut state = state_with_command_step("echo should_not_run");
         state.handle_key(Action::Toggle);
 
-        // Toggle should be ignored for command steps — no output, no advance.
-        assert_eq!(state.current_step, 0);
-        assert!(!state.steps[0].completed);
-        assert!(state.steps[0].output.is_none());
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+        assert!(
+            state.steps[0].output.is_none(),
+            "space must not execute the command"
+        );
+    }
+
+    // --- WOW-001: command-step evidence affordance ---
+
+    #[test]
+    fn command_step_help_text_names_run_and_skip() {
+        // Before pressing Enter on a command step, the footer must say that
+        // Enter runs a command and that space skips without running it.
+        let state = state_with_command_step("echo hello");
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(
+            help,
+            "enter run command  space skip without running  esc back  q quit"
+        );
+    }
+
+    #[test]
+    fn informational_step_help_text_says_next() {
+        // Informational steps must not claim Enter "runs" anything.
+        let state = state_with_plain_steps(1);
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(help, "enter next  space next  esc back  q quit");
+    }
+
+    #[test]
+    fn command_step_help_text_with_fix_available() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        // Policy path: load steps and jump to the first command step.
+        state.handle_key(Action::Down);
+        state.handle_key(Action::Down);
+        state.handle_key(Action::Select);
+        assert_eq!(state.chosen_path, Some(TutorialPath::Policy));
+        state.current_step = 1; // "Create Policy Directory" — a command step
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(
+            help,
+            "enter run command  space skip without running  f fix  esc back  q quit"
+        );
+    }
+
+    #[test]
+    fn every_command_step_declares_an_effect() {
+        // WOW-001: the run/read-only badge is only honest if every command
+        // step declares its effect where the command is authored.
+        for (path, steps) in [
+            (TutorialPath::ProtectionLoop, paths::protection_loop_steps()),
+            (
+                TutorialPath::DeveloperAcceleration,
+                paths::developer_acceleration_steps(),
+            ),
+            (TutorialPath::Policy, paths::policy_steps()),
+            (TutorialPath::Architecture, paths::architecture_steps()),
+            (TutorialPath::Drift, paths::drift_steps()),
+            (TutorialPath::CI, paths::ci_steps()),
+        ] {
+            for step in &steps {
+                assert_eq!(
+                    step.command.is_some(),
+                    step.effect.is_some(),
+                    "{path:?} step '{}' must declare an effect iff it has a command",
+                    step.title
+                );
+            }
+        }
     }
 
     #[test]
@@ -1799,16 +1875,10 @@ mod tests {
             title: "Watched Step".to_string(),
             description: "A step with file watching.".to_string(),
             instruction: "Create the target file.".to_string(),
-            command: None,
-            completed: false,
-            output: None,
             verify: Some(Verify::FileExists(target.to_string_lossy().to_string())),
-            verify_result: None,
             verify_hint: Some("File not found.".to_string()),
             watch_path: Some(watch_path.to_string()),
-            watch_demo: false,
-            edit_target: None,
-            seed_template: None,
+            ..TutorialStep::default()
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1853,16 +1923,9 @@ mod tests {
             title: "Watched".to_string(),
             description: "desc".to_string(),
             instruction: "inst".to_string(),
-            command: None,
-            completed: false,
-            output: None,
             verify: Some(Verify::FileExists(target.to_string_lossy().to_string())),
-            verify_result: None,
-            verify_hint: None,
             watch_path: Some(dir.to_string_lossy().to_string()),
-            watch_demo: false,
-            edit_target: None,
-            seed_template: None,
+            ..TutorialStep::default()
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1887,16 +1950,9 @@ mod tests {
             title: "Watched".to_string(),
             description: "desc".to_string(),
             instruction: "inst".to_string(),
-            command: None,
-            completed: false,
-            output: None,
             verify: Some(Verify::FileExists(target.to_string_lossy().to_string())),
-            verify_result: None,
-            verify_hint: None,
             watch_path: Some(dir.to_string_lossy().to_string()),
-            watch_demo: false,
-            edit_target: None,
-            seed_template: None,
+            ..TutorialStep::default()
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
