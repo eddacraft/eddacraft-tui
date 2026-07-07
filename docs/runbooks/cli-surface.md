@@ -643,15 +643,16 @@ $ anvil migrate schema --apply
 the Anvil intercept daemon. **When to use:** To start, stop, inspect, or unblock
 the local intercept daemon that enables pre-write MCP validation.
 
-**Synopsis:** `anvil intercept <start|status|unblock>`
+**Synopsis:** `anvil intercept <start|status|unblock|stop>`
 
 **Subcommands:**
 
-| Subcommand | Description                                                                |
-| ---------- | -------------------------------------------------------------------------- |
-| `start`    | Start the intercept daemon. Use `--foreground` to keep it in the terminal. |
-| `status`   | Print the daemon's status snapshot (sessions, fences, latency).            |
-| `unblock`  | Clear fence state from the daemon.                                         |
+| Subcommand | Description                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `start`    | Start the intercept daemon. Use `--foreground` to keep it in the terminal.                   |
+| `status`   | Print the daemon's status snapshot (sessions, fences, latency).                              |
+| `unblock`  | Clear fence state from the daemon.                                                           |
+| `stop`     | Stop the per-user daemon recorded in the daemon PID file; idempotent when no daemon is live. |
 
 **`start` flags:**
 
@@ -688,6 +689,7 @@ $ anvil intercept status
 $ anvil intercept status --json
 $ anvil intercept unblock --worktree /path/to/worktree
 $ anvil intercept unblock --all --dry-run
+$ anvil intercept stop
 ```
 
 ---
@@ -697,18 +699,51 @@ $ anvil intercept unblock --all --dry-run
 **Class:** Admin **Purpose:** Manage the save-time daemon's workspace admission
 (which project roots the `anvil-intercept` daemon will serve). **When to use:**
 To switch the daemon between `open` (first-touch adopt) and `allowlist` mode, or
-to curate the `allowlist` of served roots (confinement).
+to curate the `allowlist` of served roots (confinement), and to register
+worktrees for durable daemon protection.
 
-**Synopsis:** `anvil workspace <mode|allow|deny|list>`
+**Synopsis:**
+`anvil workspace <mode|allow|deny|register|unregister|list|install-hook>`
 
 **Subcommands:**
 
-| Subcommand | Description                                                                           |
-| ---------- | ------------------------------------------------------------------------------------- |
-| `mode`     | Set admission mode: `open` (first-touch adopt, default) or `allowlist`.               |
-| `allow`    | Add an allow entry (exact by default; `--prefix` confines a subtree). Allowlist only. |
-| `deny`     | Remove an allow entry by path.                                                        |
-| `list`     | Show the current admission mode and allow entries.                                    |
+| Subcommand     | Description                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `mode`         | Set admission mode: `open` (first-touch adopt, default) or `allowlist`.                                        |
+| `allow`        | Add an allow entry (exact by default; `--prefix` confines a subtree). Allowlist only.                          |
+| `deny`         | Remove an allow entry by path.                                                                                 |
+| `register`     | Register a worktree for durable daemon protection (ACTMO-015). With no PATH, registers the current worktree.   |
+| `unregister`   | Unregister a worktree's durable protection (ACTMO-015). Idempotent.                                            |
+| `list`         | Show the admission mode, allow entries, and registered worktrees.                                              |
+| `install-hook` | Install a guided `git` alias so newly-created worktrees auto-register (ACTMO-020). Adds a portable `sh` alias. |
+
+**`register` flags:**
+
+| Flag        | Description                                                                         |
+| ----------- | ----------------------------------------------------------------------------------- |
+| `PATH`      | Worktree to register (positional; defaults to the current directory).               |
+| `--all`     | Register every exact allowlist entry that is a live, unfenced worktree (ACTMO-018). |
+| `--persist` | Also record the worktree in `register_on_start` so the daemon re-registers it.      |
+
+**`unregister` flags:**
+
+| Flag        | Description                                                             |
+| ----------- | ----------------------------------------------------------------------- |
+| `PATH`      | Worktree to unregister (positional; defaults to the current directory). |
+| `--persist` | Also remove the worktree from `register_on_start`.                      |
+
+**`install-hook` flags:**
+
+| Flag              | Description                                                         |
+| ----------------- | ------------------------------------------------------------------- |
+| `--alias <ALIAS>` | Name of the Git alias to install (default `wt-add`).                |
+| `--print`         | Print the alias (and the PowerShell equivalent) without installing. |
+
+> **Registration does not grant admission.** In `allowlist` mode a registered
+> worktree is still served only if it is also an allow entry — add it with
+> `anvil workspace allow <path>`. See
+> [`operations/config.md`](../public/anvil/operations/config.md) for the
+> `register_on_start` persistence and downgrade-safety details.
 
 **Exit codes:** 0 (success), 1 (error)
 
@@ -718,6 +753,10 @@ to curate the `allowlist` of served roots (confinement).
 $ anvil workspace list
 $ anvil workspace mode allowlist
 $ anvil workspace allow /path/to/project --prefix
+$ anvil workspace register /path/to/project --persist
+$ anvil workspace register --all --persist
+$ anvil workspace unregister /path/to/project --persist
+$ anvil workspace install-hook --print
 ```
 
 ---

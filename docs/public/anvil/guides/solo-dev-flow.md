@@ -48,9 +48,9 @@ As you work with AI:
 ```
 [10:30:00] Watching...
 [10:30:15] Changed: src/api/users.ts
-           ✓ architecture
-           ✓ anti-patterns
-           ✓ secrets
+           ✓ import-boundaries
+           ✓ antipattern-scan
+           ✓ secret-detection
            All gates passed.
 [10:31:02] Changed: src/services/auth.ts
            ⚠️ AP-003: Explicit 'any' at line 42

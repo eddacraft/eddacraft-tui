@@ -198,7 +198,10 @@ workspace assurance state you can read at any time with `anvil status`. Set
 `v0.8.1-beta`, if no daemon is running, an interactive `anvil watch` offers to
 start one (`anvil start` auto-starts it instead); pass `--no-daemon` to skip the
 offer, or `ANVIL_WATCH_DAEMON=0` to also disable reuse of a live daemon. See
-`anvil watch --help` for the routing and lifecycle details.
+`anvil watch --help` for the routing and lifecycle details. If you are consuming
+watch output from a script, put the global `--json` flag before the subcommand
+(`anvil --json watch`) and follow the
+[Watch JSON Output](integrations/watch-output.md) NDJSON contract.
 
 To walk this path end to end — activation, a deliberately bad save, and reading
 the finding anvil raises in your own repo — follow
@@ -350,7 +353,7 @@ Save the file. If watch mode is running you will see immediate confirmation:
 ```
 Change detected: src/utils/parser.ts
 
-Checking anti-patterns... done
+Checking antipattern-scan... done
 
 All gates passed.
 ```

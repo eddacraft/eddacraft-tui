@@ -164,12 +164,12 @@ Summary** to read the last run without re-running it. See
 ## Example
 
 ```text
-Checking architecture... done
+Checking import-boundaries... done
 Checking policy...
   AP-003 explicit any type detected
     src/utils/parser.ts:42
 
-Checking secret... done
+Checking secret-detection... done
 
 Quality gates failed (2/3 passed)
 ```

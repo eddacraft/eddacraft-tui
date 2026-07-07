@@ -115,12 +115,12 @@ anvil gate --only-checks import-boundaries,antipattern-scan
 You might see existing violations:
 
 ```
-Checking architecture...
+Checking import-boundaries...
   ARCH-001: Boundary violation
     src/api/handlers/user.ts imports from src/repositories/user.repo.ts
     Rule: api-layer denies imports from src/repositories/**
 
-Checking anti-patterns...
+Checking antipattern-scan...
   [AP-003] Explicit 'any' type
     src/services/parser.ts:42:10
 

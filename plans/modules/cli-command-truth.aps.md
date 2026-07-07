@@ -7,7 +7,8 @@
 | ----- | ----- | -------- | ----------- | -------- |
 | CLICT | —     | high     | In Progress | 0/7      |
 
-**Last reviewed:** 2026-07-06 (runtime registry + slices 1–6 audited in
+**Last reviewed:** 2026-07-07 (CLICT-004..006 reconciled in docs/runbooks/public
+copy; runtime registry + slices 1–6 tracked in
 `docs/reviews/cli-command-truth-review.md`)
 
 ## Purpose
@@ -185,7 +186,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- watch --help`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Done 2026-07-07 — watch docs reconciled; slice 4 checklist closed
 
 ### CLICT-005: Gate docs reconciliation
 
@@ -206,7 +207,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- gate --help` and `check_catalog.rs`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Done 2026-07-07 — gate vocabulary reconciled; slice 5 checklist closed
 
 ### CLICT-006: Intercept and workspace runbook reconciliation
 
@@ -224,7 +225,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `workspace --help` and `intercept --help`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Done 2026-07-07 — intercept/workspace runbook reconciled; slice 6 checklist closed
 
 ### CLICT-007: Tier 2 runbook alignment sweep
 

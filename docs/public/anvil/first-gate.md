@@ -76,7 +76,7 @@ The moment you save, anvil responds:
 ```
 Change detected: src/api/handlers/delete-user.ts
 
-Checking architecture...
+Checking import-boundaries...
   ARCH-001: Boundary violation
     src/api/handlers/delete-user.ts:2
     imports from ../../repositories/db
@@ -84,7 +84,7 @@ Checking architecture...
 
     API handlers should use services, not repositories directly.
 
-Checking anti-patterns...
+Checking antipattern-scan...
   [AP-006] Empty catch block
     src/api/handlers/delete-user.ts:10:5
 
@@ -123,8 +123,8 @@ Save again:
 ```
 Change detected: src/api/handlers/delete-user.ts
 
-Checking architecture... done
-Checking anti-patterns... done
+Checking import-boundaries... done
+Checking antipattern-scan... done
 
 All gates passed.
 ```

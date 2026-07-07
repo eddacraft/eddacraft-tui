@@ -1,8 +1,8 @@
 # CLI Command Truth Review
 
-| Type  | Authority | Owner | Status | Freshness                                                            |
-| ----- | --------- | ----- | ------ | -------------------------------------------------------------------- |
-| Guide | Advisory  | CLICT | Live   | Last updated 2026-07-06 — full runtime registry + slices 1–6 audited |
+| Type  | Authority | Owner | Status | Freshness                                                                    |
+| ----- | --------- | ----- | ------ | ---------------------------------------------------------------------------- |
+| Guide | Advisory  | CLICT | Live   | Last updated 2026-07-07 — slices 4–6 reconciled; runtime registry re-checked |
 
 | Upstream                                                                    | Downstream                                      |
 | --------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -95,12 +95,14 @@ For each command family:
 ## Command families (runtime truth)
 
 **Source of truth:** `cargo run --bin anvil -- --help` and per-command `--help`,
-captured 2026-07-06 against `target/debug/anvil` on `main`. Registration lives
-in `crates/anvil-cli/src/main.rs` (`Commands` enum); dispatch in
+root registry re-verified 2026-07-07 on `main`. Registration lives in
+`crates/anvil-cli/src/main.rs` (`Commands` enum); dispatch in
 `crates/anvil-cli/src/commands/`.
 
-**Count:** **45** top-level command families (plus `help`). **18** expose
-subcommands; **27** are flat (flags and/or positional args only).
+**Count:** **45** top-level command families (plus built-in `help`). **20**
+expose subcommands; **25** are flags/positional-only surfaces. Hidden
+compatibility aliases (`login`, `logout`, `whoami`) dispatch to `auth` and are
+tracked as auth-surface notes, not separate command families.
 
 ### Registry
 
@@ -187,8 +189,8 @@ Canonical names from `crates/anvil-cli/src/commands/check_catalog.rs`
 | Tier        | Families                                                           | CLICT work     |
 | ----------- | ------------------------------------------------------------------ | -------------- |
 | **Tier 1**  | `architecture`, `policy`, `drift`, `watch`, `gate` (+ `exception`) | CLICT-001..005 |
-| **Tier 2**  | Remaining 38 families — runbook-first spot-check                   | CLICT-007      |
-| **Tier 1½** | `intercept`, `workspace` — runbook missing shipped subcommands     | CLICT-006      |
+| **Tier 2**  | Remaining 36 families — runbook-first spot-check                   | CLICT-007      |
+| **Tier 1½** | `intercept`, `workspace` — runbook subcommands reconciled          | CLICT-006      |
 
 ---
 
@@ -464,13 +466,13 @@ Runbook and beta guide are otherwise aligned.
 
 ### Documentation layers
 
-| Source                                             | Authority     | Claims vs runtime                                                                  |
-| -------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------- |
-| `docs/runbooks/cli-surface.md` §watch              | Runbook       | **Aligned** — flags match `--help`                                                 |
-| `docs/public/anvil/integrations/watch-output.md`   | Public spec   | **Current** — NDJSON lifecycle, daemon default, `--json` purity (DSV-era)          |
-| `docs/guides/custom-architecture-policies.md`      | Guide (stale) | **Wrong command** — `anvil architecture watch` (does not exist; use `anvil watch`) |
-| `docs/public/anvil/releases/changelog.md`          | Release notes | Documents `--action` default change — aligned with runtime                         |
-| `docs/public/anvil/guides/save-time-validation.md` | Public guide  | Thin on flags; no false commands                                                   |
+| Source                                             | Authority     | Claims vs runtime                                                                                   |
+| -------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| `docs/runbooks/cli-surface.md` §watch              | Runbook       | **Aligned** — flags match `--help`                                                                  |
+| `docs/public/anvil/integrations/watch-output.md`   | Public spec   | **Current** — NDJSON lifecycle, daemon default, `--json` purity (DSV-era)                           |
+| `docs/guides/custom-architecture-policies.md`      | Guide         | **Aligned** — substitute table points to `anvil watch` without teaching a non-registered subcommand |
+| `docs/public/anvil/releases/changelog.md`          | Release notes | Documents `--action` default change — aligned with runtime                                          |
+| `docs/public/anvil/guides/save-time-validation.md` | Public guide  | Thin on flags; no false commands                                                                    |
 
 **Runtime truth:** flat command —
 `[--file] [--action check|gate|none] [--plans] [--source] [--all] [--patterns] [--exclude] [--debounce]`.
@@ -492,11 +494,12 @@ Runbook and beta guide are otherwise aligned.
 
 ### Documentation drift hotspots (watch)
 
-1. **`custom-architecture-policies.md`** — `anvil architecture watch` (fixed by
-   CLICT-001 overlap).
-2. **Default `--action` narrative** — changelog documents v0.8+ default `check`;
-   some older public copy may still imply architecture-only default (spot-check
-   during reconciliation).
+1. **`custom-architecture-policies.md`** — closed by CLICT-004: substitute table
+   now names the capability and points to `anvil watch` without presenting a
+   non-registered subcommand as executable.
+2. **Default `--action` narrative** — closed by CLICT-004: runbook, public
+   quickstart/ops, and save-time validation docs describe `check` as the default
+   action and `--action none` as the architecture/dependency-only mode.
 
 ### APS cross-links (watch)
 
@@ -507,10 +510,10 @@ Runbook and beta guide are otherwise aligned.
 
 ### Reconciliation checklist (watch)
 
-- [ ] No remaining `anvil architecture watch` in live guides
-- [ ] Public docs state default `--action check` and `--action none` for
+- [x] No remaining `anvil architecture watch` in live guides
+- [x] Public docs state default `--action check` and `--action none` for
       arch-only
-- [ ] `watch-output.md` cross-linked from public quickstart where relevant
+- [x] `watch-output.md` cross-linked from public quickstart/ops where relevant
 
 ---
 
@@ -518,14 +521,14 @@ Runbook and beta guide are otherwise aligned.
 
 ### Documentation layers
 
-| Source                                   | Authority             | Claims vs runtime                                                                                                  |
-| ---------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `docs/runbooks/cli-surface.md` §gate     | Runbook               | **Aligned** — flags and profiles match                                                                             |
-| `docs/architecture/quality-model.md`     | Authoritative concept | **Partial** — uses `architecture` check noun; runtime canonical name is `import-boundaries` (alias `architecture`) |
-| `docs/public/anvil/concepts/gates.md`    | Public concept        | **Mostly aligned** — documents `import-boundaries` + legacy `architecture` alias                                   |
-| `docs/public/anvil/operations/config.md` | Public ops            | Check table uses canonical names — aligned                                                                         |
-| `docs/public/anvil/concepts/sessions.md` | Public concept        | Sample output still says `architecture` check name in places                                                       |
-| `crates/anvil-cli/src/commands/check.rs` | Runtime help text     | Correctly directs profile checks to `anvil gate`                                                                   |
+| Source                                   | Authority             | Claims vs runtime                                                                |
+| ---------------------------------------- | --------------------- | -------------------------------------------------------------------------------- |
+| `docs/runbooks/cli-surface.md` §gate     | Runbook               | **Aligned** — flags and profiles match                                           |
+| `docs/architecture/quality-model.md`     | Authoritative concept | **Aligned** — teaches `CHECK_DEFINITIONS` canonical names and accepted aliases   |
+| `docs/public/anvil/concepts/gates.md`    | Public concept        | **Mostly aligned** — documents `import-boundaries` + legacy `architecture` alias |
+| `docs/public/anvil/operations/config.md` | Public ops            | Check table uses canonical names — aligned                                       |
+| `docs/public/anvil/concepts/sessions.md` | Public concept        | **Aligned** — sample output uses canonical check names with alias callout        |
+| `crates/anvil-cli/src/commands/check.rs` | Runtime help text     | Correctly directs profile checks to `anvil gate`                                 |
 
 **Runtime truth (`gate`):** flat — optional `[PLAN]` positional;
 `--profile dev|ci|production|ai`; `--only-checks` / `--skip-checks` accept
@@ -545,13 +548,15 @@ canonical names and aliases per `check_catalog.rs`.
 
 ### Documentation drift hotspots (gate)
 
-1. **`quality-model.md`** — conceptual `architecture` check vs canonical
-   `import-boundaries` (teach alias explicitly).
-2. **`sessions.md` / sample JSON** — legacy `architecture` name in examples.
-3. **`gates.md`** — already documents alias; ensure all public tutorials use
-   consistent vocabulary.
+1. **`quality-model.md`** — closed by CLICT-005: canonical-name table added from
+   `CHECK_DEFINITIONS`, including `secret` → `secret-detection` and
+   `architecture` → `import-boundaries`.
+2. **`sessions.md` / sample JSON** — closed by CLICT-005: sample output and JSON
+   use canonical names and note legacy aliases.
+3. **`gates.md` / tutorials** — closed by CLICT-005: public examples use
+   canonical check names while retaining alias explanation.
 4. **Planned rename note** in runbook (`gate-config` → `anvil gate config`) —
-   not implemented; docs must not imply it exists.
+   remains clearly future tense; no doc implies the rename exists today.
 
 ### APS cross-links (gate)
 
@@ -562,9 +567,9 @@ canonical names and aliases per `check_catalog.rs`.
 
 ### Reconciliation checklist (gate)
 
-- [ ] `quality-model.md` teaches canonical names with alias table
-- [ ] Public sample output uses `import-boundaries` (note `architecture` alias)
-- [ ] Runbook `gate-config` planned-rename stays clearly future tense
+- [x] `quality-model.md` teaches canonical names with alias table
+- [x] Public sample output uses `import-boundaries` (note `architecture` alias)
+- [x] Runbook `gate-config` planned-rename stays clearly future tense
 
 ---
 
@@ -575,19 +580,27 @@ queue).
 
 ### Runbook vs runtime gaps
 
-| Command     | In `--help` but missing from runbook synopsis    |
-| ----------- | ------------------------------------------------ |
-| `workspace` | `register`, `unregister`, `install-hook` (ACTMO) |
-| `intercept` | Runbook aligned on `start/status/unblock/stop`   |
+| Command     | Status after CLICT-006 reconciliation                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `workspace` | Runbook now lists `mode`, `allow`, `deny`, `register`, `unregister`, `list`, and `install-hook`. |
+| `intercept` | Runbook now lists `start`, `status`, `unblock`, and `stop`.                                      |
 
-`workspace` runbook lists only `mode|allow|deny|list`; runtime adds worktree
-registration and guided git-alias hook install (ACTMO-015/020).
+`workspace` registration remains distinct from admission: `register` gives a
+worktree durable daemon protection, while `allow` controls whether that root is
+served in `allowlist` mode. The public operations/config guide now cross-links
+the registration and persistence details for operators.
 
 ### APS cross-links
 
 | Item          | Module | Role                                      |
 | ------------- | ------ | ----------------------------------------- |
 | **CLICT-006** | CLICT  | Runbook + public ops for daemon/workspace |
+
+### Reconciliation checklist (intercept/workspace)
+
+- [x] `docs/runbooks/cli-surface.md` §workspace documents all seven subcommands
+- [x] `docs/runbooks/cli-surface.md` §intercept includes shipped `stop`
+- [x] Public ops/config mentions worktree registration and durable persistence
 
 ---
 
@@ -598,7 +611,7 @@ registration and guided git-alias hook install (ACTMO-015/020).
 | 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes         |
 | 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide           |
 | 3   | `anvil drift`                          | CLICT-003  | **Reconciling** | PR #3209 — tutorial snapshot paths, `--overwrite` removed |
-| 4   | `anvil watch`                          | CLICT-004  | **Audited**     | `architecture watch` conflation; default `--action` copy  |
-| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Audited**     | `import-boundaries` vs `architecture` vocabulary          |
-| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Audited**     | Runbook missing workspace subcommands                     |
-| 7   | Tier 2 runbook alignment (38 families) | CLICT-007  | **Queued**      | Spot-check remaining families; fix runbook-only gaps      |
+| 4   | `anvil watch`                          | CLICT-004  | **Done**        | Watch command/default-action docs reconciled              |
+| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                |
+| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled           |
+| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Ready**       | Spot-check remaining families; fix runbook-only gaps      |

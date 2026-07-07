@@ -168,7 +168,7 @@ anvil gate --only-checks import-boundaries
 ```
 
 ```
-Checking architecture...
+Checking import-boundaries...
   ARCH-001: Boundary violation
     src/api/handlers/report.ts:3
     imports from ../../repositories/report.repo

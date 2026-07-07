@@ -61,6 +61,33 @@ Examples:
 
 Use `check` when talking about one evaluative concern.
 
+### Canonical Check Names
+
+When a document, example, `.anvilrc#checks`, `anvil gate --only-checks`, or
+`anvil gate --skip-checks` names a check, use the runtime canonical names from
+`crates/anvil-cli/src/commands/check_catalog.rs`. Stable IDs are diagnostic
+identifiers; the canonical name is what users should type.
+
+| Stable ID           | Canonical name      | Accepted aliases | Gate-supported | Gate-config supported |
+| ------------------- | ------------------- | ---------------- | -------------- | --------------------- |
+| `ANV-CORE-001`      | `secret-detection`  | `secret`         | Yes            | Yes                   |
+| `ANV-CORE-002`      | `import-boundaries` | `architecture`   | Yes            | Yes                   |
+| `ANV-CORE-003`      | `antipattern-scan`  | —                | Yes            | Yes                   |
+| `ANV-CORE-004`      | `policy`            | —                | Yes            | Yes                   |
+| `ANV-CORE-005`      | `lint`              | —                | Yes            | Yes                   |
+| `ANV-CORE-006`      | `test`              | —                | Yes            | Yes                   |
+| `ANV-CORE-007`      | `coverage`          | —                | Yes            | Yes                   |
+| `ANV-CORE-008`      | `dependency`        | —                | Yes            | Yes                   |
+| `ANV-CORE-009`      | `command-safety`    | —                | Yes            | Yes                   |
+| `ANV-SURF-SQL-001`  | `sql-migrations`    | `sql`            | Yes            | No                    |
+| `ANV-SURF-GHA-001`  | `github-actions`    | `gha`            | Yes            | No                    |
+| `ANV-SURF-DOCK-001` | `dockerfile`        | `dock`           | Yes            | No                    |
+| `ANV-SURF-SH-001`   | `shell-scripts`     | `sh`, `shell`    | Yes            | No                    |
+
+Legacy aliases stay accepted where the CLI advertises them, but user-facing docs
+should prefer `secret-detection` over `secret` and `import-boundaries` over
+`architecture`.
+
 ### Finding
 
 The generic result emitted by a check.
@@ -166,10 +193,12 @@ Workflow judgement.
 Continuous mode over checks and gates.
 
 - Watch mode observes the workspace continuously: the kernel watcher emits
-  change events, and check evaluation is _deferred_ — dispatched through the
-  intercept daemon (`anvil-intercept-rules`) when it is wired, or run on the
-  next manual `anvil check`. Watch does not itself re-run the full check
-  pipeline inline on every change event.
+  change events, and the default action is `check`. Use `--action gate` to run a
+  gate on each change, or `--action none` for an architecture/dependency-only
+  watch with no code-quality scan.
+- When a save-time daemon is already available, watch routes changed-path
+  validation through the daemon. Headless, `--json`, CI, hook, and piped runs
+  stay deterministic and do not prompt to start a daemon.
 - It should be understood as continuous quality feedback, not as a separate
   parallel quality system. See [`checks-as-built.md`](./checks-as-built.md) for
   the live event-emission + deferred-dispatch path.

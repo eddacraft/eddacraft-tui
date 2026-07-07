@@ -564,15 +564,15 @@ anvil architecture show        # Print the active definition
 
 ### Substitute surfaces (same capability, different command)
 
-| Documented / planned name            | Use instead                                                  |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `anvil architecture init`            | Create `.anvil/architecture.yaml` manually (templates below) |
-| `anvil architecture check`           | `anvil gate --only-checks import-boundaries`                 |
-| `anvil architecture watch`           | `anvil watch` (default `--action check`)                     |
-| `anvil architecture visualise`       | `anvil dashboard architecture` (TUI)                         |
-| `anvil architecture export`          | `anvil export --format prompt-fragment` (agent context)      |
-| `anvil architecture list` / `impact` | `anvil architecture show`; gate output for violations        |
-| `anvil architecture debug`           | `anvil doctor`; gate verbose output                          |
+| Documented / planned capability | Use instead                                                  |
+| ------------------------------- | ------------------------------------------------------------ |
+| Initialise a definition         | Create `.anvil/architecture.yaml` manually (templates below) |
+| Check boundaries                | `anvil gate --only-checks import-boundaries`                 |
+| Watch boundaries continuously   | `anvil watch` (default `--action check`)                     |
+| Visualise the graph             | `anvil dashboard architecture` (TUI)                         |
+| Export architecture context     | `anvil export --format prompt-fragment` (agent context)      |
+| List / inspect impact           | `anvil architecture show`; gate output for violations        |
+| Debug configuration             | `anvil doctor`; gate verbose output                          |
 
 ```bash
 anvil gate --only-checks import-boundaries

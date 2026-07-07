@@ -89,12 +89,17 @@ Files checked: 3
 Duration: 245ms
 
 Results:
-  ✓ architecture (23ms)
-  ✓ anti-patterns (12ms)
-  ✓ secrets (8ms)
+  ✓ import-boundaries (23ms)
+  ✓ antipattern-scan (12ms)
+  ✓ secret-detection (8ms)
 
 Status: PASS
 ```
+
+The run output uses the canonical check names accepted by
+`anvil gate --only-checks` and `.anvilrc#checks`. Legacy aliases such as
+`architecture` and `secret` may still parse, but public examples use
+`import-boundaries` and `secret-detection`.
 
 ### Run Modes
 
@@ -167,7 +172,7 @@ Evidence is the immutable record of what was validated.
   },
   "checks": [
     {
-      "name": "architecture",
+      "name": "import-boundaries",
       "status": "pass",
       "duration_ms": 23
     }
