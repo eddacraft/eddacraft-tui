@@ -139,7 +139,7 @@ and [Claude project MCP convention][anthropic-mcp].
 - **Expected Outcome:** `anvil mcp install --client <client>` resolves the client
   config location, writes the Anvil server entry safely, preserves unrelated user
   config, rewrites Anvil-owned drift, and prints accurate restart/reload guidance.
-- **Validation:** `cargo test -p eddacraft-anvil --test mcp_config --test mcp_install`
+- **Validation:** `cargo test -p eddacraft-anvil --test mcp_config`
 - **Dependencies:** MCPX-002
 - **Confidence:** medium
 
