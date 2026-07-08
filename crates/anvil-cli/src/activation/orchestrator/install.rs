@@ -87,6 +87,10 @@ pub enum SkipReason {
     /// User toggled this client off in the picker (or never selected
     /// it in non-interactive mode because of drift class).
     UserDeselected,
+    /// TUI mode deferred the selection to the activation surface; no legacy
+    /// picker was shown, so this must not be described as a user deselection
+    /// (the activation TUI owns the consent step).
+    ConsentDeferredToTui,
     /// ACTMO-012: the editor was not detected on this host (no binary on
     /// PATH, no pre-existing editor state) and has no existing anvil
     /// entry to manage, so anvil did not create a config for an editor
@@ -319,12 +323,8 @@ pub(crate) fn install_for_clients_with_consent_mode(
                 } else if chosen_ids.contains(&candidate.id) {
                     install_one(*client, candidate, fresh)
                 } else {
-                    tracing::debug!(
-                        client = %candidate.id,
-                        "mcp install: skipped — user deselected",
-                    );
                     InstallOutcome::Skipped {
-                        reason: SkipReason::UserDeselected,
+                        reason: unchosen_skip_reason(consent_mode, candidate.id),
                     }
                 }
             }
@@ -338,6 +338,22 @@ pub(crate) fn install_for_clients_with_consent_mode(
         // is stamped onto the report there. `install_for_clients` never
         // installs hooks, so the honest default here is `false`.
         hooks_active: false,
+    }
+}
+
+/// Skip reason for an offerable client that was not chosen for install.
+///
+/// In TUI mode no legacy picker was shown — consent is owned by the activation
+/// surface — so the client is recorded as [`SkipReason::ConsentDeferredToTui`]
+/// rather than [`SkipReason::UserDeselected`], which would misrepresent an
+/// unshown picker as an explicit user deselection.
+fn unchosen_skip_reason(consent_mode: InstallConsentMode, client: McpClientId) -> SkipReason {
+    if matches!(consent_mode, InstallConsentMode::DeferToTui) {
+        tracing::debug!(%client, "mcp install: skipped — consent deferred to activation TUI");
+        SkipReason::ConsentDeferredToTui
+    } else {
+        tracing::debug!(%client, "mcp install: skipped — user deselected");
+        SkipReason::UserDeselected
     }
 }
 

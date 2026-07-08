@@ -165,7 +165,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-002: Orchestrator progress events (decouple presentation)
 
-- **Status:** In Progress 2026-07-08 — activation progress event contract landed
+- **Status:** In Progress 2026-07-08 — activation progress event contract implemented
   on `feat/acttui-002-events` (stacked on ACTTUI-001). Added typed
   `ActivationStep`/`ActivationStepEvent`/`ActivationRun` primitives,
   `StartRenderMode`, TUI-mode lifecycle/log buffering, and a consent deferral

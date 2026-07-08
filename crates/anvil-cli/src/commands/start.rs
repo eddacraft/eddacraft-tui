@@ -302,9 +302,8 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let line = "anvil: ensuring the per-user save-time daemon is running…";
         if matches!(render_mode, StartRenderMode::Tui) {
             tui_log_lines.push(line.to_string());
-        } else {
-            eprintln!("{line}");
         }
+        eprintln!("{line}");
     }
     let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
 

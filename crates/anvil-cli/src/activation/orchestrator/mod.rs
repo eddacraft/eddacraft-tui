@@ -123,6 +123,7 @@ pub(crate) enum ActivationStepLifecycle {
     Started,
     Completed,
     Skipped,
+    Failed,
 }
 
 impl ActivationStepLifecycle {
@@ -131,6 +132,7 @@ impl ActivationStepLifecycle {
             Self::Started => "started",
             Self::Completed => "completed",
             Self::Skipped => "skipped",
+            Self::Failed => "failed",
         }
     }
 }
@@ -196,6 +198,14 @@ impl ActivationRun {
         self.events.push(ActivationStepEvent::new(
             step,
             ActivationStepLifecycle::Skipped,
+            Some(detail.into()),
+        ));
+    }
+
+    fn fail(&mut self, step: ActivationStep, detail: impl Into<String>) {
+        self.events.push(ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Failed,
             Some(detail.into()),
         ));
     }
@@ -514,7 +524,7 @@ fn run_with_home_and_registration_outcome(
                     render_mode,
                     format!("anvil: could not install git hooks ({e}); continuing"),
                 );
-                activation_run.skip(ActivationStep::GitHooks, "could not install git hooks");
+                activation_run.fail(ActivationStep::GitHooks, "could not install git hooks");
                 false
             }
         }
@@ -740,10 +750,9 @@ fn log_or_eprintln(
 ) {
     let line = line.into();
     if matches!(render_mode, StartRenderMode::Tui) {
-        activation_run.log(line);
-    } else {
-        eprintln!("{line}");
+        activation_run.log(line.clone());
     }
+    eprintln!("{line}");
 }
 
 fn record_daemon_attestation_log(
@@ -1231,9 +1240,22 @@ verdict: completed"
         assert!(matches!(
             outcome.install_report.per_client.get(&McpClientId::Cursor),
             Some(InstallOutcome::Skipped {
-                reason: SkipReason::UserDeselected,
+                reason: SkipReason::ConsentDeferredToTui,
             })
         ));
+    }
+
+    #[test]
+    fn activation_step_failed_lifecycle_is_distinct_from_skip() {
+        let mut run = ActivationRun::default();
+        run.start(ActivationStep::GitHooks);
+        run.fail(ActivationStep::GitHooks, "could not install git hooks");
+
+        assert!(run.events().iter().any(|event| {
+            event.step == ActivationStep::GitHooks
+                && event.lifecycle == ActivationStepLifecycle::Failed
+                && event.render_line().contains("failed")
+        }));
     }
 
     #[test]

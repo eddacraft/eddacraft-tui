@@ -248,6 +248,9 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
                 reason: SkipReason::UserDeselected,
             } => "skipped — not selected".to_string(),
             InstallOutcome::Skipped {
+                reason: SkipReason::ConsentDeferredToTui,
+            } => "skipped — consent deferred to activation TUI".to_string(),
+            InstallOutcome::Skipped {
                 reason: SkipReason::UnsafeDrift(reason),
             } => format!("skipped — refused to overwrite ({reason})"),
             InstallOutcome::Skipped {
