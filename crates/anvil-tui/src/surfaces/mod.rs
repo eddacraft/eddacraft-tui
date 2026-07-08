@@ -1,3 +1,4 @@
+pub mod activation;
 pub mod audit;
 pub mod browser;
 #[cfg(test)]

@@ -4,7 +4,7 @@
 | ------ | ----- | ------ | -------- |
 | ACTTUI | Josh  | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate completed: ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold + opt-in `--tui`/`ANVIL_ACTIVATION_TUI` dispatch In Progress on `feat/acttui-001-scaffold`. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
@@ -136,7 +136,15 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-001: Activation surface scaffold + plain fallback contract
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-08 — surface scaffold + opt-in dispatch landed
+  on `feat/acttui-001-scaffold`. New
+  `crates/anvil-tui/src/surfaces/activation/` (`ActivationPhase` enum +
+  `ActivationSurface` + renderer with gated-`ANVIL_HOME` banner); `anvil start`
+  gains `--tui` and honours `ANVIL_ACTIVATION_TUI`, gated behind genuine
+  interactivity (stdin+stdout+stderr TTY, not CI/`ANVIL_NO_PROMPT`) and
+  suppressed by `--verify`/`--json`/`--watch`/`--no-tui`/`ANVIL_NO_TUI`;
+  `anvil-tui` enables the `eddacraft-tui` `big-text` feature. `render_compact`
+  path unchanged (verdict text composed identically for both surfaces).
 - **Intent:** `anvil start` on TTY enters an `anvil-tui` activation surface;
   all other contexts get a compact plain summary without hanging.
 - **Expected Outcome:** New `crates/anvil-tui/src/surfaces/activation/` with
@@ -306,7 +314,7 @@ Phase C (ship gate — both surfaces must be green):
 cohort release. ACTTUI-006 (LogPanel / json_render) remains deferrable within
 the cohort if schedule bites.
 
-ACTTUI-000 is complete; ACTTUI-001 is the next item to mark **In Progress** once this PR lands.
+ACTTUI-000 is complete; ACTTUI-001 is In Progress (scaffold + opt-in dispatch on `feat/acttui-001-scaffold`). ACTTUI-002 (orchestrator progress events) is the next serial foundation item.
 
 ## Planning Council record (2026-07-08, direction-validate)
 

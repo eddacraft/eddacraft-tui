@@ -83,6 +83,13 @@ pub struct StartArgs {
     /// validation.
     #[arg(long)]
     pub watch: bool,
+    /// Open the opt-in Activation TUI when the session is genuinely interactive.
+    ///
+    /// First-release rollout flag for ADR-103 / ACTTUI-001. Machine and
+    /// non-interactive contracts still win: `--verify`, `--json`, `--watch`,
+    /// `--no-tui`, CI, and piped output stay on the plain path.
+    #[arg(long)]
+    pub tui: bool,
     /// Pick a config file format for first-run activation. When set,
     /// the orchestrator writes `.anvil.<ext>` (yaml / yml / json /
     /// toml) instead of the legacy `.anvilrc`. Incompatible with
@@ -359,77 +366,33 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let json = serde_json::to_string_pretty(&activation::render_json(&diagnostic))?;
         println!("{json}");
     } else {
-        print!(
-            "{}",
-            activation::render_human_with_install(&diagnostic, &install_report)
+        let human_output = render_start_human_output(
+            root,
+            read_only,
+            &diagnostic,
+            &install_report,
+            daemon_outcome.as_ref(),
+            mcp_policy,
+            &agent_inventory,
+            agents_cached,
         );
-        print!("{}", render_rule_mode_summary(root));
-        // DLIFE-003: report the daemon lifecycle action taken this run
-        // (started / reused / opted-out / unsupported / failed). The
-        // line is additive and honest — it reports the action, never a
-        // protection claim. Absent under read-only modes (`daemon_outcome`
-        // is `None`), keeping `--verify` byte-stable.
-        if let Some(outcome) = &daemon_outcome {
-            print!("{}", render_daemon_lifecycle_line(outcome));
-        }
-        // ACTMO-016 (ADR-094 decision 4): if cwd is not a registerable Git
-        // worktree, the daemon was ensured but nothing was registered — an
-        // honest state distinct from `protecting`. Say so and point at the
-        // explicit command rather than appearing silently protected.
-        if !read_only && let Err(reason) = crate::registration::registerable_worktree(root) {
-            println!(
-                "  worktree: no worktree registered ({reason}). \
-                 Run from inside a worktree, or `anvil workspace register <path>`."
+        if activation_tui_eligible(args, global, read_only) {
+            let state = anvil_tui::surfaces::activation::ActivationSurface::from_verdict(
+                human_output,
+                project_writes_gated,
             );
-        }
-        if !read_only && matches!(mcp_policy, activation::orchestrator::McpInstallPolicy::Skip) {
-            println!(
-                "  install: skipped — MCP config installation disabled (`--no-mcp` / `ANVIL_NO_MCP`)"
-            );
+            let _state = crate::tui::run_surface(state)?;
+        } else {
+            print!("{human_output}");
         }
         // MLP2-051g — verbose tier-evidence on stderr. Additive: the
         // stdout block above is byte-identical with or without
         // `--why`, so scripted consumers of `anvil start --verify`
-        // (the originating use-case for the flag) are unaffected.
+        // (the originating use-case for the flag) are unaffected. On
+        // the opt-in TUI path this prints after the surface exits; ACTTUI-006
+        // moves the same evidence into an in-surface LogPanel.
         if args.why {
             eprint!("{}", activation::render_human_verbose(&diagnostic));
-        }
-        // ADTRUST-006: first-run claim summary + verification recipe.
-        // Only emit when activation actually ran (`read_only` is the
-        // verify path — that surface already names the state) and
-        // when the install side at least reached a renderable
-        // protection layer (skip on hard `Error` so the recipe does
-        // not race ahead of the cause line).
-        if !read_only
-            && !matches!(
-                diagnostic.protection_state(),
-                activation::state::ProtectionState::Error
-            )
-        {
-            // CIB-164: the recipe claims L3/L4 hook coverage only when the
-            // orchestrator actually installed anvil-managed hooks this run.
-            // The old `.git`-exists heuristic over-claimed on a failed install,
-            // a write-gated posture, or a pre-existing unmanaged hook — on
-            // shipped 0.8.2-beta the claim printed with an empty `.git/hooks/`.
-            print!(
-                "{}",
-                render_first_run_recipe(&diagnostic, install_report.hooks_active)
-            );
-        }
-        // ADOPT-003 — print the auto-detected AI tool summary after
-        // the diagnostic block. Suppressed when nothing was
-        // detected (empty render keeps the start output uncluttered
-        // for users with no AI tooling installed). When the cache
-        // was not written (read-only probe or write failure), the
-        // line carries an explicit qualifier so users do not
-        // mistake the summary for a successful cache update.
-        let summary = activation::detect_agents::render_inventory_summary(&agent_inventory);
-        if !summary.is_empty() {
-            if agents_cached {
-                println!("  {summary}");
-            } else {
-                println!("  {summary} (not cached)");
-            }
         }
     }
 
@@ -757,6 +720,102 @@ fn daemon_capability_for_start(
 /// the `--no-daemon` flag or a non-empty `ANVIL_NO_DAEMON` env var (the
 /// scriptable/CI-friendly form, set `ANVIL_NO_DAEMON=1`). A daemon that
 /// is already running is still reused — this only suppresses spawning a
+#[allow(
+    clippy::too_many_arguments,
+    reason = "start output is composed from the orchestrator's already-separated result objects; this helper preserves the existing plain ordering"
+)]
+fn render_start_human_output(
+    root: &Path,
+    read_only: bool,
+    diagnostic: &activation::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+    daemon_outcome: Option<&anvil_intercept::ensure::EnsureOutcome>,
+    mcp_policy: activation::orchestrator::McpInstallPolicy,
+    agent_inventory: &activation::detect_agents::AgentInventory,
+    agents_cached: bool,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = activation::render_human_with_install(diagnostic, install_report);
+    out.push_str(&render_rule_mode_summary(root));
+
+    // DLIFE-003: report the daemon lifecycle action taken this run (started /
+    // reused / opted-out / unsupported / failed). The line is additive and
+    // honest — it reports the action, never a protection claim. Absent under
+    // read-only modes (`daemon_outcome` is `None`), keeping `--verify`
+    // byte-stable.
+    if let Some(outcome) = daemon_outcome {
+        out.push_str(&render_daemon_lifecycle_line(outcome));
+    }
+
+    // ACTMO-016 (ADR-094 decision 4): if cwd is not a registerable Git worktree,
+    // the daemon was ensured but nothing was registered — an honest state
+    // distinct from `protecting`.
+    if !read_only && let Err(reason) = crate::registration::registerable_worktree(root) {
+        let _ = writeln!(
+            out,
+            "  worktree: no worktree registered ({reason}). \
+             Run from inside a worktree, or `anvil workspace register <path>`."
+        );
+    }
+
+    if !read_only && matches!(mcp_policy, activation::orchestrator::McpInstallPolicy::Skip) {
+        out.push_str(
+            "  install: skipped — MCP config installation disabled (`--no-mcp` / `ANVIL_NO_MCP`)\n",
+        );
+    }
+
+    // ADTRUST-006: first-run claim summary + verification recipe.
+    if !read_only
+        && !matches!(
+            diagnostic.protection_state(),
+            activation::state::ProtectionState::Error
+        )
+    {
+        out.push_str(&render_first_run_recipe(
+            diagnostic,
+            install_report.hooks_active,
+        ));
+    }
+
+    // ADOPT-003 — print the auto-detected AI tool summary after the diagnostic
+    // block. Suppressed when nothing was detected.
+    let summary = activation::detect_agents::render_inventory_summary(agent_inventory);
+    if !summary.is_empty() {
+        if agents_cached {
+            let _ = writeln!(out, "  {summary}");
+        } else {
+            let _ = writeln!(out, "  {summary} (not cached)");
+        }
+    }
+
+    out
+}
+
+/// Whether the opt-in activation TUI rollout flag is active.
+fn activation_tui_requested(args: &StartArgs) -> bool {
+    args.tui || std::env::var_os("ANVIL_ACTIVATION_TUI").is_some_and(|value| !value.is_empty())
+}
+
+/// Whether this invocation may enter the activation TUI.
+///
+/// ADR-103 requires the TUI to be additive on the genuinely interactive path
+/// only: read-only, JSON, watch fallback, `--no-tui`, CI, and piped output stay
+/// on the deterministic plain/machine contracts.
+fn activation_tui_eligible(args: &StartArgs, global: &GlobalArgs, read_only: bool) -> bool {
+    use std::io::IsTerminal as _;
+
+    activation_tui_requested(args)
+        && !read_only
+        && !args.watch
+        && !global.no_tui
+        && !global.json
+        && !crate::is_non_interactive_env()
+        && std::io::stdin().is_terminal()
+        && std::io::stdout().is_terminal()
+        && std::io::stderr().is_terminal()
+}
+
 /// new one.
 fn start_daemon_opt_out(args: &StartArgs) -> bool {
     args.no_daemon || std::env::var_os("ANVIL_NO_DAEMON").is_some_and(|value| !value.is_empty())
@@ -977,6 +1036,28 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn activation_tui_requested_by_flag_or_env() {
+        let mut args = start_args_default();
+        assert!(!activation_tui_requested(&args));
+
+        args.tui = true;
+        assert!(activation_tui_requested(&args));
+
+        args.tui = false;
+        temp_env::with_var("ANVIL_ACTIVATION_TUI", Some("1"), || {
+            assert!(activation_tui_requested(&args));
+        });
+    }
+
+    #[test]
+    fn activation_tui_empty_env_value_does_not_request_tui() {
+        let args = start_args_default();
+        temp_env::with_var("ANVIL_ACTIVATION_TUI", Some(""), || {
+            assert!(!activation_tui_requested(&args));
+        });
+    }
 
     fn synth_diagnostic(
         state_seed: activation::state::ProtectionState,
@@ -1548,6 +1629,7 @@ mod tests {
         StartArgs {
             verify: false,
             watch: false,
+            tui: false,
             format: None,
             new_identity: false,
             why: false,
