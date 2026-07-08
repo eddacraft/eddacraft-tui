@@ -152,6 +152,6 @@ welcome work:
 - PR #3231 records that WOW-006 cannot close its autoplay demo design gate until
   the ACTTUI foundation and shared-widget extract land.
 
-This branch deliberately does **not** edit `plans/modules/first-run-wow.aps.md`
-while PR #3231 is open; it records ACTTUI-side obligations and avoids a
-same-file APS race.
+This branch deliberately does **not** edit `plans/modules/first-run-wow.aps.md`;
+PR #3231 owns and has merged the WOW-side APS update, while this branch records
+ACTTUI-side obligations and avoids replaying that same-file change.
