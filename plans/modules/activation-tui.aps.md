@@ -102,7 +102,7 @@ tutorial story changes (WOW owns narrative).
   `lifecycle` or existing `anvil-cli` guard — no raw-mode leaks between phases.
 - **Widget-first:** New UI in `anvil-tui` surfaces must use `eddacraft-tui`
   prelude widgets where one exists; hand-rolled spinners/menus/overlays require
-  a Non-scope justification in the work item.
+  a non-scope justification in the work item.
 
 ## Coordination
 
