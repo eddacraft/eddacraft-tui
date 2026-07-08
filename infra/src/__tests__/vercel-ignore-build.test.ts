@@ -111,6 +111,30 @@ describe('vercel-ignore-build.sh', () => {
     FIXTURE_TEST_TIMEOUT_MS
   );
 
+  it('always skips when --always-skip is set', () => {
+    const repo = createFixtureRepo();
+
+    try {
+      const { previous, current } = commitChange(
+        repo,
+        'apps/website/page.tsx',
+        'export default function ChangedPage() {}\n'
+      );
+
+      const result = runIgnore(repo, ['--always-skip'], {
+        VERCEL_GIT_PREVIOUS_SHA: previous,
+        VERCEL_GIT_COMMIT_SHA: current,
+        VERCEL_GIT_COMMIT_REF: 'main',
+        VERCEL_ENV: 'production',
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Always-skip enabled');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it('builds on production branch root dependency metadata changes', () => {
     const repo = createFixtureRepo();
 
@@ -180,7 +204,6 @@ describe('Vercel project configs', () => {
     ['apps/docs-shell/vercel.json', '--skip-preview apps/docs-shell'],
     ['apps/docs-public/vercel.json', '--skip-preview apps/docs-public'],
     ['apps/anvil-docs-private/vercel.json', '--skip-preview apps/anvil-docs-private'],
-    ['apps/docs-site/vercel.json', '--skip-preview apps/docs-site'],
     ['apps/anvil-api/vercel.json', '--skip-preview apps/anvil-api'],
   ])('%s skips preview builds', (configPath, commandFragment) => {
     const config = JSON.parse(readFileSync(join(repoRoot, configPath), 'utf8')) as {
@@ -188,5 +211,13 @@ describe('Vercel project configs', () => {
     };
 
     expect(config.ignoreCommand).toContain(commandFragment);
+  });
+
+  it('apps/docs-site/vercel.json always skips builds for the retired project', () => {
+    const config = JSON.parse(
+      readFileSync(join(repoRoot, 'apps/docs-site/vercel.json'), 'utf8')
+    ) as { ignoreCommand?: string };
+
+    expect(config.ignoreCommand).toContain('--always-skip');
   });
 });

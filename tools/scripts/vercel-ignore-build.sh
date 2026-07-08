@@ -12,6 +12,7 @@
 #
 # Options:
 #   --skip-preview  Skip builds on non-production branches (exit 0)
+#   --always-skip   Always skip builds (exit 0); for retired Vercel projects
 #
 # Vercel ignoreCommand semantics:
 #   Exit 1 = proceed with build
@@ -30,14 +31,23 @@ fi
 type log_enter >/dev/null 2>&1 && log_enter "$@"
 
 SKIP_PREVIEW=false
+ALWAYS_SKIP=false
 PROD_BRANCH="main"
 while [[ "${1:-}" == --* ]]; do
   case "$1" in
     --skip-preview) SKIP_PREVIEW=true; shift ;;
+    --always-skip) ALWAYS_SKIP=true; shift ;;
     --prod-branch) PROD_BRANCH="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+if [ "$ALWAYS_SKIP" = true ]; then
+  echo ">> Always-skip enabled — skipping build"
+  type log_info >/dev/null 2>&1 && log_info "always-skip enabled, skipping build"
+  type log_exit >/dev/null 2>&1 && log_exit 0
+  exit 0
+fi
 
 if [ "$SKIP_PREVIEW" = true ]; then
   if [ -n "${VERCEL_ENV:-}" ] && [ "$VERCEL_ENV" != "production" ]; then

@@ -1,4 +1,4 @@
 {
-  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --skip-preview apps/docs-site docs/public/anvil docs/public/aps docs/public/kindling docs/public/edda-stack docs/public/beta",
+  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --always-skip",
   "rewrites": [{ "source": "/auth/:path*", "destination": "/api/auth/:path*" }]
 }

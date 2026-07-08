@@ -26,7 +26,7 @@ there. For per-flag reference detail, see the
 [configuration reference](../operations/config.md); for the editor/agent
 pre-write surface, see the [MCP integration guide](../integrations/mcp.md). For
 operator recovery around the detached save-time child, use the
-[save-time background driver runbook](../../../runbooks/save-time-background-driver.md).
+[save-time background driver runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/save-time-background-driver.md).
 
 ## What is watched
 
