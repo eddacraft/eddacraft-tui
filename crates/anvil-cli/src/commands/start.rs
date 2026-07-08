@@ -60,7 +60,7 @@ use clap::Args;
 
 use crate::GlobalArgs;
 use crate::activation;
-use crate::activation::orchestrator::InstallOutcome;
+use crate::activation::orchestrator::{ActivationStepEvent, InstallOutcome, StartRenderMode};
 use crate::commands::watch as watch_cmd;
 use crate::config_summary::render_rule_mode_summary;
 use crate::warmup_cache::write_watch_warmup_cache;
@@ -184,6 +184,8 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // paths still run (they target the candidate's own home, not project state);
     // the orchestrator emits the single read-only-posture note.
     let project_writes_gated = crate::install_root::project_writes_gated();
+    let render_mode = start_render_mode(args, global, read_only);
+    let mut tui_log_lines = Vec::new();
 
     if args.watch {
         // LAUNCH-011: the watch fallback path performs work (spawns
@@ -295,11 +297,17 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         daemon_capability,
         Some(anvil_intercept::ensure::StartCapability::MaySpawn)
     ) {
-        eprintln!("anvil: ensuring the per-user save-time daemon is running…");
+        let line = "anvil: ensuring the per-user save-time daemon is running…";
+        if matches!(render_mode, StartRenderMode::Tui) {
+            tui_log_lines.push(line.to_string());
+        } else {
+            eprintln!("{line}");
+        }
     }
     let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
 
     let mcp_policy = mcp_install_policy(args);
+    let mut activation_run = None;
     let (mut diagnostic, install_report) = if read_only {
         (
             activation::verify(root),
@@ -307,14 +315,16 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         )
     } else {
         // Both Install and Skip route through the same entry point; the policy
-        // is the only thing that differs (Council cleanup — the previous match
-        // hid that the Install arm was itself just `run_with_mcp_policy(.., Install)`).
-        activation::orchestrator::run_with_mcp_policy(
+        // and render mode are the only things that differ.
+        let outcome = activation::orchestrator::run_with_mcp_policy_and_mode(
             root,
             global,
             mcp_policy,
             args.all_mcp_clients,
-        )?
+            render_mode,
+        )?;
+        activation_run = Some(outcome.run);
+        (outcome.diagnostic, outcome.install_report)
     };
 
     // ADOPT-003 CLI wiring — auto-detect installed AI tools and
@@ -376,10 +386,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             &agent_inventory,
             agents_cached,
         );
-        if activation_tui_eligible(args, global, read_only) {
-            let state = anvil_tui::surfaces::activation::ActivationSurface::from_verdict(
+        if matches!(render_mode, StartRenderMode::Tui) {
+            if let Some(run) = &activation_run {
+                tui_log_lines.extend(run.events().iter().map(ActivationStepEvent::render_line));
+                tui_log_lines.extend(run.log_lines().iter().cloned());
+            }
+            let state = anvil_tui::surfaces::activation::ActivationSurface::from_verdict_with_logs(
                 human_output,
                 project_writes_gated,
+                tui_log_lines,
             );
             let _state = crate::tui::run_surface(state)?;
         } else {
@@ -819,6 +834,14 @@ fn activation_tui_eligible(args: &StartArgs, global: &GlobalArgs, read_only: boo
         && std::io::stdin().is_terminal()
         && std::io::stdout().is_terminal()
         && std::io::stderr().is_terminal()
+}
+
+fn start_render_mode(args: &StartArgs, global: &GlobalArgs, read_only: bool) -> StartRenderMode {
+    if activation_tui_eligible(args, global, read_only) {
+        StartRenderMode::Tui
+    } else {
+        StartRenderMode::Plain
+    }
 }
 
 /// Whether the operator explicitly opted out of daemon auto-start, via the

@@ -76,6 +76,10 @@ pub struct ActivationSurface {
     /// The composed, plain-text activation verdict (identical content to the
     /// byte-stable plain path). Rendered read-only in v1.
     verdict: String,
+    /// Lifecycle/log seam from the activation orchestrator. ACTTUI-002 records
+    /// these lines so later TUI work can render progress and logs without
+    /// scraping the plain human diagnostic text.
+    log_lines: Vec<String>,
     /// True when a non-default `ANVIL_HOME` gates durable project writes
     /// (ADR-060). Drives the persistent shell banner.
     project_writes_gated: bool,
@@ -91,6 +95,23 @@ impl ActivationSurface {
         Self {
             phase: ActivationPhase::Verdict,
             verdict: verdict.into(),
+            log_lines: Vec::new(),
+            project_writes_gated,
+            should_quit: false,
+        }
+    }
+
+    /// Build a verdict surface with orchestrator lifecycle/log lines attached.
+    #[must_use]
+    pub fn from_verdict_with_logs(
+        verdict: impl Into<String>,
+        project_writes_gated: bool,
+        log_lines: Vec<String>,
+    ) -> Self {
+        Self {
+            phase: ActivationPhase::Verdict,
+            verdict: verdict.into(),
+            log_lines,
             project_writes_gated,
             should_quit: false,
         }
@@ -117,6 +138,13 @@ impl ActivationSurface {
     #[must_use]
     pub fn verdict(&self) -> &str {
         &self.verdict
+    }
+
+    /// Orchestrator lifecycle/log lines captured for future in-surface
+    /// rendering.
+    #[must_use]
+    pub fn log_lines(&self) -> &[String] {
+        &self.log_lines
     }
 }
 
@@ -183,6 +211,18 @@ mod tests {
         assert_eq!(surface.phase(), ActivationPhase::Verdict);
         assert!(!surface.project_writes_gated());
         assert!(surface.verdict().contains("state: protecting"));
+        assert!(surface.log_lines().is_empty());
+    }
+
+    #[test]
+    fn from_verdict_with_logs_records_orchestrator_buffer() {
+        let surface = ActivationSurface::from_verdict_with_logs(
+            "ACTIVATION\n  state: protecting\n",
+            false,
+            vec!["initial-probe: completed".to_string()],
+        );
+        assert_eq!(surface.phase(), ActivationPhase::Verdict);
+        assert_eq!(surface.log_lines(), ["initial-probe: completed"]);
     }
 
     #[test]

@@ -114,6 +114,19 @@ pub struct InstallReport {
     pub hooks_active: bool,
 }
 
+/// Consent/selection mode for MCP installation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InstallConsentMode {
+    /// Use the existing `demand` picker.
+    DemandPicker,
+    /// Headless/plain non-interactive path: install safe defaults.
+    AutoInstall,
+    /// ACTTUI-002 seam: the activation TUI owns consent, so this layer must not
+    /// invoke `demand` and must not silently auto-install while the replacement
+    /// widget is still pending (ACTTUI-004).
+    DeferToTui,
+}
+
 impl InstallReport {
     /// Aggregated failure message across every client that failed,
     /// or `None` if the report carries zero failures. Used by the
@@ -182,6 +195,21 @@ pub fn install_for_clients(
     interactive: bool,
     enabled: &BTreeSet<McpClientId>,
 ) -> InstallReport {
+    let consent_mode = if interactive {
+        InstallConsentMode::DemandPicker
+    } else {
+        InstallConsentMode::AutoInstall
+    };
+    install_for_clients_with_consent_mode(workspace, home, fresh, consent_mode, enabled)
+}
+
+pub(crate) fn install_for_clients_with_consent_mode(
+    workspace: &Path,
+    home: Option<&Path>,
+    fresh: &AnvilEntry,
+    consent_mode: InstallConsentMode,
+    enabled: &BTreeSet<McpClientId>,
+) -> InstallReport {
     let candidates = collect_candidates(workspace, home, fresh);
 
     // ACTMO-012: a *fresh* MCP write only happens for an editor we
@@ -210,31 +238,35 @@ pub fn install_for_clients(
             )
     });
 
-    let chosen_ids: Vec<McpClientId> = if interactive && !picker_inputs.is_empty() {
-        match show_picker(&picker_inputs) {
-            Ok(ids) => ids,
-            Err(e) => {
-                // Picker I/O fault (TTY went away mid-prompt, etc.).
-                // Treat as zero selections rather than aborting — the
-                // orchestrator's final verify still runs and the
-                // diagnostic captures the partial state.
-                tracing::warn!(error = %e, "mcp install: picker failed; treating as zero selection");
-                Vec::new()
+    let chosen_ids: Vec<McpClientId> = match consent_mode {
+        InstallConsentMode::DemandPicker if !picker_inputs.is_empty() => {
+            match show_picker(&picker_inputs) {
+                Ok(ids) => ids,
+                Err(e) => {
+                    // Picker I/O fault (TTY went away mid-prompt, etc.).
+                    // Treat as zero selections rather than aborting — the
+                    // orchestrator's final verify still runs and the
+                    // diagnostic captures the partial state.
+                    tracing::warn!(error = %e, "mcp install: picker failed; treating as zero selection");
+                    Vec::new()
+                }
             }
         }
-    } else {
-        // Non-interactive / nothing to ask: auto-install
-        // NotPresent + SafeDrift.
-        picker_inputs
-            .iter()
-            .filter(|c| {
-                matches!(
-                    c.drift,
-                    DriftClass::NotPresent | DriftClass::SafeDrift { .. }
-                )
-            })
-            .map(|c| c.id)
-            .collect()
+        InstallConsentMode::DemandPicker | InstallConsentMode::AutoInstall => {
+            // Non-interactive / nothing to ask: auto-install NotPresent +
+            // SafeDrift, preserving the existing plain-path behaviour.
+            picker_inputs
+                .iter()
+                .filter(|c| {
+                    matches!(
+                        c.drift,
+                        DriftClass::NotPresent | DriftClass::SafeDrift { .. }
+                    )
+                })
+                .map(|c| c.id)
+                .collect()
+        }
+        InstallConsentMode::DeferToTui => Vec::new(),
     };
 
     let mut per_client = BTreeMap::new();

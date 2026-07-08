@@ -53,6 +53,181 @@ pub mod install;
 
 pub use install::{InstallOutcome, InstallReport, SkipReason};
 
+/// How `anvil start` will present activation to the operator.
+///
+/// The distinction is deliberately owned by the activation orchestrator rather
+/// than by the renderer: the orchestrator is the layer that decides whether a
+/// [`demand`] picker may be invoked. `StartRenderMode::Tui` therefore means
+/// "an activation surface will own consent", not "fall back to the plain
+/// interactive picker before opening the surface".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StartRenderMode {
+    /// Plain stdout/stderr output; existing interactive [`demand`] pickers are
+    /// allowed when the session is otherwise interactive.
+    Plain,
+    /// Opt-in activation TUI; suppress [`demand`] pickers and record lifecycle
+    /// detail for the surface seam instead.
+    Tui,
+}
+
+impl StartRenderMode {
+    pub(crate) fn allows_demand_pickers(self) -> bool {
+        matches!(self, Self::Plain)
+    }
+}
+
+/// Typed activation spine steps emitted by the orchestrator.
+///
+/// Ordering is the user-facing spine used by ACTTUI: durable work happens in
+/// the initial working steps, then write-consent decisions move through
+/// [`ActivationStep::WorkflowConsent`] and [`ActivationStep::McpConsent`], and
+/// the final diagnostic becomes the verdict. The unit fixture below pins this
+/// mapping so the future live TUI can render `Working -> Consent -> Verdict`
+/// without reverse-engineering human diagnostic strings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum ActivationStep {
+    InitialProbe,
+    InitConfig,
+    ProjectIdentity,
+    WitnessAttributes,
+    WorkflowConsent,
+    GitHooks,
+    BaselineSample,
+    WorktreeRegistration,
+    McpConsent,
+    FinalProbe,
+    Verdict,
+}
+
+impl ActivationStep {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::InitialProbe => "initial-probe",
+            Self::InitConfig => "init-config",
+            Self::ProjectIdentity => "project-identity",
+            Self::WitnessAttributes => "witness-attributes",
+            Self::WorkflowConsent => "workflow-consent",
+            Self::GitHooks => "git-hooks",
+            Self::BaselineSample => "baseline-sample",
+            Self::WorktreeRegistration => "worktree-registration",
+            Self::McpConsent => "mcp-consent",
+            Self::FinalProbe => "final-probe",
+            Self::Verdict => "verdict",
+        }
+    }
+}
+
+/// Lifecycle edge for one [`ActivationStep`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ActivationStepLifecycle {
+    Started,
+    Completed,
+    Skipped,
+}
+
+impl ActivationStepLifecycle {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::Completed => "completed",
+            Self::Skipped => "skipped",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ActivationStepEvent {
+    pub step: ActivationStep,
+    pub lifecycle: ActivationStepLifecycle,
+    pub detail: Option<String>,
+}
+
+impl ActivationStepEvent {
+    fn new(
+        step: ActivationStep,
+        lifecycle: ActivationStepLifecycle,
+        detail: Option<String>,
+    ) -> Self {
+        Self {
+            step,
+            lifecycle,
+            detail,
+        }
+    }
+
+    pub(crate) fn render_line(&self) -> String {
+        match &self.detail {
+            Some(detail) => format!(
+                "{}: {} — {detail}",
+                self.step.label(),
+                self.lifecycle.label()
+            ),
+            None => format!("{}: {}", self.step.label(), self.lifecycle.label()),
+        }
+    }
+}
+
+/// Accumulates lifecycle events and operator-facing log lines for one
+/// activation run.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ActivationRun {
+    events: Vec<ActivationStepEvent>,
+    log_lines: Vec<String>,
+}
+
+impl ActivationRun {
+    fn start(&mut self, step: ActivationStep) {
+        self.events.push(ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Started,
+            None,
+        ));
+    }
+
+    fn complete(&mut self, step: ActivationStep) {
+        self.events.push(ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Completed,
+            None,
+        ));
+    }
+
+    fn skip(&mut self, step: ActivationStep, detail: impl Into<String>) {
+        self.events.push(ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Skipped,
+            Some(detail.into()),
+        ));
+    }
+
+    fn log(&mut self, line: impl Into<String>) {
+        self.log_lines.push(line.into());
+    }
+
+    pub(crate) fn events(&self) -> &[ActivationStepEvent] {
+        &self.events
+    }
+
+    pub(crate) fn log_lines(&self) -> &[String] {
+        &self.log_lines
+    }
+}
+
+/// Full orchestrator outcome used by the activation TUI seam.
+#[derive(Debug)]
+pub(crate) struct ActivationOutcome {
+    pub diagnostic: ActivationDiagnostic,
+    pub install_report: InstallReport,
+    pub run: ActivationRun,
+}
+
+impl ActivationOutcome {
+    #[cfg(test)]
+    fn into_legacy_parts(self) -> (ActivationDiagnostic, InstallReport) {
+        (self.diagnostic, self.install_report)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum McpInstallPolicy {
     Install,
@@ -67,15 +242,23 @@ pub enum McpInstallPolicy {
 /// returned struct without parsing stdout. Init's own output (config
 /// success copy + first-scan summary) goes to stdout when init runs;
 /// re-runs against an existing config produce no init output.
-pub(crate) fn run_with_mcp_policy(
+pub(crate) fn run_with_mcp_policy_and_mode(
     root: &Path,
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,
     force_all_mcp_clients: bool,
-) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+    render_mode: StartRenderMode,
+) -> anyhow::Result<ActivationOutcome> {
     let home = crate::util::user_home_dir();
     let enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
-    run_with_home_and_policy(root, home.as_deref(), global, mcp_install_policy, &enabled)
+    run_with_home_and_policy(
+        root,
+        home.as_deref(),
+        global,
+        mcp_install_policy,
+        &enabled,
+        render_mode,
+    )
 }
 
 fn run_with_home_and_policy(
@@ -84,14 +267,16 @@ fn run_with_home_and_policy(
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
-) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
-    run_with_home_and_registration(
+    render_mode: StartRenderMode,
+) -> anyhow::Result<ActivationOutcome> {
+    run_with_home_and_registration_outcome(
         root,
         home,
         global,
         registration::register_worktree_with_daemon,
         mcp_install_policy,
         enabled,
+        render_mode,
     )
 }
 
@@ -137,7 +322,7 @@ fn resolve_enabled_clients(env: &dyn DetectionEnv, force_all: bool) -> BTreeSet<
         .collect()
 }
 
-#[allow(clippy::too_many_lines)]
+#[cfg(test)]
 fn run_with_home_and_registration(
     root: &Path,
     home: Option<&Path>,
@@ -146,6 +331,30 @@ fn run_with_home_and_registration(
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+    Ok(run_with_home_and_registration_outcome(
+        root,
+        home,
+        global,
+        register_worktree,
+        mcp_install_policy,
+        enabled,
+        StartRenderMode::Plain,
+    )?
+    .into_legacy_parts())
+}
+
+#[allow(clippy::too_many_lines)]
+fn run_with_home_and_registration_outcome(
+    root: &Path,
+    home: Option<&Path>,
+    global: &GlobalArgs,
+    register_worktree: impl FnOnce(&Path) -> WorktreeRegistration,
+    mcp_install_policy: McpInstallPolicy,
+    enabled: &BTreeSet<McpClientId>,
+    render_mode: StartRenderMode,
+) -> anyhow::Result<ActivationOutcome> {
+    let mut activation_run = ActivationRun::default();
+
     // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
     // `--touch-project-state`, activation runs in a read-only posture — it still
     // verifies, installs MCP entries into the candidate's own home, and produces
@@ -157,17 +366,22 @@ fn run_with_home_and_registration(
     // behaviour on a fresh repo — exactly where silent seeding would be wrong.
     let project_writes_gated = crate::install_root::project_writes_gated();
     if project_writes_gated {
-        eprintln!(
+        log_or_eprintln(
+            &mut activation_run,
+            render_mode,
             "anvil: ANVIL_HOME override active without --touch-project-state — \
              activation runs read-only; project-id, .gitattributes, workflows, and \
              baseline will not be written to this project. Pass --touch-project-state \
-             to persist."
+             to persist.",
         );
     }
 
     // Step 1 — write `.anvilrc` if absent.
+    activation_run.start(ActivationStep::InitialProbe);
     let initial = verify_with_home(root, home);
+    activation_run.complete(ActivationStep::InitialProbe);
     if matches!(initial.config, ConfigStatus::Absent) && !project_writes_gated {
+        activation_run.start(ActivationStep::InitConfig);
         let args = init::InitArgs { force: false };
         // Init runs inline here as a composition step of `anvil start`; the
         // activation ending owns the single next step, so init must not print
@@ -175,6 +389,14 @@ fn run_with_home_and_registration(
         // re-run the command they are already inside (CIB-163).
         init::run_in(&args, global, root, init::InitInvocation::FromStart)
             .context("init step of `anvil start` failed")?;
+        activation_run.complete(ActivationStep::InitConfig);
+    } else if project_writes_gated {
+        activation_run.skip(
+            ActivationStep::InitConfig,
+            "project writes are gated for this ANVIL_HOME",
+        );
+    } else {
+        activation_run.skip(ActivationStep::InitConfig, "project config already present");
     }
 
     // Step 1a — establish project identity (MLP-001 / A7.2).
@@ -195,18 +417,34 @@ fn run_with_home_and_registration(
     // see something went wrong, AND attach the structured `path`
     // field for log consumers.
     let project_id_path = identity::project_id_path(root);
-    if !project_writes_gated
-        && let Err(e) = identity::ensure_project_id(root, env!("CARGO_PKG_VERSION"))
-    {
-        tracing::warn!(
-            error = %e,
-            path = %project_id_path.display(),
-            "orchestrator: failed to establish anvil/project-id; continuing without",
+    if project_writes_gated {
+        activation_run.skip(
+            ActivationStep::ProjectIdentity,
+            "project writes are gated for this ANVIL_HOME",
         );
-        eprintln!(
-            "anvil: could not write {} ({e}); future MLP features will be unavailable",
-            project_id_path.display()
-        );
+    } else {
+        activation_run.start(ActivationStep::ProjectIdentity);
+        if let Err(e) = identity::ensure_project_id(root, env!("CARGO_PKG_VERSION")) {
+            tracing::warn!(
+                error = %e,
+                path = %project_id_path.display(),
+                "orchestrator: failed to establish anvil/project-id; continuing without",
+            );
+            log_or_eprintln(
+                &mut activation_run,
+                render_mode,
+                format!(
+                    "anvil: could not write {} ({e}); future MLP features will be unavailable",
+                    project_id_path.display()
+                ),
+            );
+            activation_run.skip(
+                ActivationStep::ProjectIdentity,
+                format!("could not write {}", project_id_path.display()),
+            );
+        } else {
+            activation_run.complete(ActivationStep::ProjectIdentity);
+        }
     }
 
     // Step 1a-b — pre-position `.gitattributes` for v1 witness chain
@@ -218,31 +456,29 @@ fn run_with_home_and_registration(
     // separate `.gitattributes` migration. Idempotent — only appends
     // if the line is missing. Failures non-propagating, same pattern
     // as identity.
-    if !project_writes_gated && let Err(e) = ensure_witness_gitattributes(root) {
-        tracing::warn!(
-            error = %e,
-            "orchestrator: failed to update .gitattributes for witness chain; continuing without",
+    if project_writes_gated {
+        activation_run.skip(
+            ActivationStep::WitnessAttributes,
+            "project writes are gated for this ANVIL_HOME",
         );
+    } else {
+        activation_run.start(ActivationStep::WitnessAttributes);
+        if let Err(e) = ensure_witness_gitattributes(root) {
+            tracing::warn!(
+                error = %e,
+                "orchestrator: failed to update .gitattributes for witness chain; continuing without",
+            );
+            activation_run.skip(
+                ActivationStep::WitnessAttributes,
+                "could not update .gitattributes for witness chain",
+            );
+        } else {
+            activation_run.complete(ActivationStep::WitnessAttributes);
+        }
     }
 
     let interactive = is_interactive(global);
-
-    // Step 1a-c — offer GitHub Actions workflow installation
-    // (MLP2-043 / MLP2-053).
-    //
-    // GitHub Actions workflows change repo behaviour and may consume
-    // customer CI minutes. Interactive activation presents a pre-ticked
-    // list so Enter accepts the recommended defaults and Space opts out;
-    // non-interactive activation skips them instead of writing silently.
-    // Writes remain write-if-absent so re-running activation never
-    // clobbers operator edits.
-    if !project_writes_gated && let Err(e) = ensure_github_actions_workflows(root, interactive) {
-        tracing::warn!(
-            error = %e,
-            "orchestrator: failed to install GitHub Actions workflows; continuing without",
-        );
-        eprintln!("anvil: could not install GitHub Actions workflows ({e}); continuing");
-    }
+    let demand_interactive = interactive && render_mode.allows_demand_pickers();
 
     // Step 1a-d — install ADR-038 commit/push hook coverage as part of the
     // MCP-optional activation spine (ACTMO-005). Hook install is durable
@@ -256,16 +492,29 @@ fn run_with_home_and_registration(
     // pre-existing unmanaged hook all yield `false` here — replacing the old
     // `.git`-exists heuristic that over-claimed in every one of those cases.
     let hooks_active = if project_writes_gated {
+        activation_run.skip(
+            ActivationStep::GitHooks,
+            "project writes are gated for this ANVIL_HOME",
+        );
         false
     } else {
+        activation_run.start(ActivationStep::GitHooks);
         match hooks::install_activation_hooks_silent(root) {
-            Ok(active) => active,
+            Ok(active) => {
+                activation_run.complete(ActivationStep::GitHooks);
+                active
+            }
             Err(e) => {
                 tracing::warn!(
                     error = %e,
                     "orchestrator: failed to install activation git hooks; continuing without",
                 );
-                eprintln!("anvil: could not install git hooks ({e}); continuing");
+                log_or_eprintln(
+                    &mut activation_run,
+                    render_mode,
+                    format!("anvil: could not install git hooks ({e}); continuing"),
+                );
+                activation_run.skip(ActivationStep::GitHooks, "could not install git hooks");
                 false
             }
         }
@@ -286,17 +535,36 @@ fn run_with_home_and_registration(
     // read-only posture above — skipped under a non-default ANVIL_HOME without
     // `--touch-project-state` so a candidate cannot seed a real project's
     // baseline. `baseline_present == false` stays the honest signal.
-    if !project_writes_gated
-        && !baseline::baseline_exists(root)
-        && let Some(scan) = sample_analyser::run_baseline_scan(root)
-    {
+    if project_writes_gated {
+        activation_run.skip(
+            ActivationStep::BaselineSample,
+            "project writes are gated for this ANVIL_HOME",
+        );
+    } else if baseline::baseline_exists(root) {
+        activation_run.skip(
+            ActivationStep::BaselineSample,
+            "activation baseline already present",
+        );
+    } else if let Some(scan) = sample_analyser::run_baseline_scan(root) {
+        activation_run.start(ActivationStep::BaselineSample);
         let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
         if let Err(e) = baseline::write_baseline(root, &new_baseline) {
             tracing::warn!(
                 error = %e,
                 "orchestrator: failed to write activation baseline; continuing without",
             );
+            activation_run.skip(
+                ActivationStep::BaselineSample,
+                "could not write activation baseline",
+            );
+        } else {
+            activation_run.complete(ActivationStep::BaselineSample);
         }
+    } else {
+        activation_run.skip(
+            ActivationStep::BaselineSample,
+            "no analysable files for baseline",
+        );
     }
 
     // ACTMO-016 (ADR-094 decision 4): only register cwd when it is a
@@ -304,18 +572,28 @@ fn run_with_home_and_registration(
     // not a repo at all) `anvil start` stays honest — it does not register a
     // junk session keyed to e.g. $HOME; the daemon is still ensured by the
     // caller, and `start.rs` surfaces the "no worktree registered" guidance.
-    match registration::registerable_worktree(root) {
-        Err(reason) => {
-            tracing::info!(
-                error = %reason,
-                "orchestrator: cwd is not a registerable worktree; daemon ensured, cwd not registered",
-            );
-        }
-        Ok(_) => match register_worktree(root) {
-            WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {}
+    if let Err(reason) = registration::registerable_worktree(root) {
+        tracing::info!(
+            error = %reason,
+            "orchestrator: cwd is not a registerable worktree; daemon ensured, cwd not registered",
+        );
+        activation_run.skip(
+            ActivationStep::WorktreeRegistration,
+            format!("cwd is not a registerable worktree: {reason}"),
+        );
+    } else {
+        activation_run.start(ActivationStep::WorktreeRegistration);
+        match register_worktree(root) {
+            WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {
+                activation_run.complete(ActivationStep::WorktreeRegistration);
+            }
             WorktreeRegistration::DaemonUnavailable => {
                 tracing::debug!(
                     "orchestrator: daemon unavailable for activation worktree registration; continuing",
+                );
+                activation_run.skip(
+                    ActivationStep::WorktreeRegistration,
+                    "daemon unavailable for worktree registration",
                 );
             }
             WorktreeRegistration::Fenced(message) | WorktreeRegistration::CapExceeded(message) => {
@@ -323,14 +601,62 @@ fn run_with_home_and_registration(
                     error = %message,
                     "orchestrator: activation worktree registration refused; continuing",
                 );
+                activation_run.skip(
+                    ActivationStep::WorktreeRegistration,
+                    format!("registration refused: {message}"),
+                );
             }
             WorktreeRegistration::Rejected(error) => {
                 tracing::warn!(
                     error = %error,
                     "orchestrator: activation worktree registration rejected; continuing",
                 );
+                activation_run.skip(
+                    ActivationStep::WorktreeRegistration,
+                    format!("registration rejected: {error}"),
+                );
             }
-        },
+        }
+    }
+
+    // Step 1c — offer GitHub Actions workflow installation (MLP2-043 /
+    // MLP2-053) as the first Consent-phase sub-step.
+    //
+    // GitHub Actions workflows change repo behaviour and may consume customer
+    // CI minutes. Interactive plain activation uses the existing `demand`
+    // picker; the TUI path records a deferred consent event for ACTTUI-004
+    // instead of invoking `demand` before the surface opens. This ordering is
+    // intentional: all preceding steps are `Working`, while workflow + MCP
+    // consent are the `Consent` phase before the final `Verdict`.
+    if project_writes_gated {
+        activation_run.skip(
+            ActivationStep::WorkflowConsent,
+            "project writes are gated for this ANVIL_HOME",
+        );
+    } else if matches!(render_mode, StartRenderMode::Tui) && !pending_workflows(root).is_empty() {
+        activation_run.skip(
+            ActivationStep::WorkflowConsent,
+            "deferred to activation TUI consent surface",
+        );
+    } else {
+        activation_run.start(ActivationStep::WorkflowConsent);
+        if let Err(e) = ensure_github_actions_workflows(root, demand_interactive) {
+            tracing::warn!(
+                error = %e,
+                "orchestrator: failed to install GitHub Actions workflows; continuing without",
+            );
+            log_or_eprintln(
+                &mut activation_run,
+                render_mode,
+                format!("anvil: could not install GitHub Actions workflows ({e}); continuing"),
+            );
+            activation_run.skip(
+                ActivationStep::WorkflowConsent,
+                "could not install GitHub Actions workflows",
+            );
+        } else {
+            activation_run.complete(ActivationStep::WorkflowConsent);
+        }
     }
 
     // Step 2 — install MCP entries for the user-selected (or auto-
@@ -339,11 +665,27 @@ fn run_with_home_and_registration(
     // than propagated, so the orchestrator always returns a final
     // diagnostic the user can act on.
     let mut install_report = match mcp_install_policy {
-        McpInstallPolicy::Skip => InstallReport::default(),
+        McpInstallPolicy::Skip => {
+            activation_run.skip(ActivationStep::McpConsent, "MCP installation disabled");
+            InstallReport::default()
+        }
         McpInstallPolicy::Install => match std::env::current_exe() {
             Ok(exe) => {
+                activation_run.start(ActivationStep::McpConsent);
                 let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
-                install::install_for_clients(root, home, &fresh, interactive, enabled)
+                let report = if matches!(render_mode, StartRenderMode::Tui) {
+                    install::install_for_clients_with_consent_mode(
+                        root,
+                        home,
+                        &fresh,
+                        install::InstallConsentMode::DeferToTui,
+                        enabled,
+                    )
+                } else {
+                    install::install_for_clients(root, home, &fresh, demand_interactive, enabled)
+                };
+                activation_run.complete(ActivationStep::McpConsent);
+                report
             }
             Err(e) => {
                 // current_exe failed — verify_with_home will also report
@@ -352,6 +694,10 @@ fn run_with_home_and_registration(
                 tracing::warn!(
                     error = %e,
                     "orchestrator: could not resolve current_exe; MCP install skipped",
+                );
+                activation_run.skip(
+                    ActivationStep::McpConsent,
+                    "could not resolve current_exe for MCP install",
                 );
                 InstallReport::default()
             }
@@ -365,7 +711,10 @@ fn run_with_home_and_registration(
     // effects (e.g. tiers should now read `RestartRequired` for the
     // clients we just wrote) so the caller can render a single source
     // of truth.
+    activation_run.start(ActivationStep::FinalProbe);
     let mut diagnostic = verify_with_home(root, home);
+    activation_run.complete(ActivationStep::FinalProbe);
+    record_daemon_attestation_log(&mut activation_run, &diagnostic);
 
     // Surface every install failure on the diagnostic so
     // `protection_state()` collapses to `Error` and JSON consumers
@@ -374,7 +723,66 @@ fn run_with_home_and_registration(
         diagnostic.last_error = Some(format!("MCP install failed: {err}"));
     }
 
-    Ok((diagnostic, install_report))
+    activation_run.start(ActivationStep::Verdict);
+    activation_run.complete(ActivationStep::Verdict);
+
+    Ok(ActivationOutcome {
+        diagnostic,
+        install_report,
+        run: activation_run,
+    })
+}
+
+fn log_or_eprintln(
+    activation_run: &mut ActivationRun,
+    render_mode: StartRenderMode,
+    line: impl Into<String>,
+) {
+    let line = line.into();
+    if matches!(render_mode, StartRenderMode::Tui) {
+        activation_run.log(line);
+    } else {
+        eprintln!("{line}");
+    }
+}
+
+fn record_daemon_attestation_log(
+    activation_run: &mut ActivationRun,
+    diagnostic: &ActivationDiagnostic,
+) {
+    use crate::activation::daemon_evidence::DaemonAttestation;
+
+    let detail = match diagnostic.daemon_attestation {
+        DaemonAttestation::NotProbed => None,
+        DaemonAttestation::Unreachable => Some(
+            "daemon attestation skipped: daemon IPC was unavailable; start the intercept daemon if MCP restart is complete",
+        ),
+        DaemonAttestation::Unenforced => Some(
+            "daemon attestation skipped: this worktree is not currently enforced by the daemon",
+        ),
+        DaemonAttestation::StaleHeartbeat => {
+            Some("daemon attestation skipped: daemon heartbeat evidence is stale")
+        }
+        DaemonAttestation::AllSurfacesQuarantined => Some(
+            "daemon attestation skipped: all daemon surfaces for this worktree are quarantined",
+        ),
+        DaemonAttestation::Warming => {
+            Some("daemon attestation skipped: daemon worktree evidence is still warming")
+        }
+        DaemonAttestation::NoParticipatingSurface => Some(
+            "daemon attestation skipped: no participating daemon surface is attached to this worktree",
+        ),
+        DaemonAttestation::Enforced => {
+            Some("daemon attestation: worktree is enforced; no MCP client was promoted")
+        }
+        DaemonAttestation::Promoted => {
+            Some("daemon attestation: promoted MCP client to live validation")
+        }
+    };
+
+    if let Some(detail) = detail {
+        activation_run.log(detail);
+    }
 }
 
 /// Pre-position `.gitattributes` lines for the v1 witness chain
@@ -720,6 +1128,130 @@ mod tests {
         fn home_dir(&self) -> Option<String> {
             None
         }
+    }
+
+    #[test]
+    fn activation_run_happy_path_order_maps_working_consent_verdict() {
+        // ACTTUI-002 golden: workflow consent is explicitly ordered before MCP
+        // consent so the TUI can render the real spine as
+        // Working -> Consent -> Verdict instead of scraping plain strings.
+        let mut run = ActivationRun::default();
+        for step in [
+            ActivationStep::InitialProbe,
+            ActivationStep::InitConfig,
+            ActivationStep::ProjectIdentity,
+            ActivationStep::WitnessAttributes,
+            ActivationStep::GitHooks,
+            ActivationStep::BaselineSample,
+            ActivationStep::WorktreeRegistration,
+            ActivationStep::WorkflowConsent,
+            ActivationStep::McpConsent,
+            ActivationStep::FinalProbe,
+            ActivationStep::Verdict,
+        ] {
+            run.start(step);
+            run.complete(step);
+        }
+
+        let rendered = run
+            .events()
+            .iter()
+            .map(ActivationStepEvent::render_line)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert_eq!(
+            rendered,
+            "\
+initial-probe: started
+initial-probe: completed
+init-config: started
+init-config: completed
+project-identity: started
+project-identity: completed
+witness-attributes: started
+witness-attributes: completed
+git-hooks: started
+git-hooks: completed
+baseline-sample: started
+baseline-sample: completed
+worktree-registration: started
+worktree-registration: completed
+workflow-consent: started
+workflow-consent: completed
+mcp-consent: started
+mcp-consent: completed
+final-probe: started
+final-probe: completed
+verdict: started
+verdict: completed"
+        );
+    }
+
+    #[test]
+    fn tui_render_mode_suppresses_demand_pickers() {
+        assert!(StartRenderMode::Plain.allows_demand_pickers());
+        assert!(!StartRenderMode::Tui.allows_demand_pickers());
+    }
+
+    #[test]
+    fn orchestrator_tui_mode_defers_consent_without_mcp_writes() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        let outcome = run_with_home_and_registration_outcome(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
+            StartRenderMode::Tui,
+        )
+        .expect("orchestrator should succeed in TUI mode");
+
+        assert!(
+            outcome.run.events().iter().any(|event| {
+                event.step == ActivationStep::WorkflowConsent
+                    && event.lifecycle == ActivationStepLifecycle::Skipped
+                    && event.detail.as_deref() == Some("deferred to activation TUI consent surface")
+            }),
+            "workflow consent must be deferred instead of invoking demand: {:?}",
+            outcome.run.events(),
+        );
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "TUI mode must not silently auto-install Cursor MCP while consent widgets are deferred",
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "TUI mode must not silently auto-install Claude MCP while consent widgets are deferred",
+        );
+        assert!(matches!(
+            outcome.install_report.per_client.get(&McpClientId::Cursor),
+            Some(InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected,
+            })
+        ));
+    }
+
+    #[test]
+    fn activation_run_logs_daemon_attestation_skip_detail() {
+        let mut run = ActivationRun::default();
+        let mut diagnostic = verify_with_home(Path::new("."), None);
+        diagnostic.daemon_attestation =
+            crate::activation::daemon_evidence::DaemonAttestation::Unreachable;
+
+        record_daemon_attestation_log(&mut run, &diagnostic);
+
+        assert!(
+            run.log_lines()
+                .iter()
+                .any(|line| line.contains("daemon attestation skipped: daemon IPC")),
+            "daemon attestation skip detail should be routed into the activation log buffer: {:?}",
+            run.log_lines(),
+        );
     }
 
     #[test]
