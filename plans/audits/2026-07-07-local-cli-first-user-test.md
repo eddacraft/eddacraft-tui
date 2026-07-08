@@ -55,7 +55,7 @@ Intercept crate parses line 1 correctly (`existing_pid_status`).
 3. #3221 (verify recipe honesty)
 4. #3220, #3219, #3222 (edge polish)
 
-## Artefacts
+## Local artefacts
 
-- `/tmp/anvil-tty-pass-v2/` — PTY pass logs
-- `/tmp/anvil-pty-runner.py` — reusable harness
+- `/tmp/anvil-tty-pass-v2/` — PTY pass logs from this local test session; not committed
+- `/tmp/anvil-pty-runner.py` — reusable local harness from this test session; not committed

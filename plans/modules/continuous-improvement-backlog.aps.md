@@ -4717,8 +4717,7 @@ archive.
 - **Intent:** Close the gap between ADR-082's interactive `anvil start` daily
   path and what first users actually see when running `welcome` → `start` →
   `status` → `watch` → `check` locally — especially false daemon-down signals,
-  blocking pickers, and recovery copy that steers to `intercept start
-  --foreground`.
+  blocking pickers, and recovery copy that steers to `intercept start --foreground`.
 - **Expected Outcome:** A new user following quickstart/local-dev guidance
   reaches `state: protecting` in one real-terminal `anvil start` without
   manual intercept launch; `anvil status` daemon line agrees with `anvil
