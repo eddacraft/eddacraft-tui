@@ -1167,6 +1167,35 @@ fn derive_protection(
 ///   reporting a negative or panicking duration.
 /// - `process_is_alive` shells `kill -0`; see its doc for the EPERM
 ///   limitation when a daemon is owned by another user.
+fn read_daemon_summary() -> DaemonSummary {
+    let Ok(pid_file) = anvil_intercept::default_pid_file_path() else {
+        return DaemonSummary::NotRunning;
+    };
+    let Ok(contents) = std::fs::read_to_string(&pid_file) else {
+        return DaemonSummary::NotRunning;
+    };
+    // The intercept PID record is `<pid>\n[start_time=<epoch>\n]` — only the
+    // first line is the PID. Parsing the whole file fails once start_time lands
+    // (#3216); `anvil intercept status` already reads line 1 via
+    // `daemon_pid_for_display`.
+    let Some(pid) = parse_daemon_pid_from_record(&contents) else {
+        return DaemonSummary::NotRunning;
+    };
+    if !process_is_alive(pid) {
+        return DaemonSummary::NotRunning;
+    }
+    // `mtime.elapsed()` errors when mtime is in the future relative
+    // to the system clock — collapsing to `Duration::ZERO` is the
+    // honest answer for that case (we cannot date a daemon whose
+    // recorded start is impossible).
+    let uptime = std::fs::metadata(&pid_file)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|mtime| mtime.elapsed().ok())
+        .unwrap_or_default();
+    DaemonSummary::Running { pid, uptime }
+}
+
 /// Whether `anvil status` should launch the Ratatui surface. Stricter than
 /// stdout-only TTY detection: the TUI blocks on keyboard input, so a session
 /// with redirected stdin (piped output capture, `script` harnesses) must fall
@@ -1198,35 +1227,6 @@ fn parse_daemon_pid_from_record(record: &str) -> Option<u32> {
         .lines()
         .next()
         .and_then(|line| line.trim().parse::<u32>().ok())
-}
-
-fn read_daemon_summary() -> DaemonSummary {
-    let Ok(pid_file) = anvil_intercept::default_pid_file_path() else {
-        return DaemonSummary::NotRunning;
-    };
-    let Ok(contents) = std::fs::read_to_string(&pid_file) else {
-        return DaemonSummary::NotRunning;
-    };
-    // The intercept PID record is `<pid>\n[start_time=<epoch>\n]` — only the
-    // first line is the PID. Parsing the whole file fails once start_time lands
-    // (#3216); `anvil intercept status` already reads line 1 via
-    // `daemon_pid_for_display`.
-    let Some(pid) = parse_daemon_pid_from_record(&contents) else {
-        return DaemonSummary::NotRunning;
-    };
-    if !process_is_alive(pid) {
-        return DaemonSummary::NotRunning;
-    }
-    // `mtime.elapsed()` errors when mtime is in the future relative
-    // to the system clock — collapsing to `Duration::ZERO` is the
-    // honest answer for that case (we cannot date a daemon whose
-    // recorded start is impossible).
-    let uptime = std::fs::metadata(&pid_file)
-        .ok()
-        .and_then(|m| m.modified().ok())
-        .and_then(|mtime| mtime.elapsed().ok())
-        .unwrap_or_default();
-    DaemonSummary::Running { pid, uptime }
 }
 
 #[cfg(unix)]
@@ -1680,7 +1680,10 @@ mod tests {
         let record = format!("{pid}\nstart_time=9023295\n");
         assert_eq!(parse_daemon_pid_from_record(&record), Some(pid));
         assert_eq!(parse_daemon_pid_from_record(&format!("{pid}\n")), Some(pid));
-        assert_eq!(parse_daemon_pid_from_record("not-a-pid\nstart_time=1\n"), None);
+        assert_eq!(
+            parse_daemon_pid_from_record("not-a-pid\nstart_time=1\n"),
+            None
+        );
     }
 
     #[test]

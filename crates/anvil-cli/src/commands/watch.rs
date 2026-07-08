@@ -1772,15 +1772,13 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                         if snapshot_count == 1
                             && !global.json
                             && matches!(output_mode, WatchOutputMode::Plain { .. })
-                        {
-                            if let anvil_kernel_types::EventPayload::Snapshot {
+                            && let anvil_kernel_types::EventPayload::Snapshot {
                                 files_watched, ..
                             } = &event.payload
-                            {
-                                println!(
-                                    "[watching] ready — {files_watched} files watched (initial scan complete)"
-                                );
-                            }
+                        {
+                            println!(
+                                "[watching] ready — {files_watched} files watched (initial scan complete)"
+                            );
                         }
                         if let Some(d) = dispatcher.as_ref()
                             && snapshot_count > 1

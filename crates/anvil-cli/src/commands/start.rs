@@ -1387,7 +1387,11 @@ mod tests {
         use anvil_checks::secret::{SecretCheckConfig, scan_content};
 
         let content = r#"const KEY = "AKIAQRSTUVWXYZ123456";"#;
-        let findings = scan_content(content, ".anvil-smoke-test.ts", &SecretCheckConfig::default());
+        let findings = scan_content(
+            content,
+            ".anvil-smoke-test.ts",
+            &SecretCheckConfig::default(),
+        );
         assert!(
             findings.iter().any(|f| f.pattern_name == "AWS Key"),
             "recipe smoke string must trigger secret-detection, got: {findings:?}",
