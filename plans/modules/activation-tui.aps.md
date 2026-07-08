@@ -2,18 +2,15 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | Ready  | 0/9      |
+| ACTTUI | Josh  | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-08 — module created via planning-workflow +
-planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate completed: ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
 whole first-run pair but does not block WOW tutorial work.
 
-**Council decision:** `proceed` with `amend` — do not mark ACTTUI-001 **In
-Progress** until ADR/decision-log entry for TTY-default activation TUI and a
-pinned plain-output fixture spec exist (see Planning Council record below).
+**Council decision:** `proceed` with `amend` — ACTTUI-001 may move **In Progress** after ACTTUI-000 lands because ADR-103 / DECISION-LOG entry and the pinned plain-output fixture spec now exist (see Planning Council record below).
 
 ## Purpose
 
@@ -109,7 +106,7 @@ tutorial story changes (WOW owns narrative).
 | Module / audit | Relationship |
 | -------------- | ------------ |
 | ACTMO | Spine semantics frozen; ACTTUI consumes `ActivationDiagnostic` + `InstallReport` |
-| WOW | Tutorial/welcome story; ACTTUI-008 lands after WOW-001..002 or in parallel on non-overlapping files |
+| WOW | Tutorial/welcome story; ACTTUI-008 lands after WOW-001..002 or in parallel on non-overlapping files. PR #3231 records new downstream gates: WOW-005 depends on ACTTUI-000 + ACTTUI-004 consent posture; WOW-006 depends on ACTTUI foundation + shared-widget extract. |
 | CIB-162..179 | Many repair items become easier or obsoleted by TUI path; do not close CIB items in ACTTUI PRs unless the fix is verified |
 | ADTRUST-006 | First-run recipe moves in-surface; compact plain fallback retains a one-line "run `anvil status`" next step |
 | TUIN / eddacraft-tui | Enable `big-text` on `anvil-tui`; consider promoting `Tree`/`ParallelProgress` to `stable` if activation depends on them |
@@ -119,7 +116,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-000: UX contract + plain-output fixtures (planning gate)
 
-- **Status:** Ready
+- **Status:** Done 2026-07-08 (ADR-103 proposed; DECISION-LOG row added; fixture spec + fixture home created; public scripting contract documented)
 - **Intent:** Load-bearing public UX change and scripting contracts are documented
   before code lands.
 - **Expected Outcome:** ADR or DECISION-LOG entry for TTY-default activation
@@ -128,9 +125,13 @@ tutorial story changes (WOW owns narrative).
   (`tests/fixtures/start-verify/` or equivalent); release-note template
   ("scripting: `--no-tui`; probing: `--verify`/`--json`"); rollout ladder:
   opt-in (`--tui` or `ANVIL_ACTIVATION_TUI=1`) for first release, flip
-  TTY-default only after contract matrix green.
+  TTY-default only after contract matrix green. **Closeout:** met by
+  [`ADR-103`](../decisions/103-tty-default-activation-tui.md),
+  [`2026-07-08-activation-tui-contract-fixtures.md`](../specs/2026-07-08-activation-tui-contract-fixtures.md),
+  `crates/anvil-cli/tests/fixtures/start-activation/README.md`, and
+  [`start-output-contracts.md`](../../docs/public/anvil/guides/start-output-contracts.md). PR #3231 WOW dependency noted as downstream coordination, without editing the WOW file on this branch.
 - **Files:** `plans/decisions/`, `docs/public/anvil/guides/`, fixture directory
-- **Validation:** `pnpm docs:check`; council checklist ticked
+- **Validation:** `pnpm docs:check`; `pnpm adr:check`; `pnpm format:check`; council checklist ticked
 - **Confidence:** high
 
 ### ACTTUI-001: Activation surface scaffold + plain fallback contract
@@ -305,7 +306,7 @@ Phase C (ship gate — both surfaces must be green):
 cohort release. ACTTUI-006 (LogPanel / json_render) remains deferrable within
 the cohort if schedule bites.
 
-ACTTUI-000 is the first item to mark **In Progress** when implementation starts.
+ACTTUI-000 is complete; ACTTUI-001 is the next item to mark **In Progress** once this PR lands.
 
 ## Planning Council record (2026-07-08, direction-validate)
 
@@ -328,5 +329,5 @@ security, adversarial lenses).
 **Checks before ACTTUI-001 → In Progress:**
 
 - [x] Planning council direction-validate complete (this record)
-- [ ] ACTTUI-000 ADR + fixture spec landed
+- [x] ACTTUI-000 ADR + fixture spec landed
 - [ ] `pnpm aps:index` after first implementation item completes
