@@ -1,3 +1,9 @@
+use std::time::Instant;
+
+use eddacraft_tui::prelude::{
+    CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState, Spinner, SpinnerPreset,
+    SpinnerState,
+};
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -7,8 +13,6 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::discovery::{DiscoveryPhase, DiscoveryState, FindingSeverity};
 use crate::shell::inset_content;
-
-const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /// Compute scroll offset to keep `selected` visible within `visible_rows`.
 fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize {
@@ -53,35 +57,49 @@ fn render_scanning(
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let spinner_char = SPINNER_FRAMES[spinner_tick % SPINNER_FRAMES.len()];
+    let chunks = Layout::vertical([
+        Constraint::Length(2),
+        Constraint::Length(5),
+        Constraint::Min(1),
+    ])
+    .split(inner);
 
-    let lines = vec![
-        Line::default(),
-        Line::from(vec![
-            Span::styled(
-                format!("{spinner_char} "),
-                Style::default()
-                    .fg(theme.accent())
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                "Scanning project...",
-                Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
-            ),
-        ]),
-        Line::default(),
-        Line::from(Span::styled(
-            format!("{files_scanned} files scanned"),
-            Style::default().fg(theme.muted()),
-        )),
-        Line::default(),
-        Line::from(Span::styled(
-            "Press 's' to skip",
-            Style::default().fg(theme.muted()),
-        )),
-    ];
+    let mut spinner_state = SpinnerState::with_preset(SpinnerPreset::Anvil);
+    spinner_state.frame = spinner_tick;
+    frame.render_stateful_widget(
+        Spinner::new(theme).anvil().label("Scanning project..."),
+        chunks[0],
+        &mut spinner_state,
+    );
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    let mut progress_state = scanning_progress_state(files_scanned);
+    frame.render_stateful_widget(
+        ParallelProgress::new(theme)
+            .title("Scan progress")
+            .compact(true)
+            .show_overall(false)
+            .show_eta(false),
+        chunks[1],
+        &mut progress_state,
+    );
+
+    let help = Paragraph::new(Line::from(Span::styled(
+        "Press 's' to skip",
+        Style::default().fg(theme.muted()),
+    )));
+    frame.render_widget(help, chunks[2]);
+}
+
+fn scanning_progress_state(files_scanned: usize) -> ParallelProgressState {
+    let mut progress = CheckProgress::new("project-scan", "Project scan");
+    progress.status = CheckStatus::Running;
+    progress.start_time = Some(Instant::now());
+    progress.message = Some(format!("{files_scanned} files scanned"));
+
+    let mut state = ParallelProgressState::default();
+    state.checks = vec![progress];
+    state.start_time = Some(Instant::now());
+    state
 }
 
 fn render_results(
@@ -467,6 +485,36 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    #[test]
+    fn scanning_phase_uses_shared_progress_widgets() {
+        let backend = TestBackend::new(90, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.update_progress(42);
+        state.tick();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains("Scan progress (0/1)"),
+            "discovery scan should render through ParallelProgress: {rendered}"
+        );
+        assert!(
+            rendered.contains("Project scan") && rendered.contains("42 files scanned"),
+            "discovery scan should show the shared progress row: {rendered}"
+        );
     }
 
     #[test]

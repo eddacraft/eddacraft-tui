@@ -33,41 +33,41 @@ const COMPACT_HINT: &str = "resize for descriptions";
 
 /// Left padding for content within the welcome screen.
 const PAD: &str = "    ";
+const PAD_WIDTH: u16 = 4;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
     let menu_item_count = QuickStartOption::ALL.len();
 
-    // Full mode: 2 lines per item + 1 blank between = 3*N-1
-    // Compact mode: 1 line per item (no descriptions, no blanks)
-    let full_menu_height = menu_item_count * 3 - 1;
-    let full_content_height = LOGO_HEIGHT + 1 + 1 + 2 + full_menu_height;
+    // Select renders each option as a single shared-widget row. Full mode keeps
+    // descriptions inline; compact mode drops them and surfaces the resize hint.
+    let full_menu_height = menu_item_count;
+    let status_height = if state.status_message.is_some() { 2 } else { 0 };
+    let full_content_height = LOGO_HEIGHT + 1 + 1 + 2 + full_menu_height + status_height;
     #[allow(clippy::cast_possible_truncation)]
-    let compact = (full_content_height as u16) > area.height;
+    let compact = (full_content_height as u16) > area.height || area.width < 72;
 
-    let menu_height = if compact {
-        menu_item_count
-    } else {
-        full_menu_height
-    };
+    let menu_height = full_menu_height;
 
     // In compact mode, surface a one-line resize hint — but only when the
     // terminal has genuine spare height for it: top padding(1) + logo +
-    // blank(1) + the full compact menu + hint(1). Showing it under contention
-    // is unsafe — ratatui holds the `Min(menu_h)` menu at full size and lets
-    // the fixed-`Length` logo absorb the shortfall, silently squeezing a
+    // blank(1) + the full compact menu + optional status + hint(1). Showing it
+    // under contention is unsafe — ratatui holds the `Min(menu_h)` menu at full
+    // size and lets the fixed-`Length` logo absorb the shortfall, silently squeezing a
     // row (or more) out of the brandmark. That is the exact defect CIB-179
     // exists to prevent, so the hint must never be traded for logo integrity.
     #[allow(clippy::cast_possible_truncation)]
-    let hint_min_height = (1 + LOGO_HEIGHT + 1 + menu_height + 1) as u16;
+    let hint_min_height = (1 + LOGO_HEIGHT + 1 + menu_height + status_height + 1) as u16;
     let show_hint = compact && area.height >= hint_min_height;
     let hint_h: u16 = u16::from(show_hint);
+    #[allow(clippy::cast_possible_truncation)]
+    let status_h = status_height as u16;
 
     // In compact mode: logo + blank(1) + menu(N) + optional hint(1)
     // In full mode: logo + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
     let content_height = if compact {
-        LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint)
+        LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint) + status_height
     } else {
-        LOGO_HEIGHT + 1 + 1 + 2 + menu_height
+        LOGO_HEIGHT + 1 + 1 + 2 + menu_height + status_height
     };
 
     // Centre vertically — at least 1 row gap from header
@@ -84,6 +84,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
             Constraint::Length(1),               // Blank
             Constraint::Min(menu_h),             // Menu items (compact)
             Constraint::Length(hint_h),          // Resize hint (0 when it doesn't fit)
+            Constraint::Length(status_h),        // Optional status message
         ])
         .split(area)
     } else {
@@ -94,6 +95,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
             Constraint::Length(1),               // Tagline
             Constraint::Length(2),               // Spacer
             Constraint::Min(menu_h),             // Menu items (flexible — absorbs overflow)
+            Constraint::Length(status_h),        // Optional status message
         ])
         .split(area)
     };
@@ -134,9 +136,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         5
     };
 
-    let menu_lines = build_menu_lines(state, theme, compact);
-    let menu = Paragraph::new(Text::from(menu_lines));
-    frame.render_widget(menu, chunks[menu_chunk_idx]);
+    render_menu(frame, chunks[menu_chunk_idx], state, theme, compact);
 
     // Compact-mode resize hint occupies the reserved trailing chunk.
     if show_hint {
@@ -146,53 +146,45 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         ]));
         frame.render_widget(hint, chunks[4]);
     }
-}
-
-fn build_menu_lines<'a>(
-    state: &'a WelcomeState,
-    theme: &'a EddaCraftTheme,
-    compact: bool,
-) -> Vec<Line<'a>> {
-    let mut lines: Vec<Line> = Vec::new();
-    for (i, opt) in QuickStartOption::ALL.iter().enumerate() {
-        if !compact && i > 0 {
-            lines.push(Line::raw(""));
-        }
-        let selected = i == state.selected;
-        let indicator = if selected { " \u{25b8} " } else { "   " };
-        let label_style = if selected {
-            Style::default()
-                .fg(theme.accent())
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(theme.fg())
-        };
-
-        lines.push(Line::from(vec![
-            Span::styled(PAD, Style::default()),
-            Span::styled(indicator, label_style),
-            Span::styled(opt.label(), label_style),
-        ]));
-
-        if !compact {
-            let desc_style = Style::default().fg(theme.muted());
-            lines.push(Line::from(vec![
-                Span::styled(PAD, Style::default()),
-                Span::styled("      ", Style::default()),
-                Span::styled(opt.description(), desc_style),
-            ]));
-        }
-    }
 
     if let Some(ref msg) = state.status_message {
-        lines.push(Line::raw(""));
-        lines.push(Line::from(vec![
+        let status_idx = if compact { 5 } else { 6 };
+        let status = Paragraph::new(Line::from(vec![
             Span::styled(PAD, Style::default()),
-            Span::styled(format!("   {msg}"), Style::default().fg(theme.muted())),
+            Span::styled(msg, Style::default().fg(theme.muted())),
         ]));
+        frame.render_widget(status, chunks[status_idx]);
     }
+}
 
-    lines
+fn render_menu(
+    frame: &mut Frame,
+    area: Rect,
+    state: &WelcomeState,
+    theme: &EddaCraftTheme,
+    compact: bool,
+) {
+    let padded =
+        Layout::horizontal([Constraint::Length(PAD_WIDTH), Constraint::Min(0)]).split(area)[1];
+    let items = build_menu_items(compact);
+    let mut select_state = SelectState {
+        selected: state.selected,
+        offset: 0,
+    };
+    frame.render_stateful_widget(Select::new(items, theme), padded, &mut select_state);
+}
+
+fn build_menu_items(compact: bool) -> Vec<SelectItem> {
+    QuickStartOption::ALL
+        .iter()
+        .map(|opt| {
+            if compact {
+                SelectItem::from(opt.label())
+            } else {
+                SelectItem::new(opt.label(), opt.description())
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -260,6 +252,26 @@ mod tests {
 
         let buf = terminal.backend().buffer().clone();
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn menu_descriptions_share_select_rows() {
+        let backend = TestBackend::new(100, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = WelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let text = plain(terminal.backend().buffer());
+        assert!(
+            text.contains(
+                "▸ Review gate decision  See whether the current findings pass your workflow gate"
+            ),
+            "welcome menu should render label + description through Select rows; got:\n{text}"
+        );
     }
 
     /// Plain-text (style-stripped) render of a buffer for substring assertions.

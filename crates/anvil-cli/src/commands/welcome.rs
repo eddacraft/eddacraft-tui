@@ -1,5 +1,6 @@
 use std::io::IsTerminal;
 
+use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::fix_request::FixRequest;
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
 use eddacraft_tui::theme::EddaCraftTheme;
@@ -378,13 +379,8 @@ fn run_discovery(
     use anvil_tui::surfaces::tutorial::showcase;
 
     let mut discovery = DiscoveryState::new();
-
-    crate::tui::draw_loading(
-        terminal,
-        "Discovery",
-        "Scanning project for findings\u{2026}",
-        theme,
-    )?;
+    discovery.tick();
+    draw_discovery_scanning(terminal, theme, &discovery)?;
 
     let results = match scan_project() {
         Ok(results) if results.findings.is_empty() => {
@@ -432,6 +428,24 @@ fn run_discovery(
         discovery.wants_continue,
         discovery.results,
     ))
+}
+
+fn draw_discovery_scanning(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    discovery: &anvil_tui::surfaces::tutorial::discovery::DiscoveryState,
+) -> anyhow::Result<()> {
+    terminal.draw(|frame| {
+        let content = anvil_tui::shell::render_shell(
+            frame,
+            frame.area(),
+            discovery.surface_name(),
+            discovery.help_text(),
+            theme,
+        );
+        discovery.render(frame, content, theme);
+    })?;
+    Ok(())
 }
 
 /// Classify how the discovery surface exited into the caller's result.
