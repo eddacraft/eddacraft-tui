@@ -9,7 +9,7 @@
 - Repo: `anvil-001` @ local `main`
 - Binary: `target/debug/anvil` (`0.8.1-beta`), `cargo build -p eddacraft-anvil --bin anvil`
 - Auth: `ANVIL_DEV=1` (local licence-gate override)
-- Worktree: `/home/aneki/Projects/src/anvil-001` (large monorepo, 3000+ files)
+- Worktree: `$HOME/Projects/src/anvil-001` (large monorepo, 3000+ files)
 
 ## Methods
 
