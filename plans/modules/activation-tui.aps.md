@@ -165,7 +165,12 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-002: Orchestrator progress events (decouple presentation)
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-08 — activation progress event contract landed
+  on `feat/acttui-002-events` (stacked on ACTTUI-001). Added typed
+  `ActivationStep`/`ActivationStepEvent`/`ActivationRun` primitives,
+  `StartRenderMode`, TUI-mode lifecycle/log buffering, and a consent deferral
+  seam so `demand` pickers are not invoked on the TUI path. Full in-surface
+  consent widgets remain ACTTUI-004 scope.
 - **Dependencies:** ACTTUI-001
 - **Intent:** The orchestrator reports step lifecycle to the surface without
   printing pickers or human diagnostic strings on the TUI path.
