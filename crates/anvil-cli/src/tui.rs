@@ -275,6 +275,15 @@ fn tutorial_loop(
     file_rx: Option<&Receiver<anvil_kernel::watcher::events::ChangeBatch>>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
+    // WOW-002: the typed-command reveal advances on a fixed wall-clock
+    // cadence, independent of the terminal's event stream. Pacing must not
+    // depend on how many key-release/repeat/resize events a terminal emits —
+    // otherwise the reveal (and with it the command's execution) races ahead
+    // and the cancel window shrinks. The state machine stays deterministic:
+    // it only ever advances via `reveal_tick`, which we call on this schedule.
+    const REVEAL_TICK: Duration = Duration::from_millis(100);
+    let mut next_reveal_tick = Instant::now() + REVEAL_TICK;
+
     loop {
         // Drain file-change events before drawing so changes appear immediately.
         if let Some(rx) = file_rx {
@@ -291,33 +300,33 @@ fn tutorial_loop(
             state.render(frame, content, theme);
         })?;
 
-        if event::poll(Duration::from_millis(100))? {
-            match event::read()? {
-                Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    // While the inline editor is open, letters must be typed
-                    // as text rather than consumed as navigation/quit
-                    // commands. The default KeyHandler maps j/k/h/l→arrows,
-                    // q→quit and space→toggle, so it cannot enter those
-                    // characters — switch to a text-input map.
-                    let action = if state.is_editing() {
-                        map_key_text(key)
-                    } else {
-                        KeyHandler::map(key)
-                    };
-                    state.handle_key(action);
-                }
-                _ => {
-                    // Non-input events (resize, focus, key release/repeat)
-                    // must not starve the reveal pacing — a stream of them
-                    // would otherwise freeze the animation and defer the
-                    // command's execution indefinitely (WOW-002).
-                    state.reveal_tick();
-                }
-            }
-        } else {
-            // Poll timeout (fixed 100ms): the deterministic pacing tick for
-            // an in-flight typed-command reveal (WOW-002). No-op otherwise.
+        // Wake in time for the next reveal tick even when no input arrives.
+        let timeout = next_reveal_tick.saturating_duration_since(Instant::now());
+        if event::poll(timeout)?
+            && let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
+        {
+            // While the inline editor is open, letters must be typed as text
+            // rather than consumed as navigation/quit commands. The default
+            // KeyHandler maps j/k/h/l→arrows, q→quit and space→toggle, so it
+            // cannot enter those characters — switch to a text-input map.
+            let action = if state.is_editing() {
+                map_key_text(key)
+            } else {
+                KeyHandler::map(key)
+            };
+            state.handle_key(action);
+        }
+        // Non-press key events (release/repeat) and other events (resize,
+        // focus) are read and discarded above — they must never drive reveal
+        // pacing. Advance the reveal only on the fixed schedule, resetting the
+        // deadline from `now` so a burst of input that delayed us past a tick
+        // boundary cannot fire a backlog of ticks at once and complete the
+        // reveal instantly (WOW-002). No-op when no reveal is in flight.
+        let now = Instant::now();
+        if now >= next_reveal_tick {
             state.reveal_tick();
+            next_reveal_tick = now + REVEAL_TICK;
         }
 
         if state.should_quit() || state.should_back() || state.wants_watch_demo {
