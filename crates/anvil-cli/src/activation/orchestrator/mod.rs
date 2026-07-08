@@ -499,6 +499,7 @@ fn ensure_github_actions_workflows(
         return Ok(Vec::new());
     }
 
+    eprintln!("anvil: press Enter to skip GitHub Actions workflow install");
     let selected = show_workflow_picker(root, &candidates)?;
     let written = install_selected_workflows(root, &selected)?;
     for path in &written {
@@ -542,8 +543,8 @@ fn show_workflow_picker(
 
     let mut picker = MultiSelect::new("Install or enable GitHub Actions workflows?")
         .description(
-            "Nothing is selected by default. Space ticks a workflow; Enter installs your \
-             ticked selection (writing each only if absent).",
+            "Nothing is selected by default — press Enter to skip. Space ticks a workflow; \
+             Enter installs your ticked selection (writing each only if absent).",
         )
         .filterable(false)
         .min(0)

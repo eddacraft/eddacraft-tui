@@ -4713,7 +4713,7 @@ archive.
 
 ### CIB-182: First-user CLI command-path batch (local test 2026-07-07)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close the gap between ADR-082's interactive `anvil start` daily
   path and what first users actually see when running `welcome` → `start` →
   `status` → `watch` → `check` locally — especially false daemon-down signals,

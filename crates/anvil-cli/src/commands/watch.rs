@@ -1767,11 +1767,24 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 
                     // Dispatch action on snapshot events (skip initial scan).
                     // Concurrency / rerun guarding lives in ActionDispatcher.
-                    if let Some(d) = dispatcher.as_ref()
-                        && matches!(event.event_type, anvil_kernel_types::EventType::Snapshot)
-                    {
+                    if matches!(event.event_type, anvil_kernel_types::EventType::Snapshot) {
                         snapshot_count += 1;
-                        if snapshot_count > 1 {
+                        if snapshot_count == 1
+                            && !global.json
+                            && matches!(output_mode, WatchOutputMode::Plain { .. })
+                        {
+                            if let anvil_kernel_types::EventPayload::Snapshot {
+                                files_watched, ..
+                            } = &event.payload
+                            {
+                                println!(
+                                    "[watching] ready — {files_watched} files watched (initial scan complete)"
+                                );
+                            }
+                        }
+                        if let Some(d) = dispatcher.as_ref()
+                            && snapshot_count > 1
+                        {
                             d.on_snapshot(snapshot_changed_path(&event));
                         }
                     }

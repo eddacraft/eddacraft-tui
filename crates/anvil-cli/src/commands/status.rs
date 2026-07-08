@@ -139,10 +139,11 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             &worktree,
             save_time.assurance(),
         )?;
-    } else if !global.no_tui && std::io::stdout().is_terminal() {
+    } else if status_prefers_tui(global) {
         let state = StatusState::new(data);
         crate::tui::run_surface(state)?;
     } else {
+        warn_if_status_tui_unavailable(global);
         print_plain(&data, &activation, save_time);
     }
 
@@ -1166,6 +1167,39 @@ fn derive_protection(
 ///   reporting a negative or panicking duration.
 /// - `process_is_alive` shells `kill -0`; see its doc for the EPERM
 ///   limitation when a daemon is owned by another user.
+/// Whether `anvil status` should launch the Ratatui surface. Stricter than
+/// stdout-only TTY detection: the TUI blocks on keyboard input, so a session
+/// with redirected stdin (piped output capture, `script` harnesses) must fall
+/// back to plain output (#3222).
+fn status_prefers_tui(global: &GlobalArgs) -> bool {
+    !global.no_tui
+        && !crate::is_non_interactive_env()
+        && std::io::stdin().is_terminal()
+        && std::io::stdout().is_terminal()
+}
+
+fn warn_if_status_tui_unavailable(global: &GlobalArgs) {
+    if global.no_tui || !std::io::stdout().is_terminal() {
+        return;
+    }
+    if !std::io::stdin().is_terminal() {
+        eprintln!(
+            "anvil: stdin is not a terminal — showing plain status (pass --no-tui to silence this hint)"
+        );
+    } else if crate::is_non_interactive_env() {
+        eprintln!(
+            "anvil: non-interactive environment — showing plain status (pass --no-tui to silence this hint)"
+        );
+    }
+}
+
+fn parse_daemon_pid_from_record(record: &str) -> Option<u32> {
+    record
+        .lines()
+        .next()
+        .and_then(|line| line.trim().parse::<u32>().ok())
+}
+
 fn read_daemon_summary() -> DaemonSummary {
     let Ok(pid_file) = anvil_intercept::default_pid_file_path() else {
         return DaemonSummary::NotRunning;
@@ -1173,7 +1207,11 @@ fn read_daemon_summary() -> DaemonSummary {
     let Ok(contents) = std::fs::read_to_string(&pid_file) else {
         return DaemonSummary::NotRunning;
     };
-    let Ok(pid) = contents.trim().parse::<u32>() else {
+    // The intercept PID record is `<pid>\n[start_time=<epoch>\n]` — only the
+    // first line is the PID. Parsing the whole file fails once start_time lands
+    // (#3216); `anvil intercept status` already reads line 1 via
+    // `daemon_pid_for_display`.
+    let Some(pid) = parse_daemon_pid_from_record(&contents) else {
         return DaemonSummary::NotRunning;
     };
     if !process_is_alive(pid) {
@@ -1634,6 +1672,15 @@ mod tests {
 
     fn cleanup(dir: &Path) {
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn parse_daemon_pid_from_record_reads_first_line_only() {
+        let pid = std::process::id();
+        let record = format!("{pid}\nstart_time=9023295\n");
+        assert_eq!(parse_daemon_pid_from_record(&record), Some(pid));
+        assert_eq!(parse_daemon_pid_from_record(&format!("{pid}\n")), Some(pid));
+        assert_eq!(parse_daemon_pid_from_record("not-a-pid\nstart_time=1\n"), None);
     }
 
     #[test]

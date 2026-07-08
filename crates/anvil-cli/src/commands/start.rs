@@ -914,7 +914,7 @@ fn render_daemon_lifecycle_line(outcome: &anvil_intercept::ensure::EnsureOutcome
 const RECIPE_CHECK_NAME: &str = "secret-detection";
 
 const RECIPE_LINE_WRITE: &str =
-    "    1. echo 'const KEY = \"AKIAEXAMPLE1234567\";' >> .anvil-smoke-test.ts";
+    "    1. echo 'const KEY = \"AKIAQRSTUVWXYZ123456\";' >> .anvil-smoke-test.ts";
 const RECIPE_LINE_EXPECT: &str =
     "    2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding";
 
@@ -1377,6 +1377,20 @@ mod tests {
         assert!(
             !rendered.contains("anvil status") && !rendered.contains("baseline summary"),
             "smoke recipe must use a real scanning surface, not stale status baseline evidence: {rendered}"
+        );
+    }
+
+    /// #3221: the smoke-recipe AKIA string must match the `AKIA[0-9A-Z]{16}`
+    /// detector — a 15-char suffix was a silent false negative.
+    #[test]
+    fn first_run_recipe_smoke_string_triggers_secret_detection() {
+        use anvil_checks::secret::{SecretCheckConfig, scan_content};
+
+        let content = r#"const KEY = "AKIAQRSTUVWXYZ123456";"#;
+        let findings = scan_content(content, ".anvil-smoke-test.ts", &SecretCheckConfig::default());
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "AWS Key"),
+            "recipe smoke string must trigger secret-detection, got: {findings:?}",
         );
     }
 

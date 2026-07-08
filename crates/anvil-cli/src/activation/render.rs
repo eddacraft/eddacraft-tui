@@ -541,7 +541,8 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
             "restart your editor so the MCP handshake completes; the daemon will be probed afterwards"
         }
         DaemonAttestation::Unreachable => {
-            "start the intercept daemon (`anvil intercept start --foreground`) so pre-write validation can attach"
+            "run `anvil start` in a real terminal to auto-start the daemon \
+             (`anvil intercept start --foreground` for headless recovery) so pre-write validation can attach"
         }
         DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
             "daemon is running but this worktree is not registered — see `anvil intercept status`"
@@ -624,7 +625,7 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
                 "anvil has written the MCP config, but the editor or agent has not attached to it yet. Restart that editor or agent, then run `anvil start --verify` again; restarting the whole machine is not required."
             }
             DaemonAttestation::Unreachable => {
-                "The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Start it with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+                "The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "The intercept daemon is running, but this worktree is not attached to an enforcing session yet. Check `anvil intercept status`, then run `anvil start --verify` again after the editor issues an MCP request."
@@ -851,7 +852,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // is the intercept daemon, not another restart. Each
             // attestation branch points at its concrete remediation.
             DaemonAttestation::Unreachable => {
-                "no intercept daemon is answering for this worktree, so another editor restart will not help; start the intercept daemon with `anvil intercept start --foreground` (or wait for it to finish starting), then re-run `anvil start --verify`."
+                "no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "the intercept daemon is running but is not enforcing this worktree yet; check `anvil intercept status` for the registered worktree set and re-run `anvil start --verify` after your editor has issued an MCP request."
@@ -1389,8 +1390,12 @@ mod tests {
             handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
         let h = render_human(&d);
         assert!(
+            h.contains("anvil start") && h.contains("real terminal"),
+            "Unreachable hint must lead with interactive `anvil start`: {h}"
+        );
+        assert!(
             h.contains("anvil intercept start"),
-            "Unreachable hint must name `anvil intercept start`: {h}"
+            "Unreachable hint must still name headless recovery: {h}"
         );
     }
 
@@ -1427,8 +1432,12 @@ mod tests {
         );
         // Still actionable and copy-ready.
         assert!(
+            h.contains("anvil start") && h.contains("real terminal"),
+            "Unreachable hint must lead with interactive `anvil start`: {h}"
+        );
+        assert!(
             h.contains("anvil intercept start --foreground") && h.contains("anvil start --verify"),
-            "Unreachable hint must give the daemon-start command and the re-run command: {h}"
+            "Unreachable hint must give headless recovery and the re-run command: {h}"
         );
     }
 
@@ -1575,6 +1584,8 @@ mod tests {
         assert!(
             h.contains("meaning:")
                 && h.contains("local intercept daemon is not reachable")
+                && h.contains("anvil start")
+                && h.contains("real terminal")
                 && h.contains("anvil intercept start --foreground")
                 && h.contains("anvil start --verify"),
             "Unreachable render must explain the label and give copy-ready commands: {h}"
@@ -2278,7 +2289,7 @@ mod tests {
         let expected: &[(super::super::daemon_evidence::DaemonAttestation, &str)] = &[
             (
                 super::super::daemon_evidence::DaemonAttestation::Unreachable,
-                "anvil intercept start --foreground",
+                "anvil start",
             ),
             (
                 super::super::daemon_evidence::DaemonAttestation::Unenforced,
@@ -2436,8 +2447,12 @@ mod tests {
             .find(|l| l.trim_start().starts_with("why:"))
             .expect("ready_restart_required render has a why: line");
         assert!(
+            why_rrr.contains("anvil start") && why_rrr.contains("real terminal"),
+            "ReadyRestartRequired + Unreachable why: must lead with interactive `anvil start`, got: {why_rrr}"
+        );
+        assert!(
             why_rrr.contains("anvil intercept start --foreground"),
-            "ReadyRestartRequired + Unreachable why: must name `anvil intercept start --foreground`, got: {why_rrr}"
+            "ReadyRestartRequired + Unreachable why: must still name headless recovery, got: {why_rrr}"
         );
     }
 }
