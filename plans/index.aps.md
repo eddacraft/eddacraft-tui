@@ -113,7 +113,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASH-001..009 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). Unblocks **DASHCORE**, **DASHARCH**, **DASHOPS** after the DSV Sub-phase C usefulness gate landed via PR #3205. Built in `apps/website/` (Next.js 16 + shadcn/ui + Recharts); 1/9 done. | Continue from DASH-001. |
+| 1 | DASH-001..011 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). Unblocks **DASHCORE**, **DASHARCH**, **DASHOPS** after the DSV Sub-phase C usefulness gate landed via PR #3205. Built as `apps/dashboard/` (Vite 8 + React + TanStack Router/Query/Table + shadcn/ui + Tailwind v4) backed by `crates/anvil-dashboard-server/`; json-render first with Recharts as chart primitives; 1/11 done. | Continue from DASH-001. |
 
 NBI review note (2026-07-06, DSV Sub-phase C landed): **DSV-048**, **DSV-047**,
 **DSV-049**, **DSV-050**, and **DSV-051** are Merged, closing the
@@ -667,12 +667,17 @@ layer) in flight per ADR-032.
 
 ### Web Dashboard
 
-Browser-based interface for exploring Anvil data. Built into `apps/website/`
-(Next.js 16 + shadcn/ui + Recharts). Four execution waves; 39 tasks total.
+Browser-based interface for exploring Anvil data. Built as dedicated
+`apps/dashboard/` (Vite 8 + React + TanStack Router/Query/Table + shadcn/ui +
+Tailwind v4) backed by `crates/anvil-dashboard-server/` with an OpenAPI ->
+generated TypeScript client -> TanStack Query seam. Dashboard modules are UI
+adapters over kernel capabilities; kernel/server code owns permissions,
+workflow state, audit, evidence, and policy decisions. Four execution waves; 41
+tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary.md).
 
 | Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
 | ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | Ready  | 1/9      | 1    | apps/website, contracts                                                  |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | Ready  | 1/11     | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | Ready  | 0/9      | 2    | dashboard-foundation                                                     |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |

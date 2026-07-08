@@ -4,7 +4,7 @@
 | -------- | ---------- | ------ | -------- |
 | DASHCORE | @eddacraft | Ready  | 0/9      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-09
 
 ## Purpose
 
@@ -34,17 +34,16 @@ the minimum viable dashboard.
 **Depends on:**
 
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
-  theme, deep linking
+  theme, deep linking, dashboard server, and OpenAPI client seam
 - `contracts` — `WarningSchema`, `EvidenceEntrySchema`, `ProvenanceRecordSchema` (see `schema-contracts` module)
 - `drift-reporting` — Drift score for Overview metric card [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
 - `antipattern-library` — Pattern definitions for registry page [REVIEW: archived module — pattern definitions now live in `crates/anvil-checks/`; verify registry source]
 
 **Exposes:**
 
-- Overview page at `/dashboard`
-- Gates pages at `/dashboard/gates`, `/dashboard/gates/:id`
-- Warnings pages at `/dashboard/warnings`, `/dashboard/warnings/breakdown`,
-  `/dashboard/warnings/patterns`
+- Overview page at dashboard root
+- Gates pages at `/gates`, `/gates/:id`
+- Warnings pages at `/warnings`, `/warnings/breakdown`, `/warnings/patterns`
 - Domain components: `GateResultCard`, `WarningList`, `GateCheckTree`
 
 ## Risks
@@ -78,8 +77,8 @@ DASHARCH.
   warnings by severity, drift score with trend arrow, suppression count, last
   gate run with badge. Each links to detail page.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/page.tsx`
-  - `apps/website/components/dashboard/overview/metric-cards.tsx`
+  - `apps/dashboard/src/routes/index.tsx`
+  - `apps/dashboard/src/modules/core/overview/metric-cards.tsx`
 - **Dependencies:** DASH-003, DASH-006
 - **Validation:** Cards render with real data from API; sparklines show 30-day
   trend; clicking navigates to detail
@@ -91,7 +90,7 @@ DASHARCH.
 - **Expected Outcome:** Warning count trend (line, 30/60/90 day toggle) and gate
   pass rate (area, daily/weekly). Uses DASH-004 charts.
 - **Files:**
-  - `apps/website/components/dashboard/overview/trend-charts.tsx`
+  - `apps/dashboard/src/modules/core/overview/trend-charts.tsx`
 - **Dependencies:** DASH-004, DASH-006
 - **Validation:** Charts render with historical data; time range toggle works
 - **Confidence:** medium
@@ -102,7 +101,7 @@ DASHARCH.
 - **Expected Outcome:** Last 20 events from provenance: gate runs, new warnings,
   suppressions. Timestamp, type badge, summary, actor. Click navigates to detail.
 - **Files:**
-  - `apps/website/components/dashboard/overview/activity-feed.tsx`
+  - `apps/dashboard/src/modules/core/overview/activity-feed.tsx`
 - **Dependencies:** DASH-003, DASH-006
 - **Validation:** Activity feed shows latest events; clicking entries navigates
   to detail views
@@ -115,8 +114,8 @@ DASHARCH.
   (passed/total), trigger, duration, file count. Filters via useFilterParams.
   Click navigates to detail.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/gates/page.tsx`
-  - `apps/website/components/dashboard/gates/gate-history-table.tsx`
+  - `apps/dashboard/src/routes/gates.index.tsx`
+  - `apps/dashboard/src/modules/core/gates/gate-history-table.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-008
 - **Validation:** Table renders gate history; filters narrow results; row click
   navigates
@@ -129,10 +128,10 @@ DASHARCH.
   check tree (name, status, score, message, duration → detailed output on
   expand), evidence panel, provenance footer. Keyboard nav (j/k/Enter/n/N).
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/gates/[id]/page.tsx`
-  - `apps/website/components/dashboard/gates/check-tree.tsx`
-  - `apps/website/components/dashboard/gates/gate-detail-header.tsx`
-  - `apps/website/components/dashboard/gates/evidence-panel.tsx`
+  - `apps/dashboard/src/routes/gates.$id.tsx`
+  - `apps/dashboard/src/modules/core/gates/check-tree.tsx`
+  - `apps/dashboard/src/modules/core/gates/gate-detail-header.tsx`
+  - `apps/dashboard/src/modules/core/gates/evidence-panel.tsx`
 - **Dependencies:** DASHCORE-004, DASH-003
 - **Validation:** Detail view renders full gate data; check tree expands;
   keyboard nav works
@@ -146,8 +145,8 @@ DASHARCH.
   file glob, new-only, suppressed. Group-by: file, category, severity, pattern.
   Click opens detail panel.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/warnings/page.tsx`
-  - `apps/website/components/dashboard/warnings/warning-table.tsx`
+  - `apps/dashboard/src/routes/warnings.index.tsx`
+  - `apps/dashboard/src/modules/core/warnings/warning-table.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-008
 - **Validation:** Table renders warnings; filters narrow results; group-by
   reorganises data
@@ -160,7 +159,7 @@ DASHARCH.
   suggestion, code context (highlighted violation), suppression status, drift
   info. Opens on row click, closes on Escape.
 - **Files:**
-  - `apps/website/components/dashboard/warnings/warning-detail-panel.tsx`
+  - `apps/dashboard/src/modules/core/warnings/warning-detail-panel.tsx`
 - **Dependencies:** DASHCORE-006
 - **Validation:** Clicking a warning opens panel with full context; code
   rendering is readable
@@ -172,8 +171,8 @@ DASHARCH.
 - **Expected Outcome:** Bar chart by pattern ID, hotspot file ranking, donut for
   severity, donut for category.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/warnings/breakdown/page.tsx`
-  - `apps/website/components/dashboard/warnings/warning-charts.tsx`
+  - `apps/dashboard/src/routes/warnings.breakdown.tsx`
+  - `apps/dashboard/src/modules/core/warnings/warning-charts.tsx`
 - **Dependencies:** DASH-004, DASH-006
 - **Validation:** Charts render and reflect current warning data; hotspots are
   identifiable
@@ -185,8 +184,8 @@ DASHARCH.
 - **Expected Outcome:** Table of all patterns (AP-001..007): ID, name, category,
   severity, enabled, instance count, sparkline. Click expands inline docs.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/warnings/patterns/page.tsx`
-  - `apps/website/components/dashboard/warnings/pattern-registry.tsx`
+  - `apps/dashboard/src/routes/warnings.patterns.tsx`
+  - `apps/dashboard/src/modules/core/warnings/pattern-registry.tsx`
 - **Dependencies:** DASH-003, DASH-006
 - **Validation:** All defined patterns appear; clicking opens documentation;
   instance counts are accurate

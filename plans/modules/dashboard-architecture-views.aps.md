@@ -4,7 +4,7 @@
 | -------- | ---------- | ------ | -------- |
 | DASHARCH | @eddacraft | Ready  | 0/8      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-09
 
 ## Purpose
 
@@ -34,7 +34,8 @@ making exceptions?"
 
 **Depends on:**
 
-- `dashboard-foundation` — App shell, routing, component catalogue, data hooks
+- `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
+  dashboard server, and OpenAPI client seam
 - `architecture-safety` — Boundary rules, layer definitions, violation schemas [REVIEW: archived module — logic now in `crates/anvil-architecture/`; verify schemas/artefact format]
 - `opa-architecture-integration` — Architecture YAML schema, template definitions [REVIEW: archived module — OPA hybrid covered by ADR-006; current ownership unclear]
 - `drift-reporting` — Snapshot schema, comparison logic, trend calculation [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
@@ -42,12 +43,10 @@ making exceptions?"
 
 **Exposes:**
 
-- Architecture pages at `/dashboard/architecture`,
-  `/dashboard/architecture/violations`, `/dashboard/architecture/graph`
-- Drift pages at `/dashboard/drift`, `/dashboard/drift/:name`,
-  `/dashboard/drift/compare`
-- Suppression pages at `/dashboard/suppressions`,
-  `/dashboard/suppressions/trends`
+- Architecture pages at `/architecture`, `/architecture/violations`,
+  `/architecture/graph`
+- Drift pages at `/drift`, `/drift/:name`, `/drift/compare`
+- Suppression pages at `/suppressions`, `/suppressions/trends`
 - Domain components: `LayerDiagram`, `DependencyGraph`, `DriftIndicator`,
   `SuppressionLifecycleTable`
 
@@ -93,9 +92,9 @@ DASHCORE.
 - **Expected Outcome:** SVG layer diagram from architecture definition, metric
   cards (modules, violations, new violations, orphans), template info.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/architecture/page.tsx`
-  - `apps/website/components/dashboard/architecture/layer-diagram.tsx`
-  - `apps/website/components/dashboard/architecture/arch-metric-cards.tsx`
+  - `apps/dashboard/src/routes/architecture.index.tsx`
+  - `apps/dashboard/src/modules/architecture/layer-diagram.tsx`
+  - `apps/dashboard/src/modules/architecture/arch-metric-cards.tsx`
 - **Dependencies:** DASH-003, DASH-006
 - **Validation:** Layer diagram renders from architecture YAML; metrics reflect
   current state
@@ -108,8 +107,8 @@ DASHCORE.
   new flag, line. Filters: severity, layer pair, new-only, file. Click shows
   code context.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/architecture/violations/page.tsx`
-  - `apps/website/components/dashboard/architecture/violation-table.tsx`
+  - `apps/dashboard/src/routes/architecture.violations.tsx`
+  - `apps/dashboard/src/modules/architecture/violation-table.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-008
 - **Validation:** Table shows all violations; filters work; layer pair filter
   narrows to specific boundaries
@@ -120,10 +119,11 @@ DASHCORE.
 - **Intent:** Graphically visualise module dependencies and violations
 - **Expected Outcome:** React Flow graph: nodes = modules (coloured by layer),
   edges = dependencies (green=allowed, red=violation). Click node for details,
-  filter by layer, highlight cycles, pan/zoom. Lazy-loaded via `next/dynamic`.
+  filter by layer, highlight cycles, pan/zoom. Lazy-loaded via a React lazy
+  route/component boundary.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/architecture/graph/page.tsx`
-  - `apps/website/components/dashboard/architecture/dependency-graph.tsx`
+  - `apps/dashboard/src/routes/architecture.graph.tsx`
+  - `apps/dashboard/src/modules/architecture/dependency-graph.tsx`
 - **Dependencies:** DASHARCH-001
 - **Validation:** Graph renders modules with correct layer colours; violations
   are visually distinct; interaction works
@@ -136,9 +136,9 @@ DASHCORE.
   trend line charts per metric, trend badge (improving/stable/degrading).
   Checkbox selection for comparison.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/drift/page.tsx`
-  - `apps/website/components/dashboard/drift/snapshot-list.tsx`
-  - `apps/website/components/dashboard/drift/drift-trend-charts.tsx`
+  - `apps/dashboard/src/routes/drift.index.tsx`
+  - `apps/dashboard/src/modules/drift/snapshot-list.tsx`
+  - `apps/dashboard/src/modules/drift/drift-trend-charts.tsx`
 - **Dependencies:** DASH-003, DASH-004, DASH-006
 - **Validation:** Snapshot list renders; trend charts show historical data; trend
   badge reflects trajectory
@@ -150,8 +150,8 @@ DASHCORE.
 - **Expected Outcome:** Metrics panel, anti-pattern breakdown bar chart, hotspot
   ranking, full tables for violations/antipatterns/suppressions.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/drift/[name]/page.tsx`
-  - `apps/website/components/dashboard/drift/snapshot-detail.tsx`
+  - `apps/dashboard/src/routes/drift.$name.tsx`
+  - `apps/dashboard/src/modules/drift/snapshot-detail.tsx`
 - **Dependencies:** DASHARCH-004
 - **Validation:** Snapshot detail renders all metrics and tables; hotspots are
   correctly ranked
@@ -164,8 +164,8 @@ DASHCORE.
   arrows), new/resolved violations, per-pattern deltas. Snapshot names via query
   params.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/drift/compare/page.tsx`
-  - `apps/website/components/dashboard/drift/snapshot-comparison.tsx`
+  - `apps/dashboard/src/routes/drift.compare.tsx`
+  - `apps/dashboard/src/modules/drift/snapshot-comparison.tsx`
 - **Dependencies:** DASHARCH-004, DASH-008
 - **Validation:** Comparison renders with correct deltas; new/resolved items are
   correctly identified
@@ -178,8 +178,8 @@ DASHCORE.
   file, line, reason, scope, author, dates, status. Filters: pattern, scope,
   author, expiry window, file.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/suppressions/page.tsx`
-  - `apps/website/components/dashboard/suppressions/suppression-table.tsx`
+  - `apps/dashboard/src/routes/suppressions.index.tsx`
+  - `apps/dashboard/src/modules/suppressions/suppression-table.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-008
 - **Validation:** All three views render; filtering works; expiry calculations
   are correct
@@ -191,8 +191,8 @@ DASHCORE.
 - **Expected Outcome:** Charts: total suppressions over time, by pattern, by
   scope, average lifetime, expiry compliance rate.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/suppressions/trends/page.tsx`
-  - `apps/website/components/dashboard/suppressions/suppression-charts.tsx`
+  - `apps/dashboard/src/routes/suppressions.trends.tsx`
+  - `apps/dashboard/src/modules/suppressions/suppression-charts.tsx`
 - **Dependencies:** DASH-004, DASH-006
 - **Validation:** Charts render with suppression historical data; trends are
   visible

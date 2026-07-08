@@ -4,7 +4,7 @@
 | ------ | ---------- | ------ | -------- |
 | DASHAI | @eddacraft | Draft  | 0/6      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-09
 
 ## Purpose
 
@@ -27,26 +27,29 @@ renders progressively. The structured pages (DASHCORE, DASHARCH, DASHOPS) cover
 ## Out of Scope
 
 - The component catalogue itself (see DASH-003)
-- The data fetching layer (see DASH-005, DASH-006)
+- The data fetching layer (see DASH-006, DASH-007)
 - Structured page implementations (see DASHCORE, DASHARCH, DASHOPS)
-- AI model selection or LLM infrastructure — uses external API
+- AI model selection or LLM infrastructure — deferred until D-DASHAI-001
+  resolves a server-side key-management model
 
 ## Interfaces
 
 **Depends on:**
 
-- `dashboard-foundation` — Component catalogue, data hooks, theme, routing
+- `dashboard-foundation` — Component catalogue, data hooks, theme, routing,
+  dashboard server, and OpenAPI client seam
 - `@json-render/react` — json-render library for constrained AI rendering
-- External LLM API — For generating dashboard JSON from prompts
+- Future LLM adapter — For generating dashboard JSON from prompts once
+  D-DASHAI-001 resolves
 - Coordinates with `tui-dashboard-render` (TUIDASH) — the Rust/Ratatui json-render
   spec interpreter; both modules consume the same dashboard JSON schema where
   feasible (per ADR-011 Ratatui is the TUI surface)
 
 **Exposes:**
 
-- AI Builder page at `/dashboard/builder`
-- Saved dashboards at `/dashboard/dashboards`, `/dashboard/dashboards/:id`
-- Template gallery at `/dashboard/builder/templates`
+- AI Builder page at `/builder`
+- Saved dashboards at `/dashboards`, `/dashboards/:id`
+- Template gallery at `/builder/templates`
 - `DashboardRenderer` component — Renders any saved dashboard JSON
 - Dashboard persistence to `.anvil/dashboards/`
 
@@ -54,8 +57,9 @@ renders progressively. The structured pages (DASHCORE, DASHARCH, DASHOPS) cover
 
 **D-DASHAI-001:** LLM integration model
 
-- **Options:** (a) Direct API call from browser, (b) Proxy through API routes
-  with server-side key management, (c) User provides own API key in browser
+- **Options:** (a) Direct API call from browser, (b) Proxy through the dashboard
+  server or future hosted API with server-side key management, (c) User provides
+  own API key in browser
 - **Resolution:** Deferred to Wave 4. Will resolve when implementation begins.
 - **Status:** Open (deferred)
 
@@ -100,8 +104,8 @@ Change status to **Ready** when:
   component renders JSON config to component tree with schema validation and
   error boundaries.
 - **Files:**
-  - `apps/website/lib/json-render/dashboard-renderer.tsx`
-  - `apps/website/lib/json-render/schema-validator.ts`
+  - `apps/dashboard/src/lib/render/dashboard-renderer.tsx`
+  - `apps/dashboard/src/lib/render/schema-validator.ts`
 - **Dependencies:** DASH-003, DASH-004
 - **Validation:** Valid JSON renders expected component tree; invalid JSON shows
   validation error
@@ -114,7 +118,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** All catalogue + domain components registered with
   json-render by name and prop schema. Auto-generated manifest.
 - **Files:**
-  - `apps/website/lib/json-render/catalog-registry.ts`
+  - `apps/dashboard/src/lib/render/catalog-registry.ts`
 - **Dependencies:** DASHAI-001, DASH-003
 - **Validation:** Every catalogue component is instantiable via json-render JSON
   descriptor
@@ -127,9 +131,9 @@ Change status to **Ready** when:
   preview via DashboardRenderer. Progressive streaming. Prompt history. Error
   states.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/builder/page.tsx`
-  - `apps/website/components/dashboard/builder/prompt-panel.tsx`
-  - `apps/website/components/dashboard/builder/preview-panel.tsx`
+  - `apps/dashboard/src/routes/builder.index.tsx`
+  - `apps/dashboard/src/modules/builder/prompt-panel.tsx`
+  - `apps/dashboard/src/modules/builder/preview-panel.tsx`
 - **Dependencies:** DASHAI-001, DASHAI-002
 - **Validation:** Typing a prompt and clicking Generate produces a rendered
   dashboard; streaming works
@@ -142,9 +146,9 @@ Change status to **Ready** when:
   Compliance, Suppression Audit, CI Pipeline, AI Tool Impact). Gallery with
   previews. Click loads into builder.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/builder/templates/page.tsx`
-  - `apps/website/components/dashboard/builder/template-gallery.tsx`
-  - `apps/website/data/dashboard-templates/`
+  - `apps/dashboard/src/routes/builder.templates.tsx`
+  - `apps/dashboard/src/modules/builder/template-gallery.tsx`
+  - `apps/dashboard/src/data/dashboard-templates/`
 - **Dependencies:** DASHAI-001, DASHAI-002
 - **Validation:** Gallery renders all templates; clicking loads into builder;
   templates render correctly
@@ -156,10 +160,9 @@ Change status to **Ready** when:
 - **Expected Outcome:** Save/load/share dashboard JSON to
   `.anvil/dashboards/`. Sidebar listing. Shareable URLs. CRUD operations.
 - **Files:**
-  - `apps/website/app/(dashboard)/dashboard/dashboards/page.tsx`
-  - `apps/website/app/(dashboard)/dashboard/dashboards/[id]/page.tsx`
-  - `apps/website/app/api/anvil/dashboards/route.ts`
-  - `apps/website/app/api/anvil/dashboards/[id]/route.ts`
+  - `apps/dashboard/src/routes/dashboards.index.tsx`
+  - `apps/dashboard/src/routes/dashboards.$id.tsx`
+  - `crates/anvil-dashboard-server/src/capabilities/dashboards.rs`
 - **Dependencies:** DASHAI-001, DASH-005
 - **Validation:** Save → reload → renders identically; share URL works; CRUD
   operations work
@@ -172,8 +175,8 @@ Change status to **Ready** when:
   `.anvil/dashboards/[name]/versions/`. View, compare, revert. Prompt text
   stored per version.
 - **Files:**
-  - `apps/website/components/dashboard/builder/version-history.tsx`
-  - `apps/website/app/api/anvil/dashboards/[id]/versions/route.ts`
+  - `apps/dashboard/src/modules/builder/version-history.tsx`
+  - `crates/anvil-dashboard-server/src/capabilities/dashboard_versions.rs`
 - **Dependencies:** DASHAI-005
 - **Validation:** Iterating on a dashboard creates version history; revert
   restores previous state
