@@ -46,6 +46,7 @@ function isolatedHome(): IsolatedHome {
       XDG_CONFIG_HOME: join(root, 'xdg'),
       XDG_RUNTIME_DIR: join(root, 'runtime'),
       ANVIL_DEV: '1',
+      ANVIL_ALL_MCP_CLIENTS: '1',
       ANVIL_SKIP_WELCOME: '1',
       ANVIL_NO_PROMPT: '1',
     },
@@ -173,5 +174,57 @@ describeCli('Activation golden path', () => {
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain('state: ready_restart_required');
     expect(result.stdout).not.toContain('\u001b[?1049h');
+  });
+
+  it('keeps compact --no-tui reruns script-safe', async () => {
+    const ws = workspace();
+    const home = isolatedHome();
+
+    const first = await runCli(['--no-tui', 'start', '--no-daemon'], {
+      cwd: ws.root,
+      env: home.env,
+      timeout: 30_000,
+    });
+    expect(first.exitCode, first.stderr).toBe(0);
+
+    const result = await runCli(['--no-tui', 'start', '--no-daemon'], {
+      cwd: ws.root,
+      env: home.env,
+      timeout: 30_000,
+    });
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout.match(/state: /g)?.length).toBe(2);
+    expect(result.stdout).toContain('state: ready_restart_required');
+    expect(result.stdout).not.toContain('\u001b[?1049h');
+    expect(result.stdout).not.toContain('\u001b[?25l');
+  });
+
+  it('matches ANVIL_NO_TUI=1 to --no-tui compact output', async () => {
+    const ws = workspace();
+    const home = isolatedHome();
+
+    const first = await runCli(['--no-tui', 'start', '--no-daemon'], {
+      cwd: ws.root,
+      env: home.env,
+      timeout: 30_000,
+    });
+    expect(first.exitCode, first.stderr).toBe(0);
+
+    const flag = await runCli(['--no-tui', 'start', '--no-daemon'], {
+      cwd: ws.root,
+      env: { ...home.env, ANVIL_ACTIVATION_TUI: '1' },
+      timeout: 30_000,
+    });
+    const env = await runCli(['start', '--no-daemon'], {
+      cwd: ws.root,
+      env: { ...home.env, ANVIL_ACTIVATION_TUI: '1', ANVIL_NO_TUI: '1' },
+      timeout: 30_000,
+    });
+
+    expect(flag.exitCode, flag.stderr).toBe(0);
+    expect(env.exitCode, env.stderr).toBe(0);
+    expect(env.stdout).toBe(flag.stdout);
+    expect(env.stdout).not.toContain('\u001b[?1049h');
   });
 });

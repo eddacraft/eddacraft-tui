@@ -39,9 +39,11 @@
 //! `protecting`. LAUNCH-011 lands the only safe path to that state.
 
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
+const START_ACTIVATION_FIXTURES: &str = "tests/fixtures/start-activation";
 
 fn run_start_with_home(
     workdir: &std::path::Path,
@@ -90,6 +92,35 @@ fn run_start_with_home(
         .env("ANVIL_ALL_MCP_CLIENTS", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
     cmd.output().expect("failed to invoke anvil binary")
+}
+
+fn start_activation_fixture_path(name: &str) -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(START_ACTIVATION_FIXTURES)
+        .join(name)
+}
+
+fn normalise_start_activation_output(raw: &str, workdir: &Path, home: &Path) -> String {
+    raw.replace(&workdir.display().to_string(), "<WORKTREE>")
+        .replace(&home.display().to_string(), "<HOME>")
+        .replace('\\', "/")
+}
+
+fn assert_start_activation_fixture(name: &str, raw: &str, workdir: &Path, home: &Path) {
+    let actual = normalise_start_activation_output(raw, workdir, home);
+    let path = start_activation_fixture_path(name);
+    if std::env::var_os("UPDATE_FIXTURES").is_some() {
+        fs::create_dir_all(path.parent().expect("fixture parent")).unwrap();
+        fs::write(&path, &actual).unwrap();
+        return;
+    }
+    let expected = fs::read_to_string(&path).unwrap_or_else(|error| {
+        panic!(
+            "failed to read fixture {} ({error}); run UPDATE_FIXTURES=1 cargo test -p eddacraft-anvil --test start -- {name}",
+            path.display(),
+        )
+    });
+    assert_eq!(actual, expected, "start activation fixture drift: {name}");
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -369,6 +400,124 @@ fn start_verify_on_fresh_repo_reports_needs_action() {
     assert!(
         stdout.contains("config: absent"),
         "config status should be reported as absent, got:\n{stdout}"
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_verify_matches_ready_restart_required_fixture() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let first = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        first.status.success(),
+        "setup start failed: stderr={}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
+    assert!(
+        out.status.success(),
+        "anvil start --verify failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("state: ready_restart_required"));
+    assert_start_activation_fixture(
+        "verify-ready-restart-required.stdout",
+        &stdout,
+        dir.path(),
+        home.path(),
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_json_matches_ready_restart_required_fixture() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let first = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        first.status.success(),
+        "setup start failed: stderr={}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let out = run_start_with_home(dir.path(), home.path(), &["--json"]);
+    assert!(
+        out.status.success(),
+        "anvil start --json failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("--json output must be valid JSON");
+    assert_eq!(json["state"].as_str(), Some("ready_restart_required"));
+    assert!(
+        String::from_utf8_lossy(&out.stderr).trim().is_empty(),
+        "--json must not emit a human stderr block"
+    );
+    assert_start_activation_fixture(
+        "json-ready-restart-required.stdout",
+        &stdout,
+        dir.path(),
+        home.path(),
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_no_tui_and_env_no_tui_match_compact_fixture() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let first = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        first.status.success(),
+        "setup start failed: stderr={}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let flag = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        flag.status.success(),
+        "--no-tui rerun failed: stderr={}",
+        String::from_utf8_lossy(&flag.stderr)
+    );
+
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("start")
+        .arg("--no-daemon")
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("ANVIL_LOG")
+        .env_remove("RUST_LOG")
+        .env("XDG_RUNTIME_DIR", home.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_ALL_MCP_CLIENTS", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_NO_TUI", "1");
+    let env = cmd.output().expect("failed to invoke anvil binary");
+    assert!(
+        env.status.success(),
+        "ANVIL_NO_TUI rerun failed: stderr={}",
+        String::from_utf8_lossy(&env.stderr)
+    );
+
+    let flag_stdout = String::from_utf8_lossy(&flag.stdout);
+    let env_stdout = String::from_utf8_lossy(&env.stdout);
+    assert_eq!(
+        normalise_start_activation_output(&flag_stdout, dir.path(), home.path()),
+        normalise_start_activation_output(&env_stdout, dir.path(), home.path()),
+        "ANVIL_NO_TUI=1 must match --no-tui compact output",
+    );
+    assert!(!flag_stdout.contains("\u{1b}[?1049h"));
+    assert_start_activation_fixture(
+        "compact-ready-restart-required.stdout",
+        &flag_stdout,
+        dir.path(),
+        home.path(),
     );
 }
 

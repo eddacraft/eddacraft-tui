@@ -1,0 +1,24 @@
+{
+  "state": "ready_restart_required",
+  "headline": "Daemon not reachable — protection cannot graduate until the intercept daemon answers this worktree.",
+  "config": "valid",
+  "mcp": [
+    {
+      "client": "cursor",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "claude-code",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    }
+  ],
+  "watch": "not_requested",
+  "baseline_present": false,
+  "baseline": null,
+  "last_error": null,
+  "all_languages_unsupported": false,
+  "repo_languages": [],
+  "unclassified_files_seen": 2
+}

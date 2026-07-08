@@ -4,7 +4,7 @@
 | ------ | ----- | ------ | -------- |
 | ACTTUI | Josh  | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-09 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome, ACTTUI-005 verdict tree, and ACTTUI-006 tier-evidence LogPanel are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-09 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome, ACTTUI-005 verdict tree, ACTTUI-006 tier-evidence LogPanel, and ACTTUI-007 fixture hardening are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
@@ -293,7 +293,12 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-007: Contract hardening — verify/json/CI matrix
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-09 — fixture-backed read-only/JSON/no-TUI
+  contract tests now pin the reachable `ready_restart_required` path in
+  `crates/anvil-cli/tests/fixtures/start-activation/`, with e2e parity coverage
+  for `--no-tui` and `ANVIL_NO_TUI=1`. The `protecting` and PTY transcript
+  matrix remains gated on a harness that can synthesise live MCP/daemon
+  attestation without over-claiming.
 - **Dependencies:** ACTTUI-005
 - **Intent:** Scripted and CI consumers never regress when TUI becomes default.
 - **Expected Outcome:** `anvil start --verify` and `--json` byte-stable against
