@@ -34,7 +34,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
     if progress_height > 0 {
         render_working_progress(frame, chunks[2], state, theme);
     }
-    if state.phase() == ActivationPhase::Consent
+    if state.tier_evidence_visible() {
+        let mut panel_state = state.log_panel_state_mut();
+        crate::surfaces::activation::log_panel::render(
+            frame,
+            chunks[3],
+            state.tier_evidence_entries(),
+            &mut panel_state,
+            theme,
+        );
+    } else if state.phase() == ActivationPhase::Consent
         && let Some(consent) = state.consent()
     {
         crate::surfaces::activation::consent::render(frame, chunks[3], consent, theme);
@@ -247,6 +256,29 @@ mod tests {
         let out = render_to_string(&surface, 100, 24);
         assert!(out.contains("Consent"));
         assert!(out.contains("Cursor MCP"));
+        assert!(!out.contains("Activation verdict"));
+    }
+
+    #[test]
+    fn renders_log_panel_when_tier_evidence_is_toggled() {
+        let mut surface = ActivationSurface::from_verdict(
+            "ACTIVATION
+  state: ready_restart_required
+  mcp:
+    Cursor: restart_handshake_verified (pending restart)
+  install:
+    Cursor: skipped — already up to date
+",
+            false,
+        );
+        surface.toggle_tier_evidence();
+
+        let out = render_to_string(&surface, 110, 28);
+
+        assert!(out.contains("Tier evidence"));
+        assert!(out.contains("mcp/Cursor"));
+        assert!(out.contains("restart_handshake_verified"));
+        assert!(out.contains("install/Cursor"));
         assert!(!out.contains("Activation verdict"));
     }
 

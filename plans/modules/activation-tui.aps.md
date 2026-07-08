@@ -4,7 +4,7 @@
 | ------ | ----- | ------ | -------- |
 | ACTTUI | Josh  | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome, and ACTTUI-005 verdict tree are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-09 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome, ACTTUI-005 verdict tree, and ACTTUI-006 tier-evidence LogPanel are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
@@ -270,7 +270,12 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-006: Tier evidence — `LogPanel` + optional `json_render` catalogue
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-09 — ACTTUI evidence rows now feed an
+  in-surface `LogPanel`: compact verdict rows, orchestrator lifecycle lines, and
+  `render_human_verbose` (`--why`) text are parsed into `LogEntry` rows. The
+  `l` key toggles tier evidence in the activation surface, and TUI `--why`
+  attaches the same verbose evidence in-surface instead of printing a post-exit
+  stderr block. No `json_render` catalogue lands in this slice.
 - **Dependencies:** ACTTUI-005
 - **Intent:** Operators who need `--why` depth get it in-surface without stderr
   JSON noise; declarative layout available for future activation panels.

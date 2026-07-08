@@ -20,12 +20,20 @@
 //!   shell chrome carries a persistent banner naming the gated posture.
 
 pub mod consent;
+pub mod log_panel;
 pub mod render;
 pub mod verdict;
 
+use std::cell::{RefCell, RefMut};
+
 use eddacraft_tui::keyboard::Action;
+use eddacraft_tui::prelude::{LogEntry, LogPanelState};
 
 pub use consent::{ConsentDisabledReason, ConsentItem, ConsentKind, ConsentState};
+pub use log_panel::{
+    entries_from_verbose as tier_evidence_entries_from_verbose,
+    entries_from_verdict as tier_evidence_entries_from_verdict,
+};
 pub use verdict::{VerdictModel, VerdictSection, VerdictTone, VerdictView};
 
 /// Ordered phases of an `anvil start` activation run.
@@ -71,6 +79,25 @@ impl ActivationPhase {
             Self::Consent => Self::Verdict,
             Self::Verdict | Self::Done => Self::Done,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TierEvidencePane {
+    Hidden,
+    Visible,
+}
+
+impl TierEvidencePane {
+    fn toggle(&mut self) {
+        *self = match self {
+            Self::Hidden => Self::Visible,
+            Self::Visible => Self::Hidden,
+        };
+    }
+
+    fn is_visible(self) -> bool {
+        matches!(self, Self::Visible)
     }
 }
 
@@ -124,6 +151,13 @@ pub struct ActivationSurface {
     verdict: String,
     /// Structured, collapsible verdict view for ACTTUI-005.
     verdict_view: VerdictView,
+    /// Typed tier/install/daemon evidence rendered through eddacraft-tui `LogPanel`.
+    tier_evidence_entries: Vec<LogEntry>,
+    /// Mutable `LogPanel` widget state; render only has `&self`, so this uses
+    /// interior mutability like other stateful widget adapters in this surface.
+    log_panel_state: RefCell<LogPanelState>,
+    /// Visibility state for the tier-evidence panel.
+    tier_evidence_pane: TierEvidencePane,
     /// Lifecycle/log seam from the activation orchestrator. ACTTUI-002 records
     /// these lines so later TUI work can render progress and logs without
     /// scraping the plain human diagnostic text.
@@ -150,8 +184,11 @@ impl ActivationSurface {
         let verdict_view = VerdictView::new(VerdictModel::from_plain(&verdict));
         Self {
             phase: ActivationPhase::Verdict,
+            tier_evidence_entries: log_panel::entries_from_verdict(&verdict),
             verdict,
             verdict_view,
+            log_panel_state: RefCell::new(default_log_panel_state()),
+            tier_evidence_pane: TierEvidencePane::Hidden,
             log_lines: Vec::new(),
             progress_steps: Vec::new(),
             daemon_spinner: false,
@@ -170,10 +207,15 @@ impl ActivationSurface {
     ) -> Self {
         let verdict = verdict.into();
         let verdict_view = VerdictView::new(VerdictModel::from_plain(&verdict));
+        let mut tier_evidence_entries = log_panel::entries_from_verdict(&verdict);
+        tier_evidence_entries.extend(log_panel::entries_from_lifecycle(&log_lines));
         Self {
             phase: ActivationPhase::Verdict,
             verdict,
             verdict_view,
+            tier_evidence_entries,
+            log_panel_state: RefCell::new(default_log_panel_state()),
+            tier_evidence_pane: TierEvidencePane::Hidden,
             log_lines,
             progress_steps: Vec::new(),
             daemon_spinner: false,
@@ -198,10 +240,15 @@ impl ActivationSurface {
     ) -> Self {
         let verdict = verdict.into();
         let verdict_view = VerdictView::new(VerdictModel::from_plain(&verdict));
+        let mut tier_evidence_entries = log_panel::entries_from_verdict(&verdict);
+        tier_evidence_entries.extend(log_panel::entries_from_lifecycle(&log_lines));
         Self {
             phase,
             verdict,
             verdict_view,
+            tier_evidence_entries,
+            log_panel_state: RefCell::new(default_log_panel_state()),
+            tier_evidence_pane: TierEvidencePane::Hidden,
             log_lines,
             progress_steps,
             daemon_spinner,
@@ -224,6 +271,41 @@ impl ActivationSurface {
     pub fn with_verdict_model(mut self, model: VerdictModel) -> Self {
         self.verdict_view = VerdictView::new(model);
         self
+    }
+
+    /// Replace tier-evidence rows with a caller-supplied typed set.
+    #[must_use]
+    pub fn with_tier_evidence_entries(mut self, entries: Vec<LogEntry>) -> Self {
+        self.tier_evidence_entries = entries;
+        self
+    }
+
+    /// Append rows parsed from the existing `render_human_verbose` text block.
+    #[must_use]
+    pub fn with_tier_evidence_from_verbose(mut self, verbose: &str) -> Self {
+        self.tier_evidence_entries
+            .extend(log_panel::entries_from_verbose(verbose));
+        self
+    }
+
+    /// Toggle the ACTTUI-006 tier-evidence panel. Exposed as a state method so
+    /// tests and future key maps can drive the same behaviour as `l`.
+    pub fn toggle_tier_evidence(&mut self) {
+        self.tier_evidence_pane.toggle();
+    }
+
+    #[must_use]
+    pub fn tier_evidence_visible(&self) -> bool {
+        self.tier_evidence_pane.is_visible()
+    }
+
+    #[must_use]
+    pub fn tier_evidence_entries(&self) -> &[LogEntry] {
+        &self.tier_evidence_entries
+    }
+
+    pub(crate) fn log_panel_state_mut(&self) -> RefMut<'_, LogPanelState> {
+        self.log_panel_state.borrow_mut()
     }
 
     /// Current phase (used by tests and future step-event wiring).
@@ -280,6 +362,28 @@ impl ActivationSurface {
     pub fn consent_mut(&mut self) -> Option<&mut ConsentState> {
         self.consent.as_mut()
     }
+
+    fn handle_log_panel_key(&mut self, action: Action) {
+        let panel_state = self.log_panel_state.get_mut();
+        let visible_count = panel_state
+            .filtered_indices(&self.tier_evidence_entries)
+            .len();
+        match action {
+            Action::Up | Action::Character('k' | 'K') => panel_state.scroll_up(),
+            Action::Down | Action::Character('j' | 'J') => panel_state.scroll_down(visible_count),
+            Action::Character('g') => panel_state.jump_to_top(),
+            Action::Character('G') => panel_state.jump_to_bottom(visible_count),
+            Action::Back => self.tier_evidence_pane = TierEvidencePane::Hidden,
+            Action::Quit => self.should_quit = true,
+            _ => {}
+        }
+    }
+}
+
+fn default_log_panel_state() -> LogPanelState {
+    let mut state = LogPanelState::default();
+    state.auto_scroll = true;
+    state
 }
 
 impl eddacraft_tui::surface::Surface for ActivationSurface {
@@ -297,6 +401,16 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
     }
 
     fn handle_key(&mut self, action: Action) {
+        if matches!(action, Action::Character('l' | 'L')) {
+            self.toggle_tier_evidence();
+            return;
+        }
+
+        if self.tier_evidence_pane.is_visible() {
+            self.handle_log_panel_key(action);
+            return;
+        }
+
         if let Some(consent) = self.consent.as_mut() {
             match action {
                 Action::Up => consent.previous(),
@@ -487,6 +601,79 @@ mod tests {
         assert!(surface.verdict_view().is_expanded("layers"));
         surface.handle_key(Action::Character('t'));
         assert!(surface.verdict_view().toast().is_some());
+    }
+
+    #[test]
+    fn tier_evidence_entries_include_plain_install_and_lifecycle_rows() {
+        let surface = ActivationSurface::from_verdict_with_logs(
+            "ACTIVATION
+  state: protecting
+  mcp:
+    Cursor: live_validation
+  install:
+    Cursor: skipped — already up to date
+",
+            false,
+            vec!["anvil: ensuring the per-user save-time daemon is running…".to_string()],
+        );
+
+        assert!(surface.tier_evidence_entries().iter().any(|entry| {
+            entry.source == "mcp/Cursor" && entry.message == "tier: live_validation"
+        }));
+        assert!(surface.tier_evidence_entries().iter().any(|entry| {
+            entry.source == "install/Cursor" && entry.message == "skipped — already up to date"
+        }));
+        assert!(
+            surface
+                .tier_evidence_entries()
+                .iter()
+                .any(|entry| entry.source == "orchestrator")
+        );
+    }
+
+    #[test]
+    fn l_key_toggles_tier_evidence_without_upgrading_state() {
+        let mut surface = ActivationSurface::from_verdict(
+            "ACTIVATION
+  state: ready_restart_required
+  mcp:
+    Cursor: restart_handshake_verified (pending restart)
+",
+            false,
+        );
+
+        assert!(!surface.tier_evidence_visible());
+        surface.handle_key(Action::Character('l'));
+        assert!(surface.tier_evidence_visible());
+        assert_eq!(
+            surface.verdict_view().model().state_label,
+            "ready_restart_required"
+        );
+        surface.handle_key(Action::Character('l'));
+        assert!(!surface.tier_evidence_visible());
+    }
+
+    #[test]
+    fn verbose_why_rows_can_be_attached_to_log_panel() {
+        let surface = ActivationSurface::from_verdict(
+            "ACTIVATION
+  state: watching
+",
+            false,
+        )
+        .with_tier_evidence_from_verbose(
+            "ACTIVATION (verbose)
+  daemon-attestation: running but this worktree is not registered
+  why: daemon is running but this worktree is not registered — see `anvil intercept status`
+",
+        );
+
+        assert!(surface.tier_evidence_entries().iter().any(|entry| {
+            entry.source == "daemon" && entry.message.contains("this worktree is not registered")
+        }));
+        assert!(surface.tier_evidence_entries().iter().any(|entry| {
+            entry.source == "why" && entry.message.contains("anvil intercept status")
+        }));
     }
 
     #[test]

@@ -363,6 +363,11 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
             label: "Smoke",
         },
         Binding {
+            keys: "l",
+            action: Action::Character('l'),
+            label: "Logs",
+        },
+        Binding {
             keys: "q",
             action: Action::Quit,
             label: "Quit",

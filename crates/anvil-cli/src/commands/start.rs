@@ -405,7 +405,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             } else {
                 anvil_tui::surfaces::activation::ActivationPhase::Verdict
             };
-            let state =
+            let mut state =
                 anvil_tui::surfaces::activation::ActivationSurface::from_verdict_with_progress(
                     human_output,
                     project_writes_gated,
@@ -414,6 +414,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     daemon_outcome.is_some(),
                     phase,
                 );
+            if args.why {
+                state = state.with_tier_evidence_from_verbose(&activation::render_human_verbose(
+                    &diagnostic,
+                ));
+            }
             let _state = crate::tui::run_surface(state)?;
         } else {
             print!("{human_output}");
@@ -422,9 +427,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         // stdout block above is byte-identical with or without
         // `--why`, so scripted consumers of `anvil start --verify`
         // (the originating use-case for the flag) are unaffected. On
-        // the opt-in TUI path this prints after the surface exits; ACTTUI-006
-        // moves the same evidence into an in-surface LogPanel.
-        if args.why {
+        // the opt-in TUI path routes the same evidence into the in-surface
+        // ACTTUI-006 LogPanel instead of leaking a post-exit stderr block.
+        if args.why && !matches!(render_mode, StartRenderMode::Tui) {
             eprint!("{}", activation::render_human_verbose(&diagnostic));
         }
     }
