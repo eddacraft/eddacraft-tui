@@ -60,7 +60,9 @@ use clap::Args;
 
 use crate::GlobalArgs;
 use crate::activation;
-use crate::activation::orchestrator::{ActivationStepEvent, InstallOutcome, StartRenderMode};
+use crate::activation::orchestrator::{
+    ActivationStep, ActivationStepEvent, ActivationStepLifecycle, InstallOutcome, StartRenderMode,
+};
 use crate::commands::watch as watch_cmd;
 use crate::config_summary::render_rule_mode_summary;
 use crate::warmup_cache::write_watch_warmup_cache;
@@ -387,15 +389,32 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             agents_cached,
         );
         if matches!(render_mode, StartRenderMode::Tui) {
+            let mut progress_steps = Vec::new();
             if let Some(run) = &activation_run {
+                progress_steps = activation_progress_steps(run.events());
                 tui_log_lines.extend(run.events().iter().map(ActivationStepEvent::render_line));
                 tui_log_lines.extend(run.log_lines().iter().cloned());
             }
-            let state = anvil_tui::surfaces::activation::ActivationSurface::from_verdict_with_logs(
-                human_output,
-                project_writes_gated,
-                tui_log_lines,
-            );
+            let phase = if progress_steps.iter().any(|step| {
+                matches!(
+                    step.status,
+                    anvil_tui::surfaces::activation::ActivationProgressStatus::Pending
+                        | anvil_tui::surfaces::activation::ActivationProgressStatus::Running
+                )
+            }) {
+                anvil_tui::surfaces::activation::ActivationPhase::Consent
+            } else {
+                anvil_tui::surfaces::activation::ActivationPhase::Verdict
+            };
+            let state =
+                anvil_tui::surfaces::activation::ActivationSurface::from_verdict_with_progress(
+                    human_output,
+                    project_writes_gated,
+                    tui_log_lines,
+                    progress_steps,
+                    daemon_outcome.is_some(),
+                    phase,
+                );
             let _state = crate::tui::run_surface(state)?;
         } else {
             print!("{human_output}");
@@ -729,6 +748,103 @@ fn daemon_capability_for_start(
     } else {
         StartCapability::MaySpawn
     })
+}
+
+fn activation_progress_steps(
+    events: &[ActivationStepEvent],
+) -> Vec<anvil_tui::surfaces::activation::ActivationProgressStep> {
+    const ORDER: [ActivationStep; 11] = [
+        ActivationStep::InitialProbe,
+        ActivationStep::InitConfig,
+        ActivationStep::ProjectIdentity,
+        ActivationStep::WitnessAttributes,
+        ActivationStep::GitHooks,
+        ActivationStep::BaselineSample,
+        ActivationStep::WorktreeRegistration,
+        ActivationStep::WorkflowConsent,
+        ActivationStep::McpConsent,
+        ActivationStep::FinalProbe,
+        ActivationStep::Verdict,
+    ];
+
+    ORDER
+        .into_iter()
+        .filter_map(|step| progress_step_from_events(step, events))
+        .collect()
+}
+
+fn progress_step_from_events(
+    step: ActivationStep,
+    events: &[ActivationStepEvent],
+) -> Option<anvil_tui::surfaces::activation::ActivationProgressStep> {
+    use anvil_tui::surfaces::activation::{ActivationProgressStatus, ActivationProgressStep};
+
+    let step_events: Vec<&ActivationStepEvent> =
+        events.iter().filter(|event| event.step == step).collect();
+    if step_events.is_empty() {
+        return None;
+    }
+    let status = if step_events
+        .iter()
+        .any(|event| event.lifecycle == ActivationStepLifecycle::Started)
+        && !step_events.iter().any(|event| {
+            matches!(
+                event.lifecycle,
+                ActivationStepLifecycle::Completed | ActivationStepLifecycle::Skipped
+            )
+        }) {
+        ActivationProgressStatus::Running
+    } else if step_events
+        .iter()
+        .any(|event| event.lifecycle == ActivationStepLifecycle::Completed)
+    {
+        ActivationProgressStatus::Passed
+    } else if step_events
+        .iter()
+        .any(|event| event.lifecycle == ActivationStepLifecycle::Skipped)
+    {
+        if matches!(
+            step,
+            ActivationStep::WorkflowConsent | ActivationStep::McpConsent
+        ) && step_events.iter().any(|event| {
+            event
+                .detail
+                .as_deref()
+                .is_some_and(|detail| detail.contains("deferred"))
+        }) {
+            ActivationProgressStatus::Pending
+        } else {
+            ActivationProgressStatus::Skipped
+        }
+    } else {
+        ActivationProgressStatus::Pending
+    };
+
+    let mut row = ActivationProgressStep::new(step.label(), progress_label(step), status);
+    if let Some(detail) = step_events
+        .iter()
+        .rev()
+        .find_map(|event| event.detail.as_deref())
+    {
+        row = row.with_message(detail.to_string());
+    }
+    Some(row)
+}
+
+fn progress_label(step: ActivationStep) -> &'static str {
+    match step {
+        ActivationStep::InitialProbe => "Initial probe",
+        ActivationStep::InitConfig => "Project config",
+        ActivationStep::ProjectIdentity => "Project identity",
+        ActivationStep::WitnessAttributes => "Witness attributes",
+        ActivationStep::GitHooks => "Git hooks",
+        ActivationStep::BaselineSample => "Baseline sample",
+        ActivationStep::WorktreeRegistration => "Worktree registration",
+        ActivationStep::WorkflowConsent => "Workflow consent",
+        ActivationStep::McpConsent => "MCP consent",
+        ActivationStep::FinalProbe => "Final probe",
+        ActivationStep::Verdict => "Verdict",
+    }
 }
 
 /// Compose the existing plain `anvil start` output into one string so the
@@ -1099,6 +1215,55 @@ mod tests {
         temp_env::with_var("ANVIL_NO_TUI", Some(""), || {
             assert!(!activation_tui_env_opt_out());
         });
+    }
+
+    #[test]
+    fn activation_progress_steps_mark_deferred_tui_consent_as_pending() {
+        use activation::orchestrator::{
+            ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+        };
+        use anvil_tui::surfaces::activation::ActivationProgressStatus;
+
+        let events = [
+            ActivationStepEvent {
+                step: ActivationStep::InitialProbe,
+                lifecycle: ActivationStepLifecycle::Started,
+                detail: None,
+            },
+            ActivationStepEvent {
+                step: ActivationStep::InitialProbe,
+                lifecycle: ActivationStepLifecycle::Completed,
+                detail: None,
+            },
+            ActivationStepEvent {
+                step: ActivationStep::McpConsent,
+                lifecycle: ActivationStepLifecycle::Skipped,
+                detail: Some("deferred to activation TUI".to_string()),
+            },
+        ];
+        let steps = activation_progress_steps(&events);
+        assert_eq!(steps[0].label, "Initial probe");
+        assert_eq!(steps[0].status, ActivationProgressStatus::Passed);
+        let mcp = steps.iter().find(|step| step.id == "mcp-consent").unwrap();
+        assert_eq!(mcp.status, ActivationProgressStatus::Pending);
+        assert_eq!(mcp.message.as_deref(), Some("deferred to activation TUI"));
+    }
+
+    #[test]
+    fn activation_progress_steps_mark_non_consent_skips_as_skipped() {
+        use activation::orchestrator::{
+            ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+        };
+        use anvil_tui::surfaces::activation::ActivationProgressStatus;
+
+        let events = [ActivationStepEvent {
+            step: ActivationStep::WorktreeRegistration,
+            lifecycle: ActivationStepLifecycle::Skipped,
+            detail: Some("not a registerable worktree".to_string()),
+        }];
+        let steps = activation_progress_steps(&events);
+        assert_eq!(steps[0].label, "Worktree registration");
+        assert_eq!(steps[0].status, ActivationProgressStatus::Skipped);
     }
 
     fn synth_diagnostic(

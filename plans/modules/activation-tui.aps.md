@@ -190,7 +190,11 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-003: Working phase — `ParallelProgress` + `Spinner`
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-08 — activation surface renders orchestrator
+  progress rows via shared `eddacraft-tui` `ParallelProgress` and shows an Anvil
+  spinner for daemon ensure on `feat/acttui-003-working-phase` (stacked on
+  ACTTUI-002). Progress is fed from `ActivationRun` events; deferred TUI consent
+  transitions the surface to `Consent`, otherwise it lands on `Verdict`.
 - **Dependencies:** ACTTUI-002
 - **Intent:** Users see activation work happening (daemon ensure, init, baseline
   sample) instead of a silent hang or stderr preamble.

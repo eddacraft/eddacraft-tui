@@ -1,19 +1,28 @@
+use eddacraft_tui::prelude::{
+    CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState, Spinner, SpinnerState,
+};
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Wrap};
 
-use super::{ActivationPhase, ActivationSurface};
+use super::{ActivationPhase, ActivationProgressStatus, ActivationSurface};
 use crate::shell::inset_content;
 
 /// Render the ACTTUI-001 foundation surface.
 pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &EddaCraftTheme) {
     let area = inset_content(area);
+    let progress_height = if state.progress_steps().is_empty() && !state.daemon_spinner() {
+        0
+    } else {
+        8
+    };
     let chunks = Layout::vertical([
         Constraint::Length(3),
         Constraint::Length(if state.project_writes_gated() { 3 } else { 0 }),
+        Constraint::Length(progress_height),
         Constraint::Min(6),
     ])
     .split(area);
@@ -22,7 +31,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
     if state.project_writes_gated() {
         render_gated_banner(frame, chunks[1], theme);
     }
-    render_verdict(frame, chunks[2], state.verdict(), theme);
+    if progress_height > 0 {
+        render_working_progress(frame, chunks[2], state, theme);
+    }
+    render_verdict(frame, chunks[3], state.verdict(), theme);
 }
 
 fn render_phase_strip(
@@ -73,6 +85,65 @@ fn render_gated_banner(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
         Style::default().fg(theme.warning()),
     );
     frame.render_widget(Paragraph::new(text).block(block), area);
+}
+
+fn render_working_progress(
+    frame: &mut Frame,
+    area: Rect,
+    state: &ActivationSurface,
+    theme: &EddaCraftTheme,
+) {
+    if area.height == 0 || area.width == 0 {
+        return;
+    }
+    let chunks = if state.daemon_spinner() {
+        Layout::vertical([Constraint::Length(1), Constraint::Min(3)]).split(area)
+    } else {
+        Layout::vertical([Constraint::Length(0), Constraint::Min(3)]).split(area)
+    };
+
+    if state.daemon_spinner() {
+        let mut spinner_state = SpinnerState::default();
+        Spinner::new(theme)
+            .anvil()
+            .label("Ensuring save-time daemon")
+            .render(chunks[0], frame.buffer_mut(), &mut spinner_state);
+    }
+
+    let checks: Vec<CheckProgress> = state
+        .progress_steps()
+        .iter()
+        .map(|step| {
+            let mut check = CheckProgress::new(step.id.clone(), step.label.clone());
+            check.status = map_status(step.status);
+            check.progress = match step.status {
+                ActivationProgressStatus::Running => 50,
+                ActivationProgressStatus::Pending => 0,
+                ActivationProgressStatus::Passed
+                | ActivationProgressStatus::Skipped
+                | ActivationProgressStatus::Failed => 100,
+            };
+            check.message.clone_from(&step.message);
+            check
+        })
+        .collect();
+
+    let mut progress_state = ParallelProgressState::default();
+    progress_state.checks = checks;
+    ParallelProgress::new(theme)
+        .title("Activation progress")
+        .show_eta(false)
+        .render(chunks[1], frame.buffer_mut(), &mut progress_state);
+}
+
+fn map_status(status: ActivationProgressStatus) -> CheckStatus {
+    match status {
+        ActivationProgressStatus::Pending => CheckStatus::Pending,
+        ActivationProgressStatus::Running => CheckStatus::Running,
+        ActivationProgressStatus::Passed => CheckStatus::Passed,
+        ActivationProgressStatus::Skipped => CheckStatus::Skipped,
+        ActivationProgressStatus::Failed => CheckStatus::Failed,
+    }
 }
 
 fn render_verdict(frame: &mut Frame, area: Rect, verdict: &str, theme: &EddaCraftTheme) {
@@ -143,6 +214,38 @@ mod tests {
         assert!(out.contains("Verdict"));
         assert!(out.contains("state: protecting"));
         assert!(out.contains("Activation verdict"));
+    }
+
+    #[test]
+    fn renders_working_progress_from_orchestrator_steps() {
+        let surface = ActivationSurface::from_verdict_with_progress(
+            "ACTIVATION
+  state: ready_restart_required
+",
+            false,
+            vec![],
+            vec![
+                super::super::ActivationProgressStep::new(
+                    "initial-probe",
+                    "Initial probe",
+                    ActivationProgressStatus::Passed,
+                ),
+                super::super::ActivationProgressStep::new(
+                    "mcp-consent",
+                    "MCP consent",
+                    ActivationProgressStatus::Skipped,
+                )
+                .with_message("deferred to activation TUI"),
+            ],
+            true,
+            ActivationPhase::Consent,
+        );
+        let out = render_to_string(&surface, 100, 28);
+        assert!(out.contains("Activation progress"));
+        assert!(out.contains("Ensuring save-time daemon"));
+        assert!(out.contains("Initial probe"));
+        assert!(out.contains("MCP consent"));
+        assert!(out.contains("ready_restart_required"));
     }
 
     #[test]

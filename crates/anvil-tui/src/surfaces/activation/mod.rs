@@ -69,6 +69,47 @@ impl ActivationPhase {
     }
 }
 
+/// Display state for one activation progress row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivationProgressStatus {
+    Pending,
+    Running,
+    Passed,
+    Skipped,
+    Failed,
+}
+
+/// A TUI-friendly projection of one orchestrator step.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivationProgressStep {
+    pub id: String,
+    pub label: String,
+    pub status: ActivationProgressStatus,
+    pub message: Option<String>,
+}
+
+impl ActivationProgressStep {
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        status: ActivationProgressStatus,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            status,
+            message: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.message = Some(message.into());
+        self
+    }
+}
+
 /// Interactive state for the `anvil start` activation surface.
 pub struct ActivationSurface {
     /// Current phase of the run.
@@ -80,6 +121,10 @@ pub struct ActivationSurface {
     /// these lines so later TUI work can render progress and logs without
     /// scraping the plain human diagnostic text.
     log_lines: Vec<String>,
+    /// TUI-friendly progress rows derived from orchestrator lifecycle events.
+    progress_steps: Vec<ActivationProgressStep>,
+    /// Show a branded daemon spinner in the working panel.
+    daemon_spinner: bool,
     /// True when a non-default `ANVIL_HOME` gates durable project writes
     /// (ADR-060). Drives the persistent shell banner.
     project_writes_gated: bool,
@@ -96,6 +141,8 @@ impl ActivationSurface {
             phase: ActivationPhase::Verdict,
             verdict: verdict.into(),
             log_lines: Vec::new(),
+            progress_steps: Vec::new(),
+            daemon_spinner: false,
             project_writes_gated,
             should_quit: false,
         }
@@ -112,6 +159,32 @@ impl ActivationSurface {
             phase: ActivationPhase::Verdict,
             verdict: verdict.into(),
             log_lines,
+            progress_steps: Vec::new(),
+            daemon_spinner: false,
+            project_writes_gated,
+            should_quit: false,
+        }
+    }
+
+    /// Build a surface with orchestrator progress rows and optional daemon
+    /// spinner. ACTTUI-003 uses this to render the completed working phase from
+    /// ACTTUI-002 lifecycle events; future live streaming can update the same
+    /// fields while the run is in progress.
+    #[must_use]
+    pub fn from_verdict_with_progress(
+        verdict: impl Into<String>,
+        project_writes_gated: bool,
+        log_lines: Vec<String>,
+        progress_steps: Vec<ActivationProgressStep>,
+        daemon_spinner: bool,
+        phase: ActivationPhase,
+    ) -> Self {
+        Self {
+            phase,
+            verdict: verdict.into(),
+            log_lines,
+            progress_steps,
+            daemon_spinner,
             project_writes_gated,
             should_quit: false,
         }
@@ -145,6 +218,16 @@ impl ActivationSurface {
     #[must_use]
     pub fn log_lines(&self) -> &[String] {
         &self.log_lines
+    }
+
+    #[must_use]
+    pub fn progress_steps(&self) -> &[ActivationProgressStep] {
+        &self.progress_steps
+    }
+
+    #[must_use]
+    pub fn daemon_spinner(&self) -> bool {
+        self.daemon_spinner
     }
 }
 
@@ -212,6 +295,8 @@ mod tests {
         assert!(!surface.project_writes_gated());
         assert!(surface.verdict().contains("state: protecting"));
         assert!(surface.log_lines().is_empty());
+        assert!(surface.progress_steps().is_empty());
+        assert!(!surface.daemon_spinner());
     }
 
     #[test]
@@ -223,6 +308,28 @@ mod tests {
         );
         assert_eq!(surface.phase(), ActivationPhase::Verdict);
         assert_eq!(surface.log_lines(), ["initial-probe: completed"]);
+    }
+
+    #[test]
+    fn from_verdict_with_progress_records_rows_and_phase() {
+        let surface = ActivationSurface::from_verdict_with_progress(
+            "ACTIVATION
+  state: ready_restart_required
+",
+            false,
+            vec!["daemon: ensured".to_string()],
+            vec![ActivationProgressStep::new(
+                "daemon",
+                "Daemon ensure",
+                ActivationProgressStatus::Passed,
+            )],
+            true,
+            ActivationPhase::Consent,
+        );
+        assert_eq!(surface.phase(), ActivationPhase::Consent);
+        assert_eq!(surface.log_lines(), ["daemon: ensured"]);
+        assert_eq!(surface.progress_steps().len(), 1);
+        assert!(surface.daemon_spinner());
     }
 
     #[test]
