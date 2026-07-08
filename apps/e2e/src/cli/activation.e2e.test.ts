@@ -136,11 +136,11 @@ describeCli('Activation golden path', () => {
     expect(verify.stdout).not.toContain('state: protecting');
   });
 
-  // ACTTUI-001 (ADR-103): the opt-in activation TUI must stay on the plain
-  // path when the session is not genuinely interactive. The e2e harness pipes
-  // stdout (not a TTY), so even with the rollout flag set the run must emit the
-  // deterministic plain verdict and never switch to the alternate screen.
-  it('stays on the plain path under a non-TTY session even when the TUI opt-in is set', async () => {
+  // ACTTUI-001 (ADR-103): read-only probes must stay on the plain path even
+  // when the activation TUI rollout flag is set. `--verify` is the scripted
+  // health-check contract; it must emit the deterministic plain verdict and
+  // never switch to the alternate screen.
+  it('keeps --verify on the plain path even when the TUI opt-in is set', async () => {
     const ws = workspace();
     const home = isolatedHome();
 

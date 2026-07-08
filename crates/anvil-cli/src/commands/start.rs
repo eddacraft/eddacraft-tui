@@ -716,10 +716,8 @@ fn daemon_capability_for_start(
     })
 }
 
-/// Whether the operator explicitly opted out of daemon auto-start, via
-/// the `--no-daemon` flag or a non-empty `ANVIL_NO_DAEMON` env var (the
-/// scriptable/CI-friendly form, set `ANVIL_NO_DAEMON=1`). A daemon that
-/// is already running is still reused — this only suppresses spawning a
+/// Compose the existing plain `anvil start` output into one string so the
+/// opt-in TUI can render the same verdict text without changing the plain path.
 #[allow(
     clippy::too_many_arguments,
     reason = "start output is composed from the orchestrator's already-separated result objects; this helper preserves the existing plain ordering"
@@ -797,6 +795,12 @@ fn activation_tui_requested(args: &StartArgs) -> bool {
     args.tui || std::env::var_os("ANVIL_ACTIVATION_TUI").is_some_and(|value| !value.is_empty())
 }
 
+/// Whether the caller explicitly forced the plain path through the activation
+/// TUI-specific environment escape hatch.
+fn activation_tui_env_opt_out() -> bool {
+    std::env::var_os("ANVIL_NO_TUI").is_some_and(|value| !value.is_empty())
+}
+
 /// Whether this invocation may enter the activation TUI.
 ///
 /// ADR-103 requires the TUI to be additive on the genuinely interactive path
@@ -809,6 +813,7 @@ fn activation_tui_eligible(args: &StartArgs, global: &GlobalArgs, read_only: boo
         && !read_only
         && !args.watch
         && !global.no_tui
+        && !activation_tui_env_opt_out()
         && !global.json
         && !crate::is_non_interactive_env()
         && std::io::stdin().is_terminal()
@@ -816,7 +821,10 @@ fn activation_tui_eligible(args: &StartArgs, global: &GlobalArgs, read_only: boo
         && std::io::stderr().is_terminal()
 }
 
-/// new one.
+/// Whether the operator explicitly opted out of daemon auto-start, via the
+/// `--no-daemon` flag or a non-empty `ANVIL_NO_DAEMON` env var (the
+/// scriptable/CI-friendly form, set `ANVIL_NO_DAEMON=1`). A daemon that is
+/// already running is still reused — this only suppresses spawning a new one.
 fn start_daemon_opt_out(args: &StartArgs) -> bool {
     args.no_daemon || std::env::var_os("ANVIL_NO_DAEMON").is_some_and(|value| !value.is_empty())
 }
@@ -1056,6 +1064,17 @@ mod tests {
         let args = start_args_default();
         temp_env::with_var("ANVIL_ACTIVATION_TUI", Some(""), || {
             assert!(!activation_tui_requested(&args));
+        });
+    }
+
+    #[test]
+    fn activation_tui_env_opt_out_is_presence_based() {
+        assert!(!activation_tui_env_opt_out());
+        temp_env::with_var("ANVIL_NO_TUI", Some("1"), || {
+            assert!(activation_tui_env_opt_out());
+        });
+        temp_env::with_var("ANVIL_NO_TUI", Some(""), || {
+            assert!(!activation_tui_env_opt_out());
         });
     }
 
