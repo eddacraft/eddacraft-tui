@@ -69,7 +69,8 @@ fn status_json_reports_install_root_and_gated_under_anvil_home() {
     let project = tempdir().expect("project dir");
     let home = tempdir().expect("anvil home");
 
-    let (_ok, stdout) = run_status_json(project.path(), Some(home.path()), &[]);
+    let (ok, stdout) = run_status_json(project.path(), Some(home.path()), &[]);
+    assert!(ok, "status --json should succeed; got: {stdout}");
 
     // Parse the JSON rather than substring-matching the raw path: on Windows
     // the install_root separators are backslashes, which JSON escapes (`\\`),
@@ -98,11 +99,12 @@ fn status_json_reports_writes_ungated_with_opt_in() {
     let project = tempdir().expect("project dir");
     let home = tempdir().expect("anvil home");
 
-    let (_ok, stdout) = run_status_json(
+    let (ok, stdout) = run_status_json(
         project.path(),
         Some(home.path()),
         &["--touch-project-state"],
     );
+    assert!(ok, "status --json should succeed; got: {stdout}");
 
     assert!(
         stdout.contains("\"project_writes_gated\": false"),
@@ -114,7 +116,8 @@ fn status_json_reports_writes_ungated_with_opt_in() {
 fn status_json_omits_install_fields_under_platform_default() {
     let project = tempdir().expect("project dir");
 
-    let (_ok, stdout) = run_status_json(project.path(), None, &[]);
+    let (ok, stdout) = run_status_json(project.path(), None, &[]);
+    assert!(ok, "status --json should succeed; got: {stdout}");
 
     assert!(
         !stdout.contains("install_root"),
@@ -248,7 +251,8 @@ fn start_under_gated_anvil_home_does_not_seed_project_state() {
 
     // `anvil start` on a fresh repo would normally seed project state; under a
     // gated ANVIL_HOME it must run read-only and leave the real project clean.
-    let (_ok, _out) = run_anvil(project.path(), Some(home.path()), &["start"]);
+    let (ok, out) = run_anvil(project.path(), Some(home.path()), &["start"]);
+    assert!(ok, "gated start should succeed read-only; out: {out}");
 
     for seeded in ["anvil/project-id", ".anvilrc", ".gitattributes"] {
         assert!(
@@ -285,6 +289,16 @@ fn init_refused_under_gated_anvil_home_leaves_no_anvilrc() {
 fn hook_bootstrap_refused_under_gated_anvil_home() {
     let project = tempdir().expect("project dir");
     let home = tempdir().expect("anvil home");
+    let git = Command::new("git")
+        .arg("init")
+        .current_dir(project.path())
+        .output()
+        .expect("spawn git init");
+    assert!(
+        git.status.success(),
+        "git init should create a real hooks directory; stderr: {}",
+        String::from_utf8_lossy(&git.stderr)
+    );
 
     let (ok, out) = run_anvil(project.path(), Some(home.path()), &["hook", "bootstrap"]);
 
@@ -344,11 +358,12 @@ fn anvil_home_flag_takes_precedence_over_env_var() {
 
     // `run_status_json`'s `Some(..)` sets ANVIL_HOME on the child env; the extra
     // `--anvil-home` arg supplies the competing flag value.
-    let (_ok, stdout) = run_status_json(
+    let (ok, stdout) = run_status_json(
         project.path(),
         Some(env_home.path()),
         &["--anvil-home", flag_arg],
     );
+    assert!(ok, "status --json should succeed; got: {stdout}");
 
     let status: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("status --json must emit valid JSON ({e}); got: {stdout}"));

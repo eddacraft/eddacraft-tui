@@ -2154,3 +2154,19 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** `gh pr checks --watch` output was very noisy for long-running pending docs checks.
 - **Improvement:** Keep the final evidence to the last closure pass rather than carrying the whole watch output into summaries.
 - **Follow-up:** none.
+
+### 2026-07-08 — opencode
+
+- **Task:** Continue clawpatch-count reduction in a new Worktrunk worktree.
+- **Outcome:** Created `fix/clawpatch-countdown`, marked five stale source-backed
+  findings fixed, and fixed two `anvil_home` integration-test findings on branch.
+- **Worked:** Grouping open findings by first evidence path found compact batches
+  with low merge risk.
+- **Failed:** `pnpm validate:changed` in the new worktree was blocked during install
+  because `better-sqlite3` rebuild needed unavailable `g++-11`.
+- **Friction:** The clawpatch finding DB is local to the original worktree, while
+  the branch-local code changes live in the new worktree.
+- **Improvement:** Prefer source-backed stale triage first, then branch-local fixes
+  with explicit finding notes and targeted test evidence.
+- **Follow-up:** Continue with another two-finding Rust test cluster before moving
+  to TS/tooling clusters.
