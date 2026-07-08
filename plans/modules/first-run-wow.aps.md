@@ -170,9 +170,14 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ## Sequencing
 
+**Release cohort (operator decision 2026-07-08):** WOW-001..004 ship in the
+same release as ACTTUI activation TUI — see
+[`activation-tui.aps.md`](./activation-tui.aps.md) phase B (parallel tracks).
+
 Wave 1: WOW-001 → WOW-002 (same surface, 002 builds on 001's render split);
-WOW-003 and WOW-004 are independent of both and of each other. WOW-005/006
-enter the backlog only after their design gates close.
+WOW-003 and WOW-004 are independent of both and of each other — may run in
+parallel with ACTTUI-003..005 after ACTTUI-002 lands. WOW-005/006 remain Draft
+and are **out of this release cohort** unless design gates close.
 
 ## Coordination
 
