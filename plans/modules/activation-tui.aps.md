@@ -277,7 +277,12 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-008: Welcome widget convergence (release cohort — phase B)
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-08 — welcome widget convergence implemented on
+  `feat/acttui-008-welcome-widgets` (stacked on ACTTUI-001). Welcome menu now
+  renders via shared `eddacraft-tui` `Select`; discovery scanning uses shared
+  `Spinner` + `ParallelProgress`; shell/footer help remains the shared chrome;
+  tutorial narrative unchanged (WOW-owned). Snapshot drift reviewed and
+  accepted for the Select-based menu.
 - **Dependencies:** ACTTUI-001 (shared chrome); coordinates with WOW-001..004;
   may start once 001 lands — does not wait for 005
 - **Intent:** Welcome hub and activation share the same eddacraft-tui vocabulary
