@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use eddacraft_tui::prelude::{
     CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState, Spinner, SpinnerPreset,
     SpinnerState,
@@ -91,14 +89,17 @@ fn render_scanning(
 }
 
 fn scanning_progress_state(files_scanned: usize) -> ParallelProgressState {
+    // Rendered fresh on every frame, so `start_time` is deliberately left
+    // `None` rather than `Instant::now()` — a per-frame reset would always
+    // report ~0 elapsed and give the row a frozen-looking spinner while
+    // implying it just started. The visible scan animation comes from the
+    // externally-driven `spinner_tick` on the separate `Spinner` widget above.
     let mut progress = CheckProgress::new("project-scan", "Project scan");
     progress.status = CheckStatus::Running;
-    progress.start_time = Some(Instant::now());
     progress.message = Some(format!("{files_scanned} files scanned"));
 
     let mut state = ParallelProgressState::default();
     state.checks = vec![progress];
-    state.start_time = Some(Instant::now());
     state
 }
 

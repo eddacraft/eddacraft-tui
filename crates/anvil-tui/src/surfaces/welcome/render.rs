@@ -63,7 +63,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let status_h = status_height as u16;
 
     // In compact mode: logo + blank(1) + menu(N) + optional hint(1)
-    // In full mode: logo + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
+    // In full mode: logo + blank(1) + tagline(1) + spacer(2) + menu(N) — one
+    // row per option via the shared `Select` widget.
     let content_height = if compact {
         LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint) + status_height
     } else {
@@ -149,9 +150,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
 
     if let Some(ref msg) = state.status_message {
         let status_idx = if compact { 5 } else { 6 };
-        let status = Paragraph::new(Line::from(vec![
-            Span::styled(PAD, Style::default()),
-            Span::styled(msg, Style::default().fg(theme.muted())),
+        let status = Paragraph::new(Text::from(vec![
+            Line::default(),
+            Line::from(vec![
+                Span::styled(PAD, Style::default()),
+                Span::styled(msg, Style::default().fg(theme.muted())),
+            ]),
         ]));
         frame.render_widget(status, chunks[status_idx]);
     }
@@ -210,6 +214,31 @@ mod tests {
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = WelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    crate::surface::Surface::surface_name(&state),
+                    crate::surface::Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_status_message() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = WelcomeState::new();
+        state.status_message = Some("Ready.".to_string());
         let theme = EddaCraftTheme;
 
         terminal
