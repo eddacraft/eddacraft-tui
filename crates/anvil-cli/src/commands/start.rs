@@ -85,7 +85,7 @@ pub struct StartArgs {
     pub watch: bool,
     /// Open the opt-in Activation TUI when the session is genuinely interactive.
     ///
-    /// First-release rollout flag for ADR-103 / ACTTUI-001. Machine and
+    /// First-release rollout flag for the activation TUI. Machine and
     /// non-interactive contracts still win: `--verify`, `--json`, `--watch`,
     /// `--no-tui`, CI, and piped output stay on the plain path.
     #[arg(long)]
