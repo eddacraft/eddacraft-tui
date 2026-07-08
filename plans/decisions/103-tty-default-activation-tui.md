@@ -55,17 +55,22 @@ compact plain summary with no keypress hang and unchanged exit codes.
 
 | Context | Detection | Surface |
 | ------- | --------- | ------- |
-| Interactive terminal, opted in | stdin **and** stderr are a TTY, `CI` unset, `ANVIL_NO_PROMPT` unset, and the ACTTUI opt-in is active (see rollout ladder) | Interactive activation TUI |
+| Interactive terminal, opted in | stdin, stdout, **and** stderr are TTYs; `CI` unset; `ANVIL_NO_PROMPT` unset; `--verify` / `--json` / `--no-tui` inactive; and the ACTTUI opt-in is active (see rollout ladder) | Interactive activation TUI |
 | Piped / redirected stdout | stdout not a TTY | Compact plain summary (bounded) |
 | CI | `CI` set (or non-interactive stdin/stderr) | Compact plain summary |
 | `--no-tui` / `ANVIL_NO_TUI=1` | explicit opt-out (mirrors the global `--no-tui`) | Compact plain summary |
 | `--verify` | read-only probe | Byte-stable verify stdout (unchanged) |
 | `--json` | machine document | Byte-stable JSON stdout (unchanged) |
 
-Interactivity uses the existing `start_is_interactive()` predicate (stdin **and**
-stderr TTY, `CI` absent, `ANVIL_NO_PROMPT` absent). The TUI is **additive on the
-default TTY path only**; it never changes the read-only (`--verify` / `--json`)
-or piped byte streams.
+TUI eligibility starts from the existing activation prompt gate in
+`crates/anvil-cli/src/activation/orchestrator/mod.rs` (`is_interactive`: stdin
+**and** stderr TTY, `!global.json`, `!global.no_tui`, and
+`!crate::is_non_interactive_env()`). ACTTUI adds stdout-TTY eligibility before
+entering the TUI so piped output stays compact/plain. This is separate from
+`commands/start.rs`'s `start_is_interactive()` daemon auto-start gate, which is
+stdout-focused and must not become the TUI trust boundary. The TUI is **additive
+on the default TTY path only**; it never changes the read-only (`--verify` /
+`--json`) or piped byte streams.
 
 ### 2. Machine-contract stability
 
@@ -102,7 +107,8 @@ start-only surface:
 
 1. **Release 1 — opt-in.** The TUI ships behind an opt-in: `--tui` **or**
    `ANVIL_ACTIVATION_TUI=1`. The default TTY path is unchanged
-   (`render_compact()` / current behaviour) until the contract matrix is green.
+   (the current `activation::render_human_with_install` plain path) until the
+   contract matrix is green.
 2. **Release 2 — TTY-default flip.** Flip the TUI to default on the interactive
    path **only after** the ACTTUI-007 contract matrix (verify/json/CI/PTY) and
    the welcome surface (ACTTUI-008) pass together — the release cohort ships

@@ -49,7 +49,7 @@ hatches for plain output.
 
 The TUI can render only when the process is genuinely interactive:
 
-- stdin and stderr are TTYs;
+- stdin, stdout, and stderr are TTYs;
 - `CI` is not set;
 - `ANVIL_NO_PROMPT` is not set;
 - `--verify`, `--json`, `--no-tui`, and `ANVIL_NO_TUI=1` are not active; and

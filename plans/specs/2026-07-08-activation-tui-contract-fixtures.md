@@ -88,7 +88,9 @@ Compact plain output is for scripts, logs, CI, and users who opt out of TUI:
 - it does not wait for input;
 - on a `protecting` re-run, it is bounded to a short summary (target ≤10 lines).
 
-`render_compact()` remains unchanged until ACTTUI-007 owns the byte fixtures.
+The compact plain renderer remains unchanged until ACTTUI-007 owns the byte
+fixtures; today that plain path is assembled through
+`activation::render_human_with_install` in `crates/anvil-cli/src/activation/render.rs`.
 
 ## TTY opt-in transcript
 
@@ -147,9 +149,9 @@ The same fixture and trust-boundary language is downstream input for first-run
 welcome work:
 
 - ACTTUI-008 consumes the shared chrome for the welcome hub.
-- PR #3231 records that WOW-005 cannot close its first-fix write design gate
+- Merged PR #3231 records that WOW-005 cannot close its first-fix write design gate
   until ACTTUI-000 and ACTTUI-004 land.
-- PR #3231 records that WOW-006 cannot close its autoplay demo design gate until
+- Merged PR #3231 records that WOW-006 cannot close its autoplay demo design gate until
   the ACTTUI foundation and shared-widget extract land.
 
 This branch deliberately does **not** edit `plans/modules/first-run-wow.aps.md`;
