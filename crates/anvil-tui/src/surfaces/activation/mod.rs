@@ -19,9 +19,12 @@
 //! - When project writes are gated (a non-default `ANVIL_HOME`, ADR-060) the
 //!   shell chrome carries a persistent banner naming the gated posture.
 
+pub mod consent;
 pub mod render;
 
 use eddacraft_tui::keyboard::Action;
+
+pub use consent::{ConsentDisabledReason, ConsentItem, ConsentKind, ConsentState};
 
 /// Ordered phases of an `anvil start` activation run.
 ///
@@ -125,6 +128,8 @@ pub struct ActivationSurface {
     progress_steps: Vec<ActivationProgressStep>,
     /// Show a branded daemon spinner in the working panel.
     daemon_spinner: bool,
+    /// Deferred write consent owned by the activation TUI.
+    consent: Option<ConsentState>,
     /// True when a non-default `ANVIL_HOME` gates durable project writes
     /// (ADR-060). Drives the persistent shell banner.
     project_writes_gated: bool,
@@ -143,6 +148,7 @@ impl ActivationSurface {
             log_lines: Vec::new(),
             progress_steps: Vec::new(),
             daemon_spinner: false,
+            consent: None,
             project_writes_gated,
             should_quit: false,
         }
@@ -161,6 +167,7 @@ impl ActivationSurface {
             log_lines,
             progress_steps: Vec::new(),
             daemon_spinner: false,
+            consent: None,
             project_writes_gated,
             should_quit: false,
         }
@@ -185,9 +192,18 @@ impl ActivationSurface {
             log_lines,
             progress_steps,
             daemon_spinner,
+            consent: None,
             project_writes_gated,
             should_quit: false,
         }
+    }
+
+    /// Attach deferred consent rows to this surface.
+    #[must_use]
+    pub fn with_consent(mut self, consent: ConsentState) -> Self {
+        self.phase = ActivationPhase::Consent;
+        self.consent = Some(consent);
+        self
     }
 
     /// Current phase (used by tests and future step-event wiring).
@@ -229,6 +245,15 @@ impl ActivationSurface {
     pub fn daemon_spinner(&self) -> bool {
         self.daemon_spinner
     }
+
+    #[must_use]
+    pub fn consent(&self) -> Option<&ConsentState> {
+        self.consent.as_ref()
+    }
+
+    pub fn consent_mut(&mut self) -> Option<&mut ConsentState> {
+        self.consent.as_mut()
+    }
 }
 
 impl eddacraft_tui::surface::Surface for ActivationSurface {
@@ -246,6 +271,26 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
     }
 
     fn handle_key(&mut self, action: Action) {
+        if let Some(consent) = self.consent.as_mut() {
+            match action {
+                Action::Up => consent.previous(),
+                Action::Down => consent.next(),
+                Action::Toggle => consent.toggle_current(),
+                Action::Select => consent.select_current(),
+                Action::Character('y' | 'Y') if consent.unsafe_confirm_index.is_some() => {
+                    consent.confirm_unsafe(true);
+                }
+                Action::Character('n' | 'N') | Action::Back
+                    if consent.unsafe_confirm_index.is_some() =>
+                {
+                    consent.confirm_unsafe(false);
+                }
+                Action::Quit | Action::Back => self.should_quit = true,
+                _ => {}
+            }
+            return;
+        }
+
         // v1 is a read-only verdict view: any quit/back request dismisses it.
         // Richer key handling (collapse/expand, smoke test) arrives with the
         // verdict tree in ACTTUI-005.
@@ -297,6 +342,7 @@ mod tests {
         assert!(surface.log_lines().is_empty());
         assert!(surface.progress_steps().is_empty());
         assert!(!surface.daemon_spinner());
+        assert!(surface.consent().is_none());
     }
 
     #[test]
@@ -330,6 +376,47 @@ mod tests {
         assert_eq!(surface.log_lines(), ["daemon: ensured"]);
         assert_eq!(surface.progress_steps().len(), 1);
         assert!(surface.daemon_spinner());
+    }
+
+    #[test]
+    fn with_consent_switches_to_consent_phase_and_handles_selection() {
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        assert_eq!(surface.phase(), ActivationPhase::Consent);
+        surface.handle_key(Action::Toggle);
+        assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
+    }
+
+    #[test]
+    fn consent_quit_still_exits_surface() {
+        let consent = ConsentState::new(Vec::new(), false);
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        surface.handle_key(Action::Quit);
+        assert!(surface.should_quit());
+    }
+
+    #[test]
+    fn consent_unsafe_acknowledgement_only_applies_when_overlay_is_open() {
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        surface.handle_key(Action::Character('y'));
+        assert_eq!(surface.consent().unwrap().unsafe_confirmed, None);
     }
 
     #[test]

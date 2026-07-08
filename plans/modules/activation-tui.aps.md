@@ -4,7 +4,7 @@
 | ------ | ----- | ------ | -------- |
 | ACTTUI | Josh  | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold + opt-in `--tui`/`ANVIL_ACTIVATION_TUI` dispatch In Progress on `feat/acttui-001-scaffold`. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, and ACTTUI-004 consent chrome are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
@@ -210,7 +210,12 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-004: Consent phase — `Select`, `Confirm`, `OverlayStack`
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-08 — consent model and renderer in
+  `crates/anvil-tui/src/surfaces/activation/consent.rs` use `Select`,
+  `Confirm`, and `OverlayStack`; rows default unticked, gated `ANVIL_HOME`
+  disables repo-scoped writes, and unsafe drift opens an acknowledgement overlay
+  without implicit selection. Orchestrator handoff remains through the
+  ACTTUI-002 deferral seam.
 - **Dependencies:** ACTTUI-003
 - **Intent:** MCP, workflow, and hook consent use the shared picker chrome with
   descriptions, drift badges, and explicit tick-to-install — replacing `demand`.

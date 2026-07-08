@@ -34,7 +34,13 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
     if progress_height > 0 {
         render_working_progress(frame, chunks[2], state, theme);
     }
-    render_verdict(frame, chunks[3], state.verdict(), theme);
+    if state.phase() == ActivationPhase::Consent
+        && let Some(consent) = state.consent()
+    {
+        crate::surfaces::activation::consent::render(frame, chunks[3], consent, theme);
+    } else {
+        render_verdict(frame, chunks[3], state.verdict(), theme);
+    }
 }
 
 fn render_phase_strip(
@@ -246,6 +252,29 @@ mod tests {
         assert!(out.contains("Initial probe"));
         assert!(out.contains("MCP consent"));
         assert!(out.contains("ready_restart_required"));
+    }
+
+    #[test]
+    fn renders_consent_phase_when_present() {
+        let consent = crate::surfaces::activation::ConsentState::new(
+            vec![crate::surfaces::activation::ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                crate::surfaces::activation::ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let surface = ActivationSurface::from_verdict(
+            "ACTIVATION
+",
+            false,
+        )
+        .with_consent(consent);
+        let out = render_to_string(&surface, 100, 24);
+        assert!(out.contains("Consent"));
+        assert!(out.contains("Cursor MCP"));
+        assert!(!out.contains("Activation verdict"));
     }
 
     #[test]
