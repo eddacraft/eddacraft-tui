@@ -10,7 +10,11 @@ Enter-executes-a-real-command behaviour is not evident before the keypress, and
 the first-run journey underuses the discovery scan's real findings. WOW-001..004
 are Ready (additive UX evidence and personalization on existing surfaces);
 WOW-005 and WOW-006 are Draft pending a design gate (consent posture for
-first-run fix writes; sandbox lifecycle for autoplay).
+first-run fix writes; sandbox lifecycle for autoplay). Updated 2026-07-08:
+after the activation-tui (ACTTUI) module landed and took ownership of the
+interactive consent chrome and shared widget vocabulary, WOW-005/006 are now
+gated on ACTTUI's foundation — recorded in each item's design gate and in
+Coordination.
 
 ## Purpose
 
@@ -141,6 +145,14 @@ evidence affordances and personalization on top of the repaired baseline.
   picker); interplay with CIB-127 (activation finding-baseline) so a
   tutorial-time fix doesn't confuse the baseline. Resolve via `brainstorming`
   and record the decision (ADR if the consent posture is load-bearing).
+- **Depends on ACTTUI (added 2026-07-08):** the onboarding fix write must
+  reuse ACTTUI's interactive consent chrome (`Confirm` / `Select` /
+  `OverlayStack`) and its repo-scoped-write posture (CIB-165 unticked default;
+  suppressed under `project_writes_gated`) rather than hand-roll a second,
+  divergent consent surface — and the discovery → fix → picker flow must slot
+  into the activation surface's phase model. The design gate therefore cannot
+  close before ACTTUI-000 (UX contract / trust boundary) and ACTTUI-004
+  (consent phase) land. See [`activation-tui.aps.md`](./activation-tui.aps.md).
 - **Expected Outcome:** (provisional, refined at design close) First-run flow
   offers "fix your first finding" as the default landing after discovery;
   declining lands on the path picker exactly as today.
@@ -161,6 +173,12 @@ evidence affordances and personalization on top of the repaired baseline.
   must survive or skip the surface transition); relationship to the WOW-002
   reveal driver (shared pacing mechanism). Resolve via `brainstorming`;
   likely wants a design doc under `designs/`.
+- **Depends on ACTTUI (added 2026-07-08):** the demo surface should reuse
+  ACTTUI's widget vocabulary (`ParallelProgress`, `OverlayStack`, `Toast`,
+  `BigBanner`, shared `HelpBar`) and the WOW-002 reveal driver instead of a
+  bespoke autoplay chrome, so the demo and the activation surface read as one
+  product. The design gate cannot close before ACTTUI's foundation
+  (ACTTUI-000/001) and the shared-widget extract land.
 - **Expected Outcome:** (provisional, refined at design close) A demo entry
   runs the ProtectionLoop path end-to-end unattended in a fixture repo with
   deterministic findings; interrupting at any point converts to the normal
@@ -185,5 +203,12 @@ and are **out of this release cohort** unless design gates close.
   files; land repair before or with WOW-003 to avoid conflicting picker edits.
 - **UJ-011 open question** (in-terminal vs web tutorial narrative
   convergence): WOW changes presentation, not narrative order; no conflict.
+- **ACTTUI (activation-tui)**: owns the interactive activation surface — the
+  shared consent chrome (`Select` / `Confirm` / `OverlayStack`, CIB-165
+  unticked posture, `project_writes_gated` gating) and the `eddacraft-tui`
+  widget vocabulary. WOW-001..004 shipped in ACTTUI's phase-B cohort.
+  **WOW-005/006 are now gated on ACTTUI** (2026-07-08): their design gates
+  cannot close until ACTTUI's foundation establishes the consent and widget
+  primitives they must reuse — see each item's *Depends on ACTTUI* note.
 - **LAUNCH-014 / ADR-080**: tutorial honesty pins and the ungated welcome
   demo posture are load-bearing and unchanged.
