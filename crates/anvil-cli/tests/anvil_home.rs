@@ -285,20 +285,41 @@ fn init_refused_under_gated_anvil_home_leaves_no_anvilrc() {
     );
 }
 
+fn init_git_repo_or_skip(project: &Path) -> bool {
+    let home = tempdir().expect("git home");
+    let out = match Command::new("git")
+        .arg("init")
+        .arg("--quiet")
+        .current_dir(project)
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("XDG_CONFIG_HOME", home.path().join("xdg"))
+        .env_remove("GIT_CONFIG_GLOBAL")
+        .env_remove("GIT_CONFIG_SYSTEM")
+        .output()
+    {
+        Ok(out) => out,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("skipping hook bootstrap assertion: git binary unavailable");
+            return false;
+        }
+        Err(err) => panic!("spawn git init: {err}"),
+    };
+    assert!(
+        out.status.success(),
+        "git init should create a real hooks directory; stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    true
+}
+
 #[test]
 fn hook_bootstrap_refused_under_gated_anvil_home() {
     let project = tempdir().expect("project dir");
     let home = tempdir().expect("anvil home");
-    let git = Command::new("git")
-        .arg("init")
-        .current_dir(project.path())
-        .output()
-        .expect("spawn git init");
-    assert!(
-        git.status.success(),
-        "git init should create a real hooks directory; stderr: {}",
-        String::from_utf8_lossy(&git.stderr)
-    );
+    if !init_git_repo_or_skip(project.path()) {
+        return;
+    }
 
     let (ok, out) = run_anvil(project.path(), Some(home.path()), &["hook", "bootstrap"]);
 
