@@ -2145,4 +2145,12 @@ a backlog. Promote repeated friction or executable follow-up work to
   three runtime surfaces.
 - **Improvement:** For module-closing docs batches, run docs index and APS count
   reconciliation before the first final validation pass.
+### 2026-07-08 — opencode
+
+- **Task:** Address PR #3224 review feedback and readiness state.
+- **Outcome:** Fixed the two unresolved documentation review threads, pushed the remediation, resolved threads, and confirmed checks plus mergeability were clean.
+- **Worked:** Treating CI, threads, and mergeability as one closure loop avoided stopping after the code push while outdated threads remained unresolved.
+- **Failed:** none.
+- **Friction:** `gh pr checks --watch` output was very noisy for long-running pending docs checks.
+- **Improvement:** Keep the final evidence to the last closure pass rather than carrying the whole watch output into summaries.
 - **Follow-up:** none.
