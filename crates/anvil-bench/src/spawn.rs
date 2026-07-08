@@ -60,7 +60,9 @@ fn resolve_configured_anvil_binary(path: PathBuf) -> Result<PathBuf> {
         return Ok(from_cwd);
     }
 
-    if let Some(path) = resolve_against_cargo_target_dir(&path) {
+    if let Some(path) = resolve_against_cargo_target_dir(&path)
+        && path.exists()
+    {
         return Ok(path);
     }
 
@@ -184,6 +186,17 @@ mod tests {
         temp_env::with_var("CARGO_TARGET_DIR", Some(dir.path()), || {
             let path = resolve_against_cargo_target_dir(Path::new("target/release/anvil")).unwrap();
             assert_eq!(path, dir.path().join("release").join("anvil"));
+        });
+    }
+
+    #[test]
+    fn missing_target_relative_configured_path_falls_back_to_workspace_path() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_var("CARGO_TARGET_DIR", Some(dir.path()), || {
+            let path =
+                resolve_configured_anvil_binary(PathBuf::from("target/release/anvil")).unwrap();
+            assert!(path.ends_with("target/release/anvil"));
+            assert!(!path.starts_with(dir.path()));
         });
     }
 

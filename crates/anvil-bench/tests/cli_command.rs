@@ -7,10 +7,11 @@ use anvil_bench::cli_command::{CommandBenchmarkConfig, FixtureSpec, run};
 #[test]
 fn cli_command_report_excludes_raw_args_and_counts_only_measured_iterations() {
     let fake = fake_anvil_script("echo ok");
-    let out = tempfile::tempdir().unwrap().path().join("report.json");
+    let out_dir = tempfile::tempdir().unwrap();
+    let out = out_dir.path().join("report.json");
     let config = CommandBenchmarkConfig {
         name: "fake-status".to_owned(),
-        anvil_bin: fake,
+        anvil_bin: fake.path.clone(),
         anvil_args: vec![
             "status".to_owned(),
             "--token".to_owned(),
@@ -39,6 +40,10 @@ fn cli_command_report_excludes_raw_args_and_counts_only_measured_iterations() {
     assert_eq!(report.aggregate.failures, 0);
     assert_eq!(report.aggregate.timeouts, 0);
     assert!(report.raw_argv.is_none(), "raw argv must be opt-in only");
+    assert!(
+        report.argv.get(2).is_some_and(|shape| shape.sensitive),
+        "value following --token must be marked sensitive"
+    );
     let json = serde_json::to_string(&report).unwrap();
     assert!(
         !json.contains("super-secret"),
@@ -53,7 +58,7 @@ fn cli_command_runner_times_out_and_records_failure_without_panicking() {
     let fake = fake_anvil_script("sleep 2");
     let config = CommandBenchmarkConfig {
         name: "fake-timeout".to_owned(),
-        anvil_bin: fake,
+        anvil_bin: fake.path.clone(),
         anvil_args: vec!["status".to_owned()],
         repeat: 1,
         warmup: 0,
@@ -80,7 +85,7 @@ fn cli_command_runner_does_not_invoke_a_shell_for_anvil_args() {
     let fake = fake_anvil_capture_script(&capture_path);
     let config = CommandBenchmarkConfig {
         name: "fake-literal".to_owned(),
-        anvil_bin: fake,
+        anvil_bin: fake.path.clone(),
         anvil_args: vec!["status".to_owned(), "$(touch should-not-exist)".to_owned()],
         repeat: 1,
         warmup: 0,
@@ -105,25 +110,28 @@ fn cli_command_runner_does_not_invoke_a_shell_for_anvil_args() {
     );
 }
 
-fn fake_anvil_script(body: &str) -> PathBuf {
-    let dir = tempfile::tempdir().unwrap();
-    let path = fake_path(dir.path());
-    std::mem::forget(dir);
-    write_script(&path, body);
-    path
+struct FakeAnvil {
+    _dir: tempfile::TempDir,
+    path: PathBuf,
 }
 
-fn fake_anvil_capture_script(capture: &Path) -> PathBuf {
+fn fake_anvil_script(body: &str) -> FakeAnvil {
     let dir = tempfile::tempdir().unwrap();
     let path = fake_path(dir.path());
-    std::mem::forget(dir);
+    write_script(&path, body);
+    FakeAnvil { path, _dir: dir }
+}
+
+fn fake_anvil_capture_script(capture: &Path) -> FakeAnvil {
+    let dir = tempfile::tempdir().unwrap();
+    let path = fake_path(dir.path());
     let body = if cfg!(windows) {
         format!("@echo off\r\necho %* > {}\r\n", capture.display())
     } else {
         format!("printf '%s\\n' \"$@\" > '{}'\n", capture.display())
     };
     write_script(&path, &body);
-    path
+    FakeAnvil { path, _dir: dir }
 }
 
 fn fake_path(dir: &Path) -> PathBuf {

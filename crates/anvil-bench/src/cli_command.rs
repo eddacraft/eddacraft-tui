@@ -318,7 +318,6 @@ fn run_one(
 
     let deadline = start + config.timeout;
     let mut timed_out = false;
-    #[cfg(not(target_os = "linux"))]
     let mut polled_status = None;
     loop {
         #[cfg(target_os = "linux")]
@@ -330,7 +329,6 @@ fn run_one(
         if process_is_zombie(child.id()) {
             break;
         }
-        #[cfg(not(target_os = "linux"))]
         if let Some(status) = child.try_wait()? {
             polled_status = Some(status);
             break;
@@ -348,9 +346,6 @@ fn run_one(
     #[cfg(not(target_os = "linux"))]
     let sample = None::<crate::budget::MeasurementSample>;
 
-    #[cfg(target_os = "linux")]
-    let status = child.wait().ok();
-    #[cfg(not(target_os = "linux"))]
     let status = if timed_out {
         child.wait().ok()
     } else if polled_status.is_some() {
@@ -461,7 +456,7 @@ fn redact_argv(argv: &[String]) -> Vec<ArgShape> {
                 .split_once('=')
                 .map_or((flag, false), |(name, _)| (name, true));
             let sensitive = is_sensitive_name(name);
-            previous_wants_value = !has_value && !sensitive;
+            previous_wants_value = !has_value && sensitive;
             shapes.push(ArgShape {
                 position,
                 kind: ArgKind::Flag,
@@ -471,7 +466,7 @@ fn redact_argv(argv: &[String]) -> Vec<ArgShape> {
             });
         } else if let Some(flag) = arg.strip_prefix('-') {
             let sensitive = is_sensitive_name(flag);
-            previous_wants_value = !sensitive;
+            previous_wants_value = sensitive;
             shapes.push(ArgShape {
                 position,
                 kind: ArgKind::Flag,
@@ -620,7 +615,7 @@ fn process_is_zombie(pid: u32) -> bool {
     #[cfg(target_os = "linux")]
     {
         let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
-            return true;
+            return false;
         };
         stat.rfind(") ")
             .and_then(|idx| stat.get(idx + 2..))
@@ -715,5 +710,34 @@ mod tests {
         assert_eq!(parsed.schema_version, SCHEMA_VERSION);
         assert_eq!(parsed.aggregate.samples, 1);
         assert!(parsed.raw_argv.is_none());
+    }
+
+    #[test]
+    fn sensitive_flag_values_are_marked_sensitive() {
+        let shapes = redact_argv(&[
+            "status".to_owned(),
+            "--token".to_owned(),
+            "secret".to_owned(),
+            "-password".to_owned(),
+            "also-secret".to_owned(),
+            "--plain".to_owned(),
+            "safe".to_owned(),
+        ]);
+
+        assert!(
+            shapes[2].sensitive,
+            "long sensitive flag value is sensitive"
+        );
+        assert!(
+            shapes[4].sensitive,
+            "short sensitive flag value is sensitive"
+        );
+        assert!(!shapes[6].sensitive, "plain flag value is not sensitive");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn unreadable_proc_stat_is_not_treated_as_zombie() {
+        assert!(!process_is_zombie(u32::MAX));
     }
 }
