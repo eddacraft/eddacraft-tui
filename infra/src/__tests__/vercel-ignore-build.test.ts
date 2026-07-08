@@ -111,91 +111,115 @@ describe('vercel-ignore-build.sh', () => {
     FIXTURE_TEST_TIMEOUT_MS
   );
 
-  it('always skips when --always-skip is set', () => {
-    const repo = createFixtureRepo();
+  it(
+    'always skips when --always-skip is set',
+    () => {
+      const repo = createFixtureRepo();
 
-    try {
-      const { previous, current } = commitChange(
-        repo,
-        'apps/website/page.tsx',
-        'export default function ChangedPage() {}\n'
-      );
+      try {
+        const { previous, current } = commitChange(
+          repo,
+          'apps/website/page.tsx',
+          'export default function ChangedPage() {}\n'
+        );
 
-      const result = runIgnore(repo, ['--always-skip'], {
-        VERCEL_GIT_PREVIOUS_SHA: previous,
-        VERCEL_GIT_COMMIT_SHA: current,
-        VERCEL_GIT_COMMIT_REF: 'main',
-        VERCEL_ENV: 'production',
-      });
+        const result = runIgnore(repo, ['--always-skip'], {
+          VERCEL_GIT_PREVIOUS_SHA: previous,
+          VERCEL_GIT_COMMIT_SHA: current,
+          VERCEL_GIT_COMMIT_REF: 'main',
+          VERCEL_ENV: 'production',
+        });
 
-      expect(result.status).toBe(0);
-      expect(result.stdout).toContain('Always-skip enabled');
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('Always-skip enabled');
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    FIXTURE_TEST_TIMEOUT_MS
+  );
 
-  it('builds on production branch root dependency metadata changes', () => {
-    const repo = createFixtureRepo();
+  it(
+    'builds on production branch root dependency metadata changes',
+    () => {
+      const repo = createFixtureRepo();
 
-    try {
-      const { previous, current } = commitChange(repo, 'package.json', '{"private":true,"x":1}\n');
+      try {
+        const { previous, current } = commitChange(
+          repo,
+          'package.json',
+          '{"private":true,"x":1}\n'
+        );
 
-      const result = runIgnore(repo, ['apps/website'], {
-        VERCEL_GIT_PREVIOUS_SHA: previous,
-        VERCEL_GIT_COMMIT_SHA: current,
-        VERCEL_GIT_COMMIT_REF: 'main',
-        VERCEL_ENV: 'production',
-      });
+        const result = runIgnore(repo, ['apps/website'], {
+          VERCEL_GIT_PREVIOUS_SHA: previous,
+          VERCEL_GIT_COMMIT_SHA: current,
+          VERCEL_GIT_COMMIT_REF: 'main',
+          VERCEL_ENV: 'production',
+        });
 
-      expect(result.status).toBe(1);
-      expect(result.stdout).toContain('Changes detected in extra watched path package.json');
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(1);
+        expect(result.stdout).toContain('Changes detected in extra watched path package.json');
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    FIXTURE_TEST_TIMEOUT_MS
+  );
 
-  it('builds when the app directory changes', () => {
-    const repo = createFixtureRepo();
+  it(
+    'builds when the app directory changes',
+    () => {
+      const repo = createFixtureRepo();
 
-    try {
-      const { previous, current } = commitChange(
-        repo,
-        'apps/website/page.tsx',
-        'export default function ChangedPage() {}\n'
-      );
+      try {
+        const { previous, current } = commitChange(
+          repo,
+          'apps/website/page.tsx',
+          'export default function ChangedPage() {}\n'
+        );
 
-      const result = runIgnore(repo, ['apps/website'], {
-        VERCEL_GIT_PREVIOUS_SHA: previous,
-        VERCEL_GIT_COMMIT_SHA: current,
-        VERCEL_GIT_COMMIT_REF: 'main',
-      });
+        const result = runIgnore(repo, ['apps/website'], {
+          VERCEL_GIT_PREVIOUS_SHA: previous,
+          VERCEL_GIT_COMMIT_SHA: current,
+          VERCEL_GIT_COMMIT_REF: 'main',
+        });
 
-      expect(result.status).toBe(1);
-      expect(result.stdout).toContain('Changes detected in apps/website');
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(1);
+        expect(result.stdout).toContain('Changes detected in apps/website');
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    FIXTURE_TEST_TIMEOUT_MS
+  );
 
-  it('builds when an explicit extra watched path changes', () => {
-    const repo = createFixtureRepo();
+  it(
+    'builds when an explicit extra watched path changes',
+    () => {
+      const repo = createFixtureRepo();
 
-    try {
-      const { previous, current } = commitChange(repo, 'docs/public/anvil/intro.md', '# changed\n');
+      try {
+        const { previous, current } = commitChange(
+          repo,
+          'docs/public/anvil/intro.md',
+          '# changed\n'
+        );
 
-      const result = runIgnore(repo, ['apps/website', 'docs/public/anvil'], {
-        VERCEL_GIT_PREVIOUS_SHA: previous,
-        VERCEL_GIT_COMMIT_SHA: current,
-        VERCEL_GIT_COMMIT_REF: 'main',
-      });
+        const result = runIgnore(repo, ['apps/website', 'docs/public/anvil'], {
+          VERCEL_GIT_PREVIOUS_SHA: previous,
+          VERCEL_GIT_COMMIT_SHA: current,
+          VERCEL_GIT_COMMIT_REF: 'main',
+        });
 
-      expect(result.status).toBe(1);
-      expect(result.stdout).toContain('Changes detected in extra watched path docs/public/anvil');
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(1);
+        expect(result.stdout).toContain('Changes detected in extra watched path docs/public/anvil');
+      } finally {
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    FIXTURE_TEST_TIMEOUT_MS
+  );
 });
 
 describe('Vercel project configs', () => {

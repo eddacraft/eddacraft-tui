@@ -212,7 +212,7 @@ export const docsSite = prodOnly(
       domains: [],
       skipPreviewDeploys: true,
       ignoreCommand:
-        'cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh --always-skip',
+        'cd "$(git rev-parse --show-toplevel)" && bash tools/scripts/vercel-ignore-build.sh --always-skip',
       envVars: {
         // DOCSAUTH: ES256 public key for edge JWT verification
         LICENSE_PUBLIC_KEY: licensePublicKey,
