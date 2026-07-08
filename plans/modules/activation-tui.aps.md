@@ -4,7 +4,7 @@
 | ------ | ----- | ------ | -------- |
 | ACTTUI | Josh  | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, and ACTTUI-004 consent chrome are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-08 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome, and ACTTUI-005 verdict tree are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
@@ -234,7 +234,13 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-005: Verdict phase — `Tree`, `StatusBadge`, `BigBanner`, `Toast`, smoke test
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-08 — structured verdict model/view in
+  `crates/anvil-tui/src/surfaces/activation/verdict.rs` renders state labels
+  through `StatusBadge`, collapsible evidence through `Tree`, contextual keys
+  through `HelpBar`, optional `BigBanner`, and a thin-v1 honest `Toast` for the
+  `t` smoke key. The view currently derives its sections from the composed
+  verdict string so the TUI cannot drift from the plain contract; richer
+  diagnostic-fed evidence remains ACTTUI-006/007 scope.
 - **Dependencies:** ACTTUI-004
 - **Intent:** The protection verdict is one glance on repeat runs and expandable
   on demand; first protecting run delivers the wow beat.

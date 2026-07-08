@@ -5,8 +5,8 @@ use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Wrap};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget};
 
 use super::{ActivationPhase, ActivationProgressStatus, ActivationSurface};
 use crate::shell::inset_content;
@@ -39,7 +39,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
     {
         crate::surfaces::activation::consent::render(frame, chunks[3], consent, theme);
     } else {
-        render_verdict(frame, chunks[3], state.verdict(), theme);
+        crate::surfaces::activation::verdict::render(frame, chunks[3], state.verdict_view(), theme);
     }
 }
 
@@ -152,34 +152,6 @@ fn map_status(status: ActivationProgressStatus) -> CheckStatus {
     }
 }
 
-fn render_verdict(frame: &mut Frame, area: Rect, verdict: &str, theme: &EddaCraftTheme) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.accent()))
-        .title(" Activation verdict ");
-    let lines: Vec<Line> = verdict
-        .lines()
-        .map(|line| {
-            if line.trim_start().starts_with("state:") {
-                Line::styled(
-                    line.to_owned(),
-                    Style::default()
-                        .fg(theme.accent())
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else {
-                Line::raw(line.to_owned())
-            }
-        })
-        .collect();
-    frame.render_widget(
-        Paragraph::new(Text::from(lines))
-            .block(block)
-            .wrap(Wrap { trim: false }),
-        area,
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -220,6 +192,7 @@ mod tests {
         assert!(out.contains("Verdict"));
         assert!(out.contains("state: protecting"));
         assert!(out.contains("Activation verdict"));
+        assert!(out.contains("Smoke"));
     }
 
     #[test]

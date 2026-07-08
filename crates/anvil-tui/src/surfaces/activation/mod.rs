@@ -21,10 +21,12 @@
 
 pub mod consent;
 pub mod render;
+pub mod verdict;
 
 use eddacraft_tui::keyboard::Action;
 
 pub use consent::{ConsentDisabledReason, ConsentItem, ConsentKind, ConsentState};
+pub use verdict::{VerdictModel, VerdictSection, VerdictTone, VerdictView};
 
 /// Ordered phases of an `anvil start` activation run.
 ///
@@ -118,8 +120,10 @@ pub struct ActivationSurface {
     /// Current phase of the run.
     phase: ActivationPhase,
     /// The composed, plain-text activation verdict (identical content to the
-    /// byte-stable plain path). Rendered read-only in v1.
+    /// byte-stable plain path). Retained for fallback and contract tests.
     verdict: String,
+    /// Structured, collapsible verdict view for ACTTUI-005.
+    verdict_view: VerdictView,
     /// Lifecycle/log seam from the activation orchestrator. ACTTUI-002 records
     /// these lines so later TUI work can render progress and logs without
     /// scraping the plain human diagnostic text.
@@ -142,9 +146,12 @@ impl ActivationSurface {
     /// already-composed verdict text.
     #[must_use]
     pub fn from_verdict(verdict: impl Into<String>, project_writes_gated: bool) -> Self {
+        let verdict = verdict.into();
+        let verdict_view = VerdictView::new(VerdictModel::from_plain(&verdict));
         Self {
             phase: ActivationPhase::Verdict,
-            verdict: verdict.into(),
+            verdict,
+            verdict_view,
             log_lines: Vec::new(),
             progress_steps: Vec::new(),
             daemon_spinner: false,
@@ -161,9 +168,12 @@ impl ActivationSurface {
         project_writes_gated: bool,
         log_lines: Vec<String>,
     ) -> Self {
+        let verdict = verdict.into();
+        let verdict_view = VerdictView::new(VerdictModel::from_plain(&verdict));
         Self {
             phase: ActivationPhase::Verdict,
-            verdict: verdict.into(),
+            verdict,
+            verdict_view,
             log_lines,
             progress_steps: Vec::new(),
             daemon_spinner: false,
@@ -186,9 +196,12 @@ impl ActivationSurface {
         daemon_spinner: bool,
         phase: ActivationPhase,
     ) -> Self {
+        let verdict = verdict.into();
+        let verdict_view = VerdictView::new(VerdictModel::from_plain(&verdict));
         Self {
             phase,
-            verdict: verdict.into(),
+            verdict,
+            verdict_view,
             log_lines,
             progress_steps,
             daemon_spinner,
@@ -203,6 +216,13 @@ impl ActivationSurface {
     pub fn with_consent(mut self, consent: ConsentState) -> Self {
         self.phase = ActivationPhase::Consent;
         self.consent = Some(consent);
+        self
+    }
+
+    /// Replace the fallback parsed verdict with a structured model from the CLI.
+    #[must_use]
+    pub fn with_verdict_model(mut self, model: VerdictModel) -> Self {
+        self.verdict_view = VerdictView::new(model);
         self
     }
 
@@ -227,6 +247,12 @@ impl ActivationSurface {
     #[must_use]
     pub fn verdict(&self) -> &str {
         &self.verdict
+    }
+
+    /// Structured verdict view rendered on the Verdict phase (ACTTUI-005).
+    #[must_use]
+    pub fn verdict_view(&self) -> &VerdictView {
+        &self.verdict_view
     }
 
     /// Orchestrator lifecycle/log lines captured for future in-surface
@@ -291,10 +317,10 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
             return;
         }
 
-        // v1 is a read-only verdict view: any quit/back request dismisses it.
-        // Richer key handling (collapse/expand, smoke test) arrives with the
-        // verdict tree in ACTTUI-005.
-        if matches!(action, Action::Quit | Action::Back) {
+        // Verdict phase (ACTTUI-005): the structured view owns tree navigation,
+        // section expand/collapse, and the smoke-test key; it reports back when
+        // the user asks to leave.
+        if self.verdict_view.handle_key(action) {
             self.should_quit = true;
         }
     }
@@ -339,6 +365,7 @@ mod tests {
         assert_eq!(surface.phase(), ActivationPhase::Verdict);
         assert!(!surface.project_writes_gated());
         assert!(surface.verdict().contains("state: protecting"));
+        assert_eq!(surface.verdict_view().model().state_label, "protecting");
         assert!(surface.log_lines().is_empty());
         assert!(surface.progress_steps().is_empty());
         assert!(!surface.daemon_spinner());
@@ -439,6 +466,27 @@ mod tests {
         let mut surface = ActivationSurface::from_verdict("x", false);
         surface.handle_key(Action::Back);
         assert!(surface.should_quit());
+    }
+
+    #[test]
+    fn verdict_key_handling_toggles_tree_and_smoke_toast() {
+        let model = VerdictModel::new(
+            "protecting",
+            "Protecting — pre-write validation is live.",
+            vec![VerdictSection::new(
+                "layers",
+                "Layers",
+                vec!["L0 mcp pre-write".to_string()],
+            )],
+        );
+        let mut surface =
+            ActivationSurface::from_verdict("ACTIVATION\n  state: protecting\n", false)
+                .with_verdict_model(model);
+        assert!(!surface.verdict_view().is_expanded("layers"));
+        surface.handle_key(Action::Select);
+        assert!(surface.verdict_view().is_expanded("layers"));
+        surface.handle_key(Action::Character('t'));
+        assert!(surface.verdict_view().toast().is_some());
     }
 
     #[test]
