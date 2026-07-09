@@ -154,6 +154,19 @@ fn normalise_start_activation_output(raw: &str, workdir: &Path, home: &Path) -> 
     raw.replace(&workdir.display().to_string(), "<WORKTREE>")
         .replace(&home.display().to_string(), "<HOME>")
         .replace('\\', "/")
+        // The worktree line embeds git's discovery error verbatim, and git
+        // words it differently depending on whether the walk up from the
+        // temp workdir hits a filesystem boundary (tmpfs /tmp on dev boxes)
+        // or reaches / on one filesystem (CI runners). Collapse both
+        // variants so the fixture is byte-stable across hosts.
+        .replace(
+            "fatal: not a git repository (or any parent up to mount point /)\nStopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).",
+            "<GIT-NOT-A-REPO>",
+        )
+        .replace(
+            "fatal: not a git repository (or any of the parent directories): .git",
+            "<GIT-NOT-A-REPO>",
+        )
 }
 
 fn assert_start_activation_fixture(name: &str, raw: &str, workdir: &Path, home: &Path) {
