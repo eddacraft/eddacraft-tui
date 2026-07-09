@@ -169,7 +169,12 @@ jobs:
             echo "No affected Rust projects detected"
             exit 0
           fi
-          pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
+          # `stream` (not `static`): static buffers each task's output and
+          # flushes it in one burst as the step exits, and the runner's log
+          # capture drops that final burst — a failing cargo task's assertion
+          # output (and nx's own failure summary) never reaches the job log,
+          # making real test failures look like opaque runner crashes.
+          pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=stream
 
       # Push events run the full workspace suite via nextest (the strict gate).
       # Failure here MUST fail the workflow.
