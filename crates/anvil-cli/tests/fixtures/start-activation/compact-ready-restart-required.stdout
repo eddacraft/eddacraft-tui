@@ -26,4 +26,4 @@ verify:
     1. echo 'const KEY = "AKIAQRSTUVWXYZ123456";' >> .anvil-smoke-test.ts
     2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding
     3. rm .anvil-smoke-test.ts when done
-  AI tools detected: claude-code, cursor, codex
+  AI tools detected: claude-code, cursor

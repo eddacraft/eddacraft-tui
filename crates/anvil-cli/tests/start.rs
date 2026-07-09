@@ -50,11 +50,18 @@ fn run_start_with_home(
     home: &std::path::Path,
     extra_args: &[&str],
 ) -> std::process::Output {
+    let mut cmd = start_command_env(workdir, home);
+    cmd.arg("--no-tui").arg("start").args(extra_args);
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
+/// Shared hermetic environment for spawning the anvil binary: per-test
+/// `HOME`, pinned daemon paths, scrubbed tracing filters, and pinned
+/// agent detection. Callers add their own args (and any per-test env
+/// such as `ANVIL_NO_TUI`) on top.
+fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Command {
     let mut cmd = Command::new(ANVIL_BIN);
-    cmd.arg("--no-tui")
-        .arg("start")
-        .args(extra_args)
-        .current_dir(workdir)
+    cmd.current_dir(workdir)
         .env("HOME", home)
         // Windows uses USERPROFILE; macOS / Linux use HOME. Set both
         // so the same test bench works across platforms.
@@ -91,7 +98,50 @@ fn run_start_with_home(
         // negative test below).
         .env("ANVIL_ALL_MCP_CLIENTS", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
-    cmd.output().expect("failed to invoke anvil binary")
+    // ACTTUI-007: the byte-exact activation fixtures embed the "AI tools
+    // detected" summary, and agent detection scans PATH binaries plus
+    // ambient env vars. Without pinning, the fixtures would capture
+    // whatever tooling the authoring host happens to run (claude/cursor/
+    // codex on a dev box; nothing on CI) and fail everywhere else. Scrub
+    // every detection env var and, on Unix, restrict PATH to a shim dir
+    // containing only `git` (the sole external binary these flows invoke)
+    // so detection is deterministically empty in every environment.
+    for var in [
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_HOME",
+        "CURSOR_HOME",
+        "AIDER_MODEL",
+        "AIDER_API_KEY",
+        "WINDSURF_HOME",
+        "CODEX_HOME",
+    ] {
+        cmd.env_remove(var);
+    }
+    #[cfg(unix)]
+    cmd.env("PATH", git_only_path_shim(home));
+    cmd
+}
+
+/// Build a PATH shim directory inside the per-test `home` containing a
+/// single `git` symlink, so the spawned `anvil` can still run worktree
+/// probes while agent-binary detection (claude/cursor/aider/windsurf/
+/// codex on the host PATH) deterministically finds nothing.
+#[cfg(unix)]
+fn git_only_path_shim(home: &std::path::Path) -> std::path::PathBuf {
+    let shim = home.join("path-shim");
+    fs::create_dir_all(&shim).expect("create PATH shim dir");
+    let git = std::env::var_os("PATH")
+        .and_then(|paths| {
+            std::env::split_paths(&paths)
+                .map(|dir| dir.join("git"))
+                .find(|candidate| candidate.is_file())
+        })
+        .expect("git must be on PATH for the start test harness");
+    let link = shim.join("git");
+    if !link.exists() {
+        std::os::unix::fs::symlink(&git, &link).expect("symlink git into PATH shim");
+    }
+    shim
 }
 
 fn start_activation_fixture_path(name: &str) -> std::path::PathBuf {
@@ -484,20 +534,8 @@ fn start_no_tui_and_env_no_tui_match_compact_fixture() {
         String::from_utf8_lossy(&flag.stderr)
     );
 
-    let mut cmd = Command::new(ANVIL_BIN);
-    cmd.arg("start")
-        .arg("--no-daemon")
-        .current_dir(dir.path())
-        .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
-        .env_remove("XDG_CONFIG_HOME")
-        .env_remove("ANVIL_LOG")
-        .env_remove("RUST_LOG")
-        .env("XDG_RUNTIME_DIR", home.path())
-        .env("ANVIL_DEV", "1")
-        .env("ANVIL_ALL_MCP_CLIENTS", "1")
-        .env("ANVIL_SKIP_WELCOME", "1")
-        .env("ANVIL_NO_TUI", "1");
+    let mut cmd = start_command_env(dir.path(), home.path());
+    cmd.arg("start").arg("--no-daemon").env("ANVIL_NO_TUI", "1");
     let env = cmd.output().expect("failed to invoke anvil binary");
     assert!(
         env.status.success(),
