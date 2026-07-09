@@ -11,6 +11,16 @@ use std::process::Command;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
+/// Ceiling for git repo discovery. Git only honours a ceiling that is a
+/// proper ancestor of the probed directory, so this must be the tempdir's
+/// parent — passing the tempdir itself is silently ignored and the walk
+/// could escape into a stray ancestor repo (e.g. a leftover /tmp/.git).
+/// The repo `git init`'d at the tempdir itself is still found: the
+/// ceiling only stops the walk from ascending past it.
+fn discovery_ceiling(dir: &std::path::Path) -> &std::path::Path {
+    dir.parent().expect("tempdir has a parent")
+}
+
 /// Returns `Some((major, minor, patch))` when `git --version` parses, or
 /// `None` when the binary is missing. Tests bail (skip) on `None` and on
 /// any version below 2.54.
@@ -97,7 +107,7 @@ fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
         .args(["hooks", "install", "--config"])
         .current_dir(dir.path())
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("invoking anvil hooks install --config");
 
@@ -151,7 +161,7 @@ fn hooks_uninstall_config_clears_command_entries() {
         .args(["hooks", "install", "--config"])
         .current_dir(dir.path())
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("invoking anvil hooks install --config");
     assert!(install.status.success(), "install --config must exit 0");
@@ -163,7 +173,7 @@ fn hooks_uninstall_config_clears_command_entries() {
         .args(["hooks", "uninstall", "--config"])
         .current_dir(dir.path())
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("invoking anvil hooks uninstall --config");
     let stdout = String::from_utf8_lossy(&uninstall.stdout);
@@ -197,7 +207,7 @@ fn hooks_install_config_does_not_stack_duplicates_on_repeat() {
             .args(["hooks", "install", "--config"])
             .current_dir(dir.path())
             .env("HOME", dir.path())
-            .env("GIT_CEILING_DIRECTORIES", dir.path())
+            .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
             .output()
             .expect("invoking anvil hooks install --config");
         assert!(
@@ -232,7 +242,7 @@ fn hooks_install_config_refuses_when_host_git_too_old() {
         .args(["hooks", "install", "--config"])
         .current_dir(dir.path())
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("invoking anvil hooks install --config");
 
@@ -269,7 +279,7 @@ fn hooks_install_config_warns_when_file_mode_hook_already_exists() {
         .args(["hooks", "install", "--config", "--pre-commit-only"])
         .current_dir(dir.path())
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("invoking anvil hooks install --config");
 

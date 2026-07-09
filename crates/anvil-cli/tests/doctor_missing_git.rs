@@ -7,6 +7,14 @@ use std::process::Command;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
+/// Ceiling for git repo discovery. Git only honours a ceiling that is a
+/// proper ancestor of the probed directory, so this must be the tempdir's
+/// parent — passing the tempdir itself is silently ignored and the walk
+/// would still find a stray ancestor repo (e.g. a leftover /tmp/.git).
+fn discovery_ceiling(dir: &std::path::Path) -> &std::path::Path {
+    dir.parent().expect("tempdir has a parent")
+}
+
 /// Plain (`--no-tui`) output: doctor must exit 0 and surface the
 /// `git init` next-step inline so a fresh user reading the human-facing
 /// output knows what to do.
@@ -22,7 +30,7 @@ fn doctor_in_dir_without_git_repo_exits_zero_with_guidance() {
         // (or any ancestor `.git`) cannot satisfy `git rev-parse --git-dir`
         // and accidentally make the check Pass on a CI runner.
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("failed to invoke anvil binary");
 
@@ -59,7 +67,7 @@ fn doctor_json_in_dir_without_git_repo_reports_warn_with_remediation() {
         .arg("doctor")
         .current_dir(dir.path())
         .env("HOME", dir.path())
-        .env("GIT_CEILING_DIRECTORIES", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
         .output()
         .expect("failed to invoke anvil binary");
 
