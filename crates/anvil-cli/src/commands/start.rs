@@ -785,13 +785,19 @@ fn progress_step_from_events(
     }
     let status = if step_events
         .iter()
+        .any(|event| event.lifecycle == ActivationStepLifecycle::Failed)
+    {
+        ActivationProgressStatus::Failed
+    } else if step_events
+        .iter()
         .any(|event| event.lifecycle == ActivationStepLifecycle::Started)
         && !step_events.iter().any(|event| {
             matches!(
                 event.lifecycle,
                 ActivationStepLifecycle::Completed | ActivationStepLifecycle::Skipped
             )
-        }) {
+        })
+    {
         ActivationProgressStatus::Running
     } else if step_events
         .iter()
@@ -1246,6 +1252,34 @@ mod tests {
         let mcp = steps.iter().find(|step| step.id == "mcp-consent").unwrap();
         assert_eq!(mcp.status, ActivationProgressStatus::Pending);
         assert_eq!(mcp.message.as_deref(), Some("deferred to activation TUI"));
+    }
+
+    #[test]
+    fn activation_progress_steps_mark_failed_lifecycle_as_failed_not_running() {
+        use activation::orchestrator::{
+            ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+        };
+        use anvil_tui::surfaces::activation::ActivationProgressStatus;
+
+        let events = [
+            ActivationStepEvent {
+                step: ActivationStep::GitHooks,
+                lifecycle: ActivationStepLifecycle::Started,
+                detail: None,
+            },
+            ActivationStepEvent {
+                step: ActivationStep::GitHooks,
+                lifecycle: ActivationStepLifecycle::Failed,
+                detail: Some("could not install git hooks".to_string()),
+            },
+        ];
+        let steps = activation_progress_steps(&events);
+        let hooks = steps.iter().find(|step| step.id == "git-hooks").unwrap();
+        assert_eq!(hooks.status, ActivationProgressStatus::Failed);
+        assert_eq!(
+            hooks.message.as_deref(),
+            Some("could not install git hooks")
+        );
     }
 
     #[test]

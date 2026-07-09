@@ -681,9 +681,18 @@ fn run_with_home_and_registration_outcome(
         }
         McpInstallPolicy::Install => match std::env::current_exe() {
             Ok(exe) => {
-                activation_run.start(ActivationStep::McpConsent);
                 let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
-                let report = if matches!(render_mode, StartRenderMode::Tui) {
+                if matches!(render_mode, StartRenderMode::Tui) {
+                    // Mirrors the WorkflowConsent deferral above: no legacy
+                    // picker is shown, so the step is a Skipped-with-deferred
+                    // detail rather than Started/Completed, which would
+                    // otherwise misreport a "Passed" consent step in the TUI
+                    // progress panel before the surface's own consent widget
+                    // has run.
+                    activation_run.skip(
+                        ActivationStep::McpConsent,
+                        "deferred to activation TUI consent surface",
+                    );
                     install::install_for_clients_with_consent_mode(
                         root,
                         home,
@@ -692,10 +701,17 @@ fn run_with_home_and_registration_outcome(
                         enabled,
                     )
                 } else {
-                    install::install_for_clients(root, home, &fresh, demand_interactive, enabled)
-                };
-                activation_run.complete(ActivationStep::McpConsent);
-                report
+                    activation_run.start(ActivationStep::McpConsent);
+                    let report = install::install_for_clients(
+                        root,
+                        home,
+                        &fresh,
+                        demand_interactive,
+                        enabled,
+                    );
+                    activation_run.complete(ActivationStep::McpConsent);
+                    report
+                }
             }
             Err(e) => {
                 // current_exe failed — verify_with_home will also report
@@ -1227,6 +1243,15 @@ verdict: completed"
                     && event.detail.as_deref() == Some("deferred to activation TUI consent surface")
             }),
             "workflow consent must be deferred instead of invoking demand: {:?}",
+            outcome.run.events(),
+        );
+        assert!(
+            outcome.run.events().iter().any(|event| {
+                event.step == ActivationStep::McpConsent
+                    && event.lifecycle == ActivationStepLifecycle::Skipped
+                    && event.detail.as_deref() == Some("deferred to activation TUI consent surface")
+            }),
+            "MCP consent must be deferred instead of recording a false Started/Completed pass: {:?}",
             outcome.run.events(),
         );
         assert!(

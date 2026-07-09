@@ -215,7 +215,13 @@ tutorial story changes (WOW owns narrative).
   `Confirm`, and `OverlayStack`; rows default unticked, gated `ANVIL_HOME`
   disables repo-scoped writes, and unsafe drift opens an acknowledgement overlay
   without implicit selection. Orchestrator handoff remains through the
-  ACTTUI-002 deferral seam.
+  ACTTUI-002 deferral seam. **Remaining gap (flagged by Copilot review on
+  #3238):** `commands/start.rs` never constructs a `ConsentState` or calls
+  `ActivationSurface::with_consent(...)`, so even though the deferred
+  MCP/workflow progress rows correctly drive `phase == Consent`, the surface
+  still falls through to the verdict renderer — the consent picker is not yet
+  reachable, and there is no apply-selection path to actually install after
+  the picker interaction. That wiring is the remaining scope for this item.
 - **Dependencies:** ACTTUI-003
 - **Intent:** MCP, workflow, and hook consent use the shared picker chrome with
   descriptions, drift badges, and explicit tick-to-install — replacing `demand`.
@@ -228,7 +234,10 @@ tutorial story changes (WOW owns narrative).
   `project_writes_gated`; no `RawModeGuard` on TUI path.
 - **Files:** `crates/anvil-tui/src/surfaces/activation/consent.rs`,
   `crates/anvil-cli/src/activation/orchestrator/install.rs`,
-  `crates/anvil-cli/src/activation/orchestrator/mod.rs` (workflow picker)
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs` (workflow picker),
+  `crates/anvil-cli/src/commands/start.rs` (remaining: build `ConsentState`
+  from `InstallReport` + `pending_workflows`, call `with_consent`, and apply
+  the selection after the surface exits)
 - **Validation:** `cargo test -p anvil-tui -p anvil-cli`; e2e: workflow Enter-without-tick writes nothing
 - **Confidence:** high
 
