@@ -97,7 +97,22 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
         // `start_without_detected_editor_does_not_write_mcp_config`
         // negative test below).
         .env("ANVIL_ALL_MCP_CLIENTS", "1")
-        .env("ANVIL_SKIP_WELCOME", "1");
+        .env("ANVIL_SKIP_WELCOME", "1")
+        // ACTTUI-007: the activation output embeds git's repo-discovery
+        // stderr verbatim, and git words the "not a git repository" error
+        // differently depending on where the upward walk stops (mount-point
+        // variant when it hits a filesystem boundary, parent-directories
+        // variant when it hits / or a ceiling). Pin a discovery ceiling at
+        // the workdir's parent so the walk stops in the same place — with
+        // the same wording — on every host, and so a stray repo above the
+        // tempdir (e.g. a leftover /tmp/.git) can never be discovered as
+        // the worktree. Note: git only honours a ceiling that is a proper
+        // ancestor of the probed directory, so the workdir itself would be
+        // a no-op; it must be the parent.
+        .env(
+            "GIT_CEILING_DIRECTORIES",
+            workdir.parent().expect("test workdir has a parent"),
+        );
     // ACTTUI-007: the byte-exact activation fixtures embed the "AI tools
     // detected" summary, and agent detection scans PATH binaries plus
     // ambient env vars. Without pinning, the fixtures would capture
@@ -154,15 +169,12 @@ fn normalise_start_activation_output(raw: &str, workdir: &Path, home: &Path) -> 
     raw.replace(&workdir.display().to_string(), "<WORKTREE>")
         .replace(&home.display().to_string(), "<HOME>")
         .replace('\\', "/")
-        // The worktree line embeds git's discovery error verbatim, and git
-        // words it differently depending on whether the walk up from the
-        // temp workdir hits a filesystem boundary (tmpfs /tmp on dev boxes)
-        // or reaches / on one filesystem (CI runners). Collapse both
-        // variants so the fixture is byte-stable across hosts.
-        .replace(
-            "fatal: not a git repository (or any parent up to mount point /)\nStopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).",
-            "<GIT-NOT-A-REPO>",
-        )
+        // The worktree line embeds git's discovery error verbatim. The
+        // harness pins GIT_CEILING_DIRECTORIES (see `start_command_env`) so
+        // discovery always stops at the workdir with this exact wording;
+        // collapse it to a token so the fixture doesn't hard-code git's
+        // message. If git ever rewords it, the replace misses and the
+        // fixture drifts loudly — the correct failure mode.
         .replace(
             "fatal: not a git repository (or any of the parent directories): .git",
             "<GIT-NOT-A-REPO>",
