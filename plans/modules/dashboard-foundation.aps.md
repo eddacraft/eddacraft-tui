@@ -146,6 +146,8 @@ Change status to **Ready** when:
 
 ### DASH-001: Vite dashboard app scaffold
 
+- **Status:** In Progress 2026-07-10 — scaffold started on
+  `feat/dash-001-dashboard-scaffold`.
 - **Intent:** Create the dedicated dashboard app host.
 - **Expected Outcome:** `apps/dashboard/` builds and serves a React 19 +
   Vite 8 app with TanStack Router, Tailwind v4, shadcn/ui configuration, and

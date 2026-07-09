@@ -1,0 +1,31 @@
+{
+  "name": "@eddacraft/anvil-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "dev": "vite --host 127.0.0.1",
+    "lint": "eslint .",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "^1.170.17",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "happy-dom": "^20.10.1",
+    "tailwindcss": "^4.3.2",
+    "typescript": "~6.0.3",
+    "vite": "^8.1.3",
+    "vitest": "^4.1.8"
+  }
+}

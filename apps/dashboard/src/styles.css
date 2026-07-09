@@ -1,0 +1,183 @@
+@import 'tailwindcss';
+
+:root {
+  color: #182016;
+  background: #f8faf7;
+  color-scheme: light;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.dashboard-root {
+  display: grid;
+  grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
+  min-height: 100vh;
+  background: linear-gradient(180deg, rgba(35, 86, 56, 0.05), transparent 22rem), #f8faf7;
+}
+
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  border-right: 1px solid #dfe7dd;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 1.25rem;
+}
+
+.dashboard-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.dashboard-brand-mark {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid #245338;
+  border-radius: 2px;
+  box-shadow: 0.28rem 0.28rem 0 #a9c9b2;
+}
+
+.dashboard-nav {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.dashboard-nav a {
+  border-radius: 6px;
+  color: #344337;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+}
+
+.dashboard-nav a[aria-current='page'] {
+  background: #e7f0e8;
+  color: #18351f;
+}
+
+.dashboard-stage {
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.dashboard-home {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 72rem;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #dfe7dd;
+  padding-block: 0.25rem 1.25rem;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2vw, 2.1rem);
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.dashboard-header p {
+  margin: 0.4rem 0 0;
+  color: #59685c;
+  font-size: 0.95rem;
+}
+
+.dashboard-status {
+  flex: 0 0 auto;
+  border: 1px solid #bed4c4;
+  border-radius: 6px;
+  background: #edf5ef;
+  color: #245338;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.55rem 0.65rem;
+}
+
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.dashboard-metric {
+  display: grid;
+  min-height: 7rem;
+  align-content: space-between;
+  border: 1px solid #dfe7dd;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 1rem;
+}
+
+.dashboard-metric span {
+  color: #59685c;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.dashboard-metric strong {
+  color: #182016;
+  font-size: 1.35rem;
+  font-weight: 760;
+}
+
+@media (max-width: 720px) {
+  .dashboard-root {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #dfe7dd;
+  }
+
+  .dashboard-header {
+    display: grid;
+  }
+
+  .dashboard-status {
+    width: fit-content;
+  }
+
+  .dashboard-metrics {
+    grid-template-columns: 1fr;
+  }
+}

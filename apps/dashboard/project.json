@@ -1,0 +1,39 @@
+{
+  "name": "dashboard",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/dashboard/src",
+  "tags": ["scope:dash", "type:app"],
+  "targets": {
+    "dev": {
+      "command": "pnpm dev",
+      "options": {
+        "cwd": "apps/dashboard"
+      }
+    },
+    "build": {
+      "command": "pnpm build",
+      "options": {
+        "cwd": "apps/dashboard"
+      }
+    },
+    "test": {
+      "command": "pnpm test",
+      "options": {
+        "cwd": "apps/dashboard"
+      }
+    },
+    "lint": {
+      "command": "pnpm lint",
+      "options": {
+        "cwd": "apps/dashboard"
+      }
+    },
+    "typecheck": {
+      "command": "pnpm typecheck",
+      "options": {
+        "cwd": "apps/dashboard"
+      }
+    }
+  }
+}
