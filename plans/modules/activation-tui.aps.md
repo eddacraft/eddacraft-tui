@@ -2,9 +2,20 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 0/9      |
+| ACTTUI | Josh  | In Progress | 1/13      |
 
-**Last reviewed:** 2026-07-09 — ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome, ACTTUI-005 verdict tree, ACTTUI-006 tier-evidence LogPanel, and ACTTUI-007 fixture hardening are In Progress across the stacked ACTTUI branches. ADR-103 proposed, fixture spec + fixture home created, public scripting contract documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally created via planning-workflow + planning-council direction-validate (four-lens stress test). Replaces the
+**Last reviewed:** 2026-07-10 — post-ACTTUI first-run council review
+([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+blocked the TTY-default flip because the opt-in `--tui` consent path is still a
+dead end. ACTTUI-009..012 now track the remediation wave. ACTTUI-000 planning
+gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002
+progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome,
+ACTTUI-005 verdict tree, ACTTUI-006 tier-evidence LogPanel, and ACTTUI-007
+fixture hardening are In Progress across the stacked ACTTUI branches. ADR-103
+proposed, fixture spec + fixture home created, public scripting contract
+documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally
+created via planning-workflow + planning-council direction-validate (four-lens
+stress test). Replaces the
 plain-text activation dossier and `demand` pickers with a single interactive
 surface built on `eddacraft-tui` widgets. **Start first, welcome second** —
 execution waves land activation before welcome convergence; the module plans the
@@ -337,6 +348,105 @@ tutorial story changes (WOW owns narrative).
 - **Validation:** `cargo test -p anvil-tui`; welcome snapshot drift review
 - **Confidence:** medium
 
+### ACTTUI-009: Wire activation TUI consent end to end
+
+- **Status:** Ready
+- **Source:** First-run council review C-001, C-002, C-003, C-005
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+- **Dependencies:** ACTTUI-004
+- **Intent:** The opt-in `anvil start --tui` path can actually collect consent
+  and perform selected MCP/workflow writes, without silently skipping install or
+  bypassing consent.
+- **Expected Outcome:** `commands/start.rs` builds a `ConsentState` from
+  pending GitHub Actions workflow offers and MCP install candidates before
+  opening the surface; `ActivationSurface::with_consent(...)` is used on the
+  production TUI path; the returned surface state is captured; ticked selections
+  drive the same workflow/MCP install primitives as the plain path; unticked
+  selections write nothing; gated `ANVIL_HOME` keeps repo-scoped offers disabled
+  with an explicit reason. The renderer rejects or visibly guards
+  `phase == Consent` with no consent model so the phase strip cannot show
+  Consent over a verdict body. Add a positive integration test proving
+  "tick ⇒ file write" and a negative test proving "Enter/no tick ⇒ no write".
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/install.rs`,
+  `crates/anvil-tui/src/surfaces/activation/{mod,consent,render}.rs`,
+  `crates/anvil-cli/tests/start.rs`,
+  `apps/e2e/src/cli/activation.e2e.test.ts`
+- **Validation:** `cargo test -p eddacraft-anvil start`; `cargo test -p
+  eddacraft-anvil-tui activation`; `pnpm e2e -- --testPathPattern activation`
+- **Confidence:** high
+
+### ACTTUI-010: Complete activation TUI contract matrix
+
+- **Status:** Ready
+- **Source:** First-run council review C-006, C-007, C-011, C-012
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+- **Dependencies:** ACTTUI-009
+- **Intent:** The rollout/default-flip contract is backed by executable fixtures
+  and PTY coverage rather than README-only fixture intent.
+- **Expected Outcome:** `anvil start --verify`, `--json`, compact plain, and
+  `--no-tui` / `ANVIL_NO_TUI=1` outputs are pinned by real fixtures, including
+  the opt-in flag on non-TTY stdio. A PTY test proves `--tui` enters the surface,
+  `q` exits cleanly, and raw mode is restored; snapshot tests cover Preflight,
+  Working, Consent, Verdict, and Done render states; the CIB-182 repair-hint copy
+  change is either explicitly accepted as a sanctioned fixture update or rolled
+  back to the byte-stable contract. This item is the hard gate before any
+  TTY-default flip.
+- **Files:** `crates/anvil-cli/tests/start.rs`,
+  `crates/anvil-cli/tests/fixtures/start-activation/`,
+  `apps/e2e/src/cli/activation.e2e.test.ts`,
+  `crates/anvil-tui/src/surfaces/activation/{mod,render}.rs`
+- **Validation:** `cargo test -p eddacraft-anvil start air_gapped`; `cargo test
+  -p eddacraft-anvil-tui activation`; `pnpm e2e -- --testPathPattern activation`
+- **Confidence:** high
+
+### ACTTUI-011: Drive verdict and evidence panes from typed activation data
+
+- **Status:** Ready
+- **Source:** First-run council review C-004, C-010
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+- **Dependencies:** ACTTUI-009
+- **Intent:** Activation TUI sections and tier evidence do not depend on
+  substring-parsing the human plain-output copy.
+- **Expected Outcome:** The TUI verdict tree is built from typed
+  `ActivationDiagnostic`, `InstallReport`, and `ActivationRun` data, using
+  `with_verdict_model(...)` or an equivalent typed constructor on the production
+  path. `LogPanel` rows are fed by typed lifecycle/evidence records instead of
+  indentation heuristics over `render_human_verbose`. Plain output remains the
+  authority for non-TUI users, but copy-only edits cannot silently misfile TUI
+  tree sections or log severity.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/render.rs`,
+  `crates/anvil-tui/src/surfaces/activation/{mod,verdict,log_panel}.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-tui activation`; `cargo test -p
+  eddacraft-anvil start`
+- **Confidence:** medium
+
+### ACTTUI-012: Activation TUI polish before default flip
+
+- **Status:** Proposed
+- **Source:** First-run council review C-013, C-014, C-015, C-017, C-018
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+- **Dependencies:** ACTTUI-010
+- **Intent:** Clear the remaining low-risk inconsistencies before making the
+  activation TUI the default terminal path.
+- **Expected Outcome:** Tier evidence can be opened in-surface without requiring
+  `--why` at process start; activation and welcome use one exit-key story;
+  dead consent helpers are either used by ACTTUI-009 or removed; `ANVIL_NO_TUI=`
+  empty-value semantics are either aligned with sibling env hatches or explicitly
+  documented as the exception; the `big-text`/`celebrate()` path is either wired
+  to a real first-run state or deferred with no unused default dependency. This
+  item does not block ACTTUI-009, but it blocks the TTY-default flip.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-tui/src/surfaces/activation/`,
+  `crates/anvil-tui/Cargo.toml`,
+  `docs/public/anvil/guides/start-output-contracts.md` (only if env semantics
+  change)
+- **Validation:** `cargo test -p eddacraft-anvil-tui activation`; `cargo test -p
+  eddacraft-anvil start`; `pnpm docs:check` if public env semantics change
+- **Confidence:** medium
+
 ## Sequencing
 
 ```text
@@ -352,6 +462,11 @@ Phase B (surfaces — parallel after 002):
 Phase C (ship gate — both surfaces must be green):
   ACTTUI-007 ∥ ACTTUI-006
   TTY-default flip only when start + welcome snapshots/e2e pass together
+
+Review remediation (post council-d4c804e6):
+  ACTTUI-009 → ACTTUI-010
+  ACTTUI-011 may run after 009
+  ACTTUI-012 blocks only the default flip
 ```
 
 **Release blocker:** ACTTUI-008 + WOW-001..004 complete, not optional for the

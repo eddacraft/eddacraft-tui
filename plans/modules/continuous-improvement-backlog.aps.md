@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 148/181  |
+| CIB | —     | In Progress | 148/184  |
 
 ## Purpose
 
@@ -4748,6 +4748,44 @@ archive.
   - [#3222](https://github.com/eddacraft/anvil-001/issues/3222) — status TUI
     blocks PTY/scripts (**P2**)
 - **Epic:** [#3223](https://github.com/eddacraft/anvil-001/issues/3223)
+
+### CIB-183: Quiet repeat `anvil start` success output
+
+- **Status:** Ready
+- **Intent:** A repeat `anvil start` run should not reprint the full first-run
+  recipe when the repo is already activated or the next action is already clear.
+- **Expected Outcome:** Repeat-success activation output collapses to the
+  protection state, daemon/driver posture, and one next step; first-run or repair
+  states still render the richer recipe when it is useful. The compact plain
+  path remains deterministic and the TUI path can reuse the same next-step
+  arbiter without duplicating copy.
+- **Validation:** `cargo test -p eddacraft-anvil start` with fixture or snapshot
+  coverage for first run, repeat `protecting`, and repair-state output.
+- **Identified From:** First-run council review C-008 in
+  [`plans/reviews/2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md)
+  and the earlier welcome/start user-journey audit.
+- **Coordinates with:** CIB-166 (one next-step arbiter), ACTTUI-010 (plain/TUI
+  contract fixtures).
+- **Confidence:** high
+
+### CIB-184: Default live MCP picker choices to unticked
+
+- **Status:** Ready
+- **Intent:** The live plain `anvil start` MCP picker should match the TUI
+  consent posture: no editor config write is selected by default.
+- **Expected Outcome:** In interactive plain mode, MCP candidates that are
+  offerable (`NotPresent` / `SafeDrift`) start unticked, and pressing Enter with
+  no explicit tick writes no MCP config. CI/piped/non-interactive auto-install
+  policy remains unchanged where existing orchestrator rules allow it; unsafe
+  drift remains refused. Help/copy makes the explicit opt-in posture clear.
+- **Validation:** `cargo test -p eddacraft-anvil mcp_client start` covering
+  demand-picker initial selection, Enter-without-tick no-write, and
+  non-interactive policy parity.
+- **Identified From:** First-run council review C-009 in
+  [`plans/reviews/2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md).
+- **Coordinates with:** CIB-165 (workflow picker default-unticked), ACTTUI-009
+  (TUI consent wiring).
+- **Confidence:** high
 
 ### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests
 

@@ -2,7 +2,7 @@
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| WOW | Josh  | In Progress | 0/6      |
+| WOW | Josh  | In Progress | 4/6      |
 
 **Last reviewed:** 2026-07-08 — module created via planning-workflow from the
 operator's first-run-experience review (interactive session): the tutorial's

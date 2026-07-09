@@ -5,7 +5,7 @@
 
 | ID    | Owner | Priority | Status      | Progress |
 | ----- | ----- | -------- | ----------- | -------- |
-| CLICT | —     | high     | In Progress | 0/7      |
+| CLICT | —     | high     | In Progress | 6/7      |
 
 **Last reviewed:** 2026-07-07 (CLICT-004..006 reconciled in docs/runbooks/public
 copy; runtime registry + slices 1–6 tracked in

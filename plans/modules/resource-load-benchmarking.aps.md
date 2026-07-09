@@ -2,7 +2,7 @@
 
 | ID  | Owner  | Priority | Status      | Progress |
 | --- | ------ | -------- | ----------- | -------- |
-| RLB | @aneki | high     | In Progress | 7/9      |
+| RLB | @aneki | high     | In Progress | 8/9      |
 
 **Last reviewed:** 2026-05-31 — filed from the beta-tester high-CPU report;
 tracked in GH [#2156](https://github.com/eddacraft/anvil-001/issues/2156).
