@@ -2,9 +2,15 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 1/13      |
+| ACTTUI | Josh  | In Progress | 2/13      |
 
-**Last reviewed:** 2026-07-10 — post-ACTTUI first-run council review
+**Last reviewed:** 2026-07-10 — ACTTUI-009..011 implementation milestone
+is active on `feat/acttui-009-consent-wiring`. Consent now binds exact selected
+targets and applies only after explicit submission; the contract matrix includes
+real PTY restoration and all-phase snapshots; verdict/evidence models are built
+from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
+e2e checks pass locally. ACTTUI-012 remains Proposed behind the readiness gate.
+The earlier post-ACTTUI first-run council review
 ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 blocked the TTY-default flip because the opt-in `--tui` consent path is still a
 dead end. ACTTUI-009..012 now track the remediation wave. ACTTUI-000 planning
@@ -350,7 +356,8 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-009: Wire activation TUI consent end to end
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-10 — implemented and validated locally on
+  `feat/acttui-009-consent-wiring`; awaiting branch integration.
 - **Source:** First-run council review C-001, C-002, C-003, C-005
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-004
@@ -374,12 +381,15 @@ tutorial story changes (WOW owns narrative).
   `crates/anvil-cli/tests/start.rs`,
   `apps/e2e/src/cli/activation.e2e.test.ts`
 - **Validation:** `cargo test -p eddacraft-anvil start`; `cargo test -p
-  eddacraft-anvil-tui activation`; `pnpm e2e -- --testPathPattern activation`
+  eddacraft-anvil-tui activation`; `pnpm --filter @eddacraft/anvil-e2e exec
+  vitest run src/cli/activation.e2e.test.ts`
 - **Confidence:** high
 
 ### ACTTUI-010: Complete activation TUI contract matrix
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-10 — implemented and validated locally on
+  `feat/acttui-009-consent-wiring`; awaiting branch integration. CIB-182's
+  existing repair-hint fixture change is accepted as the sanctioned contract.
 - **Source:** First-run council review C-006, C-007, C-011, C-012
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
@@ -397,13 +407,15 @@ tutorial story changes (WOW owns narrative).
   `crates/anvil-cli/tests/fixtures/start-activation/`,
   `apps/e2e/src/cli/activation.e2e.test.ts`,
   `crates/anvil-tui/src/surfaces/activation/{mod,render}.rs`
-- **Validation:** `cargo test -p eddacraft-anvil start air_gapped`; `cargo test
-  -p eddacraft-anvil-tui activation`; `pnpm e2e -- --testPathPattern activation`
+- **Validation:** `cargo test -p eddacraft-anvil start`; `cargo test -p
+  eddacraft-anvil-tui activation`; `pnpm --filter @eddacraft/anvil-e2e exec
+  vitest run src/cli/activation.e2e.test.ts`
 - **Confidence:** high
 
 ### ACTTUI-011: Drive verdict and evidence panes from typed activation data
 
-- **Status:** Ready
+- **Status:** In Progress 2026-07-10 — implemented and validated locally on
+  `feat/acttui-009-consent-wiring`; awaiting branch integration.
 - **Source:** First-run council review C-004, C-010
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009

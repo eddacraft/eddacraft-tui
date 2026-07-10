@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 148/184  |
+| CIB | —     | In Progress | 148/185  |
 
 ## Purpose
 
@@ -4801,3 +4801,26 @@ archive.
   original two `opa.rs`-based test references were dropped as dead (module
   deleted in ADR-098 PR-C). Validated with 20 consecutive
   `cargo test -p eddacraft-anvil-policy` runs, zero ETXTBSY.
+
+### CIB-185: Make workflow consent writes race-safe against parent replacement
+
+- **Status:** Proposed
+- **Intent:** Keep an explicitly selected GitHub Actions workflow write bound to
+  the parent directory that was consented, even if another process replaces or
+  redirects `.github/workflows` between the consent probe and the write.
+- **Expected Outcome:** Workflow installation uses a portable directory-bound
+  or equivalent no-follow strategy plus atomic replacement, rejects parent
+  symlink/reparse-point swaps at apply time, and cannot leave a truncated target
+  if the write fails. The existing exact-selection and gated-write contracts
+  remain unchanged.
+- **Files:** `crates/anvil-cli/src/activation/orchestrator/mod.rs`, workflow
+  installation helpers under `crates/anvil-cli/src/commands/` as discovered.
+- **Validation:** Adversarial tests swap the workflow parent after consent and
+  assert no write escapes the repository on Unix and Windows-supported paths;
+  targeted activation tests and strict Clippy pass.
+- **Identified From:** ACTTUI-009 milestone Council review; the race predates
+  ACTTUI and was not widened by the consent wiring.
+- **Coordinates with:** ACTTUI-009 (exact consent target binding), repository
+  atomic-write utilities, Windows reparse-point handling.
+- **Confidence:** medium — security boundary is clear; portable implementation
+  needs a dedicated design pass.
