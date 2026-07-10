@@ -35,10 +35,37 @@ a {
   text-decoration: none;
 }
 
+.dashboard-skip-link {
+  position: fixed;
+  z-index: 10;
+  top: 0.75rem;
+  left: 0.75rem;
+  border: 2px solid #245338;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #18351f;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.55rem 0.75rem;
+  transform: translateY(-150%);
+  transition: transform 120ms ease-out;
+}
+
+.dashboard-skip-link:focus {
+  transform: translateY(0);
+}
+
+.dashboard-root a:focus-visible,
+.dashboard-stage:focus-visible {
+  outline: 2px solid #245338;
+  outline-offset: 3px;
+}
+
 .dashboard-root {
   display: grid;
   grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(180deg, rgba(35, 86, 56, 0.05), transparent 22rem), #f8faf7;
 }
 
@@ -121,47 +148,52 @@ a {
 
 .dashboard-status {
   flex: 0 0 auto;
-  border: 1px solid #bed4c4;
+  border: 1px solid #cbd4ca;
   border-radius: 6px;
-  background: #edf5ef;
-  color: #245338;
+  background: #f1f3f0;
+  color: #4b584d;
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1;
   padding: 0.55rem 0.65rem;
 }
 
-.dashboard-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.dashboard-metric {
-  display: grid;
-  min-height: 7rem;
-  align-content: space-between;
+.dashboard-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
   border: 1px solid #dfe7dd;
   border-radius: 8px;
   background: #ffffff;
-  padding: 1rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
-.dashboard-metric span {
+.dashboard-empty-mark {
+  flex: 0 0 auto;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-top: 0.35rem;
+  border: 2px solid #718074;
+  border-radius: 50%;
+}
+
+.dashboard-empty h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 720;
+}
+
+.dashboard-empty p {
+  max-width: 42rem;
+  margin: 0.4rem 0 0;
   color: #59685c;
-  font-size: 0.82rem;
-  font-weight: 650;
-}
-
-.dashboard-metric strong {
-  color: #182016;
-  font-size: 1.35rem;
-  font-weight: 760;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 720px) {
   .dashboard-root {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
 
   .dashboard-sidebar {
@@ -176,8 +208,10 @@ a {
   .dashboard-status {
     width: fit-content;
   }
+}
 
-  .dashboard-metrics {
-    grid-template-columns: 1fr;
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-skip-link {
+    transition: none;
   }
 }

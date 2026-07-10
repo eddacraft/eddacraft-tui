@@ -7,30 +7,35 @@
   "targets": {
     "dev": {
       "command": "pnpm dev",
+      "inputs": ["default", "^production"],
       "options": {
         "cwd": "apps/dashboard"
       }
     },
     "build": {
       "command": "pnpm build",
+      "inputs": ["production", "{projectRoot}/vite.config.ts", "^production"],
       "options": {
         "cwd": "apps/dashboard"
       }
     },
     "test": {
       "command": "pnpm test",
+      "inputs": ["default", "^production"],
       "options": {
         "cwd": "apps/dashboard"
       }
     },
     "lint": {
       "command": "pnpm lint",
+      "inputs": ["default", "^production"],
       "options": {
         "cwd": "apps/dashboard"
       }
     },
     "typecheck": {
       "command": "pnpm typecheck",
+      "inputs": ["default", "^production"],
       "options": {
         "cwd": "apps/dashboard"
       }

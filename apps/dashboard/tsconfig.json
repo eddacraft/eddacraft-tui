@@ -8,7 +8,10 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
-    "types": ["vite/client", "vitest/globals"]
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["node", "vite/client", "vitest/globals"]
   },
   "include": ["src", "vite.config.ts"]
 }
