@@ -637,13 +637,19 @@ fn add_tui_project_offers(
             || root.join(".anvilrc"),
             |format| root.join(format!(".anvil.{}", format.extension())),
         );
+        let description = config_format.map_or_else(
+            || {
+                format!(
+                    "Create {} and its documented local project support files",
+                    target.display(),
+                )
+            },
+            |_| format!("Create {}", target.display()),
+        );
         offers.push(TuiConsentOffer {
             id: id.clone(),
             label: "Project configuration".to_string(),
-            description: format!(
-                "Create {} and its documented local project support files",
-                target.display(),
-            ),
+            description,
             kind: TuiConsentOfferKind::Project,
             repo_scoped: true,
             unsafe_drift: None,
@@ -1950,6 +1956,49 @@ verdict: completed"
         assert!(!dir.path().join(".github").exists());
         assert!(!home.path().join(".cursor/mcp.json").exists());
         assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn config_consent_discloses_the_write_set_for_each_init_path() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+
+        let default_plan = build_tui_consent_plan_with_project_options(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+            None,
+            false,
+        );
+        let default_offer = default_plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "project:init-config")
+            .unwrap();
+        assert!(default_offer.description.contains("support files"));
+
+        let formatted_plan = build_tui_consent_plan_with_project_options(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+            Some(anvil_config::ConfigFormat::Json),
+            false,
+        );
+        let formatted_offer = formatted_plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "project:init-config")
+            .unwrap();
+        assert_eq!(
+            formatted_offer.description,
+            format!("Create {}", dir.path().join(".anvil.json").display())
+        );
     }
 
     #[test]
