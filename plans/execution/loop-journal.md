@@ -611,6 +611,30 @@ never with feature work.
 - Next: CIB-184 (unticked MCP picker) and WOW-005 (first-win reroute) in
   parallel worktrees; CIB-183 after CIB-184.
 
+## Cycle — 2026-07-11 (DASH Wave 1 truth and design reconciliation)
+
+- Items: DASH-002, DASH-003, DASH-004 — first dashboard-foundation execution
+  group after the DASH-001 scaffold.
+- Outcome: replanned — the approved desktop concept gained its mobile sibling
+  and semantic design contract; the server/client stack and endpoint ownership
+  are now explicit before implementation.
+- Validation: dashboard baseline 1 file / 3 tests green with the managed-sandbox
+  Nx cache override; `pnpm aps:active-lint` 117 files clean; `pnpm docs:check`
+  8/8; `pnpm format:check` and `git diff --check` green.
+- Review: read-only council found the original action plan stale (DASH-001 and
+  DASH-009 unchecked, HTTP/OpenAPI/codegen choices omitted, no DASH journal
+  entry). The plan now selects Axum 0.8, deterministic Rust OpenAPI output,
+  `openapi-typescript`/`openapi-fetch`, same-origin Vite proxying, and explicit
+  contract-first ownership for the Protection Overview and Plan Driver DTOs.
+- Plan changes: refreshed `plans/execution/DASH-wave-1.actions.md`; marked
+  DASH-002/003/004 In Progress without changing aggregate counters; kept shipped
+  binary packaging and a public `anvil dashboard` command behind a later
+  architecture/public-contract checkpoint.
+- Checkpoints raised: none — the owner approved the quick shadcn/Recharts path;
+  Wave 1 remains local, loopback-only, read-only, and inside ADR-104.
+- Next: implement DASH-002, DASH-003, and DASH-004 through TDD, then continue the
+  dependency chain.
+
 ## Cycle — 2026-07-12 (JOURNEY release-cut wave complete)
 
 - Items: full JOURNEY conductor release cut — CIB-184 (#3279), WOW-005

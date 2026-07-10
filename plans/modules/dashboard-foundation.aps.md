@@ -170,6 +170,8 @@ Change status to **Ready** when:
 
 ### DASH-002: Dashboard module host and navigation
 
+- **Status:** In Progress 2026-07-11 — first Wave 1 implementation group on
+  `feat/dash-001-dashboard-scaffold`.
 - **Intent:** Define the dashboard module adapter shape and navigation registry.
 - **Expected Outcome:** Dashboard modules register manifests with route entries,
   nav metadata, query bindings, renderers, and optional action-request
@@ -189,6 +191,8 @@ Change status to **Ready** when:
 
 ### DASH-003: Theme and component catalogue
 
+- **Status:** In Progress 2026-07-11 — first Wave 1 implementation group on
+  `feat/dash-001-dashboard-scaffold`.
 - **Intent:** Build the shared UI primitives and json-render catalogue used by
   dashboard modules.
 - **Expected Outcome:** Dashboard theme tokens cover severity, status, and chart
@@ -213,6 +217,8 @@ Change status to **Ready** when:
 
 ### DASH-004: Local dashboard server crate
 
+- **Status:** In Progress 2026-07-11 — first Wave 1 implementation group on
+  `feat/dash-001-dashboard-scaffold`.
 - **Intent:** Create the Rust server boundary for local dashboard data.
 - **Expected Outcome:** `crates/anvil-dashboard-server/` exposes a loopback-only
   read-only HTTP server with health and OpenAPI endpoints. It does not implement
