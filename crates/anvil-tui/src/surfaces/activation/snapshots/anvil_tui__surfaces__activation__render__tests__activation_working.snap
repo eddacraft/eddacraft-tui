@@ -1,0 +1,28 @@
+---
+source: crates/anvil-tui/src/surfaces/activation/render.rs
+expression: "render_to_string(&working, 100, 24)"
+---
+                                                                                                    
+  Preflight > [Working] > Consent > Verdict > Done                                                  
+                                                                                                    
+  ────────────────────────────────────────────────────────────────────────────────────────────────  
+  - Ensuring save-time daemon                                                                       
+  ┌Activation progress (1/1)─────────────────────────────────────────────────────────────────────┐  
+  │Initial probe ◆ 100%                                                                 --       │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────┘  
+  ◈ state: ready_restart_required                                                                   
+  Activation state: ready_restart_required                                                          
+  ┌ Activation verdict ──────────────────────────────────────────────────────────────────────────┐  
+  │▼ Activation                                                                                  │  
+  │  · state: ready_restart_required                                                             │  
+  │  · next: restart editor                                                                      │  
+  │· Layers                                                                                      │  
+  │· Install                                                                                     │  
+  │· Languages                                                                                   │  
+  │· Config                                                                                      │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────┘  
+  [↑/↓] Move  [enter/space] Expand  [t] Smoke  [l] Logs  [q] Quit

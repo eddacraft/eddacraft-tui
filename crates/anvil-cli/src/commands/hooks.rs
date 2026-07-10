@@ -1033,6 +1033,23 @@ pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<b
     Ok(managed)
 }
 
+/// Read-only counterpart to [`install_activation_hooks_silent`].
+///
+/// The activation TUI uses this during preflight so it can offer hook writes
+/// without creating `.git/hooks` before the operator submits consent.
+pub(crate) fn activation_hooks_active(workspace_root: &Path) -> Result<bool> {
+    if !workspace_root.join(".git").exists() {
+        return Ok(false);
+    }
+    let git_dir = resolve_git_dir(workspace_root)?;
+    let hooks_dir = detect_husky(workspace_root)
+        .1
+        .unwrap_or_else(|| git_dir.join("hooks"));
+    let managed = is_anvil_managed(&hooks_dir.join("pre-commit"))
+        && is_anvil_managed(&hooks_dir.join("pre-push"));
+    Ok(managed && !matches!(hook_interpreter_status(), HookInterpreterStatus::Missing))
+}
+
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = find_repo_root()?;

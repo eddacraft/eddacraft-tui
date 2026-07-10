@@ -57,6 +57,9 @@ export interface CliRunOptions {
   cwd?: string;
   env?: Record<string, string | undefined>;
   timeout?: number;
+  /** Keep the shared CI/no-TUI guard on by default; disable only in tests that
+   * explicitly exercise stdio-based interactivity detection. */
+  forceNonInteractive?: boolean;
 }
 
 /** Returns true when a Rust `anvil` binary exists to run against. */
@@ -79,7 +82,7 @@ export function assertCliBuild(): void {
 }
 
 export function runCli(args: string[], options: CliRunOptions = {}): Promise<CliResult> {
-  const { cwd = process.cwd(), env = {}, timeout = 15_000 } = options;
+  const { cwd = process.cwd(), env = {}, timeout = 15_000, forceNonInteractive = true } = options;
   const binary = resolveCliBinary();
   if (!binary) {
     return Promise.resolve({
@@ -90,6 +93,17 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
     });
   }
 
+  const childEnv: Record<string, string> = {};
+  for (const [key, value] of Object.entries({
+    ...process.env,
+    ...env,
+    NO_COLOR: '1',
+    FORCE_COLOR: '0',
+    ...(forceNonInteractive ? { CI: 'true', NO_TUI: '1' } : {}),
+  })) {
+    if (value !== undefined) childEnv[key] = value;
+  }
+
   return new Promise((resolve) => {
     execFile(
       binary,
@@ -97,14 +111,7 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
       {
         cwd,
         timeout,
-        env: {
-          ...process.env,
-          ...env,
-          NO_COLOR: '1',
-          FORCE_COLOR: '0',
-          CI: 'true',
-          NO_TUI: '1',
-        },
+        env: childEnv,
         maxBuffer: 10 * 1024 * 1024,
       },
       (error, stdout, stderr) => {

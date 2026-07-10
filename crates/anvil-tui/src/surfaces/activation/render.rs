@@ -43,13 +43,36 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
             &mut panel_state,
             theme,
         );
-    } else if state.phase() == ActivationPhase::Consent
-        && let Some(consent) = state.consent()
-    {
-        crate::surfaces::activation::consent::render(frame, chunks[3], consent, theme);
+    } else if state.phase() == ActivationPhase::Consent {
+        if let Some(consent) = state.consent() {
+            crate::surfaces::activation::consent::render(frame, chunks[3], consent, theme);
+        } else {
+            render_missing_consent_guard(frame, chunks[3], theme);
+        }
     } else {
         crate::surfaces::activation::verdict::render(frame, chunks[3], state.verdict_view(), theme);
     }
+}
+
+fn render_missing_consent_guard(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.warning()))
+        .title(" Consent unavailable ");
+    let text = vec![
+        Line::styled(
+            "Consent is unavailable for this activation run.",
+            Style::default()
+                .fg(theme.warning())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Line::from("No project or editor changes have been applied."),
+        Line::styled(
+            "Press q to leave, then re-run `anvil start --tui`.",
+            Style::default().fg(theme.muted()),
+        ),
+    ];
+    frame.render_widget(Paragraph::new(text).block(block), area);
 }
 
 fn render_phase_strip(
@@ -76,9 +99,14 @@ fn render_phase_strip(
                     .add_modifier(Modifier::BOLD),
                 std::cmp::Ordering::Greater => Style::default().fg(theme.muted()),
             };
+            let label = if *phase == current {
+                format!("[{}]", phase.label())
+            } else {
+                phase.label().to_string()
+            };
             let separator = if idx < phases.len() - 1 { " > " } else { "" };
             vec![
-                Span::styled(phase.label(), style),
+                Span::styled(label, style),
                 Span::styled(separator, Style::default().fg(theme.muted())),
             ]
         })
@@ -147,6 +175,7 @@ fn render_working_progress(
     progress_state.checks = checks;
     ParallelProgress::new(theme)
         .title("Activation progress")
+        .show_overall(false)
         .show_eta(false)
         .render(chunks[1], frame.buffer_mut(), &mut progress_state);
 }
@@ -199,6 +228,7 @@ mod tests {
         let out = render_to_string(&surface, 80, 20);
         assert!(out.contains("Preflight"));
         assert!(out.contains("Verdict"));
+        assert!(out.contains("[Verdict]"));
         assert!(out.contains("state: protecting"));
         assert!(out.contains("Activation verdict"));
         assert!(out.contains("Smoke"));
@@ -232,8 +262,10 @@ mod tests {
         assert!(out.contains("Activation progress"));
         assert!(out.contains("Ensuring save-time daemon"));
         assert!(out.contains("Initial probe"));
+        assert!(!out.contains("Overall"));
         assert!(out.contains("MCP consent"));
-        assert!(out.contains("ready_restart_required"));
+        assert!(out.contains("Consent is unavailable"));
+        assert!(!out.contains("Activation verdict"));
     }
 
     #[test]
@@ -256,6 +288,23 @@ mod tests {
         let out = render_to_string(&surface, 100, 24);
         assert!(out.contains("Consent"));
         assert!(out.contains("Cursor MCP"));
+        assert!(!out.contains("Activation verdict"));
+    }
+
+    #[test]
+    fn consent_phase_without_model_renders_an_invariant_guard() {
+        let surface = ActivationSurface::from_verdict_with_progress(
+            "ACTIVATION\n  state: ready_restart_required\n",
+            false,
+            vec![],
+            vec![],
+            false,
+            ActivationPhase::Consent,
+        );
+
+        let out = render_to_string(&surface, 100, 24);
+
+        assert!(out.contains("Consent is unavailable"));
         assert!(!out.contains("Activation verdict"));
     }
 
@@ -288,5 +337,61 @@ mod tests {
         let out = render_to_string(&surface, 100, 22);
         assert!(out.contains("ANVIL_HOME gated"));
         assert!(out.contains("Project writes are gated"));
+    }
+
+    #[test]
+    fn snapshots_cover_every_activation_phase() {
+        let verdict = "ACTIVATION\n  state: ready_restart_required\n  next: restart editor\n";
+
+        let mut preflight = ActivationSurface::from_verdict(verdict, false);
+        preflight.phase = ActivationPhase::Preflight;
+        assert!(render_to_string(&preflight, 100, 22).contains("[Preflight]"));
+        insta::assert_snapshot!(
+            "activation_preflight",
+            render_to_string(&preflight, 100, 22)
+        );
+
+        let working = ActivationSurface::from_verdict_with_progress(
+            verdict,
+            false,
+            vec!["initial-probe: completed".to_string()],
+            vec![super::super::ActivationProgressStep::new(
+                "initial-probe",
+                "Initial probe",
+                ActivationProgressStatus::Passed,
+            )],
+            true,
+            ActivationPhase::Working,
+        );
+        assert!(render_to_string(&working, 100, 24).contains("[Working]"));
+        insta::assert_snapshot!("activation_working", render_to_string(&working, 100, 24));
+
+        let consent = crate::surfaces::activation::ConsentState::new(
+            vec![crate::surfaces::activation::ConsentItem::new(
+                "mcp:cursor",
+                "Cursor MCP",
+                "Write ~/.cursor/mcp.json",
+                crate::surfaces::activation::ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let consent_surface = ActivationSurface::from_verdict(verdict, false).with_consent(consent);
+        assert!(render_to_string(&consent_surface, 100, 22).contains("[Consent]"));
+        insta::assert_snapshot!(
+            "activation_consent",
+            render_to_string(&consent_surface, 100, 22)
+        );
+
+        let verdict_surface = ActivationSurface::from_verdict(verdict, false);
+        assert!(render_to_string(&verdict_surface, 100, 22).contains("[Verdict]"));
+        insta::assert_snapshot!(
+            "activation_verdict",
+            render_to_string(&verdict_surface, 100, 22)
+        );
+
+        let mut done = ActivationSurface::from_verdict(verdict, false);
+        done.phase = ActivationPhase::Done;
+        assert!(render_to_string(&done, 100, 22).contains("[Done]"));
+        insta::assert_snapshot!("activation_done", render_to_string(&done, 100, 22));
     }
 }

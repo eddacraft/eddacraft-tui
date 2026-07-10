@@ -173,6 +173,7 @@ pub(crate) struct Candidate {
     /// own conventions and avoids polluting the workspace with editor
     /// state files).
     pub target_path: PathBuf,
+    pub scope: ConfigScope,
     pub drift: DriftClass,
     /// Pre-parsed config for the target file, if it exists. Re-used
     /// during install so we don't read + parse twice.
@@ -214,64 +215,50 @@ pub(crate) fn install_for_clients_with_consent_mode(
     consent_mode: InstallConsentMode,
     enabled: &BTreeSet<McpClientId>,
 ) -> InstallReport {
+    install_for_clients_with_selection(
+        workspace,
+        home,
+        fresh,
+        enabled,
+        InstallSelection::Mode(consent_mode),
+    )
+}
+
+/// Apply the exact MCP client set returned by the activation TUI.
+///
+/// Unlike [`install_for_clients`], this path never auto-selects safe drift or
+/// fresh candidates: an empty selection is a deliberate no-write decision.
+pub(crate) fn install_selected_clients(
+    workspace: &Path,
+    home: Option<&Path>,
+    fresh: &AnvilEntry,
+    enabled: &BTreeSet<McpClientId>,
+    selected: &BTreeMap<McpClientId, Candidate>,
+) -> InstallReport {
+    install_for_clients_with_selection(
+        workspace,
+        home,
+        fresh,
+        enabled,
+        InstallSelection::Explicit(selected),
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InstallSelection<'a> {
+    Mode(InstallConsentMode),
+    Explicit(&'a BTreeMap<McpClientId, Candidate>),
+}
+
+fn install_for_clients_with_selection(
+    workspace: &Path,
+    home: Option<&Path>,
+    fresh: &AnvilEntry,
+    enabled: &BTreeSet<McpClientId>,
+    selection: InstallSelection<'_>,
+) -> InstallReport {
     let candidates = collect_candidates(workspace, home, fresh);
-
-    // ACTMO-012: a *fresh* MCP write only happens for an editor we
-    // actually detected (binary on PATH / pre-existing editor state),
-    // or when the user opted into every client (`enabled` carries the
-    // resolved set). An existing anvil entry (any drift other than
-    // `NotPresent`) is always managed regardless of detection — we never
-    // orphan a config anvil previously wrote, and we still refuse
-    // `UnsafeDrift`. This is the gate that stops `anvil start` writing
-    // `~/.cursor/mcp.json` for an editor the user never used (Matt beta
-    // smoke).
-    let offerable =
-        |c: &Candidate| enabled.contains(&c.id) || !matches!(c.drift, DriftClass::NotPresent);
-
-    // Trim candidates that have no actionable choice. The picker
-    // never offers UpToDate (nothing to do) or UnsafeDrift (refused
-    // regardless of selection — see the install gate below), nor a
-    // fresh write for an undetected editor. All are surfaced in the
-    // post-install human render block instead.
-    let mut picker_inputs: Vec<&Candidate> = candidates.iter().collect();
-    picker_inputs.retain(|c| {
-        offerable(c)
-            && !matches!(
-                c.drift,
-                DriftClass::UpToDate | DriftClass::UnsafeDrift { .. }
-            )
-    });
-
-    let chosen_ids: Vec<McpClientId> = match consent_mode {
-        InstallConsentMode::DemandPicker if !picker_inputs.is_empty() => {
-            match show_picker(&picker_inputs) {
-                Ok(ids) => ids,
-                Err(e) => {
-                    // Picker I/O fault (TTY went away mid-prompt, etc.).
-                    // Treat as zero selections rather than aborting — the
-                    // orchestrator's final verify still runs and the
-                    // diagnostic captures the partial state.
-                    tracing::warn!(error = %e, "mcp install: picker failed; treating as zero selection");
-                    Vec::new()
-                }
-            }
-        }
-        InstallConsentMode::DemandPicker | InstallConsentMode::AutoInstall => {
-            // Non-interactive / nothing to ask: auto-install NotPresent +
-            // SafeDrift, preserving the existing plain-path behaviour.
-            picker_inputs
-                .iter()
-                .filter(|c| {
-                    matches!(
-                        c.drift,
-                        DriftClass::NotPresent | DriftClass::SafeDrift { .. }
-                    )
-                })
-                .map(|c| c.id)
-                .collect()
-        }
-        InstallConsentMode::DeferToTui => Vec::new(),
-    };
+    let chosen_ids = resolve_chosen_ids(&candidates, enabled, selection);
 
     let mut per_client = BTreeMap::new();
     // Iterate clients alongside candidates so install_one has the
@@ -283,52 +270,8 @@ pub(crate) fn install_for_clients_with_consent_mode(
             candidate.id,
             "candidate / registry order drift",
         );
-        let outcome = match &candidate.drift {
-            DriftClass::UpToDate => {
-                if candidate.id == McpClientId::ClaudeCode {
-                    best_effort_claude_allow_list(&candidate.target_path);
-                }
-                tracing::debug!(
-                    client = %candidate.id,
-                    path = %candidate.target_path.display(),
-                    "mcp install: skipped — already up to date",
-                );
-                InstallOutcome::Skipped {
-                    reason: SkipReason::AlreadyUpToDate,
-                }
-            }
-            DriftClass::UnsafeDrift { reason } => {
-                tracing::warn!(
-                    client = %candidate.id,
-                    path = %candidate.target_path.display(),
-                    reason = %reason,
-                    "mcp install: refusing to overwrite — UnsafeDrift",
-                );
-                InstallOutcome::Skipped {
-                    reason: SkipReason::UnsafeDrift(reason.clone()),
-                }
-            }
-            DriftClass::NotPresent | DriftClass::SafeDrift { .. } => {
-                if !offerable(candidate) {
-                    // Undetected editor with no existing anvil entry —
-                    // do not create a config for an editor the user may
-                    // never use (ACTMO-012).
-                    tracing::debug!(
-                        client = %candidate.id,
-                        "mcp install: skipped — editor not detected",
-                    );
-                    InstallOutcome::Skipped {
-                        reason: SkipReason::EditorNotDetected,
-                    }
-                } else if chosen_ids.contains(&candidate.id) {
-                    install_one(*client, candidate, fresh)
-                } else {
-                    InstallOutcome::Skipped {
-                        reason: unchosen_skip_reason(consent_mode, candidate.id),
-                    }
-                }
-            }
-        };
+        let outcome =
+            install_candidate_outcome(*client, candidate, fresh, enabled, &chosen_ids, selection);
         per_client.insert(candidate.id, outcome);
     }
     InstallReport {
@@ -341,14 +284,149 @@ pub(crate) fn install_for_clients_with_consent_mode(
     }
 }
 
+fn candidate_offerable(candidate: &Candidate, enabled: &BTreeSet<McpClientId>) -> bool {
+    enabled.contains(&candidate.id) || !matches!(candidate.drift, DriftClass::NotPresent)
+}
+
+fn resolve_chosen_ids(
+    candidates: &[Candidate],
+    enabled: &BTreeSet<McpClientId>,
+    selection: InstallSelection<'_>,
+) -> Vec<McpClientId> {
+    let picker_inputs = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate_offerable(candidate, enabled)
+                && !matches!(
+                    candidate.drift,
+                    DriftClass::UpToDate | DriftClass::UnsafeDrift { .. }
+                )
+        })
+        .collect::<Vec<_>>();
+
+    match selection {
+        InstallSelection::Explicit(selected) => selected.keys().copied().collect(),
+        InstallSelection::Mode(InstallConsentMode::DemandPicker) if !picker_inputs.is_empty() => {
+            show_picker(&picker_inputs).unwrap_or_else(|error| {
+                tracing::warn!(%error, "mcp install: picker failed; treating as zero selection");
+                Vec::new()
+            })
+        }
+        InstallSelection::Mode(
+            InstallConsentMode::DemandPicker | InstallConsentMode::AutoInstall,
+        ) => picker_inputs
+            .iter()
+            .filter(|candidate| {
+                matches!(
+                    candidate.drift,
+                    DriftClass::NotPresent | DriftClass::SafeDrift { .. }
+                )
+            })
+            .map(|candidate| candidate.id)
+            .collect(),
+        InstallSelection::Mode(InstallConsentMode::DeferToTui) => Vec::new(),
+    }
+}
+
+fn install_candidate_outcome(
+    client: &dyn McpClient,
+    candidate: &Candidate,
+    fresh: &AnvilEntry,
+    enabled: &BTreeSet<McpClientId>,
+    chosen_ids: &[McpClientId],
+    selection: InstallSelection<'_>,
+) -> InstallOutcome {
+    if let InstallSelection::Explicit(expected) = selection
+        && let Some(expected) = expected
+            .get(&candidate.id)
+            .filter(|expected| !same_consent_target(expected, candidate))
+    {
+        return InstallOutcome::Failed {
+            error: format!(
+                "consent offer changed before apply: approved {}, now {}; re-run `anvil start --tui`",
+                expected.target_path.display(),
+                candidate.target_path.display(),
+            ),
+        };
+    }
+
+    match &candidate.drift {
+        DriftClass::UpToDate => {
+            if candidate.id == McpClientId::ClaudeCode
+                && matches!(
+                    selection,
+                    InstallSelection::Mode(
+                        InstallConsentMode::DemandPicker | InstallConsentMode::AutoInstall
+                    )
+                )
+            {
+                best_effort_claude_allow_list(&candidate.target_path);
+            }
+            tracing::debug!(
+                client = %candidate.id,
+                path = %candidate.target_path.display(),
+                "mcp install: skipped — already up to date",
+            );
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate,
+            }
+        }
+        DriftClass::UnsafeDrift { reason } => {
+            tracing::warn!(
+                client = %candidate.id,
+                path = %candidate.target_path.display(),
+                reason = %reason,
+                "mcp install: refusing to overwrite — UnsafeDrift",
+            );
+            InstallOutcome::Skipped {
+                reason: SkipReason::UnsafeDrift(reason.clone()),
+            }
+        }
+        DriftClass::NotPresent | DriftClass::SafeDrift { .. }
+            if !candidate_offerable(candidate, enabled) =>
+        {
+            tracing::debug!(
+                client = %candidate.id,
+                "mcp install: skipped — editor not detected",
+            );
+            InstallOutcome::Skipped {
+                reason: SkipReason::EditorNotDetected,
+            }
+        }
+        DriftClass::NotPresent | DriftClass::SafeDrift { .. }
+            if chosen_ids.contains(&candidate.id) =>
+        {
+            install_one(
+                client,
+                candidate,
+                fresh,
+                !matches!(selection, InstallSelection::Explicit(_)),
+            )
+        }
+        DriftClass::NotPresent | DriftClass::SafeDrift { .. } => InstallOutcome::Skipped {
+            reason: unchosen_skip_reason(selection, candidate.id),
+        },
+    }
+}
+
+fn same_consent_target(expected: &Candidate, actual: &Candidate) -> bool {
+    expected.id == actual.id
+        && expected.target_path == actual.target_path
+        && expected.scope == actual.scope
+        && expected.drift == actual.drift
+}
+
 /// Skip reason for an offerable client that was not chosen for install.
 ///
 /// In TUI mode no legacy picker was shown — consent is owned by the activation
 /// surface — so the client is recorded as [`SkipReason::ConsentDeferredToTui`]
 /// rather than [`SkipReason::UserDeselected`], which would misrepresent an
 /// unshown picker as an explicit user deselection.
-fn unchosen_skip_reason(consent_mode: InstallConsentMode, client: McpClientId) -> SkipReason {
-    if matches!(consent_mode, InstallConsentMode::DeferToTui) {
+fn unchosen_skip_reason(selection: InstallSelection<'_>, client: McpClientId) -> SkipReason {
+    if matches!(
+        selection,
+        InstallSelection::Mode(InstallConsentMode::DeferToTui)
+    ) {
         tracing::debug!(%client, "mcp install: skipped — consent deferred to activation TUI");
         SkipReason::ConsentDeferredToTui
     } else {
@@ -425,6 +503,7 @@ fn pick_install_target(
                     return Candidate {
                         id: client.id(),
                         target_path: cand.path.clone(),
+                        scope: cand.scope,
                         drift,
                         parsed: Some(parsed),
                     };
@@ -439,6 +518,7 @@ fn pick_install_target(
                     return Candidate {
                         id: client.id(),
                         target_path: cand.path.clone(),
+                        scope: cand.scope,
                         drift: DriftClass::UnsafeDrift {
                             reason: format!("config file is unparseable: {}", e.reason()),
                         },
@@ -459,6 +539,7 @@ fn pick_install_target(
                 return Candidate {
                     id: client.id(),
                     target_path: cand.path.clone(),
+                    scope: cand.scope,
                     drift: DriftClass::UnsafeDrift {
                         reason: format!("could not read config: {e}"),
                     },
@@ -476,6 +557,7 @@ fn pick_install_target(
         return Candidate {
             id: client.id(),
             target_path: cand.path,
+            scope: cand.scope,
             drift: DriftClass::NotPresent,
             parsed: Some(parsed),
         };
@@ -484,6 +566,7 @@ fn pick_install_target(
     Candidate {
         id: client.id(),
         target_path: target.path,
+        scope: target.scope,
         drift: DriftClass::NotPresent,
         parsed: None,
     }
@@ -508,6 +591,7 @@ fn install_one(
     client: &dyn McpClient,
     candidate: &Candidate,
     fresh: &AnvilEntry,
+    refresh_claude_allow_list: bool,
 ) -> InstallOutcome {
     let render_result = match &candidate.parsed {
         Some(parsed) => client.merge_and_render(parsed, fresh),
@@ -582,7 +666,7 @@ fn install_one(
         };
     }
 
-    if candidate.id == McpClientId::ClaudeCode {
+    if candidate.id == McpClientId::ClaudeCode && refresh_claude_allow_list {
         best_effort_claude_allow_list(&candidate.target_path);
     }
 
@@ -851,6 +935,150 @@ mod tests {
                 .unwrap()
                 .contains(&serde_json::json!("mcp__anvil__*")),
             "Claude install must allow the anvil MCP tool namespace"
+        );
+    }
+
+    #[test]
+    fn explicit_tui_selection_installs_only_selected_client() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let selected = collect_candidates(ws.path(), Some(home.path()), &fresh())
+            .into_iter()
+            .filter(|candidate| candidate.id == McpClientId::Cursor)
+            .map(|candidate| (candidate.id, candidate))
+            .collect();
+
+        let report = install_selected_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            &selected,
+        );
+
+        assert!(home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+        assert!(matches!(
+            report_outcome(&report, McpClientId::Cursor),
+            InstallOutcome::Installed { .. }
+        ));
+        assert!(matches!(
+            report_outcome(&report, McpClientId::ClaudeCode),
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected
+            }
+        ));
+    }
+
+    #[test]
+    fn empty_explicit_tui_selection_writes_nothing() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+
+        let report = install_selected_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            &BTreeMap::new(),
+        );
+
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+        assert!(report.per_client.values().all(|outcome| matches!(
+            outcome,
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected
+            }
+        )));
+    }
+
+    #[test]
+    fn empty_explicit_tui_selection_does_not_refresh_claude_allow_list() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
+        let settings = home.path().join(".claude/settings.json");
+        fs::remove_file(&settings).unwrap();
+
+        install_selected_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            &BTreeMap::new(),
+        );
+
+        assert!(
+            !settings.exists(),
+            "an empty explicit selection must not recreate Claude settings"
+        );
+    }
+
+    #[test]
+    fn deferred_tui_probe_never_refreshes_claude_allow_list() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
+        let settings = home.path().join(".claude/settings.json");
+        fs::remove_file(&settings).unwrap();
+
+        install_for_clients_with_consent_mode(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            InstallConsentMode::DeferToTui,
+            &all_enabled(),
+        );
+
+        assert!(
+            !settings.exists(),
+            "the pre-surface deferred probe must not recreate Claude settings"
+        );
+    }
+
+    #[test]
+    fn explicit_tui_selection_rejects_a_scope_change_before_apply() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let selected = collect_candidates(ws.path(), Some(home.path()), &fresh())
+            .into_iter()
+            .filter(|candidate| candidate.id == McpClientId::Cursor)
+            .map(|candidate| (candidate.id, candidate))
+            .collect();
+        let workspace_config = ws.path().join(".cursor/mcp.json");
+        fs::create_dir_all(workspace_config.parent().unwrap()).unwrap();
+        fs::write(&workspace_config, "{\"mcpServers\":{}}\n").unwrap();
+
+        let report = install_selected_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            &selected,
+        );
+
+        assert!(matches!(
+            report_outcome(&report, McpClientId::Cursor),
+            InstallOutcome::Failed { error }
+                if error.contains("consent offer changed before apply")
+        ));
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert_eq!(
+            fs::read_to_string(workspace_config).unwrap(),
+            "{\"mcpServers\":{}}\n"
         );
     }
 
@@ -1372,6 +1600,7 @@ mod tests {
         let candidate = Candidate {
             id: McpClientId::Cursor,
             target_path: PathBuf::from("/home/u/.cursor/mcp.json"),
+            scope: ConfigScope::Global,
             drift: DriftClass::NotPresent,
             parsed: None,
         };
@@ -1391,6 +1620,7 @@ mod tests {
         let candidate = Candidate {
             id: McpClientId::Cursor,
             target_path: PathBuf::from("/home/u/.cursor/mcp.json"),
+            scope: ConfigScope::Global,
             drift: DriftClass::SafeDrift {
                 reason: format!(
                     "version drift: existing command `{a}` differs from fresh `{b}`",

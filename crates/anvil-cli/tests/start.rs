@@ -39,6 +39,8 @@
 //! `protecting`. LAUNCH-011 lands the only safe path to that state.
 
 use std::fs;
+#[cfg(unix)]
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -196,6 +198,288 @@ fn assert_start_activation_fixture(name: &str, raw: &str, workdir: &Path, home: 
         )
     });
     assert_eq!(actual, expected, "start activation fixture drift: {name}");
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy)]
+enum PtyInteraction {
+    Quit,
+    EmptyApplyThenQuit,
+    SelectFirstApplyThenQuit,
+}
+
+#[cfg(unix)]
+struct PtyRun {
+    status: std::process::ExitStatus,
+    transcript: String,
+    terminal_mode_before: nix::sys::termios::Termios,
+    terminal_mode_after: nix::sys::termios::Termios,
+}
+
+#[cfg(unix)]
+fn terminal_mode(file: &std::fs::File) -> nix::sys::termios::Termios {
+    nix::sys::termios::tcgetattr(file).expect("read PTY terminal mode")
+}
+
+#[cfg(unix)]
+fn occurrence_count(bytes: &[u8], needle: &[u8]) -> usize {
+    bytes
+        .windows(needle.len())
+        .filter(|window| *window == needle)
+        .count()
+}
+
+#[cfg(unix)]
+fn assert_screen_transitions(result: &PtyRun, expected: usize) {
+    let enters = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049h");
+    let leaves = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049l");
+    assert_eq!(enters, expected, "unexpected screen enters");
+    assert_eq!(leaves, expected, "unbalanced screen leaves");
+}
+
+#[cfg(unix)]
+fn run_start_in_pty(
+    workdir: &Path,
+    home: &Path,
+    extra_args: &[&str],
+    interaction: PtyInteraction,
+) -> PtyRun {
+    let size = nix::pty::Winsize {
+        ws_row: 30,
+        ws_col: 120,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    let pty = nix::pty::openpty(Some(&size), None).expect("open PTY");
+    let mut master = std::fs::File::from(pty.master);
+    let slave = std::fs::File::from(pty.slave);
+    let slave_monitor = slave.try_clone().unwrap();
+    let terminal_mode_before = terminal_mode(&slave_monitor);
+    let stdin = slave.try_clone().unwrap();
+    let stdout = slave.try_clone().unwrap();
+
+    let mut command = start_command_env(workdir, home);
+    for variable in [
+        "CI",
+        "ANVIL_ACTIVATION_TUI",
+        "ANVIL_NO_TUI",
+        "ANVIL_NO_PROMPT",
+        "NONINTERACTIVE",
+        "GIT_DIR",
+        "GIT_INDEX_FILE",
+    ] {
+        command.env_remove(variable);
+    }
+    command
+        .arg("start")
+        .arg("--tui")
+        .args(extra_args)
+        .stdin(std::process::Stdio::from(stdin))
+        .stdout(std::process::Stdio::from(stdout))
+        .stderr(std::process::Stdio::from(slave.try_clone().unwrap()));
+    let mut child = command.spawn().expect("spawn anvil in PTY");
+    drop(slave);
+    nix::fcntl::fcntl(
+        &master,
+        nix::fcntl::FcntlArg::F_SETFL(nix::fcntl::OFlag::O_NONBLOCK),
+    )
+    .expect("set PTY master non-blocking");
+
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    let mut interaction_stage = 0_u8;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let status = loop {
+        match master.read(&mut buffer) {
+            Ok(0) => {}
+            Ok(read) => bytes.extend_from_slice(&buffer[..read]),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(error) if error.raw_os_error() == Some(libc::EIO) => {}
+            Err(error) => panic!("read PTY output: {error}"),
+        }
+        let screen_enters = occurrence_count(&bytes, b"\x1b[?1049h");
+        if interaction_stage == 0 && screen_enters >= 1 {
+            let keys = match interaction {
+                PtyInteraction::Quit => b"q".as_slice(),
+                PtyInteraction::EmptyApplyThenQuit => b"a".as_slice(),
+                PtyInteraction::SelectFirstApplyThenQuit => b" a".as_slice(),
+            };
+            master
+                .write_all(keys)
+                .expect("send interaction keys to PTY");
+            master.flush().unwrap();
+            interaction_stage = 1;
+        }
+        if interaction_stage == 1
+            && !matches!(interaction, PtyInteraction::Quit)
+            && screen_enters >= 2
+        {
+            master.write_all(b"q").expect("quit post-consent PTY");
+            master.flush().unwrap();
+            interaction_stage = 2;
+        }
+        if let Some(status) = child.try_wait().expect("poll PTY child") {
+            break status;
+        }
+        if std::time::Instant::now() >= deadline {
+            child.kill().expect("kill hung PTY child");
+            child.wait().expect("reap hung PTY child");
+            let transcript = String::from_utf8_lossy(&bytes);
+            panic!("`anvil start --tui` did not complete PTY interaction:\n{transcript}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    while let Ok(read) = master.read(&mut buffer) {
+        if read == 0 {
+            break;
+        }
+        bytes.extend_from_slice(&buffer[..read]);
+    }
+    PtyRun {
+        status,
+        transcript: String::from_utf8_lossy(&bytes).into_owned(),
+        terminal_mode_before,
+        terminal_mode_after: terminal_mode(&slave_monitor),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn start_tui_pty_enters_and_restores_the_alternate_screen() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
+
+    let result = run_start_in_pty(
+        dir.path(),
+        home.path(),
+        &["--no-daemon", "--no-mcp"],
+        PtyInteraction::Quit,
+    );
+
+    assert!(
+        result.status.success(),
+        "PTY start failed:\n{}",
+        result.transcript
+    );
+    assert!(
+        result.transcript.contains("\u{1b}[?1049h"),
+        "TUI never entered the alternate screen:\n{}",
+        result.transcript,
+    );
+    assert!(
+        result.transcript.contains("\u{1b}[?1049l"),
+        "TUI did not restore the terminal on q:\n{}",
+        result.transcript,
+    );
+    assert_screen_transitions(&result, 1);
+    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+}
+
+#[cfg(unix)]
+fn assert_no_tui_project_writes(root: &Path) {
+    for relative in [
+        ".anvilrc",
+        "anvil/project-id",
+        ".gitattributes",
+        ".anvil/baseline.json",
+        ".gitignore",
+    ] {
+        assert!(
+            !root.join(relative).exists(),
+            "TUI wrote {relative} without explicit selection"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn start_tui_cancel_on_fresh_repo_writes_nothing_and_restores_raw_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
+
+    let result = run_start_in_pty(
+        dir.path(),
+        home.path(),
+        &["--no-daemon", "--no-mcp"],
+        PtyInteraction::Quit,
+    );
+
+    assert!(
+        result.status.success(),
+        "PTY start failed:\n{}",
+        result.transcript
+    );
+    assert_no_tui_project_writes(dir.path());
+    assert_screen_transitions(&result, 1);
+    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+}
+
+#[cfg(unix)]
+#[test]
+fn start_tui_empty_apply_reaches_verdict_without_writes_or_false_pass() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
+
+    let result = run_start_in_pty(
+        dir.path(),
+        home.path(),
+        &["--no-daemon", "--no-mcp"],
+        PtyInteraction::EmptyApplyThenQuit,
+    );
+
+    assert!(
+        result.status.success(),
+        "PTY start failed:\n{}",
+        result.transcript
+    );
+    assert_screen_transitions(&result, 2);
+    assert!(
+        result.transcript.contains("[Verdict]"),
+        "post-consent verdict was not rendered:\n{}",
+        result.transcript
+    );
+    assert_no_tui_project_writes(dir.path());
+    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+}
+
+#[cfg(unix)]
+#[test]
+fn start_tui_selected_apply_writes_only_selection_then_reaches_verdict() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
+
+    let result = run_start_in_pty(
+        dir.path(),
+        home.path(),
+        &["--no-daemon", "--no-mcp"],
+        PtyInteraction::SelectFirstApplyThenQuit,
+    );
+
+    assert!(
+        result.status.success(),
+        "PTY start failed:\n{}",
+        result.transcript
+    );
+    assert_screen_transitions(&result, 2);
+    assert!(
+        result.transcript.contains("[Verdict]"),
+        "post-consent verdict was not rendered:\n{}",
+        result.transcript
+    );
+    assert!(dir.path().join(".anvilrc").exists());
+    assert!(!dir.path().join("anvil/project-id").exists());
+    assert!(!dir.path().join(".gitattributes").exists());
+    assert!(!dir.path().join(".anvil/baseline.json").exists());
+    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
 }
 
 #[cfg(not(target_os = "windows"))]

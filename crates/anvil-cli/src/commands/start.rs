@@ -226,7 +226,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         // `anvil/project-id`, durable state prod reads — skip it under a gated
         // ANVIL_HOME and tell the operator the flag was a no-op (the orchestrator
         // below also emits the general read-only-posture note).
-        if project_writes_gated {
+        if matches!(render_mode, StartRenderMode::Tui) {
+            // The explicit project-identity offer owns this write.
+        } else if project_writes_gated {
             eprintln!(
                 "anvil: --new-identity ignored under a gated ANVIL_HOME — pass \
                  --touch-project-state to rotate the project UUID"
@@ -266,7 +268,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         // DISTRIB-006 (ADR-060): a gated ANVIL_HOME suppresses the durable
         // per-project write; the orchestrator emits the read-only-posture
         // note.
-        if !project_writes_gated {
+        if !project_writes_gated && !matches!(render_mode, StartRenderMode::Tui) {
             pre_write_anvil_config(root, format)?;
         }
     }
@@ -309,7 +311,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mcp_policy = mcp_install_policy(args);
     let mut activation_run = None;
-    let (mut diagnostic, install_report) = if read_only {
+    let (mut diagnostic, mut install_report) = if read_only {
         (
             activation::verify(root),
             activation::orchestrator::InstallReport::default(),
@@ -323,6 +325,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             mcp_policy,
             args.all_mcp_clients,
             render_mode,
+            args.new_identity,
         )?;
         activation_run = Some(outcome.run);
         (outcome.diagnostic, outcome.install_report)
@@ -340,8 +343,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // `agents_cached` flag annotates the summary line so the
     // user can distinguish "detected and cached" from "detected
     // (probe only)" / "detected (cache not written)".
-    let (agent_inventory, agents_cached) =
-        run_agent_detection(root, read_only || project_writes_gated);
+    let (agent_inventory, agents_cached) = run_agent_detection(
+        root,
+        read_only || project_writes_gated || matches!(render_mode, StartRenderMode::Tui),
+    );
 
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
     // diagnostic's `WatchTier::Offered` gate (config valid + no
@@ -388,38 +393,107 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             agents_cached,
         );
         if matches!(render_mode, StartRenderMode::Tui) {
+            let consent_plan = activation::orchestrator::build_tui_consent_plan(
+                root,
+                mcp_policy,
+                args.all_mcp_clients,
+                project_writes_gated,
+                args.format.map(StartFormat::config_format),
+                args.new_identity,
+            );
             let mut progress_steps = Vec::new();
             if let Some(run) = &activation_run {
                 progress_steps = activation_progress_steps(run.events());
                 tui_log_lines.extend(run.events().iter().map(ActivationStepEvent::render_line));
                 tui_log_lines.extend(run.log_lines().iter().cloned());
             }
-            let phase = if progress_steps.iter().any(|step| {
-                matches!(
-                    step.status,
-                    anvil_tui::surfaces::activation::ActivationProgressStatus::Pending
-                        | anvil_tui::surfaces::activation::ActivationProgressStatus::Running
-                )
-            }) {
-                anvil_tui::surfaces::activation::ActivationPhase::Consent
-            } else {
+            let phase = if consent_plan.offers().is_empty() {
                 anvil_tui::surfaces::activation::ActivationPhase::Verdict
+            } else {
+                anvil_tui::surfaces::activation::ActivationPhase::Consent
             };
-            let mut state =
-                anvil_tui::surfaces::activation::ActivationSurface::from_verdict_with_progress(
+            if matches!(
+                phase,
+                anvil_tui::surfaces::activation::ActivationPhase::Consent
+            ) {
+                prepare_consent_progress_steps(&mut progress_steps);
+            }
+            let verdict_model = activation_verdict_model(&diagnostic, &install_report);
+            let tier_evidence = activation_tier_evidence(
+                &diagnostic,
+                &install_report,
+                activation_run.as_ref(),
+                matches!(
+                    phase,
+                    anvil_tui::surfaces::activation::ActivationPhase::Consent
+                ),
+            );
+            let state =
+                anvil_tui::surfaces::activation::ActivationSurface::from_typed_with_progress(
                     human_output,
+                    verdict_model,
+                    tier_evidence,
                     project_writes_gated,
-                    tui_log_lines,
-                    progress_steps,
-                    daemon_outcome.is_some(),
+                    tui_log_lines.clone(),
+                    progress_steps.clone(),
+                    false,
                     phase,
                 );
-            if args.why {
-                state = state.with_tier_evidence_from_verbose(&activation::render_human_verbose(
+            if let Some(applied) = run_activation_surface_with(
+                state,
+                &consent_plan,
+                project_writes_gated,
+                crate::tui::run_surface,
+            )? {
+                let post_consent_progress =
+                    activation_post_consent_progress_steps(progress_steps, &applied);
+                for path in &applied.written_workflows {
+                    eprintln!(
+                        "anvil: installed GitHub Actions workflow {}",
+                        path.strip_prefix(root).unwrap_or(path).display(),
+                    );
+                }
+                if let Some(error) = &applied.workflow_error {
+                    tracing::warn!(
+                        error = %error,
+                        "activation TUI: failed to install selected GitHub Actions workflows",
+                    );
+                    eprintln!(
+                        "anvil: could not install selected GitHub Actions workflows ({error}); continuing"
+                    );
+                }
+                ensure_tui_load_bearing_actions_succeeded(&applied)?;
+                let hooks_active =
+                    install_report.hooks_active || applied.install_report.hooks_active;
+                install_report = applied.install_report.clone();
+                install_report.hooks_active = hooks_active;
+                diagnostic = activation::verify(root);
+                if let Some(error) = install_report.aggregated_failure() {
+                    diagnostic.last_error = Some(format!("MCP install failed: {error}"));
+                }
+                let post_consent_output = render_start_human_output(
+                    root,
+                    read_only,
                     &diagnostic,
-                ));
+                    &install_report,
+                    daemon_outcome.as_ref(),
+                    mcp_policy,
+                    &agent_inventory,
+                    agents_cached,
+                );
+                let verdict = activation_post_consent_surface(
+                    post_consent_output,
+                    &diagnostic,
+                    &install_report,
+                    activation_run.as_ref(),
+                    &applied,
+                    project_writes_gated,
+                    tui_log_lines,
+                    post_consent_progress,
+                    false,
+                );
+                let _ = crate::tui::run_surface(verdict)?;
             }
-            let _state = crate::tui::run_surface(state)?;
         } else {
             print!("{human_output}");
         }
@@ -453,7 +527,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         bail!("MCP install failed: {err}");
     }
 
-    write_warmup_cache_if_mutating(root, read_only || project_writes_gated, global.verbose);
+    write_warmup_cache_if_mutating(
+        root,
+        read_only || project_writes_gated || matches!(render_mode, StartRenderMode::Tui),
+        global.verbose,
+    );
 
     // LAUNCH-011: hand off to the kernel watcher OR print the
     // appropriate skip reason. Each non-spawn variant carries its
@@ -518,6 +596,831 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 }
 
+fn run_activation_surface_with(
+    mut state: anvil_tui::surfaces::activation::ActivationSurface,
+    consent_plan: &activation::orchestrator::TuiConsentPlan,
+    project_writes_gated: bool,
+    runner: impl FnOnce(
+        anvil_tui::surfaces::activation::ActivationSurface,
+    ) -> anyhow::Result<anvil_tui::surfaces::activation::ActivationSurface>,
+) -> anyhow::Result<Option<activation::orchestrator::TuiConsentApplyOutcome>> {
+    if !consent_plan.offers().is_empty() {
+        state = state.with_consent(activation_consent_state(
+            consent_plan.offers(),
+            project_writes_gated,
+        ));
+    }
+    let state = runner(state)?;
+    Ok(state
+        .consent()
+        .filter(|consent| consent.submitted())
+        .map(|consent| consent_plan.apply(consent.selected_ids())))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn activation_post_consent_surface(
+    human_output: String,
+    diagnostic: &activation::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+    run: Option<&activation::orchestrator::ActivationRun>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+    project_writes_gated: bool,
+    log_lines: Vec<String>,
+    progress_steps: Vec<anvil_tui::surfaces::activation::ActivationProgressStep>,
+    daemon_spinner: bool,
+) -> anvil_tui::surfaces::activation::ActivationSurface {
+    use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
+
+    ActivationSurface::from_typed_with_progress(
+        human_output,
+        activation_verdict_model(diagnostic, install_report),
+        activation_post_consent_evidence(diagnostic, install_report, run, applied),
+        project_writes_gated,
+        log_lines,
+        progress_steps,
+        daemon_spinner,
+        ActivationPhase::Verdict,
+    )
+}
+
+fn activation_post_consent_progress_steps(
+    mut steps: Vec<anvil_tui::surfaces::activation::ActivationProgressStep>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+) -> Vec<anvil_tui::surfaces::activation::ActivationProgressStep> {
+    use anvil_tui::surfaces::activation::ActivationProgressStatus;
+
+    for step in &mut steps {
+        match step.id.as_str() {
+            "workflow-consent" if step.status == ActivationProgressStatus::Pending => {
+                let selected = applied
+                    .selected_ids
+                    .iter()
+                    .filter(|id| id.starts_with("workflow:"))
+                    .count();
+                finish_consent_progress(
+                    step,
+                    selected,
+                    applied.written_workflows.len(),
+                    applied.workflow_error.as_deref(),
+                    "workflow",
+                );
+            }
+            "mcp-consent" if step.status == ActivationProgressStatus::Pending => {
+                let failure = applied.install_report.aggregated_failure();
+                let selected = applied
+                    .selected_ids
+                    .iter()
+                    .filter(|id| id.starts_with("mcp:"))
+                    .count();
+                let installed = applied
+                    .install_report
+                    .per_client
+                    .values()
+                    .filter(|outcome| matches!(outcome, InstallOutcome::Installed { .. }))
+                    .count();
+                finish_consent_progress(step, selected, installed, failure.as_deref(), "MCP");
+            }
+            "init-config"
+                if step.status == ActivationProgressStatus::Pending
+                    || applied.selected_ids.contains("project:init-config") =>
+            {
+                finish_project_progress(
+                    step,
+                    applied,
+                    "project:init-config",
+                    ActivationStep::InitConfig,
+                );
+            }
+            "project-identity"
+                if step.status == ActivationProgressStatus::Pending
+                    || applied.selected_ids.contains("project:identity") =>
+            {
+                finish_project_progress(
+                    step,
+                    applied,
+                    "project:identity",
+                    ActivationStep::ProjectIdentity,
+                );
+            }
+            "witness-attributes"
+                if step.status == ActivationProgressStatus::Pending
+                    || applied.selected_ids.contains("project:witness-attributes") =>
+            {
+                finish_project_progress(
+                    step,
+                    applied,
+                    "project:witness-attributes",
+                    ActivationStep::WitnessAttributes,
+                );
+            }
+            "git-hooks"
+                if step.status == ActivationProgressStatus::Pending
+                    || applied.selected_ids.contains("project:git-hooks") =>
+            {
+                finish_project_progress(
+                    step,
+                    applied,
+                    "project:git-hooks",
+                    ActivationStep::GitHooks,
+                );
+            }
+            "baseline-sample"
+                if step.status == ActivationProgressStatus::Pending
+                    || applied.selected_ids.contains("project:baseline") =>
+            {
+                finish_project_progress(
+                    step,
+                    applied,
+                    "project:baseline",
+                    ActivationStep::BaselineSample,
+                );
+            }
+            "final-probe" => {
+                step.status = ActivationProgressStatus::Passed;
+                step.message = Some("re-probed after consent".to_string());
+            }
+            "verdict" => {
+                step.status = ActivationProgressStatus::Passed;
+                step.message = Some("post-consent verdict".to_string());
+            }
+            _ => {}
+        }
+    }
+    steps
+}
+
+fn prepare_consent_progress_steps(
+    steps: &mut [anvil_tui::surfaces::activation::ActivationProgressStep],
+) {
+    use anvil_tui::surfaces::activation::ActivationProgressStatus;
+
+    for step in steps {
+        if matches!(step.id.as_str(), "final-probe" | "verdict") {
+            step.status = ActivationProgressStatus::Pending;
+            step.message = Some("awaiting consent outcome".to_string());
+        }
+    }
+}
+
+fn ensure_tui_load_bearing_actions_succeeded(
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+) -> anyhow::Result<()> {
+    if let Some(error) = applied.project_errors.get(&ActivationStep::InitConfig) {
+        anyhow::bail!("init step of `anvil start` failed: {error}");
+    }
+    Ok(())
+}
+
+fn finish_consent_progress(
+    step: &mut anvil_tui::surfaces::activation::ActivationProgressStep,
+    selected: usize,
+    applied: usize,
+    error: Option<&str>,
+    label: &str,
+) {
+    use anvil_tui::surfaces::activation::ActivationProgressStatus;
+    if let Some(error) = error {
+        step.status = ActivationProgressStatus::Failed;
+        step.message = Some(format!("{label} apply failed: {error}"));
+    } else if selected == 0 {
+        step.status = ActivationProgressStatus::Skipped;
+        step.message = Some("not selected".to_string());
+    } else {
+        step.status = ActivationProgressStatus::Passed;
+        step.message = Some(format!("{selected} selected; {applied} applied"));
+    }
+}
+
+fn finish_project_progress(
+    step: &mut anvil_tui::surfaces::activation::ActivationProgressStep,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+    offer_id: &str,
+    activation_step: ActivationStep,
+) {
+    use anvil_tui::surfaces::activation::ActivationProgressStatus;
+    if !applied.selected_ids.contains(offer_id) {
+        step.status = ActivationProgressStatus::Skipped;
+        step.message = Some("not selected".to_string());
+    } else if let Some(error) = applied.project_errors.get(&activation_step) {
+        step.status = ActivationProgressStatus::Failed;
+        step.message = Some(error.clone());
+    } else if applied.project_applied.contains(&activation_step) {
+        step.status = ActivationProgressStatus::Passed;
+        step.message = Some("selected write applied".to_string());
+    } else if let Some(reason) = applied.project_skipped.get(&activation_step) {
+        step.status = ActivationProgressStatus::Skipped;
+        step.message = Some(reason.clone());
+    }
+}
+
+fn activation_consent_state(
+    offers: &[activation::orchestrator::TuiConsentOffer],
+    project_writes_gated: bool,
+) -> anvil_tui::surfaces::activation::ConsentState {
+    use activation::orchestrator::TuiConsentOfferKind;
+    use anvil_tui::surfaces::activation::{ConsentItem, ConsentKind, ConsentState};
+
+    let items = offers
+        .iter()
+        .map(|offer| {
+            let kind = match offer.kind {
+                TuiConsentOfferKind::Mcp => ConsentKind::Mcp,
+                TuiConsentOfferKind::Workflow => ConsentKind::Workflow,
+                TuiConsentOfferKind::Project => ConsentKind::Project,
+            };
+            let mut item = ConsentItem::new(
+                offer.id.clone(),
+                offer.label.clone(),
+                offer.description.clone(),
+                kind,
+            );
+            if offer.repo_scoped {
+                item = item.repo_scoped();
+            }
+            if let Some(reason) = &offer.unsafe_drift {
+                item = item.unsafe_drift(reason.clone());
+            }
+            item
+        })
+        .collect();
+    ConsentState::new(items, project_writes_gated)
+}
+
+fn activation_verdict_model(
+    diagnostic: &activation::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+) -> anvil_tui::surfaces::activation::VerdictModel {
+    use anvil_tui::surfaces::activation::{VerdictModel, VerdictSection};
+
+    let state = diagnostic.protection_state();
+    let activation_rows = vec![
+        format!("state: {}", state.label()),
+        state.headline().to_string(),
+    ];
+    let mut layer_rows = vec![format!("config: {}", diagnostic.config.label())];
+    layer_rows.extend(diagnostic.mcp.iter().map(|(client, probe)| {
+        format!(
+            "{} MCP: {} ({})",
+            client.display_name(),
+            probe.tier.label(),
+            probe.transport.label(),
+        )
+    }));
+    layer_rows.push(format!("watch: {}", diagnostic.watch.label()));
+    layer_rows.push(format!(
+        "daemon: {}",
+        daemon_attestation_label(diagnostic.daemon_attestation),
+    ));
+    layer_rows.push(format!(
+        "save-time driver: {}",
+        if diagnostic.save_time_driver_attached {
+            "attached"
+        } else {
+            "not attached"
+        },
+    ));
+    layer_rows.push(format!(
+        "commit/push hooks: {}",
+        if install_report.hooks_active {
+            "active"
+        } else {
+            "not installed this run"
+        },
+    ));
+
+    let install_rows = install_report
+        .per_client
+        .iter()
+        .filter(|(_, outcome)| !is_undetected_editor(outcome))
+        .map(|(client, outcome)| {
+            format!(
+                "{}: {}",
+                client.display_name(),
+                install_outcome_label(outcome),
+            )
+        })
+        .collect();
+
+    let mut language_rows: Vec<String> = diagnostic
+        .language_profile
+        .entries
+        .iter()
+        .map(|entry| {
+            format!(
+                "{} ({} {}): {} — {}",
+                entry.name,
+                entry.files_seen,
+                if entry.files_seen == 1 {
+                    "file"
+                } else {
+                    "files"
+                },
+                entry.coverage_tier.label(),
+                entry.basis,
+            )
+        })
+        .collect();
+    if diagnostic.language_profile.unclassified_files_seen > 0 {
+        language_rows.push(format!(
+            "{} unclassified {}",
+            diagnostic.language_profile.unclassified_files_seen,
+            if diagnostic.language_profile.unclassified_files_seen == 1 {
+                "file"
+            } else {
+                "files"
+            },
+        ));
+    } else if language_rows.is_empty() && diagnostic.all_languages_unsupported {
+        language_rows.push("all detected languages are unsupported in this release".to_string());
+    }
+
+    let mut config_rows = vec![format!("project config: {}", diagnostic.config.label())];
+    config_rows.push(baseline_label(diagnostic));
+    if let Some(error) = &diagnostic.last_error {
+        config_rows.push(format!("last error: {error}"));
+    }
+
+    VerdictModel::new(
+        state.label(),
+        format!("Activation state: {}", state.label()),
+        vec![
+            VerdictSection::new("activation", "Activation", activation_rows),
+            VerdictSection::new("layers", "Layers", layer_rows),
+            VerdictSection::new("install", "Install", install_rows),
+            VerdictSection::new("languages", "Languages", language_rows),
+            VerdictSection::new("config", "Config", config_rows),
+        ],
+    )
+}
+
+fn activation_tier_evidence(
+    diagnostic: &activation::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+    run: Option<&activation::orchestrator::ActivationRun>,
+    consent_pending: bool,
+) -> Vec<eddacraft_tui::prelude::LogEntry> {
+    let mut rows = Vec::new();
+    if consent_pending {
+        append_pre_consent_lifecycle_evidence(&mut rows, run);
+    } else {
+        append_lifecycle_evidence(&mut rows, run);
+    }
+    append_diagnostic_evidence(&mut rows, diagnostic);
+    append_install_evidence(&mut rows, install_report);
+    rows
+}
+
+fn append_pre_consent_lifecycle_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    run: Option<&activation::orchestrator::ActivationRun>,
+) {
+    if let Some(run) = run {
+        for event in run.events().iter().filter(|event| {
+            !matches!(
+                event.step,
+                ActivationStep::FinalProbe | ActivationStep::Verdict
+            )
+        }) {
+            append_lifecycle_event(rows, event);
+        }
+    }
+}
+
+fn activation_post_consent_evidence(
+    diagnostic: &activation::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+    run: Option<&activation::orchestrator::ActivationRun>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+) -> Vec<eddacraft_tui::prelude::LogEntry> {
+    use eddacraft_tui::prelude::LogLevel;
+
+    let mut rows = Vec::new();
+    if let Some(run) = run {
+        for event in run.events().iter().filter(|event| {
+            event.lifecycle != ActivationStepLifecycle::Deferred
+                && !matches!(
+                    event.step,
+                    ActivationStep::FinalProbe | ActivationStep::Verdict
+                )
+        }) {
+            append_lifecycle_event(&mut rows, event);
+        }
+    }
+
+    append_project_consent_evidence(&mut rows, run, applied);
+    append_workflow_consent_evidence(&mut rows, run, applied);
+    append_mcp_consent_evidence(&mut rows, run, applied);
+    push_evidence(
+        &mut rows,
+        LogLevel::Info,
+        "completed — re-probed after consent",
+        "lifecycle/final-probe",
+    );
+    append_diagnostic_evidence(&mut rows, diagnostic);
+    append_install_evidence(&mut rows, install_report);
+    push_evidence(
+        &mut rows,
+        LogLevel::Info,
+        "completed — post-consent verdict",
+        "lifecycle/verdict",
+    );
+    rows
+}
+
+fn append_project_consent_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    run: Option<&activation::orchestrator::ActivationRun>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+) {
+    for (step, offer_id) in [
+        (ActivationStep::InitConfig, "project:init-config"),
+        (ActivationStep::ProjectIdentity, "project:identity"),
+        (
+            ActivationStep::WitnessAttributes,
+            "project:witness-attributes",
+        ),
+        (ActivationStep::GitHooks, "project:git-hooks"),
+        (ActivationStep::BaselineSample, "project:baseline"),
+    ] {
+        if consent_step_was_deferred(run, step) || applied.selected_ids.contains(offer_id) {
+            append_project_apply_evidence(rows, applied, step, offer_id);
+        }
+    }
+}
+
+fn append_workflow_consent_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    run: Option<&activation::orchestrator::ActivationRun>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+) {
+    use eddacraft_tui::prelude::LogLevel;
+    if consent_step_was_deferred(run, ActivationStep::WorkflowConsent) {
+        let selected = applied
+            .selected_ids
+            .iter()
+            .filter(|id| id.starts_with("workflow:"))
+            .count();
+        push_evidence(
+            rows,
+            if applied.workflow_error.is_some() {
+                LogLevel::Error
+            } else if selected == 0 {
+                LogLevel::Debug
+            } else {
+                LogLevel::Info
+            },
+            applied.workflow_error.as_ref().map_or_else(
+                || {
+                    if selected == 0 {
+                        "not selected".to_string()
+                    } else {
+                        format!(
+                            "{selected} selected; {} workflow write(s)",
+                            applied.written_workflows.len(),
+                        )
+                    }
+                },
+                |error| format!("workflow apply failed: {error}"),
+            ),
+            "consent/workflow",
+        );
+    }
+}
+
+fn append_mcp_consent_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    run: Option<&activation::orchestrator::ActivationRun>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+) {
+    use eddacraft_tui::prelude::LogLevel;
+    if consent_step_was_deferred(run, ActivationStep::McpConsent) {
+        let mcp_failure = applied.install_report.aggregated_failure();
+        let selected = applied
+            .selected_ids
+            .iter()
+            .filter(|id| id.starts_with("mcp:"))
+            .count();
+        let installed = applied
+            .install_report
+            .per_client
+            .values()
+            .filter(|outcome| matches!(outcome, InstallOutcome::Installed { .. }))
+            .count();
+        push_evidence(
+            rows,
+            if mcp_failure.is_some() {
+                LogLevel::Error
+            } else if selected == 0 {
+                LogLevel::Debug
+            } else {
+                LogLevel::Info
+            },
+            mcp_failure.map_or_else(
+                || {
+                    if selected == 0 {
+                        "not selected".to_string()
+                    } else {
+                        format!("{selected} selected; {installed} MCP write(s)")
+                    }
+                },
+                |error| format!("MCP apply failed: {error}"),
+            ),
+            "consent/mcp",
+        );
+    }
+}
+
+fn append_project_apply_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    applied: &activation::orchestrator::TuiConsentApplyOutcome,
+    step: ActivationStep,
+    offer_id: &str,
+) {
+    use eddacraft_tui::prelude::LogLevel;
+    let source = format!("consent/{}", step.label());
+    if !applied.selected_ids.contains(offer_id) {
+        push_evidence(rows, LogLevel::Debug, "not selected", source);
+    } else if let Some(error) = applied.project_errors.get(&step) {
+        push_evidence(rows, LogLevel::Error, error.clone(), source);
+    } else if let Some(reason) = applied.project_skipped.get(&step) {
+        push_evidence(rows, LogLevel::Debug, reason.clone(), source);
+    } else {
+        push_evidence(rows, LogLevel::Info, "selected write applied", source);
+    }
+}
+
+fn consent_step_was_deferred(
+    run: Option<&activation::orchestrator::ActivationRun>,
+    step: ActivationStep,
+) -> bool {
+    run.is_none_or(|run| {
+        run.events()
+            .iter()
+            .any(|event| event.step == step && event.lifecycle == ActivationStepLifecycle::Deferred)
+    })
+}
+
+fn append_lifecycle_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    run: Option<&activation::orchestrator::ActivationRun>,
+) {
+    use eddacraft_tui::prelude::LogLevel;
+
+    if let Some(run) = run {
+        for event in run.events() {
+            append_lifecycle_event(rows, event);
+        }
+        for line in run.log_lines() {
+            push_evidence(rows, LogLevel::Info, line.clone(), "orchestrator");
+        }
+    }
+}
+
+fn append_lifecycle_event(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    event: &ActivationStepEvent,
+) {
+    use eddacraft_tui::prelude::LogLevel;
+
+    let level = match event.lifecycle {
+        ActivationStepLifecycle::Failed => LogLevel::Error,
+        ActivationStepLifecycle::Deferred | ActivationStepLifecycle::Skipped => LogLevel::Debug,
+        ActivationStepLifecycle::Started | ActivationStepLifecycle::Completed => LogLevel::Info,
+    };
+    let message = event.detail.as_ref().map_or_else(
+        || event.lifecycle.label().to_string(),
+        |detail| format!("{} — {detail}", event.lifecycle.label()),
+    );
+    push_evidence(
+        rows,
+        level,
+        message,
+        format!("lifecycle/{}", event.step.label()),
+    );
+}
+
+fn append_diagnostic_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    diagnostic: &activation::ActivationDiagnostic,
+) {
+    use eddacraft_tui::prelude::LogLevel;
+
+    let state = diagnostic.protection_state();
+    let state_level = match state {
+        activation::state::ProtectionState::Error => LogLevel::Error,
+        activation::state::ProtectionState::NeedsAction
+        | activation::state::ProtectionState::ReadyRestartRequired => LogLevel::Warn,
+        activation::state::ProtectionState::Unsupported => LogLevel::Debug,
+        activation::state::ProtectionState::Protecting
+        | activation::state::ProtectionState::Watching => LogLevel::Info,
+    };
+    push_evidence(
+        rows,
+        state_level,
+        format!("state: {}", state.label()),
+        "activation",
+    );
+    push_evidence(
+        rows,
+        match diagnostic.config {
+            activation::diagnostic::ConfigStatus::Valid => LogLevel::Info,
+            activation::diagnostic::ConfigStatus::Absent => LogLevel::Warn,
+            activation::diagnostic::ConfigStatus::Invalid => LogLevel::Error,
+        },
+        format!("config: {}", diagnostic.config.label()),
+        "config",
+    );
+    for (client, probe) in &diagnostic.mcp {
+        push_evidence(
+            rows,
+            mcp_tier_level(probe.tier),
+            format!(
+                "tier: {}; transport: {}",
+                probe.tier.label(),
+                probe.transport.label(),
+            ),
+            format!("mcp/{}", client.label()),
+        );
+    }
+    push_evidence(
+        rows,
+        LogLevel::Info,
+        format!("watch: {}", diagnostic.watch.label()),
+        "watch",
+    );
+    push_evidence(
+        rows,
+        daemon_attestation_level(diagnostic.daemon_attestation),
+        daemon_attestation_label(diagnostic.daemon_attestation),
+        "daemon",
+    );
+    push_evidence(rows, LogLevel::Info, baseline_label(diagnostic), "baseline");
+    for entry in &diagnostic.language_profile.entries {
+        push_evidence(
+            rows,
+            match entry.coverage_tier {
+                activation::CoverageTier::Supported => LogLevel::Info,
+                activation::CoverageTier::Partial => LogLevel::Warn,
+                activation::CoverageTier::Unsupported => LogLevel::Debug,
+            },
+            format!(
+                "{}: {} file(s); {} — {}",
+                entry.name,
+                entry.files_seen,
+                entry.coverage_tier.label(),
+                entry.basis,
+            ),
+            "languages",
+        );
+    }
+    if let Some(error) = &diagnostic.last_error {
+        push_evidence(rows, LogLevel::Error, error.clone(), "activation/error");
+    }
+}
+
+fn append_install_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    install_report: &activation::orchestrator::InstallReport,
+) {
+    for (client, outcome) in &install_report.per_client {
+        if is_undetected_editor(outcome) {
+            continue;
+        }
+        push_evidence(
+            rows,
+            install_outcome_level(outcome),
+            install_outcome_label(outcome),
+            format!("install/{}", client.label()),
+        );
+    }
+}
+
+fn push_evidence(
+    rows: &mut Vec<eddacraft_tui::prelude::LogEntry>,
+    level: eddacraft_tui::prelude::LogLevel,
+    message: impl Into<String>,
+    source: impl Into<String>,
+) {
+    let index = rows.len();
+    rows.push(eddacraft_tui::prelude::LogEntry::new(
+        format!("activation-{index:03}"),
+        format!("{index:02}"),
+        level,
+        message,
+        source,
+    ));
+}
+
+fn mcp_tier_level(tier: activation::diagnostic::McpTier) -> eddacraft_tui::prelude::LogLevel {
+    use activation::diagnostic::McpTier;
+    use eddacraft_tui::prelude::LogLevel;
+    match tier {
+        McpTier::LiveValidation | McpTier::ServerStartable => LogLevel::Info,
+        McpTier::RestartRequired | McpTier::RestartHandshakeVerified => LogLevel::Warn,
+        McpTier::NotDetected | McpTier::ConfigAbsent | McpTier::ConfigPresent => LogLevel::Debug,
+    }
+}
+
+fn daemon_attestation_label(
+    attestation: activation::daemon_evidence::DaemonAttestation,
+) -> &'static str {
+    use activation::daemon_evidence::DaemonAttestation;
+    match attestation {
+        DaemonAttestation::NotProbed => "not probed",
+        DaemonAttestation::Unreachable => "unreachable",
+        DaemonAttestation::Unenforced => "worktree not enforced",
+        DaemonAttestation::StaleHeartbeat => "stale heartbeat",
+        DaemonAttestation::AllSurfacesQuarantined => "all surfaces quarantined",
+        DaemonAttestation::Warming => "warming",
+        DaemonAttestation::NoParticipatingSurface => "no participating surface",
+        DaemonAttestation::Enforced => "worktree enforced",
+        DaemonAttestation::Promoted => "live validation promoted",
+    }
+}
+
+fn daemon_attestation_level(
+    attestation: activation::daemon_evidence::DaemonAttestation,
+) -> eddacraft_tui::prelude::LogLevel {
+    use activation::daemon_evidence::DaemonAttestation;
+    use eddacraft_tui::prelude::LogLevel;
+    match attestation {
+        DaemonAttestation::Unreachable
+        | DaemonAttestation::Unenforced
+        | DaemonAttestation::StaleHeartbeat
+        | DaemonAttestation::AllSurfacesQuarantined
+        | DaemonAttestation::NoParticipatingSurface => LogLevel::Warn,
+        DaemonAttestation::NotProbed => LogLevel::Debug,
+        DaemonAttestation::Warming | DaemonAttestation::Enforced | DaemonAttestation::Promoted => {
+            LogLevel::Info
+        }
+    }
+}
+
+fn baseline_label(diagnostic: &activation::ActivationDiagnostic) -> String {
+    match (&diagnostic.baseline_summary, diagnostic.baseline_present) {
+        (Some(summary), _) => format!(
+            "baseline: present ({} total; {} antipattern; {} secret-shaped)",
+            summary.total, summary.antipattern, summary.secret,
+        ),
+        (None, true) => "baseline: present (summary unavailable)".to_string(),
+        (None, false) => "baseline: absent".to_string(),
+    }
+}
+
+fn is_undetected_editor(outcome: &InstallOutcome) -> bool {
+    matches!(
+        outcome,
+        InstallOutcome::Skipped {
+            reason: activation::orchestrator::SkipReason::EditorNotDetected,
+        }
+    )
+}
+
+fn install_outcome_label(outcome: &InstallOutcome) -> String {
+    use activation::mcp_client::DriftClass;
+    use activation::orchestrator::SkipReason;
+    match outcome {
+        InstallOutcome::Installed { path, drift } => {
+            let kind = match drift {
+                DriftClass::NotPresent => "fresh",
+                DriftClass::UpToDate => "rewrote up-to-date entry",
+                DriftClass::SafeDrift { .. } => "rewrote drifted entry",
+                DriftClass::UnsafeDrift { .. } => "rewrote unsafe entry",
+            };
+            format!("installed at {} ({kind})", path.display())
+        }
+        InstallOutcome::Skipped {
+            reason: SkipReason::UserDeselected,
+        } => "skipped — not selected".to_string(),
+        InstallOutcome::Skipped {
+            reason: SkipReason::ConsentDeferredToTui,
+        } => "skipped — consent deferred to activation TUI".to_string(),
+        InstallOutcome::Skipped {
+            reason: SkipReason::EditorNotDetected,
+        } => "skipped — editor not detected".to_string(),
+        InstallOutcome::Skipped {
+            reason: SkipReason::UnsafeDrift(reason),
+        } => format!("skipped — refused to overwrite ({reason})"),
+        InstallOutcome::Skipped {
+            reason: SkipReason::AlreadyUpToDate,
+        } => "skipped — already up to date".to_string(),
+        InstallOutcome::Failed { error } => format!("failed — {error}"),
+    }
+}
+
+fn install_outcome_level(outcome: &InstallOutcome) -> eddacraft_tui::prelude::LogLevel {
+    use activation::orchestrator::SkipReason;
+    use eddacraft_tui::prelude::LogLevel;
+    match outcome {
+        InstallOutcome::Installed { .. } => LogLevel::Info,
+        InstallOutcome::Failed { .. } => LogLevel::Error,
+        InstallOutcome::Skipped {
+            reason: SkipReason::UnsafeDrift(_),
+        } => LogLevel::Warn,
+        InstallOutcome::Skipped { .. } => LogLevel::Debug,
+    }
+}
+
 /// MLP2-039 — write `.anvil.<ext>` for the chosen format if no project
 /// config already exists. Idempotent — running `anvil start --format yaml`
 /// twice on a fresh repo writes the file once, second run is a no-op.
@@ -526,8 +1429,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 /// project already has a config) so that the orchestrator continues to
 /// run its MCP install + diagnostic probe.
 fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()> {
-    let cfg_format = format.config_format();
-    let target = root.join(format!(".anvil.{}", cfg_format.extension()));
+    pre_write_anvil_config_format(root, format.config_format())
+}
+
+pub(crate) fn pre_write_anvil_config_format(
+    root: &Path,
+    format: anvil_config::ConfigFormat,
+) -> anyhow::Result<()> {
+    let target = root.join(format!(".anvil.{}", format.extension()));
     if target.exists() {
         return Ok(());
     }
@@ -558,14 +1467,14 @@ fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()
     // `planningDir` camelCase across all formats so MLP2-041's
     // `InitConfigView::from_value` reads them without snake-case fallback.
     let value = default_anvil_config_value(format);
-    let serialised = serialise_to_format(&value, cfg_format)
-        .with_context(|| format!("serialising default config as {}", cfg_format.extension()))?;
+    let serialised = serialise_to_format(&value, format)
+        .with_context(|| format!("serialising default config as {}", format.extension()))?;
     crate::util::atomic_write(&target, serialised.as_bytes())
         .with_context(|| format!("writing {}", target.display()))?;
     Ok(())
 }
 
-fn default_anvil_config_value(format: StartFormat) -> serde_json::Value {
+fn default_anvil_config_value(format: anvil_config::ConfigFormat) -> serde_json::Value {
     // Hard-coded mirror of `commands::init::AnvilConfig::default()` to
     // avoid leaking the private struct through a new pub surface for a
     // single use site. Update in lock-step if init's defaults change.
@@ -579,7 +1488,7 @@ fn default_anvil_config_value(format: StartFormat) -> serde_json::Value {
     serde_json::json!({
         "schemaVersion": "1.0.0",
         "planningDir": "plans",
-        "format": format.config_format().extension(),
+        "format": format.extension(),
         "checks": crate::commands::defaults::default_check_names(),
     })
 }
@@ -799,7 +1708,9 @@ fn progress_step_from_events(
         && !step_events.iter().any(|event| {
             matches!(
                 event.lifecycle,
-                ActivationStepLifecycle::Completed | ActivationStepLifecycle::Skipped
+                ActivationStepLifecycle::Completed
+                    | ActivationStepLifecycle::Deferred
+                    | ActivationStepLifecycle::Skipped
             )
         })
     {
@@ -811,21 +1722,14 @@ fn progress_step_from_events(
         ActivationProgressStatus::Passed
     } else if step_events
         .iter()
+        .any(|event| event.lifecycle == ActivationStepLifecycle::Deferred)
+    {
+        ActivationProgressStatus::Pending
+    } else if step_events
+        .iter()
         .any(|event| event.lifecycle == ActivationStepLifecycle::Skipped)
     {
-        if matches!(
-            step,
-            ActivationStep::WorkflowConsent | ActivationStep::McpConsent
-        ) && step_events.iter().any(|event| {
-            event
-                .detail
-                .as_deref()
-                .is_some_and(|detail| detail.contains("deferred"))
-        }) {
-            ActivationProgressStatus::Pending
-        } else {
-            ActivationProgressStatus::Skipped
-        }
+        ActivationProgressStatus::Skipped
     } else {
         ActivationProgressStatus::Pending
     };
@@ -1192,7 +2096,29 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eddacraft_tui::keyboard::Action;
+    use eddacraft_tui::surface::Surface;
     use std::collections::BTreeMap;
+
+    fn test_tui_consent_plan(root: &Path, home: &Path) -> activation::orchestrator::TuiConsentPlan {
+        activation::orchestrator::build_tui_consent_plan_with_home(
+            root,
+            Some(home),
+            activation::orchestrator::McpInstallPolicy::Install,
+            &activation::mcp_client::all_client_ids(),
+            Some(activation::mcp_client::AnvilEntry::local_stdio(
+                std::path::PathBuf::from("/usr/local/bin/anvil"),
+            )),
+            false,
+        )
+    }
+
+    fn test_activation_surface() -> anvil_tui::surfaces::activation::ActivationSurface {
+        anvil_tui::surfaces::activation::ActivationSurface::from_verdict(
+            "ACTIVATION\n  state: ready_restart_required\n",
+            false,
+        )
+    }
 
     #[test]
     fn activation_tui_requested_by_flag_or_env() {
@@ -1206,6 +2132,295 @@ mod tests {
         temp_env::with_var("ANVIL_ACTIVATION_TUI", Some("1"), || {
             assert!(activation_tui_requested(&args));
         });
+    }
+
+    #[test]
+    fn production_tui_boundary_applies_a_ticked_mcp_offer() {
+        let root = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let plan = test_tui_consent_plan(root.path(), home.path());
+
+        let applied =
+            run_activation_surface_with(test_activation_surface(), &plan, false, |mut surface| {
+                let cursor_index = surface
+                    .consent()
+                    .unwrap()
+                    .items
+                    .iter()
+                    .position(|item| item.id == "mcp:cursor")
+                    .unwrap();
+                for _ in 0..cursor_index {
+                    surface.handle_key(Action::Down);
+                }
+                surface.handle_key(Action::Toggle);
+                surface.handle_key(Action::Character('a'));
+                Ok(surface)
+            })
+            .unwrap();
+
+        assert!(applied.is_some());
+        assert!(home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn production_tui_boundary_empty_apply_writes_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let plan = test_tui_consent_plan(root.path(), home.path());
+
+        let applied =
+            run_activation_surface_with(test_activation_surface(), &plan, false, |mut surface| {
+                surface.handle_key(Action::Character('a'));
+                Ok(surface)
+            })
+            .unwrap();
+
+        assert!(applied.is_some());
+        assert!(!root.path().join(".github").exists());
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn production_tui_boundary_quit_cancels_without_writes() {
+        let root = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let plan = test_tui_consent_plan(root.path(), home.path());
+
+        let applied =
+            run_activation_surface_with(test_activation_surface(), &plan, false, |mut surface| {
+                surface.handle_key(Action::Toggle);
+                surface.handle_key(Action::Quit);
+                Ok(surface)
+            })
+            .unwrap();
+
+        assert!(applied.is_none());
+        assert!(!root.path().join(".github").exists());
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn post_consent_surface_opens_typed_verdict_with_applied_report() {
+        use activation::diagnostic::McpClientId;
+        use activation::mcp_client::DriftClass;
+        use anvil_tui::surfaces::activation::ActivationPhase;
+
+        let diagnostic = daemon_attested_diagnostic();
+        let mut report = activation::orchestrator::InstallReport::default();
+        report.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Installed {
+                path: "/tmp/.cursor/mcp.json".into(),
+                drift: DriftClass::NotPresent,
+            },
+        );
+        let applied = activation::orchestrator::TuiConsentApplyOutcome {
+            install_report: report.clone(),
+            written_workflows: Vec::new(),
+            workflow_error: None,
+            selected_ids: std::collections::BTreeSet::from(["mcp:cursor".to_string()]),
+            ..Default::default()
+        };
+
+        let surface = activation_post_consent_surface(
+            "plain copy intentionally unrelated".to_string(),
+            &diagnostic,
+            &report,
+            None,
+            &applied,
+            false,
+            Vec::new(),
+            Vec::new(),
+            false,
+        );
+
+        assert_eq!(surface.phase(), ActivationPhase::Verdict);
+        assert!(
+            surface
+                .verdict_view()
+                .model()
+                .sections
+                .iter()
+                .any(|section| {
+                    section.id == "install"
+                        && section
+                            .rows
+                            .iter()
+                            .any(|row| row.contains("Cursor: installed at"))
+                })
+        );
+        assert!(surface.tier_evidence_entries().iter().any(|entry| {
+            entry.source == "install/cursor" && entry.message.contains("installed at")
+        }));
+        assert!(surface.tier_evidence_entries().iter().any(|entry| {
+            entry.source == "consent/mcp" && entry.message.contains("1 selected")
+        }));
+    }
+
+    #[test]
+    fn post_consent_progress_replaces_deferred_statuses() {
+        use anvil_tui::surfaces::activation::{ActivationProgressStatus, ActivationProgressStep};
+
+        let steps = vec![
+            ActivationProgressStep::new(
+                "workflow-consent",
+                "Workflow consent",
+                ActivationProgressStatus::Pending,
+            )
+            .with_message("awaiting operator choice"),
+            ActivationProgressStep::new(
+                "mcp-consent",
+                "MCP consent",
+                ActivationProgressStatus::Pending,
+            )
+            .with_message("awaiting operator choice"),
+        ];
+        let applied = activation::orchestrator::TuiConsentApplyOutcome {
+            install_report: activation::orchestrator::InstallReport::default(),
+            written_workflows: Vec::new(),
+            workflow_error: None,
+            selected_ids: std::collections::BTreeSet::from([
+                "workflow:github-actions".to_string(),
+                "mcp:cursor".to_string(),
+            ]),
+            ..Default::default()
+        };
+
+        let steps = activation_post_consent_progress_steps(steps, &applied);
+
+        assert!(steps.iter().all(|step| {
+            step.status == ActivationProgressStatus::Passed
+                && step
+                    .message
+                    .as_deref()
+                    .is_some_and(|message| message.contains("selected"))
+        }));
+    }
+
+    #[test]
+    fn post_consent_progress_marks_empty_apply_as_not_selected() {
+        use anvil_tui::surfaces::activation::{ActivationProgressStatus, ActivationProgressStep};
+
+        let steps = vec![
+            ActivationProgressStep::new(
+                "mcp-consent",
+                "MCP consent",
+                ActivationProgressStatus::Pending,
+            )
+            .with_message("awaiting operator choice"),
+        ];
+
+        let steps = activation_post_consent_progress_steps(
+            steps,
+            &activation::orchestrator::TuiConsentApplyOutcome::default(),
+        );
+
+        assert_eq!(steps[0].status, ActivationProgressStatus::Skipped);
+        assert_eq!(steps[0].message.as_deref(), Some("not selected"));
+    }
+
+    #[test]
+    fn consent_progress_holds_final_probe_and_verdict_until_apply() {
+        use anvil_tui::surfaces::activation::{ActivationProgressStatus, ActivationProgressStep};
+
+        let mut steps = vec![
+            ActivationProgressStep::new(
+                "final-probe",
+                "Final probe",
+                ActivationProgressStatus::Passed,
+            ),
+            ActivationProgressStep::new("verdict", "Verdict", ActivationProgressStatus::Passed),
+        ];
+        prepare_consent_progress_steps(&mut steps);
+        assert!(steps.iter().all(|step| {
+            step.status == ActivationProgressStatus::Pending
+                && step.message.as_deref() == Some("awaiting consent outcome")
+        }));
+
+        let steps = activation_post_consent_progress_steps(
+            steps,
+            &activation::orchestrator::TuiConsentApplyOutcome::default(),
+        );
+        assert!(
+            steps
+                .iter()
+                .all(|step| step.status == ActivationProgressStatus::Passed)
+        );
+    }
+
+    #[test]
+    fn tui_config_apply_failure_preserves_plain_path_exit_contract() {
+        let mut applied = activation::orchestrator::TuiConsentApplyOutcome::default();
+        applied
+            .project_errors
+            .insert(ActivationStep::InitConfig, "permission denied".to_string());
+
+        let error = ensure_tui_load_bearing_actions_succeeded(&applied).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("init step of `anvil start` failed")
+        );
+    }
+
+    #[test]
+    fn post_consent_progress_preserves_non_deferred_skips() {
+        use anvil_tui::surfaces::activation::{ActivationProgressStatus, ActivationProgressStep};
+
+        let steps = vec![
+            ActivationProgressStep::new(
+                "mcp-consent",
+                "MCP consent",
+                ActivationProgressStatus::Skipped,
+            )
+            .with_message("MCP installation disabled"),
+        ];
+        let applied = activation::orchestrator::TuiConsentApplyOutcome {
+            install_report: activation::orchestrator::InstallReport::default(),
+            written_workflows: Vec::new(),
+            workflow_error: None,
+            ..Default::default()
+        };
+
+        let steps = activation_post_consent_progress_steps(steps, &applied);
+
+        assert_eq!(steps[0].status, ActivationProgressStatus::Skipped);
+        assert_eq!(
+            steps[0].message.as_deref(),
+            Some("MCP installation disabled")
+        );
+    }
+
+    #[test]
+    fn post_consent_evidence_preserves_non_deferred_consent_events() {
+        use activation::orchestrator::{
+            ActivationRun, ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+        };
+
+        let run = ActivationRun::from_events(vec![ActivationStepEvent {
+            step: ActivationStep::McpConsent,
+            lifecycle: ActivationStepLifecycle::Skipped,
+            detail: Some("MCP installation disabled".to_string()),
+        }]);
+        let diagnostic = daemon_attested_diagnostic();
+        let report = activation::orchestrator::InstallReport::default();
+        let applied = activation::orchestrator::TuiConsentApplyOutcome {
+            install_report: report.clone(),
+            written_workflows: Vec::new(),
+            workflow_error: None,
+            ..Default::default()
+        };
+
+        let entries = activation_post_consent_evidence(&diagnostic, &report, Some(&run), &applied);
+
+        assert!(entries.iter().any(|entry| {
+            entry.source == "lifecycle/mcp-consent"
+                && entry.message.contains("MCP installation disabled")
+        }));
+        assert!(!entries.iter().any(|entry| entry.source == "consent/mcp"));
     }
 
     #[test]
@@ -1247,8 +2462,8 @@ mod tests {
             },
             ActivationStepEvent {
                 step: ActivationStep::McpConsent,
-                lifecycle: ActivationStepLifecycle::Skipped,
-                detail: Some("deferred to activation TUI".to_string()),
+                lifecycle: ActivationStepLifecycle::Deferred,
+                detail: Some("awaiting operator approval".to_string()),
             },
         ];
         let steps = activation_progress_steps(&events);
@@ -1256,7 +2471,7 @@ mod tests {
         assert_eq!(steps[0].status, ActivationProgressStatus::Passed);
         let mcp = steps.iter().find(|step| step.id == "mcp-consent").unwrap();
         assert_eq!(mcp.status, ActivationProgressStatus::Pending);
-        assert_eq!(mcp.message.as_deref(), Some("deferred to activation TUI"));
+        assert_eq!(mcp.message.as_deref(), Some("awaiting operator approval"));
     }
 
     #[test]
@@ -1344,6 +2559,153 @@ mod tests {
         diag.config = activation::diagnostic::ConfigStatus::Valid;
         diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Enforced;
         diag
+    }
+
+    #[test]
+    fn typed_tui_verdict_ignores_plain_copy_shape() {
+        use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
+
+        let diagnostic = daemon_attested_diagnostic();
+        let report = activation::orchestrator::InstallReport::default();
+        let model = activation_verdict_model(&diagnostic, &report);
+        let surface = ActivationSurface::from_typed_with_progress(
+            "copy changed completely; state: error",
+            model.clone(),
+            Vec::new(),
+            false,
+            Vec::new(),
+            Vec::new(),
+            false,
+            ActivationPhase::Verdict,
+        );
+
+        assert_eq!(surface.verdict_view().model(), &model);
+        assert_eq!(surface.verdict_view().model().state_label, "watching");
+        assert!(
+            surface
+                .verdict_view()
+                .model()
+                .sections
+                .iter()
+                .any(|section| {
+                    section.id == "layers"
+                        && section
+                            .rows
+                            .iter()
+                            .any(|row| row == "daemon: worktree enforced")
+                })
+        );
+    }
+
+    #[test]
+    fn typed_tui_evidence_classifies_diagnostic_and_install_records() {
+        use activation::diagnostic::{McpClientId, McpTier};
+        use activation::mcp_client::DriftClass;
+        use eddacraft_tui::prelude::LogLevel;
+
+        let mut diagnostic = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        diagnostic.config = activation::diagnostic::ConfigStatus::Invalid;
+        diagnostic.mcp.insert(
+            McpClientId::Cursor,
+            McpTier::RestartHandshakeVerified.into(),
+        );
+        diagnostic.daemon_attestation =
+            activation::daemon_evidence::DaemonAttestation::StaleHeartbeat;
+        let mut report = activation::orchestrator::InstallReport::default();
+        report.per_client.insert(
+            McpClientId::ClaudeCode,
+            InstallOutcome::Installed {
+                path: "/tmp/.claude.json".into(),
+                drift: DriftClass::NotPresent,
+            },
+        );
+        report.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Skipped {
+                reason: activation::orchestrator::SkipReason::UnsafeDrift(
+                    "foreign command".to_string(),
+                ),
+            },
+        );
+
+        let entries = activation_tier_evidence(&diagnostic, &report, None, false);
+
+        assert!(entries.iter().any(|entry| {
+            entry.source == "config"
+                && entry.level == LogLevel::Error
+                && entry.message == "config: invalid"
+        }));
+        assert!(entries.iter().any(|entry| {
+            entry.source == "mcp/cursor"
+                && entry.level == LogLevel::Warn
+                && entry.message.contains("restart_handshake_verified")
+        }));
+        assert!(entries.iter().any(|entry| {
+            entry.source == "daemon"
+                && entry.level == LogLevel::Warn
+                && entry.message == "stale heartbeat"
+        }));
+        assert!(entries.iter().any(|entry| {
+            entry.source == "install/claude-code"
+                && entry.level == LogLevel::Info
+                && entry.message.contains("installed at")
+        }));
+        assert!(entries.iter().any(|entry| {
+            entry.source == "install/cursor"
+                && entry.level == LogLevel::Warn
+                && entry.message.contains("refused to overwrite")
+        }));
+    }
+
+    #[test]
+    fn consent_evidence_omits_terminal_events_until_post_consent_reprobe() {
+        use activation::orchestrator::{
+            ActivationRun, ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+        };
+
+        let run = ActivationRun::from_events(vec![
+            ActivationStepEvent {
+                step: ActivationStep::FinalProbe,
+                lifecycle: ActivationStepLifecycle::Completed,
+                detail: None,
+            },
+            ActivationStepEvent {
+                step: ActivationStep::Verdict,
+                lifecycle: ActivationStepLifecycle::Completed,
+                detail: None,
+            },
+        ]);
+        let diagnostic = daemon_attested_diagnostic();
+        let report = activation::orchestrator::InstallReport::default();
+
+        let before = activation_tier_evidence(&diagnostic, &report, Some(&run), true);
+        assert!(!before.iter().any(|entry| {
+            matches!(
+                entry.source.as_str(),
+                "lifecycle/final-probe" | "lifecycle/verdict"
+            )
+        }));
+
+        let after = activation_post_consent_evidence(
+            &diagnostic,
+            &report,
+            Some(&run),
+            &activation::orchestrator::TuiConsentApplyOutcome::default(),
+        );
+        assert_eq!(
+            after
+                .iter()
+                .filter(|entry| entry.source == "lifecycle/final-probe")
+                .count(),
+            1
+        );
+        assert_eq!(
+            after
+                .iter()
+                .filter(|entry| entry.source == "lifecycle/verdict")
+                .count(),
+            1
+        );
     }
 
     fn restart_required_diagnostic() -> activation::ActivationDiagnostic {

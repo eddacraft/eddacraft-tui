@@ -122,6 +122,9 @@ impl ActivationStep {
 pub(crate) enum ActivationStepLifecycle {
     Started,
     Completed,
+    /// Write work is intentionally awaiting the activation TUI's explicit
+    /// selection. This is typed state, not presentation copy.
+    Deferred,
     Skipped,
     Failed,
 }
@@ -131,6 +134,7 @@ impl ActivationStepLifecycle {
         match self {
             Self::Started => "started",
             Self::Completed => "completed",
+            Self::Deferred => "deferred",
             Self::Skipped => "skipped",
             Self::Failed => "failed",
         }
@@ -178,6 +182,14 @@ pub(crate) struct ActivationRun {
 }
 
 impl ActivationRun {
+    #[cfg(test)]
+    pub(crate) fn from_events(events: Vec<ActivationStepEvent>) -> Self {
+        Self {
+            events,
+            log_lines: Vec::new(),
+        }
+    }
+
     fn start(&mut self, step: ActivationStep) {
         self.events.push(ActivationStepEvent::new(
             step,
@@ -198,6 +210,14 @@ impl ActivationRun {
         self.events.push(ActivationStepEvent::new(
             step,
             ActivationStepLifecycle::Skipped,
+            Some(detail.into()),
+        ));
+    }
+
+    fn defer(&mut self, step: ActivationStep, detail: impl Into<String>) {
+        self.events.push(ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Deferred,
             Some(detail.into()),
         ));
     }
@@ -244,6 +264,464 @@ pub enum McpInstallPolicy {
     Skip,
 }
 
+/// Write category presented by the activation TUI consent surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TuiConsentOfferKind {
+    Mcp,
+    Workflow,
+    Project,
+}
+
+#[derive(Debug, Clone)]
+enum TuiProjectAction {
+    InitConfig {
+        format: Option<anvil_config::ConfigFormat>,
+    },
+    ProjectIdentity {
+        rotate: bool,
+    },
+    WitnessAttributes,
+    GitHooks,
+    Baseline,
+}
+
+impl TuiProjectAction {
+    fn step(&self) -> ActivationStep {
+        match self {
+            Self::InitConfig { .. } => ActivationStep::InitConfig,
+            Self::ProjectIdentity { .. } => ActivationStep::ProjectIdentity,
+            Self::WitnessAttributes => ActivationStep::WitnessAttributes,
+            Self::GitHooks => ActivationStep::GitHooks,
+            Self::Baseline => ActivationStep::BaselineSample,
+        }
+    }
+}
+
+/// One stable, unticked-by-default write offer for the activation TUI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TuiConsentOffer {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+    pub kind: TuiConsentOfferKind,
+    pub repo_scoped: bool,
+    pub unsafe_drift: Option<String>,
+}
+
+/// Deferred workflow/MCP actions paired with their user-facing offers.
+#[derive(Debug, Clone)]
+pub(crate) struct TuiConsentPlan {
+    root: PathBuf,
+    offers: Vec<TuiConsentOffer>,
+    project_actions: Vec<(String, TuiProjectAction)>,
+    workflows: std::collections::BTreeMap<String, WorkflowTemplate>,
+    mcp_candidates: std::collections::BTreeMap<String, install::Candidate>,
+    home: Option<PathBuf>,
+    fresh: Option<crate::activation::mcp_client::AnvilEntry>,
+    enabled: BTreeSet<McpClientId>,
+    project_writes_gated: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct TuiConsentApplyOutcome {
+    pub install_report: InstallReport,
+    pub written_workflows: Vec<PathBuf>,
+    pub workflow_error: Option<String>,
+    pub selected_ids: BTreeSet<String>,
+    pub project_applied: BTreeSet<ActivationStep>,
+    pub project_skipped: std::collections::BTreeMap<ActivationStep, String>,
+    pub project_errors: std::collections::BTreeMap<ActivationStep, String>,
+}
+
+impl TuiConsentPlan {
+    pub(crate) fn offers(&self) -> &[TuiConsentOffer] {
+        &self.offers
+    }
+
+    /// Apply only IDs that the returned TUI state says were ticked.
+    ///
+    /// Every write primitive re-checks the filesystem at apply time. A gated
+    /// `ANVIL_HOME` also rejects repo-scoped workflow IDs defensively even if a
+    /// caller fabricates a selection outside the consent widget.
+    pub(crate) fn apply(&self, selected_ids: &[String]) -> TuiConsentApplyOutcome {
+        let root = self.root.as_path();
+        let selected = selected_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let mut project_applied = BTreeSet::new();
+        let mut project_skipped = std::collections::BTreeMap::new();
+        let mut project_errors = std::collections::BTreeMap::new();
+        if !self.project_writes_gated {
+            for (id, action) in &self.project_actions {
+                if !selected.contains(id.as_str()) {
+                    continue;
+                }
+                match apply_tui_project_action(root, action) {
+                    Ok(ProjectActionOutcome::Applied) => {
+                        project_applied.insert(action.step());
+                    }
+                    Ok(ProjectActionOutcome::Skipped(reason)) => {
+                        project_skipped.insert(action.step(), reason);
+                    }
+                    Err(error) => {
+                        project_errors.insert(action.step(), format!("{error:#}"));
+                    }
+                }
+            }
+        }
+        let selected_workflows = if self.project_writes_gated {
+            Vec::new()
+        } else {
+            self.workflows
+                .iter()
+                .filter(|(id, _)| selected.contains(id.as_str()))
+                .map(|(_, workflow)| *workflow)
+                .collect::<Vec<_>>()
+        };
+        let (written_workflows, workflow_error) =
+            match install_selected_workflows(root, &selected_workflows) {
+                Ok(written) => (written, None),
+                Err(error) => (Vec::new(), Some(error.to_string())),
+            };
+
+        let selected_candidates = self
+            .mcp_candidates
+            .iter()
+            .filter(|(id, candidate)| {
+                selected.contains(id.as_str())
+                    && !(self.project_writes_gated
+                        && candidate.scope == crate::activation::mcp_client::ConfigScope::Workspace)
+            })
+            .map(|(_, candidate)| (candidate.id, candidate.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut install_report = self
+            .fresh
+            .as_ref()
+            .map_or_else(InstallReport::default, |fresh| {
+                install::install_selected_clients(
+                    root,
+                    self.home.as_deref(),
+                    fresh,
+                    &self.enabled,
+                    &selected_candidates,
+                )
+            });
+        install_report.hooks_active = project_applied.contains(&ActivationStep::GitHooks)
+            && hooks::activation_hooks_active(root).unwrap_or(false);
+
+        TuiConsentApplyOutcome {
+            install_report,
+            written_workflows,
+            workflow_error,
+            selected_ids: selected.into_iter().map(str::to_string).collect(),
+            project_applied,
+            project_skipped,
+            project_errors,
+        }
+    }
+}
+
+enum ProjectActionOutcome {
+    Applied,
+    Skipped(String),
+}
+
+fn apply_tui_project_action(
+    root: &Path,
+    action: &TuiProjectAction,
+) -> anyhow::Result<ProjectActionOutcome> {
+    match action {
+        TuiProjectAction::InitConfig {
+            format: Some(format),
+        } => crate::commands::start::pre_write_anvil_config_format(root, *format)
+            .map(|()| ProjectActionOutcome::Applied),
+        TuiProjectAction::InitConfig { format: None } => {
+            init::generate_config(&init::AnvilConfig::default(), root)
+                .map(|_| ProjectActionOutcome::Applied)
+        }
+        TuiProjectAction::ProjectIdentity { rotate: true } => {
+            identity::mint_new_identity(root, env!("CARGO_PKG_VERSION"))
+                .map(|_| ProjectActionOutcome::Applied)
+                .map_err(Into::into)
+        }
+        TuiProjectAction::ProjectIdentity { rotate: false } => {
+            identity::ensure_project_id(root, env!("CARGO_PKG_VERSION"))
+                .map(|_| ProjectActionOutcome::Applied)
+                .map_err(Into::into)
+        }
+        TuiProjectAction::WitnessAttributes => ensure_witness_gitattributes(root)
+            .context("write witness attributes")
+            .map(|()| ProjectActionOutcome::Applied),
+        TuiProjectAction::GitHooks => hooks::install_activation_hooks_silent(root).map(|active| {
+            if active {
+                ProjectActionOutcome::Applied
+            } else {
+                ProjectActionOutcome::Skipped("activation hooks remain inactive".to_string())
+            }
+        }),
+        TuiProjectAction::Baseline => {
+            if baseline::baseline_exists(root) {
+                return Ok(ProjectActionOutcome::Skipped(
+                    "activation baseline already present".to_string(),
+                ));
+            }
+            if let Some(scan) = sample_analyser::run_baseline_scan(root) {
+                let new_baseline = baseline::build_baseline(&scan.warnings, &scan.secrets);
+                baseline::write_baseline(root, &new_baseline)?;
+                Ok(ProjectActionOutcome::Applied)
+            } else {
+                Ok(ProjectActionOutcome::Skipped(
+                    "no analysable files for baseline".to_string(),
+                ))
+            }
+        }
+    }
+}
+
+pub(crate) fn build_tui_consent_plan(
+    root: &Path,
+    mcp_install_policy: McpInstallPolicy,
+    force_all_mcp_clients: bool,
+    project_writes_gated: bool,
+    config_format: Option<anvil_config::ConfigFormat>,
+    rotate_identity: bool,
+) -> TuiConsentPlan {
+    let home = crate::util::user_home_dir();
+    let enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    let fresh = if matches!(mcp_install_policy, McpInstallPolicy::Install) {
+        std::env::current_exe()
+            .ok()
+            .map(crate::activation::mcp_client::AnvilEntry::local_stdio)
+    } else {
+        None
+    };
+    build_tui_consent_plan_with_project_options(
+        root,
+        home.as_deref(),
+        mcp_install_policy,
+        &enabled,
+        fresh,
+        project_writes_gated,
+        config_format,
+        rotate_identity,
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn build_tui_consent_plan_with_home(
+    root: &Path,
+    home: Option<&Path>,
+    mcp_install_policy: McpInstallPolicy,
+    enabled: &BTreeSet<McpClientId>,
+    fresh: Option<crate::activation::mcp_client::AnvilEntry>,
+    project_writes_gated: bool,
+) -> TuiConsentPlan {
+    build_tui_consent_plan_with_project_options(
+        root,
+        home,
+        mcp_install_policy,
+        enabled,
+        fresh,
+        project_writes_gated,
+        None,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_tui_consent_plan_with_project_options(
+    root: &Path,
+    home: Option<&Path>,
+    mcp_install_policy: McpInstallPolicy,
+    enabled: &BTreeSet<McpClientId>,
+    fresh: Option<crate::activation::mcp_client::AnvilEntry>,
+    project_writes_gated: bool,
+    config_format: Option<anvil_config::ConfigFormat>,
+    rotate_identity: bool,
+) -> TuiConsentPlan {
+    let mut offers = Vec::new();
+    let mut project_actions = Vec::new();
+    add_tui_project_offers(
+        root,
+        home,
+        config_format,
+        rotate_identity,
+        &mut offers,
+        &mut project_actions,
+    );
+    let mut workflows = std::collections::BTreeMap::new();
+    for workflow in pending_workflows(root) {
+        let id = workflow.consent_id().to_string();
+        offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: workflow.to_string(),
+            description: workflow.label(root),
+            kind: TuiConsentOfferKind::Workflow,
+            repo_scoped: true,
+            unsafe_drift: None,
+        });
+        workflows.insert(id, workflow);
+    }
+
+    let mut mcp_candidates = std::collections::BTreeMap::new();
+    if matches!(mcp_install_policy, McpInstallPolicy::Install)
+        && let Some(fresh_entry) = fresh.as_ref()
+    {
+        for candidate in install::collect_candidates(root, home, fresh_entry) {
+            let offerable = enabled.contains(&candidate.id)
+                || !matches!(
+                    candidate.drift,
+                    crate::activation::mcp_client::DriftClass::NotPresent
+                );
+            if !offerable
+                || matches!(
+                    candidate.drift,
+                    crate::activation::mcp_client::DriftClass::UpToDate
+                )
+            {
+                continue;
+            }
+
+            let id = format!("mcp:{}", candidate.id.label());
+            let unsafe_drift = match &candidate.drift {
+                crate::activation::mcp_client::DriftClass::UnsafeDrift { reason } => {
+                    Some(reason.clone())
+                }
+                _ => None,
+            };
+            let action = match &candidate.drift {
+                crate::activation::mcp_client::DriftClass::NotPresent => "Write",
+                crate::activation::mcp_client::DriftClass::SafeDrift { .. } => "Update",
+                crate::activation::mcp_client::DriftClass::UnsafeDrift { .. } => "Inspect",
+                crate::activation::mcp_client::DriftClass::UpToDate => unreachable!(),
+            };
+            offers.push(TuiConsentOffer {
+                id: id.clone(),
+                label: format!("{} MCP", candidate.id.display_name()),
+                description: format!("{action} {}", candidate.target_path.display()),
+                kind: TuiConsentOfferKind::Mcp,
+                repo_scoped: candidate.scope
+                    == crate::activation::mcp_client::ConfigScope::Workspace,
+                unsafe_drift,
+            });
+            mcp_candidates.insert(id, candidate);
+        }
+    }
+
+    TuiConsentPlan {
+        root: root.to_path_buf(),
+        offers,
+        project_actions,
+        workflows,
+        mcp_candidates,
+        home: home.map(Path::to_path_buf),
+        fresh,
+        enabled: enabled.clone(),
+        project_writes_gated,
+    }
+}
+
+fn add_tui_project_offers(
+    root: &Path,
+    home: Option<&Path>,
+    config_format: Option<anvil_config::ConfigFormat>,
+    rotate_identity: bool,
+    offers: &mut Vec<TuiConsentOffer>,
+    actions: &mut Vec<(String, TuiProjectAction)>,
+) {
+    let initial = verify_with_home(root, home);
+    if matches!(initial.config, ConfigStatus::Absent) {
+        let id = "project:init-config".to_string();
+        let target = config_format.map_or_else(
+            || root.join(".anvilrc"),
+            |format| root.join(format!(".anvil.{}", format.extension())),
+        );
+        offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: "Project configuration".to_string(),
+            description: format!(
+                "Create {} and its documented local project support files",
+                target.display(),
+            ),
+            kind: TuiConsentOfferKind::Project,
+            repo_scoped: true,
+            unsafe_drift: None,
+        });
+        actions.push((
+            id,
+            TuiProjectAction::InitConfig {
+                format: config_format,
+            },
+        ));
+    }
+
+    let project_id = identity::project_id_path(root);
+    if rotate_identity || !project_id.exists() {
+        let id = "project:identity".to_string();
+        offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: "Project identity".to_string(),
+            description: format!(
+                "{} {}",
+                if rotate_identity { "Replace" } else { "Create" },
+                project_id.display(),
+            ),
+            kind: TuiConsentOfferKind::Project,
+            repo_scoped: true,
+            unsafe_drift: None,
+        });
+        actions.push((
+            id,
+            TuiProjectAction::ProjectIdentity {
+                rotate: rotate_identity,
+            },
+        ));
+    }
+
+    if witness_gitattributes_needs_update(root).unwrap_or(true) {
+        let id = "project:witness-attributes".to_string();
+        offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: "Witness merge attributes".to_string(),
+            description: format!("Update {}", root.join(".gitattributes").display()),
+            kind: TuiConsentOfferKind::Project,
+            repo_scoped: true,
+            unsafe_drift: None,
+        });
+        actions.push((id, TuiProjectAction::WitnessAttributes));
+    }
+
+    if root.join(".git").exists() && !hooks::activation_hooks_active(root).unwrap_or(false) {
+        let id = "project:git-hooks".to_string();
+        offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: "Commit and push hooks".to_string(),
+            description: "Install anvil-managed pre-commit and pre-push hooks".to_string(),
+            kind: TuiConsentOfferKind::Project,
+            repo_scoped: true,
+            unsafe_drift: None,
+        });
+        actions.push((id, TuiProjectAction::GitHooks));
+    }
+
+    if !baseline::baseline_exists(root) {
+        let id = "project:baseline".to_string();
+        offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: "Activation baseline".to_string(),
+            description: format!(
+                "Record current findings at {} when analysable files exist",
+                root.join(".anvil/baseline.json").display(),
+            ),
+            kind: TuiConsentOfferKind::Project,
+            repo_scoped: true,
+            unsafe_drift: None,
+        });
+        actions.push((id, TuiProjectAction::Baseline));
+    }
+}
+
 /// Run the orchestration on `root` under `mcp_install_policy` and return the
 /// final diagnostic alongside the install report.
 ///
@@ -258,6 +736,7 @@ pub(crate) fn run_with_mcp_policy_and_mode(
     mcp_install_policy: McpInstallPolicy,
     force_all_mcp_clients: bool,
     render_mode: StartRenderMode,
+    rotate_identity: bool,
 ) -> anyhow::Result<ActivationOutcome> {
     let home = crate::util::user_home_dir();
     let enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
@@ -268,6 +747,7 @@ pub(crate) fn run_with_mcp_policy_and_mode(
         mcp_install_policy,
         &enabled,
         render_mode,
+        rotate_identity,
     )
 }
 
@@ -278,6 +758,7 @@ fn run_with_home_and_policy(
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
     render_mode: StartRenderMode,
+    rotate_identity: bool,
 ) -> anyhow::Result<ActivationOutcome> {
     run_with_home_and_registration_outcome(
         root,
@@ -287,6 +768,7 @@ fn run_with_home_and_policy(
         mcp_install_policy,
         enabled,
         render_mode,
+        rotate_identity,
     )
 }
 
@@ -349,11 +831,12 @@ fn run_with_home_and_registration(
         mcp_install_policy,
         enabled,
         StartRenderMode::Plain,
+        false,
     )?
     .into_legacy_parts())
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn run_with_home_and_registration_outcome(
     root: &Path,
     home: Option<&Path>,
@@ -362,6 +845,7 @@ fn run_with_home_and_registration_outcome(
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
     render_mode: StartRenderMode,
+    rotate_identity: bool,
 ) -> anyhow::Result<ActivationOutcome> {
     let mut activation_run = ActivationRun::default();
 
@@ -390,7 +874,15 @@ fn run_with_home_and_registration_outcome(
     activation_run.start(ActivationStep::InitialProbe);
     let initial = verify_with_home(root, home);
     activation_run.complete(ActivationStep::InitialProbe);
-    if matches!(initial.config, ConfigStatus::Absent) && !project_writes_gated {
+    if matches!(initial.config, ConfigStatus::Absent)
+        && !project_writes_gated
+        && matches!(render_mode, StartRenderMode::Tui)
+    {
+        activation_run.defer(
+            ActivationStep::InitConfig,
+            "project config awaits activation TUI consent",
+        );
+    } else if matches!(initial.config, ConfigStatus::Absent) && !project_writes_gated {
         activation_run.start(ActivationStep::InitConfig);
         let args = init::InitArgs { force: false };
         // Init runs inline here as a composition step of `anvil start`; the
@@ -432,6 +924,22 @@ fn run_with_home_and_registration_outcome(
             ActivationStep::ProjectIdentity,
             "project writes are gated for this ANVIL_HOME",
         );
+    } else if matches!(render_mode, StartRenderMode::Tui)
+        && (rotate_identity || !project_id_path.exists())
+    {
+        activation_run.defer(
+            ActivationStep::ProjectIdentity,
+            if rotate_identity {
+                "project identity rotation awaits activation TUI consent"
+            } else {
+                "project identity awaits activation TUI consent"
+            },
+        );
+    } else if matches!(render_mode, StartRenderMode::Tui) {
+        activation_run.skip(
+            ActivationStep::ProjectIdentity,
+            "project identity already present",
+        );
     } else {
         activation_run.start(ActivationStep::ProjectIdentity);
         if let Err(e) = identity::ensure_project_id(root, env!("CARGO_PKG_VERSION")) {
@@ -471,6 +979,18 @@ fn run_with_home_and_registration_outcome(
             ActivationStep::WitnessAttributes,
             "project writes are gated for this ANVIL_HOME",
         );
+    } else if matches!(render_mode, StartRenderMode::Tui)
+        && witness_gitattributes_needs_update(root).unwrap_or(true)
+    {
+        activation_run.defer(
+            ActivationStep::WitnessAttributes,
+            "witness attributes await activation TUI consent",
+        );
+    } else if matches!(render_mode, StartRenderMode::Tui) {
+        activation_run.skip(
+            ActivationStep::WitnessAttributes,
+            "witness attributes already present",
+        );
     } else {
         activation_run.start(ActivationStep::WitnessAttributes);
         if let Err(e) = ensure_witness_gitattributes(root) {
@@ -507,6 +1027,31 @@ fn run_with_home_and_registration_outcome(
             "project writes are gated for this ANVIL_HOME",
         );
         false
+    } else if matches!(render_mode, StartRenderMode::Tui) {
+        match hooks::activation_hooks_active(root) {
+            Ok(true) => {
+                activation_run.skip(ActivationStep::GitHooks, "activation hooks already active");
+                true
+            }
+            Ok(false) if root.join(".git").exists() => {
+                activation_run.defer(
+                    ActivationStep::GitHooks,
+                    "git hooks await activation TUI consent",
+                );
+                false
+            }
+            Ok(false) => {
+                activation_run.skip(ActivationStep::GitHooks, "not a Git repository");
+                false
+            }
+            Err(error) => {
+                activation_run.fail(
+                    ActivationStep::GitHooks,
+                    format!("could not inspect git hooks: {error}"),
+                );
+                false
+            }
+        }
     } else {
         activation_run.start(ActivationStep::GitHooks);
         match hooks::install_activation_hooks_silent(root) {
@@ -554,6 +1099,11 @@ fn run_with_home_and_registration_outcome(
         activation_run.skip(
             ActivationStep::BaselineSample,
             "activation baseline already present",
+        );
+    } else if matches!(render_mode, StartRenderMode::Tui) {
+        activation_run.defer(
+            ActivationStep::BaselineSample,
+            "activation baseline awaits activation TUI consent",
         );
     } else if let Some(scan) = sample_analyser::run_baseline_scan(root) {
         activation_run.start(ActivationStep::BaselineSample);
@@ -644,7 +1194,7 @@ fn run_with_home_and_registration_outcome(
             "project writes are gated for this ANVIL_HOME",
         );
     } else if matches!(render_mode, StartRenderMode::Tui) && !pending_workflows(root).is_empty() {
-        activation_run.skip(
+        activation_run.defer(
             ActivationStep::WorkflowConsent,
             "deferred to activation TUI consent surface",
         );
@@ -684,15 +1234,22 @@ fn run_with_home_and_registration_outcome(
                 let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
                 if matches!(render_mode, StartRenderMode::Tui) {
                     // Mirrors the WorkflowConsent deferral above: no legacy
-                    // picker is shown, so the step is a Skipped-with-deferred
-                    // detail rather than Started/Completed, which would
+                    // picker is shown, so the step is explicitly Deferred
+                    // rather than Started/Completed, which would
                     // otherwise misreport a "Passed" consent step in the TUI
                     // progress panel before the surface's own consent widget
                     // has run.
-                    activation_run.skip(
-                        ActivationStep::McpConsent,
-                        "deferred to activation TUI consent surface",
-                    );
+                    if tui_mcp_offer_available(root, home, &fresh, enabled) {
+                        activation_run.defer(
+                            ActivationStep::McpConsent,
+                            "deferred to activation TUI consent surface",
+                        );
+                    } else {
+                        activation_run.skip(
+                            ActivationStep::McpConsent,
+                            "no MCP changes available for consent",
+                        );
+                    }
                     install::install_for_clients_with_consent_mode(
                         root,
                         home,
@@ -759,6 +1316,27 @@ fn run_with_home_and_registration_outcome(
     })
 }
 
+fn tui_mcp_offer_available(
+    root: &Path,
+    home: Option<&Path>,
+    fresh: &crate::activation::mcp_client::AnvilEntry,
+    enabled: &BTreeSet<McpClientId>,
+) -> bool {
+    install::collect_candidates(root, home, fresh)
+        .into_iter()
+        .any(|candidate| {
+            (enabled.contains(&candidate.id)
+                || !matches!(
+                    candidate.drift,
+                    crate::activation::mcp_client::DriftClass::NotPresent
+                ))
+                && !matches!(
+                    candidate.drift,
+                    crate::activation::mcp_client::DriftClass::UpToDate
+                )
+        })
+}
+
 fn log_or_eprintln(
     activation_run: &mut ActivationRun,
     render_mode: StartRenderMode,
@@ -823,6 +1401,25 @@ fn record_daemon_attestation_log(
 /// `active.ndjson` and the manifest via the git hooks and the intercept
 /// daemon) union-merges across parallel branches instead of producing
 /// conflicts.
+const WITNESS_GITATTRIBUTE_LINES: &[&str] = &[
+    "anvil/witness/active.ndjson merge=union -text",
+    "anvil/witness/manifest/chain.ndjson merge=union -text",
+];
+
+fn witness_gitattributes_needs_update(root: &Path) -> std::io::Result<bool> {
+    let path = root.join(".gitattributes");
+    let existing = if path.exists() {
+        std::fs::read_to_string(path)?
+    } else {
+        String::new()
+    };
+    Ok(WITNESS_GITATTRIBUTE_LINES.iter().any(|line| {
+        !existing
+            .lines()
+            .any(|existing_line| existing_line.trim() == *line)
+    }))
+}
+
 fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
     // Per spec §5.1 + ADR-037 §D-3, the active witness file lives at
     // `anvil/witness/active.ndjson` (not the deprecated top-level
@@ -831,11 +1428,6 @@ fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
     // so the shipped witness chain (MLP-002 / MLP2-005) union-merges
     // across parallel branches without a separate `.gitattributes`
     // migration.
-    const WITNESS_LINES: &[&str] = &[
-        "anvil/witness/active.ndjson merge=union -text",
-        "anvil/witness/manifest/chain.ndjson merge=union -text",
-    ];
-
     let path = root.join(".gitattributes");
     let existing = if path.exists() {
         std::fs::read_to_string(&path)?
@@ -844,7 +1436,7 @@ fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
     };
 
     let mut to_append = String::new();
-    for line in WITNESS_LINES {
+    for line in WITNESS_GITATTRIBUTE_LINES {
         if !existing
             .lines()
             .any(|existing_line| existing_line.trim() == *line)
@@ -876,6 +1468,13 @@ enum WorkflowTemplate {
 }
 
 impl WorkflowTemplate {
+    fn consent_id(self) -> &'static str {
+        match self {
+            Self::PrValidation => "workflow:pr-validation",
+            Self::Audit => "workflow:audit",
+        }
+    }
+
     fn target_path(self, root: &Path) -> PathBuf {
         let workflows_dir = root.join(".github").join("workflows");
         match self {
@@ -1233,13 +1832,14 @@ verdict: completed"
             McpInstallPolicy::Install,
             &crate::activation::mcp_client::all_client_ids(),
             StartRenderMode::Tui,
+            false,
         )
         .expect("orchestrator should succeed in TUI mode");
 
         assert!(
             outcome.run.events().iter().any(|event| {
                 event.step == ActivationStep::WorkflowConsent
-                    && event.lifecycle == ActivationStepLifecycle::Skipped
+                    && event.lifecycle == ActivationStepLifecycle::Deferred
                     && event.detail.as_deref() == Some("deferred to activation TUI consent surface")
             }),
             "workflow consent must be deferred instead of invoking demand: {:?}",
@@ -1248,7 +1848,7 @@ verdict: completed"
         assert!(
             outcome.run.events().iter().any(|event| {
                 event.step == ActivationStep::McpConsent
-                    && event.lifecycle == ActivationStepLifecycle::Skipped
+                    && event.lifecycle == ActivationStepLifecycle::Deferred
                     && event.detail.as_deref() == Some("deferred to activation TUI consent surface")
             }),
             "MCP consent must be deferred instead of recording a false Started/Completed pass: {:?}",
@@ -1262,12 +1862,278 @@ verdict: completed"
             !home.path().join(".claude.json").exists(),
             "TUI mode must not silently auto-install Claude MCP while consent widgets are deferred",
         );
+        assert!(!dir.path().join(".anvilrc").exists());
+        assert!(!dir.path().join("anvil/project-id").exists());
+        assert!(!dir.path().join(".gitattributes").exists());
+        assert!(!dir.path().join(".anvil/baseline.json").exists());
         assert!(matches!(
             outcome.install_report.per_client.get(&McpClientId::Cursor),
             Some(InstallOutcome::Skipped {
                 reason: SkipReason::ConsentDeferredToTui,
             })
         ));
+    }
+
+    #[test]
+    fn tui_consent_plan_applies_only_ticked_workflow_and_mcp_offers() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(PathBuf::from(
+            "/usr/local/bin/anvil",
+        ));
+        let enabled = crate::activation::mcp_client::all_client_ids();
+        let plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Install,
+            &enabled,
+            Some(fresh),
+            false,
+        );
+        assert_eq!(plan.root, dir.path());
+        assert_eq!(
+            plan.project_actions
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "project:init-config",
+                "project:identity",
+                "project:witness-attributes",
+                "project:baseline",
+            ]
+        );
+
+        let offer_ids = plan
+            .offers()
+            .iter()
+            .map(|offer| offer.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(offer_ids.contains("workflow:pr-validation"));
+        assert!(offer_ids.contains("workflow:audit"));
+        assert!(offer_ids.contains("mcp:cursor"));
+        assert!(offer_ids.contains("mcp:claude-code"));
+
+        let applied = plan.apply(&["workflow:audit".to_string(), "mcp:cursor".to_string()]);
+
+        assert!(applied.workflow_error.is_none());
+        assert!(
+            dir.path()
+                .join(".github/workflows/anvil-audit.yml")
+                .exists()
+        );
+        assert!(!dir.path().join(".github/workflows/anvil.yml").exists());
+        assert!(home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn tui_consent_plan_empty_selection_is_a_no_write_decision() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(PathBuf::from(
+            "/usr/local/bin/anvil",
+        ));
+        let enabled = crate::activation::mcp_client::all_client_ids();
+        let plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Install,
+            &enabled,
+            Some(fresh),
+            false,
+        );
+
+        let applied = plan.apply(&[]);
+
+        assert!(applied.workflow_error.is_none());
+        assert!(!dir.path().join(".github").exists());
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn explicit_claude_consent_writes_only_the_disclosed_mcp_target() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(PathBuf::from(
+            "/usr/local/bin/anvil",
+        ));
+        let enabled = crate::activation::mcp_client::all_client_ids();
+        let plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Install,
+            &enabled,
+            Some(fresh),
+            false,
+        );
+
+        let offer = plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "mcp:claude-code")
+            .unwrap();
+        assert!(offer.description.contains(".claude.json"));
+        assert!(!offer.description.contains("settings.json"));
+
+        plan.apply(&["mcp:claude-code".to_string()]);
+
+        assert!(home.path().join(".claude.json").exists());
+        assert!(!home.path().join(".claude/settings.json").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn selected_git_hook_consent_reports_only_active_managed_hooks_as_applied() {
+        use std::process::Command;
+
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        assert!(
+            Command::new("git")
+                .arg("init")
+                .arg(dir.path())
+                .status()
+                .unwrap()
+                .success()
+        );
+        let plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+
+        let applied = plan.apply(&["project:git-hooks".to_string()]);
+
+        assert!(applied.project_applied.contains(&ActivationStep::GitHooks));
+        assert!(applied.install_report.hooks_active);
+
+        std::fs::write(
+            dir.path().join(".git/hooks/pre-commit"),
+            "#!/bin/sh\nexit 0\n",
+        )
+        .unwrap();
+        let plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+        let applied = plan.apply(&["project:git-hooks".to_string()]);
+        assert!(!applied.project_applied.contains(&ActivationStep::GitHooks));
+        assert!(
+            applied
+                .project_skipped
+                .contains_key(&ActivationStep::GitHooks)
+        );
+        assert!(!applied.install_report.hooks_active);
+    }
+
+    #[test]
+    fn identity_rotation_is_bound_to_consent_and_changes_the_existing_id() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let original = identity::ensure_project_id(dir.path(), env!("CARGO_PKG_VERSION")).unwrap();
+        let lifecycle = run_with_home_and_registration_outcome(
+            dir.path(),
+            Some(home.path()),
+            &default_global(),
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            StartRenderMode::Tui,
+            true,
+        )
+        .unwrap();
+        assert!(lifecycle.run.events().iter().any(|event| {
+            event.step == ActivationStep::ProjectIdentity
+                && event.lifecycle == ActivationStepLifecycle::Deferred
+        }));
+        let plan = build_tui_consent_plan_with_project_options(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+            None,
+            true,
+        );
+
+        let applied = plan.apply(&["project:identity".to_string()]);
+        let rotated = identity::read_project_id(dir.path()).unwrap().unwrap();
+
+        assert_ne!(rotated.project_uuid, original.project_uuid);
+        assert!(
+            applied
+                .project_applied
+                .contains(&ActivationStep::ProjectIdentity)
+        );
+    }
+
+    #[test]
+    fn tui_mcp_lifecycle_skips_when_no_client_is_offerable() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let outcome = run_with_home_and_registration_outcome(
+            dir.path(),
+            Some(home.path()),
+            &default_global(),
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Install,
+            &BTreeSet::new(),
+            StartRenderMode::Tui,
+            false,
+        )
+        .unwrap();
+
+        assert!(outcome.run.events().iter().any(|event| {
+            event.step == ActivationStep::McpConsent
+                && event.lifecycle == ActivationStepLifecycle::Skipped
+                && event.detail.as_deref() == Some("no MCP changes available for consent")
+        }));
+    }
+
+    #[test]
+    fn gated_tui_consent_plan_marks_and_rejects_workspace_mcp_writes() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_config = dir.path().join(".cursor/mcp.json");
+        std::fs::create_dir_all(cursor_config.parent().unwrap()).unwrap();
+        std::fs::write(&cursor_config, "{\"mcpServers\":{}}\n").unwrap();
+        let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(PathBuf::from(
+            "/usr/local/bin/anvil",
+        ));
+        let enabled = crate::activation::mcp_client::all_client_ids();
+        let plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Install,
+            &enabled,
+            Some(fresh),
+            true,
+        );
+
+        let cursor_offer = plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "mcp:cursor")
+            .unwrap();
+        assert!(cursor_offer.repo_scoped);
+
+        plan.apply(&["mcp:cursor".to_string()]);
+
+        assert_eq!(
+            std::fs::read_to_string(cursor_config).unwrap(),
+            "{\"mcpServers\":{}}\n"
+        );
+        assert!(!home.path().join(".cursor/mcp.json").exists());
     }
 
     #[test]

@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/activation/render.rs
+expression: "render_to_string(&consent_surface, 100, 22)"
+---
+                                                                                                    
+  Preflight > Working > [Consent] > Verdict > Done                                                  
+                                                                                                    
+  ────────────────────────────────────────────────────────────────────────────────────────────────  
+  ┌ Consent ─────────────────────────────────────────────────────────────────────────────────────┐  
+  │▸ [ ] Cursor MCP  MCP — Write ~/.cursor/mcp.json                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  │                                                                                              │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────┘  
+  0 selected  space toggle  enter toggle/inspect  a apply  q cancel

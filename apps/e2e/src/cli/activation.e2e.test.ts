@@ -176,6 +176,35 @@ describeCli('Activation golden path', () => {
     expect(result.stdout).not.toContain('\u001b[?1049h');
   });
 
+  it('degrades to plain output when TUI opt-in is piped without an explicit opt-out', async () => {
+    const ws = workspace();
+    const home = isolatedHome();
+    const { ANVIL_NO_PROMPT: _noPrompt, ...ttyEligibleEnv } = home.env;
+
+    const result = await runCli(['start', '--no-daemon', '--no-mcp'], {
+      cwd: ws.root,
+      env: {
+        ...ttyEligibleEnv,
+        ANVIL_ACTIVATION_TUI: '1',
+        CI: undefined,
+        NO_TUI: undefined,
+        ANVIL_NO_TUI: undefined,
+        ANVIL_NO_PROMPT: undefined,
+        NONINTERACTIVE: undefined,
+        GIT_DIR: undefined,
+        GIT_INDEX_FILE: undefined,
+      },
+      timeout: 30_000,
+      forceNonInteractive: false,
+    });
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toContain('ACTIVATION');
+    expect(result.stdout).toMatch(/state: /);
+    expect(result.stdout).not.toContain('\u001b[?1049h');
+    expect(result.stdout).not.toContain('\u001b[?25l');
+  });
+
   it('keeps compact --no-tui reruns script-safe', async () => {
     const ws = workspace();
     const home = isolatedHome();

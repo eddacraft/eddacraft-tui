@@ -21,6 +21,7 @@ pub enum ConsentKind {
     Mcp,
     Workflow,
     Hook,
+    Project,
 }
 
 impl ConsentKind {
@@ -30,6 +31,7 @@ impl ConsentKind {
             Self::Mcp => "MCP",
             Self::Workflow => "Workflow",
             Self::Hook => "Hook",
+            Self::Project => "Project",
         }
     }
 }
@@ -116,6 +118,7 @@ pub struct ConsentState {
     selected_ids: Vec<String>,
     pub unsafe_confirm_index: Option<usize>,
     pub unsafe_confirmed: Option<bool>,
+    submitted: bool,
 }
 
 impl ConsentState {
@@ -135,6 +138,7 @@ impl ConsentState {
             selected_ids: Vec::new(),
             unsafe_confirm_index: None,
             unsafe_confirmed: None,
+            submitted: false,
         }
     }
 
@@ -197,6 +201,15 @@ impl ConsentState {
     #[must_use]
     pub fn is_selected(&self, id: &str) -> bool {
         self.selected_ids.iter().any(|selected| selected == id)
+    }
+
+    pub fn submit(&mut self) {
+        self.submitted = true;
+    }
+
+    #[must_use]
+    pub fn submitted(&self) -> bool {
+        self.submitted
     }
 }
 
@@ -267,7 +280,7 @@ fn render_hint(frame: &mut Frame, area: Rect, state: &ConsentState, theme: &Edda
         ),
         Span::raw("  "),
         Span::styled(
-            "space toggle  enter select/inspect  q quit",
+            "space toggle  enter toggle/inspect  a apply  q cancel",
             theme.disabled(),
         ),
     ]);

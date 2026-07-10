@@ -258,6 +258,37 @@ impl ActivationSurface {
         }
     }
 
+    /// Build a progress surface from caller-supplied typed verdict and evidence
+    /// projections. The plain verdict is retained solely as the fallback text
+    /// contract; it is not parsed to construct either TUI model.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_typed_with_progress(
+        verdict: impl Into<String>,
+        verdict_model: VerdictModel,
+        tier_evidence_entries: Vec<LogEntry>,
+        project_writes_gated: bool,
+        log_lines: Vec<String>,
+        progress_steps: Vec<ActivationProgressStep>,
+        daemon_spinner: bool,
+        phase: ActivationPhase,
+    ) -> Self {
+        Self {
+            phase,
+            verdict: verdict.into(),
+            verdict_view: VerdictView::new(verdict_model),
+            tier_evidence_entries,
+            log_panel_state: RefCell::new(default_log_panel_state()),
+            tier_evidence_pane: TierEvidencePane::Hidden,
+            log_lines,
+            progress_steps,
+            daemon_spinner,
+            consent: None,
+            project_writes_gated,
+            should_quit: false,
+        }
+    }
+
     /// Attach deferred consent rows to this surface.
     #[must_use]
     pub fn with_consent(mut self, consent: ConsentState) -> Self {
@@ -425,6 +456,10 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
                 {
                     consent.confirm_unsafe(false);
                 }
+                Action::Character('a' | 'A') if consent.unsafe_confirm_index.is_none() => {
+                    consent.submit();
+                    self.should_quit = true;
+                }
                 Action::Quit | Action::Back => self.should_quit = true,
                 _ => {}
             }
@@ -542,6 +577,27 @@ mod tests {
         let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
         surface.handle_key(Action::Quit);
         assert!(surface.should_quit());
+        assert!(!surface.consent().unwrap().submitted());
+    }
+
+    #[test]
+    fn consent_apply_exits_surface_and_marks_submission() {
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        surface.handle_key(Action::Toggle);
+        surface.handle_key(Action::Character('a'));
+
+        assert!(surface.should_quit());
+        assert!(surface.consent().unwrap().submitted());
+        assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
     }
 
     #[test]
