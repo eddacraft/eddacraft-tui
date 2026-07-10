@@ -115,7 +115,7 @@ which = "8"
 minisign = "0.9"
 # SARIFOUT-002: validate emitted SARIF against the bundled upstream 2.1.0
 # schema. Test-only; the emitter itself has no schema-validation dependency.
-jsonschema = "0.46"
+jsonschema = "0.47"
 # KDS-001 / KDS-003: spin up a real in-process Kindling daemon on a temp UDS so
 # the `KindlingDaemonSink` parity + spool-replay tests exercise the live wire
 # contract. Test-only — the daemon (`kindling-server`) and its store
