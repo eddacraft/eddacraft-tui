@@ -5,9 +5,15 @@
 
 | ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
-| POLVAL | —     | high     | In Progress |
+| POLVAL | —     | high     | Done |
 
-**Last reviewed:** 2026-07-04 (POLRESET-002 retarget under ADR-098).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all five items
+Done, module advances to Done. The open gate-preflight acceptance criterion is
+resolved as satisfied: install-time admission (OPAE-004) plus the gate's
+fail-fast compile admission (ADR-098 AD-1 PR-B) deliver its intent; a
+manifest-level preflight inside `anvil gate` itself remains available as
+future intake, not owed by this module).
 
 > **Retarget (POLRESET-002 / ADR-098, 2026-07-04):** pack admission code must
 > NOT extend `crates/anvil-policy`'s OPA-era `loader.rs`/`library.rs` — those
@@ -20,7 +26,9 @@
 
 > **Policy-solution validation (2026-06-24):** POLVAL should validate packs for
 > the Rust/regorus policy path. Structural pack checks live in
-> `crates/anvil-policy`; execution tests must prove the pack through
+> `crates/anvil-policy-engine` (`src/pack/`, per the 2026-07-04 retarget
+> above; this note originally said `crates/anvil-policy`, corrected
+> 2026-07-11); execution tests must prove the pack through
 > `crates/anvil-policy-engine` / `anvil policy eval` semantics. Go OPA
 > (`opa test`) may remain an optional compatibility/reference check for Rego
 > syntax, but it is not sufficient completion evidence for a pack that Anvil will
@@ -53,7 +61,10 @@ before gate evaluation so policies do not fail silently.
   CPACKS' `anvil-baseline` starter pack (POLRESET-007). Revisit only as a
   deliberate scope change here (or in OPAE, which separately excludes
   natural-language policy generation), not a drive-by addition.
-- Remote bundle signing (covered by OPA-020)
+- Remote bundle signing — the OPA-020 item this once deferred to lives in the
+  archived `opa-architecture-integration` module (its OPA-subprocess
+  architecture was deleted by ADR-098 PR-C); distribution/signing is future
+  POLFED-adjacent intake with no live owner
 - Auto-fixing policy errors
 
 ## Interfaces
@@ -61,9 +72,8 @@ before gate evaluation so policies do not fail silently.
 **Depends on:**
 
 <!-- Audit 2026-04-26: TS core paths superseded by Rust crates per ADR-026; opa-architecture-integration archived. -->
-- `crates/anvil-policy/` — Policy loading, storage, manifest validation, and
-  pack-level orchestration
-- `crates/anvil-policy-engine/` — regorus evaluation facade and result
+- `crates/anvil-policy-engine/` — pack discovery, manifest loading, validation,
+  test enforcement (`src/pack/`), plus the regorus evaluation facade and result
   semantics for execution tests
 - `crates/anvil-kernel/` — Configuration loading
 
@@ -75,13 +85,21 @@ before gate evaluation so policies do not fail silently.
 
 ## Acceptance Criteria
 
-- [ ] Missing policy tests cause validation failure
-- [ ] Missing required metadata fields are reported with rule ids
-- [ ] Duplicate policy ids and packages are blocked
-- [ ] Manifest references only existing policy files
-- [ ] Validation report supports human and JSON output
-- [ ] Typical pack validates in < 200ms
-- [ ] Gate preflight can block policy evaluation when validation fails
+- [x] Missing policy tests cause validation failure (POLVAL-004 test_runner, 8
+      tests green)
+- [x] Missing required metadata fields are reported with rule ids (POLVAL-001,
+      14 tests green)
+- [x] Duplicate policy ids and packages are blocked (POLVAL-003 validator, 7
+      tests green)
+- [x] Manifest references only existing policy files (POLVAL-002 manifest, 12
+      tests green)
+- [x] Validation report supports human and JSON output (POLVAL-005
+      `anvil policy validate`, 6 tests green)
+- [ ] Typical pack validates in < 200ms — never benchmarked; no recorded
+      evidence. Non-blocking: carry as later intake if pack sizes grow
+- [x] Gate preflight can block policy evaluation when validation fails —
+      satisfied by install-time admission (OPAE-004) plus the gate's fail-fast
+      compile admission (ADR-098 AD-1 PR-B); recorded 2026-07-11
 
 ## Work Items
 
@@ -141,7 +159,7 @@ before gate evaluation so policies do not fail silently.
 
 - **Intent:** Make validation available to users and CI
 - **Expected Outcome:** `anvil policy validate` runs and gate can preflight
-- **Scope:** `crates/anvil-cli/src/commands/`, `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-cli/src/commands/`, `crates/anvil-policy-engine/src/`
 - **Non-scope:** IDE integration
 - **Files:**
   - `crates/anvil-cli/src/commands/policy/` (replaces the `validate` stub that punts to `opa check`, including colocated tests)
@@ -150,4 +168,4 @@ before gate evaluation so policies do not fail silently.
 - **Dependencies:** POLVAL-004
 - **Validation:** `cargo test -p eddacraft-anvil -- policy_validate`
 - **Confidence:** medium
-- **Status:** Done — `cargo test -p eddacraft-anvil -- policy_validate` passes (6 tests green). CLI command + `docs/guides/policy-validation.md` shipped; gate preflight deferred to the OPAE-003 PR-B gate repoint (not wired here).
+- **Status:** Done — `cargo test -p eddacraft-anvil -- policy_validate` passes (6 tests green). CLI command + `docs/guides/policy-validation.md` shipped; gate preflight deferred to the OPAE-003 PR-B gate repoint (not wired here). 2026-07-11: PR-B landed with fail-fast compile admission at the gate; with install-time admission (OPAE-004) this closes the deferral — see the acceptance-criteria note.

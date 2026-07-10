@@ -26,7 +26,10 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ## In Scope
 
-- User policy pack discovery and loading through `crates/anvil-policy`.
+- User policy pack discovery and loading through `crates/anvil-policy-engine`
+  (`src/pack/discovery.rs`, OPAE-002; this line originally said
+  `crates/anvil-policy`, corrected 2026-07-11 — PR-C deleted that crate's
+  loader).
 - Regorus-backed evaluation through `crates/anvil-policy-engine`. Go OPA
   survives only as CI reference/parity tooling (`opa test policies/fixtures/`,
   regal lint, and the poleng-parity bench); the Rust OPA-subprocess path is
@@ -167,13 +170,15 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   facade.
 - **Expected Outcome:** User-authored Rego reaches regorus through the same facade
   as bundled packs; Go OPA remains reference/parity only.
-- **Note (ADR-098 AD-1):** OPAE-003 is PR-B of the OPA replace-then-delete
-  sequence. Its scope includes repointing `anvil gate`'s `run_check_policy`
-  (`gate.rs:1736`, today the OPA-subprocess path with no regorus backing) and
-  `anvil policy list/explain` / `builtin_policies()` onto the facade, gated on
-  eval-regression parity evidence. That repoint slice may start ahead of
+- **Note (ADR-098 AD-1 — superseded planning note; the repoint and PR-C have
+  both landed, see the Status paragraph above):** OPAE-003 was PR-B of the OPA
+  replace-then-delete sequence. Its scope included repointing `anvil gate`'s
+  `run_check_policy` (at planning time `gate.rs:1736`, then the OPA-subprocess
+  path with no regorus backing) and `anvil policy list/explain` /
+  `builtin_policies()` onto the facade, gated on eval-regression parity
+  evidence. That repoint slice was allowed to start ahead of
   OPAE-002/POLVAL-004 per the gate's sequencing note; PR-C (mechanical deletion
-  of the OPA modules) lands only after it.
+  of the OPA modules) landed after it.
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- user_policy_eval`
 - **Dependencies:** OPAE-002, POLVAL-004
 - **Confidence:** high

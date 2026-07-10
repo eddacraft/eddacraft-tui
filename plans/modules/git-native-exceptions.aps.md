@@ -4,7 +4,9 @@
 |----|-------|--------|
 | EXCEPT | @josh | In Progress |
 
-**Last reviewed:** 2026-06-08
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`; EXCEPT-012 filed
+per ADR-098 AD-2)
 
 > **Operator-authorised (2026-06-06).** The storage-path migration slice
 > (EXCEPT-001/002, now Done) was authorised for immediate execution as the
@@ -12,20 +14,19 @@
 > (`crates/anvil-policy/src/exceptions.rs`) previously persisted to
 > `.anvil/exceptions.json` (gitignored, local-only); it now writes the tracked
 > `anvil/exceptions/store.json` with a legacy read-fallback and a one-time,
-> non-destructive migration, so exceptions travel with the repo. The store
-> still has **no callers**: exceptions remain **unenforced** (a hand-written
-> `anvil/exceptions/store.json` does nothing) until EXCEPT-006 wires
-> evaluation, and the first write surface is gated on the EXCEPT-007
-> hardening contract.
-> EXCEPT-003 is Done after ADR-073 and EXCEPT-007 cleared the required
-> state-boundary and write-path gates. L3/L4 integration (EXCEPT-006) was
-> authorised 2026-07-04; remaining CLI and capsule integration items stay
-> Proposed pending next-work authorisation. Brainstorm:
+> non-destructive migration, so exceptions travel with the repo.
+> **2026-07-11 update:** the "no callers / unenforced" caveat that lived here
+> is obsolete — EXCEPT-006 (Merged 2026-07-04 via PR #3140) wired exception
+> application into the L4 gate, and EXCEPT-010 (ADR-100, PR #3168) bound gate
+> reads to committed-tree authority. CLI (EXCEPT-004), operator docs
+> (EXCEPT-008), and capsule inclusion (EXCEPT-009) all Merged 2026-07-04;
+> only EXCEPT-011 (capsule tip-alignment) and EXCEPT-012 (AD-2 crate
+> extraction) remain Proposed. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
 
 2026-06-12: items confirmed in the v0.8.0-beta tag (record:
 plans/releases/v0.8.0-beta.md) advanced to Released/Shipped; enforcement
-integration remains future work.
+integration landed later via EXCEPT-006 (Merged 2026-07-04 via PR #3140).
 
 ## Purpose
 
@@ -54,7 +55,8 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 ## Interfaces
 
 - `crates/anvil-policy/src/exceptions.rs` (`ExceptionStore`, `PolicyException`).
-- Future CLI: `crates/anvil-cli/src/commands/exception.rs`.
+- CLI: `crates/anvil-cli/src/commands/exception.rs`
+  (`anvil exception grant|revoke|list|show|verify|migrate`, EXCEPT-004).
 - Consumed by GITGOV capsule verification (GITGOV-009).
 
 ## Work Items
@@ -133,4 +135,23 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** Capsule exception collection and the verify recheck read from committed trees; worktree-only grants influence neither; the gate and the capsule agree on what "the store" means for a given range.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- exceptions`
 - **Dependencies:** EXCEPT-009, EXCEPT-010
+- **Status:** Proposed
+
+### EXCEPT-012: Extract graph-free `anvil-exceptions` crate (ADR-098 AD-2)
+- **Intent:** Execute the ADR-098 AD-2 extraction now that both trigger
+  conditions have fired (EXCEPT-006 landed via PR #3140; the `anvil-policy`
+  disposition PR-C landed via commit `3aa963008`): move the exceptions store
+  out of `crates/anvil-policy` into a new graph-free `anvil-exceptions` crate
+  that speaks kernel-types `ControlDecision`, so exception evidence no longer
+  lives in the crate AD-2 slates for eventual deletion. Includes the dead-code
+  disposition EXCEPT-010 parked "to the OPAE rebuild": `is_suppressed_at` /
+  `filter_suppressed` in `crates/anvil-policy/src/exceptions.rs` have no
+  production callers — delete or port deliberately, not by inertia.
+- **Expected Outcome:** `crates/anvil-exceptions` owns `ExceptionStore`,
+  `PolicyException`, and verification; consumers (L4 gate, exception CLI,
+  capsule) repoint; `crates/anvil-policy` retains no exceptions code, clearing
+  ADR-098 AD-2's path to that crate's eventual deletion.
+- **Validation:** `cargo test -p eddacraft-anvil-exceptions` and
+  `cargo test -p eddacraft-anvil --bin anvil -- l4_engine`
+- **Dependencies:** EXCEPT-006, EXCEPT-010
 - **Status:** Proposed

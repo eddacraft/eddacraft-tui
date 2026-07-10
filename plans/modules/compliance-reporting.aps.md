@@ -30,9 +30,11 @@
 > in `crates/anvil-policy/src/` (or `crates/anvil-kernel/src/policy/` for
 > drift-derived inputs); CLI commands land in
 > `crates/anvil-cli/src/commands/compliance.rs`. Dependency modules
-> `opa-architecture-integration`, `drift-reporting`, `suppressions`, and
-> `policy-lifecycle` are all archived — capability is now in
-> `crates/anvil-policy` (drift, exceptions) and the kernel.
+> `opa-architecture-integration`, `drift-reporting`, and `suppressions` are
+> archived (correction 2026-07-11: `policy-lifecycle` is **not** archived — it
+> is a live Draft module in `plans/modules/` and remains a real dependency);
+> exception capability is the EXCEPT store (`crates/anvil-policy`, ADR-100
+> committed authority) and drift-derived inputs live with the kernel.
 
 ## Purpose
 

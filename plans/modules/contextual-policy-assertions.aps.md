@@ -2,14 +2,17 @@
 
 | ID   | Owner  | Status |
 | ---- | ------ | ------ |
-| CPOL | @aneki | In Progress |
+| CPOL | @aneki | Done |
 
-**Last reviewed:** 2026-07-04 (POLRESET-004 retarget under ADR-098).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
+were delivered via POLRESET-004 / PR #3139, so the module advances to Done).
 
 > **Retarget (POLRESET-004 / ADR-098, 2026-07-04):** assertion schema,
 > context adapters, and guidance live in the product-path crate,
 > `crates/anvil-policy-engine` (`src/context/`), alongside `PolicyInput` —
-> not in `crates/anvil-policy`, which dissolves under ADR-098 AD-2.
+> not in `crates/anvil-policy`, which ADR-098 AD-2 slates for eventual
+> deletion once the exceptions extraction (EXCEPT-012) completes.
 > Validation targets updated accordingly.
 >
 > **Policy-solution validation (2026-06-24):** CPOL is still Ready when scoped

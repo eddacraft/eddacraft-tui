@@ -2,15 +2,20 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| IORISK | @aneki | In Progress |
+| IORISK | @aneki | Done |
 
-**Last reviewed:** 2026-07-04 (POLRESET-004 retarget under ADR-098).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
+were delivered via POLRESET-004 / PR #3139, so the module advances to Done.
+Concrete heavyweight scanners remain later intake — file them as new work
+items, e.g. under ACTAX risk-score fusion, when prioritised).
 
 > **Retarget (POLRESET-004 / ADR-098, 2026-07-04):** taxonomy contracts stay
 > in `crates/anvil-kernel-types` (pure serde types); the scanner-contract
 > pipeline and guidance integration live in `crates/anvil-policy-engine`
-> (`src/io_risk/`) — not `crates/anvil-policy`, which dissolves under
-> ADR-098 AD-2. First slice ships the provider-agnostic contracts and chain
+> (`src/io_risk/`) — not `crates/anvil-policy`, which ADR-098 AD-2 slates for
+> eventual deletion once the exceptions extraction (EXCEPT-012) completes.
+> First slice ships the provider-agnostic contracts and chain
 > executor; concrete heavyweight scanners are later intake.
 >
 > **Policy-solution validation (2026-06-24):** IORISK remains Ready as a

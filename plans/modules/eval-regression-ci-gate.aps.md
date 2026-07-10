@@ -4,12 +4,18 @@
 | ------ | ------ | -------- |
 | EVALCI | @aneki | In Progress |
 
-**Last reviewed:** 2026-07-01 (planning council: architect + pragmatic-lead + adversarial-reviewer)
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`)
 
-> First-wave hardening EVALCI-001..004 authorised **Ready** 2026-07-01 (owner).
-> EVALCI-005..008 remain **Proposed** — 005 depends on 002/003; 006 wires CI;
-> 007/008 are phased and gated on an ADR for the CI-blocking posture and on
-> ATC-003.
+> First-wave hardening EVALCI-001..004 authorised **Ready** 2026-07-01 (owner)
+> and since delivered. **EVALCI-005/006 Merged 2026-07-04 via PR #3170**
+> (= POLRESET-008: every Rust-affecting PR now gets the non-blocking
+> `Policy eval-regression (report-only)` step). 007/008 remain **Proposed**:
+> 007 waits on a burn-in on main; 008's ATC-003 dependency is satisfied (ATC
+> Done, Merged 2026-07-05 via PR #3181), leaving the CI-blocking-posture ADR
+> (POLRESET design gate 3) as its **sole remaining decision gate** — no work
+> item anywhere tracks authoring that ADR; it is a deliberate operator
+> decision, not queued code work.
 
 ## Purpose
 
@@ -23,9 +29,10 @@ settled four decisions, and surfaced four code prerequisites that must land
 before a *blocking* gate is safe — otherwise the gate can produce false
 negatives (baseline poisoning, absorbed violations, suppressed runner errors)
 and quietly stop catching regressions. The four code prerequisites
-(EVALCI-001..004) are authorised `Ready` (2026-07-01); the first-wave suite,
-CI wiring, and phased promotion (EVALCI-005..008) remain `Proposed` pending
-their dependencies and a CI-blocking-posture ADR. See the post-merge note
+(EVALCI-001..004) were authorised `Ready` (2026-07-01) and delivered; the
+first-wave suite and report-only CI wiring (EVALCI-005/006) merged 2026-07-04
+via PR #3170. Only the phased promotion (EVALCI-007/008) remains `Proposed`,
+pending a burn-in and the CI-blocking-posture ADR. See the post-merge note
 [`../reviews/post-merge/feat-eval-harness-integration.md`](../reviews/post-merge/feat-eval-harness-integration.md)
 for the deferred wiring step this module picks up.
 
@@ -178,7 +185,8 @@ for the deferred wiring step this module picks up.
 - **Expected Outcome:** A new trust regression blocks the PR.
 - **Validation:** workflow lint plus
   `cargo test -p eddacraft-anvil-policy -- eval_regression_absorbs_new_violations_guard`
-- **Dependencies:** EVALCI-007, ATC-003
+- **Dependencies:** EVALCI-007; ATC-003 (satisfied — Merged 2026-07-05 via
+  PR #3181); CI-blocking-posture ADR (POLRESET design gate 3, not yet authored)
 
 ## Execution
 

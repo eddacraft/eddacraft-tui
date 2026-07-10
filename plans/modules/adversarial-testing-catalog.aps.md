@@ -4,7 +4,9 @@
 | --- | ------ | ----------- |
 | ATC | @aneki | Done |
 
-**Last reviewed:** 2026-05-25 (APSCAN-004 canonical-heading migration)
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+module closed 2026-07-05 alongside POLRESET-009: ATC-001..004 Merged
+2026-07-05 via PR #3181; archive after release-tag inclusion, with PATT)
 
 ## Purpose
 
@@ -20,11 +22,11 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ## Work Items
 
-<!-- Audit 2026-04-26: Validation commands updated for Rust crates per ADR-026. Categorise UK English: standardise/categorise. EVAL-002 reference assumes eval-harness-integration module. -->
+<!-- Audit 2026-04-26: Validation commands updated for Rust crates per ADR-026. Categorise UK English: standardise/categorise. EVAL-002 dependency satisfied — EVAL Done, items Merged 2026-06-30 via PR #3013. -->
 
 ### ATC-001: Define adversarial probe taxonomy
 
-- **Status:** Done
+- **Status:** Merged 2026-07-05 via PR #3181
 - **Intent:** Standardise categories, payload classes, and expected outcomes.
 - **Expected Outcome:** Probe catalog supports traceable and versioned test assets.
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- adversarial_taxonomy`
@@ -35,7 +37,7 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-002: Implement probe pack registry
 
-- **Status:** Done
+- **Status:** Merged 2026-07-05 via PR #3181
 - **Intent:** Add loadable probe packs with versioned manifests.
 - **Expected Outcome:** Probe sets can be selected by risk profile and context.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- probe_registry` (green —
@@ -50,7 +52,7 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-003: Integrate probe execution into eval harness
 
-- **Status:** Done
+- **Status:** Merged 2026-07-05 via PR #3181
 - **Intent:** Execute adversarial probes in CI and local eval runs.
 - **Expected Outcome:** Probe outcomes appear in eval regression summaries.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- adversarial_eval_integration`
@@ -66,7 +68,7 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ### ATC-004: Add adversarial trend reporting
 
-- **Status:** Done
+- **Status:** Merged 2026-07-05 via PR #3181
 - **Intent:** Surface probe pass/fail trends by category over time.
 - **Expected Outcome:** Teams can spot recurring weak points and regressions.
 - **Validation:** `cargo test -p eddacraft-anvil -- adversarial_trends` (green —
