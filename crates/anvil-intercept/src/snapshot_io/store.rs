@@ -105,9 +105,33 @@ pub enum LoadSealedError {
 /// rename path. On a pre-rename failure the temp is unlinked; nothing is
 /// published.
 pub fn write_sealed(dir: &Path, final_name: &str, bytes: &[u8]) -> io::Result<()> {
+    validate_leaf_name(final_name)?;
     ensure_dir(dir)?;
     let dirfd = crate::path_safety::open_workspace_dir_for_fsync(dir)?;
     publish_sealed_at(&dirfd, final_name, bytes)
+}
+
+/// Reject any `name` that is not a single, separator-free path component
+/// (`InvalidInput`). The `openat2(RESOLVE_BENEATH)` path refuses traversal by
+/// construction, but the `O_NOFOLLOW`-`openat` **fallback** (non-Linux, or
+/// `openat2` ENOSYS/EPERM) only guards the leaf — a `..` or `a/b` name would
+/// resolve intermediate components there. The seam functions are `pub`, so the
+/// documented invariant is enforced at runtime, not by caller convention;
+/// internal callers always pass hash-derived basenames and are unaffected.
+fn validate_leaf_name(name: &str) -> io::Result<()> {
+    let invalid = name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains('\0');
+    if invalid {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("sealed-store name must be a single separator-free component, got {name:?}"),
+        ));
+    }
+    Ok(())
 }
 
 /// The sealed publish core, anchored at an already-open, validated **real**
@@ -178,6 +202,7 @@ pub(crate) fn publish_sealed_at(dirfd: &OwnedFd, final_name: &str, bytes: &[u8])
 /// when the leaf is a symlink or not a regular file; [`LoadSealedError::Oversized`]
 /// when the body exceeds `max_bytes`.
 pub fn load_sealed(dir: &Path, name: &str, max_bytes: u64) -> Result<Vec<u8>, LoadSealedError> {
+    validate_leaf_name(name).map_err(LoadSealedError::Io)?;
     let path = dir.join(name);
 
     let metadata = match fs::symlink_metadata(&path) {
@@ -318,6 +343,8 @@ pub fn open_leaf_under_dirfd(
     use nix::sys::stat::Mode;
     use std::os::fd::AsFd;
 
+    validate_leaf_name(name)?;
+
     let nofollow_openat = |fd: std::os::fd::BorrowedFd<'_>| -> io::Result<std::os::fd::OwnedFd> {
         openat(
             fd,
@@ -372,14 +399,12 @@ pub fn create_leaf_under_dirfd(dirfd: &std::os::fd::OwnedFd, name: &str) -> io::
     use nix::sys::stat::Mode;
     use std::os::fd::AsFd;
 
-    // Enforce the documented single-component invariant: the `O_NOFOLLOW` `openat`
-    // fallback only guards the *leaf*, so a multi-component `name` would let a
-    // future caller traverse intermediate symlinked components unsafely. Current
-    // callers pass separator-free `snapshot_filename`/`temp_name` basenames.
-    debug_assert!(
-        !name.contains('/') && !name.contains('\\'),
-        "create_leaf_under_dirfd requires a separator-free leaf name, got {name:?}",
-    );
+    // Enforce the documented single-component invariant at runtime: the
+    // `O_NOFOLLOW` `openat` fallback only guards the *leaf*, so a multi-component
+    // `name` would let a caller traverse intermediate symlinked components
+    // unsafely. Internal callers pass separator-free
+    // `snapshot_filename`/`temp_name` basenames and are unaffected.
+    validate_leaf_name(name)?;
 
     let mode = Mode::from_bits_truncate(FILE_MODE as nix::libc::mode_t);
     let create_flags =
@@ -581,5 +606,59 @@ mod tests {
         );
         // The symlink target was never written through.
         assert_eq!(fs::read(&secret).unwrap(), b"do-not-clobber");
+    }
+
+    /// Every `pub` seam entry point rejects a non-leaf `name` with
+    /// `InvalidInput` at runtime — the `O_NOFOLLOW`-`openat` fallback path only
+    /// guards the leaf, so traversal/escape names must never reach a syscall.
+    #[test]
+    fn seam_rejects_non_leaf_names() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("store");
+        fs::create_dir_all(&dir).unwrap();
+        let dirfd = crate::path_safety::open_workspace_dirfd(&dir).unwrap();
+
+        for bad in ["", ".", "..", "a/b", "a\\b", "../escape", "a\0b"] {
+            let err = write_sealed(&dir, bad, b"x").unwrap_err();
+            assert_eq!(
+                err.kind(),
+                io::ErrorKind::InvalidInput,
+                "write_sealed({bad:?})"
+            );
+
+            match load_sealed(&dir, bad, 1024) {
+                Err(LoadSealedError::Io(err)) => {
+                    assert_eq!(
+                        err.kind(),
+                        io::ErrorKind::InvalidInput,
+                        "load_sealed({bad:?})"
+                    );
+                }
+                other => {
+                    panic!("load_sealed({bad:?}) must reject with Io(InvalidInput), got {other:?}")
+                }
+            }
+
+            let err = open_leaf_under_dirfd(&dirfd, bad).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                io::ErrorKind::InvalidInput,
+                "open_leaf_under_dirfd({bad:?})"
+            );
+
+            let err = create_leaf_under_dirfd(&dirfd, bad).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                io::ErrorKind::InvalidInput,
+                "create_leaf_under_dirfd({bad:?})"
+            );
+        }
+
+        // Nothing escaped: the parent of `dir` contains only `dir` itself.
+        let entries: Vec<_> = fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(entries, vec![std::ffi::OsString::from("store")]);
     }
 }
