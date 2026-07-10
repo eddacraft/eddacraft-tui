@@ -7,17 +7,24 @@
 | ------- | ----- | -------- | ------ |
 | ORGHIER | —     | low      | Draft  |
 
-**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: activation gate
+restated, work items retargeted off the AD-2 deletion-slated crate, exemption
+semantics bound to the EXCEPT store).
 
-> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
-> expansion — not a prerequisite for first policy value. Later enterprise
-> expansion; do not schedule until the first policy-value slice (POLVAL/OPAE
-> first-wave contracts) has shipped. Priority downgraded high → low
-> accordingly. Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04; gate restated
+> 2026-07-11):** post-first-slice expansion — not a prerequisite for first
+> policy value. The first policy-value slice **has now shipped** (POLRESET
+> Done 10/10, 2026-07-05), so "wait for the first slice" is spent as a gate.
+> The live activation gate is **demand-side**: promote only on a concrete
+> multi-repo/org customer signal or an explicit planning-council decision.
+> Priority stays low. ORGHIER is the root of the POLLC → COMPLY/POLFED
+> dependency chain, so promoting it is the enterprise-tier trigger.
 
 > **Policy-solution validation (2026-06-24):** hierarchy resolution should feed
-> the ADR-040/POLENG regorus runtime through `crates/anvil-policy`; "OPA"
+> the ADR-040/POLENG regorus runtime through the policy-engine facade
+> (`crates/anvil-policy-engine`; this note originally said
+> `crates/anvil-policy`, corrected 2026-07-11 per ADR-098 AD-2); "OPA"
 > wording in older notes means Rego policy evaluation, not a Go OPA production
 > runtime.
 
@@ -42,7 +49,9 @@ controlled override and exemption semantics at each level.
 ## Out of Scope
 
 - Authentication and identity management (use existing Git/CI credentials)
-- Hosted policy registry service (file and bundle-based distribution only)
+- Hosted policy registry service (file/pack-based distribution only — the
+  shipped local unit is the POLVAL pack in `.anvil/policies/`; "bundle" in
+  older notes predates ADR-098 PR-C deleting the OPA bundle code)
 - Real-time sync across repositories (pull-based refresh)
 - GUI for hierarchy management (CLI-first)
 
@@ -50,13 +59,20 @@ controlled override and exemption semantics at each level.
 
 **Depends on:**
 
-<!-- Audit 2026-04-26: opa-architecture-integration archived; policy now lives in crates/anvil-policy. -->
-- `crates/anvil-policy` — Policy loading, hierarchy resolution, and
-  regorus-backed evaluation orchestration
-- `policy-pack-validation` — Validation of policy packs at each tier
-- `policy-value-enforcement-reset` — first policy-value slice must land before
-  hierarchy becomes release-relevant
-- `policy-federation` — remote bundle/federation infrastructure, when promoted
+<!-- Audit 2026-04-26: opa-architecture-integration archived. Retargeted 2026-07-11: loading/evaluation is crates/anvil-policy-engine; crates/anvil-policy is deletion-slated (ADR-098 AD-2). -->
+- `crates/anvil-policy-engine` — pack admission (`src/pack/`) and the regorus
+  evaluation facade; hierarchy resolution would land here, not in
+  `crates/anvil-policy` (ADR-098 AD-2 slates that crate for deletion once the
+  EXCEPT-012 exceptions extraction completes)
+- `policy-pack-validation` — Validation of policy packs at each tier (Done —
+  admission pipeline shipped; hierarchy composes with it, never forks it)
+- `policy-value-enforcement-reset` — satisfied: the first policy-value slice
+  shipped (POLRESET Done 10/10, 2026-07-05)
+- `policy-federation` — remote pack distribution/federation, when promoted
+- `git-native-exceptions` — per-tier **exemption** semantics must be the
+  shipped EXCEPT store consulted with tier scope (scoped/expiring/auditable
+  exceptions, ADR-100 committed authority), not a second mechanism; only
+  override permission (`allow_override`) is net-new to this module
 
 **Exposes:**
 
@@ -100,39 +116,39 @@ controlled override and exemption semantics at each level.
 
 - **Intent:** Match repositories and paths to policy sets using selectors
 - **Expected Outcome:** Selectors support repo name globs, team tags, and path patterns
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Policy evaluation
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- scope_selector`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- scope_selector`
 - **Confidence:** high
 
 ### ORGHIER-003: Policy hierarchy resolver
 
 - **Intent:** Merge policies from multiple tiers into an effective set
 - **Expected Outcome:** Resolver applies inheritance, overrides, and conflict detection
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Bundle fetching
 - **Dependencies:** ORGHIER-001, ORGHIER-002
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- hierarchy_resolver`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- hierarchy_resolver`
 - **Confidence:** high
 
 ### ORGHIER-004: Override permission enforcement
 
 - **Intent:** Prevent project-level configs from relaxing org rules without authorisation
 - **Expected Outcome:** Overrides blocked unless parent tier sets `allow_override`
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Approval workflows
 - **Dependencies:** ORGHIER-003
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- override_enforcement`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- override_enforcement`
 - **Confidence:** high
 
 ### ORGHIER-005: Conflict diagnostics
 
 - **Intent:** Report contradictory policies across tiers with actionable guidance
 - **Expected Outcome:** Conflicts include provenance, severity, and resolution hints
-- **Scope:** `crates/anvil-policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Auto-resolution
 - **Dependencies:** ORGHIER-003
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- conflict_diagnostics`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- conflict_diagnostics`
 - **Confidence:** medium
 
 ### ORGHIER-006: CLI hierarchy commands
@@ -149,8 +165,8 @@ controlled override and exemption semantics at each level.
 
 - **Intent:** Gate evaluation uses the resolved effective policy set
 - **Expected Outcome:** Gate runner resolves hierarchy before policy check
-- **Scope:** `crates/anvil-policy/src/` (gate hooks via `crates/anvil-cli/src/commands/gate.rs`)
+- **Scope:** `crates/anvil-policy-engine/src/` (gate hooks via `crates/anvil-cli/src/commands/gate.rs`)
 - **Non-scope:** New check types
 - **Dependencies:** ORGHIER-003
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- hierarchy_gate`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- hierarchy_gate`
 - **Confidence:** medium

@@ -5,13 +5,27 @@
 | POLCAP | —     | Proposed |
 
 **Created:** 2026-05-24
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`)
 **Promotion gate:** Planning Council required before any task is marked
   Ready. Cross-boundary surface (policy + intercept daemon + witness chain
   + agent runtime + driver-client) — design needs multi-persona review.
 
-> **Policy-solution validation (2026-06-24):** corrected the ADR placeholder
-> from ADR-051 to ADR-092 because ADR-051 is already the accepted
-> CLI-panic-unwind decision. POLCAP composes with the ADR-040 regorus policy
+> **Post-first-slice posture (2026-07-11):** POLCAP was not swept by
+> POLRESET-010; recording it here. The first policy-value slice has shipped
+> (POLRESET Done 10/10, 2026-07-05). The POLCAP council must reconcile with
+> **ADR-098**: AD-3 — gate `cap_id` refusals must map into the shipped
+> kernel-types `ControlDecision` vocabulary, not a parallel one; AD-4 — no
+> new tool-call interception layer without its own ADR. POLCAP's advisory
+> view sits close to that line; the design must keep `gate` the sole
+> enforcement authority.
+
+> **Policy-solution validation (2026-06-24; renumbered again 2026-07-11):**
+> the ADR placeholder was corrected from ADR-051 to ADR-092 — but ADR-092
+> has since been taken too (`092-mcp-optional-activation-spine.md`, Accepted
+> 2026-06-26 under ACTMO). To stop a third collision, the number is now
+> **unreserved**: "the POLCAP ADR" below means the next free ADR number,
+> allocated at authoring time. POLCAP composes with the ADR-040 regorus policy
 > runtime and ACTAX/AGOV/IORISK signal producers; it must not create a parallel
 > policy evaluator. The capability view is advisory until gate/witness bindings
 > make `cap_id` audit rows load-bearing.
@@ -71,18 +85,21 @@ audit binding. Detailed design lives in
   view's source of truth), SKOBS (skill-inventory hashing pattern reused
   for recipes), DRVR (per-driver manifest negotiation already exists —
   POLCAP is the agent-side surface; DRVR is the driver-side surface).
-- **Blocks on:** Planning Council acceptance of this module + ADR-092.
+- **Blocks on:** Planning Council acceptance of this module + the POLCAP ADR
+  (next free number at authoring time — see the renumbering note above).
 - **Cites:** ADR-001 (planless-first), ADR-002 (warnings over blocks),
   ADR-037 (witness chain + L4 policy), ADR-040 (regorus engine), ADR-024
   (weave agent harness), ADR-045 (minisign — signing-scheme prior art for
-  the eventual v2 asymmetric upgrade).
+  the eventual v2 asymmetric upgrade), ADR-098 (policy enforcement reset —
+  AD-3 `ControlDecision` vocabulary and AD-4 pre-write boundary; the POLCAP
+  council must reconcile with both).
 
 ## Release metadata
 
 - **changeType:** feature
 - **releaseIntent:** hold
-- **holdCondition:** Planning Council accepts ADR-092; AGOV-007 manifest
-  shape stable; ACTAX-001 action taxonomy vocabulary frozen for v1.
+- **holdCondition:** Planning Council accepts the POLCAP ADR; AGOV-007
+  manifest shape stable; ACTAX-001 action taxonomy vocabulary frozen for v1.
 - **releaseScope:** minor (new agent-facing protocol surface, additive
   witness-chain fields)
 - **releaseNote.audience:** developer
@@ -93,9 +110,10 @@ audit binding. Detailed design lives in
 
 ## Validation
 
-- `cargo test -p eddacraft-anvil-policy -p eddacraft-anvil-kernel-types`
+- `cargo test -p eddacraft-anvil-policy-engine -p eddacraft-anvil-kernel-types`
   covers view shape, envelope round-trip, fail-closed on unknown cap_id,
-  fail-closed on stale epoch.
+  fail-closed on stale epoch (retargeted 2026-07-11 off the deletion-slated
+  `anvil-policy` crate per ADR-098 AD-2).
 - Cross-language parity test (Rust ↔ TS driver-client) for the signed-view
   JSON shape against a captured fixture.
 - End-to-end test through the daemon: allowed call (records cap_id on
@@ -109,7 +127,7 @@ audit binding. Detailed design lives in
 
 | ID | Title | Status | Confidence |
 |---|---|---|---|
-| POLCAP-001 | Author ADR-092 and convene Planning Council | Proposed | medium |
+| POLCAP-001 | Author the POLCAP ADR and convene Planning Council | Proposed | medium |
 | POLCAP-002 | Capability-view JSON schema + signing envelope (kernel-types) | Proposed | medium |
 | POLCAP-003 | Skill-recipe vocabulary and the seven beta recipes | Proposed | medium |
 | POLCAP-004 | Structured error-code taxonomy + agent recovery contract | Proposed | high |
@@ -120,19 +138,24 @@ audit binding. Detailed design lives in
 | POLCAP-009 | Reconciliation with AGOV-007, ACTAX-001, IORISK risk dimensions | Proposed | low |
 | POLCAP-010 | Operator docs: recipe authoring guide + epoch-rotation runbook | Proposed | high |
 
-### POLCAP-001 — Author ADR-092 and convene Planning Council
+### POLCAP-001 — Author the POLCAP ADR and convene Planning Council
 
 - **Intent:** Land the durable architectural decision for the
-  capability-discovery surface before any implementation begins.
-- **Expected Outcome:** ADR-092 file at
-  `plans/decisions/092-policy-capability-discovery.md` with status
+  capability-discovery surface before any implementation begins. Allocate
+  the ADR number from the next free slot at authoring time (the previous
+  placeholders ADR-051 and ADR-092 were both taken by other accepted
+  decisions; decisions run past 104 as of 2026-07-11). The council must
+  explicitly reconcile with ADR-098 AD-3 (`ControlDecision` vocabulary for
+  gate refusals) and AD-4 (no new tool-call interception layer).
+- **Expected Outcome:** ADR file at
+  `plans/decisions/NNN-policy-capability-discovery.md` with status
   Proposed; entry added to
   `plans/decisions/DECISION-LOG.md` under "Policy and Governance"; Planning
   Council session run with kernel, ops, adversarial, pragmatic, and
   policy-engine personas; council verdict recorded inline in the ADR.
 - **Validation:** `pnpm adr:check` green; council session minutes linked
   from the ADR.
-- **Files:** `plans/decisions/092-policy-capability-discovery.md`,
+- **Files:** `plans/decisions/NNN-policy-capability-discovery.md`,
   `plans/decisions/DECISION-LOG.md`, this module file.
 - **Confidence:** medium — depends on council outcome.
 - **changeType:** docs
@@ -153,7 +176,7 @@ audit binding. Detailed design lives in
 - **Dependencies:** POLCAP-001.
 - **changeType:** feature
 - **releaseIntent:** hold
-- **holdCondition:** ADR-092 Accepted.
+- **holdCondition:** the POLCAP ADR Accepted.
 
 ### POLCAP-003 — Skill-recipe vocabulary and the seven beta recipes
 

@@ -7,34 +7,39 @@
 | ------ | ----- | -------- | ------ |
 | COMPLY | —     | medium   | Draft  |
 
-**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: activation gate
+restated, TS-era task paths rewritten to Rust crates per ADR-098 AD-2,
+dependency block rewritten to shipped surfaces).
 
-> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
-> expansion — not a prerequisite for first policy value. Later; requires proven
-> pack validation, starter packs, evidence semantics, and reporting
-> foundations (POLVAL, EVALCI) before any compliance claims. Coordinated by
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04; restated 2026-07-11):**
+> post-first-slice expansion — not a prerequisite for first policy value. Of
+> the original prerequisites, pack validation (POLVAL, Done), the
+> `anvil-baseline` starter pack (POLRESET-007, #3167), and report-only EVALCI
+> (#3170) have all **shipped**. The one genuinely unspent prerequisite is
+> **evidence semantics** — what counts as audit evidence, how it is bound to
+> commits/refs, retention, and framing — which is defined **nowhere** today.
+> Authoring that design (doc or ADR) is an explicit gate before this module
+> can move to Ready; no compliance claims before it exists. Coordinated by
 > [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** COMPLY should consume
 > regorus-backed policy outcomes (`anvil policy eval --json` v1, pack metadata,
-> exceptions, and eval evidence), not Go OPA output directly. The module remains
-> Draft because the work items still carry TS-era paths and `nx test` commands;
-> rewrite them to `crates/anvil-policy`, `crates/anvil-kernel-types`, and
-> `crates/anvil-cli` before promotion.
+> exceptions, and eval evidence), not Go OPA output directly.
 >
-> NOTE(post-rust): Task scopes/files reference the retired TS tree
-> (`packages/anvil/policy/src/`, `packages/anvil/runtime/src/`,
-> `apps/anvil-cli/src/commands/`). When this module moves to Ready, retarget
-> to Rust crates: registry/mapper/scoring/reporter live in
-> `crates/anvil-policy/src/`; evidence aggregation and posture history live
-> in `crates/anvil-policy/src/` (or `crates/anvil-kernel/src/policy/` for
-> drift-derived inputs); CLI commands land in
-> `crates/anvil-cli/src/commands/compliance.rs`. Dependency modules
-> `opa-architecture-integration`, `drift-reporting`, and `suppressions` are
-> archived (correction 2026-07-11: `policy-lifecycle` is **not** archived — it
-> is a live Draft module in `plans/modules/` and remains a real dependency);
-> exception capability is the EXCEPT store (`crates/anvil-policy`, ADR-100
-> committed authority) and drift-derived inputs live with the kernel.
+> NOTE(post-rust, executed 2026-07-11): task scopes/validations previously
+> referenced the retired TS tree (`packages/anvil/policy/src/`,
+> `packages/anvil/runtime/src/`, `apps/anvil-cli/src/commands/`); they now
+> target the Rust crates — registry/mapper/scoring/evidence/history in
+> `crates/anvil-policy-engine/src/` (per ADR-098 AD-2 **not**
+> `crates/anvil-policy`, which is deletion-slated once EXCEPT-012 completes),
+> reporting/CLI in `crates/anvil-cli/src/commands/compliance.rs`. Dependency
+> modules `opa-architecture-integration`, `drift-reporting`, and
+> `suppressions` are archived (`policy-lifecycle` is **not** archived — it is
+> a live Draft module and remains a real dependency); exception evidence is
+> the EXCEPT store (ADR-100 committed authority — evidence must be read from
+> committed/pushed trees, never worktree state; home moves to
+> `anvil-exceptions` when EXCEPT-012 lands).
 
 ## Purpose
 
@@ -49,7 +54,9 @@ exports evidence in formats auditors accept.
 - Compliance framework registry with control mappings
 - Policy-to-control tagging so each policy links to one or more framework
   controls
-- Evidence collection from gate runs, exceptions, and drift snapshots
+- Evidence collection from the shipped primitives: `anvil policy eval --json`
+  v1 output, gate runs, EXCEPT-store exceptions (ADR-100), EVALCI regression
+  reports, GITGOV review capsules / witness chain, and drift snapshots
 - Compliance posture score per framework
 - Report generation in Markdown, JSON, and PDF-ready HTML
 - Historical trend tracking for compliance posture over time
@@ -67,11 +74,23 @@ exports evidence in formats auditors accept.
 
 **Depends on:**
 
-- `opa-architecture-integration` — Policy evaluation results
+<!-- Rewritten 2026-07-11 to shipped surfaces; the previous block named three archived modules. -->
+- `anvil policy eval --json` v1 (the frozen `anvil-policy-engine` facade
+  output) — policy evaluation results; replaces the archived
+  `opa-architecture-integration`
+- `git-native-exceptions` — exception evidence for the audit trail via the
+  EXCEPT store under ADR-100 committed authority (read from committed/pushed
+  trees, never worktree state); replaces the archived `suppressions`; home
+  moves to `anvil-exceptions` when EXCEPT-012 lands
+- `eval-regression-ci-gate` — committed baseline + report-only regression
+  reports as recurring evidence
+- GITGOV review capsules / witness chain (ADR-037) — offline-verifiable
+  evidence containers COMPLY should reuse, not reinvent
+- drift snapshots — kernel-owned, successor of the archived `drift-reporting`
 - `org-policy-hierarchy` — Org-level compliance baselines
-- `policy-lifecycle` — Policy state for active coverage reporting
-- `drift-reporting` — Drift data as compliance evidence
-- `suppressions` — Exception data for audit trail
+- `policy-lifecycle` — Policy state for active coverage reporting (live Draft)
+- **Evidence-semantics design gate** — undefined anywhere today; must be
+  authored before promotion (see Reset posture)
 
 **Exposes:**
 
@@ -109,77 +128,77 @@ exports evidence in formats auditors accept.
 
 - **Intent:** Define a registry for compliance frameworks and their controls
 - **Expected Outcome:** Registry loads built-in and custom frameworks from YAML
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Policy evaluation
-- **Validation:** `nx test policy --testNamePattern="compliance-registry"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- compliance_registry`
 - **Confidence:** high
 
 ### COMPLY-002: SOC 2 and ISO 27001 framework definitions
 
 - **Intent:** Ship built-in mappings for the two most common frameworks
 - **Expected Outcome:** YAML definitions cover relevant engineering controls
-- **Scope:** `packages/anvil/policy/src/frameworks/`
+- **Scope:** `crates/anvil-policy-engine/src/compliance/frameworks/`
 - **Non-scope:** Legal interpretation
 - **Dependencies:** COMPLY-001
-- **Validation:** `nx test policy --testNamePattern="framework-definitions"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- framework_definitions`
 - **Confidence:** medium
 
 ### COMPLY-003: Policy-to-control mapper
 
 - **Intent:** Link policies to framework controls via tags
 - **Expected Outcome:** Mapper resolves tags and reports coverage per control
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Evidence collection
 - **Dependencies:** COMPLY-001
-- **Validation:** `nx test policy --testNamePattern="compliance-mapper"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- compliance_mapper`
 - **Confidence:** high
 
 ### COMPLY-004: Evidence collector
 
 - **Intent:** Aggregate evaluation results, exceptions, and drift data as evidence
 - **Expected Outcome:** Collector pulls from gate runs, suppressions, and drift snapshots
-- **Scope:** `packages/anvil/runtime/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Report formatting
 - **Dependencies:** COMPLY-003
-- **Validation:** `nx test runtime --testNamePattern="evidence-collector"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- evidence_collector`
 - **Confidence:** medium
 
 ### COMPLY-005: Compliance posture scoring
 
 - **Intent:** Calculate a compliance score per framework from coverage and results
 - **Expected Outcome:** Score reflects percentage of controls with active, passing policies
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Trend storage
 - **Dependencies:** COMPLY-003, COMPLY-004
-- **Validation:** `nx test policy --testNamePattern="posture-scoring"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- posture_scoring`
 - **Confidence:** high
 
 ### COMPLY-006: Report generator
 
 - **Intent:** Produce audit-ready reports in multiple formats
 - **Expected Outcome:** Reports include executive summary, control detail, and evidence
-- **Scope:** `packages/anvil/policy/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** PDF rendering (HTML is PDF-ready)
 - **Dependencies:** COMPLY-004, COMPLY-005
-- **Validation:** `nx test policy --testNamePattern="compliance-reporter"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- compliance_reporter`
 - **Confidence:** medium
 
 ### COMPLY-007: Historical posture tracking
 
 - **Intent:** Store compliance posture snapshots over time for trend analysis
 - **Expected Outcome:** Posture history stored in `.anvil/compliance/` with timestamps
-- **Scope:** `packages/anvil/runtime/src/`
+- **Scope:** `crates/anvil-policy-engine/src/`
 - **Non-scope:** Dashboard visualisation
 - **Dependencies:** COMPLY-005
-- **Validation:** `nx test runtime --testNamePattern="posture-tracking"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- posture_tracking`
 - **Confidence:** high
 
 ### COMPLY-008: CLI compliance commands
 
 - **Intent:** Expose compliance status, reporting, and mapping via the CLI
 - **Expected Outcome:** `anvil compliance status`, `report`, and `map` commands work
-- **Scope:** `apps/anvil-cli/src/commands/`
+- **Scope:** `crates/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation
 - **Dependencies:** COMPLY-005, COMPLY-006
-- **Validation:** `nx test cli --testNamePattern="compliance"`
+- **Validation:** `cargo test -p eddacraft-anvil -- compliance`
 - **Confidence:** high

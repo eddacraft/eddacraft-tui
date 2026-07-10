@@ -7,13 +7,19 @@
 | ----- | ----- | -------- | -------- |
 | ACTAX | —     | medium   | Proposed |
 
-**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: Phases A–C gate
+restated now the first slice has shipped; IORISK dependency corrected; Phase B
+retargeted per ADR-098 AD-2; ACTAX-022 reframed over the shipped routing).
 
-> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
-> expansion — not a prerequisite for first policy value. Phase 2 (YAML
-> authoring tier + risk-score fusion) must not block the first Rego-backed
-> value slice; Phase D tool-call interception requires its own ADR per
-> ADR-098 AD-4. Coordinated by
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04; gates restated
+> 2026-07-11):** the first Rego-backed value slice **has shipped** (POLRESET
+> Done 10/10, 2026-07-05), so "must not block the first slice" no longer
+> parks anything. Live gates: **Phases A–C** wait on product prioritisation
+> plus CPOL schema-overlap coordination (note: Phase A is blocked by nothing
+> and both POLCAP-009 and AGOV-007 wait on ACTAX-001 — an argument for
+> promoting it when policy work resumes); **Phase D** tool-call interception
+> still requires its own ADR per ADR-098 AD-4, unchanged. Coordinated by
 > [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 > Inspired by [permit0](https://github.com/permit0-ai/permit0) (Apache 2.0).
 > Anvil already owns the engine (regorus / ADR-040), intercept loop (ADR-015),
@@ -84,11 +90,18 @@ declare risk dimensions rather than wiring every threshold by hand.
 - ADR-027 — Pack architecture — coexistence contract between Rust packs and
   YAML packs
 - ADR-015 — Intercept loop enforcement — routing surface for `RiskScore`
-- `crates/anvil-policy-engine` — facade that gains a `RiskScore` output
-- `crates/anvil-policy` — pack loader gains YAML pack support
-- `crates/anvil-intercept-rules` — rule registry gains risk-score consumer
-- IORISK-001..006 — risk taxonomy dimensions (must reach Ready before
-  ACTAX-C tasks; coordinate, do not duplicate)
+- `crates/anvil-policy-engine` — facade that gains a `RiskScore` output; its
+  pack module (`src/pack/`, shipped via OPAE-002/POLVAL) gains YAML pack
+  support (retargeted 2026-07-11 — the old `crates/anvil-policy` loader was
+  deleted by ADR-098 PR-C and the crate is deletion-slated under AD-2)
+- `crates/anvil-intercept-rules` — the routing substrate ACTAX-022 extends
+  **already exists**: `policy_routing.rs` (OPAE-007, PR #3165) maps
+  `PolicySeverityClass` × posture to kernel-types `ControlDecision`
+- IORISK-001..003 — risk taxonomy dimensions (**Done**, delivered via
+  POLRESET-004 / PR #3139: `crates/anvil-kernel-types/src/io_risk.rs` +
+  `crates/anvil-policy-engine/src/io_risk/`; the old "IORISK-001..006 must
+  reach Ready" line mis-numbered a 3-item module — align ACTAX-C dimensions
+  with the shipped types, do not duplicate)
 - AGOV-001 — trust scoring (amplifier input; ACTAX-C can stub if AGOV
   remains Draft)
 - CPOL — contextual policy assertions (sibling authoring surface; resolve
@@ -99,7 +112,7 @@ declare risk dimensions rather than wiring every threshold by hand.
 - `crates/anvil-action-taxonomy/` — data crate: `taxonomy.yml`, serde
   types, version constant
 - YAML pack schema published under `schemas/policy-pack.schema.json`
-- `crates/anvil-policy::yaml` — YAML loader + Rego compiler
+- `crates/anvil-policy-engine::yaml` — YAML loader + Rego compiler
 - `RiskScore` output type and threshold-routing contract documented for
   intercept consumers
 - One reference pack: `library/policy/reference/safe-defaults.yml`
@@ -222,11 +235,11 @@ declare risk dimensions rather than wiring every threshold by hand.
   fixture and a bad fixture both round-trip through the validator with
   the expected result.
 - **Scope:** `schemas/policy-pack.schema.json`,
-  `crates/anvil-policy/src/yaml/`
+  `crates/anvil-policy-engine/src/yaml/`
 - **Non-scope:** Compilation to Rego (ACTAX-011)
 - **Dependencies:** ACTAX-001, coordination resolution with CPOL
 - **Coordinates with:** CPOL (contextual-policy-assertions)
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- yaml_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- yaml_schema`
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -240,8 +253,10 @@ declare risk dimensions rather than wiring every threshold by hand.
   input (determinism). Compiled Rego evaluates against fixture inputs and
   matches the YAML author's stated intent.
 - **Non-scope:** Risk-score wiring (Phase C)
-- **Dependencies:** ACTAX-010, POLENG facade reaching usable state
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- yaml_compile`
+- **Dependencies:** ACTAX-010 (the POLENG facade is live product code —
+  archived module, shipped v0.7.3-beta — so the old "facade reaching usable
+  state" dependency is satisfied)
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- yaml_compile`
 - **Confidence:** low
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -249,13 +264,14 @@ declare risk dimensions rather than wiring every threshold by hand.
 
 #### ACTAX-012: Pack loader integration
 
-- **Intent:** Teach `anvil-policy` to discover and load YAML packs
+- **Intent:** Teach the `anvil-policy-engine` pack module (which owns the
+  shipped `discover_and_load` path) to discover and load YAML packs
   alongside compiled-in Rust packs.
 - **Expected Outcome:** A directory of YAML packs loads at startup, each
   contributing compiled Rego modules. Errors surface with file:line
   pointing to the YAML source, not the generated Rego.
 - **Dependencies:** ACTAX-011
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- yaml_loader`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- yaml_loader`
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -269,7 +285,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   covers a small set of taxonomy verbs, evaluates end-to-end, and is
   cited from the authoring guide.
 - **Dependencies:** ACTAX-012
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- reference_pack`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- reference_pack`
 - **Confidence:** high
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -300,7 +316,8 @@ declare risk dimensions rather than wiring every threshold by hand.
   align with IORISK taxonomy.
 - **Scope:** `crates/anvil-policy-engine/`
 - **Non-scope:** Intercept routing changes (ACTAX-022)
-- **Dependencies:** ACTAX-011, IORISK-001..006 at Ready
+- **Dependencies:** ACTAX-011; IORISK-001..003 (satisfied — Done via
+  PR #3139; align on `kernel-types::io_risk`)
 - **Coordinates with:** IORISK (io-risk-controls), POLENG (policy-engine)
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- risk_score`
 - **Confidence:** medium
@@ -318,7 +335,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   error.
 - **Dependencies:** ACTAX-020, AGOV-001 (stubbed if AGOV remains Draft)
 - **Coordinates with:** AGOV (agent-governance-patterns)
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- trust_amplifier`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- trust_amplifier`
 - **Confidence:** low
 - **changeType:** feature
 - **releaseIntent:** hold
@@ -328,12 +345,16 @@ declare risk dimensions rather than wiring every threshold by hand.
 
 #### ACTAX-022: Route `RiskScore` to intercept tiers
 
-- **Intent:** Map `RiskScore` thresholds to the existing
-  `warn / fence / interrupt` modes without changing the daemon's IPC
-  contract.
-- **Expected Outcome:** Intercept rule registry consumes `RiskScore`;
-  thresholds are configurable; daemon still emits `allow | interrupt`
-  externally. Tests cover each tier boundary.
+- **Intent:** **Extend the shipped routing** — `policy_routing.rs`
+  (`route_policy_outcome`/`PolicySeverityClass`, OPAE-007 via PR #3165)
+  already maps policy outcomes × posture to kernel-types `ControlDecision`;
+  this item adds `RiskScore` threshold tiers to that map. It does **not**
+  create a routing layer, and the daemon's IPC contract is unchanged.
+- **Expected Outcome:** `policy_routing.rs` consumes `RiskScore`;
+  thresholds are configurable; the `ANVIL_POLICY_ENFORCEMENT` kill switch
+  and fail-open budget semantics (ADR-098 AD-5) apply unchanged; daemon
+  still emits `allow | interrupt` externally. Tests cover each tier
+  boundary.
 - **Scope:** `crates/anvil-intercept-rules/`
 - **Non-scope:** New IPC surface; new daemon flags
 - **Dependencies:** ACTAX-020

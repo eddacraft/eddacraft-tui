@@ -4,8 +4,11 @@
 | ---- | ------ | ----------- |
 | PATT | @aneki | Done        |
 
-**Last reviewed:** 2026-07-05 (PATT-001..003 all Done, merged 2026-07-04 via
-PR #3175; module closed alongside POLRESET-009)
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review:
+PATT-001..003 all Done, merged 2026-07-04 via PR #3175, module closed
+alongside POLRESET-009; PATT-004 filed as a Proposed follow-up so the
+live-`DefenceObserver` wiring — previously tracked nowhere — does not
+evaporate; archive with ATC after release-tag inclusion)
 
 ## Purpose
 
@@ -62,6 +65,19 @@ injection, exfiltration, and instruction-hijack scenarios before release.
   mechanism ships **report-only** — a new required, blocking CI step is a later
   gated decision (mirrors EVALCI's report-only phase), deliberately not wired
   here. 12 filtered tests green, clippy `-D warnings` + fmt clean.
+
+### PATT-004: Wire a live DefenceObserver (follow-up)
+
+- **Status:** Proposed (filed 2026-07-11 — the post-POLRESET coherence review
+  found this deliberate open end from PATT-002 tracked nowhere)
+- **Intent:** Replace the baseline `ConformanceObserver` with a live defence
+  wired into the PATT-002 `DefenceObserver` seam, so attack packs exercise a
+  real defence surface instead of conformance-only baselines.
+- **Expected Outcome:** `run_pack` evaluates scenarios against a live defence;
+  the baseline observer remains available for hermetic tests.
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- attack_pack_runner`
+- **Dependencies:** PATT-002; a product decision on which defence surface to
+  bind first
 
 ## Execution
 

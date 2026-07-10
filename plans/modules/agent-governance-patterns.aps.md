@@ -7,12 +7,18 @@
 | ----- | ----- | -------- | ------ |
 | AGOV  | —     | Medium   | Draft  |
 
-**Last reviewed:** 2026-07-04 (POLRESET-010 enterprise backlog reset).
+**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: the module's own
+rescope list, pending since 2026-04-26, is now **executed** — see the struck
+items in the followup list below).
 
-> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04):** post-first-slice
-> expansion — not a prerequisite for first policy value. Later signal
-> producers — not first-slice prerequisites; schedule after the starter pack
-> and report-only policy CI exist. Coordinated by
+> **Reset posture (POLRESET-010 / ADR-098, 2026-07-04; gate restated
+> 2026-07-11):** post-first-slice expansion — not a prerequisite for first
+> policy value. The old scheduling condition ("after the starter pack and
+> report-only policy CI exist") is **met** — both shipped (POLRESET-007
+> #3167, POLRESET-008 #3170). The live gate is the one at the end of this
+> note block: a **product decision on which signal producers actually ship**,
+> plus CPACKS coordination. Coordinated by
 > [`POLRESET`](./policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** AGOV remains Draft. Its signal
@@ -44,29 +50,29 @@
 > AGOV-001 (trust scoring) and AGOV-006 (hash-chained audit) extend live
 > code, not retired modules.
 >
-> **Rescope work pending** (tracked separately, see followup list):
-> 1. Migrate AGOV-002 → CPACKS as additional compliance pack stubs;
->    retitle the AGOV slot or remove (CPACKS-NNN takes ownership).
-> 2. Retarget all task `Scope`/`Files` paths to Rust crates:
->    - Gate checks (destructive-pattern, change-volume, metadata-secret,
->      capability-declaration) → `crates/anvil-checks/src/checks/`
->    - Trust-score and capability-manifest schemas →
->      `crates/anvil-kernel-types`
->    - CLI subcommands (`audit verify`, `capability validate`) →
->      `crates/anvil-cli/src/commands/`
->    - Compliance Rego packs (kept after AGOV-002 migration: only as
->      cross-reference) → `crates/anvil-policy/policies/compliance/`
-> 3. Rewire Interfaces "Depends on" block to live components, not
->    archived planning modules:
->    - EMBER → `packages/edda-stack/src/ember/` (TS) or future Rust port
->    - EDDA → `packages/edda-stack/src/edda/` (TS) or future Rust port
->    - OPAE → `crates/anvil-policy` (live)
->    - POLVAL → still planning, retains module-level dependency
-> 4. Confirm consumer refs in CPACKS, MDGOV, and the L&C spec stay
->    valid after path retargeting.
+> **Rescope work list (executed 2026-07-11):**
+> 1. ~~Migrate AGOV-002~~ — **done**: AGOV-002 removed as superseded. The
+>    install mechanism shipped in Rust as OPAE-004
+>    (`anvil policy install <PACK-ID>`); broad compliance-pack content is
+>    owned by CPACKS behind its CPACKS-008 expansion gate.
+> 2. ~~Retarget Scope/Files paths~~ — **done**: gate checks →
+>    `crates/anvil-checks` + the `patterns/` registry (anti-pattern family
+>    flow); trust-score and capability-manifest schemas →
+>    `crates/anvil-kernel-types`; CLI subcommands →
+>    `crates/anvil-cli/src/commands/`. (The old paths
+>    `packages/anvil/runtime/src/gate/`, `apps/anvil-cli/`, and `core/` do
+>    not exist in the repo.)
+> 3. ~~Rewire Depends-on to live components~~ — **done** (see Interfaces);
+>    note the JS/TS workspace is in deliberate retirement, so the Ember/Edda
+>    TS components are reference semantics for a Rust successor, not
+>    integration targets.
+> 4. Confirm consumer refs in CPACKS, MDGOV, and the L&C spec stay valid
+>    after path retargeting — **open** (consumers cite AGOV item IDs, which
+>    are unchanged except AGOV-002; CPACKS's pack ownership already matches).
 >
-> Not launch-blocker. Promote to Ready only after CPACKS POLVAL prep
-> work and a product decision on which signal producers actually ship.
+> Not launch-blocker. Promote to Ready only after CPACKS coordination and a
+> product decision on which signal producers actually ship — that decision is
+> the module's live gate.
 
 ## Purpose
 
@@ -95,33 +101,46 @@ comprehensive governance layer for teams using AI coding tools.
 - ❌ Kill switches or real-time process termination signals
 - ❌ Framework wrapping (`kernel.wrap(agent)` style runtime interception)
 - ❌ GitHub-specific anti-abuse (account age, fork rate, spam username detection)
-- ❌ OPA/Rego or Cedar policy engine implementation (covered by OPAE)
+- ❌ Policy engine implementation — regorus is the single shipped engine
+  (ADR-040; the OPA subprocess path was deleted by ADR-098 PR-C)
 
 ## Interfaces
 
 **Depends on:**
 
-- EMBER — Confidence scoring model (AGOV-001 extends it)
-- POLVAL — Policy pack validation infrastructure (AGOV-002 builds on it)
-- EDDA — Provenance service and audit trail (AGOV-006 extends it)
-- OPAE — OPA policy executor (AGOV-003, AGOV-004 ship as OPA policies)
+<!-- Rewired 2026-07-11 to live components (rescope item 3). -->
+- EMBER confidence model — live TS code (`packages/edda-stack/src/ember/`),
+  but the JS/TS workspace is in deliberate retirement: AGOV-001 takes its
+  semantics as reference and lands the schema in `crates/anvil-kernel-types`
+- POLVAL — pack validation infrastructure (Done —
+  `crates/anvil-policy-engine/src/pack/`)
+- EDDA provenance / audit trail — the shipped Rust equivalent is the
+  **anvil-witness chain** (ADR-037, `WitnessLine`/`verify_chain_dag`);
+  AGOV-006 must be re-evaluated against it (see its delta note)
+- `crates/anvil-policy-engine` (regorus facade) — AGOV-003/004 detection
+  ships as gate checks in `crates/anvil-checks`, with any Rego expression
+  evaluated through the facade (the old "OPAE OPA policy executor" wording
+  predated the reset)
 
 **Exposes:**
 
-- Gate checks: `destructive-pattern.check.ts`, `change-volume.check.ts`,
-  `metadata-secret.check.ts`, `capability-declaration.check.ts`
-- Policy packs: `library/compliance/hipaa/`, `library/compliance/pci-dss/`,
-  `library/compliance/gdpr/`, `library/compliance/soc2/`
-- CLI: `anvil policy install --pack <name>`
-- Schema: `trust-score.ts`, `capability-manifest.ts`
-- Edda extension: hash-chained provenance entries
+- Gate checks: destructive-pattern, change-volume, metadata-secret, and
+  capability-declaration checks in `crates/anvil-checks` (anti-pattern
+  family flow via the `patterns/` registry)
+- Compliance pack content: **moved to CPACKS** (AGOV-002 removed; install UX
+  already shipped as OPAE-004 `anvil policy install <PACK-ID>`)
+- Schemas: trust-score and capability-manifest types in
+  `crates/anvil-kernel-types`
+- Audit: hash-chained provenance via the anvil-witness chain (extension, not
+  a parallel trail)
 
 ## Acceptance Criteria
 
 - [ ] Contributors and AI tools receive a computed trust score (0–1000) based on
       gate-pass history, and the score influences which gate checks apply
-- [ ] At least four compliance packs (HIPAA, PCI-DSS, GDPR, SOC 2) are
-      installable via `anvil policy install --pack <name>`
+- [ ] ~~At least four compliance packs installable~~ — moved to CPACKS
+      (CPACKS-008 expansion gate) with AGOV-002's removal; the install UX
+      itself shipped as OPAE-004
 - [ ] Destructive patterns (SQL DROP/TRUNCATE, `rm -rf`, `chmod 777`) detected
       in diffs produce gate warnings
 - [ ] PRs exceeding configurable change-volume thresholds trigger review
@@ -147,40 +166,24 @@ comprehensive governance layer for teams using AI coding tools.
   per contributor/tool identity, with configurable tier thresholds that map to
   gate-check strictness levels. Scores decay on violations and recover on
   compliant contributions.
-- **Scope:** `packages/edda-stack/src/ember/`, `packages/anvil/runtime/src/gate/`
+- **Scope:** `crates/anvil-kernel-types/src/` (trust-score schema),
+  `crates/anvil-checks/src/` (gate integration)
 - **Non-scope:** Authentication or identity provider integration
-- **Files:**
-  - `packages/edda-stack/src/ember/trust-score.ts`
-  - `packages/edda-stack/src/ember/trust-score.test.ts`
-  - `packages/anvil/runtime/src/gate/trust-context.ts`
-- **Dependencies:** EMBER (confidence model)
-- **Validation:** `nx test edda-stack --testNamePattern="trust-score"`
+- **Dependencies:** EMBER confidence semantics as reference (live TS code;
+  the JS/TS workspace is retiring, so the score lands Rust-native)
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- trust_score`
+  and `cargo test -p eddacraft-anvil-checks -- trust_context`
 - **Confidence:** medium
 
-#### AGOV-002: Compliance template packs
+#### AGOV-002: Compliance template packs — REMOVED 2026-07-11 (superseded)
 
-- **Intent:** Ship pre-built, installable compliance policy packs so teams can
-  adopt industry-standard governance with a single command.
-- **Expected Outcome:** At least four compliance packs (HIPAA, PCI-DSS, GDPR,
-  SOC 2) containing OPA policies, each installable via
-  `anvil policy install --pack <name>`. Packs include metadata, versioning, and
-  dependency declarations per POLVAL conventions.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/`,
-  `apps/anvil-cli/src/commands/policy.ts`
-- **Non-scope:** Custom policy authoring UI; pack marketplace
-- **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/hipaa/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/hipaa/*.rego`
-  - `core/src/gate/__fixtures__/library/compliance/pci-dss/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/pci-dss/*.rego`
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/*.rego`
-  - `core/src/gate/__fixtures__/library/compliance/soc2/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/soc2/*.rego`
-  - `apps/anvil-cli/src/commands/policy.ts` (extend with `install --pack`)
-- **Dependencies:** POLVAL-002 (pack manifest), POLVAL-003 (pack validator)
-- **Validation:** `anvil policy install --pack hipaa --dry-run`
-- **Confidence:** high
+- **Status:** Removed — doubly superseded per the executed rescope list:
+  the install mechanism it planned shipped in Rust as **OPAE-004**
+  (`anvil policy install <PACK-ID>` + `install --list`), and broad
+  compliance-pack **content** (HIPAA/PCI-DSS/GDPR/SOC 2) is owned by
+  **CPACKS** behind its CPACKS-008 expansion gate (itself gated on COMPLY's
+  evidence-semantics design). Slot retained for ID stability; do not
+  resurrect here.
 
 #### AGOV-003: Destructive operation pattern detection
 
@@ -191,14 +194,11 @@ comprehensive governance layer for teams using AI coding tools.
   covering SQL (`DROP`, `TRUNCATE`, `DELETE FROM` without `WHERE`), shell
   (`rm -rf`, `chmod 777`, `mkfs`), and infrastructure (`terraform destroy`)
   patterns. Findings are severity-rated based on pattern category.
-- **Scope:** `packages/anvil/runtime/src/gate/checks/`
+- **Scope:** `crates/anvil-checks/src/` + `patterns/` registry (anti-pattern
+  family flow — see `plans/` anti-pattern family authoring conventions)
 - **Non-scope:** Runtime blocking; patterns for languages beyond SQL/shell/IaC
-- **Files:**
-  - `packages/anvil/runtime/src/gate/checks/destructive-pattern.check.ts`
-  - `packages/anvil/runtime/src/gate/checks/destructive-pattern.check.test.ts`
-  - `core/src/gate/__fixtures__/library/security/destructive-patterns.json`
 - **Dependencies:** —
-- **Validation:** `nx test anvil-runtime --testNamePattern="destructive-pattern"`
+- **Validation:** `cargo test -p eddacraft-anvil-checks -- destructive_pattern`
 - **Confidence:** high
 
 #### AGOV-004: Change volume threshold gate check
@@ -209,13 +209,10 @@ comprehensive governance layer for teams using AI coding tools.
   lines-added/removed, and single-commit size against configurable thresholds.
   Exceeding thresholds escalates the PR to require additional review. Default
   thresholds: 30 files, 1500 lines added, 500 lines in a single commit.
-- **Scope:** `packages/anvil/runtime/src/gate/checks/`
+- **Scope:** `crates/anvil-checks/src/`
 - **Non-scope:** Blocking PRs outright; measuring code quality of bulk changes
-- **Files:**
-  - `packages/anvil/runtime/src/gate/checks/change-volume.check.ts`
-  - `packages/anvil/runtime/src/gate/checks/change-volume.check.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test anvil-runtime --testNamePattern="change-volume"`
+- **Validation:** `cargo test -p eddacraft-anvil-checks -- change_volume`
 - **Confidence:** high
 
 #### AGOV-005: Credential and PII scanning in PR metadata
@@ -226,13 +223,11 @@ comprehensive governance layer for teams using AI coding tools.
   description text for credential patterns (API keys, tokens, passwords) and PII
   patterns (email addresses, phone numbers, national ID formats). Produces
   critical-severity findings for credential matches and major-severity for PII.
-- **Scope:** `packages/anvil/runtime/src/gate/checks/`
-- **Non-scope:** Scanning code diffs (existing secret checks cover that)
-- **Files:**
-  - `packages/anvil/runtime/src/gate/checks/metadata-secret.check.ts`
-  - `packages/anvil/runtime/src/gate/checks/metadata-secret.check.test.ts`
+- **Scope:** `crates/anvil-checks/src/`
+- **Non-scope:** Scanning code diffs (existing secret checks — SEC-008
+  named-pattern detection — cover that)
 - **Dependencies:** —
-- **Validation:** `nx test anvil-runtime --testNamePattern="metadata-secret"`
+- **Validation:** `cargo test -p eddacraft-anvil-checks -- metadata_secret`
 - **Confidence:** high
 
 ### Phase B: Audit & Compliance Infrastructure
@@ -243,16 +238,17 @@ comprehensive governance layer for teams using AI coding tools.
   tampering with historical gate evaluations is detectable.
 - **Expected Outcome:** Each audit-trail entry includes a SHA-256 hash of its
   content concatenated with the previous entry's hash, forming an immutable
-  chain. A verification command (`anvil audit verify`) walks the chain and
-  reports any breaks. Compatible with existing Edda provenance service.
-- **Scope:** `packages/edda-stack/src/edda/`
+  chain, with a verification command that walks the chain and reports breaks.
+  **Delta note (2026-07-11):** the Rust workspace already ships exactly this
+  shape — the anvil-witness chain (`WitnessLine`/`verify_chain_dag`, ADR-037,
+  GITGOV). Before any work, re-evaluate this item against it: the residual
+  is at most extending witness coverage to the governance events AGOV cares
+  about, not building a hash chain.
+- **Scope:** `crates/anvil-witness/src/` (extension),
+  `crates/anvil-cli/src/commands/` (verify surface)
 - **Non-scope:** External blockchain anchoring; distributed consensus
-- **Files:**
-  - `packages/edda-stack/src/edda/hash-chain.ts`
-  - `packages/edda-stack/src/edda/hash-chain.test.ts`
-  - `apps/anvil-cli/src/commands/audit.ts` (extend with `verify` subcommand)
-- **Dependencies:** EDDA-010 (provenance service)
-- **Validation:** `nx test edda-stack --testNamePattern="hash-chain"`
+- **Dependencies:** anvil-witness chain (shipped)
+- **Validation:** `cargo test -p eddacraft-anvil-witness -- governance_events`
 - **Confidence:** medium
 
 ### Phase C: Capability Model
@@ -267,17 +263,14 @@ comprehensive governance layer for teams using AI coding tools.
   A gate check validates that PR changes fall within the manifest's declared
   capabilities. Violations produce major-severity findings. CLI support via
   `anvil capability validate`.
-- **Scope:** `packages/anvil/runtime/src/gate/checks/`,
-  `apps/anvil-cli/src/commands/`
+- **Scope:** `crates/anvil-kernel-types/src/` (capability-manifest schema),
+  `crates/anvil-checks/src/` (gate validation),
+  `crates/anvil-cli/src/commands/` (`anvil capability validate`)
 - **Non-scope:** Runtime enforcement; capability negotiation protocols
-- **Files:**
-  - `packages/anvil/runtime/src/gate/checks/capability-declaration.check.ts`
-  - `packages/anvil/runtime/src/gate/checks/capability-declaration.check.test.ts`
-  - `packages/anvil/core/src/config/capability-manifest.ts`
-  - `packages/anvil/core/src/config/capability-manifest.test.ts`
-  - `apps/anvil-cli/src/commands/capability.ts`
-- **Dependencies:** AGOV-001 (trust score informs capability trust)
-- **Validation:** `nx test anvil-runtime --testNamePattern="capability-declaration"`
+- **Dependencies:** AGOV-001 (trust score informs capability trust); consumed
+  downstream by POLCAP (which builds the agent-facing signed capability view
+  on this manifest) and MDGOV M3
+- **Validation:** `cargo test -p eddacraft-anvil-checks -- capability_declaration`
 - **Confidence:** low
 
 ---
