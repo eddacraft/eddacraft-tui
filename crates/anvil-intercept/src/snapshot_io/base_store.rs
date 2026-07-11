@@ -12,16 +12,20 @@
 //!   a second produce is a **no-op success** ([`PublishOutcome::AlreadyPresent`]);
 //!   the content is addressed by sha, so re-publishing identical bytes is never
 //!   required.
-//! - **Single-flight claim.** [`claim`] creates `.producing/<sha>.lock` via
-//!   `O_EXCL` through the seam, stamped `{pid, start_time, nonce}` — the
-//!   save-time-driver `{pid, start_time}` convention with a **PID-reuse guard**
-//!   (a pid match alone is *not* liveness; the recorded `start_time` must match
-//!   too, per [`crate::save_time_driver`]). The claim is held for the duration of
-//!   production and released on success or failure.
-//! - **Stale-claim reclaim, in the claim path** (no separate reaper). On an
-//!   `O_EXCL` collision, the existing lock is read and reclaimed **iff** the
-//!   stamped process is not live (dead pid, *or* alive-pid-with-mismatched-start
-//!   = PID reuse) **or** the lock mtime exceeds [`STALE_CLAIM_MAX_AGE`].
+//! - **Single-flight claim.** [`claim`] publishes `.producing/<sha>.lock`
+//!   **atomically stamped**: it writes the full `{pid, start_time, nonce}` record
+//!   to a uniquely-named temp, `fsync`s it, then `linkat`s it into place with
+//!   exclusive (`EEXIST`-if-present) semantics. The lock is therefore **never
+//!   visible unstamped** — no racer can read an empty or torn record and misjudge
+//!   it. The stamp is the save-time-driver `{pid, start_time}` convention with a
+//!   **PID-reuse guard** (a pid match alone is *not* liveness; the recorded
+//!   `start_time` must match too, per [`crate::save_time_driver`]). The claim is
+//!   held for the duration of production and released on success or failure.
+//! - **Stale-claim reclaim, in the claim path** (no separate reaper). When the
+//!   lock already exists, its (always-complete) record is read and reclaimed
+//!   **iff** the stamped process is not live (dead pid, *or*
+//!   alive-pid-with-mismatched-start = PID reuse) **or** the lock mtime exceeds
+//!   [`STALE_CLAIM_MAX_AGE`].
 //!
 //! # Destruction invariant — the per-dir advisory guard
 //!
@@ -45,11 +49,20 @@
 //!   unlinking.
 //!
 //! The guard file is created once and **never removed**, so it is a stable
-//! rendezvous. The **hot path stays lock-free**: an `O_EXCL` create of a fresh
-//! lock into an empty slot is an atomic single-winner and never takes the guard;
-//! a lock-free creator can only ever *create* into an empty slot, never swap an
-//! existing inode, so it can never make a guarded reclaimer destroy the wrong
-//! lock.
+//! rendezvous. The **hot path stays lock-free**: the atomic-exclusive `linkat`
+//! publish of a fully-stamped lock into an empty slot is a single-winner and never
+//! takes the guard; a lock-free creator can only ever *publish* into an empty slot
+//! (its `linkat` fails `EEXIST` otherwise), never swap an existing inode, so it can
+//! never make a guarded reclaimer destroy the wrong lock.
+//!
+//! Separately from the guard, the **atomic stamped publish** closes a third race
+//! the guard alone could not: a winner used to create an empty lock and stamp it
+//! *afterwards* (unguarded, on the hot path), so a loser could read the lock
+//! mid-stamp — an empty or torn record that could mis-parse to a foreign pid and be
+//! wrongly judged reclaimable (the CI two-winner failure). Publishing the fully
+//! written record atomically means the lock is only ever visible complete; a
+//! conservative classify (empty/unparseable within the mtime bound ⇒ Contended,
+//! not reclaimable) backs this up as defence-in-depth.
 //!
 //! # Schema-epoch clause (load side, ADR-105 §9)
 //!
@@ -530,61 +543,123 @@ fn classify_existing(
     }
 }
 
-/// Stamp `file` (a freshly `O_EXCL`-created lock) and return the held claim.
-fn finish_acquire(
-    mut file: File,
+/// Atomically publish the fully-stamped temp `temp_name` at `final_name` under
+/// `dirfd` with **exclusive** semantics: `linkat` hard-links the temp's inode to
+/// `final_name`, failing `EEXIST` if `final_name` already exists. Because the temp
+/// is fully written + `fsync`'d before this call, a lock file is **never visible
+/// unstamped**, and the link's atomic-exclusive create preserves the single-winner
+/// semantics the hot path relies on. `Ok(true)` = we published (won); `Ok(false)`
+/// = `final_name` already exists (a peer holds it).
+///
+/// `linkat` is the portable POSIX atomic-exclusive primitive; Linux's
+/// `renameat2(RENAME_NOREPLACE)` is glibc-Linux-only in `nix`, so `linkat` keeps
+/// one audited publish path across every `cfg(unix)` target. On the rare
+/// filesystem that refuses same-dir hardlinks (some FUSE/overlay configs) this
+/// surfaces as a generic `io::Error` from `claim()` — non-fatal, the caller
+/// degrades to cold per ADR-105 §6.
+fn publish_exclusive(
+    dirfd: &std::os::fd::OwnedFd,
+    temp_name: &str,
+    final_name: &str,
+) -> io::Result<bool> {
+    use nix::fcntl::AtFlags;
+    use nix::unistd::linkat;
+    // `AtFlags::empty()` = do not follow a symlink at the temp path (there is
+    // none — the temp is a regular file we just created). `linkat` fails `EEXIST`
+    // if `final_name` already exists, which is the atomic-exclusive guarantee.
+    match linkat(dirfd, temp_name, dirfd, final_name, AtFlags::empty()) {
+        Ok(()) => Ok(true),
+        Err(nix::errno::Errno::EEXIST) => Ok(false),
+        Err(err) => Err(io::Error::from(err)),
+    }
+}
+
+/// Build a fully-stamped `{pid, start_time, nonce}` record, write + `fsync` it to
+/// a uniquely-named temp, then atomically publish it at `lock_name` with exclusive
+/// semantics ([`publish_exclusive`]).
+///
+/// The lock is therefore **never visible unstamped** (the CI two-winner root
+/// cause): a racing claimant either fails to see it at all (`Ok(None)` on the
+/// `EEXIST` from a peer's link) or reads a complete, correct record — never an
+/// empty or torn one that could mis-parse to a foreign pid and be wrongly judged
+/// reclaimable. `Ok(Some(claim))` = we hold the claim; `Ok(None)` = a peer already
+/// holds `lock_name`.
+fn try_stamped_create(
+    dirfd: &std::os::fd::OwnedFd,
     producing_dir: &Path,
-    lock_name: String,
+    lock_name: &str,
     procs: &dyn ClaimProcs,
-) -> io::Result<ClaimOutcome> {
+) -> io::Result<Option<BaseClaim>> {
     let nonce = fresh_nonce();
     let record = LockRecord {
         pid: procs.current_pid(),
         start_time: procs.current_start_time(),
         nonce: nonce.clone(),
     };
-    file.write_all(&encode_lock(&record))?;
-    file.sync_all()?;
-    Ok(ClaimOutcome::Acquired(BaseClaim {
-        producing_dir: producing_dir.to_path_buf(),
-        lock_name,
-        nonce,
-        released: false,
-    }))
+    // Unique temp name (nonce-suffixed) so the `O_EXCL` temp create never collides.
+    let temp_name = format!("{lock_name}.{nonce}.tmp");
+
+    // Create + fully stamp + fsync the temp BEFORE it can be published.
+    let stamp = (|| -> io::Result<()> {
+        let mut file = store::create_leaf_under_dirfd(dirfd, &temp_name)?;
+        file.write_all(&encode_lock(&record))?;
+        file.sync_all()
+    })();
+    if let Err(err) = stamp {
+        let _ = store::unlink_at(dirfd, &temp_name);
+        return Err(err);
+    }
+
+    let published = publish_exclusive(dirfd, &temp_name, lock_name);
+    // The temp is now either an extra hard-link to the published inode (winner) or
+    // a loser's discard — unlink it either way (best-effort; ignore a NotFound).
+    let _ = store::unlink_at(dirfd, &temp_name);
+
+    if published? {
+        Ok(Some(BaseClaim {
+            producing_dir: producing_dir.to_path_buf(),
+            lock_name: lock_name.to_owned(),
+            nonce,
+            released: false,
+        }))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Acquire the single-flight production claim for `sha` under `base_dir`
 /// (ADR-105 §5).
 ///
-/// **Hot path (lock-free):** an `O_EXCL` `create_leaf_under_dirfd` of a fresh
-/// `.producing/<sha>.lock`. When no lock exists this wins outright — `O_EXCL` is
-/// itself an atomic single-winner, so the common case takes no guard.
+/// **Hot path (lock-free):** [`try_stamped_create`] — write a fully-stamped lock
+/// to a temp, then atomically `linkat` it into place with exclusive semantics.
+/// Exactly one racer's link wins; the rest see `Ok(None)` and fall through. The
+/// lock is never visible unstamped, so no racer can read an empty/torn record.
 ///
-/// **Slow path (guarded):** on an `O_EXCL` collision, take the per-dir advisory
-/// guard ([`lock_guard`]) and run the classify→reclaim critical section under it.
-/// A **live** holder ⇒ [`ClaimOutcome::Contended`]; a **dead / PID-reused /
-/// timed-out / stale-garbage** lock is reclaimed by [`store::unlink_at`] + retry.
-/// The guard serialises all destruction, and the classify reads through an fd
-/// opened via the dirfd immediately before the unlink, so the inode classified is
-/// the inode destroyed — closing the classify→destroy TOCTOU (a lock-free creator
-/// can only ever *create* into an empty slot via `O_EXCL`, never swap an existing
-/// inode, so it cannot make us destroy a fresh legitimate claim).
+/// **Slow path (guarded):** when the lock already exists, take the per-dir
+/// advisory guard ([`lock_guard`]) and run the classify→reclaim critical section
+/// under it. A **live** holder ⇒ [`ClaimOutcome::Contended`]; a **dead /
+/// PID-reused / timed-out / stale-garbage** lock is reclaimed by
+/// [`store::unlink_at`] + retry. The guard serialises all destruction, and the
+/// classify reads through an fd opened via the dirfd immediately before the
+/// unlink, so the inode classified is the inode destroyed — closing the
+/// classify→destroy TOCTOU. A lock-free creator can only ever *publish* into an
+/// empty slot (its `linkat` fails `EEXIST` otherwise), never swap an existing
+/// inode, so it cannot make a guarded reclaimer destroy a fresh legitimate claim.
 ///
 /// # Errors
-/// A disk error from the ensure-dir / dirfd / create / guard / unlink path (not
-/// an `O_EXCL` collision, which is handled internally). The caller treats an
-/// error as non-fatal and serves cold (ADR-105 §6).
+/// A disk error from the ensure-dir / dirfd / temp-create / publish / guard /
+/// unlink path (not an `EEXIST` collision, which is handled internally). The
+/// caller treats an error as non-fatal and serves cold (ADR-105 §6).
 pub fn claim(base_dir: &Path, sha: &str, procs: &dyn ClaimProcs) -> io::Result<ClaimOutcome> {
     let dir = producing_dir(base_dir);
     store::ensure_dir(&dir)?;
     let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir)?;
     let lock_name = lock_leaf(sha);
 
-    // Hot path: no lock present ⇒ `O_EXCL` create wins with no guard.
-    match store::create_leaf_under_dirfd(&dirfd, &lock_name) {
-        Ok(file) => return finish_acquire(file, &dir, lock_name, procs),
-        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
-        Err(err) => return Err(err),
+    // Hot path: publish a fully-stamped lock with no guard. Exactly one racer's
+    // exclusive link wins; the rest see `Ok(None)`.
+    if let Some(claim) = try_stamped_create(&dirfd, &dir, &lock_name, procs)? {
+        return Ok(ClaimOutcome::Acquired(claim));
     }
 
     // Slow path: a lock exists. Serialise ALL destruction through the per-dir
@@ -593,32 +668,29 @@ pub fn claim(base_dir: &Path, sha: &str, procs: &dyn ClaimProcs) -> io::Result<C
     let _guard = lock_guard(&dirfd)?;
 
     // Bounded retry: each iteration either acquires, concedes, or unlinks a stale
-    // lock (after which the next iteration re-creates). The cap prevents an
+    // lock (after which the next iteration re-publishes). The cap prevents an
     // unbounded loop if a lock-free creator keeps re-winning the vacated slot;
     // over the cap we concede (non-fatal).
     for _ in 0..8 {
-        match store::create_leaf_under_dirfd(&dirfd, &lock_name) {
-            Ok(file) => return finish_acquire(file, &dir, lock_name, procs),
-            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                match classify_existing(&dirfd, &lock_name, procs) {
-                    Existing::Live | Existing::Unknown => return Ok(ClaimOutcome::Contended),
-                    // Vanished between the failed create and the read — retry.
-                    Existing::Vanished => {}
-                    Existing::Reclaimable => {
-                        // Under the guard the classified inode cannot be swapped by
-                        // another reclaimer or releaser; unlink exactly it, then
-                        // retry the `O_EXCL` create. A concurrent lock-free creator
-                        // that wins the vacated slot is handled by the next
-                        // iteration re-classifying its (live) lock as Contended.
-                        match store::unlink_at(&dirfd, &lock_name) {
-                            Ok(()) => {}
-                            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-                            Err(err) => return Err(err),
-                        }
-                    }
+        if let Some(claim) = try_stamped_create(&dirfd, &dir, &lock_name, procs)? {
+            return Ok(ClaimOutcome::Acquired(claim));
+        }
+        match classify_existing(&dirfd, &lock_name, procs) {
+            Existing::Live | Existing::Unknown => return Ok(ClaimOutcome::Contended),
+            // Vanished between the failed publish and the read — retry.
+            Existing::Vanished => {}
+            Existing::Reclaimable => {
+                // Under the guard the classified inode cannot be swapped by another
+                // reclaimer or releaser; unlink exactly it, then retry the publish.
+                // A concurrent lock-free creator that wins the vacated slot is
+                // handled by the next iteration re-classifying its (live, fully
+                // stamped) lock as Contended.
+                match store::unlink_at(&dirfd, &lock_name) {
+                    Ok(()) => {}
+                    Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                    Err(err) => return Err(err),
                 }
             }
-            Err(err) => return Err(err),
         }
     }
     // Persistent churn: concede rather than spin (non-fatal, ADR-105 §6).
@@ -630,7 +702,6 @@ mod tests {
     use super::*;
     use std::fs;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicU32, Ordering};
 
     /// A deterministic [`ClaimProcs`] fake: a fixed current identity plus an
     /// explicit set of "live" `(pid, start_time)` pairs.
@@ -729,10 +800,66 @@ mod tests {
     }
 
     #[test]
+    fn claim_concedes_to_an_unstamped_lock_mid_stamp_window() {
+        // Regression for the CI two-winner root cause: a lock that is present but
+        // NOT yet stamped (the mid-stamp window a non-atomic create exposed) must
+        // make a claimant CONCEDE, never steal — even a claimant that sees nothing
+        // as live. Simulate the window by directly creating an empty lock via the
+        // seam, then run claim().
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let sha = "8".repeat(40);
+        let pdir = producing_dir(&dir);
+        store::ensure_dir(&pdir).unwrap();
+        let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&pdir).unwrap();
+        // An empty, UNSTAMPED lock at the final name (mid-stamp state).
+        drop(store::create_leaf_under_dirfd(&dirfd, &lock_leaf(&sha)).unwrap());
+        let lock_path = pdir.join(lock_leaf(&sha));
+        assert!(lock_path.exists() && fs::read(&lock_path).unwrap().is_empty());
+
+        // A claimant that sees NOTHING as live must still concede (owner presumed
+        // mid-stamp) — not reclaim the empty lock.
+        let procs = FakeProcs::new(5000, Some(1));
+        assert!(
+            matches!(claim(&dir, &sha, &procs).unwrap(), ClaimOutcome::Contended),
+            "an empty/mid-stamp lock must be conceded, never stolen",
+        );
+        // The unstamped lock is untouched (not reclaimed).
+        assert!(
+            lock_path.exists() && fs::read(&lock_path).unwrap().is_empty(),
+            "claim must not have unlinked the mid-stamp lock",
+        );
+
+        // Once a real stamp lands, a peer still contends against the live owner.
+        fs::write(
+            &lock_path,
+            encode_lock(&LockRecord {
+                pid: 5000,
+                start_time: Some(1),
+                nonce: "abcdef0123456789".to_owned(),
+            }),
+        )
+        .unwrap();
+        let peer = FakeProcs::with_live(5001, Some(2), &[(5000, Some(1)), (5001, Some(2))]);
+        assert!(matches!(
+            claim(&dir, &sha, &peer).unwrap(),
+            ClaimOutcome::Contended
+        ));
+    }
+
+    #[test]
     fn concurrent_claim_is_single_flight_exactly_one_winner() {
-        // (b) many claimants race for a fresh lock; O_EXCL admits exactly one.
-        // Repeated many times so a race window (the original two-winner bug class)
-        // is caught deterministically-ish rather than ~1-in-N.
+        // (b) many claimants race for a fresh lock; the atomic-exclusive linkat
+        // publish admits exactly one. Repeated many times so a race window (the
+        // original two-winner bug class) is caught deterministically-ish.
+        //
+        // Every acquired claim is HELD (pushed into `held`) until the whole burst
+        // has joined, then released together. Releasing a winning claim *mid-burst*
+        // would legitimately let a still-contending loser acquire the freed slot —
+        // that is not a single-flight violation (the write-once store prevents
+        // redundant production; the claim only guarantees ≤1 holder at an instant),
+        // but it would inflate the concurrent-winner count. Holding across the burst
+        // asserts the true invariant: never two simultaneous holders.
         let all_live: Vec<(u32, Option<u64>)> =
             (0..8u32).map(|i| (1000 + i, Some(u64::from(i)))).collect();
 
@@ -741,33 +868,32 @@ mod tests {
             let dir = base_dir(&tmp);
             // A fresh sha per round so no artefact/lock survives between rounds.
             let sha = Arc::new(format!("{round:040x}"));
-            let acquired = Arc::new(AtomicU32::new(0));
+            let held = Arc::new(std::sync::Mutex::new(Vec::new()));
 
             std::thread::scope(|scope| {
                 for i in 0..8u32 {
                     let dir = dir.clone();
                     let sha = Arc::clone(&sha);
-                    let acquired = Arc::clone(&acquired);
+                    let held = Arc::clone(&held);
                     // Every racer sees every other racer as LIVE, so the ONLY gate
-                    // is the `O_EXCL` create — no peer ever reclaims the holder.
+                    // is the atomic-exclusive publish — no peer ever reclaims.
                     let all_live = all_live.clone();
                     scope.spawn(move || {
                         let procs = FakeProcs::with_live(1000 + i, Some(u64::from(i)), &all_live);
                         if let ClaimOutcome::Acquired(claim) = claim(&dir, &sha, &procs).unwrap() {
-                            acquired.fetch_add(1, Ordering::SeqCst);
-                            // Hold briefly so peers race the *held* lock.
-                            std::thread::sleep(Duration::from_millis(2));
-                            claim.release();
+                            // Keep the claim alive until the burst completes.
+                            held.lock().unwrap().push(claim);
                         }
                     });
                 }
             });
 
+            let winners = held.lock().unwrap().len();
             assert_eq!(
-                acquired.load(Ordering::SeqCst),
-                1,
-                "round {round}: exactly one claimant must win the single-flight race",
+                winners, 1,
+                "round {round}: exactly one claimant may hold the lock concurrently",
             );
+            // `held` (and the winning claim) drops here, after the burst joined.
         }
     }
 
@@ -903,29 +1029,30 @@ mod tests {
                 ClaimOutcome::Contended => panic!("round {round}: plant acquire"),
             });
 
-            let winners = Arc::new(AtomicU32::new(0));
+            // Winners are HELD until the burst joins (see the note in
+            // `concurrent_claim_...`): releasing mid-burst would let the loser
+            // legitimately take the freed slot and inflate the count.
+            let held = Arc::new(std::sync::Mutex::new(Vec::new()));
             std::thread::scope(|scope| {
                 for i in 0..2u32 {
                     let dir = dir.clone();
                     let sha = Arc::clone(&sha);
-                    let winners = Arc::clone(&winners);
+                    let held = Arc::clone(&held);
                     let reclaimers_live = reclaimers_live.clone();
                     scope.spawn(move || {
                         let procs =
                             FakeProcs::with_live(6100 + i, Some(u64::from(i)), &reclaimers_live);
                         if let ClaimOutcome::Acquired(claim) = claim(&dir, &sha, &procs).unwrap() {
-                            winners.fetch_add(1, Ordering::SeqCst);
-                            std::thread::sleep(Duration::from_millis(2));
-                            claim.release();
+                            held.lock().unwrap().push(claim);
                         }
                     });
                 }
             });
 
             assert_eq!(
-                winners.load(Ordering::SeqCst),
+                held.lock().unwrap().len(),
                 1,
-                "round {round}: exactly one reclaimer must win the stale-lock steal",
+                "round {round}: exactly one reclaimer may hold the stolen lock concurrently",
             );
         }
     }

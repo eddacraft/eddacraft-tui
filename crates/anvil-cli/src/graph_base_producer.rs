@@ -91,6 +91,10 @@ pub enum BaseGraphError {
     /// A git plumbing invocation failed (spawn error, non-zero exit, or
     /// unparseable output). `op` names the git operation for triage.
     Git { op: String, detail: String },
+    /// A base-store or serialisation step failed (claim I/O, payload
+    /// construction, publish) — NOT a git failure. `op` names the step so
+    /// triage isn't misdirected at git plumbing.
+    Store { op: String, detail: String },
     /// The provided or resolved merge-base was not a valid hex commit sha.
     InvalidSha(String),
 }
@@ -103,6 +107,9 @@ impl std::fmt::Display for BaseGraphError {
             }
             BaseGraphError::Git { op, detail } => {
                 write!(f, "git {op} failed: {detail}")
+            }
+            BaseGraphError::Store { op, detail } => {
+                write!(f, "base store {op} failed: {detail}")
             }
             BaseGraphError::InvalidSha(sha) => {
                 write!(f, "not a valid commit sha: {sha}")
@@ -601,9 +608,12 @@ pub struct PersistedBase {
     pub sha: String,
     /// How persistence resolved.
     pub outcome: PersistOutcome,
-    /// The deterministic summary — `Some` only when this call actually built the
-    /// graph ([`PersistOutcome::Written`]); `None` for a write-once no-op or a
-    /// claim contention (neither rebuilds).
+    /// The deterministic summary — `Some` whenever this call actually built the
+    /// graph: always for [`PersistOutcome::Written`], and also for the late-race
+    /// [`PersistOutcome::AlreadyPresent`] where a peer published first but we
+    /// had already built (retained for observability). `None` when nothing was
+    /// built: the write-once fast path (clean base already present) and claim
+    /// contention.
     pub summary: Option<BaseGraphSummary>,
 }
 
@@ -637,8 +647,8 @@ pub fn build_and_persist_base(
     }
 
     // (a) Claim. A live peer already producing ⇒ concede without building.
-    let claim = base_store::claim(base_dir, sha, procs).map_err(|e| BaseGraphError::Git {
-        op: "base-store claim".to_string(),
+    let claim = base_store::claim(base_dir, sha, procs).map_err(|e| BaseGraphError::Store {
+        op: "claim".to_string(),
         detail: e.to_string(),
     })?;
     let guard = match claim {
@@ -671,15 +681,15 @@ pub fn build_and_persist_base(
     // the ANVILGB1 base class.
     let dep = derive_dependency_graph(&built.graph);
     let payload =
-        SnapshotPayload::from_graphs(&built.graph, &dep).map_err(|e| BaseGraphError::Git {
-            op: "base serialise".to_string(),
+        SnapshotPayload::from_graphs(&built.graph, &dep).map_err(|e| BaseGraphError::Store {
+            op: "serialise payload".to_string(),
             detail: e.to_string(),
         })?;
     let bytes = payload.to_base_bytes();
     // (d) Publish write-once.
     let publish =
-        base_store::publish_base(base_dir, sha, &bytes).map_err(|e| BaseGraphError::Git {
-            op: "base-store publish".to_string(),
+        base_store::publish_base(base_dir, sha, &bytes).map_err(|e| BaseGraphError::Store {
+            op: "publish".to_string(),
             detail: e.to_string(),
         })?;
     // (e) Release the claim.
