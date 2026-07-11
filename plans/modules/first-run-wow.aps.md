@@ -2,7 +2,7 @@
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| WOW | Josh  | In Progress | 4/6      |
+| WOW | Josh  | In Progress | 5/6      |
 
 **Last reviewed:** 2026-07-11 — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) promotes WOW-005 into the

@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GBASE | —     | In Progress | 0/11     |
+| GBASE | —     | In Progress | 10/11     |
 
 **Last reviewed:** 2026-07-11 (created from planning council `plan-89a47ac7`,
 synthesised as [ADR-105](../decisions/105-shared-base-graph-persistence.md) —

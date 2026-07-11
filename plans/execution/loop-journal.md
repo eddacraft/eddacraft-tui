@@ -610,3 +610,29 @@ never with feature work.
 - Checkpoints raised: none.
 - Next: CIB-184 (unticked MCP picker) and WOW-005 (first-win reroute) in
   parallel worktrees; CIB-183 after CIB-184.
+
+## Cycle — 2026-07-12 (JOURNEY release-cut wave complete)
+
+- Items: full JOURNEY conductor release cut — CIB-184 (#3279), WOW-005
+  (#3280), CIB-073 (#3282), CIB-183 (#3283), ACTTUI-012 (#3284), CIB-190
+  (#3286) all Merged; JOURNEY-001..004 flipped Merged with validation
+  evidence; JOURNEY-005 In Progress (Linux leg done); JOURNEY-006 Blocked
+  on the operator gate.
+- Validation: per-item council sessions (3871e1d6, 732c7c54, 797f142a,
+  56b1abe6, eb8c0152, db2646a1) all converged, every major finding fixed
+  and re-verified (notable: preview/apply TOCTOU guard on the first-win
+  write; cross-stream window-anchor contamination in cumulative insights;
+  future-dated evidence rendered fresh; consent-pane key hijack); suite
+  evidence on candidate d6d3aa39c: tutorial 346, welcome 40, start 179,
+  activation 42 + e2e 8/8, insights 47, value_receipt 11 — all green.
+- Review: council fix rounds produced 40+ new regression tests; ADR-044
+  amended (unticked picker default); two deliberate deferrals recorded
+  (O_NOFOLLOW read hardening; real-clock 150 ms e2e).
+- Plan changes: rehearsal record added
+  (plans/audits/2026-07-12-journey-005-linux-rehearsal.md); escalation
+  queue created (ESC-001 macOS/Windows manual legs, ESC-002 cut approval,
+  ESC-003 ADR-105 acceptance); cross-platform CI dispatched on the
+  candidate (runs 29161637384 / 29161638249).
+- Checkpoints raised: ESC-001, ESC-002 (operator); ESC-003 (low priority).
+- Next: loop idles on JOURNEY until the operator clears the queue;
+  post-cut expansion items (JOURNEY-007..010) remain Proposed by design.

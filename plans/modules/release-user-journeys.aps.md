@@ -2,10 +2,16 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 0/10 |
+| JOURNEY | Conductor | Josh | high | In Progress | 4/10 |
 
-**Last reviewed:** 2026-07-11 — created from the operator's release goal and
-the accepted
+**Last reviewed:** 2026-07-12 — release-cut implementation complete: all six
+coordinated code items Merged (CIB-184 #3279, WOW-005 #3280, CIB-073 #3282,
+CIB-183 #3283, ACTTUI-012 #3284, CIB-190 #3286); JOURNEY-001..004 outcomes
+verified on candidate `d6d3aa39c`; Linux rehearsal recorded
+([audit](../audits/2026-07-12-journey-005-linux-rehearsal.md)); macOS/Windows
+manual legs and the final cut decision parked for the operator
+(`plans/execution/escalation.queue.md` ESC-001/ESC-002). Created 2026-07-11
+from the operator's release goal and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
 ## Purpose
@@ -81,7 +87,12 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-001: Repository-specific first win
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-11 via PRs #3263/#3280 — ACTTUI-009 consent
+  wiring + WOW-005 first-win reroute (deterministic top-of-discovery
+  selection, diff-before-write with expected-before TOCTOU guard, unticked
+  consent, decline→picker, honest clean interstitial). Validation on main:
+  `cargo test -p eddacraft-anvil-tui tutorial` 346 passed, `welcome` 40
+  passed, zero failures.
 - **Intent:** Make the first minute of `anvil welcome` demonstrate value on the
   user's repository rather than requiring them to discover the strongest path.
 - **Expected Outcome:** Discovery deterministically selects the highest-value
@@ -97,7 +108,12 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-002: `anvil start` just-works activation gate
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-11 via PRs #3263/#3279/#3284 — consent reachable
+  and applied end to end (ACTTUI-009), contract matrix pinned (ACTTUI-010),
+  polish/dead-key/exit-story cleared (ACTTUI-012), plain MCP picker unticked
+  (CIB-184). Validation on main: `cargo test -p eddacraft-anvil start` 168
+  passed, `eddacraft-anvil-tui activation` 42 passed, activation e2e 8/8.
+  The TTY-default flip itself remains a phase-C decision outside this gate.
 - **Intent:** Ensure the flagship interactive activation path completes the same
   real work as the proven plain path without hidden skips or terminal hazards.
 - **Expected Outcome:** Consent is reachable and applied, TTY/plain/verify/JSON
@@ -111,7 +127,13 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-003: Daily confidence loop
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-12 via PRs #3283/#3286 — healthy repeat output
+  collapses to state/posture/one-next-step (evidence-gated, never on repair
+  paths), with an optional trustworthy local value line (two-sided
+  freshness, honest omission, 150 ms budget). Validation on main:
+  `cargo test -p eddacraft-anvil start` 179 passed, `value_receipt` 11,
+  `insights` 47; healthy/absent/stale/repair/redaction fixtures all covered.
+  Rehearsed live: repeat start 0.026 s, byte-identical, collapsed to 6 lines.
 - **Intent:** Make a healthy repeat `anvil start` feel like a fast confidence
   check rather than repeated onboarding.
 - **Expected Outcome:** Healthy repeat output collapses to protection, daemon and
@@ -127,7 +149,12 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-004: Advocacy-grade value receipt
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3282 — cumulative + bounded-window
+  aggregates in `anvil insights`, deterministic self-contained `--share`
+  card (create-new default, symlink-refusing, 0o600) naming its evidence
+  window; redaction proven structurally (only counts and re-serialised
+  dates can reach the artefact) and by marker-seeded fixtures. Validation
+  on main: `cargo test -p eddacraft-anvil -- insights` 47 passed.
 - **Intent:** Give users a credible, privacy-safe artefact that communicates
   what Anvil has done without exposing their codebase.
 - **Expected Outcome:** Cumulative and bounded-window value evidence is available
@@ -142,7 +169,15 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-005: Three-platform release journey rehearsal
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-12 — Linux leg complete on candidate
+  `d6d3aa39c`
+  ([rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md)):
+  fresh welcome, first/repeat start, `--verify`/`--json` byte contracts,
+  no-MCP, daemon stop/restart with durable-registration reload, and a
+  repair path all pass. Cross-platform CI evidence dispatched on the same
+  SHA (`ci-nightly.yml` run 29161637384, `rust.yml` run 29161638249).
+  macOS/Windows interactive legs are operator-parked (ESC-001 in
+  `plans/execution/escalation.queue.md`).
 - **Intent:** Prove the release candidate survives the real installation,
   restart, repeat-use, degraded, and recovery paths on every supported platform.
 - **Expected Outcome:** One candidate SHA has recorded Linux, macOS, and Windows
@@ -158,7 +193,12 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-006: Outcome-based release gate
 
-- **Status:** Proposed
+- **Status:** Blocked — evidence matrix assembled (Linux metrics in the
+  [rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md):
+  first run 0.34 s, healthy repeat 0.026 s / 6 lines, one-next-action
+  compliance on every observed terminal state, byte-stable machine
+  contracts, redaction green); the cut decision is the operator's
+  (ESC-002 in `plans/execution/escalation.queue.md`), pending ESC-001.
 - **Intent:** Decide the cut from reproducible journey outcomes rather than the
   completion of disconnected feature lists.
 - **Expected Outcome:** The candidate records time to first value, activation

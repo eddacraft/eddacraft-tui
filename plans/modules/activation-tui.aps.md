@@ -2,7 +2,7 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 2/13      |
+| ACTTUI | Josh  | In Progress | 6/13      |
 
 **Last reviewed:** 2026-07-11 — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
