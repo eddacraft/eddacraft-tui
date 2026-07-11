@@ -80,7 +80,8 @@
 //! # Wiring
 //!
 //! Activation is gated on the **same** condition the save-time path gates
-//! persistence on — `ANVIL_PERSIST_GRAPH` affirmative (see [`trigger_enabled`]) —
+//! persistence on — `ANVIL_PERSIST_GRAPH` not explicitly disabled (default-on
+//! since the GBASE-010 graduation; see [`trigger_enabled`]) —
 //! because pre-production is meaningless when persistence is off (ADR-105 §7:
 //! proactive *when the feature is live*, never auto-enabled). `run_foreground`
 //! calls [`activate`] on Linux: it builds the trigger (`current_exe` spawner,
@@ -1361,7 +1362,8 @@ impl GraphBaseTrigger {
 
 /// Build the daemon-side proactive trigger **if** the persistence gate is on
 /// (ADR-105 §7) — the seam `run_foreground` calls. Returns `None` unless BOTH the
-/// `ANVIL_PERSIST_GRAPH` gate is affirmative **and** `state_dir_available` (a
+/// `ANVIL_PERSIST_GRAPH` gate is enabled (default-on since the GBASE-010
+/// graduation; explicit `0`/`false`/`no`/`off` opts out) **and** `state_dir_available` (a
 /// resolvable base store dir): this mirrors the save-time path exactly, which only
 /// enables persistence when the flag is on *and* a state dir resolves — without a
 /// store dir the produced base would have nowhere to land, so triggering builds
@@ -1387,7 +1389,7 @@ pub fn build_activated_trigger(
 // ---------------------------------------------------------------------------
 
 /// Whether the proactive trigger should activate (ADR-105 §7). Mirrors the
-/// **exact** gate the save-time path uses to enable persistence — an affirmative
+/// **exact** gate the save-time path uses to enable persistence — an enabled
 /// `ANVIL_PERSIST_GRAPH` — because pre-production is meaningless when persistence
 /// is off, and the council said pre-production should be proactive *only when the
 /// feature is live* (never auto-enable when persistence is off).
@@ -2191,10 +2193,12 @@ mod tests {
     #[test]
     fn build_activated_trigger_returns_none_when_gate_off() {
         // The daemon-side seam constructs NOTHING when persistence (the gate) is
-        // off — pre-production is inert unless the feature is live (ADR-105 §7).
+        // explicitly opted out — the only way to disable now that GBASE-010 flipped
+        // the default on (ADR-105 §11). Pre-production is inert only under the
+        // documented opt-out.
         let s = seams();
-        // Gate flag off (with a state dir available) ⇒ no trigger.
-        for env in [None, Some("0"), Some("off"), Some("garbage")] {
+        // Explicit opt-out (with a state dir available) ⇒ no trigger.
+        for env in [Some("0"), Some("off"), Some("false"), Some("no")] {
             assert!(
                 build_activated_trigger(
                     env,
@@ -2204,14 +2208,29 @@ mod tests {
                     None,
                 )
                 .is_none(),
-                "gate {env:?} must not construct a trigger",
+                "opt-out {env:?} must not construct a trigger",
             );
         }
-        // Gate flag ON but NO resolvable state dir ⇒ still no trigger (mirrors the
+        // Default-on: an unset / affirmative / unparseable value constructs the
+        // trigger when a state dir is available.
+        for env in [None, Some("1"), Some("on"), Some("garbage")] {
+            assert!(
+                build_activated_trigger(
+                    env,
+                    true,
+                    Arc::clone(&s) as Arc<dyn ProductionSpawner>,
+                    Arc::clone(&s) as Arc<dyn Signaller>,
+                    None,
+                )
+                .is_some(),
+                "default-on gate {env:?} must construct a trigger",
+            );
+        }
+        // Gate ON but NO resolvable state dir ⇒ still no trigger (mirrors the
         // save-time persistence gate — a base needs somewhere to land).
         assert!(
             build_activated_trigger(
-                Some("1"),
+                None,
                 false,
                 Arc::clone(&s) as Arc<dyn ProductionSpawner>,
                 Arc::clone(&s) as Arc<dyn Signaller>,

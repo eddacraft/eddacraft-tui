@@ -710,7 +710,7 @@ fn sweep_unreferenced_bases_inner(
 
 /// GBASE-008 daemon entry point (design B): run one GC pass over the default base
 /// store with the production git resolver, gated on the **same** persistence
-/// condition the save-time path and the GBASE-003 trigger use — an affirmative
+/// condition the save-time path and the GBASE-003 trigger use — an enabled
 /// `ANVIL_PERSIST_GRAPH` **and** a resolvable base store dir. Returns `None` (a
 /// no-op) when the gate is off, so a caller can wire it unconditionally.
 ///

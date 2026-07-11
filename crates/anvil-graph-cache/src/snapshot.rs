@@ -823,23 +823,34 @@ fn fnv1a64(bytes: &[u8], seed: u64) -> u64 {
     hash
 }
 
-/// Whether warm-graph persistence is enabled (PV-11, ADR-069 §7) — **default
-/// off, fail-closed**. Only an affirmative value (`1`, `true`, `yes`, `on`,
-/// case-insensitive) enables; anything else — unset, empty, unparseable, or a
-/// negative — resolves to off, matching the project's "no silent defaults /
-/// config-load-failure fails closed" discipline.
+/// Whether warm-graph persistence is enabled (PV-11, ADR-069 §7) — **default-on
+/// (graduated), with an explicit opt-out**.
 ///
-/// This is the gate's pure core. A write/load pipeline (out of GV2-030 scope —
-/// the daemon owns timing, ADR-069 §9) MUST early-return when this is `false`, so
-/// with the flag unset no snapshot write or `graph-cache/` dir creation happens
-/// (ADR-069 §7 asserts byte-for-byte today's rebuild-on-restart behaviour). The
+/// GBASE-010 flipped this default-on after the ADR-105 §11 graduation gate cleared
+/// (see `plans/audits/2026-07-12-gbase-graduation-gate.md`). The semantics mirror
+/// the graduated `ANVIL_WATCH_DAEMON` precedent (ADR-075 v0.8 flip): **absence of
+/// the variable now means enabled**, and only an **explicit opt-out** —
+/// `0`, `false`, `no`, `off` (case-insensitive, trimmed) — disables. An unset,
+/// empty, affirmative (`1`, `true`, `yes`, `on`), or unparseable value all resolve
+/// to **on** (the shared write-once base + overlay layout, ADR-105, replaced the
+/// O(worktrees) layout that had kept the default off).
+///
+/// The **opt-out is the documented rollback path**: `ANVIL_PERSIST_GRAPH=0`
+/// restores the pre-graduation cold-rebuild-on-restart behaviour. Toggling off
+/// does **not** delete existing snapshots (they go inert until re-enabled).
+///
+/// This is the gate's pure core. A write/load pipeline (the daemon owns timing,
+/// ADR-069 §9) still additionally requires a resolvable state dir; where the flag
+/// resolves `false` no snapshot write or `graph-cache/` dir creation happens. The
 /// catalogue entry is `flags/manifest.json` key `daemon.persist-graph`
-/// (defaultVariant `disabled`).
+/// (defaultVariant `enabled`).
 #[must_use]
 pub fn persist_graph_enabled(raw: Option<&str>) -> bool {
-    matches!(
+    // Default-on: enabled unless the value is an explicit opt-out. Trimmed +
+    // lowercased so `" 0"` / `"OFF\n"` still disable (no silent fail-open).
+    !matches!(
         raw.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
-        Some("1" | "true" | "yes" | "on")
+        Some("0" | "false" | "no" | "off")
     )
 }
 
@@ -1684,18 +1695,24 @@ mod tests {
     }
 
     // ============================================================
-    // persist_graph_enabled gate (PV-11) — default off, fail-closed.
+    // persist_graph_enabled gate (PV-11) — default-on (graduated), explicit
+    // opt-out (GBASE-010, ADR-105 §11).
     // ============================================================
 
     #[test]
-    fn persist_graph_gate_defaults_off_and_fails_closed() {
-        assert!(!persist_graph_enabled(None));
-        assert!(!persist_graph_enabled(Some("")));
-        for v in ["1", "true", "TRUE", "Yes", " on ", "On"] {
-            assert!(persist_graph_enabled(Some(v)), "{v:?} should enable");
+    fn persist_graph_gate_defaults_on_with_explicit_opt_out() {
+        // Absence of the variable now means ENABLED (the graduated default).
+        assert!(persist_graph_enabled(None), "unset ⇒ default-on");
+        // Empty / affirmative / unparseable all resolve to on.
+        for v in ["", "1", "true", "TRUE", "Yes", " on ", "On", "2", "garbage"] {
+            assert!(persist_graph_enabled(Some(v)), "{v:?} should be enabled");
         }
-        for v in ["0", "false", "no", "off", "2", "enabled?", "garbage"] {
-            assert!(!persist_graph_enabled(Some(v)), "{v:?} should stay off");
+        // Only an explicit opt-out disables (trimmed + case-insensitive).
+        for v in ["0", "false", "FALSE", "no", "off", " off ", "Off\n"] {
+            assert!(
+                !persist_graph_enabled(Some(v)),
+                "{v:?} is the documented opt-out and must disable"
+            );
         }
     }
 }

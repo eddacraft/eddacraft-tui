@@ -307,8 +307,15 @@ events makes every routing decision observable.
 - **Mitigations:** all failure is non-fatal (base absent ⇒ cold scan serves);
   ADR-090 worktree-scoped health envelopes surface base-production failure, claim
   timeout, and GC error; the entry-gate no-behaviour-diff extraction PR de-risks
-  the packaging change before any base-path code; default-off + the §11 graduation
-  gate buy soak time.
+  the packaging change before any base-path code; the initial default-off + the
+  §11 graduation gate bought soak time before the flip.
+- **Graduation (GBASE-010, 2026-07-12):** the §11 gate cleared and
+  `ANVIL_PERSIST_GRAPH` is now **default-on** with an explicit opt-out
+  (`ANVIL_PERSIST_GRAPH=0`). Evidence — warm-start latency (fleet parse-work cut
+  O(worktrees)→O(1) production), herd-miss single-flight (48-wide, exactly one
+  producer), corrupt-shared-base (cold-serve + heal, no poison), claim-production
+  p95 → `STALE_CLAIM_MAX_AGE` reasoned keep — is recorded in
+  [`plans/audits/2026-07-12-gbase-graduation-gate.md`](../audits/2026-07-12-gbase-graduation-gate.md).
 
 ## Amendment note (ADR-069)
 

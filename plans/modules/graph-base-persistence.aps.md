@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GBASE | —     | In Progress | 10/11     |
+| GBASE | —     | Done        | 0/11     |
 
 **Last reviewed:** 2026-07-11 (created from planning council `plan-89a47ac7`,
 synthesised as [ADR-105](../decisions/105-shared-base-graph-persistence.md) —
@@ -456,7 +456,18 @@ default-on.
 
 #### GBASE-010: Graduation gate + default-on flip
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-12 via PR #3287
+- **Recorded outcome (as landed):** the ADR-105 §11 successor-specific criteria
+  (warm-start latency / herd-miss single-flight / corrupt-shared-base) plus the
+  standing correctness/GC criteria are green, evidenced by committed harnesses and
+  the gate document
+  [`plans/audits/2026-07-12-gbase-graduation-gate.md`](../audits/2026-07-12-gbase-graduation-gate.md).
+  `ANVIL_PERSIST_GRAPH` flipped **default-on with an explicit opt-out**
+  (`persist_graph_enabled`: absence ⇒ enabled, `0`/`false`/`no`/`off` ⇒ disabled;
+  `flags/manifest.json` `daemon.persist-graph` `defaultVariant: enabled`). The gate
+  doc dispositions every accumulated GBASE-010-tagged deferral (measured /
+  implemented / consciously deferred with a tracking note); `STALE_CLAIM_MAX_AGE`
+  is a measured reasoned keep (2×p95 ≪ 10 min).
 - **Intent:** Flip `ANVIL_PERSIST_GRAPH` default-on only after the
   successor-specific soak criteria hold. **(Terminal item.)**
 - **Expected Outcome:** A documented graduation gate covers the

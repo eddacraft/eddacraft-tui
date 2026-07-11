@@ -358,8 +358,9 @@ pub struct SaveTimeState {
     /// Shared (cheap clone) into each spawned [`ScanContext`].
     coordinator: ScanCoordinator,
     /// DSV-030 (ADR-069): the warm-graph snapshot directory when persistence is
-    /// enabled (`ANVIL_PERSIST_GRAPH` on + a resolvable state dir), else `None`
-    /// (default-off). `None` makes every persistence operation a no-op, so the
+    /// enabled (`ANVIL_PERSIST_GRAPH` not explicitly disabled — default-on since
+    /// the GBASE-010 graduation — + a resolvable state dir), else `None`.
+    /// `None` makes every persistence operation a no-op, so the
     /// daemon's behaviour is byte-for-byte today's rebuild-on-restart.
     snapshot_dir: Option<PathBuf>,
     /// DPO-001: the save-time `gate_evaluated` emitter. When present, every
@@ -523,8 +524,9 @@ impl SaveTimeState {
 
     /// Enable warm-graph persistence (DSV-030 / ADR-069) by injecting the
     /// resolved snapshot directory. `run_foreground` calls this only when
-    /// `ANVIL_PERSIST_GRAPH` is affirmative AND a state dir resolves; otherwise
-    /// the daemon stays default-off (`None`) and writes nothing.
+    /// `ANVIL_PERSIST_GRAPH` is enabled (default-on since the GBASE-010
+    /// graduation; explicit opt-out honoured) AND a state dir resolves; otherwise
+    /// persistence is `None` and the daemon writes nothing.
     #[must_use]
     pub fn with_snapshot_dir(mut self, dir: PathBuf) -> Self {
         self.snapshot_dir = Some(dir);

@@ -1904,12 +1904,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             if let Some(emitter) = opts.observation_emitter.clone() {
                 state = state.with_observation_emitter(emitter);
             }
-            // DSV-030 (ADR-069 §7): warm-graph persistence, **default-off +
-            // fail-closed**. Only an affirmative `ANVIL_PERSIST_GRAPH` with a
-            // resolvable state dir wires the snapshot directory; unset/garbage/no
-            // home ⇒ no persistence (byte-for-byte today's rebuild-on-restart).
-            // Unix-only for now (the Windows daemon's persistence is a follow-up,
-            // mirroring the DSV-010/011 Windows-parity split).
+            // DSV-030 / GBASE-010 (ADR-069 §7, ADR-105 §11): warm-graph
+            // persistence is **default-on (graduated)** with an explicit opt-out
+            // (`ANVIL_PERSIST_GRAPH=0`). Persistence still additionally requires a
+            // resolvable state dir; absence of the variable, an affirmative, or a
+            // no-home all resolve the flag on, but with no state dir persistence
+            // stays off. Unix-only for now (the Windows daemon's persistence is a
+            // follow-up, mirroring the DSV-010/011 Windows-parity split).
             #[cfg(unix)]
             if anvil_graph_cache::snapshot::persist_graph_enabled(
                 env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
@@ -1918,13 +1919,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     tracing::info!(
                         target: "anvil_intercept::snapshot",
                         dir = %dir.display(),
-                        "warm-graph persistence enabled (ANVIL_PERSIST_GRAPH)",
+                        "warm-graph persistence enabled (default-on; opt out with ANVIL_PERSIST_GRAPH=0)",
                     );
                     state = state.with_snapshot_dir(dir);
                 } else {
                     tracing::warn!(
                         target: "anvil_intercept::snapshot",
-                        "ANVIL_PERSIST_GRAPH set but no state dir resolved; persistence off",
+                        "warm-graph persistence on but no state dir resolved; persistence off",
                     );
                 }
             }

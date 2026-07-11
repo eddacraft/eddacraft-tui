@@ -600,8 +600,9 @@ a typed `SnapshotLoadError` on any mismatch (the daemon discards and
 cold-rebuilds — never accepts a partially-validated index). CRC-32 is a
 corruption check, not an authenticity guarantee (CIB-092 / N6); the control is
 the machine-local, owner-only, same-uid persistence boundary — snapshots are
-**default-off**, `0600`, under a `0700` state dir (`persist_graph_enabled`,
-`MAX_SNAPSHOT_BYTES`). This surface is daemon-only; the kernel's own watch /
+**default-on** (graduated by GBASE-010 / ADR-105 §11; opt out with
+`ANVIL_PERSIST_GRAPH=0`), `0600`, under a `0700` state dir
+(`persist_graph_enabled`, `MAX_SNAPSHOT_BYTES`). This surface is daemon-only; the kernel's own watch /
 embedded paths do not read or write it (see §2, G-05).
 
 ## 8. Policy engine (KERN-030..032)
@@ -1122,7 +1123,8 @@ fresh `anvil watch` re-parses everything.
 
 Graph **snapshotting does exist**, but in `anvil-graph-cache::snapshot` (GV2-030
 / ADR-069 — §7.7) for the resident intercept **daemon**, which can persist and
-warm-restart the warm `(SymbolGraph, DependencyGraph)` state. It is default-off,
+warm-restart the warm `(SymbolGraph, DependencyGraph)` state. It is default-on
+(graduated by GBASE-010 / ADR-105 §11; opt out with `ANVIL_PERSIST_GRAPH=0`),
 machine-local, `0600`. The kernel's own entry points are not wired to it.
 
 **Risk:** Low at H1 scale for the kernel paths, growing with repo size. **Fix:**

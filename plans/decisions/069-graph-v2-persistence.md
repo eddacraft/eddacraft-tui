@@ -240,6 +240,12 @@ per key. Eager vs lazy is a non-frozen tuning choice validated by RLB benches; t
 
 ### 7. Default-off, with graduation criteria
 
+> **Graduated 2026-07-12:** the successor gate in
+> [ADR-105](105-shared-base-graph-persistence.md) (Consequences) was met and
+> `ANVIL_PERSIST_GRAPH` is now **default-on** with an explicit opt-out — see
+> `plans/audits/2026-07-12-gbase-graduation-gate.md`. The criteria below are
+> retained as the historical bar this section set.
+
 - Persistence is gated by `ANVIL_PERSIST_GRAPH`, **defaulting off** in v1.
   Warm-start persistence is opt-in until the privacy line and crash-safety have
   soaked; the unset default is byte-for-byte today's rebuild-on-restart behaviour.

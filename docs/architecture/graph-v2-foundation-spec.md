@@ -668,7 +668,9 @@ Binding on every persistable graph (full mechanics in
   raw source bodies, snippets, comment text, or secret-shaped literals. Source
   spans are no-text byte ranges. The privacy gate is a sealed-allowlist DTO with
   a structural no-leak test, not a review convention.
-- Persistence is **default-off** until that guard is green.
+- Persistence was **default-off** until that guard was green; it graduated to
+  **default-on** with GBASE-010 (ADR-105 §11 shared-base graduation gate), with
+  an explicit opt-out via `ANVIL_PERSIST_GRAPH=0`.
 - **Per-graph scope (ratification condition C-6).** ADR-069's sealed-DTO +
   no-leak enforcement and its same-uid residual-risk acceptance are **proven
   only for the daemon semantic/dependency snapshot**. The control/session graph
