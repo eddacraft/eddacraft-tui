@@ -972,6 +972,11 @@ fn ensure_secure_runtime_dir_unix(path: &Path) -> Result<()> {
     }
 }
 
+/// Verify (and when the caller owns the dir, repair) a PID/runtime directory.
+///
+/// Owner-matched directories with a wider mode are tightened to `0700` once
+/// before failing — common after `mkdir` under a loose umask or a side-by-side
+/// `ANVIL_HOME` prefix (#3220). Wrong ownership and symlinks still refuse.
 #[cfg(unix)]
 fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()> {
     if metadata.file_type().is_symlink() {
@@ -984,7 +989,8 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
     let expected_uid = geteuid().as_raw();
     if metadata.uid() != expected_uid {
         anyhow::bail!(
-            "PID file directory {} is owned by uid {}, expected {}",
+            "PID file directory {} is owned by uid {}, expected {} \
+             (when using ANVIL_HOME, the prefix must be owned by the current user)",
             path.display(),
             metadata.uid(),
             expected_uid,
@@ -992,11 +998,32 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
     }
 
     let mode = metadata.permissions().mode() & 0o777;
-    if mode != 0o700 {
-        anyhow::bail!(
-            "PID file directory {} has mode {:o}, expected 700",
+    if mode == 0o700 {
+        return Ok(());
+    }
+
+    // Owner-only repair: loose `mkdir` modes (e.g. 775 under /tmp) otherwise
+    // cascade into `ready_restart_required` with a misleading intercept-start
+    // recovery. Tightening is strictly more secure (#3220).
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).with_context(|| {
+        format!(
+            "PID file directory {} has mode {:o}, expected 700; failed to chmod 700 \
+             (when using ANVIL_HOME, run: chmod 700 '{}')",
             path.display(),
             mode,
+            path.display(),
+        )
+    })?;
+    let metadata = fs::symlink_metadata(path)
+        .with_context(|| format!("failed to re-stat PID file directory {}", path.display()))?;
+    let mode = metadata.permissions().mode() & 0o777;
+    if mode != 0o700 {
+        anyhow::bail!(
+            "PID file directory {} has mode {:o}, expected 700 \
+             (when using ANVIL_HOME, run: chmod 700 '{}')",
+            path.display(),
+            mode,
+            path.display(),
         );
     }
 
@@ -3271,22 +3298,33 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test(flavor = "current_thread")]
-    async fn run_foreground_refuses_insecure_pid_parent_mode() {
+    async fn run_foreground_tightens_insecure_pid_parent_mode() {
+        // #3220: owner-matched loose modes are repaired so ANVIL_HOME /
+        // candidate prefixes created with plain `mkdir` do not fail as
+        // a false "daemon down" activation path.
         let tmp = tempfile::tempdir().unwrap();
         let pid_dir = tmp.path().join("anvil");
         fs::create_dir(&pid_dir).expect("create pid dir");
         fs::set_permissions(&pid_dir, fs::Permissions::from_mode(0o755))
             .expect("set insecure mode");
-        let (_, token) = Shutdown::new();
+        let pid_file = pid_dir.join("intercept.pid");
+        let (shutdown, token) = Shutdown::new();
+        let handle = tokio::spawn(run_foreground(test_opts(&pid_file), token));
 
-        let err = run_foreground(test_opts(pid_dir.join("intercept.pid")), token)
+        wait_for_pid_file(&pid_file).await;
+        let mode = fs::metadata(&pid_dir)
+            .expect("stat pid dir")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o700, "insecure owner-matched mode must be tightened");
+
+        shutdown.trigger();
+        timeout(Duration::from_secs(1), handle)
             .await
-            .expect_err("insecure pid dir should be rejected");
-        let message = format!("{err:#}");
-        assert!(
-            message.contains("expected 700"),
-            "error should explain owner-only mode requirement, got: {message}",
-        );
+            .expect("foreground loop did not return after shutdown")
+            .expect("join failure")
+            .expect("foreground loop reported error");
     }
 
     #[cfg(unix)]

@@ -4723,6 +4723,18 @@ archive.
 ### CIB-182: First-user CLI command-path batch (local test 2026-07-07)
 
 - **Status:** In Progress
+- **Summary:** Six of seven audit findings closed via PR #3253
+  ([#3216](https://github.com/eddacraft/anvil-001/issues/3216),
+  [#3217](https://github.com/eddacraft/anvil-001/issues/3217),
+  [#3218](https://github.com/eddacraft/anvil-001/issues/3218),
+  [#3219](https://github.com/eddacraft/anvil-001/issues/3219),
+  [#3221](https://github.com/eddacraft/anvil-001/issues/3221),
+  [#3222](https://github.com/eddacraft/anvil-001/issues/3222) — GH issues
+  closed 2026-07-12 with evidence). Remaining: [#3220](https://github.com/eddacraft/anvil-001/issues/3220)
+  (`ANVIL_HOME` wrong-mode cascade) — owner-matched loose modes are now
+  tightened to `0700` in socket/PID ensure paths, ensure pre-flights the
+  runtime dir with a `chmod 700` recovery string, and quickstart/runbook
+  document the requirement.
 - **Intent:** Close the gap between ADR-082's interactive `anvil start` daily
   path and what first users actually see when running `welcome` → `start` →
   `status` → `watch` → `check` locally — especially false daemon-down signals,
@@ -4734,7 +4746,9 @@ archive.
   recovery copy leads with "run `anvil start` in a terminal".
 - **Validation:** Re-run the audit repro in
   [`plans/audits/2026-07-07-local-cli-first-user-test.md`](../audits/2026-07-07-local-cli-first-user-test.md);
-  each linked GitHub issue closes with an integration or transcript check.
+  each linked GitHub issue closes with an integration or transcript check;
+  `cargo test -p eddacraft-anvil-intercept --lib tighten` and
+  `ensure_dir_` filters green for #3220.
 - **Identified From:** Local CLI command-path test session 2026-07-07 (this
   workspace, debug build).
 - **Confidence:** high — reproduced on live binary before filing.
@@ -4743,19 +4757,19 @@ archive.
   non-interactive/intercept recovery drift remains), ADR-082 (daemon lifecycle).
 - **Tracks (GitHub):**
   - [#3216](https://github.com/eddacraft/anvil-001/issues/3216) — status PID
-    parse / daemon probe mismatch (**P0**)
-  - [#3217](https://github.com/eddacraft/anvil-001/issues/3217) — workflow
-    picker blocks first `start` (**P1**)
-  - [#3218](https://github.com/eddacraft/anvil-001/issues/3218) —
-    non-interactive recovery over-directs to intercept (**P1**)
+    parse / daemon probe mismatch (**P0**, closed via #3253)
+  - [#3217](https://github.com/eddacraft/anvil-001/issues/3217) —
+    non-interactive recovery over-directs to intercept (**P1**, closed via #3253)
+  - [#3218](https://github.com/eddacraft/anvil-001/issues/3218) — workflow
+    picker blocks first `start` (**P1**, closed via #3253)
   - [#3221](https://github.com/eddacraft/anvil-001/issues/3221) — verify
-    recipe / secret-detection gap (**P1**)
+    recipe / secret-detection gap (**P1**, closed via #3253)
   - [#3220](https://github.com/eddacraft/anvil-001/issues/3220) — `ANVIL_HOME`
-    permissions cascade (**P2**)
+    permissions cascade (**P2**, this PR)
   - [#3219](https://github.com/eddacraft/anvil-001/issues/3219) — watch warm-up
-    completion signal (**P2**)
+    completion signal (**P2**, closed via #3253)
   - [#3222](https://github.com/eddacraft/anvil-001/issues/3222) — status TUI
-    blocks PTY/scripts (**P2**)
+    blocks PTY/scripts (**P2**, closed via #3253)
 - **Epic:** [#3223](https://github.com/eddacraft/anvil-001/issues/3223)
 
 ### CIB-183: Quiet repeat `anvil start` success output

@@ -195,6 +195,22 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
         };
     };
     let runtime_dir = pid_path.parent().unwrap_or_else(|| Path::new("."));
+    // #3220: pre-flight the runtime/socket directory before spawn so a
+    // wrong-mode `ANVIL_HOME` surfaces as a chmod recovery instead of a
+    // false "daemon did not become ready" + intercept-start hint after
+    // the bind timeout. Owner-matched loose modes are tightened inside
+    // `ensure_secure_runtime_dir`; remaining failures keep the path and
+    // `chmod 700` instruction in the recovery string.
+    if let Err(err) = crate::ensure_secure_runtime_dir(runtime_dir) {
+        return EnsureOutcome::Failed {
+            recovery: format!(
+                "runtime directory is not usable ({err}). \
+                 When ANVIL_HOME re-roots the daemon, the prefix must be mode 0700 \
+                 and owned by you — run: chmod 700 '{}'",
+                runtime_dir.display()
+            ),
+        };
+    }
     // Both the lock and the log live beside the PID file, so they inherit its
     // per-`ANVIL_HOME` scoping (ADR-060): two re-rooted instances of the same
     // user do not share a lock.

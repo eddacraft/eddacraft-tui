@@ -78,6 +78,13 @@ platform-standard config paths (`~/.config/anvil` on Unix and macOS,
 useful for running a candidate build beside a production install. Project state
 under `.anvil/` in your repo is unaffected by the override.
 
+On Unix, the prefix must be **mode `0700` and owned by you** (the daemon
+binds its socket and PID file directly under it). Prefer
+`install -d -m 700 "$ANVIL_HOME"`; if you already created the directory with
+plain `mkdir`, anvil tightens owner-matched modes automatically, or you can
+run `chmod 700 "$ANVIL_HOME"`. See the
+[side-by-side runbook](../../runbooks/anvil-home-side-by-side.md).
+
 :::
 
 :::tip Windows users
