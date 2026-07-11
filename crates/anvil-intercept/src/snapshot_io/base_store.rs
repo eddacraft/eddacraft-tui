@@ -441,8 +441,23 @@ fn open_guard(dirfd: &std::os::fd::OwnedFd) -> io::Result<File> {
     // component cannot traverse. Mode `0600` from the first syscall.
     let flags = OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
     let mode = Mode::from_bits_truncate(store::FILE_MODE as nix::libc::mode_t);
-    let fd = openat(dirfd.as_fd(), GUARD_NAME, flags, mode).map_err(io::Error::from)?;
-    Ok(File::from(fd))
+    // macOS/APFS can spuriously fail concurrent `O_CREAT` opens of the SAME
+    // name with `ENOENT` (kernel directory-entry race, reproduced on the CI
+    // arm64 runners by racing claimants opening this create-once guard). The
+    // guard is never removed once created, so a brief retry always converges;
+    // any other error propagates immediately.
+    let mut denied = nix::errno::Errno::ENOENT;
+    for _ in 0..16 {
+        match openat(dirfd.as_fd(), GUARD_NAME, flags, mode) {
+            Ok(fd) => return Ok(File::from(fd)),
+            Err(err @ nix::errno::Errno::ENOENT) => {
+                denied = err;
+                std::thread::yield_now();
+            }
+            Err(err) => return Err(io::Error::from(err)),
+        }
+    }
+    Err(io::Error::from(denied))
 }
 
 /// Take the exclusive advisory guard (`flock(LOCK_EX)`) on the `.producing`
@@ -455,9 +470,17 @@ fn open_guard(dirfd: &std::os::fd::OwnedFd) -> io::Result<File> {
 /// # Errors
 /// Any `io::Error` from opening `.guard` or from the blocking `flock`.
 fn lock_guard(dirfd: &std::os::fd::OwnedFd) -> io::Result<nix::fcntl::Flock<File>> {
-    let file = open_guard(dirfd)?;
+    let file = open_guard(dirfd).map_err(tag_step("guard open"))?;
     nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusive)
-        .map_err(|(_file, errno)| io::Error::from(errno))
+        .map_err(|(_file, errno)| tag_step("guard flock")(io::Error::from(errno)))
+}
+
+/// Tag an `io::Error` with the claim step that produced it, preserving its
+/// [`io::ErrorKind`]. Claim errors are non-fatal — the caller degrades to cold
+/// and the error surfaces only in logs — where the step name turns a bare
+/// "No such file or directory" into a diagnosable report.
+fn tag_step(step: &'static str) -> impl Fn(io::Error) -> io::Error {
+    move |err| io::Error::new(err.kind(), format!("{step}: {err}"))
 }
 
 /// A random 64-bit nonce rendered as 16 lowercase hex chars, disambiguating one
@@ -609,9 +632,11 @@ fn try_stamped_create(
 
     // Create + fully stamp + fsync the temp BEFORE it can be published.
     let stamp = (|| -> io::Result<()> {
-        let mut file = store::create_leaf_under_dirfd(dirfd, &temp_name)?;
-        file.write_all(&encode_lock(&record))?;
-        file.sync_all()
+        let mut file =
+            store::create_leaf_under_dirfd(dirfd, &temp_name).map_err(tag_step("stamp create"))?;
+        file.write_all(&encode_lock(&record))
+            .map_err(tag_step("stamp write"))?;
+        file.sync_all().map_err(tag_step("stamp fsync"))
     })();
     if let Err(err) = stamp {
         let _ = store::unlink_at(dirfd, &temp_name);
@@ -622,6 +647,21 @@ fn try_stamped_create(
     // The temp is now either an extra hard-link to the published inode (winner) or
     // a loser's discard — unlink it either way (best-effort; ignore a NotFound).
     let _ = store::unlink_at(dirfd, &temp_name);
+
+    let published = match published {
+        // macOS/APFS can spuriously report `ENOENT` from `linkat` when the
+        // target directory is under concurrent entry churn (racing claimants
+        // creating and unlinking temps beside the lock). The source temp
+        // provably exists — just created, fsync'd, nonce-unique — so `ENOENT`
+        // cannot mean a missing source. Decide by reading the published record
+        // back: our nonce means the link landed and we won; a peer's record or
+        // nothing at all means this attempt lost, and the caller's guarded
+        // slow path re-classifies and retries.
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            Ok(read_lock_record_at(dirfd, lock_name).is_some_and(|record| record.nonce == nonce))
+        }
+        other => other.map_err(tag_step("publish linkat")),
+    };
 
     if published? {
         Ok(Some(BaseClaim {
@@ -660,8 +700,9 @@ fn try_stamped_create(
 /// caller treats an error as non-fatal and serves cold (ADR-105 §6).
 pub fn claim(base_dir: &Path, sha: &str, procs: &dyn ClaimProcs) -> io::Result<ClaimOutcome> {
     let dir = producing_dir(base_dir);
-    store::ensure_dir(&dir)?;
-    let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir)?;
+    store::ensure_dir(&dir).map_err(tag_step("ensure producing dir"))?;
+    let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir)
+        .map_err(tag_step("open producing dir"))?;
     let lock_name = lock_leaf(sha);
 
     // Hot path: publish a fully-stamped lock with no guard. Exactly one racer's
@@ -696,7 +737,7 @@ pub fn claim(base_dir: &Path, sha: &str, procs: &dyn ClaimProcs) -> io::Result<C
                 match store::unlink_at(&dirfd, &lock_name) {
                     Ok(()) => {}
                     Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-                    Err(err) => return Err(err),
+                    Err(err) => return Err(tag_step("reclaim unlink")(err)),
                 }
             }
         }
