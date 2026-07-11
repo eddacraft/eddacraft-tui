@@ -276,6 +276,44 @@ impl TelemetryEmitter {
         envelope(&context, None, notification, None)
     }
 
+    /// GBASE-003 (ADR-105 §7) + ADR-090: build the operator-facing degradation
+    /// notification raised when proactive base **pre-production** is abandoned —
+    /// the cancel-and-restart cap (`N=3` per sha-lineage) was exceeded, so the
+    /// daemon serves the worktree **cold** rather than churning the producer. A
+    /// worktree-scoped `Health`/`High` envelope, structurally identical to the
+    /// [`Self::persist_failure_health_envelope`] signal (same ADR-090 daemon-health
+    /// lane), so an opted-in subscriber sees the base is not being warmed — not
+    /// only a buried `tracing::warn!`. The `worktree` rides the correlation; the
+    /// `message` must not echo any path/identity bytes (PV-10).
+    pub fn base_pre_production_health_envelope(
+        &mut self,
+        mut correlation: TelemetryCorrelation,
+        worktree: &Path,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        // ADR-090 invariant (mirrors `persist_failure_health_envelope`): a
+        // daemon-health envelope must carry no session — the fan-out routes it on
+        // the worktree lane, not the session lane.
+        debug_assert!(
+            correlation.session_id.is_none() && correlation.originating_session_id.is_none(),
+            "daemon-health base-pre-production envelope must carry no session id (ADR-090)"
+        );
+        correlation.worktree = Some(worktree.display().to_string());
+        let mut context = self.next_context(correlation);
+        // ADR-090: flag as a daemon-originated, worktree-scoped health envelope so
+        // the fan-out authorises it by `correlation.worktree`, not a session id.
+        context.daemon_worktree_health = true;
+        let notification = Notification::new(
+            NotificationClass::Health,
+            NotificationPriority::High,
+            "base pre-production abandoned (restart cap exceeded)",
+            message,
+        )
+        .with_context(notification_context(None));
+        // No `ControlDecision` — a daemon-side health signal, not a control verdict.
+        envelope(&context, None, notification, None)
+    }
+
     pub fn envelope_for_fence_transition(
         &mut self,
         mut correlation: TelemetryCorrelation,

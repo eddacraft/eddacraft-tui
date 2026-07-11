@@ -147,20 +147,79 @@ default-on.
 
 #### GBASE-003: Proactive pre-production trigger
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3270
 - **Intent:** Pre-produce the base when the repo's merge-base moves, driven by
   ref changes rather than a save.
-- **Expected Outcome:** `watcher.rs` gains directory-level inotify
+- **Expected Outcome:** A new `graph_base_trigger` module beside `watcher.rs`
+  (the item's named integration point; kept beside it rather than bloating the
+  INTD-004 channel receiver) provides directory-level inotify
   (`IN_MOVED_TO | IN_CREATE`) on the refs dir, packed-refs parent, primary HEAD,
-  and per-worktree HEADs (≤4 descriptors per repo on the existing watcher
-  budget); ref changes are debounced (~500 ms) and drive production; a newer sha
-  cancels-and-restarts via `ScanCancel` with a cap of N=3 per sha-lineage
-  (over-cap ⇒ serve cold + log + ADR-090 envelope + re-arm on quiescence); on
-  `ENOSPC` the watcher degrades to CLI-invocation check-and-request. Production
-  runs as a **detached `anvil graph-base build` subprocess**: the background-pool
-  thread only claims + spawns + enqueues, and a **dedicated reaper `std::thread`**
-  owns `child.wait()` and releases the claim — the background-pool thread **never
-  blocks**.
+  and **each registered worktree's** HEAD dir. Ref changes are debounced
+  (~500 ms) and drive production; a newer trigger cancels-and-restarts (SIGTERM
+  the child) with a cap of N=3 per sha-lineage (over-cap ⇒ serve cold + log +
+  ADR-090 envelope through the real fan-out + re-arm on quiescence). Production
+  runs as a **detached `anvil graph-base build --repo <root>` subprocess**: the
+  background-pool thread only spawns + records, and a **dedicated reaper
+  `std::thread`** owns `child.wait()` — the background-pool thread **never
+  blocks**. **Wired live in the daemon:** `run_foreground` calls
+  `graph_base_trigger::activate` on Linux, gated on the same condition the
+  save-time path uses for persistence (`ANVIL_PERSIST_GRAPH` affirmative **and** a
+  resolvable base store dir); it seeds the registered worktree roots and runs a
+  dedicated ref-watch `std::thread` that reconciles roots (picking up late
+  registrations by polling `SessionRegistry::registered_worktrees`, since the
+  single membership hook is already owned by the save-time driver supervisor),
+  drains inotify events into the debounce, and ticks `poll`; it is shut down +
+  joined on every daemon exit path.
+  - **Recorded scope notes (GBASE-003 as landed):**
+    - **Multi-worktree model + budget.** State is keyed by a repo's **common
+      gitdir**, so every worktree of a repo shares one lineage/debounce/in-flight.
+      `reconcile_roots` groups registered roots by common gitdir and reconciles
+      each repo against its **full** current worktree set: the shared ref dirs are
+      watched **once per repo** and **each worktree's own HEAD dir** is watched
+      (so a `git checkout` in a sibling worktree — which rewrites only its own
+      HEAD — is caught, not just the first registrant's). The honest per-repo
+      descriptor invariant is **`O(1) per registered workspace`**: shared
+      (`MAX_SHARED_REF_WATCHES_PER_REPO = 3`, deduping to 2 in the standard layout)
+      **plus one per registered worktree** (`ref_watch_budget()`), asserted in
+      tests. The daemon owns **no** pre-existing inotify/descriptor budget to
+      extend (the recursive `notify` watcher lives in the un-linked `anvil-kernel`
+      crate), so this is the single authoritative ref-watch accounting.
+    - **Envelope scoping.** The cap-exceeded ADR-090 health envelope is emitted
+      **once per currently-registered worktree** of the repo (ADR-090 delivers by
+      worktree ownership), scoped from the live worktree set — never pinned to the
+      first registrant.
+    - **Single-flight = the child's claim (design 4a).** The daemon does **not**
+      pre-claim. The subprocess resolves the merge-base sha itself (`graph-base
+      build` with `--merge-base` omitted) and runs `base_store::claim()`
+      internally, so the daemon stays git-free; a daemon-side claim would be a
+      redundant double-claim. The "sha-lineage" restart cap is therefore tracked
+      git-free as the chain of ref-change triggers per repo between quiescent
+      periods (a conservative proxy for §7's per-sha lineage).
+    - **Cancel uses SIGTERM, not `ScanCancel`.** `ScanCancel` cancels an
+      in-process background *scan*; a detached *subprocess* is cancelled by
+      signalling it (the reaper reaps). The daemon holds no claim to release.
+    - **Registry reconcile cadence.** `registered_worktrees()` shares the
+      registry's hot `Mutex<Inner>` with `attribute_path`, so the loop reconciles
+      the registry only every ~10th 100 ms tick (~1 s late-registration latency —
+      fine for a seconds-scale base warm) while draining inotify + ticking `poll`
+      every tick. GBASE-010's graduation gate should measure this lock contention.
+    - **Known gap — no unregister removal (rides GBASE-010).** `TriggerCore` never
+      removes a repo/worktree or its watches, so a worktree that unregisters leaves
+      its watches + latched lineage state resident until daemon restart. Bounded
+      (registered set capped; watch count `O(worktrees)`) and correctness-neutral
+      (a stale watch risks only a redundant, single-flighted, cold-serving build).
+      Real removal is deferred to the GBASE-010 graduation gate.
+    - **ENOSPC degrade fallback is check-and-request (documented stub).** On
+      `ENOSPC` (or any add-watch failure) the trigger degrades that repo to a
+      disabled state (logged once, structured) and ignores its ref events; the
+      fallback is **CLI-invocation check-and-request** (`anvil start`/`watch`/
+      `status` requesting production on demand). Wiring that request path into the
+      CLI command surface is the one remaining follow-up outside this item's
+      `anvil-intercept` scope and is left as a documented seam.
+    - **Platform gap.** Non-Linux `cfg(unix)` (macOS) needs a kqueue/FSEvents ref
+      backend — the inherited ADR-105 §8 `cfg(unix)` platform gap; the state
+      machine, spawn/reap seam, and envelope path are platform-neutral and the
+      Linux inotify backend + `run_foreground` activation ship live.
 - **Validation:** Tests cover ref-rename detection, debounce coalescing, the
   restart cap, and the ENOSPC degrade path; the descriptor budget is asserted; a
   test asserts the **ADR-090 envelope is emitted** (not merely logged) when the

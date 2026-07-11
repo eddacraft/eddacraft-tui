@@ -103,6 +103,13 @@ nix = { version = "0.31", default-features = false, features = [
   "user",
 ] }
 
+# GBASE-003 (ADR-105 §6): directory-level inotify ref watches. The `inotify`
+# feature is Linux-only in `nix`; kept in a Linux-target table so it is not
+# requested on other `cfg(unix)` targets (macOS), where it has no backend. Cargo
+# unions this with the `cfg(unix)` `nix` entry above on Linux.
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["inotify"] }
+
 [target.'cfg(windows)'.dependencies]
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 

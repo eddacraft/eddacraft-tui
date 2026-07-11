@@ -84,6 +84,12 @@ pub mod telemetry;
 pub mod unregistered;
 pub mod validate_paths;
 pub mod watcher;
+// GBASE-003 (ADR-105 §6/§7): proactive base pre-production driven by
+// directory-level ref watches. `cfg(unix)` — it leans on the `SIGTERM` cancel
+// helper and the shared-base store (both Unix), mirroring ADR-105 §8's inherited
+// `cfg(unix)` platform gap; the real inotify backend is further Linux-gated.
+#[cfg(unix)]
+pub mod graph_base_trigger;
 #[cfg(any(unix, windows))]
 pub mod workspace_admission;
 /// The platform-neutral workspace read anchor (Unix dirfd / Windows directory
@@ -2050,6 +2056,18 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 supervisor.run(driver_token).await;
             }))
         });
+        // GBASE-003 (ADR-105 §6/§7): activate proactive base pre-production —
+        // directory-level ref watches on a dedicated thread, gated on the SAME
+        // `ANVIL_PERSIST_GRAPH` condition the save-time path uses for persistence
+        // (pre-production is inert when persistence is off). Linux-only for now
+        // (the inotify backend; the inherited `cfg(unix)` platform gap). The
+        // returned handle is shut down + joined on every exit path below.
+        #[cfg(target_os = "linux")]
+        let mut gbase_trigger = graph_base_trigger::activate(
+            Arc::clone(&daemon_state.registry),
+            Some(Arc::clone(&daemon_state.broadcaster)),
+            env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
+        );
         let mut tick = tokio::time::interval(Duration::from_millis(250));
         // ACTMO-014: a slow periodic reaper that drops durable registrations
         // whose worktree directory is gone (e.g. `git worktree remove`d while
@@ -2088,6 +2106,12 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     // detached children must not outlive their supervisor.
                     if let Some(supervisor) = &driver_supervisor {
                         supervisor.stop_all_blocking().await;
+                    }
+                    // GBASE-003: stop the ref-watch thread on the listener-failure
+                    // exit path too (the reaper threads are abort-on-drop).
+                    #[cfg(target_os = "linux")]
+                    if let Some(activation) = gbase_trigger.take() {
+                        activation.shutdown_and_join();
                     }
                     // CIB-095d: persist before propagating the listener failure —
                     // this path previously `return`ed without flushing, dropping
@@ -2137,6 +2161,14 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // (drivers first, then the registration bookkeeping).
         if let Some(supervisor) = &driver_supervisor {
             supervisor.stop_all_blocking().await;
+        }
+
+        // GBASE-003: stop the proactive-trigger ref-watch thread on graceful
+        // shutdown — signal its flag and join (a short poll loop, exits within one
+        // ~100 ms tick). No-op when the gate was off (`activate` returned `None`).
+        #[cfg(target_os = "linux")]
+        if let Some(activation) = gbase_trigger.take() {
+            activation.shutdown_and_join();
         }
 
         // ACTMO-017: one INFO event recording how many durable worktrees lose
