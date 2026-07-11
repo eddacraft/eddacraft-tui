@@ -97,9 +97,12 @@ echo "$since_out" | grep -q 'pending path test\|direct tracked\|2026-07-' || fai
 "${WATER[@]}" --date 2026-07-10 >/dev/null
 grep -q 'Last triaged:\*\* 2026-07-10' plans/reviews/continuous-improvement-log.md || fail "watermark not set"
 
-# 7) reject empty / bad body
+# 7) reject empty / bad body / heading not first
 if "${APPEND[@]}" --body 'no heading here' 2>/dev/null; then
   fail "accepted body without heading"
+fi
+if "${APPEND[@]}" --body $'preamble\n### 2026-07-12 — opencode\n\n- **Task:** x\n- **Outcome:** y\n- **Worked:** —\n- **Failed:** none\n- **Friction:** none\n- **Improvement:** none\n- **Follow-up:** none\n' 2>/dev/null; then
+  fail "accepted body with heading not first"
 fi
 
 # 8) second pending then dry-run harvest

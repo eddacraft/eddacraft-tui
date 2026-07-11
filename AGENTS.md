@@ -44,9 +44,10 @@ Use Worktrunk-managed worktrees from `main` for task branches. See
 
 For APS vocabulary, status extensions, progress counters, release metadata,
 feature flags, commit format, and local validation policy, read
-`plans/project-context.md`. Continuous-improvement closeout (pending queue + harvest) is also
-defined there and in `docs/guides/continuous-improvement-log.md`. For repository-management commands and local setup,
-read `docs/guides/repository-operations.md`.
+`plans/project-context.md`. Continuous-improvement closeout (pending queue +
+harvest) is also defined there and in
+`docs/guides/continuous-improvement-log.md`. For repository-management commands
+and local setup, read `docs/guides/repository-operations.md`.
 
 ## Architecture And Scope
 

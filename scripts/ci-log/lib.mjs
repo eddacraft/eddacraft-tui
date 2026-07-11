@@ -32,7 +32,7 @@ export function runGit(args, { cwd, allowFail = false } = {}) {
   } catch (error) {
     if (allowFail) return '';
     const stderr = error.stderr?.toString?.() ?? error.message;
-    throw new Error(`git ${args.join(' ')} failed: ${stderr}`);
+    throw new Error(`git ${args.join(' ')} failed: ${stderr}`, { cause: error });
   }
 }
 
@@ -93,11 +93,11 @@ export function normaliseEntry(raw) {
   if (!text) {
     throw new Error('CI-log entry is empty');
   }
-  if (!/^###\s+\d{4}-\d{2}-\d{2}\b/m.test(text)) {
+  // Heading must be the first non-empty line (no multiline search — a later
+  // ### heading must not validate a malformed prefix).
+  if (!/^###\s+\d{4}-\d{2}-\d{2}\b/.test(text)) {
     throw new Error('CI-log entry must start with a heading like `### YYYY-MM-DD — agent`');
   }
-  // Drop leading blank lines so merge=union neighbours stay separated cleanly.
-  text = text.replace(/^\n+/, '');
   if (!text.endsWith('\n')) text += '\n';
   // Exactly one trailing blank line after the entry body.
   text = text.replace(/\n+$/, '\n') + '\n';
@@ -148,14 +148,22 @@ export function writePendingEntry(entry, { cwd = process.cwd(), stamp } = {}) {
   const dir = ensurePendingDir(cwd);
   const ts = stamp ?? utcStamp();
   const slug = slugFromEntry(body) || 'entry';
-  let path = join(dir, `${ts}-${slug}.md`);
   let n = 0;
-  while (existsSync(path)) {
-    n += 1;
-    path = join(dir, `${ts}-${slug}-${n}.md`);
+  // Exclusive create so concurrent agents cannot clobber each other between
+  // existsSync and write (review: race-safe pending queue).
+  for (;;) {
+    const path = join(dir, n === 0 ? `${ts}-${slug}.md` : `${ts}-${slug}-${n}.md`);
+    try {
+      writeFileSync(path, body, { encoding: 'utf8', flag: 'wx' });
+      return path;
+    } catch (error) {
+      if (error && error.code === 'EEXIST') {
+        n += 1;
+        continue;
+      }
+      throw error;
+    }
   }
-  writeText(path, body);
-  return path;
 }
 
 export function appendTrackedEntry(entry, { cwd = process.cwd() } = {}) {

@@ -1,11 +1,11 @@
 # Continuous Improvement Log
 
-| Type  | Authority     | Owner | Status | Freshness                          |
-| ----- | ------------- | ----- | ------ | ---------------------------------- |
+| Type  | Authority     | Owner | Status | Freshness                                       |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------- |
 | Guide | Authoritative | CIB   | Live   | 2026-07-12 — pending-queue durability (CIB-191) |
 
-| Upstream | Downstream |
-| -------- | ---------- |
+| Upstream                                                                                                                    | Downstream                                                      |
+| --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `plans/reviews/continuous-improvement-log.md`, `plans/modules/continuous-improvement-backlog.aps.md`, `dev-workflow` skills | Agents closing sessions, bookkeeping harvest PRs, weekly triage |
 
 ## Purpose
@@ -16,11 +16,11 @@ to carry an "unrelated" log file that agents then omit — and lose.
 
 ## Two surfaces
 
-| Surface | Path | Role |
-| ------- | ---- | ---- |
-| **Pending queue** | `.git/anvil/ci-log-pending/*.md` (git common dir; shared across worktrees) | Default write target. Survives worktree removal. Not in `git status`. |
-| **Tracked log** | `plans/reviews/continuous-improvement-log.md` (`merge=union`) | Durable evidence on `main`. Harvested from pending on bookkeeping branches. |
-| **Backlog** | `plans/modules/continuous-improvement-backlog.aps.md` | Executable `CIB-NNN` work after triage. |
+| Surface           | Path                                                                       | Role                                                                        |
+| ----------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Pending queue** | `.git/anvil/ci-log-pending/*.md` (git common dir; shared across worktrees) | Default write target. Survives worktree removal. Not in `git status`.       |
+| **Tracked log**   | `plans/reviews/continuous-improvement-log.md` (`merge=union`)              | Durable evidence on `main`. Harvested from pending on bookkeeping branches. |
+| **Backlog**       | `plans/modules/continuous-improvement-backlog.aps.md`                      | Executable `CIB-NNN` work after triage.                                     |
 
 Do **not** file GH issues for process hygiene that belongs in CIB. Do **not**
 use `plans/issues.md` for session friction.
@@ -82,13 +82,13 @@ weekly triage    → pnpm ci-log:since -- --watermark → promote/absorb/leave
 
 ### Follow-up vocabulary
 
-| Value | Meaning |
-| ----- | ------- |
-| `none` | No durable next step |
-| `session:...` | Branch-local next step; do not promote |
-| `promote: CIB` | Ready for a CIB item at next triage |
-| `theme:name` | Cluster key for recurrence |
-| `owned: MODULE-NNN` | Already tracked |
+| Value               | Meaning                                |
+| ------------------- | -------------------------------------- |
+| `none`              | No durable next step                   |
+| `session:...`       | Branch-local next step; do not promote |
+| `promote: CIB`      | Ready for a CIB item at next triage    |
+| `theme:name`        | Cluster key for recurrence             |
+| `owned: MODULE-NNN` | Already tracked                        |
 
 ## Harvest (bookkeeping)
 
@@ -107,7 +107,8 @@ on harvest.
 
 ## Weekly triage
 
-1. `pnpm ci-log:harvest` if anything is pending (or note that harvest PR is open).
+1. `pnpm ci-log:harvest` if anything is pending (or note that harvest PR is
+   open).
 2. `pnpm ci-log:since -- --watermark` — review entries since last triage.
 3. For each (or each theme): **promote** (file `CIB-NNN`), **absorb** (already
    owned — leave a one-line note in the triage CI-log entry), or **leave**
@@ -116,22 +117,25 @@ on harvest.
 5. `pnpm ci-log:set-watermark -- --today`.
 6. Append one triage closeout note via `pnpm ci-log:append` (or tracked).
 
-Workflow: `.claude/workflows/triage-ci-log.js` when running under Claude workflows.
+Workflow: `.claude/workflows/triage-ci-log.js` when running under Claude
+workflows.
 
 ## Commands
 
-| Command | Purpose |
-| ------- | ------- |
-| `pnpm ci-log:append` | Write pending (default) or `--tracked` |
-| `pnpm ci-log:harvest` | Pending → tracked log |
-| `pnpm ci-log:status` | Pending count, last entry, watermark |
-| `pnpm ci-log:since` | Entries since date or watermark |
-| `pnpm ci-log:set-watermark` | Update triage watermark |
-| `pnpm test:ci-log` | Fixture tests |
+| Command                     | Purpose                                |
+| --------------------------- | -------------------------------------- |
+| `pnpm ci-log:append`        | Write pending (default) or `--tracked` |
+| `pnpm ci-log:harvest`       | Pending → tracked log                  |
+| `pnpm ci-log:status`        | Pending count, last entry, watermark   |
+| `pnpm ci-log:since`         | Entries since date or watermark        |
+| `pnpm ci-log:set-watermark` | Update triage watermark                |
+| `pnpm test:ci-log`          | Fixture tests                          |
 
 ## Related
 
-- Tracked log: [`plans/reviews/continuous-improvement-log.md`](../../plans/reviews/continuous-improvement-log.md)
-- Backlog: [`plans/modules/continuous-improvement-backlog.aps.md`](../../plans/modules/continuous-improvement-backlog.aps.md)
+- Tracked log:
+  [`plans/reviews/continuous-improvement-log.md`](../../plans/reviews/continuous-improvement-log.md)
+- Backlog:
+  [`plans/modules/continuous-improvement-backlog.aps.md`](../../plans/modules/continuous-improvement-backlog.aps.md)
 - Project rules: [`plans/project-context.md`](../../plans/project-context.md)
 - Skills: `dev-workflow` (Claude / OpenCode / Codex)

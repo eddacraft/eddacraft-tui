@@ -212,13 +212,15 @@ Do not update the inventory speculatively for globals anvil does not yet use —
 the inventory's value comes from naming dependencies, not the universe of
 available tools.
 
-
 ### Continuous improvement
 
-- Guide: [`docs/guides/continuous-improvement-log.md`](./continuous-improvement-log.md)
+- Guide:
+  [`docs/guides/continuous-improvement-log.md`](./continuous-improvement-log.md)
 - Tracked log: `plans/reviews/continuous-improvement-log.md`
-- Commands: `pnpm ci-log:append|harvest|status|since|set-watermark`, `pnpm test:ci-log`
-- Workflow: `.claude/workflows/triage-ci-log.js` (pair with `complete-cib-items.js`)
+- Commands: `pnpm ci-log:append|harvest|status|since|set-watermark`,
+  `pnpm test:ci-log`
+- Workflow: `.claude/workflows/triage-ci-log.js` (pair with
+  `complete-cib-items.js`)
 
 ## References
 
