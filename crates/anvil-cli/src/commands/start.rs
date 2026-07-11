@@ -2190,7 +2190,8 @@ const REPEAT_VALUE_RECEIPT_BUDGET: std::time::Duration = std::time::Duration::fr
 /// judging that a stream's evidence is stale therefore requires the one
 /// wall-clock comparison this feature makes, and it happens here in the
 /// command layer: a stream whose own window end is older than this
-/// horizon is treated as absent (the line simply does not render). The
+/// horizon — or dated in the future, which we equally cannot vouch for —
+/// is treated as absent (the line simply does not render). The
 /// deterministic renderer (`render_repeat_start_output`) never sees a
 /// clock — it receives the pre-rendered line or nothing.
 const REPEAT_VALUE_STALE_AFTER_DAYS: i64 = 30;
@@ -2220,8 +2221,9 @@ fn read_cumulative_value_within(
     budget: std::time::Duration,
 ) -> Option<crate::insights::cumulative::CumulativeValue> {
     let (tx, rx) = std::sync::mpsc::channel();
+    // ≤15 bytes so the name survives Linux's TASK_COMM_LEN truncation.
     std::thread::Builder::new()
-        .name("anvil-value-receipt".to_string())
+        .name("anvil-value".to_string())
         .spawn(move || {
             let _ = tx.send(crate::insights::cumulative::cumulative_value(
                 &root, &sidecar,
@@ -2237,7 +2239,8 @@ fn read_cumulative_value_within(
 /// only clock use is the staleness comparison documented on
 /// [`REPEAT_VALUE_STALE_AFTER_DAYS`]. A line renders only when the
 /// chosen stream has evidence (per its honest-empty guard), its own
-/// window end is inside the horizon, and the chosen count is non-zero;
+/// window end is inside the horizon (neither stale nor future-dated),
+/// and the chosen count is non-zero;
 /// anything else is omitted — never rendered as "0 events". The copy
 /// carries counts and the stream's own window words only (day-precision
 /// dates): no paths, repository names, or any other detail can cross —
@@ -2254,12 +2257,18 @@ fn repeat_value_line(
 ) -> Option<String> {
     use crate::insights::scorecard::date_part;
 
+    // Two-sided freshness (council-db2646a1 major 1): the age must be
+    // non-negative AND inside the horizon (inclusive at exactly 30
+    // days). A future-dated window end — clock skew, or a stray
+    // future-dated row — is evidence we cannot vouch for, so it is
+    // omitted rather than treated as trivially fresh.
     let fresh = |window_end: Option<&str>| {
         window_end
             .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
             .is_some_and(|ts| {
-                now.signed_duration_since(ts.with_timezone(&chrono::Utc))
-                    <= chrono::Duration::days(REPEAT_VALUE_STALE_AFTER_DAYS)
+                let age = now.signed_duration_since(ts.with_timezone(&chrono::Utc));
+                age >= chrono::Duration::zero()
+                    && age <= chrono::Duration::days(REPEAT_VALUE_STALE_AFTER_DAYS)
             })
     };
 
@@ -3567,6 +3576,34 @@ mod tests {
     }
 
     #[test]
+    fn value_receipt_omits_future_dated_and_pins_the_horizon_boundary() {
+        // Council-db2646a1 major 1: freshness is two-sided. A
+        // future-dated window end (clock skew, or a stray future-dated
+        // row) is evidence we cannot vouch for → omitted, never treated
+        // as trivially fresh.
+        let now = receipt_now("2026-07-11T00:00:00Z");
+        let mut value = empty_receipt_value();
+        value.save_time.window_start = Some("2099-01-01T00:00:00Z".to_string());
+        value.save_time.window_end = Some("2099-01-02T00:00:00Z".to_string());
+        value.save_time.evaluations_observed = 5;
+        value.save_time.risky_writes_flagged = 2;
+        assert_eq!(repeat_value_line(&value, now), None);
+
+        // The horizon is inclusive: an age of exactly 30 days renders …
+        value.save_time.window_start = Some("2026-06-01T00:00:00Z".to_string());
+        value.save_time.window_end = Some("2026-06-11T00:00:00Z".to_string());
+        assert_eq!(
+            repeat_value_line(&value, now).as_deref(),
+            Some("value: 2 risky writes flagged at save time (2026-06-01 to 2026-06-11)"),
+        );
+        // … and one second past it is omitted.
+        assert_eq!(
+            repeat_value_line(&value, receipt_now("2026-07-11T00:00:01Z")),
+            None,
+        );
+    }
+
+    #[test]
     fn value_receipt_is_confined_to_the_collapsed_repeat_path() {
         // The receipt enters through `render_repeat_start_output`'s
         // extra-line slot only, and `run` computes it only when the
@@ -3617,14 +3654,11 @@ mod tests {
         assert_eq!(rendered.matches("value:").count(), 1, "{rendered}");
     }
 
-    #[test]
-    fn value_receipt_redacts_to_counts_and_window_words() {
-        // Marker-seeded sources: every free-text field carries "marker",
-        // so the exact-copy assertion plus one substring check proves
-        // nothing but counts and window words reach the line.
+    /// Write a marker-seeded witness chain (one event at `ts`) under
+    /// `root`, for the receipt redaction fixtures.
+    fn write_marker_witness(root: &std::path::Path, ts: &str) {
         use anvil_witness::{GenesisAnchor, WitnessLine};
-        let tmp = tempfile::TempDir::new().unwrap();
-        let witness_dir = tmp.path().join("anvil/witness");
+        let witness_dir = root.join("anvil/witness");
         std::fs::create_dir_all(&witness_dir).unwrap();
         let witness = WitnessLine {
             seq: 1,
@@ -3638,7 +3672,7 @@ mod tests {
             agent_tag: Some("marker-agent".to_string()),
             rules_sha: None,
             cutoff_commit: None,
-            ts: "2026-07-01T10:00:00Z".to_string(),
+            ts: ts.to_string(),
             validation_at: "pre-commit".to_string(),
         };
         std::fs::write(
@@ -3646,10 +3680,12 @@ mod tests {
             witness.to_ndjson_line().unwrap(),
         )
         .unwrap();
+    }
 
-        let sidecar = tmp.path().join("kindling/usage.ndjson");
-        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
-        let row = concat!(
+    /// One marker-seeded flagged save-time sidecar row at `ts` — every
+    /// free-text field carries "marker".
+    fn marker_gate_row(ts: &str) -> String {
+        concat!(
             r#"{"kind":"gate_evaluated","session_id":"marker-sess","#,
             r#""timestamp":"2026-07-08T12:00:00Z","gate_eval_id":"marker-eval","#,
             r#""gate_id":"save-time","#,
@@ -3660,8 +3696,28 @@ mod tests {
             r#""rules_violated":["path-deny"],"enforcement":"warning","#,
             r#""duration_ms":12,"partial":false,"principal":"marker@example.com"}"#,
             "\n",
-        );
-        std::fs::write(&sidecar, row).unwrap();
+        )
+        .replace("2026-07-08T12:00:00Z", ts)
+    }
+
+    /// The receipt copy must carry counts and window words only.
+    fn assert_receipt_redacted(line: &str) {
+        let lowered = line.to_lowercase();
+        assert!(!lowered.contains("marker"), "{line}");
+        assert!(!line.contains('/'), "no path fragments: {line}");
+        assert!(!line.contains('@'), "no principals: {line}");
+    }
+
+    #[test]
+    fn value_receipt_redacts_to_counts_and_window_words() {
+        // Marker-seeded sources: every free-text field carries "marker",
+        // so the exact-copy assertion plus one substring check proves
+        // nothing but counts and window words reach the line.
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_marker_witness(tmp.path(), "2026-07-01T10:00:00Z");
+        let sidecar = tmp.path().join("kindling/usage.ndjson");
+        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        std::fs::write(&sidecar, marker_gate_row("2026-07-08T12:00:00Z")).unwrap();
 
         let value = crate::insights::cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
         let line = repeat_value_line(&value, receipt_now("2026-07-11T00:00:00Z"))
@@ -3670,10 +3726,33 @@ mod tests {
             line,
             "value: 1 risky write flagged at save time (2026-07-08 to 2026-07-08)",
         );
-        let lowered = line.to_lowercase();
-        assert!(!lowered.contains("marker"), "{line}");
-        assert!(!line.contains('/'), "no path fragments: {line}");
-        assert!(!line.contains('@'), "no principals: {line}");
+        assert_receipt_redacted(&line);
+    }
+
+    #[test]
+    fn value_receipt_witness_arm_redacts_to_counts_and_window_words() {
+        // Council-db2646a1 minor 3: the primary redaction fixture
+        // renders the save-time arm, so pin the WITNESS arm marker-free
+        // too — stale save-time evidence falls through and the witness
+        // line is the asserted render.
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_marker_witness(tmp.path(), "2026-07-01T10:00:00Z");
+        let sidecar = tmp.path().join("kindling/usage.ndjson");
+        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        std::fs::write(&sidecar, marker_gate_row("2026-01-08T12:00:00Z")).unwrap();
+
+        let value = crate::insights::cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
+        assert!(
+            value.save_time.has_evidence(),
+            "fixture must be stale save-time evidence, not absent",
+        );
+        let line = repeat_value_line(&value, receipt_now("2026-07-11T00:00:00Z"))
+            .expect("fresh witness evidence renders");
+        assert_eq!(
+            line,
+            "value: 1 witness event recorded in the 30 days to 2026-07-01",
+        );
+        assert_receipt_redacted(&line);
     }
 
     #[test]

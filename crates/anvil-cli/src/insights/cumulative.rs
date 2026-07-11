@@ -42,7 +42,7 @@
 //! fixtures in `commands::insights` seed marker strings through every
 //! source field and prove none survive into any rendered output.
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read as _};
 use std::path::Path;
 
 use anvil_intercept::kindling_observation::{
@@ -169,6 +169,19 @@ struct SidecarRow {
     rules_violated: Option<Vec<String>>,
 }
 
+/// Hard cap on bytes read from any single evidence file.
+///
+/// Matches the sidecar's 64 MiB retention cap (`usage::trim_usage_sidecar`),
+/// so a well-formed source never reaches it; the cap exists so a
+/// substituted special file (a FIFO, `/dev/zero`, a planted symlink to
+/// either) cannot make a reader loop or allocate unboundedly — the
+/// repeat-start value receipt reads this module on a thread that is
+/// abandoned on timeout, so an unbounded read would otherwise run on
+/// unattended. Bytes past the cap in a single file are not counted
+/// (the truncated final line fails to parse and is skipped), which is
+/// an honest under-count, never a fabricated claim.
+const MAX_SOURCE_READ_BYTES: u64 = 64 * 1024 * 1024;
+
 /// Wire value of [`anvil_intercept::kindling_observation::Outcome::Fail`]
 /// (kebab-case serde contract).
 const OUTCOME_FAIL: &str = "fail";
@@ -236,7 +249,7 @@ fn collect_witness_timestamps(repo_root: &Path) -> anyhow::Result<Vec<DateTime<U
     let mut out = Vec::new();
     for path in witness_paths(repo_root) {
         let file = std::fs::File::open(&path)?;
-        for raw in BufReader::new(file).lines() {
+        for raw in BufReader::new(file.take(MAX_SOURCE_READ_BYTES)).lines() {
             let raw = match raw {
                 Ok(raw) => raw,
                 // A torn write can leave one non-UTF-8 line; skip that
@@ -276,7 +289,7 @@ fn collect_save_time_counts(
     };
 
     let mut lo_hi: Option<TsBounds> = None;
-    for raw in BufReader::new(file).lines() {
+    for raw in BufReader::new(file.take(MAX_SOURCE_READ_BYTES)).lines() {
         let raw = match raw {
             Ok(raw) => raw,
             Err(err) if err.kind() == std::io::ErrorKind::InvalidData => continue,
