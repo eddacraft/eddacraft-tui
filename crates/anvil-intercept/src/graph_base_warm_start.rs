@@ -132,13 +132,20 @@ pub fn compose_worktree_from_base(
 
     // Compose the base with the overlay into one materialised pair (GBASE-006). An
     // inconsistent base replay ⇒ cold rebuild.
-    let Ok((sym, dep)) = compose(payload, &fragment) else {
-        tracing::warn!(
-            target: "anvil_intercept::graph_base_warm_start",
-            workspace_root = %root.display(),
-            "base replayed inconsistently during compose; serving cold",
-        );
-        return ComposeWarmStartOutcome::ColdComposeError;
+    let (sym, dep) = match compose(payload, &fragment) {
+        Ok(pair) => pair,
+        Err(err) => {
+            // `SnapshotLoadError` is privacy-safe (no paths/bytes), so the
+            // value itself is loggable — it distinguishes payload
+            // corruption/invariant breaks from unexpected decode/replay errors.
+            tracing::warn!(
+                target: "anvil_intercept::graph_base_warm_start",
+                workspace_root = %root.display(),
+                error = %err,
+                "base replayed inconsistently during compose; serving cold",
+            );
+            return ComposeWarmStartOutcome::ColdComposeError;
+        }
     };
 
     // Install through the SAME seam the snapshot restore uses (DSV-030): a

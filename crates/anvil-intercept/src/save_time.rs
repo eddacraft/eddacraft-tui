@@ -606,8 +606,18 @@ impl SaveTimeState {
     /// resident daemon deliberately never runs) and routing base vs. the permanent
     /// per-worktree path — is **GBASE-009**'s re-entrant `persistence_route`; it
     /// supplies `sha` and calls this seam. Until then `sha` is passed explicitly.
+    // GBASE-009's `persistence_route` lifecycle wiring is this seam's only
+    // planned production caller (recorded APS deferral); until it lands the
+    // method is exercised by tests alone — the same posture `spawn_restore`
+    // held before DSV-045 wired it.
     #[cfg(unix)]
-    pub fn spawn_compose_restore(&self, key: &WorktreeKey, canonical_root: &Path, sha: &str) {
+    #[allow(dead_code)]
+    pub(crate) fn spawn_compose_restore(
+        &self,
+        key: &WorktreeKey,
+        canonical_root: &Path,
+        sha: &str,
+    ) {
         if !self.persistence_enabled() {
             return;
         }
