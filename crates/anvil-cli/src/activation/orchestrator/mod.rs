@@ -241,7 +241,27 @@ impl ActivationRun {
     pub(crate) fn log_lines(&self) -> &[String] {
         &self.log_lines
     }
+
+    /// CIB-183: whether this run's init step found the project config
+    /// already on disk. This is the honest "the repo was activated before
+    /// this run started" marker for repeat detection — derived from the
+    /// recorded lifecycle evidence, never a timestamp guess. A first run
+    /// records `InitConfig: completed` instead; a write-gated ANVIL_HOME
+    /// records a different skip detail and deliberately does not count.
+    pub(crate) fn config_present_before_run(&self) -> bool {
+        self.events.iter().any(|event| {
+            event.step == ActivationStep::InitConfig
+                && event.lifecycle == ActivationStepLifecycle::Skipped
+                && event.detail.as_deref() == Some(INIT_CONFIG_ALREADY_PRESENT_DETAIL)
+        })
+    }
 }
+
+/// CIB-183: the skip detail the init step records when the project config
+/// already exists. Shared between the skip site and
+/// [`ActivationRun::config_present_before_run`] so the repeat-detection
+/// evidence cannot drift from the recorded event.
+pub(crate) const INIT_CONFIG_ALREADY_PRESENT_DETAIL: &str = "project config already present";
 
 /// Full orchestrator outcome used by the activation TUI seam.
 #[derive(Debug)]
@@ -904,7 +924,10 @@ fn run_with_home_and_registration_outcome(
             "project writes are gated for this ANVIL_HOME",
         );
     } else {
-        activation_run.skip(ActivationStep::InitConfig, "project config already present");
+        activation_run.skip(
+            ActivationStep::InitConfig,
+            INIT_CONFIG_ALREADY_PRESENT_DETAIL,
+        );
     }
 
     // Step 1a — establish project identity (MLP-001 / A7.2).

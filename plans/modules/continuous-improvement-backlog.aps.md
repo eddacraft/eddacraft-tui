@@ -4760,7 +4760,13 @@ archive.
 
 ### CIB-183: Quiet repeat `anvil start` success output
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-11 via PR #3283
+- **Summary:** A repeat `anvil start` whose run evidence shows the repo was
+  already activated (config pre-existing, MCP entries up to date, no errors)
+  now collapses to the protection state, daemon/driver posture, and one
+  arbitrated next step; first-run and repair states keep the rich recipe, the
+  TUI verdict reuses the same next-step arbiter, and a CIB-190 extra-line seam
+  is reserved in the collapsed renderer.
 - **Intent:** A repeat `anvil start` run should not reprint the full first-run
   recipe when the repo is already activated or the next action is already clear.
 - **Expected Outcome:** Repeat-success activation output collapses to the

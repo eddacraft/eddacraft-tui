@@ -977,7 +977,25 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
 /// closing `Next:` line. `false` means there is nothing to repair
 /// (`Protecting`), so the closing line owns the ending.
 pub fn has_repair_hint(d: &ActivationDiagnostic) -> bool {
-    repair_hint(d.protection_state(), d).is_some()
+    repair_hint_for(d).is_some()
+}
+
+/// CIB-183: the diagnostic's repair hint, exposed so the collapsed
+/// repeat-success renderer and the TUI verdict model derive their single
+/// next step from the SAME arbiter that owns the rich plain ending
+/// (CIB-162/CIB-166) instead of duplicating copy. Returns the exact hint
+/// [`render_human`] prints on its `next:` line, or `None` when there is
+/// nothing to repair and the closing line owns the ending.
+pub fn repair_hint_for(d: &ActivationDiagnostic) -> Option<&'static str> {
+    repair_hint(d.protection_state(), d)
+}
+
+/// CIB-183: the headline both renderers print for this diagnostic,
+/// including the DLIFE-006 daemon-unreachable override. Exposed so the
+/// collapsed repeat-success renderer reuses the exact headline copy
+/// rather than re-deriving it from [`ProtectionState::headline`] alone.
+pub fn headline_for_diagnostic(d: &ActivationDiagnostic) -> &'static str {
+    headline_for(d.protection_state(), d)
 }
 
 #[cfg(test)]

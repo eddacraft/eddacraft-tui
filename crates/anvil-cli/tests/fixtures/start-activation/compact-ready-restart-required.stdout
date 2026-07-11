@@ -1,28 +1,6 @@
 ACTIVATION
   state: ready_restart_required
   Daemon not reachable — protection cannot graduate until the intercept daemon answers this worktree.
-  meaning: The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again.
-  config: valid
-  mcp:
-    Cursor: restart_handshake_verified (pending restart)
-    Claude Code: restart_handshake_verified (pending restart)
-  watch: not_requested
-  baseline: absent
-  next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.
-  install:
-    Cursor: skipped — already up to date
-    Claude Code: skipped — already up to date
-  rule modes: public-api-expansion=warn, new-dependency-introduction=warn, cross-layer-violation=warn, privilege-expansion=warn
-  config: .anvilrc
   daemon: not started (--no-daemon); save-time validation uses the scoped fallback.
-  worktree: no worktree registered (not a Git worktree: <GIT-NOT-A-REPO>). Run from inside a worktree, or `anvil workspace register <path>`.
-
-verify:
-  state: ready_restart_required
-  active layers:
-    - L0 mcp pre-write (pending — restart required)
-  recipe (try this now — triggers `secret-detection`):
-    1. echo 'const KEY = "AKIAQRSTUVWXYZ123456";' >> .anvil-smoke-test.ts
-    2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding
-    3. rm .anvil-smoke-test.ts when done
-  AI tools detected: claude-code, cursor
+  save-time driver: not attached
+  next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.

@@ -709,15 +709,35 @@ fn start_idempotent_rerun_skips_init_and_install() {
         "second start must not rewrite Claude Code MCP config when already up to date"
     );
 
-    // Diagnostic still emitted on the second run.
+    // CIB-183: the first run renders the rich recipe; the repeat run
+    // collapses to state + posture + one next step and must NOT reprint
+    // the first-run recipe.
+    let first_stdout = String::from_utf8_lossy(&first.stdout);
+    assert!(
+        first_stdout.contains("recipe (try this now"),
+        "first start must render the rich first-run recipe, got:\n{first_stdout}"
+    );
     let stdout = String::from_utf8_lossy(&second.stdout);
     assert!(
         stdout.contains("state: ready_restart_required"),
-        "second start must still emit the diagnostic, got:\n{stdout}"
+        "second start must still emit the protection state, got:\n{stdout}"
     );
     assert!(
-        stdout.contains("already up to date"),
-        "second start must report install was a no-op, got:\n{stdout}"
+        !stdout.contains("recipe (try this now"),
+        "repeat start must not reprint the first-run recipe, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("active layers"),
+        "repeat start must not reprint the layer breakdown, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("daemon:") && stdout.contains("save-time driver:"),
+        "repeat start must keep the daemon/driver posture, got:\n{stdout}"
+    );
+    assert_eq!(
+        stdout.matches("next:").count() + stdout.matches("Next:").count(),
+        1,
+        "repeat start carries exactly one next step, got:\n{stdout}"
     );
 }
 
@@ -835,7 +855,18 @@ fn start_no_tui_and_env_no_tui_match_compact_fixture() {
         "setup start failed: stderr={}",
         String::from_utf8_lossy(&first.stderr)
     );
+    // CIB-183: the first run keeps the rich recipe — pin it so the
+    // repeat-run collapse can never silently eat the first-run surface.
+    assert_start_activation_fixture(
+        "compact-first-run.stdout",
+        &String::from_utf8_lossy(&first.stdout),
+        dir.path(),
+        home.path(),
+    );
 
+    // CIB-183: the reruns below are repeat successes (config pre-existing,
+    // MCP entries already up to date), so the compact fixture pins the
+    // COLLAPSED repeat output: state + posture + one next step.
     let flag = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
     assert!(
         flag.status.success(),

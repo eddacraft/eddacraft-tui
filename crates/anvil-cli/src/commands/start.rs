@@ -378,20 +378,49 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         diagnostic.watch = activation::diagnostic::WatchTier::Running;
     }
 
+    // CIB-183: a repeat `anvil start` whose evidence says the repo was
+    // already activated (config pre-existing, no fresh MCP writes, no
+    // errors) collapses the plain success output to the protection state,
+    // the daemon/save-time-driver posture, and exactly one next step —
+    // instead of reprinting the full first-run recipe. Scoped to the plain
+    // mutating path: `--verify` / `--json` are byte-stable machine
+    // contracts, `--watch` hands off to the watcher, `--format` /
+    // `--new-identity` perform first-run-shaped writes, and the TUI keeps
+    // its typed verdict (which derives its next step from the same
+    // arbiter — see `arbitrated_next_step`).
+    let repeat_collapsed = !read_only
+        && !args.watch
+        && args.format.is_none()
+        && !args.new_identity
+        && matches!(render_mode, StartRenderMode::Plain)
+        && is_repeat_success(
+            activation_run.as_ref(),
+            &diagnostic,
+            &install_report,
+            daemon_outcome.as_ref(),
+        );
+
     if global.json {
         let json = serde_json::to_string_pretty(&activation::render_json(&diagnostic))?;
         println!("{json}");
     } else {
-        let human_output = render_start_human_output(
-            root,
-            read_only,
-            &diagnostic,
-            &install_report,
-            daemon_outcome.as_ref(),
-            mcp_policy,
-            &agent_inventory,
-            agents_cached,
-        );
+        let human_output = if repeat_collapsed {
+            // CIB-190 seam: the trailing `None` is the optional local value
+            // line slot; it stays empty until CIB-190's owning aggregate
+            // lands.
+            render_repeat_start_output(&diagnostic, daemon_outcome.as_ref(), None)
+        } else {
+            render_start_human_output(
+                root,
+                read_only,
+                &diagnostic,
+                &install_report,
+                daemon_outcome.as_ref(),
+                mcp_policy,
+                &agent_inventory,
+                agents_cached,
+            )
+        };
         if matches!(render_mode, StartRenderMode::Tui) {
             let consent_plan = activation::orchestrator::build_tui_consent_plan(
                 root,
@@ -542,9 +571,12 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             // UJ-001: plain endings name the single next step; JSON and
             // read-only (--verify) surfaces stay byte-identical. CIB-166:
             // when the diagnostic block printed a `next:` repair hint, that
-            // hint owns the ending and no closing line prints.
+            // hint owns the ending and no closing line prints. CIB-183: the
+            // collapsed repeat-success body already carries its single
+            // arbitrated next step, so it owns the ending outright.
             if !global.json
                 && !read_only
+                && !repeat_collapsed
                 && let Some(line) = ending_next_step_line(&diagnostic)
             {
                 println!("{line}");
@@ -856,6 +888,9 @@ fn activation_verdict_model(
     let activation_rows = vec![
         format!("state: {}", state.label()),
         state.headline().to_string(),
+        // CIB-183: the TUI verdict names its next step via the same
+        // arbiter as the plain path — no duplicated copy.
+        arbitrated_next_step(diagnostic),
     ];
     let mut layer_rows = vec![format!("config: {}", diagnostic.config.label())];
     layer_rows.extend(diagnostic.mcp.iter().map(|(client, probe)| {
@@ -2010,6 +2045,123 @@ fn ending_next_step_line(diag: &activation::ActivationDiagnostic) -> Option<&'st
     }
 }
 
+/// CIB-183: the single arbitrated next-step row, shared verbatim by the
+/// collapsed repeat renderer and the TUI verdict model. Reuses the
+/// CIB-162/CIB-166 arbitration: when the diagnostic carries a repair hint
+/// that hint owns the ending; otherwise the UJ-001 closing line does.
+/// Returned without leading indentation so each surface applies its own.
+fn arbitrated_next_step(diag: &activation::ActivationDiagnostic) -> String {
+    match activation::repair_hint_for(diag) {
+        Some(hint) => format!("next: {hint}"),
+        None => start_next_step_line(diag).trim_start().to_string(),
+    }
+}
+
+/// CIB-183: honest, evidence-based detection of a repeat `anvil start`
+/// that ended in success (or with the single clear restart step). Every
+/// axis is derived from what this run actually observed and did — never
+/// a timestamp guess:
+///
+/// 1. The init step recorded that the project config already existed
+///    before this run started
+///    ([`activation::orchestrator::ActivationRun::config_present_before_run`]).
+/// 2. The MCP install step made no fresh writes and hit no failures —
+///    every per-client outcome is `AlreadyUpToDate` or an undetected
+///    editor. Fresh installs, refused unsafe drift, picker deselections,
+///    consent deferrals, and failures all keep the rich output.
+/// 3. Nothing errored: no `last_error` on the diagnostic and the daemon
+///    ensure did not fail (a failed ensure carries recovery copy that
+///    belongs in the rich block).
+/// 4. The final state is `Protecting`, `Watching`, or
+///    `ReadyRestartRequired` — protection is live/armed, or the one next
+///    action (restart / start the daemon) is already clear. `NeedsAction`,
+///    `Unsupported`, and `Error` are repair or coverage-gap states and
+///    keep the richer recipe.
+///
+/// The project-spine ensures (identity, hooks, witness attributes) are
+/// idempotent self-healing writes on every run, so they intentionally do
+/// not participate in the evidence.
+fn is_repeat_success(
+    run: Option<&activation::orchestrator::ActivationRun>,
+    diagnostic: &activation::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+    daemon_outcome: Option<&anvil_intercept::ensure::EnsureOutcome>,
+) -> bool {
+    use activation::orchestrator::SkipReason;
+    use activation::state::ProtectionState;
+
+    let Some(run) = run else {
+        return false;
+    };
+    if !run.config_present_before_run() {
+        return false;
+    }
+    let install_settled = install_report.per_client.values().all(|outcome| {
+        matches!(
+            outcome,
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate | SkipReason::EditorNotDetected,
+            }
+        )
+    });
+    if !install_settled {
+        return false;
+    }
+    if diagnostic.last_error.is_some()
+        || matches!(
+            daemon_outcome,
+            Some(anvil_intercept::ensure::EnsureOutcome::Failed { .. })
+        )
+    {
+        return false;
+    }
+    matches!(
+        diagnostic.protection_state(),
+        ProtectionState::Protecting
+            | ProtectionState::Watching
+            | ProtectionState::ReadyRestartRequired
+    )
+}
+
+/// CIB-183: collapsed output for a repeat `anvil start` success. Renders
+/// exactly (a) the protection state + headline, (b) the daemon and
+/// save-time-driver posture, and (c) one arbitrated next step — never the
+/// first-run recipe, install block, or language breakdown the user has
+/// already seen. Deterministic: same diagnostic in, same bytes out.
+///
+/// `extra_line` is the CIB-190 seam — one optional, already-rendered local
+/// value line inserted between the posture lines and the next step. Pass
+/// `None` until CIB-190's owning aggregate lands.
+fn render_repeat_start_output(
+    diagnostic: &activation::ActivationDiagnostic,
+    daemon_outcome: Option<&anvil_intercept::ensure::EnsureOutcome>,
+    extra_line: Option<&str>,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    out.push_str("ACTIVATION\n");
+    let _ = writeln!(out, "  state: {}", diagnostic.protection_state().label());
+    let _ = writeln!(out, "  {}", activation::headline_for_diagnostic(diagnostic));
+    if let Some(outcome) = daemon_outcome {
+        out.push_str(&render_daemon_lifecycle_line(outcome));
+    }
+    let _ = writeln!(
+        out,
+        "  save-time driver: {}",
+        if diagnostic.save_time_driver_attached {
+            "attached"
+        } else {
+            "not attached"
+        },
+    );
+    if let Some(line) = extra_line {
+        let _ = writeln!(out, "  {line}");
+    }
+    let _ = writeln!(out, "  {}", arbitrated_next_step(diagnostic));
+    out
+}
+
 /// UJ-001: the single next-step line for a plain `anvil start` ending. Honest
 /// about redundancy: when MCP pre-write is live, watch would be a no-op (the
 /// `NoOpRedundant` axis), so the next step is the status surface instead.
@@ -2815,6 +2967,269 @@ mod tests {
             line.contains("anvil status"),
             "protecting ending points at the status surface, got: {line}",
         );
+    }
+
+    // CIB-183: quiet repeat-success output — collapse detection and the
+    // collapsed renderer.
+
+    fn repeat_activation_run() -> activation::orchestrator::ActivationRun {
+        use activation::orchestrator::{
+            ActivationRun, ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+            INIT_CONFIG_ALREADY_PRESENT_DETAIL,
+        };
+        ActivationRun::from_events(vec![ActivationStepEvent {
+            step: ActivationStep::InitConfig,
+            lifecycle: ActivationStepLifecycle::Skipped,
+            detail: Some(INIT_CONFIG_ALREADY_PRESENT_DETAIL.to_string()),
+        }])
+    }
+
+    fn first_run_activation_run() -> activation::orchestrator::ActivationRun {
+        use activation::orchestrator::{
+            ActivationRun, ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
+        };
+        ActivationRun::from_events(vec![ActivationStepEvent {
+            step: ActivationStep::InitConfig,
+            lifecycle: ActivationStepLifecycle::Completed,
+            detail: None,
+        }])
+    }
+
+    fn up_to_date_install_report() -> activation::orchestrator::InstallReport {
+        use activation::diagnostic::McpClientId;
+        use activation::orchestrator::SkipReason;
+        let mut report = activation::orchestrator::InstallReport::default();
+        for client in [McpClientId::Cursor, McpClientId::ClaudeCode] {
+            report.per_client.insert(
+                client,
+                InstallOutcome::Skipped {
+                    reason: SkipReason::AlreadyUpToDate,
+                },
+            );
+        }
+        report
+    }
+
+    #[test]
+    fn repeat_success_detected_from_run_evidence() {
+        // Repeat evidence is the recorded lifecycle event (config existed
+        // before this run) plus a settled install report — never a
+        // timestamp guess.
+        let run = repeat_activation_run();
+        let report = up_to_date_install_report();
+        for diag in [
+            synth_diagnostic(activation::state::ProtectionState::Protecting),
+            synth_diagnostic(activation::state::ProtectionState::Watching),
+            restart_required_diagnostic(),
+        ] {
+            assert!(
+                is_repeat_success(Some(&run), &diag, &report, None),
+                "settled repeat evidence must collapse {:?}",
+                diag.protection_state(),
+            );
+        }
+    }
+
+    #[test]
+    fn first_run_is_never_a_repeat() {
+        // A run whose init step wrote the config this run keeps the rich
+        // first-run recipe, even when everything else looks settled.
+        let run = first_run_activation_run();
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        assert!(!is_repeat_success(
+            Some(&run),
+            &diag,
+            &up_to_date_install_report(),
+            None
+        ));
+        // No recorded run at all (read-only paths) can never collapse.
+        assert!(!is_repeat_success(
+            None,
+            &diag,
+            &up_to_date_install_report(),
+            None
+        ));
+    }
+
+    #[test]
+    fn fresh_installs_and_failures_keep_the_rich_output() {
+        use activation::diagnostic::McpClientId;
+        use activation::mcp_client::DriftClass;
+
+        let run = repeat_activation_run();
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+
+        let mut installed = up_to_date_install_report();
+        installed.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Installed {
+                path: "/tmp/.cursor/mcp.json".into(),
+                drift: DriftClass::NotPresent,
+            },
+        );
+        assert!(
+            !is_repeat_success(Some(&run), &diag, &installed, None),
+            "a fresh MCP write this run is not a quiet repeat",
+        );
+
+        let mut failed = up_to_date_install_report();
+        failed.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Failed {
+                error: "synthetic".to_string(),
+            },
+        );
+        assert!(
+            !is_repeat_success(Some(&run), &diag, &failed, None),
+            "an install failure keeps the rich diagnostic",
+        );
+
+        let daemon_failed = anvil_intercept::ensure::EnsureOutcome::Failed {
+            recovery: "run `anvil intercept start --foreground`.".to_string(),
+        };
+        assert!(
+            !is_repeat_success(
+                Some(&run),
+                &diag,
+                &up_to_date_install_report(),
+                Some(&daemon_failed)
+            ),
+            "a failed daemon ensure keeps the rich diagnostic",
+        );
+    }
+
+    #[test]
+    fn repair_and_coverage_gap_states_keep_the_rich_output() {
+        let run = repeat_activation_run();
+        let report = up_to_date_install_report();
+
+        let needs_action = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        assert!(!is_repeat_success(Some(&run), &needs_action, &report, None));
+
+        let mut unsupported = synth_diagnostic(activation::state::ProtectionState::Unsupported);
+        unsupported.all_languages_unsupported = true;
+        assert!(!is_repeat_success(Some(&run), &unsupported, &report, None));
+
+        let mut errored = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        errored.last_error = Some("synthetic activation failure".to_string());
+        assert!(
+            !is_repeat_success(Some(&run), &errored, &report, None),
+            "repair states keep actionable detail; the recovery action stays primary",
+        );
+    }
+
+    #[test]
+    fn collapsed_repeat_protecting_output_is_state_posture_and_one_next_step() {
+        // Snapshot: the collapsed repeat `protecting` bytes. Deterministic —
+        // same diagnostic in, same bytes out.
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let rendered = render_repeat_start_output(
+            &diag,
+            Some(&anvil_intercept::ensure::EnsureOutcome::Reused),
+            None,
+        );
+        assert_eq!(
+            rendered,
+            "ACTIVATION\n\
+             \x20 state: protecting\n\
+             \x20 Protecting — pre-write validation is live in this repo.\n\
+             \x20 daemon: reusing the per-user save-time daemon already running.\n\
+             \x20 save-time driver: not attached\n\
+             \x20 Next: MCP pre-write protection is live; run `anvil status` to see posture any time.\n",
+        );
+        // The first-run blocks must be gone.
+        for banned in ["verify:", "active layers", "recipe", "install:", "mcp:"] {
+            assert!(
+                !rendered.contains(banned),
+                "collapsed output must not reprint `{banned}`: {rendered}",
+            );
+        }
+    }
+
+    #[test]
+    fn collapsed_repeat_repair_hint_owns_the_single_next_step() {
+        // At ready_restart_required with the daemon unreachable, the one
+        // next step is the CIB-162/166 repair hint — the recovery action
+        // stays primary and no competing `Next:` line renders.
+        let mut diag = restart_required_diagnostic();
+        diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
+        let rendered = render_repeat_start_output(&diag, None, None);
+        assert!(
+            rendered.contains("next: no intercept daemon is answering"),
+            "repair hint must own the collapsed ending: {rendered}",
+        );
+        assert!(
+            !rendered.contains("Next:"),
+            "no competing closing line may render: {rendered}",
+        );
+        assert_eq!(
+            rendered.matches("next:").count(),
+            1,
+            "exactly one next step: {rendered}",
+        );
+        // The DLIFE-006 daemon-unreachable headline override is reused.
+        assert!(
+            rendered.contains("Daemon not reachable"),
+            "collapsed headline must reuse headline_for_diagnostic: {rendered}",
+        );
+    }
+
+    #[test]
+    fn collapsed_renderer_reserves_the_cib190_extra_line_slot() {
+        // CIB-190 seam: one optional, pre-rendered local value line slots
+        // between the posture lines and the single next step. This item
+        // only reserves the seam — the value line itself is CIB-190's.
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let rendered = render_repeat_start_output(&diag, None, Some("local value placeholder"));
+        let lines: Vec<&str> = rendered.lines().collect();
+        let slot = lines
+            .iter()
+            .position(|line| *line == "  local value placeholder")
+            .expect("extra line renders with the standard indent");
+        assert!(
+            lines[slot - 1].starts_with("  save-time driver:"),
+            "extra line sits after the posture lines: {rendered}",
+        );
+        assert!(
+            lines[slot + 1].starts_with("  Next:"),
+            "extra line sits before the single next step: {rendered}",
+        );
+        // Omitting it removes exactly that one line.
+        let without = render_repeat_start_output(&diag, None, None);
+        assert_eq!(
+            without.lines().count(),
+            lines.len() - 1,
+            "empty slot renders nothing extra",
+        );
+    }
+
+    #[test]
+    fn tui_verdict_next_step_matches_the_plain_arbiter() {
+        // CIB-183: the TUI verdict derives its next step from the same
+        // arbiter as the plain path — byte-identical copy, no duplication.
+        for diag in [
+            synth_diagnostic(activation::state::ProtectionState::Protecting),
+            restart_required_diagnostic(),
+            daemon_attested_diagnostic(),
+        ] {
+            let model = activation_verdict_model(
+                &diag,
+                &activation::orchestrator::InstallReport::default(),
+            );
+            let activation_section = model
+                .sections
+                .iter()
+                .find(|section| section.id == "activation")
+                .expect("verdict model has an activation section");
+            assert!(
+                activation_section
+                    .rows
+                    .contains(&arbitrated_next_step(&diag)),
+                "TUI verdict must carry the arbitrated next step for {:?}: {:?}",
+                diag.protection_state(),
+                activation_section.rows,
+            );
+        }
     }
 
     // UJ-001: a plain `anvil start` ending names the single next step.
