@@ -1912,21 +1912,32 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             // stays off. Unix-only for now (the Windows daemon's persistence is a
             // follow-up, mirroring the DSV-010/011 Windows-parity split).
             #[cfg(unix)]
-            if anvil_graph_cache::snapshot::persist_graph_enabled(
-                env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
-            ) {
-                if let Some(dir) = snapshot_io::graph_cache_dir() {
-                    tracing::info!(
-                        target: "anvil_intercept::snapshot",
-                        dir = %dir.display(),
-                        "warm-graph persistence enabled (default-on; opt out with ANVIL_PERSIST_GRAPH=0)",
-                    );
-                    state = state.with_snapshot_dir(dir);
-                } else {
-                    tracing::warn!(
-                        target: "anvil_intercept::snapshot",
-                        "warm-graph persistence on but no state dir resolved; persistence off",
-                    );
+            {
+                let persist_var = env::var("ANVIL_PERSIST_GRAPH").ok();
+                if anvil_graph_cache::snapshot::persist_graph_enabled(persist_var.as_deref()) {
+                    if let Some(dir) = snapshot_io::graph_cache_dir() {
+                        tracing::info!(
+                            target: "anvil_intercept::snapshot",
+                            dir = %dir.display(),
+                            "warm-graph persistence enabled (default-on; opt out with ANVIL_PERSIST_GRAPH=0)",
+                        );
+                        state = state.with_snapshot_dir(dir);
+                    } else if persist_var.is_some() {
+                        // Explicitly requested but unusable — worth an operator's
+                        // attention.
+                        tracing::warn!(
+                            target: "anvil_intercept::snapshot",
+                            "ANVIL_PERSIST_GRAPH set but no state dir resolved; persistence off",
+                        );
+                    } else {
+                        // Default-on in an environment with no resolvable state dir
+                        // (no HOME/XDG_STATE_HOME/ANVIL_HOME — minimal shells, CI).
+                        // Expected configuration, not an incident: keep it quiet.
+                        tracing::debug!(
+                            target: "anvil_intercept::snapshot",
+                            "no state dir resolved; warm-graph persistence off",
+                        );
+                    }
                 }
             }
             // Without a parser, verdicts stay `Partial` — warn so the degraded

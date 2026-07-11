@@ -847,7 +847,10 @@ fn fnv1a64(bytes: &[u8], seed: u64) -> u64 {
 #[must_use]
 pub fn persist_graph_enabled(raw: Option<&str>) -> bool {
     // Default-on: enabled unless the value is an explicit opt-out. Trimmed +
-    // lowercased so `" 0"` / `"OFF\n"` still disable (no silent fail-open).
+    // lowercased so `" 0"` / `"OFF\n"` still disable — whitespace/case can
+    // never make an intended opt-out go unrecognised. (Unparseable values
+    // resolve to enabled by design: graduated-flag semantics, mirroring
+    // `ANVIL_WATCH_DAEMON`.)
     !matches!(
         raw.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
         Some("0" | "false" | "no" | "off")
