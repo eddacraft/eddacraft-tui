@@ -419,10 +419,13 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
         if self.tier_evidence_pane.is_visible() {
             "j/k scroll  g/G top/bottom  esc close  q quit"
         } else if self.phase == ActivationPhase::Consent {
-            if self.consent.is_some() {
-                "j/k navigate  space toggle  enter select  a apply  esc/q quit"
-            } else {
-                "esc/q quit"
+            match &self.consent {
+                // The unsafe-drift confirm overlay owns the keys while open.
+                Some(consent) if consent.unsafe_confirm_index.is_some() => {
+                    "y confirm  n/esc cancel  q quit"
+                }
+                Some(_) => "j/k navigate  space toggle  enter select  a apply  esc/q quit",
+                None => "esc/q quit",
             }
         } else {
             "j/k navigate  enter expand  t smoke  e evidence  esc/q quit"
@@ -597,6 +600,26 @@ mod tests {
         assert_eq!(surface.phase(), ActivationPhase::Consent);
         surface.handle_key(Action::Toggle);
         assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
+    }
+
+    #[test]
+    fn unsafe_overlay_help_advertises_only_its_live_keys() {
+        // The confirm overlay swallows the base consent keys, so the help
+        // bar must switch to the overlay's own y/n/esc story while open.
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        use eddacraft_tui::surface::Surface as _;
+        assert!(surface.help_text().contains("a apply"));
+        surface.consent.as_mut().unwrap().unsafe_confirm_index = Some(0);
+        assert_eq!(surface.help_text(), "y confirm  n/esc cancel  q quit");
     }
 
     #[test]
