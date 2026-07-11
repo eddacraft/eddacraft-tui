@@ -246,7 +246,7 @@ impl ActivationRun {
     /// already on disk. This is the honest "the repo was activated before
     /// this run started" marker for repeat detection — derived from the
     /// recorded lifecycle evidence, never a timestamp guess. A first run
-    /// records `InitConfig: completed` instead; a write-gated ANVIL_HOME
+    /// records `InitConfig: completed` instead; a write-gated `ANVIL_HOME`
     /// records a different skip detail and deliberately does not count.
     pub(crate) fn config_present_before_run(&self) -> bool {
         self.events.iter().any(|event| {

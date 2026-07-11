@@ -887,9 +887,10 @@ fn activation_verdict_model(
     let state = diagnostic.protection_state();
     let activation_rows = vec![
         format!("state: {}", state.label()),
-        state.headline().to_string(),
-        // CIB-183: the TUI verdict names its next step via the same
-        // arbiter as the plain path — no duplicated copy.
+        // CIB-183: the TUI verdict shares the plain renderers' headline
+        // arbitration (incl. the DLIFE-006 daemon-unreachable override)
+        // and next-step arbiter — no duplicated copy on either row.
+        activation::headline_for_diagnostic(diagnostic).to_string(),
         arbitrated_next_step(diagnostic),
     ];
     let mut layer_rows = vec![format!("config: {}", diagnostic.config.label())];
@@ -2068,7 +2069,10 @@ fn arbitrated_next_step(diag: &activation::ActivationDiagnostic) -> String {
 /// 2. The MCP install step made no fresh writes and hit no failures —
 ///    every per-client outcome is `AlreadyUpToDate` or an undetected
 ///    editor. Fresh installs, refused unsafe drift, picker deselections,
-///    consent deferrals, and failures all keep the rich output.
+///    consent deferrals, and failures all keep the rich output. An EMPTY
+///    per-client map (MCP install disabled via `--no-mcp` /
+///    `ANVIL_NO_MCP`) counts as settled by design: nothing MCP-related
+///    happened this run, so there is nothing to report richly.
 /// 3. Nothing errored: no `last_error` on the diagnostic and the daemon
 ///    ensure did not fail (a failed ensure carries recovery copy that
 ///    belongs in the rich block).
@@ -3115,6 +3119,67 @@ mod tests {
         assert!(
             !is_repeat_success(Some(&run), &errored, &report, None),
             "repair states keep actionable detail; the recovery action stays primary",
+        );
+    }
+
+    #[test]
+    fn no_mcp_empty_install_report_still_collapses() {
+        // `--no-mcp` / `ANVIL_NO_MCP` produces an EMPTY per-client map
+        // (`McpInstallPolicy::Skip` returns `InstallReport::default()`), and
+        // `Iterator::all` over zero entries is vacuously true. That collapse
+        // is intended — nothing MCP-related happened this run — and this
+        // test pins it so a future per-client skip record for the disabled
+        // policy cannot silently flip `--no-mcp` repeats to rich output.
+        let run = repeat_activation_run();
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let empty = activation::orchestrator::InstallReport::default();
+        assert!(is_repeat_success(Some(&run), &diag, &empty, None));
+    }
+
+    #[test]
+    fn invalid_config_never_collapses() {
+        // A corrupted `.anvilrc` records the same already-present init skip
+        // as a healthy repeat, so the collapse guarantee for invalid config
+        // must hold at `is_repeat_success` itself (today it exits via the
+        // `Error` protection state) — this pins it against reorderings in
+        // `protection_state()` or new `ConfigStatus` variants.
+        use activation::diagnostic::ConfigStatus;
+        let run = repeat_activation_run();
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        diag.config = ConfigStatus::Invalid;
+        assert!(!is_repeat_success(
+            Some(&run),
+            &diag,
+            &up_to_date_install_report(),
+            None
+        ));
+    }
+
+    #[test]
+    fn tui_verdict_headline_and_next_step_render_the_arbitrated_copy() {
+        // Cross-surface literal pin: at ready_restart_required with the
+        // daemon unreachable, the TUI verdict must carry the DLIFE-006
+        // daemon-unreachable headline override and the repair-hint next
+        // step — the same copy the collapsed plain body renders — not the
+        // generic restart headline.
+        let mut diag = restart_required_diagnostic();
+        diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
+        let model = activation_verdict_model(&diag, &up_to_date_install_report());
+        let rows = &model
+            .sections
+            .iter()
+            .find(|s| s.id == "activation")
+            .expect("activation section")
+            .rows;
+        assert!(
+            rows.iter()
+                .any(|row| row.starts_with("Daemon not reachable")),
+            "TUI headline must use the daemon-unreachable override: {rows:?}",
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.starts_with("next: no intercept daemon is answering")),
+            "TUI next step must be the arbitrated repair hint: {rows:?}",
         );
     }
 
