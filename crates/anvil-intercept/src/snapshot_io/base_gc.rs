@@ -738,6 +738,54 @@ pub fn run_daemon_gc_pass(
     ))
 }
 
+/// The result of a [`purge_all_bases`] operator sweep. `purged` are the shas
+/// whose `<sha>.base` was unlinked; `skipped_claimed` are shas left in place
+/// because a **live production claim** holds them (the safe semantic — see the
+/// function docs); `errors` counts per-sha I/O failures (each non-fatal).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PurgeOutcome {
+    /// Shas whose base artefact was unlinked.
+    pub purged: Vec<String>,
+    /// Shas skipped because a live claim is producing them (kept, not force-yanked).
+    pub skipped_claimed: Vec<String>,
+    /// Per-sha I/O failures during the sweep (non-fatal; the sweep continues).
+    pub errors: usize,
+}
+
+/// GBASE-010 operator escape hatch: **purge every base artefact** in the store,
+/// as the disk-pressure remediation behind `anvil graph-base gc --purge-all`.
+///
+/// Unlike the keep-set GC pass ([`run_daemon_gc_pass`]), this ignores references
+/// entirely — the operator has explicitly asked for the store to be emptied. It
+/// still rides the **same guard-`flock` + claim-respecting destruction** as GC
+/// ([`base_store::reclaim_unreferenced_base`]): a base under an **active
+/// production claim** is **skipped** (reported in `skipped_claimed`), never
+/// force-yanked out from under a live producer. That is the deliberately **safe
+/// semantic** — non-blocking (the CLI never waits on a producer) and
+/// non-destructive to in-flight work; the operator can re-run once production
+/// settles, or the base is simply re-produced on the next ref-change trigger
+/// (ADR-105 §6). A **stale** producing lock does not block the unlink and is left
+/// for the claim path to reclaim (GC never touches a lock — the same rule as the
+/// keep-set pass); such locks are byte-negligible and self-heal on the next
+/// `claim()`.
+#[must_use]
+pub fn purge_all_bases(base_dir: &Path, procs: &dyn ClaimProcs) -> PurgeOutcome {
+    let mut outcome = PurgeOutcome::default();
+    for sha in enumerate_base_shas(base_dir) {
+        match base_store::reclaim_unreferenced_base(base_dir, &sha, procs) {
+            Ok(base_store::BaseReclaimOutcome::Reclaimed) => outcome.purged.push(sha),
+            Ok(base_store::BaseReclaimOutcome::SkippedClaimed) => {
+                outcome.skipped_claimed.push(sha);
+            }
+            // Absent = a raced peer removed it first; count it as purged-effect
+            // (the store no longer holds it), not an error.
+            Ok(base_store::BaseReclaimOutcome::Absent) => {}
+            Err(_) => outcome.errors += 1,
+        }
+    }
+    outcome
+}
+
 /// Enumerate the shas of `<sha>.base` artefacts directly under `base_dir`, sorted
 /// for deterministic iteration/logging. A missing/unreadable dir yields an empty
 /// list (no-op GC). The `.producing` subdir and any non-`.base` leaf are ignored.
@@ -1534,5 +1582,75 @@ mod tests {
                 "the deferral is marked operational (normal priority): {frame}",
             );
         }
+    }
+
+    // ========================================================================
+    // GBASE-010 operator escape hatch: purge_all_bases
+    // ========================================================================
+
+    #[test]
+    fn purge_all_empties_the_store_on_demand() {
+        // The disk-pressure remediation: with no active claims, purge-all unlinks
+        // every base regardless of references, leaving the store empty.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        for seed in ['a', 'b', 'c', 'd'] {
+            write_base(&dir, &sha(seed));
+        }
+
+        let outcome = purge_all_bases(&dir, &SystemClaimProcs);
+        assert_eq!(outcome.purged.len(), 4, "every base is purged: {outcome:?}");
+        assert!(outcome.skipped_claimed.is_empty());
+        assert_eq!(outcome.errors, 0);
+        for seed in ['a', 'b', 'c', 'd'] {
+            assert!(!base_exists(&dir, &sha(seed)), "the store is emptied");
+        }
+        assert!(
+            enumerate_base_shas(&dir).is_empty(),
+            "no base artefacts remain after purge-all",
+        );
+    }
+
+    #[test]
+    fn purge_all_empties_the_store_safely_while_a_claim_is_active() {
+        // The safe semantic: purge-all empties the store but SKIPS a sha under an
+        // active production claim (never force-yanked from a live producer). The
+        // rest of the store is emptied; the claimed base survives and is reported.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let claimed = sha('c');
+        write_base(&dir, &claimed);
+        write_base(&dir, &sha('a'));
+        write_base(&dir, &sha('b'));
+
+        // A live claim by this process protects `claimed`.
+        let claim = match base_store::claim(&dir, &claimed, &SystemClaimProcs).unwrap() {
+            base_store::ClaimOutcome::Acquired(c) => c,
+            base_store::ClaimOutcome::Contended => panic!("first claim must acquire"),
+        };
+
+        let outcome = purge_all_bases(&dir, &SystemClaimProcs);
+        assert_eq!(
+            outcome.skipped_claimed,
+            vec![claimed.clone()],
+            "the actively-claimed sha is skipped, not yanked: {outcome:?}",
+        );
+        assert_eq!(outcome.purged.len(), 2, "the unclaimed bases are purged");
+        assert_eq!(outcome.errors, 0);
+        assert!(
+            base_exists(&dir, &claimed),
+            "the claimed base survives purge"
+        );
+        assert!(!base_exists(&dir, &sha('a')));
+        assert!(!base_exists(&dir, &sha('b')));
+
+        // Once production settles, a re-run empties the rest of the store.
+        claim.release();
+        let outcome2 = purge_all_bases(&dir, &SystemClaimProcs);
+        assert_eq!(outcome2.purged, vec![claimed.clone()]);
+        assert!(
+            enumerate_base_shas(&dir).is_empty(),
+            "re-running after the claim releases empties the store",
+        );
     }
 }

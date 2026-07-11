@@ -13,7 +13,9 @@ closed by CIB-096; layout blocking `ANVIL_PERSIST_GRAPH` default-on) with **one
 write-once, content-addressed base per repo per merge-base commit + live
 per-worktree overlays**. ADR-105 inherits ADR-069's format machinery, trust
 line, and privacy line unchanged, and amends only ADR-069 §5 (single-owner) and
-§10 (orphan sweep). All work items are Proposed and reference ADR-105.
+§10 (orphan sweep). All work items reference ADR-105 and are **Merged / Done**
+(2026-07-12) — the terminal GBASE-010 graduation gate cleared and flipped
+`ANVIL_PERSIST_GRAPH` default-on.
 
 ## Purpose
 

@@ -28,6 +28,11 @@ pub enum GraphBaseCommand {
     /// Build the base graph of a merge-base commit's committed tree and print a
     /// deterministic JSON summary to stdout.
     Build(BuildArgs),
+
+    /// Run one on-demand shared-base GC pass, or (with `--purge-all`) empty the
+    /// base store. The operator disk-pressure remediation for
+    /// `<graph-cache>/base`.
+    Gc(GcArgs),
 }
 
 #[derive(Debug, Args)]
@@ -47,9 +52,21 @@ pub struct BuildArgs {
     pub repo: Option<std::path::PathBuf>,
 }
 
+#[derive(Debug, Args)]
+pub struct GcArgs {
+    /// Empty the base store entirely — the disk-pressure remediation. Unlinks
+    /// **every** base artefact regardless of references (a base under an active
+    /// production claim is skipped and reported — the safe, non-blocking
+    /// semantic). Without this flag, only unreferenced bases are reclaimed
+    /// (a keep-set pass over the durably-registered worktrees).
+    #[arg(long)]
+    pub purge_all: bool,
+}
+
 pub fn run(args: &GraphBaseArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
     match &args.command {
         GraphBaseCommand::Build(build) => run_build(build),
+        GraphBaseCommand::Gc(gc) => run_gc(gc),
     }
 }
 
@@ -168,4 +185,112 @@ fn run_build(_build: &BuildArgs) -> anyhow::Result<()> {
     // unix-only (the inherited platform gap). The daemon serves cold on
     // unsupported platforms, so this is a clean, non-panicking refusal.
     anyhow::bail!("graph-base build is only supported on unix platforms")
+}
+
+/// The `gc` subcommand's one-line JSON contract. Deliberately **path-free**:
+/// counts + shas only, never an absolute store path.
+#[cfg(unix)]
+#[derive(serde::Serialize)]
+struct GcOutput {
+    /// `keep-set` | `purge-all` | `no-store` | `persistence-disabled`.
+    mode: &'static str,
+    reclaimed: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kept: Option<usize>,
+    skipped_claimed: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aborted_uncertain: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    errors: Option<usize>,
+}
+
+/// The disk-pressure remediation + on-demand GC surface (GBASE-010 council).
+///
+/// - `--purge-all` empties the store (claim-respecting, non-blocking), and is
+///   **not** gated on `ANVIL_PERSIST_GRAPH` — an operator freeing disk may have
+///   opted persistence out yet still hold leftover bases.
+/// - The plain pass reclaims only unreferenced bases against the keep-set of
+///   durably-registered worktrees, gated on the persistence flag (the exact
+///   daemon-side gate), so it never fights an intentionally-off deployment.
+#[cfg(unix)]
+fn run_gc(gc: &GcArgs) -> anyhow::Result<()> {
+    use anvil_intercept::snapshot_io::base_gc;
+    use anvil_intercept::snapshot_io::base_store::{SystemClaimProcs, default_base_dir};
+
+    let Some(base_dir) = default_base_dir() else {
+        // No resolvable store dir (no ANVIL_HOME / XDG_STATE_HOME / HOME).
+        let output = GcOutput {
+            mode: "no-store",
+            reclaimed: 0,
+            kept: None,
+            skipped_claimed: 0,
+            aborted_uncertain: None,
+            errors: None,
+        };
+        println!("{}", serde_json::to_string(&output)?);
+        return Ok(());
+    };
+
+    let output = if gc.purge_all {
+        let purge = base_gc::purge_all_bases(&base_dir, &SystemClaimProcs);
+        GcOutput {
+            mode: "purge-all",
+            reclaimed: purge.purged.len(),
+            kept: None,
+            skipped_claimed: purge.skipped_claimed.len(),
+            aborted_uncertain: None,
+            errors: Some(purge.errors),
+        }
+    } else {
+        let persist_env = std::env::var("ANVIL_PERSIST_GRAPH").ok();
+        let worktrees = registered_keep_set();
+        match base_gc::run_daemon_gc_pass(persist_env.as_deref(), &worktrees, None) {
+            Some(gc_outcome) => GcOutput {
+                mode: "keep-set",
+                reclaimed: gc_outcome.reclaimed,
+                kept: Some(gc_outcome.kept),
+                skipped_claimed: gc_outcome.skipped_claimed,
+                aborted_uncertain: Some(gc_outcome.aborted_uncertain),
+                errors: None,
+            },
+            None => GcOutput {
+                mode: "persistence-disabled",
+                reclaimed: 0,
+                kept: None,
+                skipped_claimed: 0,
+                aborted_uncertain: None,
+                errors: None,
+            },
+        }
+    };
+
+    println!("{}", serde_json::to_string(&output)?);
+    Ok(())
+}
+
+/// The keep-set for an on-demand GC pass: the durably-registered worktrees
+/// (ADR-094 = the daemon's GC keep-set), loaded from the same on-disk store the
+/// daemon uses. An absent/unreadable store yields an empty keep-set (the pass
+/// then treats every base as unreferenced) — safe: an over-eager reclaim is
+/// re-produced on the next ref-change trigger (ADR-105 §6).
+#[cfg(unix)]
+fn registered_keep_set() -> Vec<std::path::PathBuf> {
+    use anvil_intercept::fence::default_fence_state_path;
+    use anvil_intercept::registration_store::RegistrationStore;
+
+    let Ok(fence_path) = default_fence_state_path() else {
+        return Vec::new();
+    };
+    let store = RegistrationStore::at_path(fence_path.with_file_name("registered-worktrees.json"));
+    store
+        .load()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|record| record.worktree)
+        .collect()
+}
+
+#[cfg(not(unix))]
+fn run_gc(_gc: &GcArgs) -> anyhow::Result<()> {
+    anyhow::bail!("graph-base gc is only supported on unix platforms")
 }

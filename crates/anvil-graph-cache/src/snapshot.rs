@@ -1718,4 +1718,27 @@ mod tests {
             );
         }
     }
+
+    /// Security nit (GBASE-010 council): the code default and the
+    /// `flags/manifest.json` catalogue default must not drift apart — a manifest
+    /// flip without the code flip (or vice versa) would misrepresent the shipped
+    /// behaviour. Assert the generated catalogue's `daemon.persist-graph` default
+    /// variant's boolean value equals `persist_graph_enabled(None)`.
+    #[test]
+    fn manifest_default_agrees_with_code_default() {
+        let def = anvil_kernel_types::feature_flags_catalogue::daemon_persist_graph::definition();
+        let manifest_default_on = def
+            .variants
+            .iter()
+            .find(|v| v.key == def.default_variant)
+            .map(|v| matches!(v.value, anvil_kernel_types::FlagValue::Boolean(true)))
+            .expect("the default variant must exist in the catalogue");
+        assert_eq!(
+            manifest_default_on,
+            persist_graph_enabled(None),
+            "flags/manifest.json daemon.persist-graph default ({:?}) must agree with \
+             persist_graph_enabled(None)",
+            def.default_variant,
+        );
+    }
 }

@@ -59,6 +59,21 @@ All notable changes to anvil are documented here.
 - **Warning diagnostics include source spans.** Finding-emitting CLI surfaces
   now render richer diagnostics with source excerpts while preserving JSON/SARIF
   contracts and exit semantics.
+- **Warm-graph persistence is now default-on.** The save-time daemon persists
+  and warm-restarts its resident graph by default, so a restarted or
+  newly-registered worktree re-warms from a shared, content-addressed base
+  snapshot of its merge-base commit plus a cheap live overlay instead of a full
+  cold rebuild (ADR-105; graduated after the GBASE-010 gate). Snapshots are
+  **identity-only** — symbol names, import/path identity, edges, and content
+  hashes for boundary checks; **never source text, snippets, or comments** — and
+  are written machine-local at `0600` under a `0700` state dir. Bases live under
+  the state dir at `graph-cache/base` (one write-once artefact per repo per
+  merge-base commit). Opt out with **`ANVIL_PERSIST_GRAPH=0`** — which must be
+  set in the **daemon's spawn environment** (a login-shell rc does **not** reach
+  a systemd-user- or IDE-launched daemon). Disk pressure can be relieved on
+  demand with the hidden `anvil graph-base gc` (or `--purge-all` to empty the
+  base store). All persistence failure is non-fatal — an absent or unreadable
+  base serves cold.
 
 ### Fixed
 

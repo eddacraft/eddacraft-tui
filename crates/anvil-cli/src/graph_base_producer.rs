@@ -1127,8 +1127,13 @@ mod tests {
             assert_eq!(summary.file_count, FILES, "summary: {summary:?}");
         }
         samples.sort_unstable();
-        let p50 = samples[samples.len() / 2];
-        let p95 = samples[(samples.len() * 95).div_ceil(100).min(samples.len()) - 1];
+        // Nearest-rank percentile (0-indexed): rank = ceil(p/100 * N) → index
+        // (rank - 1), expressed integer-safely as ((N-1) * p) / 100. The prior
+        // `ceil((N*95)/100) - 1` yielded the *max* at N=15 (index 14), overstating
+        // p95; this returns index 13 (the 14th of 15 samples).
+        let pct = |p: usize| samples[((samples.len() - 1) * p) / 100];
+        let p50 = pct(50);
+        let p95 = pct(95);
         let two_p95 = p95 * 2;
 
         eprintln!(

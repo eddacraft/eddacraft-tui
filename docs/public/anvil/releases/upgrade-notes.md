@@ -31,6 +31,39 @@ If you relied on the daemon never starting on its own: for `anvil start`, pass
 only suppresses the offer — a daemon already running is still reused; set
 `ANVIL_WATCH_DAEMON=0` if you want watch to make no daemon contact at all.
 
+## Unreleased — warm-graph persistence is default-on
+
+No config migration and no protection-claim vocabulary change. The save-time
+daemon now **persists and warm-restarts its resident graph by default**
+(previously opt-in via `ANVIL_PERSIST_GRAPH`). It graduated after the GBASE-010
+gate (ADR-105).
+
+- **What it writes:** identity-only sealed snapshots — symbol names, import/path
+  identity, edges, and content hashes used for boundary checks. It **never**
+  persists source text, snippets, or comments. Files are machine-local, `0600`,
+  under a `0700` state dir.
+- **Where:** the shared base store lives under the state dir at
+  `graph-cache/base` — one write-once, content-addressed artefact per repository
+  per merge-base commit, with cheap per-worktree overlays composed at
+  warm-start.
+- **Rollback:** set **`ANVIL_PERSIST_GRAPH=0`**. This must be set in the
+  **daemon's spawn environment**, not merely a login shell: a value in
+  `~/.bashrc` / `~/.zshrc` does **not** reach a daemon launched by systemd user
+  units, an IDE, or a desktop session. For a `systemd --user` daemon, set it in
+  the unit environment (e.g.
+  `systemctl --user set-environment ANVIL_PERSIST_GRAPH=0` or an `Environment=`
+  line) and restart the daemon; for an IDE-launched daemon, set it in the
+  IDE/session environment. Toggling off does not delete existing snapshots —
+  they go inert until re-enabled.
+- **Disk-pressure remediation:** the base store is bounded (one artefact per
+  distinct merge-base, reclaimed by refcount GC over registered worktrees), but
+  if you need to reclaim space on demand, run `anvil graph-base gc` for one GC
+  pass, or `anvil graph-base gc --purge-all` to empty the base store. A base
+  under active production is skipped (re-run once it settles); deleting anything
+  under `graph-cache/` by hand is also safe — the daemon cold-rebuilds.
+- **Failure posture:** all persistence failure is non-fatal — an absent,
+  corrupt, or unreadable base makes the daemon serve a cold scan.
+
 ## Versions covered
 
 This page carries the per-version migration guides through `0.7.2-beta`. For

@@ -959,4 +959,68 @@ mod tests {
             assert!(cache.contains(key), "the recovered worktree is warm");
         }
     }
+
+    /// **GBASE-010 §11 companion: the win scales with the unchanged majority.**
+    ///
+    /// The clean-worktree harness proves the best case (0 re-parses). Real
+    /// worktrees carry a few dirty files; this shows the win is **proportional to
+    /// the unchanged majority**: a warm-start over a worktree with `DIRTY` changed
+    /// files out of `FILES` re-parses **exactly `DIRTY`** files (the changed
+    /// minority), not all `FILES` — the base supplies the unchanged rest. So the
+    /// per-worktree re-parse ratio is `FILES / DIRTY`, degrading gracefully from
+    /// the clean-worktree `FILES / 0` toward a cold scan only as a worktree
+    /// approaches fully-dirty.
+    #[test]
+    fn warm_start_dirty_worktree_reparses_only_the_changed_minority() {
+        const FILES: usize = 40;
+        const DIRTY: usize = 3;
+
+        let base_fixture: Vec<(String, String)> = (0..FILES)
+            .map(|i| (format!("mod{i}.ts"), format!("export f{i}")))
+            .collect();
+        let base_ref: Vec<(&str, &str)> = base_fixture
+            .iter()
+            .map(|(p, b)| (p.as_str(), b.as_str()))
+            .collect();
+
+        let store = tempfile::tempdir().unwrap();
+        let base = store.path().join("base");
+        let producer_wt = tempfile::tempdir().unwrap();
+        publish_base_from_files(&base, SHA, producer_wt.path(), &base_ref, &LineParser);
+
+        // A worktree that checks out the base files, then dirties DIRTY of them
+        // (new bodies ⇒ new content hashes ⇒ the overlay must re-parse exactly those).
+        let wt = tempfile::tempdir().unwrap();
+        for (rel, body) in &base_ref {
+            write(wt.path(), rel, body);
+        }
+        for i in 0..DIRTY {
+            write(
+                wt.path(),
+                &format!("mod{i}.ts"),
+                &format!("export f{i}\nexport extra{i}"),
+            );
+        }
+
+        let counter = CountingParser::default();
+        let cache = KernelGraphCache::new();
+        let key = key_for(wt.path());
+        assert_eq!(
+            compose_worktree_from_base(&cache, &key, &base, SHA, wt.path(), &counter, &caps()),
+            ComposeWarmStartOutcome::Composed,
+        );
+
+        eprintln!(
+            "[GBASE-010 warm-start dirty] FILES={FILES} DIRTY={DIRTY} \
+             compose parses={} (cold would parse {FILES})",
+            counter.count(),
+        );
+        // Exactly the changed minority is re-parsed — the unchanged majority is
+        // served from the base with zero parse work.
+        assert_eq!(
+            counter.count(),
+            DIRTY as u64,
+            "warm-start re-parses only the changed minority, not the whole worktree",
+        );
+    }
 }

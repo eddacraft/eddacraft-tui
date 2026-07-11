@@ -57,20 +57,21 @@ To add a flag:
 
 ## Summary Table
 
-| Control                          | Location                                      | Classification | Flag class    | Mechanism      |
-| -------------------------------- | --------------------------------------------- | -------------- | ------------- | -------------- |
-| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target |
-| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement` | targeting      |
-| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override |
-| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —              |
-| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default        |
-| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —             | —              |
-| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —             | —              |
-| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`     | —              |
-| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement` | —              |
-| Web dashboard capabilities       | (no flag yet)                                 | adopt          | `entitlement` | —              |
-| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`     | —              |
-| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`     | —              |
+| Control                          | Location                                      | Classification | Flag class    | Mechanism       |
+| -------------------------------- | --------------------------------------------- | -------------- | ------------- | --------------- |
+| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target  |
+| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement` | targeting       |
+| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override  |
+| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —               |
+| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default         |
+| Warm-graph persistence           | `crates/anvil-graph-cache/src/snapshot.rs`    | adopt          | `rollout`     | default/opt-out |
+| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —             | —               |
+| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —             | —               |
+| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`     | —               |
+| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement` | —               |
+| Web dashboard capabilities       | (no flag yet)                                 | adopt          | `entitlement` | —               |
+| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`     | —               |
+| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`     | —               |
 
 ## Retired Controls — Migrated
 
@@ -249,6 +250,34 @@ the start when they are built.
 - **Classification:** **adopt**
 - **Target flags:** Per-surface `rollout` flags for staged audience enablement.
 - **Featureboard swap impact:** Provider replacement only.
+
+## Shipped Controls — Adopt
+
+### Warm-graph persistence (`daemon.persist-graph` / `ANVIL_PERSIST_GRAPH`)
+
+- **Current state:** Shipped and **default-on** (graduated by GBASE-010 after
+  the ADR-105 §11 gate). The save-time daemon persists and warm-restarts its
+  resident graph from a shared, content-addressed base snapshot plus
+  per-worktree overlays.
+- **Classification:** **adopt** — `rollout` class, boolean.
+- **Flag key / manifest:** `daemon.persist-graph` in `flags/manifest.json`
+  (`defaultVariant: enabled`); the code default is
+  `anvil_graph_cache::snapshot::persist_graph_enabled`, and a test asserts the
+  two agree.
+- **Semantics:** absence of the variable, an affirmative
+  (`1`/`true`/`yes`/`on`), an empty value, or an unparseable value all resolve
+  **on**. Only an explicit **opt-out** — `0`/`false`/`no`/`off` (trimmed,
+  case-insensitive) — disables.
+- **Rollback:** `ANVIL_PERSIST_GRAPH=0`, set in the **daemon's spawn
+  environment** (a login-shell rc does not reach a systemd-user- or IDE-launched
+  daemon; use `systemctl --user set-environment` / an `Environment=` line, or
+  the IDE/session environment). Persistence also requires a resolvable state
+  dir, so no state dir ⇒ off regardless.
+- **Where bases live:** `<state-dir>/graph-cache/base` (one write-once artefact
+  per repo per merge-base commit). Reclaimed by refcount GC over registered
+  worktrees; on-demand relief via `anvil graph-base gc [--purge-all]`.
+- **Privacy:** identity-only sealed snapshots (names, import/path identity,
+  edges, content hashes) — never source text; machine-local `0600` under `0700`.
 
 ## Excluded from Inventory
 
