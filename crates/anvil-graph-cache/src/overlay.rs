@@ -120,6 +120,14 @@ pub struct OverlayCoverage {
     /// Total gitignore-filtered files the walk found (a lower bound once the
     /// count ceiling is hit). `> walked_files` exactly when truncated.
     pub total_files: u64,
+    /// Files the walk visited but could **not read** this pass (a transient
+    /// permission/symlink/race error). They are **skipped entirely** — never
+    /// hashed, classified, tombstoned, or upserted — so a read blip cannot make a
+    /// base file look deleted (the loaded base version keeps composing; the next
+    /// compute self-heals). A non-zero count means the fragment is a partial view
+    /// of the worktree; the skipped paths are logged (not carried here, to keep
+    /// this envelope `Copy` and path-free).
+    pub skipped_unreadable: u64,
 }
 
 impl OverlayCoverage {
@@ -166,33 +174,45 @@ impl OverlayFragment {
 /// Membership is decided by `base_files` (the base's full file set — see
 /// [`SnapshotPayload::tracked_files`](crate::SnapshotPayload::tracked_files)),
 /// while `base_hashes` (a subset — only files whose producer stamped a hash) is
-/// consulted only to prove *unchangedness*:
+/// consulted only to prove *unchangedness*.
 ///
-/// - **added**: in `worktree`, **not in `base_files`** — a genuinely new file.
-/// - **modified**: in `base_files` **and** either (a) it has a `base_hashes`
-///   entry that differs from the worktree hash, or (b) it has **no** hash entry
-///   (hashless base file — unchangedness is unprovable, so re-parse
+/// The worktree side is split into **two** inputs, deliberately:
+/// - `worktree_files` — every file the walk **saw present on disk** this pass
+///   (readable *or not*). This is the authority for deletion.
+/// - `worktree_hashes` — the readable subset with a recomputed content hash. This
+///   is the authority for add/modify classification.
+///
+/// The split is what makes an *unreadable* walked file non-destructive: it is in
+/// `worktree_files` (so it is **not** inferred deleted) but absent from
+/// `worktree_hashes` (so it is neither added nor modified) — it is skipped
+/// entirely, and the loaded base version keeps composing until the next pass.
+///
+/// - **added**: in `worktree_hashes`, **not in `base_files`** — a genuinely new,
+///   readable file. (An unreadable would-be add is simply skipped.)
+/// - **modified**: in `worktree_hashes` **and** `base_files`, and either its
+///   `base_hashes` entry differs from the worktree hash, or it has **no** hash
+///   entry (hashless base file — unchangedness unprovable, so re-parse
 ///   conservatively; this also keeps it on the tombstone-bearing path). A hashed
 ///   file whose hash matches is excluded (exact, never re-parsed).
-/// - **deleted**: in `base_files`, not in `worktree` — **only when `!bounded`**.
-///   When the walk was truncated (`bounded == true`) a base file's absence from
-///   the (partial) worktree map is not evidence of deletion (it may lie beyond
-///   the walk cap), so no deletions are inferred (ADR-085 Bounded posture: never
-///   a silent over-claim).
+/// - **deleted**: in `base_files`, **not in `worktree_files`** — **only when
+///   `!bounded`**. When the walk was truncated (`bounded == true`) a base file's
+///   absence from the (partial) walked set is not evidence of deletion (it may
+///   lie beyond the walk cap), so no deletions are inferred (ADR-085 Bounded
+///   posture: never a silent over-claim).
 ///
-/// `base_files` is a [`BTreeSet`] and `worktree` a [`BTreeMap`], so iteration is
-/// already sorted; the returned [`ChangedSet`] vectors are sorted and
-/// de-duplicated by construction.
+/// All inputs are sorted ([`BTreeSet`]/[`BTreeMap`]), so the returned
+/// [`ChangedSet`] vectors are sorted and de-duplicated by construction.
 #[must_use]
 pub fn classify_changes(
     base_files: &BTreeSet<String>,
     base_hashes: &BTreeMap<String, u64>,
-    worktree: &BTreeMap<String, u64>,
+    worktree_files: &BTreeSet<String>,
+    worktree_hashes: &BTreeMap<String, u64>,
     bounded: bool,
 ) -> ChangedSet {
     let mut added = Vec::new();
     let mut modified = Vec::new();
-    for (file, wt_hash) in worktree {
+    for (file, wt_hash) in worktree_hashes {
         if !base_files.contains(file) {
             added.push(file.clone());
             continue;
@@ -207,14 +227,16 @@ pub fn classify_changes(
             _ => modified.push(file.clone()),
         }
     }
-    // Deletion inference is suppressed on a bounded walk: absence from a truncated
-    // worktree map cannot distinguish a deleted file from an unwalked one.
+    // Deletion uses the WALKED set (present on disk), not the readable-hash subset,
+    // so a walked-but-unreadable base file is never inferred deleted. Suppressed on
+    // a bounded walk: absence from a truncated walk cannot distinguish a deleted
+    // file from an unwalked one.
     let deleted = if bounded {
         Vec::new()
     } else {
         base_files
             .iter()
-            .filter(|file| !worktree.contains_key(*file))
+            .filter(|file| !worktree_files.contains(*file))
             .cloned()
             .collect()
     };
@@ -247,7 +269,7 @@ mod tests {
     fn clean_worktree_yields_empty_changed_set() {
         let base = map(&[("a.ts", 1), ("b.ts", 2)]);
         let wt = map(&[("a.ts", 1), ("b.ts", 2)]);
-        let changed = classify_changes(&files_of(&base), &base, &wt, false);
+        let changed = classify_changes(&files_of(&base), &base, &files_of(&wt), &wt, false);
         assert!(changed.is_empty(), "identical hashes ⇒ nothing changed");
     }
 
@@ -255,7 +277,7 @@ mod tests {
     fn modified_added_deleted_are_classified_disjointly() {
         let base = map(&[("keep.ts", 1), ("edit.ts", 2), ("gone.ts", 3)]);
         let wt = map(&[("keep.ts", 1), ("edit.ts", 99), ("new.ts", 4)]);
-        let changed = classify_changes(&files_of(&base), &base, &wt, false);
+        let changed = classify_changes(&files_of(&base), &base, &files_of(&wt), &wt, false);
         assert_eq!(changed.added, vec!["new.ts".to_owned()]);
         assert_eq!(changed.modified, vec!["edit.ts".to_owned()]);
         assert_eq!(changed.deleted, vec!["gone.ts".to_owned()]);
@@ -273,8 +295,9 @@ mod tests {
             ("b.ts", 9),
         ]);
         let files = files_of(&base);
-        let a = classify_changes(&files, &base, &wt, false);
-        let b = classify_changes(&files, &base, &wt, false);
+        let wt_files = files_of(&wt);
+        let a = classify_changes(&files, &base, &wt_files, &wt, false);
+        let b = classify_changes(&files, &base, &wt_files, &wt, false);
         assert_eq!(a, b, "same inputs ⇒ identical classification");
         assert_eq!(a.added, vec!["b.ts".to_owned(), "c.ts".to_owned()]);
         assert_eq!(
@@ -288,13 +311,13 @@ mod tests {
         // A base file absent from a truncated worktree map is NOT a deletion.
         let base = map(&[("a.ts", 1), ("b.ts", 2), ("c.ts", 3)]);
         let wt = map(&[("a.ts", 1)]); // b.ts, c.ts merely beyond the cap.
-        let bounded = classify_changes(&files_of(&base), &base, &wt, true);
+        let bounded = classify_changes(&files_of(&base), &base, &files_of(&wt), &wt, true);
         assert!(
             bounded.deleted.is_empty(),
             "bounded walk must not infer deletions from absence"
         );
         // Unbounded, the same absence IS a deletion.
-        let unbounded = classify_changes(&files_of(&base), &base, &wt, false);
+        let unbounded = classify_changes(&files_of(&base), &base, &files_of(&wt), &wt, false);
         assert_eq!(
             unbounded.deleted,
             vec!["b.ts".to_owned(), "c.ts".to_owned()]
@@ -313,7 +336,7 @@ mod tests {
         // Worktree: hashed.ts unchanged; hashless.go present (unchanged bytes,
         // but we cannot prove it) ⇒ conservative modified.
         let wt = map(&[("hashed.ts", 1), ("hashless.go", 42)]);
-        let changed = classify_changes(&base_files, &base_hashes, &wt, false);
+        let changed = classify_changes(&base_files, &base_hashes, &files_of(&wt), &wt, false);
         assert!(
             changed.added.is_empty(),
             "a hashless base file is not an add"
@@ -329,8 +352,38 @@ mod tests {
         let base_files = set(&["a.ts", "gone.go"]);
         let base_hashes = map(&[("a.ts", 1)]);
         let wt = map(&[("a.ts", 1)]);
-        let changed = classify_changes(&base_files, &base_hashes, &wt, false);
+        let changed = classify_changes(&base_files, &base_hashes, &files_of(&wt), &wt, false);
         assert_eq!(changed.deleted, vec!["gone.go".to_owned()]);
         assert!(changed.added.is_empty() && changed.modified.is_empty());
+    }
+
+    #[test]
+    fn walked_but_unreadable_base_file_is_neither_deleted_nor_modified() {
+        // The read-failure edge: a base file that WAS walked (present on disk) but
+        // could not be read is in the walked set yet absent from the hash map. It
+        // must be skipped entirely — never deleted (it exists), never modified (no
+        // hash to compare) — so the loaded base version keeps composing.
+        let base_files = set(&["a.ts", "locked.ts"]);
+        let base_hashes = map(&[("a.ts", 1), ("locked.ts", 5)]);
+        // Walked set includes locked.ts (present on disk); hash map does not (read
+        // failed this pass).
+        let worktree_files = set(&["a.ts", "locked.ts"]);
+        let worktree_hashes = map(&[("a.ts", 1)]);
+        let changed = classify_changes(
+            &base_files,
+            &base_hashes,
+            &worktree_files,
+            &worktree_hashes,
+            false,
+        );
+        assert!(
+            changed.deleted.is_empty(),
+            "a walked-but-unreadable base file exists ⇒ never deleted"
+        );
+        assert!(
+            changed.modified.is_empty(),
+            "no worktree hash ⇒ never classified modified"
+        );
+        assert!(changed.added.is_empty());
     }
 }
