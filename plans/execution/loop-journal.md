@@ -592,3 +592,21 @@ never with feature work.
 - Checkpoints raised: none.
 - Next: POLRESET-009 (adversarial depth — ATC/PATT), the module's final
   item.
+
+## Cycle — 2026-07-11 (JOURNEY orient + ACTTUI reconciliation)
+
+- Items: JOURNEY conductor opened (module In Progress); drift reconciliation
+  for ACTTUI-009/-010/-011.
+- Outcome: replanned — statuses recorded "In Progress … awaiting branch
+  integration" but PR #3263 merged 2026-07-10T23:54Z; code on main verified
+  against each Expected Outcome (consent wiring + tick/no-tick tests,
+  PTY/fixture contract matrix incl. `--no-tui`/`ANVIL_NO_TUI` fixtures,
+  typed verdict/evidence via `from_typed_with_progress`). All three set to
+  Merged 2026-07-10 via PR #3263.
+- Validation: code inspection on origin/main (start.rs typed verdict/log
+  builders; tests/start.rs PTY + fixture coverage; snapshots for
+  Preflight/Working/Consent/Verdict/Done); PR #3263 CI green at merge.
+- Plan changes: JOURNEY module Proposed → In Progress (index + module header).
+- Checkpoints raised: none.
+- Next: CIB-184 (unticked MCP picker) and WOW-005 (first-win reroute) in
+  parallel worktrees; CIB-183 after CIB-184.

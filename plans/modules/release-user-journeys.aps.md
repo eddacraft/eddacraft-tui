@@ -2,7 +2,7 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | Proposed | 0/10 |
+| JOURNEY | Conductor | Josh | high | In Progress | 0/10 |
 
 **Last reviewed:** 2026-07-11 — created from the operator's release goal and
 the accepted

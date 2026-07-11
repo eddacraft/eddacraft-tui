@@ -360,8 +360,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-009: Wire activation TUI consent end to end
 
-- **Status:** In Progress 2026-07-10 — implemented and validated locally on
-  `feat/acttui-009-consent-wiring`; awaiting branch integration.
+- **Status:** Merged 2026-07-10 via PR #3263
 - **Source:** First-run council review C-001, C-002, C-003, C-005
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-004
@@ -391,9 +390,8 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-010: Complete activation TUI contract matrix
 
-- **Status:** In Progress 2026-07-10 — implemented and validated locally on
-  `feat/acttui-009-consent-wiring`; awaiting branch integration. CIB-182's
-  existing repair-hint fixture change is accepted as the sanctioned contract.
+- **Status:** Merged 2026-07-10 via PR #3263 — CIB-182's existing repair-hint
+  fixture change is accepted as the sanctioned contract.
 - **Source:** First-run council review C-006, C-007, C-011, C-012
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
@@ -418,8 +416,9 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-011: Drive verdict and evidence panes from typed activation data
 
-- **Status:** In Progress 2026-07-10 — implemented and validated locally on
-  `feat/acttui-009-consent-wiring`; awaiting branch integration.
+- **Status:** Merged 2026-07-10 via PR #3263 — the production path builds the
+  verdict/evidence panes with `from_typed_with_progress` from a typed
+  `VerdictModel` and typed `LogEntry` rows.
 - **Source:** First-run council review C-004, C-010
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
