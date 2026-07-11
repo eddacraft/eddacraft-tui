@@ -4928,3 +4928,50 @@ archive.
 - **Identified From:** Same 2026-07-12 review — only one explicit promotion pass
   (2026-05-27) despite continuous write traffic when it was working.
 - **Confidence:** high
+
+### CIB-193: Finish the non-Linux cross-leg dead-code peel and close the PR-CI gap
+
+- **Status:** Ready
+- **Intent:** PR #3290 fixed the cross-target cfg dead-code in anvil-intercept
+  and anvil-bench, but dispatch run 29164882648 shows the next layer:
+  `crates/anvil-cli/tests/start.rs` fails `-D warnings` on
+  x86_64-pc-windows-msvc (`START_ACTIVATION_FIXTURES`,
+  `start_activation_fixture_path`, `normalise_start_activation_output`,
+  `assert_start_activation_fixture` are dead on non-unix). Peel it (and any
+  crate beneath) the same way, and close the systemic gap the PR #3290 council
+  flagged: no PR-triggered CI compiles these crates for non-unix targets under
+  `-D warnings` (clippy is Linux-only; the cross matrix is
+  release/hotfix/dispatch-gated; the nightly cross job is build-only).
+- **Expected Outcome:** All four non-unix cross legs green on a `rust.yml`
+  dispatch from main (darwin-arm base_store flake tracked separately as
+  CIB-194); a cheap PR-triggered check (e.g. `cargo clippy --target
+  x86_64-pc-windows-msvc -p` the cfg-sensitive crates, or an equivalent
+  check-only leg) so the cross-target cfg bug class fails PRs instead of
+  nightlies.
+- **Validation:** `rust.yml` dispatch green on the three non-flake legs; a PR
+  that reintroduces a non-unix dead binding fails the new PR-triggered check.
+- **Identified From:** PR #3290 council (session council-30437e3a,
+  adversarial + operations findings); dispatch run 29164882648 on
+  6d0fc2d712.
+- **Confidence:** high
+
+### CIB-194: Fix aarch64-apple-darwin base_store race-test failures
+
+- **Status:** Proposed
+- **Intent:** On dispatch run 29164882648 (HEAD 6d0fc2d712, files untouched by
+  that PR), `snapshot_io::base_store::tests::concurrent_claim_is_single_flight_exactly_one_winner`
+  and `reclaim_race_has_exactly_one_winner` panicked on aarch64-apple-darwin
+  with `Result::unwrap()` on `Err(NotFound)` (base_store.rs:966/1128 in
+  spawned threads), while the same tests passed on x86_64-apple-darwin —
+  timing/arch-dependent, so either the test harness makes a filesystem
+  assumption the arm runner breaks, or the single-flight claim/reclaim path
+  has a real platform-sensitive race.
+- **Expected Outcome:** Root cause identified (test-only vs product race);
+  both tests deterministic and green on both darwin legs; if a product race,
+  the fix reviewed as a GBASE trust-boundary change.
+- **Validation:** Both named tests pass on aarch64-apple-darwin and
+  x86_64-apple-darwin across a `rust.yml` dispatch; no `unwrap()` on
+  filesystem results remains in the two test bodies.
+- **Identified From:** PR #3290 council evidence run 29164882648
+  (operations-reviewer finding C-001 residual).
+- **Confidence:** medium
