@@ -405,6 +405,13 @@ default-on.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** GBASE-006
+- **Admission contract (from the GBASE-006 compose seam):** `sha` is a trust
+  boundary. This module MUST call
+  `graph_base_warm_start::compose_worktree_from_base` **only after the worktree is
+  admitted** (`AdmittedRoots`), with a `merge_base_sha` **derived by the daemon
+  itself** from the worktree's own git state — **never** a sha taken from a
+  wire/IPC request (a client-keyed base would let a worktree materialise an
+  attacker-chosen graph).
 
 ---
 

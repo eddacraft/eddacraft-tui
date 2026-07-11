@@ -617,10 +617,14 @@ impl KernelGraphCache {
     /// capacity.
     ///
     /// **Only inserts if the key is currently cold** — it never clobbers an
-    /// existing entry (returns `false` then). This is the compare-and-insert that
+    /// existing entry (returns `None` then). This is the compare-and-insert that
     /// makes a background restore safe to race a concurrent reconcile scan: if the
     /// scan has already begun warming the key, the restore is a no-op. Returns
-    /// `true` when it inserted.
+    /// `Some(generation)` — the installed entry's **warmth generation** — when it
+    /// inserted, so the caller (and the reconcile it triggers) can pin the exact
+    /// incarnation it warmed: the generation is the token
+    /// [`clear_restored`](Self::clear_restored) matches against, so a stale scan
+    /// for a *prior* incarnation cannot clear a re-composed entry's flag.
     ///
     /// The import/re-export accumulators are seeded **empty**: the snapshot
     /// carries the resolved `(SymbolGraph, DependencyGraph)` for reads, not the
@@ -630,10 +634,15 @@ impl KernelGraphCache {
     /// file and prunes any file absent from disk — see the executor), so a file
     /// deleted while the daemon was down never survives into a `Clean` graph. The
     /// assurance machine stays `Stale` until that scan completes.
-    pub fn restore(&self, key: &WorktreeKey, sym: SymbolGraph, dep: DependencyGraph) -> bool {
+    pub fn restore(
+        &self,
+        key: &WorktreeKey,
+        sym: SymbolGraph,
+        dep: DependencyGraph,
+    ) -> Option<u64> {
         let mut guard = self.lock();
         if guard.map.contains_key(key) {
-            return false;
+            return None;
         }
         if guard.map.len() >= self.capacity {
             evict_lru(&mut guard);
@@ -658,7 +667,12 @@ impl KernelGraphCache {
                 restored: true,
             },
         );
-        true
+        // The install generation is the key's current warmth generation (bumped by
+        // any prior eviction/invalidate; `restore` itself does not bump). Two
+        // distinct incarnations of a key therefore always carry distinct
+        // generations, because re-installing a key requires it to have been evicted
+        // or invalidated first — both bump this counter.
+        Some(guard.generations.get(key).copied().unwrap_or(0))
     }
 
     /// CIB-095b: whether `key`'s warm entry is a restored-but-not-reconciled
@@ -670,11 +684,28 @@ impl KernelGraphCache {
     }
 
     /// CIB-095b: clear the restored stand-in flag for `key` once the reconcile
-    /// full scan has re-applied every on-disk file and completed — the warm
-    /// `all_imports`/trust are now authoritative, so a verdict may certify again.
-    /// A no-op when the key is cold or already reconciled.
-    pub fn clear_restored(&self, key: &WorktreeKey) {
-        if let Some(entry) = self.lock().map.get_mut(key) {
+    /// full scan for the incarnation at `generation` has re-applied every on-disk
+    /// file and completed — the warm `all_imports`/trust are now authoritative, so
+    /// a verdict may certify again. A no-op when the key is cold or already
+    /// reconciled.
+    ///
+    /// **Generation-guarded (GBASE-006 council MAJOR 1):** `generation` is the
+    /// token [`restore`](Self::restore) returned for the entry the scan set out to
+    /// reconcile (the reconcile captures it at scan start via
+    /// [`generation`](Self::generation)). If the entry was evicted and re-composed
+    /// while the scan ran — bumping the key's live generation — a stale scan's
+    /// clear must **not** clear the *new*, never-reconciled entry's flag (a narrow
+    /// false-`Certified` path). The clear therefore only fires when the live
+    /// generation still matches the one the scan pinned.
+    pub fn clear_restored(&self, key: &WorktreeKey, generation: u64) {
+        let mut guard = self.lock();
+        let current = guard.generations.get(key).copied().unwrap_or(0);
+        if current != generation {
+            // A different incarnation is live now — this scan reconciled a prior
+            // one. Leave the current entry's stand-in flag intact.
+            return;
+        }
+        if let Some(entry) = guard.map.get_mut(key) {
             entry.restored = false;
         }
     }
@@ -1392,6 +1423,55 @@ mod tests {
         assert!(
             cache.generation(&k1) > gen_before,
             "eviction bumps the victim's generation"
+        );
+    }
+
+    /// GBASE-006 council MAJOR 1: `clear_restored` is generation-guarded. A stale
+    /// reconcile for a PRIOR incarnation must not clear the restored stand-in flag
+    /// on a NEW, never-reconciled entry composed after an eviction — the narrow
+    /// false-`Certified` path the guard closes.
+    #[test]
+    fn clear_restored_is_generation_guarded_against_stale_reconcile() {
+        // Capacity 1 forces eviction, so re-composing a key bumps its generation.
+        let cache = KernelGraphCache::with_capacity(1);
+        let k1 = key("gen-guard-1");
+        let k2 = key("gen-guard-2");
+
+        // Incarnation A: install a composed/restored entry for k1. The reconcile
+        // for this incarnation would pin `gen_a`.
+        let gen_a = cache
+            .restore(&k1, SymbolGraph::new(), DependencyGraph::new())
+            .expect("restore installs into a cold cache");
+        assert!(cache.is_restored(&k1), "incarnation A is a stand-in");
+
+        // Evict k1 (install k2 at capacity 1), then re-compose k1 → incarnation B.
+        assert!(
+            cache
+                .restore(&k2, SymbolGraph::new(), DependencyGraph::new())
+                .is_some(),
+            "installing k2 evicts k1 (capacity 1)"
+        );
+        let gen_b = cache
+            .restore(&k1, SymbolGraph::new(), DependencyGraph::new())
+            .expect("k1 re-composed (evicting k2)");
+        assert_ne!(
+            gen_a, gen_b,
+            "a re-composed incarnation carries a fresh generation"
+        );
+        assert!(cache.is_restored(&k1), "incarnation B is a fresh stand-in");
+
+        // The STALE reconcile (pinned to gen_a) fires its clear — must NOT clear B.
+        cache.clear_restored(&k1, gen_a);
+        assert!(
+            cache.is_restored(&k1),
+            "a stale reconcile for a prior incarnation must not clear the new entry"
+        );
+
+        // The FRESH reconcile (pinned to gen_b) clears correctly.
+        cache.clear_restored(&k1, gen_b);
+        assert!(
+            !cache.is_restored(&k1),
+            "the matching-generation reconcile clears the stand-in flag"
         );
     }
 

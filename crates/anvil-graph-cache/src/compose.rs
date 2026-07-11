@@ -20,12 +20,13 @@
 //!    edge work.
 //! 3. **Apply tombstones** — remove the base shadow of every deleted file **and**
 //!    every modified file. Removing a node drops its incident edges, so the base's
-//!    now-stale edges into those files vanish here (exactly the
+//!    now-stale edges into those files vanish here — exactly the
 //!    [`invalidated_base_edges`](crate::rebase::ComposePlan::invalidated_base_edges)
-//!    set — dropped implicitly, validated explicitly by GBASE-005). This is the
-//!    file-removal primitive the composition relies on:
-//!    [`SymbolGraph::remove_file`] on the symbol side, [`DependencyGraph::remove_file`]
-//!    on the dependency side.
+//!    set retired. Their removal is *asserted* in debug builds (a `debug_assert`
+//!    inside `compose` checks no tombstoned target survives), so the plan field is
+//!    read on the production path, not merely computed. This is the file-removal
+//!    primitive the composition relies on: [`SymbolGraph::remove_file`] on the
+//!    symbol side, [`DependencyGraph::remove_file`] on the dependency side.
 //! 4. **Apply upserts** ([`update_file`]) — lift each re-added/added file through
 //!    the same path the base producer and daemon use. Ids are already disjoint;
 //!    each file's imports resolve against the **composed** file set (base ∪
@@ -80,6 +81,8 @@
 //! Both are the same limitation class the GBASE-005 note names; the GBASE-007
 //! parity fixture must scope its cross-edge assertions accordingly.
 
+use std::collections::BTreeSet;
+
 use anvil_kernel_types::{CallSite, EdgeType, ImportEdge, ReexportEdge, SymbolEdge};
 
 use crate::dependency::DependencyGraph;
@@ -103,10 +106,18 @@ use crate::symbol_graph::SymbolGraph;
 /// worktree (empty fragment) composes to the base unchanged.
 ///
 /// # Errors
-/// [`SnapshotLoadError::Corrupt`] if the base payload replays inconsistently (a
-/// duplicate id or a dangling edge endpoint) — the daemon-side caller treats this
-/// as "serve cold", never a panic. All other composition steps are infallible
-/// (they operate on already-validated, in-memory graphs).
+/// [`SnapshotLoadError::Corrupt`] if:
+/// - the base payload replays inconsistently (a duplicate id or a dangling edge
+///   endpoint — from [`SnapshotPayload::into_graphs`]); or
+/// - the fragment breaks the **modified-implies-tombstoned** invariant (a
+///   base-preexisting file upserted without a matching tombstone — a malformed
+///   overlay that would silently drop surviving importers' edges).
+///
+/// The daemon-side caller treats either as "serve cold", never a panic. The
+/// remaining steps operate on in-memory graphs and do not themselves return
+/// errors; the disjoint-id watermark makes an `update_file` id collision (which
+/// would drop-and-log a symbol) impossible by construction, so it is *not* a
+/// silent failure mode here.
 pub fn compose(
     base: SnapshotPayload,
     fragment: &OverlayFragment,
@@ -125,12 +136,63 @@ pub fn compose(
         return Ok((sym, dep));
     }
 
+    // GBASE-006 council MAJOR 2: enforce the **modified-implies-tombstoned**
+    // invariant before mutating. A well-formed GBASE-004 overlay tombstones the
+    // base shadow of every base-preexisting file it re-parses. If a base file were
+    // upserted WITHOUT a tombstone, `update_file`'s internal `remove_file` would
+    // strip the surviving importers' `importer → file` edges while `plan_compose`
+    // — keying re-resolution on `tombstoned ∩ upsert` — would emit no
+    // `base_reresolve` directive to restore them, silently dropping those edges.
+    // Refuse such a fragment as corrupt rather than miscompose. (`sym` is still the
+    // pristine replayed base here, so its `file_names` is the base file set.)
+    //
+    // NOTE: `file_names()` yields the underlying `HashMap`'s order, which is *not*
+    // deterministic — it is consumed here only for **set membership** (collected
+    // into a `BTreeSet`), never for ordered iteration, so compose stays
+    // deterministic regardless of that order.
+    let base_files: BTreeSet<&str> = sym.file_names().collect();
+    let tomb_set: BTreeSet<&str> = plan.tombstones.iter().map(String::as_str).collect();
+    let untombstoned_base_upserts = plan
+        .rebased_upserts
+        .iter()
+        .filter(|fs| base_files.contains(fs.file.as_str()) && !tomb_set.contains(fs.file.as_str()))
+        .count();
+    if untombstoned_base_upserts > 0 {
+        // Return the error path (never a silent miscomposition), and make it
+        // observable — count only, no paths (PV-10 telemetry posture). Deliberately
+        // NOT a `debug_assert!`: this is a *rejection contract* the daemon-side
+        // caller serves cold on and a test exercises, not an unreachable
+        // invariant, so it must return rather than panic in debug builds.
+        tracing::error!(
+            target: "anvil_graph_cache::compose",
+            violations = untombstoned_base_upserts,
+            "compose refused: base-preexisting upsert(s) not tombstoned \
+             (modified-implies-tombstoned invariant broken)",
+        );
+        return Err(SnapshotLoadError::Corrupt);
+    }
+
     // 3. Symbol graph: remove the base shadow of every tombstoned file (deletions
     //    + the base shadow of every modified file). Removing a symbol drops its
     //    incident edges, so the base's now-stale edges into these files vanish
-    //    with them — this is `plan.invalidated_base_edges` retired implicitly.
+    //    with them — the `plan.invalidated_base_edges` set retired.
     for file in &plan.tombstones {
         sym.remove_file(file);
+    }
+
+    // GBASE-006 council MINOR f: the tombstones above must have removed every node
+    // the plan flagged as an invalidated base edge's (tombstoned) target, so no
+    // surviving edge can still point at a tombstoned base id. Assert it in debug
+    // builds — this is the **explicit** validation of `plan.invalidated_base_edges`
+    // (retired implicitly by the removal above, verified here), so the field is
+    // read on the production path, not merely computed.
+    #[cfg(debug_assertions)]
+    for edge in &plan.invalidated_base_edges {
+        debug_assert!(
+            sym.get_symbol(edge.to_id).is_none(),
+            "invalidated base edge target {} survived the tombstone",
+            edge.to_id,
+        );
     }
 
     // 4. Apply the rebased upserts through the same `update_file` lift the base
@@ -179,15 +241,26 @@ pub fn compose(
             .first()
             .map(|s| s.id);
         if let (Some(from), Some(to)) = (from, to) {
-            // Both endpoints exist by construction (the directive names a
-            // surviving base file and a re-added overlay file); a stray failure is
-            // non-fatal (the edge is simply absent, exactly as an unresolved cold
-            // import would be).
-            let _ = sym.add_edge(SymbolEdge {
+            // Both endpoints resolve from live symbols, so `add_edge` (which only
+            // errors on a missing endpoint) cannot fail here. GBASE-006 council
+            // MINOR c: make an invariant break observable rather than silent — a
+            // stray failure is non-fatal (the edge is simply absent, as an
+            // unresolved cold import would be), but it should never happen.
+            if let Err(err) = sym.add_edge(SymbolEdge {
                 from,
                 to,
                 edge_type: directive.edge_type,
-            });
+            }) {
+                debug_assert!(
+                    false,
+                    "base-reresolve add_edge failed with resolved endpoints: {err}",
+                );
+                tracing::warn!(
+                    target: "anvil_graph_cache::compose",
+                    error = %err,
+                    "base-reresolve edge omitted: add_edge failed despite resolved endpoints",
+                );
+            }
         }
     }
 
@@ -519,6 +592,60 @@ mod tests {
             "f1's dependency on the deleted f2 is dropped (both directions)"
         );
         assert!(dep.dependents_of("f2.ts").is_empty());
+    }
+
+    // ---- MAJOR 2: modified-implies-tombstoned invariant enforced ----------
+
+    #[test]
+    fn base_preexisting_upsert_without_tombstone_is_refused() {
+        // A malformed fragment: it re-parses (upserts) f1.ts — a base-preexisting
+        // file — but does NOT tombstone it. A well-formed GBASE-004 overlay always
+        // tombstones the base shadow of a modified file; without it, `update_file`
+        // would strip f1's surviving importers' edges while `plan_compose` emits no
+        // `base_reresolve` directive to restore them (a silent miscomposition).
+        // compose() must refuse it via the error path, not miscompose.
+        let violating = OverlayFragment {
+            // f1.ts is in the base; upserted here with NO matching tombstone.
+            upserts: vec![file_symbols("f1.ts", &[(1, "aFn2")], &[])],
+            tombstones: Vec::new(),
+            changed: ChangedSet {
+                added: Vec::new(),
+                modified: vec!["f1.ts".to_owned()],
+                deleted: Vec::new(),
+            },
+            coverage: OverlayCoverage {
+                walked_files: 2,
+                total_files: 2,
+                skipped_unreadable: 0,
+            },
+        };
+        let result = compose(base_payload(), &violating);
+        assert!(
+            matches!(result, Err(SnapshotLoadError::Corrupt)),
+            "a base-preexisting upsert without a tombstone must be refused as corrupt, got {result:?}"
+        );
+
+        // Sanity: the SAME file upserted WITH its tombstone composes fine (this is
+        // the well-formed modified-file shape), so the guard is specific to the
+        // missing-tombstone violation, not to touching a base file at all.
+        let well_formed = OverlayFragment {
+            upserts: vec![file_symbols("f1.ts", &[(1, "aFn2")], &[])],
+            tombstones: vec!["f1.ts".to_owned()],
+            changed: ChangedSet {
+                added: Vec::new(),
+                modified: vec!["f1.ts".to_owned()],
+                deleted: Vec::new(),
+            },
+            coverage: OverlayCoverage {
+                walked_files: 2,
+                total_files: 2,
+                skipped_unreadable: 0,
+            },
+        };
+        assert!(
+            compose(base_payload(), &well_formed).is_ok(),
+            "the same file upserted WITH its tombstone composes cleanly"
+        );
     }
 
     // ---- (g) determinism: two runs structurally identical -----------------

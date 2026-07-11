@@ -971,7 +971,7 @@ mod tests {
 
         let cache = KernelGraphCache::new();
         assert!(
-            cache.restore(&wt(), sym, DependencyGraph::new()),
+            cache.restore(&wt(), sym, DependencyGraph::new()).is_some(),
             "restore must insert into the cold cache"
         );
         assert!(cache.is_restored(&wt()), "the entry is a restored stand-in");

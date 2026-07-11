@@ -37,6 +37,17 @@
 //! and calls this seam. Until then, the seam is exercised directly (and by the
 //! save-time wire), the way GBASE-003 shipped its trigger executor ahead of the
 //! full event loop.
+//!
+//! # Admission contract for the GBASE-009 caller (security)
+//!
+//! `sha` is a **trust boundary**. This seam reads the shared base artefact keyed
+//! by `sha` and composes it into a worktree's resident graph; a caller that keyed
+//! it on a **client-supplied** value could make a worktree materialise an
+//! attacker-chosen base. GBASE-009 MUST therefore call this seam **only after the
+//! worktree is admitted** (`AdmittedRoots`), with a `sha` **derived by the daemon
+//! itself** from the worktree's own git state (the merge-base of its `HEAD`
+//! against the default branch) — **never** a sha taken from a wire/IPC request.
+//! The `key`/`root` likewise name the admitted canonical root, not a wire path.
 #![cfg(unix)]
 
 use std::path::Path;
@@ -101,17 +112,45 @@ pub fn compose_worktree_from_base(
     parser: &dyn SymbolParser,
     caps: &DosCaps,
 ) -> ComposeWarmStartOutcome {
+    // Every log on this path carries `sha` + `base_dir` (council MAJOR 3 / ops):
+    // the shared base is keyed by merge-base sha, so an operator correlating a
+    // worktree's warm-start with a base-production/GC event needs both.
+    //
     // Fast pre-check (the authoritative compare-and-insert is `restore` below): a
     // key already warm is left to its authoritative graph, never clobbered.
     if cache.contains(key) {
+        tracing::debug!(
+            target: "anvil_intercept::graph_base_warm_start",
+            workspace_root = %root.display(),
+            sha = %sha,
+            "warm-start: key already warm; no compose",
+        );
         return ComposeWarmStartOutcome::AlreadyWarm;
     }
 
     // Route on the base load (ADR-105 §9). Absent/Ignored ⇒ cold path, no compose.
     let payload = match load_base(base_dir, sha) {
         BaseLoadOutcome::Loaded(payload) => payload,
-        BaseLoadOutcome::Absent => return ComposeWarmStartOutcome::ColdBaseAbsent,
-        BaseLoadOutcome::Ignored => return ComposeWarmStartOutcome::ColdBaseIgnored,
+        BaseLoadOutcome::Absent => {
+            tracing::debug!(
+                target: "anvil_intercept::graph_base_warm_start",
+                workspace_root = %root.display(),
+                sha = %sha,
+                base_dir = %base_dir.display(),
+                "warm-start: no base artefact for sha (first-run/cold path)",
+            );
+            return ComposeWarmStartOutcome::ColdBaseAbsent;
+        }
+        BaseLoadOutcome::Ignored => {
+            tracing::info!(
+                target: "anvil_intercept::graph_base_warm_start",
+                workspace_root = %root.display(),
+                sha = %sha,
+                base_dir = %base_dir.display(),
+                "warm-start: base artefact ignored (wrong class/epoch/integrity); serving cold, left for GC",
+            );
+            return ComposeWarmStartOutcome::ColdBaseIgnored;
+        }
     };
 
     // Compute the worktree overlay (GBASE-004). The overlay is deliberately
@@ -123,6 +162,8 @@ pub fn compose_worktree_from_base(
             tracing::debug!(
                 target: "anvil_intercept::graph_base_warm_start",
                 workspace_root = %root.display(),
+                sha = %sha,
+                base_dir = %base_dir.display(),
                 error = %err,
                 "overlay computation failed; serving cold (no compose)",
             );
@@ -141,6 +182,8 @@ pub fn compose_worktree_from_base(
             tracing::warn!(
                 target: "anvil_intercept::graph_base_warm_start",
                 workspace_root = %root.display(),
+                sha = %sha,
+                base_dir = %base_dir.display(),
                 error = %err,
                 "base replayed inconsistently during compose; serving cold",
             );
@@ -152,14 +195,22 @@ pub fn compose_worktree_from_base(
     // compare-and-insert that only warms a still-cold key and marks it a **restored
     // stand-in** — so the composed workspace comes up stale and cannot certify
     // until the reconcile clears the flag (ADR-105 §4 trust line).
-    if cache.restore(key, sym, dep) {
+    if cache.restore(key, sym, dep).is_some() {
         tracing::info!(
             target: "anvil_intercept::graph_base_warm_start",
             workspace_root = %root.display(),
+            sha = %sha,
+            base_dir = %base_dir.display(),
             "warm-start: composed resident graph from shared base + overlay (stale until reconcile)",
         );
         ComposeWarmStartOutcome::Composed
     } else {
+        tracing::debug!(
+            target: "anvil_intercept::graph_base_warm_start",
+            workspace_root = %root.display(),
+            sha = %sha,
+            "warm-start: key warmed by a concurrent scan/restore before install; composed result dropped",
+        );
         ComposeWarmStartOutcome::AlreadyWarm
     }
 }
@@ -472,12 +523,14 @@ mod tests {
         );
     }
 
-    /// Concurrency-sensitive: run the sibling-independence composition 20× so a
-    /// stray shared-state regression surfaces under repetition (paired with the
-    /// suite's `taskset -c 0,1` pinning in CI/local gate runs).
+    /// Determinism smoke (council MINOR g): compose is single-threaded and
+    /// deterministic, so sibling independence is a structural property, not a race
+    /// — a few iterations suffice to catch a stray shared-state regression (e.g. an
+    /// accidental `Arc`-shared graph). Kept small deliberately; the heavier
+    /// `taskset`-pinned repetition lives at the gate, not inline.
     #[test]
     fn sibling_independence_holds_over_repetition() {
-        for _ in 0..20 {
+        for _ in 0..3 {
             let store = tempfile::tempdir().unwrap();
             let base = store.path().join("base");
             let wt1 = tempfile::tempdir().unwrap();
@@ -634,7 +687,7 @@ mod tests {
                 content_hash: None,
             },
         );
-        assert!(cache.restore(&key, sym, DependencyGraph::new()));
+        assert!(cache.restore(&key, sym, DependencyGraph::new()).is_some());
 
         let outcome =
             compose_worktree_from_base(&cache, &key, &base, SHA, wt.path(), &LineParser, &caps());

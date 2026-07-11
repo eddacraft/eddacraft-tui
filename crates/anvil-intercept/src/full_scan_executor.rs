@@ -479,6 +479,13 @@ fn run_scan_loop(
     timed_out: &AtomicBool,
     deadline: Instant,
 ) {
+    // GBASE-006 council MAJOR 1: pin the warmth generation of the entry this scan
+    // reconciles, captured at scan start. If the entry is evicted + re-installed
+    // (bumping the generation) before this scan completes, the terminal
+    // `clear_restored` below no-ops rather than clearing a never-reconciled new
+    // incarnation's stand-in flag.
+    let scan_generation = ctx.cache.generation(key);
+
     // Decision 3: no parser → abort to `Stale`, never start a scan / produce an
     // empty `Clean` graph.
     let Some(parser) = ctx.parser.clone() else {
@@ -583,7 +590,7 @@ fn run_scan_loop(
                 // pruned anything gone from disk. Clear the restored stand-in flag
                 // so verdicts may certify again — the empty-`all_imports` window
                 // that could drop cross-file `Privileged` trust is closed.
-                ctx.cache.clear_restored(key);
+                ctx.cache.clear_restored(key, scan_generation);
                 // DSV-030 (ADR-069 §4): persist the freshly-built warm graph
                 // after a successful scan (never per-save). Best-effort — a write
                 // failure logs and degrades, never wedges the scan.
@@ -1401,7 +1408,11 @@ mod tests {
             })
             .unwrap();
         }
-        assert!(ctx.cache.restore(&key, sym, DependencyGraph::new()));
+        assert!(
+            ctx.cache
+                .restore(&key, sym, DependencyGraph::new())
+                .is_some()
+        );
         assert!(ctx.cache.warm_files(&key).contains(&"dead.ts".to_string()));
 
         // The reconcile scan rebuilds disk-authoritatively.
@@ -1442,7 +1453,11 @@ mod tests {
             span: None,
         })
         .unwrap();
-        assert!(ctx.cache.restore(&key, sym, DependencyGraph::new()));
+        assert!(
+            ctx.cache
+                .restore(&key, sym, DependencyGraph::new())
+                .is_some()
+        );
         assert!(
             ctx.cache.is_restored(&key),
             "a freshly restored entry is a stand-in"
@@ -1476,8 +1491,9 @@ mod tests {
         assert!(ctx.cache.contains(&key));
         // A late restore attempt on the now-warm key is refused.
         assert!(
-            !ctx.cache
-                .restore(&key, SymbolGraph::new(), DependencyGraph::new()),
+            ctx.cache
+                .restore(&key, SymbolGraph::new(), DependencyGraph::new())
+                .is_none(),
             "restore must not clobber a warm entry",
         );
     }

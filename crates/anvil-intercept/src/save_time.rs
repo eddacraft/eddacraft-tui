@@ -44,7 +44,7 @@
 //! read primitive is platform-split, behind the one type.
 #![cfg(any(unix, windows))]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -382,6 +382,14 @@ pub struct SaveTimeState {
     /// Defaults to [`DEFAULT_MAX_ADMITTED_ROOTS`](crate::dos::DEFAULT_MAX_ADMITTED_ROOTS);
     /// the daemon overrides it via [`Self::with_root_budget`].
     root_budget: usize,
+    /// GBASE-006 council MINOR d: the set of `WorktreeKey`s whose composed
+    /// warm-start ([`Self::spawn_compose_restore`]) is currently scheduled on the
+    /// background pool. The compose (base load + walk + parse) is far too expensive
+    /// to run redundantly, so a thundering herd of ref triggers for one worktree
+    /// must schedule **exactly one** compose: the spawn claims the key here before
+    /// scheduling and the task releases it on completion. Behind an `Arc` so the
+    /// spawned closure can clear its own slot.
+    compose_inflight: Arc<Mutex<HashSet<WorktreeKey>>>,
 }
 
 impl SaveTimeState {
@@ -418,6 +426,7 @@ impl SaveTimeState {
             snapshot_metrics: Arc::new(SnapshotMetrics::default()),
             witness_lock_timeout: resolve_witness_lock_timeout(),
             root_budget: crate::dos::DEFAULT_MAX_ADMITTED_ROOTS,
+            compose_inflight: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
@@ -632,13 +641,25 @@ impl SaveTimeState {
         if self.cache.contains(key) || self.coordinator.is_enqueued(key) {
             return;
         }
+        // GBASE-006 council MINOR d: dedup a thundering herd — claim the in-flight
+        // slot before scheduling; if a compose for this key is already scheduled,
+        // do not schedule a second (the compose is expensive). The task releases
+        // the slot on completion so a later trigger (merge-base moved) can re-run.
+        if !self.try_mark_compose_inflight(key) {
+            return;
+        }
         let cache = Arc::clone(&self.cache);
         let caps = self.caps;
+        let inflight = Arc::clone(&self.compose_inflight);
         let key = key.clone();
         let root = canonical_root.to_path_buf();
         let sha = sha.to_owned();
+        // Pass-through wrapper (council MINOR a): the seam
+        // (`compose_worktree_from_base`) logs each of the six outcomes at the
+        // appropriate level with `sha`/`base_dir`, so the wrapper adds no blanket
+        // log of its own — it only releases the in-flight slot.
         self.scheduler.background().spawn(move || {
-            let outcome = crate::graph_base_warm_start::compose_worktree_from_base(
+            let _outcome = crate::graph_base_warm_start::compose_worktree_from_base(
                 &cache,
                 &key,
                 &base_dir,
@@ -647,13 +668,43 @@ impl SaveTimeState {
                 parser.as_ref(),
                 &caps,
             );
-            tracing::debug!(
-                target: "anvil_intercept::graph_base_warm_start",
-                workspace_root = %root.display(),
-                outcome = ?outcome,
-                "composed warm-start attempt (GBASE-006)",
-            );
+            inflight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .remove(&key);
         });
+    }
+
+    /// GBASE-006 council MINOR d: claim the compose-warm-start in-flight slot for
+    /// `key`. Returns `true` if newly claimed (the caller schedules the compose),
+    /// `false` if a compose for `key` is already scheduled (dedup — do not
+    /// schedule a second). Released by [`Self::clear_compose_inflight`].
+    #[cfg(unix)]
+    fn try_mark_compose_inflight(&self, key: &WorktreeKey) -> bool {
+        self.compose_inflight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key.clone())
+    }
+
+    /// Release the compose-warm-start in-flight slot for `key` (see
+    /// [`Self::try_mark_compose_inflight`]). Called when the scheduled compose
+    /// finishes, so a later trigger can re-compose.
+    #[cfg(all(unix, test))]
+    fn clear_compose_inflight(&self, key: &WorktreeKey) {
+        self.compose_inflight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(key);
+    }
+
+    /// GBASE-006 test-only: whether no compose warm-start is currently in flight.
+    #[cfg(all(unix, test))]
+    fn compose_inflight_is_empty(&self) -> bool {
+        self.compose_inflight
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty()
     }
 
     /// Persist every warm worktree's graph on graceful shutdown (DSV-030 /
@@ -1146,7 +1197,7 @@ fn restore_snapshot_into_cache(
     // a reconcile scan beat us to warming it we no-op rather than clobber its
     // authoritative graph. Either way the next scan's prune keeps the entry
     // disk-authoritative, so this is correctness-safe regardless of the race.
-    if cache.restore(key, sym, dep) {
+    if cache.restore(key, sym, dep).is_some() {
         tracing::info!(
             target: "anvil_intercept::snapshot",
             workspace_root = %canonical_root.display(),
@@ -3493,6 +3544,89 @@ mod tests {
             has_unresolved_dynamic_import: false,
             content_hash: None,
         }
+    }
+
+    // ---- GBASE-006 council MINOR d/e: spawn_compose_restore guards -------
+
+    /// MINOR d: the per-key in-flight guard dedups a thundering herd — a second
+    /// claim for the same key while one is scheduled is refused; after release a
+    /// fresh compose may claim again.
+    #[cfg(unix)]
+    #[test]
+    fn compose_inflight_dedups_per_key() {
+        let st = state();
+        let k = WorktreeKey::from_canonical(PathBuf::from("/wt/compose-dedup"));
+        assert!(st.try_mark_compose_inflight(&k), "first claim succeeds");
+        assert!(
+            !st.try_mark_compose_inflight(&k),
+            "a second claim for the same key is deduped (one task scheduled)"
+        );
+        st.clear_compose_inflight(&k);
+        assert!(
+            st.try_mark_compose_inflight(&k),
+            "after the task releases, a later trigger may compose again"
+        );
+        st.clear_compose_inflight(&k);
+    }
+
+    /// MINOR e: `spawn_compose_restore` is a no-op with persistence off — it
+    /// returns before claiming the in-flight slot, so nothing is scheduled.
+    #[cfg(unix)]
+    #[test]
+    fn spawn_compose_restore_noop_without_persistence() {
+        let st = state();
+        assert!(
+            !st.persistence_enabled(),
+            "default state has persistence off"
+        );
+        let k = WorktreeKey::from_canonical(PathBuf::from("/wt/no-persist"));
+        st.spawn_compose_restore(&k, k.as_path(), &"a".repeat(40));
+        assert!(
+            st.compose_inflight_is_empty(),
+            "persistence off ⇒ no compose scheduled (no in-flight claim)"
+        );
+    }
+
+    /// MINOR e: `spawn_compose_restore` is a no-op with persistence on but **no
+    /// parser** injected — the daemon never parses on its own, so the overlay
+    /// cannot be computed; it returns before claiming the slot.
+    #[cfg(unix)]
+    #[test]
+    fn spawn_compose_restore_noop_without_parser() {
+        let tmp = tempfile::tempdir().unwrap();
+        let st = state().with_snapshot_dir(tmp.path().join("graph-cache"));
+        assert!(st.persistence_enabled());
+        assert!(st.parser.is_none(), "no parser injected");
+        let k = WorktreeKey::from_canonical(PathBuf::from("/wt/no-parser"));
+        st.spawn_compose_restore(&k, k.as_path(), &"b".repeat(40));
+        assert!(
+            st.compose_inflight_is_empty(),
+            "no parser ⇒ no compose scheduled (no in-flight claim)"
+        );
+    }
+
+    /// MINOR e: `spawn_compose_restore` is a no-op for an already-warm key — the
+    /// existing authoritative graph is never displaced by a compose.
+    #[cfg(unix)]
+    #[test]
+    fn spawn_compose_restore_noop_for_warm_key() {
+        let tmp = tempfile::tempdir().unwrap();
+        let st = state()
+            .with_snapshot_dir(tmp.path().join("graph-cache"))
+            .with_parser(Arc::new(FixedParser {
+                file: "a.ts".to_string(),
+                names: vec!["a".to_string()],
+            }));
+        let k = WorktreeKey::from_canonical(PathBuf::from("/wt/warm"));
+        // Warm the key directly (same-module access to the private cache field).
+        st.cache
+            .apply_delta(&k, ChangeKind::Create, file_symbols("a.ts", &["a"], 0));
+        assert!(st.cache.contains(&k), "key is warm");
+        st.spawn_compose_restore(&k, k.as_path(), &"c".repeat(40));
+        assert!(
+            st.compose_inflight_is_empty(),
+            "an already-warm key ⇒ no compose scheduled (no in-flight claim)"
+        );
     }
 
     /// A parser that hands back a fixed surface for `file` regardless of bytes —

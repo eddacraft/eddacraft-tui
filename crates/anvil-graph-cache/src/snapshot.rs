@@ -663,12 +663,23 @@ impl SnapshotPayload {
     ///
     /// # Errors
     /// [`SnapshotLoadError::Corrupt`] if the replayed body is internally
-    /// inconsistent (a duplicate id or a dangling edge endpoint) — treated as a
-    /// corrupt snapshot, i.e. cold-rebuild, never a panic.
+    /// inconsistent (a duplicate id or a dangling edge endpoint), **or** if any
+    /// path-bearing field (a node `file`, a dependency endpoint, or a
+    /// `file_hashes` key) is **not workspace-root-relative**. The build side
+    /// ([`Self::from_graphs`]) already refuses to *write* a non-relative path
+    /// ([`SnapshotBuildError::NonRelativePath`]); this is the symmetric **load-side**
+    /// guard (GBASE-006 council MINOR b) — defense-in-depth for a shared, on-disk
+    /// artefact a same-uid tamperer could have planted with an absolute / `..`
+    /// path, which would otherwise reach the resident graph and reverse-impact
+    /// index. Every such case is cold-rebuild, never a panic.
     pub fn into_graphs(self) -> Result<(SymbolGraph, DependencyGraph), SnapshotLoadError> {
         let mut sym = SymbolGraph::new();
         for node in self.nodes {
-            sym.add_symbol(node.into_node())
+            let node = node.into_node();
+            if !is_workspace_root_relative(&node.file) {
+                return Err(SnapshotLoadError::Corrupt);
+            }
+            sym.add_symbol(node)
                 .map_err(|_| SnapshotLoadError::Corrupt)?;
         }
         for edge in self.edges {
@@ -681,11 +692,19 @@ impl SnapshotPayload {
         // GV2-032: restore the per-file content-freshness keys so a warm-started
         // daemon can serve snippets (CE-7) without waiting for a re-save.
         for (file, hash) in self.file_hashes {
+            if !is_workspace_root_relative(&file) {
+                return Err(SnapshotLoadError::Corrupt);
+            }
             sym.set_file_hash(file, Some(hash));
         }
 
         let mut dep = DependencyGraph::new();
         for (src, targets) in self.dependency_edges {
+            if !is_workspace_root_relative(&src)
+                || !targets.iter().all(|t| is_workspace_root_relative(t))
+            {
+                return Err(SnapshotLoadError::Corrupt);
+            }
             dep.set_dependencies(&src, targets);
         }
 
@@ -1081,6 +1100,46 @@ mod tests {
         let a = SnapshotPayload::from_graphs(&sym, &dep).unwrap().to_bytes();
         let b = SnapshotPayload::from_graphs(&sym, &dep).unwrap().to_bytes();
         assert_eq!(a, b);
+    }
+
+    /// GBASE-006 council MINOR b: the load side (`into_graphs`) refuses a payload
+    /// carrying a non-workspace-root-relative path in any path-bearing field —
+    /// symmetric with the build-side `from_graphs` check. Defense-in-depth against
+    /// a same-uid tamperer planting an absolute / `..`-escaping path into the
+    /// shared on-disk artefact (it would otherwise reach the resident graph and
+    /// the reverse-impact index). Fields are private, so this crafts the tamper
+    /// in-module — a path `from_graphs` would never emit.
+    #[test]
+    fn into_graphs_rejects_non_relative_paths_defense_in_depth() {
+        let (sym, dep) = fixture();
+        let base = SnapshotPayload::from_graphs(&sym, &dep).unwrap();
+
+        // (1) a node `file` turned absolute.
+        let mut tampered = base.clone();
+        tampered.nodes[0].file = "/etc/passwd".to_string();
+        assert_eq!(
+            tampered.into_graphs().err(),
+            Some(SnapshotLoadError::Corrupt),
+            "an absolute node.file must be refused on load"
+        );
+
+        // (2) a dependency endpoint turned into a `..` escape.
+        let mut tampered = base.clone();
+        tampered.dependency_edges[0].1[0] = "../evil.ts".to_string();
+        assert_eq!(
+            tampered.into_graphs().err(),
+            Some(SnapshotLoadError::Corrupt),
+            "a `..`-escaping dependency endpoint must be refused on load"
+        );
+
+        // (3) a file_hashes key turned absolute.
+        let mut tampered = base;
+        tampered.file_hashes.push(("/abs/x.ts".to_string(), 1));
+        assert_eq!(
+            tampered.into_graphs().err(),
+            Some(SnapshotLoadError::Corrupt),
+            "an absolute file_hashes key must be refused on load"
+        );
     }
 
     #[test]
