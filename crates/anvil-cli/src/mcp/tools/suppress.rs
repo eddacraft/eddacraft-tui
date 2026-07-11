@@ -32,13 +32,14 @@
 
 use std::fs::{self, OpenOptions};
 use std::io::{Read as _, Seek as _, Write as _};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use chrono::{Duration, Utc};
 use serde_json::{Value, json};
 
 use crate::mcp::tools::shared::{
-    open_contained_rw_handle, redact_workspace_root, validate_workspace_root,
+    WorkspacePathKind, normalise_workspace_relative_path, open_contained_rw_handle,
+    redact_workspace_root, validate_workspace_root,
 };
 
 pub const TOOL_NAME: &str = "anvil_suppress";
@@ -172,37 +173,14 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
             "expiryDays must be between 1 and {MAX_EXPIRY_DAYS}",
         ));
     }
-    if file_path.is_empty() {
-        return Err("filePath must not be empty".to_string());
-    }
-    // Reject any path that is not purely workspace-relative — fail fast,
-    // before the filesystem is touched. Inspecting the first component
-    // catches every anchored form on every platform, which neither
-    // `is_absolute` nor `has_root` does alone:
-    //   - `/etc/passwd`   → RootDir   (rooted; `is_absolute` is false on Windows)
-    //   - `C:\foo`        → Prefix    (Windows absolute)
-    //   - `C:foo`         → Prefix    (Windows *drive-relative*: no root, so
-    //                                  `has_root` misses it, yet `join` anchors
-    //                                  it to drive C and escapes the workspace)
-    //   - `\\server\share`→ Prefix    (UNC)
-    if matches!(
-        Path::new(file_path).components().next(),
-        Some(Component::Prefix(_) | Component::RootDir)
-    ) {
-        return Err("filePath must be a workspace-relative path".to_string());
-    }
-    if Path::new(file_path)
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
-        return Err("filePath must not escape the workspace via \"..\"".to_string());
-    }
+    let file_path =
+        normalise_workspace_relative_path("filePath", file_path, WorkspacePathKind::Filesystem)?;
 
     let (server_root, workspace_path) =
         validate_workspace_root(Path::new(workspace_root), &server_root)?;
     let workspace_str = redact_workspace_root(&workspace_path, &server_root);
 
-    let absolute = canonicalise_inside_workspace(&workspace_path, file_path)?;
+    let absolute = canonicalise_inside_workspace(&workspace_path, &file_path)?;
 
     let sanitised_reason = sanitise_reason(reason);
     let expiry_str = expiry_date(expiry_days)?;

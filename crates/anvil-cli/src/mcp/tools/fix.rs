@@ -38,8 +38,8 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 use crate::mcp::tools::shared::{
-    open_contained_ro_handle, open_contained_rw_handle, redact_workspace_root,
-    validate_workspace_root,
+    WorkspacePathKind, normalise_workspace_relative_path, open_contained_ro_handle,
+    open_contained_rw_handle, redact_workspace_root, validate_workspace_root,
 };
 
 pub const TOOL_NAME: &str = "anvil_fix";
@@ -113,18 +113,8 @@ fn fix_payload(arguments: &Value) -> Result<Value, String> {
     if line < 1 {
         return Err("line must be >= 1".to_string());
     }
-    if file_path.is_empty() {
-        return Err("filePath must not be empty".to_string());
-    }
-    if Path::new(file_path).is_absolute() {
-        return Err("filePath must be a workspace-relative path".to_string());
-    }
-    if Path::new(file_path)
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        return Err("filePath must not escape the workspace via \"..\"".to_string());
-    }
+    let file_path =
+        normalise_workspace_relative_path("filePath", file_path, WorkspacePathKind::Filesystem)?;
 
     let (server_root, workspace_path) =
         validate_workspace_root(Path::new(workspace_root), &server_root)?;
@@ -143,7 +133,7 @@ fn fix_payload(arguments: &Value) -> Result<Value, String> {
         }));
     };
 
-    let absolute = canonicalise_inside_workspace(&workspace_path, file_path)?;
+    let absolute = canonicalise_inside_workspace(&workspace_path, &file_path)?;
 
     apply_fix(
         &absolute,
@@ -151,7 +141,7 @@ fn fix_payload(arguments: &Value) -> Result<Value, String> {
         line,
         warning_id,
         transform,
-        file_path,
+        &file_path,
         &workspace_str,
     )
 }

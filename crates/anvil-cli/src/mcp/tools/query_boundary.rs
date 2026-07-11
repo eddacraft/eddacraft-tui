@@ -33,7 +33,10 @@ use anvil_architecture::{
     create_default_boundaries, load_baseline,
 };
 
-use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
+use crate::mcp::tools::shared::{
+    WorkspacePathKind, normalise_workspace_relative_path, redact_workspace_root,
+    validate_workspace_root,
+};
 
 pub const TOOL_NAME: &str = "anvil_query_boundary";
 
@@ -97,8 +100,10 @@ fn query_payload(arguments: &Value) -> Result<Value, String> {
     // this, `./src/x.ts`, `src//x.ts`, or backslash separators fail to match
     // any layer glob and fall through to the "unassigned-layer, allowed by
     // default" verdict — a representation trick that bypasses boundary policy.
-    let source_file = normalise_relative_path("sourceFile", source_file)?;
-    let target_file = normalise_relative_path("targetFile", target_file)?;
+    let source_file =
+        normalise_workspace_relative_path("sourceFile", source_file, WorkspacePathKind::Policy)?;
+    let target_file =
+        normalise_workspace_relative_path("targetFile", target_file, WorkspacePathKind::Policy)?;
 
     let (server_root, workspace_path) =
         validate_workspace_root(Path::new(workspace_root), &server_root)?;
@@ -124,73 +129,6 @@ fn query_payload(arguments: &Value) -> Result<Value, String> {
         &target_file,
         &workspace_str,
     ))
-}
-
-/// Lexically normalise a caller-supplied workspace-relative path so it matches
-/// the same clean form the `anvil-architecture` validator sees from a scan
-/// (which produces forward-slash, `./`-free, single-separator relative paths).
-///
-/// This is purely lexical — no filesystem access — because the tool is
-/// read-only and the referenced files may not exist. Normalisation:
-///
-/// - converts `\` to `/` (Windows-style inputs evaluate like their
-///   forward-slash form),
-/// - drops `.` segments (collapsing a leading `./`),
-/// - collapses runs of `/` and any trailing `/`.
-///
-/// Rejected with a structured error (matching the containment posture
-/// `fix.rs`/`suppress.rs` apply) rather than falling through to the
-/// unassigned-allowed verdict:
-///
-/// - embedded NUL,
-/// - absolute or rooted paths (`/...`, UNC `\\...`) and Windows drive
-///   prefixes (`C:\...`, `C:/...`, drive-relative `C:foo`),
-/// - any `..` component,
-/// - empty after normalisation.
-fn normalise_relative_path(field: &str, raw: &str) -> Result<String, String> {
-    if raw.contains('\0') {
-        return Err(format!("{field} must not contain NUL characters"));
-    }
-
-    // Windows-style separators evaluate like their forward-slash form. This is
-    // unconditional (not host-gated), so on POSIX a caller-supplied name that
-    // literally contains a backslash is split into segments rather than kept as
-    // one. That is a deliberate trade-off: the risk being closed is a
-    // representation trick reaching the fail-open unassigned verdict, and the
-    // failure direction here is conservative (a mis-split path tends toward a
-    // stricter match or unassigned, never a concealed bypass).
-    let unified = raw.replace('\\', "/");
-
-    // Windows drive prefixes (`C:\foo`, `C:/foo`, drive-relative `C:foo`) are
-    // absolute-ish anchors that `join` would escape the workspace with; reject
-    // them lexically so behaviour is host-OS independent.
-    let bytes = unified.as_bytes();
-    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
-        return Err(format!("{field} must be a workspace-relative path"));
-    }
-
-    // A leading `/` (including UNC `\\server`, now `//server`) is rooted.
-    if unified.starts_with('/') {
-        return Err(format!("{field} must be a workspace-relative path"));
-    }
-
-    let mut segments: Vec<&str> = Vec::new();
-    for segment in unified.split('/') {
-        if segment == ".." {
-            return Err(format!("{field} must not escape the workspace via \"..\""));
-        }
-        // Empty segments come from `//` runs and trailing `/`; `.` is a no-op
-        // current-directory reference. Both are dropped.
-        if !segment.is_empty() && segment != "." {
-            segments.push(segment);
-        }
-    }
-
-    let normalised = segments.join("/");
-    if normalised.is_empty() {
-        return Err(format!("{field} must not be empty"));
-    }
-    Ok(normalised)
 }
 
 fn no_baseline_payload(workspace_str: &str) -> Value {

@@ -60,6 +60,58 @@ pub fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> Strin
     }
 }
 
+/// Select whether the returned path is a policy key or a filesystem spelling.
+#[derive(Clone, Copy)]
+pub enum WorkspacePathKind {
+    /// Normalise separators so architecture policy keys compare consistently.
+    Policy,
+    /// Preserve the caller's spelling so valid POSIX backslashes keep their
+    /// filename identity; portable validation still recognises Windows syntax.
+    Filesystem,
+}
+
+/// Lexically validate and normalise an untrusted workspace-relative path in a
+/// host-OS-independent way. Windows separators and anchors are recognised even
+/// when the server is running on Unix.
+///
+/// This is purely lexical: it converts backslashes to slashes, drops `.` and
+/// empty segments, and rejects NUL, rooted/UNC/drive-prefixed paths, `..`, and
+/// values that become empty. Filesystem containment is still enforced by the
+/// caller after joining the result to its validated workspace root.
+pub fn normalise_workspace_relative_path(
+    field: &str,
+    raw: &str,
+    kind: WorkspacePathKind,
+) -> Result<String, String> {
+    if raw.contains('\0') {
+        return Err(format!("{field} must not contain NUL characters"));
+    }
+    let unified = raw.replace('\\', "/");
+    let bytes = unified.as_bytes();
+    if unified.starts_with('/')
+        || (bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
+    {
+        return Err(format!("{field} must be a workspace-relative path"));
+    }
+    let mut segments = Vec::new();
+    for segment in unified.split('/') {
+        if segment == ".." {
+            return Err(format!("{field} must not escape the workspace via \"..\""));
+        }
+        if !segment.is_empty() && segment != "." {
+            segments.push(segment);
+        }
+    }
+    let normalised = segments.join("/");
+    if normalised.is_empty() {
+        return Err(format!("{field} must not be empty"));
+    }
+    Ok(match kind {
+        WorkspacePathKind::Policy => normalised,
+        WorkspacePathKind::Filesystem => raw.to_string(),
+    })
+}
+
 /// Collect the workspace-relative file list from a JSON array, rejecting
 /// shapes that the MCP tool surface should not accept: non-strings, empty
 /// entries, absolute paths, `..` escapes, and arrays larger than
@@ -79,24 +131,11 @@ pub fn collect_relative_files(files: &[Value], field: &str) -> Result<Vec<String
         let path = entry
             .as_str()
             .ok_or_else(|| format!("{field}[{index}] must be a string"))?;
-        if path.is_empty() {
-            return Err(format!("{field}[{index}] must not be empty"));
-        }
-        let candidate = Path::new(path);
-        if candidate.is_absolute() {
-            return Err(format!(
-                "{field}[{index}] must be a workspace-relative path"
-            ));
-        }
-        if candidate
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            return Err(format!(
-                "{field}[{index}] must not escape the workspace via \"..\""
-            ));
-        }
-        out.push(path.to_string());
+        out.push(normalise_workspace_relative_path(
+            &format!("{field}[{index}]"),
+            path,
+            WorkspacePathKind::Filesystem,
+        )?);
     }
     Ok(out)
 }
@@ -340,6 +379,61 @@ pub fn category_str(category: WarningCategory) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalises_workspace_relative_paths_independently_of_host_os() {
+        assert_eq!(
+            normalise_workspace_relative_path(
+                "filePath",
+                ".\\src//domain\\file.ts/",
+                WorkspacePathKind::Policy,
+            ),
+            Ok("src/domain/file.ts".to_string())
+        );
+    }
+
+    #[test]
+    fn rejects_windows_anchors_on_non_windows_hosts() {
+        for path in [r"C:\Windows\system32", "C:relative", r"\\server\share"] {
+            assert_eq!(
+                normalise_workspace_relative_path("filePath", path, WorkspacePathKind::Policy),
+                Err("filePath must be a workspace-relative path".to_string())
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_parent_and_nul_components() {
+        assert_eq!(
+            normalise_workspace_relative_path(
+                "filePath",
+                "src/../escape",
+                WorkspacePathKind::Filesystem,
+            ),
+            Err("filePath must not escape the workspace via \"..\"".to_string())
+        );
+        assert_eq!(
+            normalise_workspace_relative_path(
+                "filePath",
+                "src/evil\0name",
+                WorkspacePathKind::Filesystem,
+            ),
+            Err("filePath must not contain NUL characters".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn filesystem_paths_preserve_literal_posix_backslashes() {
+        assert_eq!(
+            normalise_workspace_relative_path(
+                "filePath",
+                r"src/a\b.ts",
+                WorkspacePathKind::Filesystem,
+            ),
+            Ok(r"src/a\b.ts".to_string())
+        );
+    }
 
     #[test]
     fn collect_rejects_arrays_larger_than_max() {

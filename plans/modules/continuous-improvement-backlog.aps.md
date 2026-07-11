@@ -4200,7 +4200,7 @@ archive.
 
 ### CIB-157: Consolidate the three MCP path-safety implementations
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** `crates/anvil-cli/src/mcp/tools/` now has three independent
   "is this a safe workspace-relative path" checks: `shared.rs`'s
   `Component`-based `collect_relative_files`, `suppress.rs`'s
