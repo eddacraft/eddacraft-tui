@@ -1,6 +1,8 @@
 pub mod aggregator;
+pub mod cumulative;
 pub mod drift_trend;
 pub mod first_week_hint;
+pub mod scorecard;
 pub mod suppressions;
 
 use chrono::{DateTime, SecondsFormat, Utc};

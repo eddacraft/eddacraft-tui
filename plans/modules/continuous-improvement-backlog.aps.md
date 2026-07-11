@@ -1940,8 +1940,14 @@ archive.
 
 ### CIB-073: cumulative "value caught" scoreboard and shareable scorecard
 
-- **Status:** Proposed — promoted into the JOURNEY release cut on 2026-07-11;
-  privacy/redaction contract remains the readiness gate
+- **Status:** Merged 2026-07-11 via PR #3282 — shipped the cumulative value
+  scoreboard on `anvil insights` (witness-chain totals plus 30/90-day
+  windows, save-time protection counts over the sidecar's retained window),
+  `anvil insights --share` (deterministic, self-contained, redacted HTML
+  scorecard) and the `anvil.insights.v2` JSON document under
+  `--cumulative --json` (default `--json` stays v1); redaction proven by
+  marker-seeded fixtures. Promoted into the JOURNEY release cut on
+  2026-07-11; the privacy/redaction contract was the readiness gate.
 - **Intent:** Anvil has no surface that answers "what has Anvil saved me?" —
   `anvil insights` reports a rolling 7-day window (witness events, saves,
   findings, suppressions) plus a Unicode sparkline, but there is no cumulative
