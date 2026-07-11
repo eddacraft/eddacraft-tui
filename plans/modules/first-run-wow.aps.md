@@ -134,9 +134,11 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-005: First-win reroute after discovery
 
-- **Status:** Ready — direction and consent boundary accepted 2026-07-11 via
-  [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md);
-  execution waits for ACTTUI-009
+- **Status:** Merged 2026-07-11 via PR #3280 — first-win surface lands after
+  discovery: deterministic highest-value actionable-finding selection,
+  plain-language explanation, diff-before-write, fix apply behind ACTTUI's
+  unticked consent chrome (gated under `project_writes_gated`), honest
+  clean-repo result, decline lands on the path picker unchanged
 - **Intent:** A first-run user lands on their repo's highest-severity real
   finding with a guided fix opportunity before seeing the generic path picker,
   so the first minute delivers a concrete win on their own code.

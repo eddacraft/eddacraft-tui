@@ -58,6 +58,95 @@ fn tutorial_state_with_scan(
     state
 }
 
+/// WOW-005: how the first-win surface handed control back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FirstWinFlow {
+    /// Proceed to the tutorial path picker (declined, applied-and-continued,
+    /// clean result acknowledged, or no reroute was offered).
+    Continue,
+    /// The user quit the whole welcome flow.
+    Quit,
+}
+
+/// WOW-005: build the first-win surface state for the discovery results, or
+/// `None` when the flow should land on the path picker exactly as before.
+///
+/// - A real actionable finding with a previewable deterministic fix produces
+///   the offer surface (`first_win_candidate` pins selection determinism).
+/// - Showcase-substituted results from a scan that actually ran mean the
+///   repository is clean — state that honestly instead of presenting example
+///   findings as a local win (CIB-170). A showcase fallback with zero files
+///   scanned is a scan *failure*, not a clean result, so no claim is made.
+/// - Everything else (nothing actionable, preview unavailable, skipped scan)
+///   lands on the picker unchanged.
+fn build_first_win_state(
+    results: &anvil_tui::surfaces::tutorial::discovery::ScanResults,
+    project_writes_gated: bool,
+    preview: impl Fn(&FixRequest) -> Option<anvil_tui::surfaces::tutorial::first_win::FixPreview>,
+) -> Option<anvil_tui::surfaces::tutorial::first_win::FirstWinState> {
+    use anvil_tui::surfaces::tutorial::first_win::{FirstWinState, first_win_candidate};
+
+    if let Some(finding) = first_win_candidate(results) {
+        let request = finding.fix_request()?;
+        let preview = preview(&request)?;
+        return Some(FirstWinState::offer(
+            finding.clone(),
+            preview,
+            project_writes_gated,
+        ));
+    }
+    if results.is_showcase && results.files_scanned > 0 {
+        return Some(FirstWinState::clean(results.files_scanned));
+    }
+    None
+}
+
+/// WOW-005: run the first-win reroute between discovery and the tutorial
+/// path picker. Applies the fix only after explicit consent through the
+/// shared ACTTUI chrome (unticked default; CIB-165) and prunes the applied
+/// finding from `results` so the picker counts (WOW-003) and the WOW-004
+/// completion baseline reflect post-fix reality — the tutorial-time fix
+/// never touches the activation finding-baseline written by `anvil start`
+/// (CIB-127), so it cannot confuse baseline state.
+fn run_first_win_reroute(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
+) -> anyhow::Result<FirstWinFlow> {
+    let project_writes_gated = crate::install_root::project_writes_gated();
+    let Some(mut state) = build_first_win_state(
+        results,
+        project_writes_gated,
+        crate::services::interactive_fix::preview_fix_request,
+    ) else {
+        return Ok(FirstWinFlow::Continue);
+    };
+
+    loop {
+        let exit = crate::tui::run_surface_in(terminal, &mut state, theme)?;
+
+        if let Some(request) = state.take_pending_apply() {
+            // The apply path re-validates the line and refuses honestly if
+            // the file changed since the preview was shown.
+            match apply_fix_request(&request, None) {
+                FixOutcome::Applied { summary } => {
+                    remove_fixed_finding(results, &request);
+                    state.mark_outcome(true, summary);
+                }
+                FixOutcome::Refused { reason } | FixOutcome::Failed { reason } => {
+                    state.mark_outcome(false, reason);
+                }
+            }
+            continue;
+        }
+
+        if state.wants_continue || state.declined || exit == SurfaceExit::Back {
+            return Ok(FirstWinFlow::Continue);
+        }
+        return Ok(FirstWinFlow::Quit);
+    }
+}
+
 fn remove_fixed_finding(
     results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
     request: &FixRequest,
@@ -147,18 +236,27 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             Ok(OnboardingOutcome::Quit) => Ok(()),
             Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
                 match run_discovery(&mut terminal, &theme)? {
-                    Some(results) => {
-                        let mut tutorial_state = tutorial_state_with_scan(results);
-                        let exit = run_tutorial_with_fix(
-                            &mut terminal,
-                            &theme,
-                            &mut tutorial_state,
-                            global.verbose,
-                        )?;
-                        if exit == SurfaceExit::Quit {
+                    Some(mut results) => {
+                        // WOW-005: land on the highest-value actionable real
+                        // finding first; declining falls through to the
+                        // tutorial path picker exactly as before.
+                        if run_first_win_reroute(&mut terminal, &theme, &mut results)?
+                            == FirstWinFlow::Quit
+                        {
                             Ok(())
                         } else {
-                            run_welcome_hub(&mut terminal, &theme, global.verbose)
+                            let mut tutorial_state = tutorial_state_with_scan(results);
+                            let exit = run_tutorial_with_fix(
+                                &mut terminal,
+                                &theme,
+                                &mut tutorial_state,
+                                global.verbose,
+                            )?;
+                            if exit == SurfaceExit::Quit {
+                                Ok(())
+                            } else {
+                                run_welcome_hub(&mut terminal, &theme, global.verbose)
+                            }
                         }
                     }
                     None => run_welcome_hub(&mut terminal, &theme, global.verbose),
@@ -1338,7 +1436,15 @@ fn run_welcome_hub(
                 let onboarding_ok = match run_onboarding(terminal, theme) {
                     Ok(OnboardingOutcome::Quit) => break,
                     Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
-                        if let Some(results) = run_discovery(terminal, theme)? {
+                        if let Some(mut results) = run_discovery(terminal, theme)? {
+                            // WOW-005: restarted onboarding replays the
+                            // first-run experience, including the first-win
+                            // reroute.
+                            if run_first_win_reroute(terminal, theme, &mut results)?
+                                == FirstWinFlow::Quit
+                            {
+                                break;
+                            }
                             let mut tutorial_state = tutorial_state_with_scan(results);
                             let sub_exit = run_tutorial_with_fix(
                                 terminal,
@@ -1560,6 +1666,113 @@ mod tests {
 
         // Only an explicit Enter-to-continue advances into the tutorial.
         assert!(discovery_outcome(SurfaceExit::Quit, true, results()).is_some());
+    }
+
+    // ── WOW-005: first-win reroute routing ────────────────────────────────
+
+    mod first_win_routing {
+        use anvil_tui::surfaces::tutorial::discovery::{
+            Finding, FindingSeverity, FindingSource, ScanResults,
+        };
+        use anvil_tui::surfaces::tutorial::first_win::{
+            FIRST_WIN_CONSENT_ID, FirstWinPhase, FixPreview,
+        };
+
+        use super::super::build_first_win_state;
+
+        fn actionable_finding() -> Finding {
+            Finding {
+                file: "src/app.ts".to_string(),
+                line: Some(3),
+                severity: FindingSeverity::Warning,
+                source: FindingSource::AntiPattern,
+                title: "Avoid `any`".to_string(),
+                message: "message".to_string(),
+                suggestion: "suggestion".to_string(),
+                warning_id: Some("AP-003".to_string()),
+            }
+        }
+
+        fn results(findings: Vec<Finding>, is_showcase: bool, files_scanned: usize) -> ScanResults {
+            ScanResults {
+                findings,
+                files_scanned,
+                duration_ms: 5,
+                truncated: false,
+                files_skipped_by_ignore: 0,
+                is_showcase,
+            }
+        }
+
+        // Matches `build_first_win_state`'s preview closure signature, hence
+        // the `Option` return.
+        #[allow(clippy::unnecessary_wraps)]
+        fn some_preview(
+            _request: &anvil_tui::surfaces::fix_request::FixRequest,
+        ) -> Option<FixPreview> {
+            Some(FixPreview {
+                line: 3,
+                before: "const value: any = source;".to_string(),
+                after: "const value: unknown = source;".to_string(),
+            })
+        }
+
+        #[test]
+        fn actionable_finding_with_preview_offers_the_first_win() {
+            let r = results(vec![actionable_finding()], false, 10);
+            let state = build_first_win_state(&r, false, some_preview).expect("offer state");
+            assert!(matches!(state.phase, FirstWinPhase::Offer));
+            let offer = state.offer.as_ref().expect("offer");
+            assert_eq!(offer.finding.file, "src/app.ts");
+            // CIB-165: nothing pre-selected.
+            assert!(!offer.consent.is_selected(FIRST_WIN_CONSENT_ID));
+        }
+
+        #[test]
+        fn unavailable_preview_lands_on_the_picker_unchanged() {
+            // If the diff cannot be computed, no offer is shown — the flow
+            // must never promise a fix it cannot preview first.
+            let r = results(vec![actionable_finding()], false, 10);
+            assert!(build_first_win_state(&r, false, |_| None).is_none());
+        }
+
+        #[test]
+        fn clean_scan_states_an_honest_clean_result() {
+            // Clean repo: discovery substituted showcase examples for a real
+            // scan of 42 files. The reroute states the clean result and never
+            // offers example findings as a local win (CIB-170).
+            let r = results(vec![actionable_finding()], true, 42);
+            let state = build_first_win_state(&r, false, some_preview).expect("clean state");
+            assert!(matches!(
+                state.phase,
+                FirstWinPhase::Clean { files_scanned: 42 }
+            ));
+            assert!(state.offer.is_none());
+        }
+
+        #[test]
+        fn scan_failure_fallback_makes_no_clean_claim() {
+            // Showcase substitution with zero files scanned means the scan
+            // failed — claiming "clean" would be dishonest, so no reroute.
+            let r = results(vec![actionable_finding()], true, 0);
+            assert!(build_first_win_state(&r, false, some_preview).is_none());
+        }
+
+        #[test]
+        fn nothing_actionable_lands_on_the_picker_unchanged() {
+            let mut finding = actionable_finding();
+            finding.warning_id = None; // no deterministic fix
+            let r = results(vec![finding], false, 10);
+            assert!(build_first_win_state(&r, false, some_preview).is_none());
+        }
+
+        #[test]
+        fn skipped_scan_lands_on_the_picker_unchanged() {
+            // 's' during scanning yields empty, non-showcase results with
+            // zero files scanned: no findings, no clean claim.
+            let r = results(vec![], false, 0);
+            assert!(build_first_win_state(&r, false, some_preview).is_none());
+        }
     }
 
     // UJ-001: every welcome exit — in either variant — carries the user

@@ -18,7 +18,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &FixState, theme: &EddaCraft
     }
 }
 
-fn severity_badge(severity: FindingSeverity, theme: &EddaCraftTheme) -> (String, Style) {
+/// Shared by the fix and first-win renderers so a finding's severity reads
+/// identically on both surfaces.
+pub(super) fn severity_badge(severity: FindingSeverity, theme: &EddaCraftTheme) -> (String, Style) {
     match severity {
         FindingSeverity::Error => (
             " ERR ".to_string(),

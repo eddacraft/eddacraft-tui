@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 
 use anvil_tui::surfaces::doctor::DiagnosticCheck;
 use anvil_tui::surfaces::fix_request::FixRequest;
+use anvil_tui::surfaces::tutorial::first_win::FixPreview;
 use regex::Regex;
 
 static CONSOLE_STATEMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -65,6 +66,32 @@ pub fn apply_fix_request(
 
 pub fn is_auto_fixable_console_statement(line: &str) -> bool {
     CONSOLE_STATEMENT_RE.is_match(line)
+}
+
+/// WOW-005: compute the exact line change [`apply_fix_request`] would write,
+/// without writing anything. The transform is the same function the apply
+/// path runs, so the previewed diff is byte-for-byte what a consented apply
+/// produces. Returns `None` when no deterministic preview exists (unsupported
+/// request kind, unreadable file, out-of-range line, no transform for the
+/// line) — the caller skips the first-win offer rather than showing a diff it
+/// cannot honour.
+pub fn preview_fix_request(request: &FixRequest) -> Option<FixPreview> {
+    let FixRequest::AntiPatternWarning {
+        file,
+        line,
+        warning_id,
+    } = request
+    else {
+        return None;
+    };
+    let content = std::fs::read_to_string(Path::new(file)).ok()?;
+    let before = content.lines().nth(line.checked_sub(1)?)?.to_string();
+    let after = apply_antipattern_fix(&before, warning_id).ok()?;
+    Some(FixPreview {
+        line: *line,
+        before,
+        after,
+    })
 }
 
 fn apply_line_transform(
@@ -326,6 +353,62 @@ mod tests {
             None,
         );
         assert!(matches!(outcome, FixOutcome::Refused { .. }));
+    }
+
+    // ── WOW-005: preview_fix_request ─────────────────────────────────────
+
+    #[test]
+    fn preview_matches_apply_and_does_not_write() {
+        let path = temp_file("preview.ts", "const a = 1;\nconst value: any = source;\n");
+        let request = FixRequest::AntiPatternWarning {
+            file: path.path().to_string_lossy().to_string(),
+            line: 2,
+            warning_id: "AP-003".to_string(),
+        };
+
+        let preview = preview_fix_request(&request).expect("preview");
+        assert_eq!(preview.line, 2);
+        assert_eq!(preview.before, "const value: any = source;");
+        assert_eq!(preview.after, "const value: unknown = source;");
+
+        // Preview must not write: the file is unchanged.
+        let content = std::fs::read_to_string(path.path()).expect("read file");
+        assert_eq!(content, "const a = 1;\nconst value: any = source;\n");
+
+        // The consented apply writes exactly the previewed line.
+        let outcome = apply_fix_request(&request, None);
+        assert!(matches!(outcome, FixOutcome::Applied { .. }));
+        let content = std::fs::read_to_string(path.path()).expect("read updated file");
+        assert_eq!(content.lines().nth(1), Some(preview.after.as_str()));
+    }
+
+    #[test]
+    fn preview_none_when_no_deterministic_transform() {
+        let path = temp_file("preview.ts", "const value = source;\n");
+        let request = FixRequest::AntiPatternWarning {
+            file: path.path().to_string_lossy().to_string(),
+            line: 1,
+            warning_id: "AP-003".to_string(),
+        };
+        assert!(preview_fix_request(&request).is_none());
+    }
+
+    #[test]
+    fn preview_none_for_out_of_range_line() {
+        let path = temp_file("preview.ts", "const value: any = source;\n");
+        for line in [0, 9] {
+            let request = FixRequest::AntiPatternWarning {
+                file: path.path().to_string_lossy().to_string(),
+                line,
+                warning_id: "AP-003".to_string(),
+            };
+            assert!(preview_fix_request(&request).is_none(), "line {line}");
+        }
+    }
+
+    #[test]
+    fn preview_none_for_non_antipattern_requests() {
+        assert!(preview_fix_request(&FixRequest::DoctorCheck { index: 0 }).is_none());
     }
 
     #[test]

@@ -1,6 +1,8 @@
 pub mod discovery;
 mod discovery_render;
 pub(crate) mod executor;
+pub mod first_win;
+mod first_win_render;
 pub mod fix;
 mod fix_render;
 pub mod paths;
