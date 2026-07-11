@@ -213,6 +213,18 @@ pub enum UncoveredKind {
     NoMergeBase,
 }
 
+impl UncoveredKind {
+    /// The stable string the structured event's `uncovered_kind` field carries.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::DetachedHead => "detached_head",
+            Self::NoDefaultBranch => "no_default_branch",
+            Self::NoMergeBase => "no_merge_base",
+        }
+    }
+}
+
 /// The merge-base resolution for one worktree, as a **route** sees it: the single
 /// producing key, a deterministic uncovered topology, or a transient failure.
 ///
@@ -397,46 +409,93 @@ impl RouteResolver for GitRouteResolver {
             Err(()) => return RouteMergeBase::Unavailable,
         };
 
-        // 3. `merge-base HEAD <default>` — the default-branch key.
+        // 3. `merge-base HEAD <default>` — the default-branch key. **Producer parity
+        // short-circuit:** the producer computes this FIRST and bails
+        // `NoBasePossible` when it fails, BEFORE its `@{upstream}` block — so a route
+        // must NOT reach for an upstream refinement when the default-branch base does
+        // not exist (that would key `Base{refined}` on a sha the producer never
+        // builds). NoBase ⇒ `Uncovered(NoMergeBase)` immediately.
         let base_key = match classify_merge_base(run_git(
             &self.git_bin,
             worktree,
             &["merge-base", "--end-of-options", "HEAD", &default],
         )) {
-            MergeBaseCall::Found(sha) => Some(sha),
-            MergeBaseCall::NoBase => None,
+            MergeBaseCall::Found(sha) => sha,
+            MergeBaseCall::NoBase => {
+                return RouteMergeBase::Uncovered(UncoveredKind::NoMergeBase);
+            }
             MergeBaseCall::Unavailable => return RouteMergeBase::Unavailable,
         };
 
         // 4. `@{upstream}` refinement WINS when tracked (the producer returns the
         // refined key), so the route composes from the same sha the producer built.
+        // Only reached because the default-branch base resolved (step 3).
         let Ok(refined) = self.upstream_refinement(worktree) else {
             return RouteMergeBase::Unavailable;
         };
 
-        // 5. Primary = refinement when present, else the default-branch key.
-        match refined.or(base_key) {
-            Some(primary) => RouteMergeBase::Resolved(primary),
-            None => RouteMergeBase::Uncovered(UncoveredKind::NoMergeBase),
-        }
+        // 5. Primary = the upstream refinement when tracked, else the default-branch
+        // key (which is guaranteed present here).
+        RouteMergeBase::Resolved(refined.unwrap_or(base_key))
     }
 }
 
+/// After this many **consecutive same-route** evaluations a worktree is
+/// considered stable and its tick-driven re-evaluation is decimated (ADR-105 §8
+/// re-entrancy, bounded). Chosen small so a genuine flip is still caught within a
+/// few passes.
+const STABILITY_THRESHOLD: u32 = 4;
+
+/// Once decimated, a worktree is re-evaluated on the tick only every Nth pass.
+/// With the daemon's 30 s re-route tick that is ~5 min of steady-state cadence —
+/// ample for a rebase (whose warm effect lands at the next composition anyway),
+/// negligible git cost across a fleet.
+const DECIMATION_TICKS: u32 = 10;
+
+/// After this many **consecutive `Unavailable`** resolutions a worktree's
+/// tick-driven re-evaluation is decimated the same way (failure backoff), so a
+/// persistently-unresolvable repo (git mid-operation, permission loss) does not
+/// burn a `git` shell-out every tick. Reset on any successful resolution.
+const FAILURE_THRESHOLD: u32 = 4;
+
+/// Per-worktree re-entrant router state (ADR-105 §8): the last route (transition
+/// detection) plus the bounded-evaluation backoff counters.
+struct RouteState {
+    /// The last computed route — the transition-detection anchor.
+    last: PersistenceRoute,
+    /// Consecutive evaluations that produced the **same** route (stability).
+    stable_count: u32,
+    /// Consecutive `Unavailable` resolutions (failure backoff).
+    unavailable_streak: u32,
+    /// Whether we have already logged the "entering failure backoff" warning, so a
+    /// persistently-failing worktree warns **once**, not every pass.
+    failure_logged: bool,
+    /// Remaining tick passes to **skip** before the next tick-driven evaluation
+    /// (decimation countdown). `0` ⇒ evaluate on the next tick. Reset to `0` on any
+    /// route change (re-arm) so a flip is picked up promptly.
+    skip_ticks: u32,
+}
+
 /// The re-entrant persistence router (ADR-105 §8). Holds the injected
-/// [`RouteResolver`] and each worktree's **last route** so a re-evaluation can
-/// classify transitions (merge-base movement, covered↔uncovered flips).
+/// [`RouteResolver`] and each worktree's [`RouteState`] (last route + bounded
+/// re-evaluation backoff) so a re-evaluation can classify transitions (merge-base
+/// movement, covered↔uncovered flips) and the daemon's re-route tick stays cheap
+/// on a stable fleet.
 ///
-/// Routing is **time-free and deterministic**: the same resolver answer always
-/// yields the same route, and the transition classification is a pure function of
+/// Routing is **deterministic**: the same resolver answer always yields the same
+/// route, and the transition classification is a pure function of
 /// `(previous route, new route)`. The determinism seam is the injected resolver
-/// (a fake in tests) — mirroring GBASE-008's `KeepSetResolver`; there is no clock
-/// to inject because a route decision depends on git state alone, never on time.
+/// (a fake in tests) — mirroring GBASE-008's `KeepSetResolver`. The backoff is
+/// **tick-count based** (no wall-clock): [`Self::route`] (contacts) always
+/// evaluates and re-arms; only [`Self::route_on_tick`] honours the decimation, so
+/// an active worktree is never starved (every cold contact re-routes) while an
+/// idle fleet is bounded.
 pub struct PersistenceRouter {
     resolver: Arc<dyn RouteResolver>,
-    /// Each worktree's last computed route, for transition detection. Behind a
-    /// `Mutex` so the daemon's concurrent warm-start contacts and the low-cadence
-    /// re-route pass share one re-entrant memory.
-    last: Mutex<HashMap<WorktreeKey, PersistenceRoute>>,
+    /// Each worktree's re-entrant state. Behind a `Mutex` so the daemon's
+    /// concurrent warm-start contacts and the low-cadence re-route pass share one
+    /// memory.
+    states: Mutex<HashMap<WorktreeKey, RouteState>>,
 }
 
 impl PersistenceRouter {
@@ -452,63 +511,205 @@ impl PersistenceRouter {
     pub fn with_resolver(resolver: Arc<dyn RouteResolver>) -> Self {
         Self {
             resolver,
-            last: Mutex::new(HashMap::new()),
+            states: Mutex::new(HashMap::new()),
         }
     }
 
     /// Route `key` (rooted at `worktree`) between the base and per-worktree paths,
     /// re-entrantly: re-evaluate the topology, classify any transition against the
     /// last route, emit the structured `persistence.route{route, reason}` event,
-    /// and remember the new route. Returns the [`RouteDecision`] (the same
-    /// `route` + `reason` the event carries).
+    /// update the backoff counters, and remember the new route. Returns the
+    /// [`RouteDecision`].
     ///
-    /// Deterministic and side-effect-free beyond the one memory update and the
-    /// structured event.
+    /// This **always** evaluates (a `git` resolution) — it is the contact path
+    /// (post-admission warm-start), where an active worktree must re-route
+    /// promptly. The tick path ([`Self::route_on_tick`]) honours the backoff.
     #[must_use]
     pub fn route(&self, key: &WorktreeKey, worktree: &Path) -> RouteDecision {
-        let (route, topology_reason) = match self.resolver.resolve(worktree) {
-            RouteMergeBase::Resolved(sha) => (
-                PersistenceRoute::Base {
-                    merge_base_sha: sha,
-                },
-                RouteReason::BaseResolved,
-            ),
-            RouteMergeBase::Uncovered(kind) => (
-                PersistenceRoute::PerWorktree {
-                    canonical_root: worktree.to_path_buf(),
-                },
-                match kind {
-                    UncoveredKind::DetachedHead => RouteReason::UncoveredDetachedHead,
-                    UncoveredKind::NoDefaultBranch => RouteReason::UncoveredNoDefaultBranch,
-                    UncoveredKind::NoMergeBase => RouteReason::UncoveredNoMergeBase,
-                },
-            ),
-            RouteMergeBase::Unavailable => (
-                PersistenceRoute::PerWorktree {
-                    canonical_root: worktree.to_path_buf(),
-                },
-                RouteReason::ResolverUnavailable,
-            ),
+        let resolved = self.resolver.resolve(worktree);
+        let unavailable = matches!(resolved, RouteMergeBase::Unavailable);
+        let uncovered_kind = match &resolved {
+            RouteMergeBase::Uncovered(kind) => Some(*kind),
+            _ => None,
+        };
+        let (route, topology_reason) = classify_route(resolved, worktree);
+
+        // Classify the decision against the last route and commit the new state
+        // under one lock, so a concurrent re-evaluation sees a consistent
+        // (previous, new) pair. Also carry the previous Base sha (for a
+        // `merge_base_moved` event) out of the lock.
+        let (reason, previous_sha) = {
+            let mut states = self.states.lock().unwrap_or_else(PoisonError::into_inner);
+            let previous = states.get(key).map(|s| &s.last);
+            let reason = transition_reason(previous, &route, topology_reason);
+            let previous_sha = match (previous, &route) {
+                (
+                    Some(PersistenceRoute::Base {
+                        merge_base_sha: old,
+                    }),
+                    PersistenceRoute::Base {
+                        merge_base_sha: new,
+                    },
+                ) if old != new => Some(old.clone()),
+                _ => None,
+            };
+            let changed = previous != Some(&route);
+            update_state(&mut states, key, route.clone(), changed, unavailable);
+            (reason, previous_sha)
         };
 
-        // Classify the decision against the last route (re-entrancy) and commit
-        // the new route under the same lock, so a concurrent re-evaluation sees a
-        // consistent (previous, new) pair.
-        let reason = {
-            let mut last = self.last.lock().unwrap_or_else(PoisonError::into_inner);
-            let reason = transition_reason(last.get(key), &route, topology_reason);
-            last.insert(key.clone(), route.clone());
-            reason
-        };
-
-        emit_event(worktree, &route, reason);
+        emit_event(
+            worktree,
+            &route,
+            reason,
+            uncovered_kind,
+            previous_sha.as_deref(),
+        );
         RouteDecision { route, reason }
+    }
+
+    /// The **tick-driven** re-evaluation (ADR-105 §8 re-entrancy): re-route `key`
+    /// like [`Self::route`], but honour the per-worktree decimation backoff — a
+    /// stable or persistently-failing worktree is skipped on most ticks (no `git`
+    /// shell-out, no event), so the daemon's re-route pass stays cheap on a large
+    /// idle fleet. Returns `None` when the worktree was skipped this tick.
+    ///
+    /// The backoff is re-armed (skip counter cleared) whenever [`Self::route`]
+    /// observes a change, so an actively-contacted worktree is never starved.
+    #[must_use]
+    pub fn route_on_tick(&self, key: &WorktreeKey, worktree: &Path) -> Option<RouteDecision> {
+        {
+            let mut states = self.states.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Some(state) = states.get_mut(key)
+                && state.skip_ticks > 0
+            {
+                state.skip_ticks -= 1;
+                return None;
+            }
+        }
+        Some(self.route(key, worktree))
+    }
+
+    /// Drop `key`'s re-entrant state (ADR-105 §8). Wired into the ACTMO
+    /// unregister hook so an unregistered worktree does not leak router state for
+    /// the daemon's lifetime (the map would otherwise grow unbounded with churn).
+    pub fn forget(&self, key: &WorktreeKey) {
+        self.states
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(key);
+    }
+
+    /// Test-only: whether the state map is empty (leak assertions).
+    #[cfg(test)]
+    fn forget_is_empty(&self) -> bool {
+        self.states
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
+    }
+
+    /// Test-only: whether the state map holds exactly `key` (no leak / no tear).
+    #[cfg(test)]
+    fn forget_is_single_key(&self, key: &WorktreeKey) -> bool {
+        let states = self.states.lock().unwrap_or_else(PoisonError::into_inner);
+        states.len() == 1 && states.contains_key(key)
     }
 }
 
 impl Default for PersistenceRouter {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Map a resolver outcome to a route + its topology reason.
+fn classify_route(resolved: RouteMergeBase, worktree: &Path) -> (PersistenceRoute, RouteReason) {
+    match resolved {
+        RouteMergeBase::Resolved(sha) => (
+            PersistenceRoute::Base {
+                merge_base_sha: sha,
+            },
+            RouteReason::BaseResolved,
+        ),
+        RouteMergeBase::Uncovered(kind) => (
+            PersistenceRoute::PerWorktree {
+                canonical_root: worktree.to_path_buf(),
+            },
+            match kind {
+                UncoveredKind::DetachedHead => RouteReason::UncoveredDetachedHead,
+                UncoveredKind::NoDefaultBranch => RouteReason::UncoveredNoDefaultBranch,
+                UncoveredKind::NoMergeBase => RouteReason::UncoveredNoMergeBase,
+            },
+        ),
+        RouteMergeBase::Unavailable => (
+            PersistenceRoute::PerWorktree {
+                canonical_root: worktree.to_path_buf(),
+            },
+            RouteReason::ResolverUnavailable,
+        ),
+    }
+}
+
+/// Update `key`'s [`RouteState`] after an evaluation: refresh the last route, the
+/// stability / failure streaks, and the tick-decimation skip counter (ADR-105
+/// §8, bounded re-evaluation). A change re-arms (skip cleared); sustained
+/// stability or sustained failure decimates.
+fn update_state(
+    states: &mut HashMap<WorktreeKey, RouteState>,
+    key: &WorktreeKey,
+    route: PersistenceRoute,
+    changed: bool,
+    unavailable: bool,
+) {
+    let state = states.entry(key.clone()).or_insert_with(|| RouteState {
+        last: route.clone(),
+        stable_count: 0,
+        unavailable_streak: 0,
+        failure_logged: false,
+        skip_ticks: 0,
+    });
+    state.last = route;
+
+    // Stability streak.
+    if changed {
+        state.stable_count = 1;
+        state.skip_ticks = 0; // re-arm: a flip is picked up on the next tick
+    } else {
+        state.stable_count = state.stable_count.saturating_add(1);
+    }
+
+    // Failure streak (independent of route value: `Unavailable` always routes
+    // per-worktree, which may be "unchanged").
+    if unavailable {
+        state.unavailable_streak = state.unavailable_streak.saturating_add(1);
+        if state.unavailable_streak >= FAILURE_THRESHOLD && !state.failure_logged {
+            tracing::warn!(
+                target: EVENT_TARGET,
+                worktree = %key.as_path().display(),
+                streak = state.unavailable_streak,
+                "persistence route resolver Unavailable for a sustained streak; \
+                 decimating re-evaluation (per-worktree path serves meanwhile)",
+            );
+            state.failure_logged = true;
+        }
+    } else {
+        if state.failure_logged {
+            tracing::info!(
+                target: EVENT_TARGET,
+                worktree = %key.as_path().display(),
+                "persistence route resolver recovered from the Unavailable streak",
+            );
+        }
+        state.unavailable_streak = 0;
+        state.failure_logged = false;
+    }
+
+    // Decimate once stable OR persistently failing.
+    let decimate =
+        state.stable_count >= STABILITY_THRESHOLD || state.unavailable_streak >= FAILURE_THRESHOLD;
+    if decimate && state.skip_ticks == 0 {
+        state.skip_ticks = DECIMATION_TICKS - 1;
     }
 }
 
@@ -552,9 +753,23 @@ fn transition_reason(
 }
 
 /// Emit the structured `persistence.route{route, reason}` event (ADR-105 §8). A
-/// `Base` decision also carries `merge_base_sha` so an operator can correlate the
-/// route with the base-production/GC events keyed by that sha.
-fn emit_event(worktree: &Path, route: &PersistenceRoute, reason: RouteReason) {
+/// `Base` decision carries `merge_base_sha` (and `previous_merge_base_sha` on a
+/// `merge_base_moved` transition) so an operator can correlate the route with the
+/// base-production/GC events keyed by that sha; a `PerWorktree` decision carries
+/// the specific `uncovered_kind` (or `unavailable`) so a `became_uncovered`
+/// transition names *which* topology it fell to, not just that it fell.
+///
+/// The `EVENT_TARGET` (`anvil_intercept::persistence_route`) mirrors the sibling
+/// base-event scoping (`anvil_intercept::graph_base_trigger` /
+/// `::base_gc` / `::snapshot`): one `anvil_intercept::<area>` target per subsystem,
+/// so an operator filters the whole shared-base story by target prefix.
+fn emit_event(
+    worktree: &Path,
+    route: &PersistenceRoute,
+    reason: RouteReason,
+    uncovered_kind: Option<UncoveredKind>,
+    previous_merge_base_sha: Option<&str>,
+) {
     match route {
         PersistenceRoute::Base { merge_base_sha } => tracing::info!(
             target: EVENT_TARGET,
@@ -562,6 +777,7 @@ fn emit_event(worktree: &Path, route: &PersistenceRoute, reason: RouteReason) {
             reason = reason.as_str(),
             workspace_root = %worktree.display(),
             merge_base_sha = %merge_base_sha,
+            previous_merge_base_sha = previous_merge_base_sha.unwrap_or(""),
             "persistence.route",
         ),
         PersistenceRoute::PerWorktree { .. } => tracing::info!(
@@ -569,6 +785,7 @@ fn emit_event(worktree: &Path, route: &PersistenceRoute, reason: RouteReason) {
             route = route.label(),
             reason = reason.as_str(),
             workspace_root = %worktree.display(),
+            uncovered_kind = uncovered_kind.map_or("unavailable", UncoveredKind::as_str),
             "persistence.route",
         ),
     }
@@ -1064,6 +1281,199 @@ mod tests {
         assert_eq!(
             resolver.resolve(Path::new("/wt/broken")),
             RouteMergeBase::Unavailable,
+        );
+    }
+
+    #[test]
+    fn git_resolver_default_merge_base_fails_shortcircuits_before_upstream() {
+        // Mechanism 1 (producer-parity short-circuit): the DEFAULT-branch merge-base
+        // fails (exit 1) while the `@{upstream}` merge-base WOULD succeed. The
+        // producer bails NoBasePossible before its upstream block, so the route must
+        // short-circuit to Uncovered(NoMergeBase) and NEVER key Base on the upstream
+        // sha (which the producer never builds).
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *symbolic-ref*) echo refs/heads/feature; exit 0 ;; \
+               *origin/HEAD*) echo origin/main; exit 0 ;; \
+               *merge-base*HEAD*origin/main*) exit 1 ;; \
+               *@{upstream}*) echo origin/feature; exit 0 ;; \
+               *merge-base*HEAD*origin/feature*) echo upstreamsha; exit 0 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitRouteResolver::with_git_bin(bin);
+        assert_eq!(
+            resolve_stable(&resolver, Path::new("/wt/split")),
+            RouteMergeBase::Uncovered(UncoveredKind::NoMergeBase),
+            "a failed default-branch merge-base short-circuits BEFORE the upstream \
+             refinement — never Base{{upstreamsha}}",
+        );
+    }
+
+    // ---- Mechanism 3: bounded tick re-evaluation (backoff) -----------------
+
+    #[test]
+    fn route_on_tick_decimates_a_stable_worktree() {
+        // A settled worktree (same route every eval) is decimated: after
+        // STABILITY_THRESHOLD evals the tick skips DECIMATION-1 passes before the
+        // next eval, so git resolutions are a small fraction of ticks.
+        let wt = PathBuf::from("/wt/stable");
+        let resolver = Arc::new(FakeResolver::fixed(&wt, RouteMergeBase::Resolved(sha('a'))));
+        let router = PersistenceRouter::with_resolver(resolver.clone());
+        let k = key(&wt);
+
+        // Drive enough ticks to cross the threshold and one decimation window.
+        let ticks = STABILITY_THRESHOLD + DECIMATION_TICKS; // 4 + 10 = 14
+        let mut evaluated = 0usize;
+        for _ in 0..ticks {
+            if router.route_on_tick(&k, &wt).is_some() {
+                evaluated += 1;
+            }
+        }
+        // The first STABILITY_THRESHOLD ticks all evaluate; then a full decimation
+        // window (DECIMATION_TICKS-1 skips) before exactly one more eval.
+        assert_eq!(
+            evaluated,
+            STABILITY_THRESHOLD as usize + 1,
+            "a stable worktree is decimated after the stability threshold",
+        );
+        assert_eq!(
+            resolver.calls.load(Ordering::Relaxed),
+            STABILITY_THRESHOLD as usize + 1,
+            "the decimated ticks did NOT shell git",
+        );
+    }
+
+    #[test]
+    fn route_on_tick_decimates_a_persistently_unavailable_worktree() {
+        // Failure backoff: a worktree whose resolver keeps returning Unavailable is
+        // decimated the same way, so a wedged repo does not burn a git probe per tick.
+        let wt = PathBuf::from("/wt/wedged");
+        let resolver = Arc::new(FakeResolver::fixed(&wt, RouteMergeBase::Unavailable));
+        let router = PersistenceRouter::with_resolver(resolver.clone());
+        let k = key(&wt);
+
+        let ticks = FAILURE_THRESHOLD + DECIMATION_TICKS;
+        for _ in 0..ticks {
+            let _ = router.route_on_tick(&k, &wt);
+        }
+        assert_eq!(
+            resolver.calls.load(Ordering::Relaxed),
+            FAILURE_THRESHOLD as usize + 1,
+            "a persistently-Unavailable worktree is decimated (git probed sparingly)",
+        );
+    }
+
+    #[test]
+    fn route_change_rearms_tick_evaluation() {
+        // A route change resets the backoff: after decimation, a flip (driven via a
+        // contact `route`) re-arms so the next tick evaluates promptly.
+        let wt = PathBuf::from("/wt/rearm");
+        let resolver = Arc::new(FakeResolver::default());
+        *resolver.fixed.lock().unwrap() =
+            std::iter::once((wt.clone(), RouteMergeBase::Resolved(sha('a')))).collect();
+        let router = PersistenceRouter::with_resolver(resolver.clone());
+        let k = key(&wt);
+
+        // Settle into decimation.
+        for _ in 0..(STABILITY_THRESHOLD + 2) {
+            let _ = router.route_on_tick(&k, &wt);
+        }
+        // A contact observes a FLIP (merge-base moved) — re-arms the backoff.
+        *resolver.fixed.lock().unwrap() =
+            std::iter::once((wt.clone(), RouteMergeBase::Resolved(sha('b')))).collect();
+        let moved = router.route(&k, &wt);
+        assert_eq!(moved.reason, RouteReason::MergeBaseMoved);
+        // The very next tick evaluates (not skipped), because the change re-armed.
+        assert!(
+            router.route_on_tick(&k, &wt).is_some(),
+            "a route change re-arms the tick backoff (next tick evaluates)",
+        );
+    }
+
+    // ---- Mechanism 3: same-key flapping stress (concurrency) ---------------
+
+    #[test]
+    fn route_flapping_same_key_stays_consistent() {
+        // Campaign lesson: hammer ONE key from many threads with a resolver that
+        // flaps Resolved/Uncovered/Unavailable. Every returned decision must be
+        // internally consistent (route ⟺ reason family) and the shared state must
+        // never tear or deadlock.
+        use std::sync::Arc as StdArc;
+
+        /// A resolver that rotates through the three outcome classes.
+        struct FlapResolver {
+            n: AtomicUsize,
+        }
+        impl RouteResolver for FlapResolver {
+            fn resolve(&self, _wt: &Path) -> RouteMergeBase {
+                match self.n.fetch_add(1, Ordering::Relaxed) % 3 {
+                    0 => RouteMergeBase::Resolved(sha('a')),
+                    1 => RouteMergeBase::Uncovered(UncoveredKind::DetachedHead),
+                    _ => RouteMergeBase::Unavailable,
+                }
+            }
+        }
+
+        for _round in 0..20 {
+            let router = StdArc::new(PersistenceRouter::with_resolver(StdArc::new(
+                FlapResolver {
+                    n: AtomicUsize::new(0),
+                },
+            )));
+            let wt = PathBuf::from("/wt/flap");
+            std::thread::scope(|scope| {
+                for _ in 0..8 {
+                    let router = StdArc::clone(&router);
+                    let wt = wt.clone();
+                    scope.spawn(move || {
+                        for _ in 0..100 {
+                            let d = router.route(&key(&wt), &wt);
+                            // Route ⟺ reason family must always agree.
+                            match d.route {
+                                PersistenceRoute::Base { ref merge_base_sha } => {
+                                    assert!(!merge_base_sha.is_empty());
+                                    assert!(matches!(
+                                        d.reason,
+                                        RouteReason::BaseResolved
+                                            | RouteReason::MergeBaseMoved
+                                            | RouteReason::BecameCovered
+                                    ));
+                                }
+                                PersistenceRoute::PerWorktree { .. } => {
+                                    assert!(matches!(
+                                        d.reason,
+                                        RouteReason::UncoveredDetachedHead
+                                            | RouteReason::UncoveredNoDefaultBranch
+                                            | RouteReason::UncoveredNoMergeBase
+                                            | RouteReason::ResolverUnavailable
+                                            | RouteReason::BecameUncovered
+                                    ));
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+            // The map holds exactly the one flapped key — no leak, no tear.
+            assert!(router.forget_is_single_key(&key(&wt)));
+        }
+    }
+
+    #[test]
+    fn forget_drops_router_state() {
+        let wt = PathBuf::from("/wt/forget");
+        let router = PersistenceRouter::with_resolver(Arc::new(FakeResolver::fixed(
+            &wt,
+            RouteMergeBase::Resolved(sha('a')),
+        )));
+        let k = key(&wt);
+        let _ = router.route(&k, &wt);
+        assert!(!router.forget_is_empty(), "state recorded after a route");
+        router.forget(&k);
+        assert!(
+            router.forget_is_empty(),
+            "forget drops the worktree's state"
         );
     }
 }

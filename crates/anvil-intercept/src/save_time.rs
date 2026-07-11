@@ -399,6 +399,14 @@ pub struct SaveTimeState {
     /// inject a hermetic fake via [`Self::with_route_resolver`].
     #[cfg(unix)]
     route_router: Arc<crate::persistence_route::PersistenceRouter>,
+    /// GBASE-009 test seam: override the shared base store dir the compose path
+    /// reads, so the wired route→compose dispatch is exercised hermetically
+    /// (publish a base into a tempdir) without mutating the process environment
+    /// (`ANVIL_HOME`) — the crate is edition 2024, where `set_var` is `unsafe`, and
+    /// the repo unit-tests env resolution through pure functions. Production always
+    /// resolves `default_base_dir()`.
+    #[cfg(all(unix, test))]
+    base_dir_override: Option<PathBuf>,
 }
 
 impl SaveTimeState {
@@ -438,6 +446,8 @@ impl SaveTimeState {
             compose_inflight: Arc::new(Mutex::new(HashSet::new())),
             #[cfg(unix)]
             route_router: Arc::new(crate::persistence_route::PersistenceRouter::new()),
+            #[cfg(all(unix, test))]
+            base_dir_override: None,
         }
     }
 
@@ -455,6 +465,31 @@ impl SaveTimeState {
             resolver,
         ));
         self
+    }
+
+    /// GBASE-009 test seam: point the compose path at `dir` as the shared base
+    /// store instead of `default_base_dir()`, so the route→compose dispatch is
+    /// exercised hermetically (no `ANVIL_HOME` mutation).
+    #[cfg(all(unix, test))]
+    #[must_use]
+    pub(crate) fn with_base_dir_override(mut self, dir: PathBuf) -> Self {
+        self.base_dir_override = Some(dir);
+        self
+    }
+
+    /// The shared base store dir the compose path reads: the test override when
+    /// set, else the resolved `default_base_dir()`.
+    #[cfg(unix)]
+    fn resolve_base_dir(&self) -> Option<PathBuf> {
+        #[cfg(test)]
+        if let Some(dir) = &self.base_dir_override {
+            return Some(dir.clone());
+        }
+        // In a non-test build the override field does not exist, so `self` is
+        // otherwise unused here — the base dir is purely the resolved default.
+        #[cfg(not(test))]
+        let _ = self;
+        crate::snapshot_io::base_store::default_base_dir()
     }
 
     /// CIB-154: override the per-connection admitted-root budget. The daemon
@@ -646,7 +681,7 @@ impl SaveTimeState {
             // The shared base store dir (`<graph-cache>/base`); resolved off the
             // hot path (a path lookup, no git). `None` ⇒ the base path is
             // unavailable, so a Base route degrades to the per-worktree path.
-            let base_dir = crate::snapshot_io::base_store::default_base_dir();
+            let base_dir = self.resolve_base_dir();
             let key = key.clone();
             let root = canonical_root.to_path_buf();
             self.scheduler.background().spawn(move || {
@@ -656,32 +691,49 @@ impl SaveTimeState {
                 // event and remembers the route for transition detection.
                 let decision = router.route(&key, &root);
                 match decision.route {
-                    // Covered ⇒ compose from the shared base for the daemon-derived
-                    // primary sha. If the base store dir or the parser is missing
-                    // the base cannot be composed (ADR-061/064: the daemon never
-                    // parses on its own), so degrade to the per-worktree path rather
-                    // than serve nothing.
-                    PersistenceRoute::Base { merge_base_sha } => match (base_dir, &parser) {
-                        (Some(base_dir), Some(parser)) => {
-                            let _outcome = crate::graph_base_warm_start::compose_worktree_from_base(
+                    // Covered ⇒ try to compose from the shared base for the
+                    // daemon-derived primary sha.
+                    PersistenceRoute::Base { merge_base_sha } => {
+                        use crate::graph_base_warm_start::ComposeWarmStartOutcome;
+                        let composed = match (base_dir, &parser) {
+                            // If the base store dir or the parser is missing the base
+                            // cannot be composed (ADR-061/064: the daemon never parses
+                            // on its own).
+                            (Some(base_dir), Some(parser)) => {
+                                crate::graph_base_warm_start::compose_worktree_from_base(
+                                    &cache,
+                                    &key,
+                                    &base_dir,
+                                    &merge_base_sha,
+                                    &root,
+                                    parser.as_ref(),
+                                    &caps,
+                                ) == ComposeWarmStartOutcome::Composed
+                            }
+                            _ => false,
+                        };
+                        // Mechanism 2 (resilient dispatch): ANY non-`Composed`
+                        // outcome — base not yet produced (`ColdBaseAbsent`), ignored,
+                        // an overlay/compose error, or no base dir/parser — falls
+                        // through to the per-worktree snapshot warm-start the worktree
+                        // had pre-GBASE-009, so a covered-but-not-yet-produced repo is
+                        // never left cold when it has a usable snapshot. The
+                        // stale-until-reconcile trust line (both paths install through
+                        // the same restored-stand-in seam) makes this safe. A
+                        // successful compose (or an already-warm key) skips the
+                        // restore (`restore_snapshot_into_cache` is itself
+                        // warm-guarded, so the already-warm case is a no-op anyway).
+                        if !composed {
+                            restore_snapshot_into_cache(
                                 &cache,
+                                &coordinator,
+                                &metrics,
+                                &dir,
                                 &key,
-                                &base_dir,
-                                &merge_base_sha,
                                 &root,
-                                parser.as_ref(),
-                                &caps,
                             );
                         }
-                        _ => restore_snapshot_into_cache(
-                            &cache,
-                            &coordinator,
-                            &metrics,
-                            &dir,
-                            &key,
-                            &root,
-                        ),
-                    },
+                    }
                     // Uncovered / transient-failure ⇒ the permanent per-worktree
                     // snapshot path (ADR-105 §8).
                     PersistenceRoute::PerWorktree { .. } => restore_snapshot_into_cache(
@@ -702,6 +754,46 @@ impl SaveTimeState {
         #[cfg(not(unix))]
         {
             let _ = (key, canonical_root);
+        }
+    }
+
+    /// GBASE-009 (ADR-105 §8): the daemon's low-cadence re-route tick calls this
+    /// per registered worktree to **re-evaluate the route only** — emit any
+    /// transition event and update the router's last-route memory so the **next**
+    /// composition reflects a merge-base movement / coverage flip. It does **not**
+    /// warm-start (warm dispatch stays warm-gated on the post-admission contacts);
+    /// it is purely the re-entrancy observer.
+    ///
+    /// The router's per-worktree backoff ([`crate::persistence_route::PersistenceRouter::route_on_tick`])
+    /// decimates a stable or persistently-failing worktree, so the `git`
+    /// resolution runs on only a small fraction of ticks across an idle fleet. This
+    /// runs **synchronously on the caller's blocking pool** (the daemon invokes it
+    /// inside `spawn_blocking`) — never the hot path. No-op when persistence is off.
+    pub(crate) fn reevaluate_route_on_tick(&self, key: &WorktreeKey, canonical_root: &Path) {
+        #[cfg(unix)]
+        {
+            if self.snapshot_dir.is_none() {
+                return; // persistence off ⇒ routing is inert
+            }
+            let _ = self.route_router.route_on_tick(key, canonical_root);
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (key, canonical_root);
+        }
+    }
+
+    /// GBASE-009 (ADR-105 §8): drop `key`'s router state when the worktree
+    /// unregisters (ACTMO), so the re-entrant map does not leak across the daemon's
+    /// lifetime with worktree churn. No-op when persistence is off / non-unix.
+    pub(crate) fn forget_route(&self, key: &WorktreeKey) {
+        #[cfg(unix)]
+        {
+            self.route_router.forget(key);
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = key;
         }
     }
 
@@ -3722,16 +3814,22 @@ mod tests {
     /// cold, so the cache stays cold: proof the Base arm ran the compose seam
     /// rather than the per-worktree restore. (Env-free: only asserted when a base
     /// store dir resolves, mirroring `base_store`'s env-free test posture.)
+    /// (e) Mechanism 2 (resilient dispatch): a Base-routed worktree whose base is
+    /// NOT yet produced (`ColdBaseAbsent`) falls through to the per-worktree
+    /// snapshot warm-start it had pre-GBASE-009 — it is never left cold when a
+    /// usable snapshot exists. (The compose attempt runs first; `ColdBaseAbsent` ⇒
+    /// restore fallthrough.) Env-free: the test sha's base is absent whether or not
+    /// `default_base_dir` resolves, so both the compose-absent and no-base-dir arms
+    /// reach the fallthrough.
     #[cfg(unix)]
     #[test]
-    fn spawn_route_restore_wires_base_compose_not_snapshot() {
+    fn spawn_route_restore_base_absent_falls_through_to_snapshot() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("graph-cache");
         let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
 
-        // Stage a per-worktree snapshot: if the Base arm wrongly fell back to the
-        // per-worktree restore, the cache WOULD warm from this.
+        // Stage a per-worktree snapshot — the resilient fallback source.
         let writer = state().with_snapshot_dir(dir.clone());
         writer.cache.apply_delta(
             &key,
@@ -3740,7 +3838,8 @@ mod tests {
         );
         writer.persist_all_on_shutdown();
 
-        // Route always Base, with a parser injected so compose is attempted.
+        // Route always Base, parser injected so compose is attempted; no base
+        // artefact exists for the test sha ⇒ ColdBaseAbsent ⇒ fall through.
         let st = state()
             .with_snapshot_dir(dir.clone())
             .with_parser(Arc::new(FixedParser {
@@ -3750,13 +3849,124 @@ mod tests {
             .with_route_resolver(Arc::new(AlwaysBaseResolver("f".repeat(40))));
         st.spawn_route_restore(&key, &canonical);
         await_route_warm(&st, &key);
-        if crate::snapshot_io::base_store::default_base_dir().is_some() {
-            assert!(
-                !st.cache.contains(&key),
-                "a base-routed worktree composes (base absent ⇒ cold); it does NOT \
-                 fall back to the staged per-worktree snapshot",
-            );
+        assert!(
+            st.cache.contains(&key),
+            "a base-routed-but-not-yet-produced worktree keeps its per-worktree \
+             snapshot warm-start (resilient fallthrough), never left cold",
+        );
+    }
+
+    /// A content-hashing line parser (mirrors the `graph_base_warm_start` test
+    /// parser): `export NAME` ⇒ a public symbol; every `.ts` file is content-hashed
+    /// so the base and a clean overlay share hash provenance and compose cleanly.
+    #[cfg(all(unix, test))]
+    #[derive(Debug, Default)]
+    struct HashingLineParser;
+
+    #[cfg(all(unix, test))]
+    impl SymbolParser for HashingLineParser {
+        fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
+            if path.extension().and_then(|e| e.to_str()) != Some("ts") {
+                return None;
+            }
+            let text = std::str::from_utf8(bytes).ok()?;
+            let file = path.to_string_lossy().into_owned();
+            let symbols = text
+                .lines()
+                .filter_map(|l| l.trim().strip_prefix("export "))
+                .map(|name| SymbolNode {
+                    id: {
+                        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+                        for b in file.bytes().chain(std::iter::once(0)).chain(name.bytes()) {
+                            h ^= u64::from(b);
+                            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+                        }
+                        h
+                    },
+                    kind: SymbolKind::Function,
+                    name: name.trim().to_string(),
+                    visibility: Visibility::Public,
+                    file: file.clone(),
+                    trust_level: TrustLevel::Unknown,
+                    span: None,
+                })
+                .collect();
+            Some(FileSymbols {
+                file,
+                symbols,
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: Vec::new(),
+                calls_partial: false,
+                has_unresolved_dynamic_import: false,
+                content_hash: Some(anvil_kernel_types::content_hash(bytes)),
+            })
         }
+    }
+
+    /// (e) Mechanism 2 happy path: a Base-routed worktree whose base IS produced
+    /// composes from the shared base (GBASE-006 seam) — the cache warms with the
+    /// COMPOSED base content, and the (distinct) staged per-worktree snapshot is
+    /// NOT what lands. Hermetic via the base-dir override (no `ANVIL_HOME`).
+    #[cfg(unix)]
+    #[test]
+    fn spawn_route_restore_base_present_composes_from_shared_base() {
+        use anvil_graph_cache::snapshot::SnapshotPayload;
+        use anvil_graph_cache::{DependencyGraph, SymbolGraph, update_file};
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let snap_dir = tmp.path().join("graph-cache");
+        let base_dir = tmp.path().join("base-store");
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let key = WorktreeKey::from_canonical(canonical.clone());
+        let sha = "a".repeat(40);
+        let parser = HashingLineParser;
+
+        // A clean on-disk worktree file, and a base built from the SAME bytes, so
+        // the overlay is empty and the compose == the base (installs stale).
+        std::fs::write(canonical.join("base_file.ts"), b"export composed").expect("write");
+        let mut sym = SymbolGraph::new();
+        update_file(
+            &mut sym,
+            parser
+                .parse(Path::new("base_file.ts"), b"export composed")
+                .unwrap(),
+        );
+        let payload = SnapshotPayload::from_graphs(&sym, &DependencyGraph::new()).unwrap();
+        crate::snapshot_io::base_store::publish_base(&base_dir, &sha, &payload.to_base_bytes())
+            .expect("publish base");
+
+        // Stage a DISTINCT per-worktree snapshot: if compose were skipped/failed
+        // and we fell through, THIS is what would land.
+        let writer = state().with_snapshot_dir(snap_dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("snapshot_only.ts", &["snap"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        let st = state()
+            .with_snapshot_dir(snap_dir)
+            .with_base_dir_override(base_dir)
+            .with_parser(Arc::new(HashingLineParser))
+            .with_route_resolver(Arc::new(AlwaysBaseResolver(sha)));
+        st.spawn_route_restore(&key, &canonical);
+        await_route_warm(&st, &key);
+
+        let files = st.cache.warm_files(&key);
+        assert!(
+            files.contains(&"base_file.ts".to_string()),
+            "the Base route composed from the shared base (base_file.ts present)",
+        );
+        assert!(
+            !files.contains(&"snapshot_only.ts".to_string()),
+            "a successful compose installs the composed base, NOT the per-worktree snapshot",
+        );
+        assert!(
+            st.cache.is_restored(&key),
+            "the composed workspace is a stale restored stand-in (trust line)",
+        );
     }
 
     /// (e) Base route with **no parser** degrades to the per-worktree path — the

@@ -327,26 +327,79 @@ pub(crate) enum GitRun {
     Failed,
 }
 
+/// The bounded wall-clock a single `git` probe may take before it is killed and
+/// classified [`GitRun::Failed`] (⇒ `Unavailable`, re-evaluated later). A hung git
+/// (a wedged lock, a stuck credential helper, a dead network filesystem) must
+/// never pin a background pool thread indefinitely — a pre-existing `.output()`
+/// gap that GBASE-009's route resolver multiplies (a probe per registered
+/// worktree). 10 s is far above a healthy `merge-base`/`rev-parse` (milliseconds)
+/// yet bounds the pathological case.
+const GIT_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Run `<git_bin> -C <worktree> <args>` and capture its exit code + first stdout
-/// line + stderr, or [`GitRun::Failed`] on a spawn failure or signal death. Never
-/// interprets the result — that is each caller's command-specific job (see the
-/// classification table on [`GitMergeBaseResolver`]).
+/// line + stderr, or [`GitRun::Failed`] on a spawn failure, signal death, or a
+/// timeout ([`GIT_PROBE_TIMEOUT`]). Never interprets the result — that is each
+/// caller's command-specific job (see the classification table on
+/// [`GitMergeBaseResolver`]).
+///
+/// Killability comes from polling `try_wait` rather than a blocking `.output()`;
+/// the pipes are read **after** the child exits. That is deadlock-free without any
+/// drain threads: a child that has exited wrote at most one pipe-buffer of output
+/// (had it written more it would have blocked on the full pipe and NOT exited), so
+/// the buffered bytes are safely readable in full. The bounded git probes here
+/// (a sha / a ref) are kilobytes at most; a pathological chatty child that fills
+/// the pipe and blocks simply never exits and is killed at the deadline.
 pub(crate) fn run_git(git_bin: &std::ffi::OsStr, worktree: &Path, args: &[&str]) -> GitRun {
+    use std::io::Read;
+    use std::process::Stdio;
+    use std::time::Instant;
+
     // Spawn failure (missing binary, permission) — unexpected.
-    let Ok(output) = Command::new(git_bin)
+    let Ok(mut child) = Command::new(git_bin)
         .arg("-C")
         .arg(worktree)
         .args(args)
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
     else {
         return GitRun::Failed;
     };
+
+    let deadline = Instant::now() + GIT_PROBE_TIMEOUT;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    // Hung probe: kill + reap, then classify Failed (⇒ Unavailable).
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return GitRun::Failed;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            Err(_) => return GitRun::Failed,
+        }
+    };
+
+    // The child has exited ⇒ its buffered output fits the pipe; read it directly.
+    let mut stdout_bytes = Vec::new();
+    if let Some(mut out) = child.stdout.take() {
+        let _ = out.read_to_end(&mut stdout_bytes);
+    }
+    let mut stderr_bytes = Vec::new();
+    if let Some(mut err) = child.stderr.take() {
+        let _ = err.read_to_end(&mut stderr_bytes);
+    }
+
     // `code()` is `None` when the child was terminated by a signal (e.g. OOM-kill)
     // — an unexpected death, never a deterministic answer.
-    let Some(code) = output.status.code() else {
+    let Some(code) = status.code() else {
         return GitRun::Failed;
     };
-    let stdout = String::from_utf8_lossy(&output.stdout)
+    let stdout = String::from_utf8_lossy(&stdout_bytes)
         .lines()
         .next()
         .unwrap_or("")
@@ -357,7 +410,7 @@ pub(crate) fn run_git(git_bin: &std::ffi::OsStr, worktree: &Path, args: &[&str])
     } else {
         Some(stdout)
     };
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stderr = String::from_utf8_lossy(&stderr_bytes).into_owned();
     GitRun::Exited {
         code,
         stdout,

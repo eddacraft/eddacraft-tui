@@ -422,6 +422,35 @@ default-on.
   itself** from the worktree's own git state — **never** a sha taken from a
   wire/IPC request (a client-keyed base would let a worktree materialise an
   attacker-chosen graph).
+- **Recorded scope notes (GBASE-009 as landed + Council follow-up):**
+  - **Producer parity is exact.** `persistence_route::GitRouteResolver` mirrors
+    `graph_base_producer::resolve_base_commit`: default branch = `origin/HEAD`
+    **only** (no `origin/main`/`origin/master` fallback — that fallback is
+    `base_gc`'s keep-set-only superset), and a failed default-branch merge-base
+    **short-circuits** to `Uncovered(NoMergeBase)` *before* the `@{upstream}`
+    refinement, so a route never keys `Base{sha}` on a sha the producer cannot
+    build.
+  - **Resilient dispatch.** Any non-`Composed` compose outcome (base not yet
+    produced, ignored, overlay error) falls through to the per-worktree snapshot
+    warm-start — a covered-but-not-yet-produced worktree is never left cold when a
+    usable snapshot exists (the shared stale-until-reconcile trust line makes the
+    fallback safe).
+  - **Bounded observing tick.** The daemon re-route tick re-evaluates routes
+    (transition events + last-route memory) independent of the warm gate; warm
+    dispatch stays warm-gated on contacts. A per-worktree backoff decimates a
+    stable worktree after 4 same-route passes to ~1-in-10 ticks (~5 min at the
+    30 s tick), and a persistently-`Unavailable` worktree the same way (logged once
+    on entering the streak). Backoff is tick-count based; wiring the GBASE-003
+    trigger's per-repo ref-change signal to reset backoff instantly is a deferred
+    enhancement (time-based decimation suffices — an active worktree re-routes on
+    every cold contact regardless).
+  - **`run_git` bounded wait.** `base_gc::run_git` now kills + reaps a probe after
+    10 s (drains pipes on threads), mapping a hang to `Failed`/`Unavailable` — a
+    pre-existing `.output()` gap this module's per-worktree probes multiply.
+  - **Deferred (own follow-ups):** a tick end-to-end integration test (gc-tick
+    precedent — the tick body is unit-covered via `reevaluate_route_on_tick` +
+    `route_on_tick`); renaming `compose_inflight` to a route-neutral name (it now
+    guards the whole route+warm, not just compose).
 
 ---
 

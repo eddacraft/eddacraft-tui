@@ -2005,9 +2005,12 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             let installed = daemon_state
                 .registry
                 .set_unregister_hook(Arc::new(move |worktree| {
-                    warm_state.invalidate(&rule_cache::WorktreeKey::from_canonical(
-                        worktree.to_path_buf(),
-                    ));
+                    let key = rule_cache::WorktreeKey::from_canonical(worktree.to_path_buf());
+                    warm_state.invalidate(&key);
+                    // GBASE-009: drop the router's re-entrant state for the gone
+                    // worktree too, so the persistence-route map does not leak with
+                    // worktree churn (three reviewers flagged the leak).
+                    warm_state.forget_route(&key);
                 }));
             // The registry is freshly built in `DaemonState::new` without a
             // hook, so this set is the first and must succeed. A `false` means
@@ -2128,16 +2131,17 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // pool (git shell-out + fs), so the async loop never blocks.
         let mut gbase_gc_tick = tokio::time::interval(Duration::from_hours(1));
         gbase_gc_tick.reset();
-        // GBASE-009 (ADR-105 §8): a low-cadence re-route pass that re-evaluates
-        // every ACTMO-registered worktree's persistence route, riding a background
-        // loop (never the hot path, no new watches). It picks up worktrees that
-        // became coverable (a detached HEAD re-attached, a default branch appeared)
-        // and proactively warms newly-registered cold worktrees; a warm worktree's
-        // route+warm is a cheap no-op (the merge-base movement it may have seen is
-        // reflected at its NEXT composition — the next cold contact — per §8). The
-        // git route resolution rides `spawn_route_restore`'s own background pool, so
-        // this arm only enumerates the registry. Gated + no-op when persistence is
-        // off (inside `spawn_route_restore`).
+        // GBASE-009 (ADR-105 §8): a low-cadence re-route pass that RE-EVALUATES
+        // (route only, no warm) every ACTMO-registered worktree's persistence route,
+        // riding a background loop (never the hot path, no new watches). It emits
+        // any transition event (a detached HEAD re-attached, a default branch
+        // appeared, a merge-base moved) and updates the router's last-route memory,
+        // so the NEXT composition (the next cold contact) reflects the change —
+        // warm-start dispatch itself stays warm-gated on the contacts. The router's
+        // per-worktree stability/failure backoff decimates a settled or
+        // persistently-failing worktree, so the `git` resolution runs on only a
+        // small fraction of ticks across an idle fleet. Gated + no-op when
+        // persistence is off (inside `reevaluate_route_on_tick`).
         let mut gbase_route_tick = tokio::time::interval(Duration::from_secs(30));
         gbase_route_tick.reset();
         // CIB-095d + N2: persist every warm worktree's graph on **either** exit
@@ -2221,10 +2225,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 }
                 _ = gbase_route_tick.tick() => {
                     // GBASE-009 (ADR-105 §8): re-evaluate every registered
-                    // worktree's persistence route on a background loop. The route
-                    // resolution + warm ride `spawn_route_restore`'s own background
-                    // pool, so this arm only reads the registry (cheap) and enqueues
-                    // — it never blocks the runtime. A no-op when persistence is off.
+                    // worktree's persistence route (route only — no warm) on a
+                    // BLOCKING pool, because the router's `git` resolution is
+                    // synchronous. The per-worktree backoff decimates settled/failing
+                    // worktrees, so most passes are a cheap skip. Fire-and-forget; a
+                    // no-op when persistence is off (inside `reevaluate_route_on_tick`).
                     #[cfg(unix)]
                     {
                         let state = Arc::clone(&save_time_state);
@@ -2233,7 +2238,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                             for root in registry.registered_worktrees() {
                                 let key =
                                     crate::rule_cache::WorktreeKey::from_canonical(root.clone());
-                                state.spawn_route_restore(&key, &root);
+                                state.reevaluate_route_on_tick(&key, &root);
                             }
                         });
                     }
