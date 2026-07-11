@@ -92,7 +92,7 @@
 //!   §3 binds; the reexport/call gap is named here rather than silently claimed
 //!   as covered.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use anvil_kernel_types::{EdgeType, FileSymbols};
 
@@ -376,6 +376,8 @@ fn base_reresolve(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
     use anvil_kernel_types::{
         EdgeType, ImportEdge, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel, Visibility,
