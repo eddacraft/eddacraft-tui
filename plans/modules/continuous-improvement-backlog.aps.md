@@ -4847,7 +4847,12 @@ archive.
 
 ### CIB-190: Healthy repeat-start local value receipt
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-12 via PR #3286
+- **Shipped:** Collapsed healthy-repeat `anvil start` now carries one bounded,
+  time-boxed (150 ms) local value line from the CIB-073 cumulative aggregate
+  (risky writes flagged → saves checked → witness events, 30-day staleness
+  horizon, omitted on any miss); promoted into the JOURNEY release cut per the
+  operator-accepted conductor.
 - **Intent:** Let a healthy repeat `anvil start` answer both "am I protected?"
   and, when reliable local evidence exists, "what has Anvil done?" without
   turning the confidence check back into onboarding noise.

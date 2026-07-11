@@ -241,7 +241,10 @@ fn push_stat(out: &mut String, n: u64, label: &str) {
 
 /// The `YYYY-MM-DD` prefix of an RFC 3339 timestamp — the human-facing
 /// date form used on both renders.
-fn date_part(ts: &str) -> &str {
+/// Day-precision slice of an RFC 3339 bound. `pub(crate)` so the
+/// repeat-start value receipt (CIB-190) labels its window with exactly
+/// the same date form as the scoreboard.
+pub(crate) fn date_part(ts: &str) -> &str {
     ts.get(..10).unwrap_or(ts)
 }
 

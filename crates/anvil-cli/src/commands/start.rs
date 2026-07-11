@@ -405,10 +405,13 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         println!("{json}");
     } else {
         let human_output = if repeat_collapsed {
-            // CIB-190 seam: the trailing `None` is the optional local value
-            // line slot; it stays empty until CIB-190's owning aggregate
-            // lands.
-            render_repeat_start_output(&diagnostic, daemon_outcome.as_ref(), None)
+            // CIB-190: one bounded local value receipt, pre-rendered here
+            // in the command layer (where the wall clock lives) and
+            // threaded through the CIB-183 seam. `None` on any miss —
+            // absent, stale, or zero evidence, a slow or failing read —
+            // and the collapsed output renders exactly as before.
+            let value_line = compute_repeat_value_line(root);
+            render_repeat_start_output(&diagnostic, daemon_outcome.as_ref(), value_line.as_deref())
         } else {
             render_start_human_output(
                 root,
@@ -2134,8 +2137,9 @@ fn is_repeat_success(
 /// already seen. Deterministic: same diagnostic in, same bytes out.
 ///
 /// `extra_line` is the CIB-190 seam — one optional, already-rendered local
-/// value line inserted between the posture lines and the next step. Pass
-/// `None` until CIB-190's owning aggregate lands.
+/// value line inserted between the posture lines and the next step. The
+/// caller ([`run`] via [`compute_repeat_value_line`]) owns computing it;
+/// this renderer stays a pure function of its arguments.
 fn render_repeat_start_output(
     diagnostic: &activation::ActivationDiagnostic,
     daemon_outcome: Option<&anvil_intercept::ensure::EnsureOutcome>,
@@ -2164,6 +2168,152 @@ fn render_repeat_start_output(
     }
     let _ = writeln!(out, "  {}", arbitrated_next_step(diagnostic));
     out
+}
+
+// ── CIB-190: repeat-start local value receipt ────────────────────────────
+
+/// Wall-clock cap on the value-receipt aggregate read.
+///
+/// The receipt is a nicety, never a gate: the read runs on a helper
+/// thread and the line is skipped silently when this budget is exhausted
+/// (or the read errors), so a huge witness chain or a wedged filesystem
+/// can never stretch a repeat `anvil start`. Deliberately well inside the
+/// 500 ms interactive daemon-probe budget
+/// (`daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT`) so the receipt
+/// cannot dominate repeat-start latency even in the worst case.
+const REPEAT_VALUE_RECEIPT_BUDGET: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// Recency horizon for the value receipt, in days.
+///
+/// The cumulative aggregate is deliberately wall-clock-free, so it cannot
+/// by itself distinguish "recorded yesterday" from "recorded last year" —
+/// judging that a stream's evidence is stale therefore requires the one
+/// wall-clock comparison this feature makes, and it happens here in the
+/// command layer: a stream whose own window end is older than this
+/// horizon is treated as absent (the line simply does not render). The
+/// deterministic renderer (`render_repeat_start_output`) never sees a
+/// clock — it receives the pre-rendered line or nothing.
+const REPEAT_VALUE_STALE_AFTER_DAYS: i64 = 30;
+
+/// Compute the optional local value receipt for the collapsed
+/// repeat-start output. Command layer only: resolves the user-scoped
+/// usage sidecar, reads the cumulative aggregate inside
+/// [`REPEAT_VALUE_RECEIPT_BUDGET`], and applies the staleness horizon.
+/// Every failure mode — unresolvable sidecar path, read error, budget
+/// overrun, no fresh non-zero evidence — is `None`: the receipt may
+/// never delay activation or fail it.
+fn compute_repeat_value_line(root: &Path) -> Option<String> {
+    let sidecar = crate::usage::default_usage_log_path().ok()?;
+    let value =
+        read_cumulative_value_within(root.to_path_buf(), sidecar, REPEAT_VALUE_RECEIPT_BUDGET)?;
+    repeat_value_line(&value, chrono::Utc::now())
+}
+
+/// Read the cumulative aggregate on a helper thread, abandoning the
+/// result when `budget` elapses first. The witness chain is append-only
+/// and unbounded, so the read is time-boxed rather than trusted to be
+/// cheap; an abandoned reader finishes (or stays blocked) on a detached
+/// thread whose send simply finds no receiver.
+fn read_cumulative_value_within(
+    root: std::path::PathBuf,
+    sidecar: std::path::PathBuf,
+    budget: std::time::Duration,
+) -> Option<crate::insights::cumulative::CumulativeValue> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("anvil-value-receipt".to_string())
+        .spawn(move || {
+            let _ = tx.send(crate::insights::cumulative::cumulative_value(
+                &root, &sidecar,
+            ));
+        })
+        .ok()?;
+    rx.recv_timeout(budget).ok()?.ok()
+}
+
+/// The one bounded local value line, or `None`.
+///
+/// Pure function of the aggregate and the caller-supplied `now` — the
+/// only clock use is the staleness comparison documented on
+/// [`REPEAT_VALUE_STALE_AFTER_DAYS`]. A line renders only when the
+/// chosen stream has evidence (per its honest-empty guard), its own
+/// window end is inside the horizon, and the chosen count is non-zero;
+/// anything else is omitted — never rendered as "0 events". The copy
+/// carries counts and the stream's own window words only (day-precision
+/// dates): no paths, repository names, or any other detail can cross —
+/// structural, since [`CumulativeValue`] carries none.
+///
+/// Source priority: save-time protection (risky writes flagged, then
+/// saves checked) over witness events — the save-time figures are the
+/// direct "what has Anvil done" claim; the witness stream is the
+/// fallback heartbeat. A stale or fence-only save-time window falls
+/// through to the witness arm rather than suppressing the receipt.
+fn repeat_value_line(
+    value: &crate::insights::cumulative::CumulativeValue,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<String> {
+    use crate::insights::scorecard::date_part;
+
+    let fresh = |window_end: Option<&str>| {
+        window_end
+            .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
+            .is_some_and(|ts| {
+                now.signed_duration_since(ts.with_timezone(&chrono::Utc))
+                    <= chrono::Duration::days(REPEAT_VALUE_STALE_AFTER_DAYS)
+            })
+    };
+
+    let save = &value.save_time;
+    if save.has_evidence() && fresh(save.window_end.as_deref()) {
+        let (Some(start), Some(end)) = (save.window_start.as_deref(), save.window_end.as_deref())
+        else {
+            unreachable!("has_evidence guarantees both bounds");
+        };
+        let window = format!("({} to {})", date_part(start), date_part(end));
+        if save.risky_writes_flagged > 0 {
+            return Some(format!(
+                "value: {} flagged at save time {window}",
+                count_noun(save.risky_writes_flagged, "risky write", "risky writes"),
+            ));
+        }
+        if save.evaluations_observed > 0 {
+            return Some(format!(
+                "value: {} checked {window}",
+                count_noun(save.evaluations_observed, "save", "saves"),
+            ));
+        }
+        // Fence-only evidence has no user-meaningful single count; fall
+        // through to the witness stream.
+    }
+
+    if value.witness_has_evidence()
+        && fresh(value.witness_last_event.as_deref())
+        && value.witness_events_last_30_days > 0
+    {
+        let Some(last) = value.witness_last_event.as_deref() else {
+            unreachable!("witness_has_evidence guarantees the bound");
+        };
+        return Some(format!(
+            "value: {} recorded in the 30 days to {}",
+            count_noun(
+                value.witness_events_last_30_days,
+                "witness event",
+                "witness events",
+            ),
+            date_part(last),
+        ));
+    }
+    None
+}
+
+/// `"1 risky write"` / `"3 risky writes"` — honest grammar for the one
+/// count the receipt carries.
+fn count_noun(n: u64, singular: &str, plural: &str) -> String {
+    if n == 1 {
+        format!("1 {singular}")
+    } else {
+        format!("{n} {plural}")
+    }
 }
 
 /// UJ-001: the single next-step line for a plain `anvil start` ending. Honest
@@ -3287,6 +3437,293 @@ mod tests {
             without.lines().count(),
             lines.len() - 1,
             "empty slot renders nothing extra",
+        );
+    }
+
+    // ── CIB-190: the repeat-start local value receipt ──
+
+    fn empty_receipt_value() -> crate::insights::cumulative::CumulativeValue {
+        crate::insights::cumulative::CumulativeValue {
+            since: None,
+            as_of: None,
+            witness_first_event: None,
+            witness_last_event: None,
+            witness_events_total: 0,
+            witness_events_last_30_days: 0,
+            witness_events_last_90_days: 0,
+            save_time: crate::insights::cumulative::SaveTimeCounts {
+                window_start: None,
+                window_end: None,
+                evaluations_observed: 0,
+                risky_writes_flagged: 0,
+                writes_blocked: 0,
+                secret_findings_caught: 0,
+                fences_engaged: 0,
+            },
+        }
+    }
+
+    fn receipt_now(ts: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(ts)
+            .unwrap()
+            .with_timezone(&chrono::Utc)
+    }
+
+    #[test]
+    fn value_receipt_renders_fresh_save_time_evidence() {
+        // Healthy evidence: the save-time stream is the primary claim.
+        let now = receipt_now("2026-07-11T00:00:00Z");
+        let mut value = empty_receipt_value();
+        value.save_time.window_start = Some("2026-07-05T10:00:00Z".to_string());
+        value.save_time.window_end = Some("2026-07-08T12:00:00Z".to_string());
+        value.save_time.evaluations_observed = 3;
+        value.save_time.risky_writes_flagged = 2;
+        assert_eq!(
+            repeat_value_line(&value, now).as_deref(),
+            Some("value: 2 risky writes flagged at save time (2026-07-05 to 2026-07-08)"),
+        );
+        // Nothing flagged → the honest fallback claim is saves checked.
+        value.save_time.risky_writes_flagged = 0;
+        assert_eq!(
+            repeat_value_line(&value, now).as_deref(),
+            Some("value: 3 saves checked (2026-07-05 to 2026-07-08)"),
+        );
+        // Singular grammar.
+        value.save_time.risky_writes_flagged = 1;
+        assert_eq!(
+            repeat_value_line(&value, now).as_deref(),
+            Some("value: 1 risky write flagged at save time (2026-07-05 to 2026-07-08)"),
+        );
+    }
+
+    #[test]
+    fn value_receipt_falls_back_to_fresh_witness_events() {
+        // Witness-only evidence renders the windowed count, labelled by
+        // the witness stream's OWN anchor — never a wall-clock date.
+        let now = receipt_now("2026-07-11T00:00:00Z");
+        let mut value = empty_receipt_value();
+        value.witness_first_event = Some("2026-01-05T08:00:00Z".to_string());
+        value.witness_last_event = Some("2026-07-01T10:00:00Z".to_string());
+        value.witness_events_total = 12;
+        value.witness_events_last_30_days = 4;
+        value.witness_events_last_90_days = 9;
+        let expected = "value: 4 witness events recorded in the 30 days to 2026-07-01";
+        assert_eq!(repeat_value_line(&value, now).as_deref(), Some(expected));
+        // A stale save-time window must not suppress the fresh witness
+        // arm — staleness falls through, it never vetoes the receipt.
+        value.save_time.window_start = Some("2026-04-01T00:00:00Z".to_string());
+        value.save_time.window_end = Some("2026-04-02T00:00:00Z".to_string());
+        value.save_time.evaluations_observed = 7;
+        value.save_time.risky_writes_flagged = 7;
+        assert_eq!(repeat_value_line(&value, now).as_deref(), Some(expected));
+    }
+
+    #[test]
+    fn value_receipt_omits_absent_and_zero_evidence() {
+        let now = receipt_now("2026-07-11T00:00:00Z");
+        // No evidence anywhere → no line (never "0 events").
+        assert_eq!(repeat_value_line(&empty_receipt_value(), now), None);
+
+        // Fence-only save-time evidence has no chosen count; with no
+        // witness evidence the receipt is omitted, not zero-filled.
+        let mut fences_only = empty_receipt_value();
+        fences_only.save_time.window_start = Some("2026-07-05T10:00:00Z".to_string());
+        fences_only.save_time.window_end = Some("2026-07-08T12:00:00Z".to_string());
+        fences_only.save_time.fences_engaged = 2;
+        assert_eq!(repeat_value_line(&fences_only, now), None);
+
+        // Witness bounds present but a zero windowed count → omitted.
+        let mut zero_witness = empty_receipt_value();
+        zero_witness.witness_first_event = Some("2026-06-01T00:00:00Z".to_string());
+        zero_witness.witness_last_event = Some("2026-07-01T00:00:00Z".to_string());
+        zero_witness.witness_events_total = 5;
+        zero_witness.witness_events_last_30_days = 0;
+        assert_eq!(repeat_value_line(&zero_witness, now), None);
+    }
+
+    #[test]
+    fn value_receipt_omits_stale_and_unparseable_evidence() {
+        // Both streams' own window ends sit outside the 30-day horizon
+        // relative to command time → the receipt is omitted entirely.
+        let mut value = empty_receipt_value();
+        value.witness_first_event = Some("2026-01-05T08:00:00Z".to_string());
+        value.witness_last_event = Some("2026-03-01T10:00:00Z".to_string());
+        value.witness_events_total = 12;
+        value.witness_events_last_30_days = 4;
+        value.witness_events_last_90_days = 9;
+        value.save_time.window_start = Some("2026-02-01T00:00:00Z".to_string());
+        value.save_time.window_end = Some("2026-02-20T00:00:00Z".to_string());
+        value.save_time.evaluations_observed = 9;
+        value.save_time.risky_writes_flagged = 3;
+        let stale_now = receipt_now("2026-07-11T00:00:00Z");
+        assert_eq!(repeat_value_line(&value, stale_now), None);
+        // The same aggregate read close to its own evidence is fresh —
+        // the horizon is relative to command time, not absolute.
+        assert!(repeat_value_line(&value, receipt_now("2026-03-01T12:00:00Z")).is_some());
+        // An unparseable window end is ambiguous evidence: treated as
+        // absent, never guessed at.
+        value.save_time.window_end = Some("not-a-timestamp".to_string());
+        assert_eq!(repeat_value_line(&value, stale_now), None);
+    }
+
+    #[test]
+    fn value_receipt_is_confined_to_the_collapsed_repeat_path() {
+        // The receipt enters through `render_repeat_start_output`'s
+        // extra-line slot only, and `run` computes it only when the
+        // CIB-183 collapse fires — so every repair path (where the
+        // recovery action must stay primary) fails `is_repeat_success`
+        // and can never carry the line. Pin that gate from the
+        // receipt's perspective.
+        let run = repeat_activation_run();
+        let report = up_to_date_install_report();
+
+        let needs_action = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        assert!(!is_repeat_success(Some(&run), &needs_action, &report, None));
+
+        let mut errored = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        errored.last_error = Some("synthetic activation failure".to_string());
+        assert!(!is_repeat_success(Some(&run), &errored, &report, None));
+
+        let healthy = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let daemon_failed = anvil_intercept::ensure::EnsureOutcome::Failed {
+            recovery: "run `anvil intercept start --foreground`.".to_string(),
+        };
+        assert!(!is_repeat_success(
+            Some(&run),
+            &healthy,
+            &report,
+            Some(&daemon_failed)
+        ));
+    }
+
+    #[test]
+    fn collapsed_output_carries_the_value_receipt_line() {
+        // End-to-end through the CIB-183 seam: the receipt renders once,
+        // in the reserved slot, with the standard indent.
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let mut value = empty_receipt_value();
+        value.save_time.window_start = Some("2026-07-05T10:00:00Z".to_string());
+        value.save_time.window_end = Some("2026-07-08T12:00:00Z".to_string());
+        value.save_time.evaluations_observed = 3;
+        value.save_time.risky_writes_flagged = 2;
+        let line = repeat_value_line(&value, receipt_now("2026-07-11T00:00:00Z")).unwrap();
+        let rendered = render_repeat_start_output(&diag, None, Some(&line));
+        assert!(
+            rendered.contains(
+                "\n  value: 2 risky writes flagged at save time (2026-07-05 to 2026-07-08)\n"
+            ),
+            "{rendered}",
+        );
+        assert_eq!(rendered.matches("value:").count(), 1, "{rendered}");
+    }
+
+    #[test]
+    fn value_receipt_redacts_to_counts_and_window_words() {
+        // Marker-seeded sources: every free-text field carries "marker",
+        // so the exact-copy assertion plus one substring check proves
+        // nothing but counts and window words reach the line.
+        use anvil_witness::{GenesisAnchor, WitnessLine};
+        let tmp = tempfile::TempDir::new().unwrap();
+        let witness_dir = tmp.path().join("anvil/witness");
+        std::fs::create_dir_all(&witness_dir).unwrap();
+        let witness = WitnessLine {
+            seq: 1,
+            scope: "active".to_string(),
+            kind: "witness".to_string(),
+            prev_line_hash: GenesisAnchor::Fresh.anchor_string().to_string(),
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".to_string(),
+            commit_sha: Some(format!("{:040x}", 1)),
+            parent_commits: Vec::new(),
+            prev_line_hashes: Vec::new(),
+            agent_tag: Some("marker-agent".to_string()),
+            rules_sha: None,
+            cutoff_commit: None,
+            ts: "2026-07-01T10:00:00Z".to_string(),
+            validation_at: "pre-commit".to_string(),
+        };
+        std::fs::write(
+            witness_dir.join("active.ndjson"),
+            witness.to_ndjson_line().unwrap(),
+        )
+        .unwrap();
+
+        let sidecar = tmp.path().join("kindling/usage.ndjson");
+        std::fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        let row = concat!(
+            r#"{"kind":"gate_evaluated","session_id":"marker-sess","#,
+            r#""timestamp":"2026-07-08T12:00:00Z","gate_eval_id":"marker-eval","#,
+            r#""gate_id":"save-time","#,
+            r#""inputs":{"file_count":1,"#,
+            r#""changed_files":["/home/markeruser/marker-repo/src/marker.rs"],"#,
+            r#""baseline_hash":"marker-hash"},"#,
+            r#""outcome":"fail","rules_evaluated":["path-deny"],"#,
+            r#""rules_violated":["path-deny"],"enforcement":"warning","#,
+            r#""duration_ms":12,"partial":false,"principal":"marker@example.com"}"#,
+            "\n",
+        );
+        std::fs::write(&sidecar, row).unwrap();
+
+        let value = crate::insights::cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
+        let line = repeat_value_line(&value, receipt_now("2026-07-11T00:00:00Z"))
+            .expect("fresh flagged evidence renders");
+        assert_eq!(
+            line,
+            "value: 1 risky write flagged at save time (2026-07-08 to 2026-07-08)",
+        );
+        let lowered = line.to_lowercase();
+        assert!(!lowered.contains("marker"), "{line}");
+        assert!(!line.contains('/'), "no path fragments: {line}");
+        assert!(!line.contains('@'), "no principals: {line}");
+    }
+
+    #[test]
+    fn value_receipt_skips_silently_on_read_error() {
+        // A sidecar path that opens but cannot be read line-wise (a
+        // directory) is a read error: the receipt is skipped, never a
+        // panic and never a failed activation.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let sidecar_dir = tmp.path().join("kindling/usage.ndjson");
+        std::fs::create_dir_all(&sidecar_dir).unwrap();
+        assert!(
+            read_cumulative_value_within(
+                tmp.path().to_path_buf(),
+                sidecar_dir,
+                std::time::Duration::from_secs(5),
+            )
+            .is_none()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn value_receipt_skips_when_the_read_exceeds_the_budget() {
+        // A FIFO with no writer blocks `open(2)` indefinitely — a
+        // stand-in for any pathologically slow witness chain. The
+        // receipt must come back `None` within the budget instead of
+        // hanging `anvil start`; the abandoned reader stays blocked on
+        // its detached thread until process exit (the documented
+        // time-box contract).
+        let tmp = tempfile::TempDir::new().unwrap();
+        let witness_dir = tmp.path().join("anvil/witness");
+        std::fs::create_dir_all(&witness_dir).unwrap();
+        let status = std::process::Command::new("mkfifo")
+            .arg(witness_dir.join("active.ndjson"))
+            .status()
+            .expect("mkfifo is available on unix hosts");
+        assert!(status.success(), "mkfifo failed");
+
+        let started = std::time::Instant::now();
+        assert!(
+            read_cumulative_value_within(
+                tmp.path().to_path_buf(),
+                tmp.path().join("kindling/usage.ndjson"),
+                std::time::Duration::from_millis(50),
+            )
+            .is_none()
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "the time-box must bound the caller, not the reader",
         );
     }
 
