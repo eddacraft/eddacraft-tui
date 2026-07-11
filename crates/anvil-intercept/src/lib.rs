@@ -3318,7 +3318,7 @@ mod tests {
             .await
             .expect("foreground loop did not return after shutdown")
             .expect("join failure")
-            .expect("foreground loop reported error");
+            .expect("foreground loop returned an error");
     }
 
     #[cfg(unix)]
@@ -3349,7 +3349,7 @@ mod tests {
             .await
             .expect("foreground loop did not return after shutdown")
             .expect("join failure")
-            .expect("foreground loop reported error");
+            .expect("foreground loop returned an error");
     }
 
     #[cfg(unix)]

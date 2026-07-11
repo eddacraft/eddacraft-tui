@@ -958,7 +958,22 @@ mod unix_perms {
         }
         // Owner-matched, mode too open — tighten once (#3220).
         let from_mode = mode;
-        fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+        if let Err(err) = fs::set_permissions(dir, fs::Permissions::from_mode(0o700)) {
+            // Keep the actionable SocketDirPermissions recovery rather than
+            // bubbling a bare Io error that drops the chmod/ANVIL_HOME guidance.
+            tracing::warn!(
+                path = %dir.display(),
+                from_mode = format_args!("{from_mode:o}"),
+                error = %err,
+                "failed to tighten socket directory mode to 0700"
+            );
+            return Err(IpcError::SocketDirPermissions {
+                path: dir.to_path_buf(),
+                mode: from_mode,
+                owner_uid,
+                current_uid,
+            });
+        }
         let meta = fs::symlink_metadata(dir)?;
         if meta.file_type().is_symlink() || !meta.is_dir() {
             return Err(IpcError::SocketDirPermissions {

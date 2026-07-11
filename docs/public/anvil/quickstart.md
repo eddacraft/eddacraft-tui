@@ -78,13 +78,13 @@ platform-standard config paths (`~/.config/anvil` on Unix and macOS,
 useful for running a candidate build beside a production install. Project state
 under `.anvil/` in your repo is unaffected by the override.
 
-On Unix, the prefix must be **mode `0700` and owned by you** (the daemon
-binds its socket and PID file directly under it). Prefer
+On Unix, the prefix must be **mode `0700` and owned by you** (the daemon binds
+its socket and PID file directly under it). Prefer
 `install -d -m 700 "$ANVIL_HOME"`. If you already created the directory with
 plain `mkdir`, the daemon ensure/bind path tightens owner-matched modes
 automatically; client probes refuse until the prefix is `0700` (or you run
 `chmod 700 "$ANVIL_HOME"`). See the
-[side-by-side runbook](../../runbooks/anvil-home-side-by-side.md).
+[side-by-side runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-home-side-by-side.md).
 
 :::
 
