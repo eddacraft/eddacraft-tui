@@ -115,19 +115,26 @@ default-on.
 
 #### GBASE-002: Content-addressed write-once base store + single-flight claim
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3269
 - **Intent:** Persist a base as a content-addressed, write-once artefact keyed by
   merge-base sha, with race-safe single-flight production.
 - **Expected Outcome:** A base is written once per merge-base sha (magic
   `ANVILGB1`, `SnapshotPayload` DTO reused verbatim, shared versioning policy);
   production is single-flight via an `O_EXCL` `.producing/<sha>.lock` stamped
   `{pid, start_time}` with a PID-reuse guard; reclaim happens iff the pid is dead
-  or mtime exceeds 2× p95, via `O_EXCL` rename + atomic swap. Includes the
-  **schema-epoch-vs-shared-base clause**: an epoch-mismatched base is ignored
-  (cold path) and GC-eligible once unreferenced at the old epoch —
-  discard-and-rebuild, never migrate, never a mixed-epoch composition. **Entry
-  gate:** the no-behaviour-diff `snapshot_io::store` extraction PR must have
-  landed first.
+  (or PID-reused) or the lock mtime exceeds a conservative bound (GBASE-010
+  calibrates 2× p95). All destruction of a claim record — reclaim and release —
+  runs under a per-dir `flock(LOCK_EX)` guard, re-verifying the lock's identity
+  through a dirfd-anchored open before the `unlinkat`, so the hot-path `O_EXCL`
+  create stays lock-free while classify→destroy and read-nonce→unlink are
+  TOCTOU-free. Includes the **schema-epoch-vs-shared-base clause**: an
+  epoch-mismatched base is ignored (cold path) and GC-eligible once unreferenced
+  at the old epoch — discard-and-rebuild, never migrate, never a mixed-epoch
+  composition. §9's "left in place" governs the **read/load path** (a loader
+  refuses a mismatched base rather than returning it); a fresh produce may
+  overwrite a corrupt/stale-epoch artefact at the same content-addressed sha
+  (atomic, fail-closed readers). **Entry gate:** the no-behaviour-diff
+  `snapshot_io::store` extraction PR must have landed first.
 - **Validation:** Tests cover write-once, concurrent-claim single-flight,
   stale-claim reclaim (dead pid + timeout paths), and epoch-mismatch discard;
   existing golden tests stay byte-identical through the seam extraction.

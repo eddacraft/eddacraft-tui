@@ -66,6 +66,14 @@ use anvil_graph_cache::snapshot::{
 /// per-worktree paths below layer their keying and `.root` companion onto.
 pub mod store;
 
+/// The GBASE-002 content-addressed, write-once **shared base** store and its
+/// single-flight production claim (ADR-105 §2/§5/§9). Keyed by merge-base sha
+/// rather than by worktree, it rides the key-agnostic [`store`] seam for all disk
+/// I/O and layers write-once publish, the `O_EXCL` `{pid, start_time}` claim with
+/// its PID-reuse guard + stale-claim reclaim, and the schema-epoch-vs-base
+/// refuse-don't-return load rule on top.
+pub mod base_store;
+
 /// Extension for the `<hash>.root` companion (CIB-096): the cleartext canonical
 /// root, sibling to the `.snap`, that the orphan sweep existence-checks.
 const ROOT_EXT: &str = "root";

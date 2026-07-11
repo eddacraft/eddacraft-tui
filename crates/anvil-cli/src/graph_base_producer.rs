@@ -35,11 +35,15 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anvil_intercept::save_time::SymbolParser;
+use anvil_intercept::snapshot_io::base_store::{
+    self, BaseLoadOutcome, ClaimOutcome, ClaimProcs, PublishOutcome,
+};
 use anvil_kernel::graph::{
-    SymbolGraph, re_resolve_calls, re_resolve_imports, re_resolve_reexports, update_file,
+    DependencyGraph, SnapshotPayload, SymbolGraph, re_resolve_calls, re_resolve_imports,
+    re_resolve_reexports, update_file,
 };
 use anvil_kernel::parser::languages::Language;
-use anvil_kernel_types::{CallSite, ImportEdge, ReexportEdge};
+use anvil_kernel_types::{CallSite, EdgeType, ImportEdge, ReexportEdge};
 use serde::Serialize;
 
 use crate::intercept_symbol_parser::KernelSymbolParser;
@@ -447,8 +451,29 @@ fn parse_batch_stdout(stdout: &[u8], expected: usize) -> Option<Vec<Option<Vec<u
     Some(out)
 }
 
+/// A fully built base graph plus its deterministic summary (GBASE-002). The
+/// resident [`SymbolGraph`] is what the persistence layer serialises to a
+/// [`SnapshotPayload`]; [`BaseGraphSummary`] is the deterministic one-line
+/// digest the `build` harness prints.
+pub struct BuiltBaseGraph {
+    /// The resident symbol graph of the merge-base commit's committed tree.
+    pub graph: SymbolGraph,
+    /// The deterministic summary of [`Self::graph`].
+    pub summary: BaseGraphSummary,
+}
+
 /// Build the base symbol graph of the merge-base commit `sha`'s committed tree
 /// and return its deterministic summary.
+///
+/// Thin wrapper over [`build_base_graph_full`] that keeps the GBASE-001 summary
+/// API (and its deterministic-summary tests) intact; the persistence path uses
+/// [`build_base_graph_full`] to reach the resident graph itself.
+pub fn build_base_graph(repo_root: &Path, sha: &str) -> Result<BaseGraphSummary, BaseGraphError> {
+    Ok(build_base_graph_full(repo_root, sha)?.summary)
+}
+
+/// Build the base graph of the merge-base commit `sha`'s committed tree,
+/// returning both the resident [`SymbolGraph`] and its deterministic summary.
 ///
 /// Walks the committed tree (`enumerate_tree`), batch-reads the blobs
 /// (`read_blobs_batch`), parses each supported file through the injected
@@ -457,7 +482,10 @@ fn parse_batch_stdout(stdout: &[u8], expected: usize) -> Option<Vec<Option<Vec<u
 /// (`re_resolve_imports`/`re_resolve_reexports`/`re_resolve_calls`) — exactly
 /// the cold-scan build the daemon's warm path mirrors. Never touches the
 /// working tree.
-pub fn build_base_graph(repo_root: &Path, sha: &str) -> Result<BaseGraphSummary, BaseGraphError> {
+pub fn build_base_graph_full(
+    repo_root: &Path,
+    sha: &str,
+) -> Result<BuiltBaseGraph, BaseGraphError> {
     if !is_hex_object_name(sha) {
         return Err(BaseGraphError::InvalidSha(sha.to_string()));
     }
@@ -492,11 +520,182 @@ pub fn build_base_graph(repo_root: &Path, sha: &str) -> Result<BaseGraphSummary,
     re_resolve_calls(&mut graph, &all_calls);
 
     let stats = graph.stats();
-    Ok(BaseGraphSummary {
+    let summary = BaseGraphSummary {
         merge_base: sha.to_string(),
         file_count: stats.files,
         symbol_count: stats.node_count,
         edge_count: stats.edge_count,
+    };
+    Ok(BuiltBaseGraph { graph, summary })
+}
+
+/// Derive the file-level [`DependencyGraph`] from a built [`SymbolGraph`] by
+/// projecting its **cross-file `Imports` edges** to `(source_file → target_file)`
+/// dependencies.
+///
+/// This must track the **same Imports-only, cross-file rule** the live daemon
+/// maintains. In production that graph is kept **incrementally** by
+/// `anvil_intercept::kernel_cache::refresh_file_dependencies` (the whole-graph
+/// `derive_dependency_graph` re-derive survives only as a `#[cfg(test)]`
+/// cold-scan oracle for that crate's equivalence property test). Both are
+/// deliberately `Imports`-only and must move in lockstep (see the lockstep note
+/// on `refresh_file_dependencies`); this producer mirrors that rule so the base's
+/// persisted [`SnapshotPayload`] carries the same file-dependency forward edges a
+/// per-worktree scan would. End-to-end composition parity (base + overlay == cold
+/// scan) is pinned by the GBASE-007 COMBINED-STATE fixture. Intra-file import
+/// edges are not file dependencies and are skipped.
+fn derive_dependency_graph(sym: &SymbolGraph) -> DependencyGraph {
+    let mut dep = DependencyGraph::new();
+    for node in sym.inner().node_weights() {
+        for edge in sym.outgoing_edges(node.id) {
+            if edge.edge_type != EdgeType::Imports {
+                continue;
+            }
+            let (Some(from), Some(to)) = (sym.get_symbol(edge.from), sym.get_symbol(edge.to))
+            else {
+                continue;
+            };
+            if from.file != to.file {
+                dep.add_dependency(from.file.clone(), to.file.clone());
+            }
+        }
+    }
+    dep
+}
+
+/// The persistence outcome of a [`build_and_persist_base`] call (ADR-105 §2/§5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PersistOutcome {
+    /// The base was built and freshly written to the store.
+    Written,
+    /// A clean base for this sha already existed — a write-once no-op (no rebuild).
+    AlreadyPresent,
+    /// Another live producer holds the single-flight claim — nothing was built or
+    /// written (serve cold / retry later, non-fatal).
+    ClaimedElsewhere,
+}
+
+impl PersistOutcome {
+    /// The stable, path-free string the `build` harness emits in its JSON summary.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PersistOutcome::Written => "written",
+            PersistOutcome::AlreadyPresent => "already-present",
+            PersistOutcome::ClaimedElsewhere => "claimed-elsewhere",
+        }
+    }
+
+    /// Whether a base artefact is present in the store after this call. `false`
+    /// only for [`PersistOutcome::ClaimedElsewhere`], where we deferred to a peer.
+    #[must_use]
+    pub fn persisted(self) -> bool {
+        !matches!(self, PersistOutcome::ClaimedElsewhere)
+    }
+}
+
+/// The result of building and persisting a base for `sha` (GBASE-002).
+#[derive(Debug)]
+pub struct PersistedBase {
+    /// The merge-base sha keyed on.
+    pub sha: String,
+    /// How persistence resolved.
+    pub outcome: PersistOutcome,
+    /// The deterministic summary — `Some` only when this call actually built the
+    /// graph ([`PersistOutcome::Written`]); `None` for a write-once no-op or a
+    /// claim contention (neither rebuilds).
+    pub summary: Option<BaseGraphSummary>,
+}
+
+/// Single-flight, write-once produce-and-persist of the base for `sha` into
+/// `base_dir` (ADR-105 §2/§5): **(a)** claim, **(b)** build (only if not already
+/// present), **(c)** serialise via the exact per-worktree
+/// [`SnapshotPayload::from_graphs`] path, **(d)** publish write-once, **(e)**
+/// release the claim.
+///
+/// - A claim contention returns [`PersistOutcome::ClaimedElsewhere`] **without
+///   building** — the whole point of single-flight is to not burn a redundant
+///   scan while a peer produces.
+/// - If a clean base already exists, this is a write-once no-op
+///   ([`PersistOutcome::AlreadyPresent`]) with no rebuild.
+/// - The claim is released on every exit path (success or error) via the
+///   [`base_store::BaseClaim`] guard's `Drop`.
+///
+/// # Errors
+/// [`BaseGraphError`] on a git/build failure, a serialisation failure (a
+/// committed tree yielding a non-relative path — not expected), or a store I/O
+/// failure. Every one is **non-fatal** at the call site (ADR-105 §6): the caller
+/// serves cold.
+pub fn build_and_persist_base(
+    repo_root: &Path,
+    sha: &str,
+    base_dir: &Path,
+    procs: &dyn ClaimProcs,
+) -> Result<PersistedBase, BaseGraphError> {
+    if !is_hex_object_name(sha) {
+        return Err(BaseGraphError::InvalidSha(sha.to_string()));
+    }
+
+    // (a) Claim. A live peer already producing ⇒ concede without building.
+    let claim = base_store::claim(base_dir, sha, procs).map_err(|e| BaseGraphError::Git {
+        op: "base-store claim".to_string(),
+        detail: e.to_string(),
+    })?;
+    let guard = match claim {
+        ClaimOutcome::Acquired(guard) => guard,
+        ClaimOutcome::Contended => {
+            return Ok(PersistedBase {
+                sha: sha.to_string(),
+                outcome: PersistOutcome::ClaimedElsewhere,
+                summary: None,
+            });
+        }
+    };
+
+    // Write-once fast path: a clean base already exists ⇒ no rebuild, no rewrite.
+    if matches!(
+        base_store::load_base(base_dir, sha),
+        BaseLoadOutcome::Loaded(_)
+    ) {
+        guard.release();
+        return Ok(PersistedBase {
+            sha: sha.to_string(),
+            outcome: PersistOutcome::AlreadyPresent,
+            summary: None,
+        });
+    }
+
+    // (b) Build the base graph from the committed tree (GBASE-001 code path).
+    let built = build_base_graph_full(repo_root, sha)?;
+    // (c) Serialise via the exact per-worktree payload construction path, keyed to
+    // the ANVILGB1 base class.
+    let dep = derive_dependency_graph(&built.graph);
+    let payload =
+        SnapshotPayload::from_graphs(&built.graph, &dep).map_err(|e| BaseGraphError::Git {
+            op: "base serialise".to_string(),
+            detail: e.to_string(),
+        })?;
+    let bytes = payload.to_base_bytes();
+    // (d) Publish write-once.
+    let publish =
+        base_store::publish_base(base_dir, sha, &bytes).map_err(|e| BaseGraphError::Git {
+            op: "base-store publish".to_string(),
+            detail: e.to_string(),
+        })?;
+    // (e) Release the claim.
+    guard.release();
+
+    let outcome = match publish {
+        PublishOutcome::Written => PersistOutcome::Written,
+        PublishOutcome::AlreadyPresent => PersistOutcome::AlreadyPresent,
+    };
+    Ok(PersistedBase {
+        sha: sha.to_string(),
+        // A publish that found the artefact already present (a race despite our
+        // claim) reports the no-op outcome; we still built, so the summary is
+        // retained for observability.
+        outcome,
+        summary: Some(built.summary),
     })
 }
 
@@ -789,6 +988,66 @@ mod tests {
         assert_eq!(parsed.len(), 2);
         assert!(parsed[0].is_none(), "over-cap blob skipped");
         assert_eq!(parsed[1].as_deref(), Some(b"ok".as_ref()));
+    }
+
+    /// (h) End-to-end: producing a base twice for the same committed tree writes
+    /// exactly one artefact, the second run is a write-once no-op (no rebuild),
+    /// and the stored artefact gates clean when loaded as an `ANVILGB1` base.
+    #[test]
+    fn build_and_persist_is_write_once_and_gates_clean_on_load() {
+        use anvil_intercept::snapshot_io::base_store::{
+            BaseLoadOutcome, SystemClaimProcs, load_base,
+        };
+
+        let (_tmp, root, sha) = commit_two_file_ts_fixture();
+        let store_tmp = TempDir::new().unwrap();
+        let base_dir = store_tmp.path().join("graph-cache").join("base");
+        let procs = SystemClaimProcs;
+
+        let first = build_and_persist_base(&root, &sha, &base_dir, &procs).expect("persist");
+        assert_eq!(first.outcome, PersistOutcome::Written, "first run writes");
+        assert!(first.summary.is_some(), "first run built the graph");
+        assert!(first.outcome.persisted());
+
+        // The stored artefact gates clean as a base.
+        assert!(
+            matches!(load_base(&base_dir, &sha), BaseLoadOutcome::Loaded(_)),
+            "the persisted base must gate clean on load"
+        );
+
+        let second = build_and_persist_base(&root, &sha, &base_dir, &procs).expect("persist again");
+        assert_eq!(
+            second.outcome,
+            PersistOutcome::AlreadyPresent,
+            "second run is a write-once no-op"
+        );
+        assert!(second.summary.is_none(), "the no-op path does not rebuild");
+        assert!(second.outcome.persisted());
+
+        // Exactly one base artefact on disk.
+        let count = std::fs::read_dir(&base_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("base"))
+            .count();
+        assert_eq!(count, 1, "write-once: a single base artefact");
+    }
+
+    /// A malformed sha never reaches the store: `build_and_persist_base` rejects
+    /// it as `InvalidSha` before claiming or building.
+    #[test]
+    fn build_and_persist_rejects_a_malformed_sha() {
+        use anvil_intercept::snapshot_io::base_store::SystemClaimProcs;
+        let store_tmp = TempDir::new().unwrap();
+        let base_dir = store_tmp.path().join("base");
+        let err = build_and_persist_base(
+            Path::new("/nonexistent"),
+            "not-a-sha",
+            &base_dir,
+            &SystemClaimProcs,
+        )
+        .expect_err("malformed sha rejected");
+        assert!(matches!(err, BaseGraphError::InvalidSha(_)));
     }
 
     /// A missing object surfaces as `None` in its slot without derailing the

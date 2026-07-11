@@ -100,10 +100,24 @@ use anvil_kernel_types::{
 use crate::dependency::DependencyGraph;
 use crate::symbol_graph::SymbolGraph;
 
-/// Sealed magic prefix identifying an Anvil graph-cache snapshot (ADR-069 §1).
-/// `GC1` = graph-cache, generation 1. A mismatched prefix ⇒
+/// Sealed magic prefix identifying an Anvil **per-worktree** graph-cache snapshot
+/// (ADR-069 §1). `GC1` = graph-cache, generation 1. A mismatched prefix ⇒
 /// [`SnapshotLoadError::BadMagic`] ⇒ cold rebuild (never a panic).
 pub const SNAPSHOT_MAGIC: [u8; 8] = *b"ANVILGC1";
+
+/// Sealed magic prefix identifying an Anvil **shared base** graph snapshot
+/// (ADR-105 §2). `GB1` = graph-base, generation 1. Both artefact classes reuse
+/// the [`SnapshotPayload`] DTO **verbatim** — the class is carried by these magic
+/// bytes, *not* by a header-kind byte (adding one would shift [`HEADER_LEN`] and
+/// break the committed golden fixtures). The two classes are therefore
+/// distinguishable at load without any body-layout change: [`SnapshotPayload::to_base_bytes`]
+/// / [`SnapshotPayload::from_base_bytes`] frame the identical body behind this
+/// prefix, and a load with the wrong expected magic (e.g. an `ANVILGC1` artefact
+/// read as a base) is refused as [`SnapshotLoadError::BadMagic`] — never returned
+/// as a mismatched payload. The `format_version` / `backing_schema_version`
+/// policy ([`SNAPSHOT_FORMAT_VERSION`] / [`SNAPSHOT_BACKING_SCHEMA_VERSION`]) is
+/// **shared** across both classes: a schema-epoch bump invalidates both together.
+pub const SNAPSHOT_BASE_MAGIC: [u8; 8] = *b"ANVILGB1";
 
 /// Envelope / codec version (ADR-069 §6 `format_version`). Bumped when the
 /// envelope framing or codec changes. A mismatch ⇒
@@ -450,11 +464,31 @@ impl SnapshotPayload {
         })
     }
 
-    /// Serialise to the sealed binary form: a fixed [`HEADER_LEN`]-byte header
-    /// (magic, versions, node/edge counts, body CRC-32) followed by the postcard
-    /// body (ADR-069 §1).
+    /// Serialise to the sealed **per-worktree** (`ANVILGC1`) binary form: a fixed
+    /// [`HEADER_LEN`]-byte header (magic, versions, node/edge counts, body CRC-32)
+    /// followed by the postcard body (ADR-069 §1).
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_bytes_with_magic(SNAPSHOT_MAGIC)
+    }
+
+    /// Serialise to the sealed **shared-base** (`ANVILGB1`) binary form (ADR-105
+    /// §2). Byte-for-byte identical to [`Self::to_bytes`] except for the 8-byte
+    /// magic prefix — the body, version fields, counts, and CRC are produced by
+    /// the exact same path, so the two artefact classes share one integrity gate
+    /// and one versioning policy rather than forking the format.
+    #[must_use]
+    pub fn to_base_bytes(&self) -> Vec<u8> {
+        self.to_bytes_with_magic(SNAPSHOT_BASE_MAGIC)
+    }
+
+    /// Shared serialiser behind [`Self::to_bytes`] / [`Self::to_base_bytes`]: only
+    /// the magic prefix differs between artefact classes (ADR-105 §2). Everything
+    /// after the first 8 bytes — versions, counts, CRC, and the postcard body — is
+    /// class-independent, which is what lets the class be a pure load-time
+    /// discriminator with no body-layout change.
+    #[must_use]
+    fn to_bytes_with_magic(&self, magic: [u8; 8]) -> Vec<u8> {
         // `postcard` serialisation of this fixed allowlist DTO (only integers,
         // sealed enums, and identity strings) cannot fail; the `expect` documents
         // that invariant. (OOM aborts the process — it is not a returnable error
@@ -465,7 +499,7 @@ impl SnapshotPayload {
         let edge_count = self.edges.len() as u64;
 
         let mut out = Vec::with_capacity(HEADER_LEN + body.len());
-        out.extend_from_slice(&SNAPSHOT_MAGIC);
+        out.extend_from_slice(&magic);
         out.extend_from_slice(&SNAPSHOT_FORMAT_VERSION.to_le_bytes());
         out.extend_from_slice(&SNAPSHOT_BACKING_SCHEMA_VERSION.to_le_bytes());
         out.extend_from_slice(&node_count.to_le_bytes());
@@ -490,6 +524,31 @@ impl SnapshotPayload {
     /// - [`SnapshotLoadError::Corrupt`] if the codec cannot decode the body.
     /// - [`SnapshotLoadError::CountMismatch`] if decoded counts ≠ header counts.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SnapshotLoadError> {
+        Self::from_bytes_with_magic(bytes, SNAPSHOT_MAGIC)
+    }
+
+    /// Decode + validate a **shared-base** (`ANVILGB1`) snapshot (ADR-105 §2).
+    /// Identical validation to [`Self::from_bytes`] but keyed to the base magic,
+    /// so an `ANVILGC1` per-worktree artefact fed here is **refused** as
+    /// [`SnapshotLoadError::BadMagic`] rather than returned as a mismatched
+    /// payload — mixed-class (and, via the shared version policy, mixed-epoch)
+    /// composition is impossible by construction (ADR-105 §9). Never panics.
+    ///
+    /// # Errors
+    /// The same variants as [`Self::from_bytes`], with `BadMagic` covering a
+    /// non-`ANVILGB1` prefix (including a valid `ANVILGC1` artefact).
+    pub fn from_base_bytes(bytes: &[u8]) -> Result<Self, SnapshotLoadError> {
+        Self::from_bytes_with_magic(bytes, SNAPSHOT_BASE_MAGIC)
+    }
+
+    /// Shared decoder behind [`Self::from_bytes`] / [`Self::from_base_bytes`]: the
+    /// only class-specific step is the `expected_magic` comparison (ADR-105 §2).
+    /// The size cap, version gate, checksum, decode, and count checks are
+    /// class-independent, so both artefact classes share one integrity gate.
+    fn from_bytes_with_magic(
+        bytes: &[u8],
+        expected_magic: [u8; 8],
+    ) -> Result<Self, SnapshotLoadError> {
         if bytes.len() > MAX_SNAPSHOT_BYTES {
             return Err(SnapshotLoadError::Oversized);
         }
@@ -499,7 +558,7 @@ impl SnapshotPayload {
         }
         let (header, body) = bytes.split_at(HEADER_LEN);
 
-        if header[0..8] != SNAPSHOT_MAGIC {
+        if header[0..8] != expected_magic {
             return Err(SnapshotLoadError::BadMagic);
         }
         let found_format = u32::from_le_bytes([header[8], header[9], header[10], header[11]]);
@@ -1172,6 +1231,66 @@ mod tests {
             u32::from_le_bytes(header.try_into().unwrap()),
             SNAPSHOT_BACKING_SCHEMA_VERSION,
             "header backing_schema_version must equal the const"
+        );
+    }
+
+    /// ADR-105 §2 **shared-base golden pin** (`ANVILGB1`). The base artefact class
+    /// reuses the `SnapshotPayload` DTO verbatim and differs from the per-worktree
+    /// (`ANVILGC1`) wire form in the 8-byte magic prefix **only** — the body,
+    /// versions, counts, and CRC are class-independent. This pins that property
+    /// against the committed [`GOLDEN_SNAPSHOT_BYTES`] without touching it: the
+    /// expected base bytes are the per-worktree golden with byte 6 (`'C'` → `'B'`,
+    /// `GC1` → `GB1`) swapped and nothing else. If this fails, either the shared
+    /// body wire format drifted (regenerate BOTH goldens after a deliberate
+    /// version bump — see `snapshot_wire_bytes_match_committed_golden`) or the base
+    /// magic stopped being a pure prefix discriminator.
+    #[test]
+    fn base_snapshot_wire_bytes_match_committed_golden() {
+        // The base golden is the per-worktree golden with the magic's 7th byte
+        // ('C' = 0x43) swapped for 'B' (0x42): `ANVILGC1` → `ANVILGB1`.
+        let mut expected_base = GOLDEN_SNAPSHOT_BYTES.to_vec();
+        assert_eq!(expected_base[6], b'C', "GC1 golden magic byte precondition");
+        expected_base[6] = b'B';
+        assert_eq!(&expected_base[0..8], SNAPSHOT_BASE_MAGIC.as_slice());
+
+        let got = golden_fixture().to_base_bytes();
+        assert_eq!(
+            got, expected_base,
+            "ANVILGB1 base wire form must be the ANVILGC1 golden with only the magic swapped",
+        );
+
+        // The pinned base bytes round-trip through the base gate and reconstruct
+        // the same payload the per-worktree golden does (shared body).
+        assert_eq!(
+            SnapshotPayload::from_base_bytes(&expected_base).expect("base golden decodes"),
+            golden_fixture(),
+            "committed base golden bytes must round-trip through from_base_bytes",
+        );
+
+        // Cross-class loads are refused by construction (ADR-105 §2/§9): a base
+        // artefact is not a per-worktree snapshot and vice versa, so neither gate
+        // accepts the other's magic — no mixed-class (hence no mixed-epoch)
+        // composition is possible.
+        assert_eq!(
+            SnapshotPayload::from_bytes(&expected_base),
+            Err(SnapshotLoadError::BadMagic),
+            "an ANVILGB1 base must be refused by the ANVILGC1 per-worktree gate",
+        );
+        assert_eq!(
+            SnapshotPayload::from_base_bytes(GOLDEN_SNAPSHOT_BYTES),
+            Err(SnapshotLoadError::BadMagic),
+            "an ANVILGC1 per-worktree snapshot must be refused by the base gate",
+        );
+
+        // The shared version policy still governs the base class: the base header
+        // carries the same format / backing-schema versions at the same offsets.
+        assert_eq!(
+            u32::from_le_bytes(got[8..12].try_into().unwrap()),
+            SNAPSHOT_FORMAT_VERSION,
+        );
+        assert_eq!(
+            u32::from_le_bytes(got[12..16].try_into().unwrap()),
+            SNAPSHOT_BACKING_SCHEMA_VERSION,
         );
     }
 

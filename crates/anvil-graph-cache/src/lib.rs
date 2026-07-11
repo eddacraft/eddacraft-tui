@@ -33,9 +33,9 @@ pub use incremental::{
 };
 pub use registry::GraphRegistry;
 pub use snapshot::{
-    MAX_SNAPSHOT_BYTES, SNAPSHOT_BACKING_SCHEMA_VERSION, SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC,
-    SnapshotBuildError, SnapshotLoadError, SnapshotPayload, is_workspace_root_relative,
-    persist_graph_enabled, snapshot_filename,
+    MAX_SNAPSHOT_BYTES, SNAPSHOT_BACKING_SCHEMA_VERSION, SNAPSHOT_BASE_MAGIC,
+    SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC, SnapshotBuildError, SnapshotLoadError,
+    SnapshotPayload, is_workspace_root_relative, persist_graph_enabled, snapshot_filename,
 };
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
 pub use tokens::{

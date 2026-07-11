@@ -2,11 +2,13 @@
 //! producer.
 //!
 //! Not a user-facing command: it is the subprocess entry point the save-time
-//! daemon will detach to when producing a shared base snapshot. For this first
-//! slice it resolves the merge-base commit, builds the base graph from the
-//! committed tree (never a working tree), and prints a deterministic one-line
-//! JSON summary (file / symbol / edge counts) to stdout. Persisting the base to
-//! disk arrives in a later slice.
+//! daemon detaches to when producing a shared base snapshot. It resolves the
+//! merge-base commit, then (GBASE-002) single-flight **claims**, builds the base
+//! graph from the committed tree (never a working tree), serialises it to an
+//! `ANVILGB1` content-addressed artefact, **write-once publishes** it under the
+//! graph-cache `base/` dir, and releases the claim — printing a deterministic,
+//! **path-free** one-line JSON summary to stdout. A claim contention is a clean,
+//! non-fatal exit with a distinct `"claimed-elsewhere"` outcome (ADR-105 §6).
 //!
 //! Hidden from `--help` via `hide = true` on the top-level variant.
 
@@ -51,9 +53,61 @@ pub fn run(args: &GraphBaseArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
     }
 }
 
+/// The `build` subprocess's one-line JSON contract. Deliberately **path-free**
+/// (ADR-105 §2): it carries the merge-base sha, the deterministic counts (only
+/// when this run built the graph), and the persistence `outcome` — never an
+/// absolute store path.
+#[cfg(unix)]
+#[derive(serde::Serialize)]
+struct BuildOutput {
+    merge_base: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    symbol_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    edge_count: Option<usize>,
+    /// Whether a base artefact is present in the store after this run.
+    persisted: bool,
+    /// `written` | `already-present` | `claimed-elsewhere` | `unpersisted`.
+    outcome: String,
+}
+
+#[cfg(unix)]
+impl BuildOutput {
+    fn from_summary(
+        summary: &crate::graph_base_producer::BaseGraphSummary,
+        persisted: bool,
+        outcome: &str,
+    ) -> Self {
+        Self {
+            merge_base: summary.merge_base.clone(),
+            file_count: Some(summary.file_count),
+            symbol_count: Some(summary.symbol_count),
+            edge_count: Some(summary.edge_count),
+            persisted,
+            outcome: outcome.to_string(),
+        }
+    }
+
+    fn sha_only(sha: &str, persisted: bool, outcome: &str) -> Self {
+        Self {
+            merge_base: sha.to_string(),
+            file_count: None,
+            symbol_count: None,
+            edge_count: None,
+            persisted,
+            outcome: outcome.to_string(),
+        }
+    }
+}
+
 #[cfg(unix)]
 fn run_build(build: &BuildArgs) -> anyhow::Result<()> {
-    use crate::graph_base_producer::{build_base_graph, resolve_base_commit};
+    use crate::graph_base_producer::{
+        build_and_persist_base, build_base_graph, resolve_base_commit,
+    };
+    use anvil_intercept::snapshot_io::base_store::{SystemClaimProcs, default_base_dir};
 
     let repo_root = match &build.repo {
         Some(path) => path.clone(),
@@ -67,11 +121,28 @@ fn run_build(build: &BuildArgs) -> anyhow::Result<()> {
     )
     .map_err(|e| anyhow::anyhow!("could not resolve a merge-base: {e}"))?;
 
-    let summary = build_base_graph(&repo_root, &sha)
-        .map_err(|e| anyhow::anyhow!("could not build the base graph: {e}"))?;
+    // Persist to the shared-base store when one resolves. All failure is
+    // non-fatal to the daemon (ADR-105 §6) — the CLI surfaces a producer error as
+    // a non-zero exit, and the daemon that spawned it degrades to serving cold.
+    let output = if let Some(base_dir) = default_base_dir() {
+        let persisted = build_and_persist_base(&repo_root, &sha, &base_dir, &SystemClaimProcs)
+            .map_err(|e| anyhow::anyhow!("could not produce the base: {e}"))?;
+        let outcome = persisted.outcome.as_str();
+        let persisted_flag = persisted.outcome.persisted();
+        match &persisted.summary {
+            Some(summary) => BuildOutput::from_summary(summary, persisted_flag, outcome),
+            None => BuildOutput::sha_only(&persisted.sha, persisted_flag, outcome),
+        }
+    } else {
+        // No resolvable store dir (no ANVIL_HOME / XDG_STATE_HOME / HOME): build a
+        // summary but do not persist.
+        let summary = build_base_graph(&repo_root, &sha)
+            .map_err(|e| anyhow::anyhow!("could not build the base graph: {e}"))?;
+        BuildOutput::from_summary(&summary, false, "unpersisted")
+    };
 
     // One deterministic line of JSON to stdout — the subprocess contract.
-    println!("{}", serde_json::to_string(&summary)?);
+    println!("{}", serde_json::to_string(&output)?);
     Ok(())
 }
 
