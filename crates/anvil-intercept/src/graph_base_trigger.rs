@@ -150,6 +150,49 @@ pub const DEFAULT_QUIESCENCE: Duration = Duration::from_secs(5);
 /// logs, and emits the ADR-090 health envelope until the next quiescence re-arms.
 pub const MAX_RESTARTS_PER_LINEAGE: u32 = 3;
 
+/// GBASE-011: the exit code the base-production subprocess (`anvil graph-base
+/// build`) uses to report that its single-flight **claim could not make progress**
+/// — an I/O failure in the claim/reclaim path (`base_store::claim` returned
+/// `Err`), as opposed to a normal live-peer `Contended` (a clean exit). The reaper
+/// maps this exact code to the distinct ADR-090 "base claim could not make
+/// progress" health envelope; any *other* non-zero code is a general base-
+/// production failure. The single source of truth for this producer↔reaper
+/// contract: the producer references it via this crate, so the code can never
+/// drift between the two halves.
+pub const BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE: i32 = 11;
+
+/// GBASE-011: which base-failure class a reaped abnormal producer exit represents,
+/// used to select the ADR-090 health-envelope message class and to key the
+/// per-lineage rate-limit latch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProducerFailure {
+    /// A non-zero, non-claim producer exit — a git / build / serialise / publish
+    /// failure. The base is absent; the daemon serves cold.
+    Production,
+    /// The producer exited [`BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE`]: it could not
+    /// make progress on its single-flight claim (an I/O failure in the claim path).
+    Claim,
+}
+
+/// GBASE-011: the reaper's classification of a reaped child's exit (returned by
+/// [`TriggerCore::on_child_reaped`]). Keeps the exit → health-signal policy in the
+/// pure, clock-injected core so it is asserted without threads or a real broadcast.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReapClassification {
+    /// A clean exit (`code == 0`) **or** a generation we deliberately superseded (a
+    /// cancel-and-restart / cap-exceed abandon, whatever exit it died with). No
+    /// health signal — the daemon simply serves cold.
+    Benign,
+    /// A genuine producer failure. `emit` carries the worktrees to raise the ADR-090
+    /// envelope for; it is **empty** when the class is already latched this lineage
+    /// (rate-limited — still a `warn!`-worthy failure occurrence, just no new
+    /// envelope), so a crash-loop stays visible in logs without spamming envelopes.
+    Failure {
+        failure: ProducerFailure,
+        emit: Vec<PathBuf>,
+    },
+}
+
 // ---------------------------------------------------------------------------
 // Ref-path resolution (git-free; never shells out)
 // ---------------------------------------------------------------------------
@@ -371,6 +414,12 @@ struct InFlight {
 
 /// Per-repo trigger state. Keyed (in [`TriggerCore::repos`]) by the repo's common
 /// gitdir, so every worktree of a repo shares one lineage/debounce/in-flight.
+///
+/// The four `bool`s (`degraded`, `over_cap`, and the two GBASE-011 per-lineage
+/// failure latches) are independent lifecycle flags on distinct axes — a bitflags
+/// pack or a state enum would obscure, not clarify, so the excessive-bools lint is
+/// deliberately allowed here.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default)]
 struct RepoState {
     /// Every currently-registered worktree of this repo, updated on reconcile.
@@ -394,6 +443,25 @@ struct RepoState {
     /// Latched once the cap is exceeded; cleared when a quiescence gap starts a
     /// new lineage. While latched, debounced triggers serve cold (no spawn).
     over_cap: bool,
+    /// GBASE-011: latched once a producer failed with a general (non-claim)
+    /// non-zero exit, so a crash-looping producer raises at most **one** ADR-090
+    /// "base production failed" envelope per lineage. Cleared on a clean child
+    /// exit (recovery) and on the quiescence gap that starts a new lineage.
+    production_failure_latched: bool,
+    /// GBASE-011: latched once a producer reported a claim-progress failure
+    /// ([`BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE`]), rate-limiting the ADR-090 "base
+    /// claim could not make progress" envelope to once per lineage. Same reset
+    /// rules as [`Self::production_failure_latched`].
+    claim_failure_latched: bool,
+    /// GBASE-011: spawn ids of generations **we** deliberately superseded (a
+    /// cancel-and-restart or a cap-exceed abandon). The reaper consults this so a
+    /// child that dies **because we killed it** (signal death, `code == None`) is
+    /// classified as a neutral cancel — while a signal death we did **not** request
+    /// (OOM-`SIGKILL`, `SIGSEGV` on a corrupt blob) is a genuine production failure,
+    /// never silently swallowed. Guarded by spawn id so a cancel requested for
+    /// generation N never neutralises generation N+1's crash. Consumed on report
+    /// (a terminated child is always reaped), so it stays small.
+    cancelled_spawns: std::collections::HashSet<u64>,
     /// The in-flight production child, if any.
     in_flight: Option<InFlight>,
 }
@@ -541,6 +609,9 @@ impl TriggerCore {
         {
             state.lineage_restarts = 0;
             state.over_cap = false;
+            // GBASE-011: a fresh lineage re-arms the failure health signals too.
+            state.production_failure_latched = false;
+            state.claim_failure_latched = false;
         }
         state.last_event = Some(now);
         state.pending_deadline = Some(now + debounce);
@@ -608,6 +679,11 @@ impl TriggerCore {
                     // the next quiescence re-arms. Cancel the churning child.
                     state.over_cap = true;
                     state.in_flight = None;
+                    // GBASE-011: WE are abandoning this generation — record the
+                    // cancel intent so its (signal or otherwise) exit reaps as a
+                    // neutral cancel, not a spurious production failure on top of the
+                    // cap-exceeded envelope.
+                    state.cancelled_spawns.insert(current.spawn_id);
                     let mut acts = Vec::new();
                     if let Some(pid) = current.pid {
                         acts.push(TriggerAction::Terminate { pid });
@@ -625,6 +701,10 @@ impl TriggerCore {
                         spawn_id,
                         pid: None,
                     });
+                    // GBASE-011: cancel-and-restart supersedes the current
+                    // generation — record the cancel intent (independent of whether a
+                    // pid is known yet to send SIGTERM) so its exit is neutral.
+                    state.cancelled_spawns.insert(current.spawn_id);
                     let mut acts = Vec::new();
                     if let Some(pid) = current.pid {
                         acts.push(TriggerAction::Terminate { pid });
@@ -666,6 +746,119 @@ impl TriggerCore {
                 return;
             }
         }
+    }
+
+    /// GBASE-011: report a **clean** (`code == 0`) child exit. Clears the in-flight
+    /// slot if still current (like [`Self::on_child_exited`]) AND resets the
+    /// per-lineage failure latches — a producer that succeeds has recovered, so the
+    /// next failure is a fresh signal worth emitting. A superseded generation (a
+    /// cancelled child's late clean exit) matches nothing and is a no-op, so it
+    /// never resets a live replacement's latches.
+    pub fn on_child_succeeded(&mut self, spawn_id: u64) {
+        for state in self.repos.values_mut() {
+            if state
+                .in_flight
+                .is_some_and(|inflight| inflight.spawn_id == spawn_id)
+            {
+                state.in_flight = None;
+                state.production_failure_latched = false;
+                state.claim_failure_latched = false;
+                return;
+            }
+        }
+    }
+
+    /// GBASE-011: report that the child for `spawn_id` exited **abnormally**. Clears
+    /// the in-flight slot if still current (like [`Self::on_child_exited`]), then
+    /// latches the per-lineage `failure` class so a crash-looping producer raises at
+    /// most one ADR-090 health envelope per class per lineage. Returns the
+    /// currently-registered worktrees to emit that envelope for on the **first**
+    /// failure of the class in the lineage; an **empty** vec when suppressed (the
+    /// class is already latched this lineage, or the exit belongs to a superseded
+    /// generation — its replacement is what matters). Never fatal: the slot is
+    /// cleared exactly as a clean exit would, so a later trigger can spawn again and
+    /// the cold path keeps serving.
+    #[must_use]
+    pub fn on_child_failed(&mut self, spawn_id: u64, failure: ProducerFailure) -> Vec<PathBuf> {
+        for state in self.repos.values_mut() {
+            if state
+                .in_flight
+                .is_some_and(|inflight| inflight.spawn_id == spawn_id)
+            {
+                state.in_flight = None;
+                let latched = match failure {
+                    ProducerFailure::Production => &mut state.production_failure_latched,
+                    ProducerFailure::Claim => &mut state.claim_failure_latched,
+                };
+                if *latched {
+                    return Vec::new();
+                }
+                *latched = true;
+                return state.worktrees.clone();
+            }
+        }
+        Vec::new()
+    }
+
+    /// GBASE-011: classify a reaped child's exit (the reaper calls this). The full
+    /// exit → health-signal policy lives here in the pure core:
+    ///
+    /// - a generation **we superseded** (cancel-and-restart / cap-exceed abandon,
+    ///   tracked in `cancelled_spawns`) is **neutral** whatever code it died with —
+    ///   its outcome is moot. Consumes the cancel intent (guarded by spawn id, so a
+    ///   cancel requested for generation N never neutralises N+1's crash);
+    /// - `code == 0` → clean success (resets the failure latches);
+    /// - `code == BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE` → a claim-progress failure;
+    /// - any other `code == Some(_)` → a general production failure;
+    /// - `code == None` **without** a recorded cancel → a signal death we did NOT
+    ///   request (OOM-`SIGKILL`, `SIGSEGV` on a corrupt blob) → a **production
+    ///   failure**. This is the load-bearing case: a producer that crashes on every
+    ///   invocation clears its slot cleanly and never trips the restart cap, so
+    ///   without this arm it would loop forever emitting nothing.
+    ///
+    /// Non-fatal throughout: the in-flight slot is cleared exactly as a clean exit
+    /// would, so a later trigger can spawn again and the cold path keeps serving.
+    #[must_use]
+    pub fn on_child_reaped(&mut self, spawn_id: u64, code: Option<i32>) -> ReapClassification {
+        // A generation WE superseded: neutral, whatever it died with. Consume the
+        // intent and clear the slot only if it is somehow still current (it will not
+        // be — a supersede already moved in_flight on).
+        if self.take_cancel_intent(spawn_id) {
+            self.on_child_exited(spawn_id);
+            return ReapClassification::Benign;
+        }
+        match code {
+            Some(0) => {
+                self.on_child_succeeded(spawn_id);
+                ReapClassification::Benign
+            }
+            Some(exit_code) => {
+                let failure = if exit_code == BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE {
+                    ProducerFailure::Claim
+                } else {
+                    ProducerFailure::Production
+                };
+                let emit = self.on_child_failed(spawn_id, failure);
+                ReapClassification::Failure { failure, emit }
+            }
+            None => {
+                // A signal death we did NOT request — a genuine production failure.
+                let failure = ProducerFailure::Production;
+                let emit = self.on_child_failed(spawn_id, failure);
+                ReapClassification::Failure { failure, emit }
+            }
+        }
+    }
+
+    /// GBASE-011: consume (remove-and-return) the cancel intent for `spawn_id`, if
+    /// any repo recorded that we superseded it. `true` ⇒ the exit is our own cancel.
+    fn take_cancel_intent(&mut self, spawn_id: u64) -> bool {
+        for state in self.repos.values_mut() {
+            if state.cancelled_spawns.remove(&spawn_id) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Test/inspection: restart count for a repo's current lineage.
@@ -810,22 +1003,59 @@ impl ReapableChild for StdReapableChild {
 /// Spawn the dedicated reaper thread for a production child (ADR-105 §7). The
 /// thread owns `child.wait()` and clears the in-flight slot on exit; the
 /// background pool thread that spawned the child **never blocks**.
-pub fn spawn_reaper(core: Arc<Mutex<TriggerCore>>, child: Box<dyn ReapableChild>, spawn_id: u64) {
+///
+/// GBASE-011: the reaper also classifies the child's exit and — for a genuine
+/// producer failure — raises the ADR-090 worktree-scoped health envelope (via
+/// `notifier`, when one is wired) for every currently-registered worktree of the
+/// repo, rate-limited to once per class per lineage by the core. The exit maps as:
+/// `Some(0)` ⇒ clean (resets the failure latches); `None` ⇒ signal-killed (our own
+/// cancel — neutral, no envelope); `Some(BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE)` ⇒
+/// a claim-progress failure; any other `Some(code)` ⇒ a general production failure.
+/// Emission happens **outside** the core lock. All classes stay non-fatal: the slot
+/// is cleared exactly as before, so the cold path keeps serving.
+pub fn spawn_reaper(
+    core: Arc<Mutex<TriggerCore>>,
+    child: Box<dyn ReapableChild>,
+    spawn_id: u64,
+    notifier: Option<BaseTriggerNotifier>,
+) {
     let builder = std::thread::Builder::new().name("anvil-gbase-reaper".to_owned());
     // A spawn failure here is non-fatal: without a reaper the child still runs to
     // completion and is reaped by the OS on daemon exit; we just miss the in-flight
     // clear. Log and move on.
     let spawned = builder.spawn(move || {
         let exit = child.wait();
-        core.lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .on_child_exited(spawn_id);
-        tracing::debug!(
-            target: "anvil_intercept::graph_base_trigger",
-            spawn_id,
-            code = ?exit.code,
-            "base-production child reaped",
-        );
+        // Classify + update the core under the lock; the full exit → signal policy
+        // lives in the pure core (`on_child_reaped`).
+        let classification = {
+            let mut core_guard = core.lock().unwrap_or_else(PoisonError::into_inner);
+            core_guard.on_child_reaped(spawn_id, exit.code)
+        };
+        // Emit + log OUTSIDE the core lock (broadcast can be slow; never hold it).
+        match classification {
+            ReapClassification::Failure { failure, emit } => {
+                if let Some(notifier) = &notifier {
+                    // `emit` is empty when rate-limited this lineage ⇒ a no-op; the
+                    // warn! below still fires so a crash-loop stays visible.
+                    notifier.notify_failure(failure, &emit);
+                }
+                tracing::warn!(
+                    target: "anvil_intercept::graph_base_trigger",
+                    spawn_id,
+                    code = ?exit.code,
+                    failure = ?failure,
+                    "base-production child failed; serving cold",
+                );
+            }
+            ReapClassification::Benign => {
+                tracing::debug!(
+                    target: "anvil_intercept::graph_base_trigger",
+                    spawn_id,
+                    code = ?exit.code,
+                    "base-production child reaped",
+                );
+            }
+        }
     });
     if let Err(err) = spawned {
         tracing::warn!(
@@ -873,6 +1103,54 @@ impl BaseTriggerNotifier {
         };
         let _ = self.broadcaster.broadcast(&envelope);
         envelope
+    }
+
+    /// GBASE-011: build + broadcast the "base production failed" health envelope for
+    /// `worktree` (a producer subprocess that exited abnormally). Returns the
+    /// envelope so callers/tests can assert on the emitted object.
+    pub fn notify_production_failed(&self, worktree: &Path) -> NotificationEnvelope {
+        let envelope = {
+            let mut emitter = self.emitter.lock().unwrap_or_else(PoisonError::into_inner);
+            emitter.base_production_failure_health_envelope(
+                TelemetryCorrelation::default(),
+                worktree,
+                "base production subprocess exited abnormally; serving cold",
+            )
+        };
+        let _ = self.broadcaster.broadcast(&envelope);
+        envelope
+    }
+
+    /// GBASE-011: build + broadcast the "base claim could not make progress" health
+    /// envelope for `worktree` (the producer hit an I/O failure in the single-flight
+    /// claim path). Returns the envelope so callers/tests can assert on it.
+    pub fn notify_claim_failed(&self, worktree: &Path) -> NotificationEnvelope {
+        let envelope = {
+            let mut emitter = self.emitter.lock().unwrap_or_else(PoisonError::into_inner);
+            emitter.base_claim_failure_health_envelope(
+                TelemetryCorrelation::default(),
+                worktree,
+                "base single-flight claim could not make progress (I/O failure); serving cold",
+            )
+        };
+        let _ = self.broadcaster.broadcast(&envelope);
+        envelope
+    }
+
+    /// GBASE-011: dispatch to the right message-class emitter for `failure`, for
+    /// each affected `worktree`. The reaper calls this after the core returns the
+    /// worktree set for a first-of-lineage failure.
+    fn notify_failure(&self, failure: ProducerFailure, worktrees: &[PathBuf]) {
+        for worktree in worktrees {
+            match failure {
+                ProducerFailure::Production => {
+                    self.notify_production_failed(worktree);
+                }
+                ProducerFailure::Claim => {
+                    self.notify_claim_failed(worktree);
+                }
+            }
+        }
     }
 }
 
@@ -940,18 +1218,32 @@ impl GraphBaseTrigger {
         match self.spawner.spawn(repo) {
             Ok(SpawnedChild { pid, child }) => {
                 self.lock_core().on_child_spawned(repo, spawn_id, pid);
-                spawn_reaper(Arc::clone(&self.core), child, spawn_id);
+                spawn_reaper(
+                    Arc::clone(&self.core),
+                    child,
+                    spawn_id,
+                    self.notifier.clone(),
+                );
             }
             Err(err) => {
-                // Non-fatal (ADR-105 §6): serve cold. Clear the in-flight slot the
-                // core optimistically set so a later trigger can spawn again.
+                // Non-fatal (ADR-105 §6): serve cold. A failure to even spawn the
+                // subprocess IS a base-production failure (the base won't be
+                // produced), so GBASE-011 raises the same "base production failed"
+                // health envelope the reaper would for a non-zero exit — clearing the
+                // optimistically-set slot via the same failure path so a later
+                // trigger can spawn again, rate-limited once per lineage.
                 tracing::warn!(
                     target: "anvil_intercept::graph_base_trigger",
                     repo = %repo.display(),
                     error = %err,
                     "failed to spawn base-production subprocess; serving cold",
                 );
-                self.lock_core().on_child_exited(spawn_id);
+                let worktrees = self
+                    .lock_core()
+                    .on_child_failed(spawn_id, ProducerFailure::Production);
+                if let Some(notifier) = &self.notifier {
+                    notifier.notify_failure(ProducerFailure::Production, &worktrees);
+                }
             }
         }
     }
@@ -1791,7 +2083,7 @@ mod tests {
                 release: Arc::clone(&release),
                 cond: Arc::clone(&cond),
             });
-            spawn_reaper(Arc::clone(&core), child, spawn_id);
+            spawn_reaper(Arc::clone(&core), child, spawn_id, None);
 
             // The caller did NOT block: the in-flight slot is still set because the
             // child has not been released to exit yet.
@@ -2116,6 +2408,353 @@ mod tests {
         assert!(
             rx_b.try_recv().is_ok(),
             "worktree B subscriber gets an envelope"
+        );
+    }
+
+    // ---- GBASE-011: base-failure health envelopes ----
+
+    /// A fake production child that exits with a caller-chosen code, so the reaper's
+    /// exit classification (clean / claim-failure / production-failure / cancel) is
+    /// driven deterministically without a real subprocess.
+    struct ExitCodeChild(Option<i32>);
+    impl ReapableChild for ExitCodeChild {
+        fn wait(self: Box<Self>) -> ChildExit {
+            ChildExit { code: self.0 }
+        }
+    }
+
+    /// Bounded-wait a `try_recv` on a broadcaster receiver — the reaper emits from
+    /// its own thread, so poll until the frame arrives (or fail).
+    fn recv_frame(rx: &mut tokio::sync::mpsc::Receiver<String>) -> String {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Ok(frame) = rx.try_recv() {
+                return frame;
+            }
+            assert!(Instant::now() < deadline, "expected an envelope frame");
+            std::thread::yield_now();
+        }
+    }
+
+    /// The `two_worktree_fixture` bundle: the shared core, the notifier, both
+    /// worktree subscribers' receivers, the repo path, and the in-flight spawn id.
+    type TwoWorktreeFixture = (
+        Arc<Mutex<TriggerCore>>,
+        BaseTriggerNotifier,
+        tokio::sync::mpsc::Receiver<String>,
+        tokio::sync::mpsc::Receiver<String>,
+        PathBuf,
+        u64,
+    );
+
+    /// Two subscribers, each owning one worktree of one shared repo, plus a core
+    /// with an in-flight child (generation `spawn_id`, pid). Mirrors the
+    /// GBASE-003 fan-out fixture so a base-failure envelope routes per worktree.
+    fn two_worktree_fixture() -> TwoWorktreeFixture {
+        use crate::broadcaster::TelemetryBroadcaster;
+        use crate::fanout::{Fanout, OwnershipResolver, SubscriberId};
+
+        struct WtResolver {
+            owners: Vec<(SubscriberId, String)>,
+        }
+        impl OwnershipResolver for WtResolver {
+            fn is_authorised(&self, _s: &SubscriberId, _sess: &str) -> bool {
+                false
+            }
+            fn is_authorised_for_worktree(&self, sub: &SubscriberId, wt: &str) -> bool {
+                self.owners.iter().any(|(o, w)| o == sub && w == wt)
+            }
+        }
+        let sub_a = SubscriberId::new("owner-a");
+        let sub_b = SubscriberId::new("owner-b");
+        let resolver = WtResolver {
+            owners: vec![
+                (sub_a.clone(), "/wt/a".to_owned()),
+                (sub_b.clone(), "/wt/b".to_owned()),
+            ],
+        };
+        let broadcaster = Arc::new(TelemetryBroadcaster::new(Arc::new(Fanout::new(Box::new(
+            resolver,
+        )))));
+        let rx_a = broadcaster.register(sub_a, None);
+        let rx_b = broadcaster.register(sub_b, None);
+        let notifier = BaseTriggerNotifier::new(Arc::clone(&broadcaster));
+
+        let core = Arc::new(Mutex::new(TriggerCore::new()));
+        let repo = PathBuf::from("/repo");
+        let spawn_id = {
+            let mut c = core.lock().unwrap();
+            c.register_repo(&repo, "/wt/a");
+            c.add_worktree(&repo, PathBuf::from("/wt/b"));
+            let id = drive_spawn(&mut c, &repo, t0(), 100);
+            assert!(c.has_in_flight(&repo));
+            id
+        };
+        (core, notifier, rx_a, rx_b, repo, spawn_id)
+    }
+
+    #[test]
+    fn producer_nonzero_exit_emits_production_envelope_per_worktree_serves_cold() {
+        // (a) A producer that exits non-zero (a general build failure) reaps into
+        // ONE ADR-090 "base production failed" envelope PER registered worktree,
+        // through the real fan-out; the in-flight slot clears (daemon serves cold).
+        let (core, notifier, mut rx_a, mut rx_b, repo, spawn_id) = two_worktree_fixture();
+        spawn_reaper(
+            Arc::clone(&core),
+            Box::new(ExitCodeChild(Some(1))),
+            spawn_id,
+            Some(notifier),
+        );
+
+        let frame_a = recv_frame(&mut rx_a);
+        let frame_b = recv_frame(&mut rx_b);
+        assert!(
+            frame_a.contains("base production failed"),
+            "worktree A gets the production-failure class: {frame_a}",
+        );
+        assert!(
+            frame_b.contains("base production failed"),
+            "worktree B gets the production-failure class",
+        );
+        // Non-fatal: the slot cleared so a later trigger can spawn again (cold serve).
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while core.lock().unwrap().has_in_flight(&repo) {
+            assert!(Instant::now() < deadline, "reaper must clear the slot");
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn producer_claim_failure_exit_emits_claim_envelope() {
+        // (b) A producer that exits the distinct claim-failure code reaps into the
+        // "base claim could not make progress" class (NOT the production class).
+        let (core, notifier, mut rx_a, mut rx_b, _repo, spawn_id) = two_worktree_fixture();
+        spawn_reaper(
+            Arc::clone(&core),
+            Box::new(ExitCodeChild(Some(BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE))),
+            spawn_id,
+            Some(notifier),
+        );
+
+        let frame_a = recv_frame(&mut rx_a);
+        let frame_b = recv_frame(&mut rx_b);
+        for frame in [&frame_a, &frame_b] {
+            assert!(
+                frame.contains("base claim could not make progress"),
+                "the claim-failure exit maps to the claim class: {frame}",
+            );
+            assert!(
+                !frame.contains("base production failed"),
+                "claim failure is NOT the general production class",
+            );
+        }
+    }
+
+    #[test]
+    fn clean_exit_emits_no_envelope() {
+        // A clean exit (code 0) is not a failure — no envelope. Drive it through the
+        // reaper and prove the subscriber stays empty.
+        let (core, notifier, mut rx_a, _rx_b, _repo, spawn_id) = two_worktree_fixture();
+        spawn_reaper(
+            Arc::clone(&core),
+            Box::new(ExitCodeChild(Some(0))),
+            spawn_id,
+            Some(notifier),
+        );
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(
+            rx_a.try_recv().is_err(),
+            "a clean (code 0) exit emits no envelope",
+        );
+    }
+
+    #[test]
+    fn unrequested_signal_death_emits_production_failure() {
+        // (i) A signal death we did NOT request (`code == None` with NO cancel
+        // recorded — an OOM-SIGKILL / SIGSEGV crash) is a PRODUCTION failure, not a
+        // neutral cancel. This is the load-bearing regression: a crash-looping
+        // producer clears its slot cleanly and never trips the restart cap, so this
+        // arm is the only envelope it would ever raise.
+        let (core, notifier, mut rx_a, mut rx_b, _repo, spawn_id) = two_worktree_fixture();
+        spawn_reaper(
+            Arc::clone(&core),
+            Box::new(ExitCodeChild(None)),
+            spawn_id,
+            Some(notifier),
+        );
+        for rx in [&mut rx_a, &mut rx_b] {
+            let frame = recv_frame(rx);
+            assert!(
+                frame.contains("base production failed"),
+                "an unrequested signal death is a production failure: {frame}",
+            );
+        }
+    }
+
+    #[test]
+    fn requested_cancel_signal_death_is_neutral() {
+        // (ii) A signal death we DID request (a cancel-and-restart recorded the
+        // cancel intent, then the old generation dies `code == None`) is neutral — no
+        // envelope. Driven at the core level so the cancel intent is explicit.
+        let mut core = TriggerCore::with_timings(
+            Duration::from_millis(500),
+            Duration::from_secs(5),
+            MAX_RESTARTS_PER_LINEAGE,
+        );
+        let repo = PathBuf::from("/repo");
+        core.register_repo(&repo, "/wt/a");
+        let cancelled = drive_spawn(&mut core, &repo, t0(), 100);
+        // A newer trigger supersedes it → cancel-and-restart records the intent.
+        let t = t0() + Duration::from_millis(600);
+        core.on_ref_event(&repo, t);
+        let actions = core.poll(t + Duration::from_millis(500));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, TriggerAction::Terminate { .. })),
+            "the supersede issues a Terminate for the old generation",
+        );
+        // The cancelled generation now dies by signal — neutral, no failure.
+        assert_eq!(
+            core.on_child_reaped(cancelled, None),
+            ReapClassification::Benign,
+            "a signal death we requested (cancel intent recorded) is neutral",
+        );
+    }
+
+    #[test]
+    fn cross_generation_cancel_does_not_neutralise_a_later_crash() {
+        // (iii) A cancel requested for generation N must NOT neutralise generation
+        // N+1's crash. Supersede N (records N's cancel intent), then N+1 dies by
+        // signal without a cancel of its own ⇒ a production-failure envelope; and N's
+        // own late signal death stays neutral.
+        let mut core = TriggerCore::with_timings(
+            Duration::from_millis(500),
+            Duration::from_secs(5),
+            MAX_RESTARTS_PER_LINEAGE,
+        );
+        let repo = PathBuf::from("/repo");
+        core.register_repo(&repo, "/wt/a");
+        let worktrees = core.worktrees_of(&repo);
+        let gen_n = drive_spawn(&mut core, &repo, t0(), 100);
+        let t = t0() + Duration::from_millis(600);
+        core.on_ref_event(&repo, t);
+        let actions = core.poll(t + Duration::from_millis(500));
+        let gen_n1 = actions
+            .iter()
+            .find_map(|a| match a {
+                TriggerAction::Spawn { spawn_id, .. } => Some(*spawn_id),
+                _ => None,
+            })
+            .expect("respawn");
+        core.on_child_spawned(&repo, gen_n1, 200);
+        assert_ne!(gen_n, gen_n1);
+
+        // Gen N+1 crashes (signal death) WITHOUT us cancelling it ⇒ a failure that
+        // emits for every worktree (the spawn-id guard did not swallow it).
+        assert_eq!(
+            core.on_child_reaped(gen_n1, None),
+            ReapClassification::Failure {
+                failure: ProducerFailure::Production,
+                emit: worktrees,
+            },
+            "N+1's crash is a production failure despite N's pending cancel",
+        );
+        // Gen N's own late signal death is still our cancel ⇒ neutral.
+        assert_eq!(
+            core.on_child_reaped(gen_n, None),
+            ReapClassification::Benign,
+            "N's late signal death remains a neutral cancel",
+        );
+    }
+
+    #[test]
+    fn repeated_failure_in_a_lineage_emits_one_envelope_then_success_re_arms() {
+        // (e) + (f): the per-lineage latch. Two consecutive production failures in
+        // one lineage emit ONE envelope-set; a clean success resets the latch so the
+        // next failure emits again. Driven at the core level for determinism.
+        let mut core = TriggerCore::with_timings(
+            Duration::from_millis(500),
+            Duration::from_secs(5),
+            MAX_RESTARTS_PER_LINEAGE,
+        );
+        let repo = PathBuf::from("/repo");
+        core.register_repo(&repo, "/wt/a");
+        core.add_worktree(&repo, PathBuf::from("/wt/b"));
+        let worktrees = core.worktrees_of(&repo);
+        assert_eq!(worktrees.len(), 2);
+
+        // First failure of the lineage: emits (returns the full worktree set).
+        let id1 = drive_spawn(&mut core, &repo, t0(), 100);
+        assert_eq!(
+            core.on_child_failed(id1, ProducerFailure::Production),
+            worktrees,
+            "first production failure emits for every registered worktree",
+        );
+
+        // A restart within the SAME lineage (no quiescence gap), same class: latched
+        // ⇒ suppressed.
+        let t = t0() + Duration::from_millis(600);
+        let id2 = drive_spawn(&mut core, &repo, t, 101);
+        assert!(
+            core.on_child_failed(id2, ProducerFailure::Production)
+                .is_empty(),
+            "a repeat production failure in the lineage is rate-limited to one envelope",
+        );
+
+        // A claim failure is a DIFFERENT class — its own latch, so it still emits.
+        let t = t + Duration::from_millis(600);
+        let id3 = drive_spawn(&mut core, &repo, t, 102);
+        assert_eq!(
+            core.on_child_failed(id3, ProducerFailure::Claim),
+            worktrees,
+            "the claim-failure latch is independent of the production-failure latch",
+        );
+
+        // A clean success resets the failure latches; the next production failure
+        // emits again (still within the same lineage).
+        let t = t + Duration::from_millis(600);
+        let id4 = drive_spawn(&mut core, &repo, t, 103);
+        core.on_child_succeeded(id4);
+        let t = t + Duration::from_millis(600);
+        let id5 = drive_spawn(&mut core, &repo, t, 104);
+        assert_eq!(
+            core.on_child_failed(id5, ProducerFailure::Production),
+            worktrees,
+            "a success re-arms the production-failure signal",
+        );
+    }
+
+    #[test]
+    fn failure_of_a_superseded_generation_is_suppressed() {
+        // A stale (cancelled) child's late abnormal exit must not emit: its spawn_id
+        // is no longer the current generation, so `on_child_failed` returns empty and
+        // never touches the live replacement's latch/slot.
+        let mut core = TriggerCore::new();
+        let repo = PathBuf::from("/repo");
+        core.register_repo(&repo, "/wt/a");
+        let stale = drive_spawn(&mut core, &repo, t0(), 100);
+        // A newer trigger supersedes it (cancel-and-restart) → new generation.
+        let t = t0() + Duration::from_millis(600);
+        core.on_ref_event(&repo, t);
+        let actions = core.poll(t + Duration::from_millis(500));
+        let live = actions
+            .iter()
+            .find_map(|a| match a {
+                TriggerAction::Spawn { spawn_id, .. } => Some(*spawn_id),
+                _ => None,
+            })
+            .expect("respawn");
+        core.on_child_spawned(&repo, live, 200);
+        assert_ne!(stale, live);
+        assert!(
+            core.on_child_failed(stale, ProducerFailure::Production)
+                .is_empty(),
+            "a superseded generation's failure emits nothing",
+        );
+        assert!(
+            core.has_in_flight(&repo),
+            "the live replacement's slot is untouched by the stale exit",
         );
     }
 }

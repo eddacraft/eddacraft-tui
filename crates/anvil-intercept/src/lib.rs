@@ -1959,6 +1959,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         #[cfg(unix)]
         {
             let registry = Arc::clone(&daemon_state.registry);
+            // GBASE-011: wire the GC notifier so a reclaim I/O error or a keep-set-
+            // uncertain deferral raises the ADR-090 worktree-scoped health envelope
+            // through the same broadcaster the trigger/save-time paths use.
+            let gc_notifier =
+                snapshot_io::base_gc::BaseGcNotifier::new(Arc::clone(&daemon_state.broadcaster));
             tokio::task::spawn_blocking(move || {
                 let worktrees = registry.registered_worktrees();
                 // Outcome is structured-logged inside the sweep; the pass is
@@ -1966,6 +1971,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 let _ = snapshot_io::base_gc::run_daemon_gc_pass(
                     env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
                     &worktrees,
+                    Some(&gc_notifier),
                 );
             });
         }
@@ -2174,11 +2180,16 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     #[cfg(unix)]
                     {
                         let registry = Arc::clone(&daemon_state.registry);
+                        // GBASE-011: GC health envelopes through the broadcaster.
+                        let gc_notifier = snapshot_io::base_gc::BaseGcNotifier::new(Arc::clone(
+                            &daemon_state.broadcaster,
+                        ));
                         tokio::task::spawn_blocking(move || {
                             let worktrees = registry.registered_worktrees();
                             let _ = snapshot_io::base_gc::run_daemon_gc_pass(
                                 env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
                                 &worktrees,
+                                Some(&gc_notifier),
                             );
                         });
                     }

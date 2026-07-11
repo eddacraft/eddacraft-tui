@@ -314,6 +314,120 @@ impl TelemetryEmitter {
         envelope(&context, None, notification, None)
     }
 
+    /// GBASE-011 (ADR-090 + ADR-105 §7/§5): shared builder for the base-failure
+    /// daemon-health envelopes. Every base-failure class — a producer that failed,
+    /// a claim that could not make progress, a GC reclaim error, and the GC
+    /// keep-set-uncertain fail-safe deferral — is the SAME ADR-090
+    /// daemon-originated, worktree-scoped envelope as the persist-failure /
+    /// cap-exceeded signals; only the `priority`/`title`/`message` differ.
+    /// Centralised so the ADR-090 invariant (no session id; the explicit
+    /// `daemon_worktree_health` flag; a `worktree` scoping key; no
+    /// `ControlDecision`, so no mirror) is asserted and set in exactly one place.
+    /// The `message` must never echo path/identity bytes (PV-10).
+    fn base_failure_health_envelope(
+        &mut self,
+        mut correlation: TelemetryCorrelation,
+        worktree: &Path,
+        priority: NotificationPriority,
+        title: &'static str,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        // ADR-090 invariant (mirrors `persist_failure_health_envelope`): a
+        // daemon-health envelope must carry no session — the fan-out routes it on
+        // the worktree lane, not the session lane.
+        debug_assert!(
+            correlation.session_id.is_none() && correlation.originating_session_id.is_none(),
+            "daemon-health base-failure envelope must carry no session id (ADR-090)"
+        );
+        correlation.worktree = Some(worktree.display().to_string());
+        let mut context = self.next_context(correlation);
+        // ADR-090: flag as a daemon-originated, worktree-scoped health envelope so
+        // the fan-out authorises it by `correlation.worktree`, not a session id.
+        context.daemon_worktree_health = true;
+        let notification = Notification::new(NotificationClass::Health, priority, title, message)
+            .with_context(notification_context(None));
+        // No `ControlDecision` — a daemon-side health signal, not a control verdict.
+        envelope(&context, None, notification, None)
+    }
+
+    /// GBASE-011 (ADR-105 §7): the base **producer subprocess exited abnormally**
+    /// (a non-zero, non-claim exit — a git/build/serialise/publish failure). The
+    /// base is absent, so the daemon serves the worktree cold; this envelope tells
+    /// the owning subscriber that the warm base could not be produced.
+    pub fn base_production_failure_health_envelope(
+        &mut self,
+        correlation: TelemetryCorrelation,
+        worktree: &Path,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        self.base_failure_health_envelope(
+            correlation,
+            worktree,
+            NotificationPriority::High,
+            "base production failed",
+            message,
+        )
+    }
+
+    /// GBASE-011 (ADR-105 §6): the base producer could **not make progress on its
+    /// single-flight claim** — an I/O failure in the claim/reclaim path (distinct
+    /// from a normal live-peer `Contended`, which is not a failure). The base is
+    /// absent; the daemon serves cold.
+    pub fn base_claim_failure_health_envelope(
+        &mut self,
+        correlation: TelemetryCorrelation,
+        worktree: &Path,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        self.base_failure_health_envelope(
+            correlation,
+            worktree,
+            NotificationPriority::High,
+            "base claim could not make progress",
+            message,
+        )
+    }
+
+    /// GBASE-011 (ADR-105 §5): a shared-base **GC reclaim I/O error** — a pass
+    /// could not unlink an unreferenced base. The pass continues (the erroring sha
+    /// is skipped); this envelope tells the worktrees sharing the store that GC is
+    /// degraded.
+    pub fn base_gc_error_health_envelope(
+        &mut self,
+        correlation: TelemetryCorrelation,
+        worktree: &Path,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        self.base_failure_health_envelope(
+            correlation,
+            worktree,
+            NotificationPriority::High,
+            "shared-base GC error",
+            message,
+        )
+    }
+
+    /// GBASE-011 (ADR-105 §5): the shared-base GC **deferred a pass** because a
+    /// registered worktree's merge-base was unresolvable (the keep-set was
+    /// uncertain), so the fail-safe kept every base. This is an **operational**
+    /// signal — an expected, self-healing safety deferral, not a hard error — so it
+    /// rides the lower [`NotificationPriority::Normal`] (mirroring the
+    /// engage/clear priority asymmetry elsewhere on the health lane).
+    pub fn base_gc_deferred_health_envelope(
+        &mut self,
+        correlation: TelemetryCorrelation,
+        worktree: &Path,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        self.base_failure_health_envelope(
+            correlation,
+            worktree,
+            NotificationPriority::Normal,
+            "shared-base GC pass deferred (keep-set uncertain)",
+            message,
+        )
+    }
+
     pub fn envelope_for_fence_transition(
         &mut self,
         mut correlation: TelemetryCorrelation,

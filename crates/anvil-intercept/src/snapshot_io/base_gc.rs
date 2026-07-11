@@ -73,8 +73,74 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use super::base_store::{self, BaseReclaimOutcome, ClaimProcs};
+use crate::broadcaster::TelemetryBroadcaster;
+use crate::telemetry::{TelemetryCorrelation, TelemetryEmitter};
+
+/// GBASE-011 (ADR-090 + ADR-105 §5): emits the worktree-scoped health envelopes
+/// for shared-base GC failures through the **real** [`TelemetryBroadcaster`]
+/// fan-out — the GC-side analogue of the trigger's `BaseTriggerNotifier`, so a GC
+/// degradation is an envelope an opted-in subscriber receives, not only a log line.
+///
+/// Two message classes:
+/// - **GC error** (a per-sha reclaim I/O failure) — [`Self::notify_gc_error`];
+/// - **GC deferred** (the keep-set was uncertain, so the pass fail-safe-kept every
+///   base) — [`Self::notify_gc_deferred`], an *operational* (lower-priority)
+///   signal.
+///
+/// Both are scoped to **all** worktrees the daemon passed the pass: an unreferenced
+/// base maps to no live worktree, and GC health affects every worktree that shares
+/// the store, so the honest recipient set is the whole currently-registered set.
+#[derive(Clone)]
+pub struct BaseGcNotifier {
+    broadcaster: Arc<TelemetryBroadcaster>,
+    emitter: Arc<Mutex<TelemetryEmitter>>,
+}
+
+impl BaseGcNotifier {
+    #[must_use]
+    pub fn new(broadcaster: Arc<TelemetryBroadcaster>) -> Self {
+        Self {
+            broadcaster,
+            emitter: Arc::new(Mutex::new(TelemetryEmitter::new())),
+        }
+    }
+
+    /// Broadcast the "shared-base GC error" health envelope for every `worktree`.
+    fn notify_gc_error(&self, worktrees: &[PathBuf]) {
+        for worktree in worktrees {
+            let envelope = {
+                let mut emitter = self.emitter.lock().unwrap_or_else(PoisonError::into_inner);
+                emitter.base_gc_error_health_envelope(
+                    TelemetryCorrelation::default(),
+                    worktree,
+                    "shared-base GC could not reclaim an unreferenced base (I/O error); \
+                     the pass skipped it and continues",
+                )
+            };
+            let _ = self.broadcaster.broadcast(&envelope);
+        }
+    }
+
+    /// Broadcast the operational "shared-base GC pass deferred" envelope for every
+    /// `worktree` (a keep-set-uncertain fail-safe deferral).
+    fn notify_gc_deferred(&self, worktrees: &[PathBuf]) {
+        for worktree in worktrees {
+            let envelope = {
+                let mut emitter = self.emitter.lock().unwrap_or_else(PoisonError::into_inner);
+                emitter.base_gc_deferred_health_envelope(
+                    TelemetryCorrelation::default(),
+                    worktree,
+                    "shared-base GC deferred a pass: a registered worktree's merge-base \
+                     was unresolvable (keep-set uncertain); keeping all bases",
+                )
+            };
+            let _ = self.broadcaster.broadcast(&envelope);
+        }
+    }
+}
 
 /// One registered worktree's current merge-base resolution — the keep-set source.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -469,6 +535,23 @@ pub fn sweep_unreferenced_bases(
     resolver: &dyn KeepSetResolver,
     procs: &dyn ClaimProcs,
 ) -> GcOutcome {
+    sweep_unreferenced_bases_inner(base_dir, worktrees, resolver, procs, None)
+}
+
+/// GBASE-011: the sweep with an optional [`BaseGcNotifier`] wired. The public
+/// [`sweep_unreferenced_bases`] delegates here with `None` (keeping every existing
+/// caller/test signature-stable); the daemon path passes the notifier so GC
+/// failures raise ADR-090 worktree-scoped health envelopes. Behaviour is otherwise
+/// **identical** — emission is purely additive, and every failure stays non-fatal
+/// (a reclaim error still skips-and-continues; an uncertain keep-set still
+/// fail-safe-keeps every base).
+fn sweep_unreferenced_bases_inner(
+    base_dir: &Path,
+    worktrees: &[PathBuf],
+    resolver: &dyn KeepSetResolver,
+    procs: &dyn ClaimProcs,
+    notifier: Option<&BaseGcNotifier>,
+) -> GcOutcome {
     // 1. Keep-set (conservative superset). Track uncertainty separately so a single
     // unresolvable worktree fail-safes the whole pass to keep.
     let mut keep: BTreeSet<String> = BTreeSet::new();
@@ -499,11 +582,22 @@ pub fn sweep_unreferenced_bases(
             "shared-base GC skipped a pass: a registered worktree's merge-base was \
              unresolvable (keep-set uncertain); keeping all bases",
         );
+        // GBASE-011: this fail-safe deferral is an OPERATIONAL health signal — an
+        // expected, self-healing safety pass, not a hard error — so it raises the
+        // lower-priority "GC pass deferred" envelope for every registered worktree.
+        if let Some(notifier) = notifier {
+            notifier.notify_gc_deferred(worktrees);
+        }
         return outcome;
     }
 
     // 3. Reclaim the unreferenced, unclaimed bases.
     let mut outcome = GcOutcome::default();
+    // GBASE-011 rate-limit: a per-PASS latch so a store with many erroring shas
+    // raises exactly ONE "GC error" envelope-set this pass (dedupe identical
+    // failures). Each pass call starts fresh, so a clean pass emits nothing and the
+    // next erroring pass re-emits — "success resets the latch", pass-scoped.
+    let mut gc_error_emitted = false;
     for sha in &bases {
         if keep.contains(sha) {
             outcome.kept += 1;
@@ -522,6 +616,15 @@ pub fn sweep_unreferenced_bases(
                     error = %err,
                     "shared-base GC could not reclaim an unreferenced base; skipping",
                 );
+                // GBASE-011: raise the "GC error" health envelope for every
+                // registered worktree ONCE per pass (the erroring sha is still
+                // skipped and the pass continues — skip semantics unchanged).
+                if let Some(notifier) = notifier
+                    && !gc_error_emitted
+                {
+                    notifier.notify_gc_error(worktrees);
+                    gc_error_emitted = true;
+                }
             }
         }
     }
@@ -551,6 +654,7 @@ pub fn sweep_unreferenced_bases(
 pub fn run_daemon_gc_pass(
     persist_graph_env: Option<&str>,
     worktrees: &[PathBuf],
+    notifier: Option<&BaseGcNotifier>,
 ) -> Option<GcOutcome> {
     if !anvil_graph_cache::snapshot::persist_graph_enabled(persist_graph_env) {
         return None;
@@ -558,11 +662,12 @@ pub fn run_daemon_gc_pass(
     // Mirror the trigger/save-time gate: require a resolvable base store dir, not
     // just the flag — the base lands under `<graph-cache>/base`.
     let base_dir = base_store::default_base_dir()?;
-    Some(sweep_unreferenced_bases(
+    Some(sweep_unreferenced_bases_inner(
         &base_dir,
         worktrees,
         &GitMergeBaseResolver::new(),
         &base_store::SystemClaimProcs,
+        notifier,
     ))
 }
 
@@ -1159,5 +1264,208 @@ mod tests {
         assert!(out.aborted_uncertain);
         assert_eq!(out.reclaimed, 0);
         assert!(base_exists(&dir, &orphan));
+    }
+
+    // ---- GBASE-011: GC-failure health envelopes (ADR-090) ----
+
+    use crate::broadcaster::TelemetryBroadcaster;
+    use crate::fanout::{Fanout, OwnershipResolver, SubscriberId};
+
+    /// A resolver that authorises each subscriber for exactly its own worktree.
+    struct WtResolver {
+        owners: Vec<(SubscriberId, String)>,
+    }
+    impl OwnershipResolver for WtResolver {
+        fn is_authorised(&self, _s: &SubscriberId, _sess: &str) -> bool {
+            false
+        }
+        fn is_authorised_for_worktree(&self, sub: &SubscriberId, wt: &str) -> bool {
+            self.owners.iter().any(|(o, w)| o == sub && w == wt)
+        }
+    }
+
+    /// Build a broadcaster + [`BaseGcNotifier`] with one subscriber per worktree
+    /// path. Returns the notifier and the receivers in the same order.
+    fn gc_fixture(
+        worktrees: &[&str],
+    ) -> (BaseGcNotifier, Vec<tokio::sync::mpsc::Receiver<String>>) {
+        let mut owners = Vec::new();
+        let mut subs = Vec::new();
+        for wt in worktrees {
+            let sub = SubscriberId::new(format!("owner-{wt}"));
+            owners.push((sub.clone(), (*wt).to_owned()));
+            subs.push(sub);
+        }
+        let broadcaster = Arc::new(TelemetryBroadcaster::new(Arc::new(Fanout::new(Box::new(
+            WtResolver { owners },
+        )))));
+        let receivers = subs
+            .into_iter()
+            .map(|s| broadcaster.register(s, None))
+            .collect();
+        (BaseGcNotifier::new(broadcaster), receivers)
+    }
+
+    /// Create `<sha>.base` as a DIRECTORY so the reclaim `unlinkat` (which never
+    /// removes a dir) fails `EISDIR` deterministically, regardless of uid — the
+    /// hermetic stand-in for a per-sha reclaim I/O error. Tightens the base dir to
+    /// `0o700` first so a sibling `write_base` still passes `write_sealed`'s
+    /// group/other-accessibility guard (`create_dir_all` alone leaves it `0o755`).
+    fn write_unremovable_base(dir: &Path, sha: &str) {
+        std::fs::create_dir_all(dir).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        std::fs::create_dir_all(dir.join(format!("{sha}.base"))).unwrap();
+    }
+
+    #[test]
+    fn gc_reclaim_error_emits_gc_error_envelope_and_pass_continues() {
+        // (c) A per-sha reclaim I/O error raises the "shared-base GC error" envelope
+        // for EVERY registered worktree, and the pass continues — a later reclaimable
+        // orphan is still reclaimed (skip semantics unchanged).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let erroring = sha('b'); // sorts first; unlinkat → EISDIR → Err
+        let good = sha('c'); // sorts after; a normal reclaimable orphan
+        write_unremovable_base(&dir, &erroring);
+        write_base(&dir, &good);
+
+        // No worktree references either sha ⇒ both are reclaim candidates.
+        let resolver = FakeResolver::default();
+        let (notifier, mut rxs) = gc_fixture(&["/wt/a", "/wt/b"]);
+        let worktrees = [PathBuf::from("/wt/a"), PathBuf::from("/wt/b")];
+
+        let out = sweep_unreferenced_bases_inner(
+            &dir,
+            &worktrees,
+            &resolver,
+            &SystemClaimProcs,
+            Some(&notifier),
+        );
+
+        // The pass continued past the error: the good orphan was reclaimed.
+        assert_eq!(out.reclaimed, 1, "the pass continues past the erroring sha");
+        assert!(!base_exists(&dir, &good), "the good orphan is gone");
+        assert!(
+            dir.join(format!("{erroring}.base")).exists(),
+            "the erroring base is left in place (skipped, unchanged semantics)",
+        );
+        // Every registered worktree's subscriber got the GC-error class.
+        for rx in &mut rxs {
+            let frame = rx
+                .try_recv()
+                .expect("each worktree gets a GC-error envelope");
+            assert!(
+                frame.contains("shared-base GC error"),
+                "the GC-error class is delivered: {frame}",
+            );
+        }
+    }
+
+    #[test]
+    fn gc_multiple_reclaim_errors_emit_one_envelope_per_pass() {
+        // Rate-limit: two erroring shas in ONE pass raise exactly ONE envelope per
+        // worktree (the pass-scoped latch dedupes identical failures).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        write_unremovable_base(&dir, &sha('b'));
+        write_unremovable_base(&dir, &sha('c'));
+
+        let resolver = FakeResolver::default();
+        let (notifier, mut rxs) = gc_fixture(&["/wt/a"]);
+        let worktrees = [PathBuf::from("/wt/a")];
+
+        let out = sweep_unreferenced_bases_inner(
+            &dir,
+            &worktrees,
+            &resolver,
+            &SystemClaimProcs,
+            Some(&notifier),
+        );
+        assert_eq!(out.reclaimed, 0, "both erroring bases are skipped");
+
+        let rx = &mut rxs[0];
+        assert!(
+            rx.try_recv().is_ok(),
+            "the first reclaim error emits one envelope",
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "a second reclaim error in the same pass is rate-limited (one envelope)",
+        );
+    }
+
+    #[test]
+    fn gc_clean_pass_emits_no_envelope() {
+        // (f) A pass with no error emits nothing — the pass-scoped latch resets each
+        // pass, so a clean pass is silent and a later erroring pass re-emits.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        write_base(&dir, &sha('b')); // a normal reclaimable orphan (no error)
+
+        let resolver = FakeResolver::default();
+        let (notifier, mut rxs) = gc_fixture(&["/wt/a"]);
+        let worktrees = [PathBuf::from("/wt/a")];
+
+        let out = sweep_unreferenced_bases_inner(
+            &dir,
+            &worktrees,
+            &resolver,
+            &SystemClaimProcs,
+            Some(&notifier),
+        );
+        assert_eq!(out.reclaimed, 1, "the clean orphan is reclaimed");
+        assert!(
+            rxs[0].try_recv().is_err(),
+            "a clean pass emits no health envelope",
+        );
+    }
+
+    #[test]
+    fn gc_uncertain_abort_emits_operational_deferred_envelope_per_worktree() {
+        // (d) A keep-set-uncertain deferral raises the OPERATIONAL "GC pass deferred"
+        // envelope (lower `normal` priority) for every registered worktree; no base
+        // is reclaimed (fail-safe keep).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let orphan = sha('b');
+        write_base(&dir, &orphan);
+
+        // One worktree resolves Unavailable ⇒ the whole pass defers.
+        let unresolved = PathBuf::from("/wt/a");
+        let resolver = FakeResolver::default().with(&unresolved, MergeBase::Unavailable);
+        let (notifier, mut rxs) = gc_fixture(&["/wt/a", "/wt/b"]);
+        let worktrees = [unresolved.clone(), PathBuf::from("/wt/b")];
+
+        let out = sweep_unreferenced_bases_inner(
+            &dir,
+            &worktrees,
+            &resolver,
+            &SystemClaimProcs,
+            Some(&notifier),
+        );
+        assert!(
+            out.aborted_uncertain,
+            "an unresolvable worktree defers the pass"
+        );
+        assert_eq!(out.reclaimed, 0, "fail-safe keeps every base");
+        assert!(base_exists(&dir, &orphan), "the orphan is kept this pass");
+
+        for rx in &mut rxs {
+            let frame = rx
+                .try_recv()
+                .expect("each worktree gets a deferral envelope");
+            assert!(
+                frame.contains("shared-base GC pass deferred"),
+                "the deferral class is delivered: {frame}",
+            );
+            assert!(
+                frame.contains("\"priority\":\"normal\""),
+                "the deferral is marked operational (normal priority): {frame}",
+            );
+        }
     }
 }

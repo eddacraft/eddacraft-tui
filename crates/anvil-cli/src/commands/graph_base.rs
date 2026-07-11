@@ -105,8 +105,9 @@ impl BuildOutput {
 #[cfg(unix)]
 fn run_build(build: &BuildArgs) -> anyhow::Result<()> {
     use crate::graph_base_producer::{
-        build_and_persist_base, build_base_graph, resolve_base_commit,
+        BaseGraphError, build_and_persist_base, build_base_graph, resolve_base_commit,
     };
+    use anvil_intercept::graph_base_trigger::BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE;
     use anvil_intercept::snapshot_io::base_store::{SystemClaimProcs, default_base_dir};
 
     let repo_root = match &build.repo {
@@ -125,8 +126,23 @@ fn run_build(build: &BuildArgs) -> anyhow::Result<()> {
     // non-fatal to the daemon (ADR-105 §6) — the CLI surfaces a producer error as
     // a non-zero exit, and the daemon that spawned it degrades to serving cold.
     let output = if let Some(base_dir) = default_base_dir() {
-        let persisted = build_and_persist_base(&repo_root, &sha, &base_dir, &SystemClaimProcs)
-            .map_err(|e| anyhow::anyhow!("could not produce the base: {e}"))?;
+        let persisted = match build_and_persist_base(&repo_root, &sha, &base_dir, &SystemClaimProcs)
+        {
+            Ok(persisted) => persisted,
+            // GBASE-011: a claim-path I/O failure (`base_store::claim` returned
+            // `Err`, mapped to `Store { op: "claim", .. }`) exits with a DISTINCT
+            // code so the daemon's reaper raises the ADR-090 "base claim could not
+            // make progress" health envelope — distinct from a general production
+            // failure (any other error → the generic non-zero `EXIT_ERROR`). A
+            // normal live-peer contention is a clean `ClaimedElsewhere` exit and
+            // never reaches here. No summary to print; the exit code carries the
+            // signal (the daemon discards this child's stdout anyway).
+            Err(err) if matches!(&err, BaseGraphError::Store { op, .. } if op == "claim") => {
+                eprintln!("could not claim the base: {err}");
+                std::process::exit(BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE);
+            }
+            Err(err) => return Err(anyhow::anyhow!("could not produce the base: {err}")),
+        };
         let outcome = persisted.outcome.as_str();
         let persisted_flag = persisted.outcome.persisted();
         match &persisted.summary {

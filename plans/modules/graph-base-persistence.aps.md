@@ -394,7 +394,7 @@ default-on.
 
 #### GBASE-011: ADR-090 health-envelope wiring for base failures
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3276
 - **Intent:** Surface base-production failure, claim timeout, and GC error as
   worktree-scoped health signals. **(Parallel track.)**
 - **Expected Outcome:** Base-production failure, `O_EXCL` claim timeout, and GC
