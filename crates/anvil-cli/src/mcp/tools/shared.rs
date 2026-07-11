@@ -70,14 +70,19 @@ pub enum WorkspacePathKind {
     Filesystem,
 }
 
-/// Lexically validate and normalise an untrusted workspace-relative path in a
-/// host-OS-independent way. Windows separators and anchors are recognised even
-/// when the server is running on Unix.
+/// Lexically validate an untrusted workspace-relative path in a
+/// host-OS-independent way, then return the representation selected by `kind`.
+/// Windows separators and anchors are recognised even when the server is
+/// running on Unix.
 ///
-/// This is purely lexical: it converts backslashes to slashes, drops `.` and
-/// empty segments, and rejects NUL, rooted/UNC/drive-prefixed paths, `..`, and
-/// values that become empty. Filesystem containment is still enforced by the
-/// caller after joining the result to its validated workspace root.
+/// Validation uses a portable lexical representation that converts backslashes
+/// to slashes and drops `.` and empty segments. It rejects NUL,
+/// rooted/UNC/drive-prefixed paths, `..`, and values that become empty.
+/// [`WorkspacePathKind::Policy`] returns that normalised representation;
+/// [`WorkspacePathKind::Filesystem`] returns the original spelling so valid
+/// POSIX backslashes retain their filename identity. Filesystem containment is
+/// still enforced by the caller after joining the result to its validated
+/// workspace root.
 pub fn normalise_workspace_relative_path(
     field: &str,
     raw: &str,
