@@ -100,8 +100,8 @@ The `mcpServers.anvil` entry is **owned by the activation flow**. On
 every `anvil start`, drift is classified per the existing policy table
 and the entry is rewritten when classified as `SafeDrift`. The user
 sees a single-line notice when a rewrite happens. Interactive flows
-keep the existing pre-selected picker (one keystroke to accept);
-non-interactive flows auto-apply.
+offer a picker (amended 2026-07-11: candidates start unticked — see
+Amendments); non-interactive flows auto-apply.
 
 This ADR **codifies the existing behaviour** rather than introducing a
 new pattern. The amendments below pin the contract so it cannot drift,
@@ -116,10 +116,10 @@ Concretely:
    edit; other servers preserved).
 2. **Drift policy (pinned).** The orchestrator's existing
    `DriftClass` → action mapping is now contract:
-   - `NotPresent`: install (interactive pre-selected; non-interactive
-     auto)
-   - `SafeDrift`: rewrite in place (interactive pre-selected;
-     non-interactive auto)
+   - `NotPresent`: install (interactive offered unticked — amended
+     2026-07-11; non-interactive auto)
+   - `SafeDrift`: rewrite in place (interactive offered unticked —
+     amended 2026-07-11; non-interactive auto)
    - `UpToDate`: skip
    - `UnsafeDrift`: **never overwrite**. Skipped with note. Recovery
      is `anvil uninstall --global && anvil start`.
@@ -141,11 +141,12 @@ Concretely:
    matches the shipped product. Until the renderer follow-up lands,
    the contract is "rewrite happens, with visible output naming the
    affected surface" — the exact wording is the deliverable.
-4. **Interactive picker stays.** Existing interactive flows that
-   present a pre-selected picker continue to do so. The picker is a
-   one-keystroke confirmation, not a re-confirm-every-start prompt; it
-   preserves the visibility the planless-first principle calls for
-   without erecting friction.
+4. **Interactive picker stays.** Existing interactive flows continue
+   to present the picker. Amended 2026-07-11: candidates start
+   **unticked**, so applying an editor-config write takes an explicit
+   tick rather than a one-keystroke accept; Enter with nothing ticked
+   writes nothing. The picker remains a single prompt, not a
+   re-confirm-every-start flow.
 5. **Opt-out flag.** `anvil start --keep-mcp` skips MCP entry rewrites
    entirely (`SafeDrift` is treated as `UpToDate` for the duration of
    that invocation). Intended for users who have customised the entry
@@ -300,3 +301,26 @@ backend is about to swap from a Node-based shim to a Rust binary.
     (current `DriftClass` table — see module-level doc comment)
   - `crates/anvil-cli/src/activation/orchestrator/mod.rs`
   - `crates/anvil-cli/src/commands/uninstall.rs` (heavy-reset path)
+
+## Amendments
+
+### 2026-07-11 — interactive picker defaults unticked (CIB-184)
+
+The original decision (and the "chosen" row of the alternatives table)
+kept the interactive picker **pre-selected**. That default was reversed
+by the consent posture adopted for the release user journeys: repo- and
+editor-config writes take an explicit, named, unticked consent
+(CIB-165 set the precedent for the workflow picker; ACTTUI-009 / PR
+#3263 wired the same posture through the activation TUI; the
+first-run council review C-009 flagged the live MCP picker as the
+remaining inconsistency; CIB-184 / PR #3279 applied it).
+
+What changed: `NotPresent` and `SafeDrift` candidates are still
+offered interactively, but start unticked, and Enter with nothing
+ticked writes no MCP config. Everything else in this ADR is
+unchanged: single ownership, the non-interactive auto-install policy,
+the `UnsafeDrift` refusal, `--keep-mcp`, and the heavy-reset path.
+
+References: `plans/reviews/2026-07-09-acttui-first-run-journeys.md`
+(C-009), `plans/specs/2026-07-11-release-user-journeys-conductor.md`
+(consent constraints), CIB-165 owner decision 2026-07-04.

@@ -4791,7 +4791,8 @@ archive.
 - **Identified From:** First-run council review C-009 in
   [`plans/reviews/2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md).
 - **Coordinates with:** CIB-165 (workflow picker default-unticked), ACTTUI-009
-  (TUI consent wiring).
+  (TUI consent wiring), ADR-044 (pinned the pre-selected picker; amended
+  2026-07-11 to the unticked default by this item).
 - **Confidence:** high
 
 ### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests

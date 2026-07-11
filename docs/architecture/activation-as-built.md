@@ -184,7 +184,8 @@ orchestrator executes seven main ordered steps:
    `AnvilEntry::local_stdio` (`mcp_client.rs:91-101`), then calls
    `install::install_for_clients` (`orchestrator/mod.rs`). The install step is
    idempotent (`UpToDate` → skip), refuses to overwrite `UnsafeDrift`, and
-   pre-selects `NotPresent` / `SafeDrift` candidates. With MCP install skipped,
+   offers `NotPresent` / `SafeDrift` candidates unticked (CIB-184). With MCP
+   install skipped,
    daemon-backed worktree registration still runs and the human output prints an
    explicit skipped-install line. See
    [MCP install (LAUNCH-009)](#mcp-install-launch-009) below.
@@ -396,8 +397,8 @@ install for the two clients registered in v1: Cursor and Claude Code
 
 | `DriftClass`  | Interactive  | Non-interactive | Notes                                                               |
 | ------------- | ------------ | --------------- | ------------------------------------------------------------------- |
-| `NotPresent`  | pre-selected | auto-install    | fresh write, no merge needed                                        |
-| `SafeDrift`   | pre-selected | auto-install    | rewrite over a recognised anvil-shaped entry (likely version drift) |
+| `NotPresent`  | offered unticked | auto-install | fresh write, no merge needed                                        |
+| `SafeDrift`   | offered unticked | auto-install | rewrite over a recognised anvil-shaped entry (likely version drift) |
 | `UpToDate`    | not shown    | skip            | nothing to do                                                       |
 | `UnsafeDrift` | not shown    | skip with note  | foreign tool / unknown shape — never overwrite                      |
 
