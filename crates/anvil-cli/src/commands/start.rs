@@ -3785,11 +3785,11 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let witness_dir = tmp.path().join("anvil/witness");
         std::fs::create_dir_all(&witness_dir).unwrap();
-        let status = std::process::Command::new("mkfifo")
-            .arg(witness_dir.join("active.ndjson"))
-            .status()
-            .expect("mkfifo is available on unix hosts");
-        assert!(status.success(), "mkfifo failed");
+        nix::unistd::mkfifo(
+            &witness_dir.join("active.ndjson"),
+            nix::sys::stat::Mode::from_bits_truncate(0o600),
+        )
+        .expect("mkfifo the synthetic witness segment");
 
         let started = std::time::Instant::now();
         assert!(
