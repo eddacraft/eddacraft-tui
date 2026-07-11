@@ -390,6 +390,8 @@ pub struct SaveTimeState {
     /// re-route ticks for one worktree must schedule **exactly one** warm-start:
     /// the spawn claims the key here before scheduling and the task releases it on
     /// completion. Behind an `Arc` so the spawned closure can clear its own slot.
+    /// Unix-only like the whole route+compose path (`route_router` below).
+    #[cfg(unix)]
     compose_inflight: Arc<Mutex<HashSet<WorktreeKey>>>,
     /// GBASE-009 (ADR-105 §7/§8): the re-entrant persistence router. Decides, per
     /// admitted worktree, whether the warm-start rides the **shared base**
@@ -444,6 +446,7 @@ impl SaveTimeState {
             snapshot_metrics: Arc::new(SnapshotMetrics::default()),
             witness_lock_timeout: resolve_witness_lock_timeout(),
             root_budget: crate::dos::DEFAULT_MAX_ADMITTED_ROOTS,
+            #[cfg(unix)]
             compose_inflight: Arc::new(Mutex::new(HashSet::new())),
             #[cfg(unix)]
             route_router: Arc::new(crate::persistence_route::PersistenceRouter::new()),
@@ -771,18 +774,15 @@ impl SaveTimeState {
     /// resolution runs on only a small fraction of ticks across an idle fleet. This
     /// runs **synchronously on the caller's blocking pool** (the daemon invokes it
     /// inside `spawn_blocking`) — never the hot path. No-op when persistence is off.
+    /// Unix-only: its sole caller (the daemon's `gbase_route_tick` arm) is
+    /// `#[cfg(unix)]`, so an internal non-unix arm would just be dead code on
+    /// Windows/macOS targets.
+    #[cfg(unix)]
     pub(crate) fn reevaluate_route_on_tick(&self, key: &WorktreeKey, canonical_root: &Path) {
-        #[cfg(unix)]
-        {
-            if self.snapshot_dir.is_none() {
-                return; // persistence off ⇒ routing is inert
-            }
-            let _ = self.route_router.route_on_tick(key, canonical_root);
+        if self.snapshot_dir.is_none() {
+            return; // persistence off ⇒ routing is inert
         }
-        #[cfg(not(unix))]
-        {
-            let _ = (key, canonical_root);
-        }
+        let _ = self.route_router.route_on_tick(key, canonical_root);
     }
 
     /// GBASE-009 (ADR-105 §8): drop `key`'s router state when the worktree
