@@ -316,28 +316,25 @@ fn invalidated_base_edges(
     base_sym: &SymbolGraph,
     tomb_set: &BTreeSet<&str>,
 ) -> Vec<InvalidatedEdge> {
-    // id → file, resolved once so each edge is O(1) to classify.
-    let file_of: BTreeMap<u64, &str> = base_sym
-        .inner()
-        .node_weights()
-        .map(|n| (n.id, n.file.as_str()))
-        .collect();
-
-    let mut edges: Vec<InvalidatedEdge> = base_sym
-        .inner()
-        .edge_weights()
+    // Work proportional to the TOMBSTONED subgraph, not the whole base: an
+    // overlay is typically a handful of files against a large base, so a full
+    // |V|+|E| walk per compose would dominate compose time (and compose sits on
+    // the warm-start path, which carries the GBASE-001 latency budget). For
+    // each tombstoned file, visit only its own symbols' incoming edges and
+    // classify the source's file.
+    let mut edges: Vec<InvalidatedEdge> = tomb_set
+        .iter()
+        .flat_map(|file| base_sym.symbols_in_file(file))
+        .flat_map(|node| base_sym.incoming_edges(node.id))
         .filter_map(|e| {
-            let from_file = *file_of.get(&e.from)?;
-            let to_file = *file_of.get(&e.to)?;
+            let from_file = base_sym.get_symbol(e.from)?.file.as_str();
             // A surviving source whose target is tombstoned — the edge that
             // vanishes and whose stored id becomes stale.
-            (tomb_set.contains(to_file) && !tomb_set.contains(from_file)).then_some(
-                InvalidatedEdge {
-                    from_id: e.from,
-                    to_id: e.to,
-                    edge_type: e.edge_type,
-                },
-            )
+            (!tomb_set.contains(from_file)).then_some(InvalidatedEdge {
+                from_id: e.from,
+                to_id: e.to,
+                edge_type: e.edge_type,
+            })
         })
         .collect();
     edges.sort_unstable();
@@ -557,11 +554,12 @@ mod tests {
                 .first()
                 .map(|s| s.id);
             if let (Some(from), Some(to)) = (from, to) {
-                let _ = sym.add_edge(anvil_kernel_types::SymbolEdge {
+                sym.add_edge(anvil_kernel_types::SymbolEdge {
                     from,
                     to,
                     edge_type: directive.edge_type,
-                });
+                })
+                .expect("re-resolved endpoints exist by construction");
             }
         }
         sym
