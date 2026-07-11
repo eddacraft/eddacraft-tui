@@ -700,4 +700,263 @@ mod tests {
             "an already-warm key keeps its authoritative graph (never re-composed)"
         );
     }
+
+    // ========================================================================
+    // GBASE-010 graduation-gate evidence — warm-start latency (N-sibling shape)
+    //   + corrupt-shared-base incident behaviour
+    // ========================================================================
+
+    /// A [`SymbolParser`] that delegates to [`LineParser`] but counts every parse
+    /// call, so the warm-start win can be demonstrated **deterministically** (a
+    /// parse count, not a flaky wall-clock number): the shared base is parsed
+    /// **once** at production, and a clean worktree's warm-start re-parses **zero**
+    /// files (the base holds the unchanged majority — GBASE-004), whereas a cold
+    /// scan re-parses every file, per worktree.
+    #[derive(Debug, Default)]
+    struct CountingParser {
+        parses: std::sync::atomic::AtomicU64,
+    }
+
+    impl SymbolParser for CountingParser {
+        fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
+            self.parses
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            LineParser.parse(path, bytes)
+        }
+    }
+
+    impl CountingParser {
+        fn count(&self) -> u64 {
+            self.parses.load(std::sync::atomic::Ordering::Relaxed)
+        }
+        fn reset(&self) {
+            self.parses.store(0, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// **GBASE-010 §11 criterion: warm-start latency budget (N-worktree shape).**
+    ///
+    /// ADR-105 §11 gates the flip on base load staying within a warm-start budget
+    /// when it sits on the cold-start critical path for **N worktrees**. The honest,
+    /// non-flaky expression of that budget is the **re-parse ratio**, not absolute
+    /// milliseconds (agent-shell wall-clock is indicative only — see the gate doc's
+    /// environment caveat, and the memory lesson that benches are flaky in agent
+    /// shells):
+    ///
+    /// - **Cold fleet:** each of `FLEET` worktrees does a full cold scan, re-parsing
+    ///   every one of `FILES` files ⇒ `FLEET × FILES` parses.
+    /// - **Warm fleet (shared base):** the base is produced **once** (`FILES`
+    ///   parses), then every worktree warm-starts from that **one** shared artefact,
+    ///   and a clean worktree's overlay re-parses **zero** files ⇒ `FILES` parses
+    ///   total, regardless of `FLEET`.
+    ///
+    /// So the shared base cuts fleet-wide parse work by exactly `FLEET×`. The parser
+    /// here is trivial (line-splitting), so this deterministic parse-count ratio is
+    /// a **lower bound** on the real win, where tree-sitter parse cost dominates a
+    /// cold scan; the wall-clock is reported alongside purely as an indicator.
+    #[test]
+    fn warm_start_shared_base_reparses_fleet_times_fewer_than_cold() {
+        const FILES: usize = 60;
+        const FLEET: usize = 16;
+
+        // A representative multi-file fixture (one cross-file import chain so the
+        // dependency map is exercised, not just isolated symbols).
+        let fixture: Vec<(String, String)> = (0..FILES)
+            .map(|i| {
+                let body = if i == 0 {
+                    "export f0".to_string()
+                } else {
+                    format!("export f{i}\nimport ./mod{}", i - 1)
+                };
+                (format!("mod{i}.ts"), body)
+            })
+            .collect();
+        let fixture_ref: Vec<(&str, &str)> = fixture
+            .iter()
+            .map(|(p, b)| (p.as_str(), b.as_str()))
+            .collect();
+
+        // ---- Cold fleet: FLEET full scans, each re-parsing every file. ----------
+        let cold_counter = CountingParser::default();
+        let cold_start = std::time::Instant::now();
+        for _ in 0..FLEET {
+            let wt = tempfile::tempdir().unwrap();
+            // A cold scan builds the whole per-worktree graph from source.
+            let _ = base_payload_from_files(wt.path(), &fixture_ref, &cold_counter);
+        }
+        let cold_wall = cold_start.elapsed();
+        let cold_parses = cold_counter.count();
+
+        // ---- Warm fleet: produce ONE shared base, then FLEET clean warm-starts. --
+        let warm_counter = CountingParser::default();
+        let store = tempfile::tempdir().unwrap();
+        let base = store.path().join("base");
+        let producer_wt = tempfile::tempdir().unwrap();
+        // Produce the shared base once (this is the amortised one-time parse cost).
+        publish_base_from_files(&base, SHA, producer_wt.path(), &fixture_ref, &warm_counter);
+        let base_production_parses = warm_counter.count();
+        warm_counter.reset();
+
+        let warm_start = std::time::Instant::now();
+        let cache = KernelGraphCache::with_capacity(FLEET);
+        for _ in 0..FLEET {
+            // Each worktree checks out the SAME committed files (a clean sibling).
+            let wt = tempfile::tempdir().unwrap();
+            for (rel, body) in &fixture_ref {
+                write(wt.path(), rel, body);
+            }
+            let key = key_for(wt.path());
+            assert_eq!(
+                compose_worktree_from_base(
+                    &cache,
+                    &key,
+                    &base,
+                    SHA,
+                    wt.path(),
+                    &warm_counter,
+                    &caps()
+                ),
+                ComposeWarmStartOutcome::Composed,
+                "every clean worktree warm-starts from the one shared base",
+            );
+        }
+        let warm_wall = warm_start.elapsed();
+        let warm_compose_parses = warm_counter.count();
+
+        // Indicative wall-clock (NOT asserted — see the environment caveat).
+        eprintln!(
+            "[GBASE-010 warm-start] FILES={FILES} FLEET={FLEET} \
+             cold: {cold_parses} parses / {cold_wall:?} | \
+             warm: {base_production_parses} base-production parses + \
+             {warm_compose_parses} compose parses / {warm_wall:?}",
+        );
+
+        // (1) The shared base is parsed exactly once at production.
+        assert_eq!(
+            base_production_parses, FILES as u64,
+            "base production parses every file exactly once",
+        );
+        // (2) A clean worktree's warm-start re-parses ZERO files (the base holds the
+        //     unchanged majority) — so the whole fleet's warm-start parse cost is 0.
+        assert_eq!(
+            warm_compose_parses, 0,
+            "a clean-worktree warm-start must re-parse nothing (GBASE-004 hash skip)",
+        );
+        // (3) Cold re-parses every file per worktree.
+        assert_eq!(
+            cold_parses,
+            (FLEET * FILES) as u64,
+            "the cold fleet re-parses every file, per worktree",
+        );
+        // (4) The shared-artefact win: fleet-wide warm parse work (one production +
+        //     zero per worktree) is exactly FLEET× smaller than the cold fleet's.
+        let warm_total = base_production_parses + warm_compose_parses;
+        assert_eq!(
+            cold_parses,
+            warm_total * FLEET as u64,
+            "shared base cuts fleet re-parse work by exactly FLEET×",
+        );
+    }
+
+    /// **GBASE-010 §11 criterion: corrupt-shared-base incident behaviour.**
+    ///
+    /// ADR-105 §6/§9: a corrupt shared artefact must be **non-fatal and
+    /// non-poisoning** — every consumer discards it and cold-serves (nothing bad is
+    /// installed into any worktree's resident graph), and once the base is refreshed
+    /// (the produce path heals a corrupt artefact in place, §5) every consumer
+    /// recovers to a composed warm-start. No cross-worktree poison persists.
+    #[test]
+    fn corrupt_shared_base_all_consumers_cold_serve_then_recover() {
+        const FLEET: usize = 8;
+        let files = [
+            ("a.ts", "export a\nimport ./b"),
+            ("b.ts", "export b"),
+            ("c.ts", "export c"),
+        ];
+
+        let store = tempfile::tempdir().unwrap();
+        let base = store.path().join("base");
+        let producer_wt = tempfile::tempdir().unwrap();
+        // A valid shared base exists first.
+        publish_base_from_files(&base, SHA, producer_wt.path(), &files, &LineParser);
+        assert!(matches!(
+            crate::snapshot_io::base_store::load_base(&base, SHA),
+            crate::snapshot_io::base_store::BaseLoadOutcome::Loaded(_)
+        ));
+
+        // A fleet of clean consumer worktrees (same committed files on disk).
+        let consumers: Vec<tempfile::TempDir> = (0..FLEET)
+            .map(|_| {
+                let wt = tempfile::tempdir().unwrap();
+                for (rel, body) in files {
+                    write(wt.path(), rel, body);
+                }
+                wt
+            })
+            .collect();
+
+        // Corrupt the SHARED artefact in place (a torn write / bit-rot): overwrite
+        // the sealed base leaf with garbage so `load_base` classifies it Ignored.
+        let leaf = base.join(format!("{SHA}.base"));
+        std::fs::write(&leaf, b"not-a-sealed-anvil-base-artefact\x00\xff").unwrap();
+        assert!(matches!(
+            crate::snapshot_io::base_store::load_base(&base, SHA),
+            crate::snapshot_io::base_store::BaseLoadOutcome::Ignored
+        ));
+
+        // Every consumer discards the corrupt base and serves cold — NOTHING is
+        // installed into any resident graph (no cross-worktree poison).
+        let cache = KernelGraphCache::with_capacity(FLEET);
+        let keys: Vec<WorktreeKey> = consumers.iter().map(|wt| key_for(wt.path())).collect();
+        for (wt, key) in consumers.iter().zip(&keys) {
+            let outcome = compose_worktree_from_base(
+                &cache,
+                key,
+                &base,
+                SHA,
+                wt.path(),
+                &LineParser,
+                &caps(),
+            );
+            assert_eq!(
+                outcome,
+                ComposeWarmStartOutcome::ColdBaseIgnored,
+                "a corrupt shared base is discarded (cold-serve), never composed",
+            );
+            assert!(
+                !cache.contains(key),
+                "a corrupt base must install nothing — no poison in any worktree",
+            );
+        }
+
+        // Refresh the shared base (the produce path heals a corrupt artefact at the
+        // same content-addressed sha, ADR-105 §5): a fresh publish over the corrupt
+        // bytes writes (it is not `AlreadyPresent`, since the corrupt one is Ignored).
+        let refreshed = base_payload_from_files(producer_wt.path(), &files, &LineParser);
+        assert_eq!(
+            crate::snapshot_io::base_store::publish_base(&base, SHA, &refreshed.to_base_bytes())
+                .unwrap(),
+            crate::snapshot_io::base_store::PublishOutcome::Written,
+            "refreshing over a corrupt base writes (heals in place)",
+        );
+
+        // Every consumer now recovers to a composed warm-start.
+        for (wt, key) in consumers.iter().zip(&keys) {
+            let outcome = compose_worktree_from_base(
+                &cache,
+                key,
+                &base,
+                SHA,
+                wt.path(),
+                &LineParser,
+                &caps(),
+            );
+            assert_eq!(
+                outcome,
+                ComposeWarmStartOutcome::Composed,
+                "after refresh, every consumer recovers to a warm compose",
+            );
+            assert!(cache.contains(key), "the recovered worktree is warm");
+        }
+    }
 }

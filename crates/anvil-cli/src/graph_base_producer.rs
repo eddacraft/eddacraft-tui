@@ -1076,4 +1076,71 @@ mod tests {
         assert!(bodies[0].is_some(), "real blob resolves");
         assert!(bodies[1].is_none(), "bogus oid is a miss");
     }
+
+    /// **GBASE-010 §11 evidence: claim-production p95 → `STALE_CLAIM_MAX_AGE`
+    /// calibration.**
+    ///
+    /// ADR-105 §5 sets the claim mtime-reclaim bound at `2 × p95` of base
+    /// production. This measures real production time over a representative
+    /// multi-file committed fixture (`SAMPLES` runs of the full
+    /// git-object-read → parse → resolve → build pipeline) and reports p50/p95, so
+    /// the graduation gate can calibrate the bound against a measured number rather
+    /// than a guess.
+    ///
+    /// The calibration verdict (a **reasoned keep** of the conservative 10-min
+    /// placeholder) is recorded on `base_store::STALE_CLAIM_MAX_AGE` and in
+    /// `plans/audits/2026-07-12-gbase-graduation-gate.md`: fixture-scale p95 is
+    /// tens of ms, so a literal `2 × p95` would be sub-second — far too tight for a
+    /// *fallback* bound that must never reclaim a genuinely-producing subprocess on
+    /// a large monorepo (seconds-to-minutes). This test asserts only that measured
+    /// `2 × p95` is comfortably **below** the 10-min bound (the margin the reasoned
+    /// keep relies on), not a tight SLA. Wall-clock is agent-shell indicative.
+    #[test]
+    fn base_production_p95_over_representative_fixture() {
+        const SAMPLES: usize = 15;
+        const FILES: usize = 40;
+
+        // A representative fixture: many files with a cross-file import chain, so
+        // production exercises the batch blob read, parse, and re-resolution passes.
+        let (_tmp, root) = init_repo();
+        for i in 0..FILES {
+            let body = if i == 0 {
+                "export function f0() { return 0; }\n".to_string()
+            } else {
+                format!(
+                    "import {{ f{prev} }} from './mod{prev}';\n\
+                     export function f{i}() {{ return f{prev}(); }}\n",
+                    prev = i - 1,
+                )
+            };
+            write_file(&root, &format!("src/mod{i}.ts"), body.as_bytes());
+        }
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-q", "-m", "representative fixture"]);
+        let sha = head_sha(&root);
+
+        let mut samples: Vec<std::time::Duration> = Vec::with_capacity(SAMPLES);
+        for _ in 0..SAMPLES {
+            let start = std::time::Instant::now();
+            let summary = build_base_graph(&root, &sha).expect("base graph builds");
+            samples.push(start.elapsed());
+            assert_eq!(summary.file_count, FILES, "summary: {summary:?}");
+        }
+        samples.sort_unstable();
+        let p50 = samples[samples.len() / 2];
+        let p95 = samples[(samples.len() * 95).div_ceil(100).min(samples.len()) - 1];
+        let two_p95 = p95 * 2;
+
+        eprintln!(
+            "[GBASE-010 production p95] FILES={FILES} SAMPLES={SAMPLES} \
+             p50={p50:?} p95={p95:?} 2*p95={two_p95:?} \
+             (STALE_CLAIM_MAX_AGE placeholder = 10m — reasoned keep, see gate doc)",
+        );
+
+        // The reasoned-keep margin: measured 2*p95 sits far under the 10-min bound.
+        assert!(
+            two_p95 < std::time::Duration::from_mins(1),
+            "2*p95 ({two_p95:?}) unexpectedly large for a fixture — recalibrate the bound",
+        );
+    }
 }

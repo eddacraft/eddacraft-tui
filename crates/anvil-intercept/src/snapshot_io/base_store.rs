@@ -116,16 +116,22 @@ const MAX_LOCK_BYTES: u64 = 256;
 /// allowed to reclaim it on the **mtime fallback alone** (ADR-105 §5).
 ///
 /// ADR-105 §5 specifies the reclaim bound as **2× the p95 base-production time**.
-/// That p95 is not yet measured — its calibration is an explicit deliverable of
-/// the GBASE-010 graduation gate — so this is a deliberately **conservative**
-/// placeholder: large enough that a genuinely-still-producing subprocess on a big
-/// monorepo is never reclaimed out from under itself, at the cost of a slower
-/// recovery in the rare case where the *precise* liveness check (dead pid /
-/// PID-reuse via `start_time`) is unavailable because the platform could not read
-/// a start time. The precise liveness path ([`ClaimProcs::is_live`]) handles the
-/// common dead-producer case immediately; this mtime bound only backstops the
-/// ambiguous "present, unreadable, or start-time-less" case. GBASE-010 replaces
-/// this constant with the measured `2 × p95`.
+///
+/// **GBASE-010 graduation-gate calibration (2026-07-12 — reasoned keep).** The p95
+/// was measured over a representative fixture (see
+/// `graph_base_producer::base_production_p95_over_representative_fixture` and
+/// `plans/audits/2026-07-12-gbase-graduation-gate.md`): fixture-scale production is
+/// **tens of milliseconds**, so a literal `2 × p95` would be sub-second. That
+/// value is **deliberately not adopted**: this mtime bound is only the *fallback*
+/// for the ambiguous "present, unreadable, or start-time-less" case (the precise
+/// [`ClaimProcs::is_live`] pid / PID-reuse check reclaims a dead producer
+/// immediately), and it must not reclaim a genuinely-still-producing subprocess on
+/// a **large monorepo**, whose real production time is seconds-to-minutes — far
+/// above any fixture p95. Over-retention is the safe direction (a slower recovery
+/// in a rare ambiguous case, never a stolen live claim), so the conservative 10 min
+/// stands with wide margin over the largest plausible `2 × p95`. This is a
+/// *reasoned* keep, not an unexamined one: revisit only if real-fleet telemetry
+/// ever shows monorepo production approaching this bound.
 const STALE_CLAIM_MAX_AGE: Duration = Duration::from_mins(10);
 
 /// Liveness seam for the claim's PID-reuse guard, so reclaim tests never depend
@@ -977,6 +983,124 @@ mod tests {
                 "round {round}: exactly one claimant may hold the lock concurrently",
             );
             // `held` (and the winning claim) drops here, after the burst joined.
+        }
+    }
+
+    // ========================================================================
+    // GBASE-010 graduation-gate evidence — herd-miss single-flight (fleet shape)
+    // ========================================================================
+
+    /// **GBASE-010 §11 criterion: herd-miss under single-flight (fleet-shaped).**
+    ///
+    /// The existing single-flight tests prove the *producer* invariant (≤1
+    /// concurrent claim holder) for an 8-way burst. This extends it to the ADR-105
+    /// §11 fleet scenario — **many worktrees of the same repo simultaneously
+    /// discovering the same fresh merge-base sha** (a fleet rebasing onto fresh
+    /// `main`) — and adds the *consumer* dimension the producer tests do not cover:
+    ///
+    /// 1. **exactly-one-producer** — of `N` racers for one fresh sha, precisely one
+    ///    `Acquired`; every other is `Contended` (a live peer holds the claim, so
+    ///    none reclaims). No thundering herd of redundant producers.
+    /// 2. **all-eventually-cold-served** — while production is in flight, every
+    ///    non-winner that `load_base`s sees `Absent` (serve cold, non-fatal — the
+    ///    ADR-105 §6 fallback), never a torn/partial artefact.
+    /// 3. **all-eventually-warm** — once the single producer publishes and releases,
+    ///    every consumer `load_base`s the identical shared artefact (`Loaded`) — the
+    ///    O(1)-production, O(N)-share win the whole design exists for.
+    ///
+    /// Run at a fleet-scale `N = 48` (far above the 8-way burst) across 20 rounds
+    /// with a fresh sha per round (the CI concurrency-harness multiplier, and
+    /// `taskset -c 0,1`-shaped when pinned).
+    #[test]
+    fn herd_miss_single_flight_fleet_shaped() {
+        const FLEET: u32 = 48;
+        const ROUNDS: u32 = 20;
+
+        // Every worktree in the fleet sees every other as LIVE, so the ONLY gate is
+        // the atomic-exclusive publish — no peer ever reclaims a live producer.
+        let all_live: Vec<(u32, Option<u64>)> =
+            (0..FLEET).map(|i| (2000 + i, Some(u64::from(i)))).collect();
+
+        for round in 0..ROUNDS {
+            let tmp = tempfile::tempdir().unwrap();
+            let dir = base_dir(&tmp);
+            let sha = Arc::new(format!("{round:040x}"));
+            let winners = Arc::new(std::sync::atomic::AtomicU32::new(0));
+            let contended = Arc::new(std::sync::atomic::AtomicU32::new(0));
+            // Consumers that read the store DURING production must never see a torn
+            // artefact — only `Absent` (produce not yet published) is acceptable cold.
+            let cold_absent = Arc::new(std::sync::atomic::AtomicU32::new(0));
+            // The single winning claim, captured so the burst can publish + release
+            // exactly once after the herd has fully joined.
+            let winner = Arc::new(std::sync::Mutex::new(None::<BaseClaim>));
+
+            std::thread::scope(|scope| {
+                for i in 0..FLEET {
+                    let dir = dir.clone();
+                    let sha = Arc::clone(&sha);
+                    let winners = Arc::clone(&winners);
+                    let contended = Arc::clone(&contended);
+                    let cold_absent = Arc::clone(&cold_absent);
+                    let winner = Arc::clone(&winner);
+                    let all_live = all_live.clone();
+                    scope.spawn(move || {
+                        let procs = FakeProcs::with_live(2000 + i, Some(u64::from(i)), &all_live);
+                        match claim(&dir, &sha, &procs).unwrap() {
+                            ClaimOutcome::Acquired(claim) => {
+                                winners.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                // Hold the winner until the herd joins; it must be the
+                                // sole producer.
+                                *winner.lock().unwrap() = Some(claim);
+                            }
+                            ClaimOutcome::Contended => {
+                                contended.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                // A loser serves cold: the base is not yet published,
+                                // so a concurrent read must be `Absent`, never torn.
+                                if matches!(load_base(&dir, &sha), BaseLoadOutcome::Absent) {
+                                    cold_absent.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+
+            // (1) exactly-one-producer.
+            assert_eq!(
+                winners.load(std::sync::atomic::Ordering::SeqCst),
+                1,
+                "round {round}: a fleet of {FLEET} must elect exactly one producer",
+            );
+            assert_eq!(
+                contended.load(std::sync::atomic::Ordering::SeqCst),
+                FLEET - 1,
+                "round {round}: every non-winner must contend (no redundant producer)",
+            );
+            // (2) all-eventually-cold-served: every loser that read mid-flight saw a
+            // clean `Absent`, never a torn artefact.
+            assert_eq!(
+                cold_absent.load(std::sync::atomic::Ordering::SeqCst),
+                FLEET - 1,
+                "round {round}: a mid-flight consumer must cold-serve `Absent`, never torn",
+            );
+
+            // The single producer publishes the shared base once, then releases.
+            let claim = winner.lock().unwrap().take().expect("one winner");
+            assert_eq!(
+                publish_base(&dir, &sha, &base_bytes()).unwrap(),
+                PublishOutcome::Written,
+                "round {round}: the sole producer writes the shared artefact once",
+            );
+            claim.release();
+
+            // (3) all-eventually-warm: every worktree in the fleet now loads the
+            // identical shared artefact — one production, N-way share.
+            for i in 0..FLEET {
+                assert!(
+                    matches!(load_base(&dir, &sha), BaseLoadOutcome::Loaded(_)),
+                    "round {round}: consumer {i} must warm from the shared base",
+                );
+            }
         }
     }
 
