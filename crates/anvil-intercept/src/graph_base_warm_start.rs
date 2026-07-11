@@ -26,28 +26,31 @@
 //! environmental overlay failure, or an inconsistent base replay all leave the key
 //! cold for the ordinary cold-scan path to warm. Nothing here is a hard error.
 //!
-//! # Scope note (GBASE-006 vs GBASE-009)
+//! # Scope note (GBASE-006 composition seam, wired by GBASE-009)
 //!
-//! This module owns the **composition + cache-installation seam** and the minimal
-//! background-pool wire ([`crate::save_time::SaveTimeState::spawn_compose_restore`]).
-//! It does **not** own the *lifecycle decision* — resolving a worktree's
-//! merge-base sha (git, which the resident daemon deliberately never runs) and
-//! routing a worktree to the base path vs. the permanent per-worktree path. That
-//! re-entrant `persistence_route` topology is **GBASE-009**; it supplies the `sha`
-//! and calls this seam. Until then, the seam is exercised directly (and by the
-//! save-time wire), the way GBASE-003 shipped its trigger executor ahead of the
-//! full event loop.
+//! This module owns the **composition + cache-installation seam**
+//! ([`compose_worktree_from_base`]). It does **not** own the *lifecycle decision*
+//! — resolving a worktree's merge-base sha (git, which the resident daemon
+//! deliberately never runs) and routing a worktree to the base path vs. the
+//! permanent per-worktree path. That re-entrant topology is
+//! [`crate::persistence_route`] (**GBASE-009**), which supplies the `sha` and
+//! drives this seam **live** through
+//! [`crate::save_time::SaveTimeState::spawn_route_restore`] at the post-admission
+//! warm-start call sites.
 //!
-//! # Admission contract for the GBASE-009 caller (security)
+//! # Admission contract for the caller (security) — satisfied structurally
 //!
 //! `sha` is a **trust boundary**. This seam reads the shared base artefact keyed
 //! by `sha` and composes it into a worktree's resident graph; a caller that keyed
 //! it on a **client-supplied** value could make a worktree materialise an
-//! attacker-chosen base. GBASE-009 MUST therefore call this seam **only after the
-//! worktree is admitted** (`AdmittedRoots`), with a `sha` **derived by the daemon
-//! itself** from the worktree's own git state (the merge-base of its `HEAD`
-//! against the default branch) — **never** a sha taken from a wire/IPC request.
-//! The `key`/`root` likewise name the admitted canonical root, not a wire path.
+//! attacker-chosen base. The GBASE-009 caller
+//! ([`crate::save_time::SaveTimeState::spawn_route_restore`]) satisfies the
+//! contract **by construction**: it is only ever invoked **after the worktree is
+//! admitted** (`AdmittedRoots`), and the `sha` is **derived by the daemon itself**
+//! (the [`crate::persistence_route::GitRouteResolver`] shells `git` against the
+//! worktree's own state — the merge-base of its `HEAD` against the default branch,
+//! `@{upstream}`-refined when tracked) — **never** a sha taken from a wire/IPC
+//! request. The `key`/`root` likewise name the admitted canonical root.
 #![cfg(unix)]
 
 use std::path::Path;

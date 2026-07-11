@@ -327,14 +327,15 @@ default-on.
     `overlay_scan::compute_overlay` (fallible ⇒ cold) → `compose` →
     `cache.restore`. Sibling independence is exercised over one on-disk base
     artefact and two cache keys (20× repetition guard).
-  - **Daemon-lifecycle wiring partially deferred to GBASE-009 (honest note):** the
-    minimal wire is `SaveTimeState::spawn_compose_restore` (background-pool,
-    gated exactly like the save-time persistence path — mirroring how GBASE-003
-    shipped its trigger executor behind the same gate). The *lifecycle decision*
-    that drives it — resolving a worktree's merge-base sha (git, which the
-    resident daemon never runs) and routing base vs. the permanent per-worktree
-    path — is **GBASE-009**'s re-entrant `persistence_route`; it supplies the sha
-    and calls this seam.
+  - **Daemon-lifecycle wiring fulfilled by GBASE-009 (Merged 2026-07-11 via PR
+    #TBD):** the composition seam (`graph_base_warm_start::compose_worktree_from_base`)
+    is now driven live by GBASE-009's re-entrant `persistence_route` through
+    `SaveTimeState::spawn_route_restore` at the post-admission warm-start call
+    sites (background-pool, gated exactly like the save-time persistence path). The
+    interim `spawn_compose_restore` minimal wire was retired into that single
+    route+warm entry point; the merge-base sha is daemon-derived by construction
+    (the `GitRouteResolver` shells git off the hot path), satisfying the admission
+    contract structurally.
   - **Persisted-format cross-edge boundary (inherited from GBASE-005):**
     composition re-resolves **imports**. Base→overlay re-exports/calls, and
     base→**added** forward references, are not reconstructable from the persisted
@@ -398,7 +399,7 @@ default-on.
 
 #### GBASE-009: Re-entrant persistence-route topology / staleness routing
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3281
 - **Intent:** Route each worktree to the base path or the per-worktree path, and
   re-evaluate on merge-base movement and coverage transitions.
 - **Expected Outcome:** A daemon-side `persistence_route` module returns

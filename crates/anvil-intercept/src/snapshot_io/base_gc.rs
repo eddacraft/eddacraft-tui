@@ -310,8 +310,10 @@ impl KeepSetResolver for GitMergeBaseResolver {
 struct GitUnavailable;
 
 /// The raw result of running a git command, before command-specific
-/// classification.
-enum GitRun {
+/// classification. `pub(crate)` — the raw-run vocabulary is shared with
+/// [`crate::persistence_route`] (GBASE-009), so the daemon has **one** fail-safe
+/// git-run table for both the GC keep-set and route decisions.
+pub(crate) enum GitRun {
     /// git ran to completion: `code` is the exit status, `stdout` the trimmed
     /// first output line (if non-empty), `stderr` the full stderr text.
     Exited {
@@ -329,7 +331,7 @@ enum GitRun {
 /// line + stderr, or [`GitRun::Failed`] on a spawn failure or signal death. Never
 /// interprets the result — that is each caller's command-specific job (see the
 /// classification table on [`GitMergeBaseResolver`]).
-fn run_git(git_bin: &std::ffi::OsStr, worktree: &Path, args: &[&str]) -> GitRun {
+pub(crate) fn run_git(git_bin: &std::ffi::OsStr, worktree: &Path, args: &[&str]) -> GitRun {
     // Spawn failure (missing binary, permission) — unexpected.
     let Ok(output) = Command::new(git_bin)
         .arg("-C")
@@ -363,8 +365,9 @@ fn run_git(git_bin: &std::ffi::OsStr, worktree: &Path, args: &[&str]) -> GitRun 
     }
 }
 
-/// The classified outcome of a `git merge-base HEAD <ref>` call.
-enum MergeBaseCall {
+/// The classified outcome of a `git merge-base HEAD <ref>` call. `pub(crate)` —
+/// shared with [`crate::persistence_route`].
+pub(crate) enum MergeBaseCall {
     /// Exit 0: a merge-base sha was printed.
     Found(String),
     /// Exit 1: the commits share no merge-base — a **documented, deterministic**
@@ -377,7 +380,7 @@ enum MergeBaseCall {
 /// Classify a `git merge-base` run by its **documented exit-code semantics**:
 /// `0` = a merge-base was found, `1` = no merge-base exists (deterministic),
 /// anything else (or a spawn/signal failure) = an unexpected error.
-fn classify_merge_base(run: GitRun) -> MergeBaseCall {
+pub(crate) fn classify_merge_base(run: GitRun) -> MergeBaseCall {
     // Spawn failure / signal death is always unexpected.
     let GitRun::Exited { code, stdout, .. } = run else {
         return MergeBaseCall::Unavailable;
@@ -394,8 +397,9 @@ fn classify_merge_base(run: GitRun) -> MergeBaseCall {
     }
 }
 
-/// The classified outcome of a ref-resolving `git rev-parse` call.
-enum RefCall {
+/// The classified outcome of a ref-resolving `git rev-parse` call. `pub(crate)` —
+/// shared with [`crate::persistence_route`] (GBASE-009).
+pub(crate) enum RefCall {
     /// Exit 0: the ref resolved (the printed value is carried).
     Resolved(String),
     /// A **deterministic** absence — the ref does not exist, or the root is not a
@@ -424,7 +428,7 @@ fn is_deterministic_missing_ref(stderr: &str) -> bool {
 }
 
 /// Classify a ref-resolving `git rev-parse` run (see [`is_deterministic_missing_ref`]).
-fn classify_ref(run: GitRun) -> RefCall {
+pub(crate) fn classify_ref(run: GitRun) -> RefCall {
     match run {
         GitRun::Failed => RefCall::Unavailable,
         GitRun::Exited {
@@ -449,6 +453,16 @@ fn classify_ref(run: GitRun) -> RefCall {
 /// first, then the conventional `origin/main` / `origin/master` fallbacks. Each
 /// `rev-parse` is classified so a deterministic missing ref falls through while an
 /// unexpected git failure aborts.
+///
+/// **Keep-set-only fallback (intentional divergence from routing).** The
+/// `origin/main`/`origin/master` fallback below is a *conservative superset* for
+/// the GC keep-set, where over-retention (keeping a slightly-stale base) is safe.
+/// GBASE-009's route resolver
+/// ([`crate::persistence_route::GitRouteResolver`]) deliberately does **not**
+/// reuse this — it probes `origin/HEAD` **only**, matching the producer exactly,
+/// because routing an `origin/HEAD`-unset repo as covered would key a base on a
+/// sha the producer can never produce. Keep the two resolvers divergent on this
+/// fallback.
 ///
 /// - `Ok(Some(ref))` — a default branch resolved.
 /// - `Ok(None)` — no default branch is resolvable (a deterministic uncovered

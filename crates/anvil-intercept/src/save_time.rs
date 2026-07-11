@@ -383,13 +383,22 @@ pub struct SaveTimeState {
     /// the daemon overrides it via [`Self::with_root_budget`].
     root_budget: usize,
     /// GBASE-006 council MINOR d: the set of `WorktreeKey`s whose composed
-    /// warm-start ([`Self::spawn_compose_restore`]) is currently scheduled on the
-    /// background pool. The compose (base load + walk + parse) is far too expensive
-    /// to run redundantly, so a thundering herd of ref triggers for one worktree
-    /// must schedule **exactly one** compose: the spawn claims the key here before
-    /// scheduling and the task releases it on completion. Behind an `Arc` so the
-    /// spawned closure can clear its own slot.
+    /// warm-start ([`Self::spawn_route_restore`]) is currently scheduled on the
+    /// background pool. The route+compose (git resolve + base load + walk + parse)
+    /// is far too expensive to run redundantly, so a thundering herd of contacts /
+    /// re-route ticks for one worktree must schedule **exactly one** warm-start:
+    /// the spawn claims the key here before scheduling and the task releases it on
+    /// completion. Behind an `Arc` so the spawned closure can clear its own slot.
     compose_inflight: Arc<Mutex<HashSet<WorktreeKey>>>,
+    /// GBASE-009 (ADR-105 §7/§8): the re-entrant persistence router. Decides, per
+    /// admitted worktree, whether the warm-start rides the **shared base**
+    /// (GBASE-006 compose) or the **per-worktree snapshot** path, re-evaluating on
+    /// merge-base movement + coverage transitions. Behind an `Arc` so the
+    /// background warm-start closures share one re-entrant memory. The default
+    /// resolver shells `git` (background-pool only, never the hot path); tests
+    /// inject a hermetic fake via [`Self::with_route_resolver`].
+    #[cfg(unix)]
+    route_router: Arc<crate::persistence_route::PersistenceRouter>,
 }
 
 impl SaveTimeState {
@@ -427,7 +436,25 @@ impl SaveTimeState {
             witness_lock_timeout: resolve_witness_lock_timeout(),
             root_budget: crate::dos::DEFAULT_MAX_ADMITTED_ROOTS,
             compose_inflight: Arc::new(Mutex::new(HashSet::new())),
+            #[cfg(unix)]
+            route_router: Arc::new(crate::persistence_route::PersistenceRouter::new()),
         }
+    }
+
+    /// GBASE-009: override the persistence [`RouteResolver`](crate::persistence_route::RouteResolver)
+    /// backing the re-entrant router. The daemon uses the production
+    /// `git`-shelling resolver ([`Self::new`]); tests inject a hermetic fake so the
+    /// wired warm-start path (compose vs. per-worktree) is exercised without git.
+    #[cfg(all(unix, test))]
+    #[must_use]
+    pub(crate) fn with_route_resolver(
+        mut self,
+        resolver: Arc<dyn crate::persistence_route::RouteResolver>,
+    ) -> Self {
+        self.route_router = Arc::new(crate::persistence_route::PersistenceRouter::with_resolver(
+            resolver,
+        ));
+        self
     }
 
     /// CIB-154: override the per-connection admitted-root budget. The daemon
@@ -565,114 +592,117 @@ impl SaveTimeState {
         )
     }
 
-    /// DSV-030 (ADR-069 §3): on a cold-key GCTX first contact, restore the warm
-    /// graph from a snapshot on the **background** pool (the snapshot load is disk
-    /// I/O — ADR-063 classes it background-only, never on the save-time hot path)
-    /// so reads are served the restored (stale) graph rather than `NotReady` while
-    /// a reconcile is pending. No-op when persistence is off, the key is already
-    /// warm, or a scan is enqueued. The restored entry is a **read-only stand-in**:
-    /// the machine stays `Stale`, and the reconcile full scan is disk-authoritative
-    /// (the restored entry is dropped before the rebuild).
-    pub(crate) fn spawn_restore(&self, key: &WorktreeKey, canonical_root: &Path) {
+    /// GBASE-009 (ADR-105 §7/§8): on a cold-key first contact (a post-admission
+    /// verb handler) or the daemon's low-cadence re-route pass, **route** `key`
+    /// between the shared-base warm-start (GBASE-006 compose) and the per-worktree
+    /// snapshot warm-start (DSV-030 / ADR-069), then warm it — all on the
+    /// **background** pool. Reads during the reconcile window are served the warmed
+    /// (stale) graph rather than `NotReady`; the reconcile full scan stays
+    /// disk-authoritative (the warmed entry is a read-only stand-in and is dropped
+    /// before the rebuild).
+    ///
+    /// No-op when persistence is off, the key is already warm, a scan is enqueued,
+    /// or a warm-start for this key is already in flight (the per-key in-flight
+    /// slot dedups a thundering herd of contacts / re-route ticks).
+    ///
+    /// # Hot-path discipline (ADR-105 §7)
+    /// The route resolution shells `git`, so the **entire** route+warm runs on the
+    /// background pool — never the connection (hot) thread. The verdict a caller is
+    /// awaiting is already built before this is invoked; this only kicks the warm.
+    ///
+    /// # Admission contract (security — the GBASE-006 compose seam)
+    /// The `merge_base_sha` the compose seam keys on is **daemon-derived**: the
+    /// router resolves it from the worktree's own git state, and this method is
+    /// only ever called **after** the worktree is admitted (`authorise_root` at the
+    /// verb handlers; an ACTMO-registered root at the re-route pass) — never from a
+    /// wire value. A client therefore cannot make a worktree materialise an
+    /// attacker-chosen base.
+    pub(crate) fn spawn_route_restore(&self, key: &WorktreeKey, canonical_root: &Path) {
         #[cfg(unix)]
         {
+            // Persistence off ⇒ byte-for-byte today's rebuild-on-restart (no warm,
+            // no git). Resolve the per-worktree snapshot dir here so it is the
+            // affirmative-persistence gate AND the PerWorktree destination.
             let Some(dir) = self.snapshot_dir.clone() else {
                 return;
             };
             if self.cache.contains(key) || self.coordinator.is_enqueued(key) {
                 return;
             }
+            // Dedup: claim the per-key in-flight slot before scheduling; a second
+            // route+warm for the same key while one is scheduled is refused (the
+            // work is expensive). The task releases the slot on completion so a
+            // later contact (merge-base moved) can re-run.
+            if !self.try_mark_compose_inflight(key) {
+                return;
+            }
+            let router = Arc::clone(&self.route_router);
             let cache = Arc::clone(&self.cache);
             let coordinator = self.coordinator.clone();
             let metrics = Arc::clone(&self.snapshot_metrics);
+            let parser = self.parser.clone();
+            let caps = self.caps;
+            let inflight = Arc::clone(&self.compose_inflight);
+            // The shared base store dir (`<graph-cache>/base`); resolved off the
+            // hot path (a path lookup, no git). `None` ⇒ the base path is
+            // unavailable, so a Base route degrades to the per-worktree path.
+            let base_dir = crate::snapshot_io::base_store::default_base_dir();
             let key = key.clone();
             let root = canonical_root.to_path_buf();
             self.scheduler.background().spawn(move || {
-                restore_snapshot_into_cache(&cache, &coordinator, &metrics, &dir, &key, &root);
+                use crate::persistence_route::PersistenceRoute;
+                // Re-entrant route decision (git resolve on the background pool);
+                // the router emits the structured `persistence.route{route, reason}`
+                // event and remembers the route for transition detection.
+                let decision = router.route(&key, &root);
+                match decision.route {
+                    // Covered ⇒ compose from the shared base for the daemon-derived
+                    // primary sha. If the base store dir or the parser is missing
+                    // the base cannot be composed (ADR-061/064: the daemon never
+                    // parses on its own), so degrade to the per-worktree path rather
+                    // than serve nothing.
+                    PersistenceRoute::Base { merge_base_sha } => match (base_dir, &parser) {
+                        (Some(base_dir), Some(parser)) => {
+                            let _outcome = crate::graph_base_warm_start::compose_worktree_from_base(
+                                &cache,
+                                &key,
+                                &base_dir,
+                                &merge_base_sha,
+                                &root,
+                                parser.as_ref(),
+                                &caps,
+                            );
+                        }
+                        _ => restore_snapshot_into_cache(
+                            &cache,
+                            &coordinator,
+                            &metrics,
+                            &dir,
+                            &key,
+                            &root,
+                        ),
+                    },
+                    // Uncovered / transient-failure ⇒ the permanent per-worktree
+                    // snapshot path (ADR-105 §8).
+                    PersistenceRoute::PerWorktree { .. } => restore_snapshot_into_cache(
+                        &cache,
+                        &coordinator,
+                        &metrics,
+                        &dir,
+                        &key,
+                        &root,
+                    ),
+                }
+                inflight
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .remove(&key);
             });
         }
         #[cfg(not(unix))]
         {
             let _ = (key, canonical_root);
         }
-    }
-
-    /// GBASE-006 (ADR-105 §1/§3): compose a per-worktree resident graph from the
-    /// **shared base** for `sha` plus the worktree's live overlay, and install it
-    /// **stale** — the base-path analogue of [`Self::spawn_restore`]. Runs on the
-    /// **background** pool (base load + walk + parse are disk/CPU work, never the
-    /// save-time hot path), so reads are served the composed (stale) graph rather
-    /// than `NotReady` while the reconcile is pending. No-op when persistence is
-    /// off, no parser is injected, the base store dir is unresolvable, or the key
-    /// is already warm/enqueued. Every load/overlay failure serves cold (the seam
-    /// routes on [`crate::snapshot_io::base_store::BaseLoadOutcome`]).
-    ///
-    /// # Scope (GBASE-006 vs GBASE-009)
-    /// This is the **minimal wire**: the composition + cache-installation seam,
-    /// gated exactly like the save-time persistence path (mirroring how GBASE-003
-    /// shipped its trigger executor behind the same gate). The *lifecycle decision*
-    /// that drives it — resolving a worktree's merge-base `sha` (git, which the
-    /// resident daemon deliberately never runs) and routing base vs. the permanent
-    /// per-worktree path — is **GBASE-009**'s re-entrant `persistence_route`; it
-    /// supplies `sha` and calls this seam. Until then `sha` is passed explicitly.
-    // GBASE-009's `persistence_route` lifecycle wiring is this seam's only
-    // planned production caller (recorded APS deferral); until it lands the
-    // method is exercised by tests alone — the same posture `spawn_restore`
-    // held before DSV-045 wired it.
-    #[cfg(unix)]
-    #[allow(dead_code)]
-    pub(crate) fn spawn_compose_restore(
-        &self,
-        key: &WorktreeKey,
-        canonical_root: &Path,
-        sha: &str,
-    ) {
-        if !self.persistence_enabled() {
-            return;
-        }
-        let Some(parser) = self.parser.clone() else {
-            // The daemon never parses on its own (ADR-061/064) — with no injected
-            // parser the overlay cannot be computed; serve cold.
-            return;
-        };
-        let Some(base_dir) = crate::snapshot_io::base_store::default_base_dir() else {
-            return;
-        };
-        if self.cache.contains(key) || self.coordinator.is_enqueued(key) {
-            return;
-        }
-        // GBASE-006 council MINOR d: dedup a thundering herd — claim the in-flight
-        // slot before scheduling; if a compose for this key is already scheduled,
-        // do not schedule a second (the compose is expensive). The task releases
-        // the slot on completion so a later trigger (merge-base moved) can re-run.
-        if !self.try_mark_compose_inflight(key) {
-            return;
-        }
-        let cache = Arc::clone(&self.cache);
-        let caps = self.caps;
-        let inflight = Arc::clone(&self.compose_inflight);
-        let key = key.clone();
-        let root = canonical_root.to_path_buf();
-        let sha = sha.to_owned();
-        // Pass-through wrapper (council MINOR a): the seam
-        // (`compose_worktree_from_base`) logs each of the six outcomes at the
-        // appropriate level with `sha`/`base_dir`, so the wrapper adds no blanket
-        // log of its own — it only releases the in-flight slot.
-        self.scheduler.background().spawn(move || {
-            let _outcome = crate::graph_base_warm_start::compose_worktree_from_base(
-                &cache,
-                &key,
-                &base_dir,
-                &sha,
-                &root,
-                parser.as_ref(),
-                &caps,
-            );
-            inflight
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .remove(&key);
-        });
     }
 
     /// GBASE-006 council MINOR d: claim the compose-warm-start in-flight slot for
@@ -1451,7 +1481,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // the hot path). Populates the cache from a snapshot so reads during the
         // reconcile scan below are served the restored (stale) graph; the scan's
         // prune keeps it disk-authoritative. No-op when persistence is off / warm.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
         // DSV-045 (Decision 10): first-contact auto-warm. Opportunistic and
         // self-gating — a no-op when the worktree is already warm or a scan is
         // already enqueued; on a fresh cold key it drives the cache warm so the
@@ -1480,7 +1510,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             state.with_machine(&key, correlation, |machine| machine.snapshot());
         // DSV-030: first-contact warm-start restore (background); then the
         // DSV-045 reconcile scan.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
         // DSV-045 (Decision 10): first-contact auto-warm (self-gating) — a
         // `workspace_status` against a fresh cold key kicks off a background scan.
         state.spawn_scan(&key, key.as_path(), ScanPriority::Background);
@@ -1700,7 +1730,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // then served the restored (stale) graph rather than `NotReady`. GCTX
         // does not trigger a reconcile scan, so this is the surface that benefits
         // most from persistence. No-op when persistence is off / already warm.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along, whether or not the
         // graph is readable.
@@ -1771,7 +1801,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
         // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
         // when persistence is off, the key is already warm, or a scan is enqueued.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -1839,7 +1869,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
         // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
         // when persistence is off, the key is already warm, or a scan is enqueued.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -1910,7 +1940,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
         // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
         // when persistence is off, the key is already warm, or a scan is enqueued.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -1963,7 +1993,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
         // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
         // when persistence is off, the key is already warm, or a scan is enqueued.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -2031,7 +2061,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
         // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
         // when persistence is off, the key is already warm, or a scan is enqueued.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -2103,7 +2133,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
         // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
         // when persistence is off, the key is already warm, or a scan is enqueued.
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -2165,7 +2195,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
@@ -2220,7 +2250,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
-        state.spawn_restore(&key, key.as_path());
+        state.spawn_route_restore(&key, key.as_path());
 
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
@@ -3512,11 +3542,45 @@ mod tests {
     }
 
     fn state() -> SaveTimeState {
-        SaveTimeState::new(
+        let st = SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),
             AntipatternCheckConfig::default(),
             Confinement::open_default(),
-        )
+        );
+        // GBASE-009: default the test router to a hermetic "always per-worktree"
+        // resolver so the existing DSV-030 warm-start tests keep byte-identical
+        // behaviour (per-worktree snapshot restore, no `git` shell-out). Tests that
+        // exercise routing override it with their own fake via `with_route_resolver`.
+        #[cfg(unix)]
+        let st = st.with_route_resolver(std::sync::Arc::new(AlwaysUncoveredResolver));
+        st
+    }
+
+    /// GBASE-009 test resolver: every worktree is an uncovered topology, so a
+    /// route always chooses the per-worktree path — the pre-GBASE-009 behaviour,
+    /// hermetically (no `git`).
+    #[cfg(unix)]
+    struct AlwaysUncoveredResolver;
+
+    #[cfg(unix)]
+    impl crate::persistence_route::RouteResolver for AlwaysUncoveredResolver {
+        fn resolve(&self, _worktree: &Path) -> crate::persistence_route::RouteMergeBase {
+            crate::persistence_route::RouteMergeBase::Uncovered(
+                crate::persistence_route::UncoveredKind::NoDefaultBranch,
+            )
+        }
+    }
+
+    /// GBASE-009 test resolver: every worktree resolves covered to a fixed sha, so
+    /// a route always chooses the shared-base path.
+    #[cfg(unix)]
+    struct AlwaysBaseResolver(String);
+
+    #[cfg(unix)]
+    impl crate::persistence_route::RouteResolver for AlwaysBaseResolver {
+        fn resolve(&self, _worktree: &Path) -> crate::persistence_route::RouteMergeBase {
+            crate::persistence_route::RouteMergeBase::Resolved(self.0.clone())
+        }
     }
 
     /// A `FileSymbols` for `file` exporting public functions `names`, ids from
@@ -3546,11 +3610,11 @@ mod tests {
         }
     }
 
-    // ---- GBASE-006 council MINOR d/e: spawn_compose_restore guards -------
+    // ---- GBASE-009: spawn_route_restore wiring (compose vs. per-worktree) ----
 
-    /// MINOR d: the per-key in-flight guard dedups a thundering herd — a second
-    /// claim for the same key while one is scheduled is refused; after release a
-    /// fresh compose may claim again.
+    /// The per-key in-flight guard dedups a thundering herd — a second claim for
+    /// the same key while one is scheduled is refused; after release a fresh
+    /// route+warm may claim again.
     #[cfg(unix)]
     #[test]
     fn compose_inflight_dedups_per_key() {
@@ -3564,68 +3628,166 @@ mod tests {
         st.clear_compose_inflight(&k);
         assert!(
             st.try_mark_compose_inflight(&k),
-            "after the task releases, a later trigger may compose again"
+            "after the task releases, a later trigger may route+warm again"
         );
         st.clear_compose_inflight(&k);
     }
 
-    /// MINOR e: `spawn_compose_restore` is a no-op with persistence off — it
-    /// returns before claiming the in-flight slot, so nothing is scheduled.
+    /// Poll the background pool until the in-flight slot for `key` clears (the
+    /// route+warm task finished) or a generous timeout elapses.
+    #[cfg(unix)]
+    fn await_route_warm(st: &SaveTimeState, key: &WorktreeKey) {
+        for _ in 0..400 {
+            if st.compose_inflight_is_empty() {
+                // One extra beat: the slot is released as the LAST step, after the
+                // cache insert, so an empty slot means the warm has landed.
+                let _ = key;
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        panic!("route+warm did not complete within the timeout");
+    }
+
+    /// `spawn_route_restore` is a no-op with persistence off — it returns before
+    /// claiming the in-flight slot (byte-for-byte today's rebuild-on-restart).
     #[cfg(unix)]
     #[test]
-    fn spawn_compose_restore_noop_without_persistence() {
+    fn spawn_route_restore_noop_without_persistence() {
         let st = state();
         assert!(
             !st.persistence_enabled(),
             "default state has persistence off"
         );
         let k = WorktreeKey::from_canonical(PathBuf::from("/wt/no-persist"));
-        st.spawn_compose_restore(&k, k.as_path(), &"a".repeat(40));
+        st.spawn_route_restore(&k, k.as_path());
         assert!(
             st.compose_inflight_is_empty(),
-            "persistence off ⇒ no compose scheduled (no in-flight claim)"
+            "persistence off ⇒ no route+warm scheduled (no in-flight claim)"
         );
     }
 
-    /// MINOR e: `spawn_compose_restore` is a no-op with persistence on but **no
-    /// parser** injected — the daemon never parses on its own, so the overlay
-    /// cannot be computed; it returns before claiming the slot.
+    /// `spawn_route_restore` is a no-op for an already-warm key — the existing
+    /// authoritative graph is never displaced.
     #[cfg(unix)]
     #[test]
-    fn spawn_compose_restore_noop_without_parser() {
+    fn spawn_route_restore_noop_for_warm_key() {
         let tmp = tempfile::tempdir().unwrap();
         let st = state().with_snapshot_dir(tmp.path().join("graph-cache"));
-        assert!(st.persistence_enabled());
-        assert!(st.parser.is_none(), "no parser injected");
-        let k = WorktreeKey::from_canonical(PathBuf::from("/wt/no-parser"));
-        st.spawn_compose_restore(&k, k.as_path(), &"b".repeat(40));
-        assert!(
-            st.compose_inflight_is_empty(),
-            "no parser ⇒ no compose scheduled (no in-flight claim)"
-        );
-    }
-
-    /// MINOR e: `spawn_compose_restore` is a no-op for an already-warm key — the
-    /// existing authoritative graph is never displaced by a compose.
-    #[cfg(unix)]
-    #[test]
-    fn spawn_compose_restore_noop_for_warm_key() {
-        let tmp = tempfile::tempdir().unwrap();
-        let st = state()
-            .with_snapshot_dir(tmp.path().join("graph-cache"))
-            .with_parser(Arc::new(FixedParser {
-                file: "a.ts".to_string(),
-                names: vec!["a".to_string()],
-            }));
         let k = WorktreeKey::from_canonical(PathBuf::from("/wt/warm"));
-        // Warm the key directly (same-module access to the private cache field).
         st.cache
             .apply_delta(&k, ChangeKind::Create, file_symbols("a.ts", &["a"], 0));
         assert!(st.cache.contains(&k), "key is warm");
-        st.spawn_compose_restore(&k, k.as_path(), &"c".repeat(40));
+        st.spawn_route_restore(&k, k.as_path());
         assert!(
             st.compose_inflight_is_empty(),
-            "an already-warm key ⇒ no compose scheduled (no in-flight claim)"
+            "an already-warm key ⇒ no route+warm scheduled (no in-flight claim)"
+        );
+    }
+
+    /// (e) Wired `PerWorktree` path: a worktree the router sends per-worktree warms
+    /// from its staged per-worktree snapshot — the DSV-030 restore, reached
+    /// through `spawn_route_restore`.
+    #[cfg(unix)]
+    #[test]
+    fn spawn_route_restore_wires_per_worktree_restore() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let key = WorktreeKey::from_canonical(canonical.clone());
+
+        // Stage a per-worktree snapshot on disk.
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        // A fresh cold daemon whose router always routes per-worktree.
+        let st = state().with_snapshot_dir(dir.clone());
+        assert!(!st.cache.contains(&key), "starts cold");
+        st.spawn_route_restore(&key, &canonical);
+        await_route_warm(&st, &key);
+        assert!(
+            st.cache.contains(&key),
+            "a per-worktree-routed worktree warms from its snapshot",
+        );
+    }
+
+    /// (e) Wired Base path: a worktree the router sends to the shared base is
+    /// composed (the GBASE-006 seam), NOT restored from a per-worktree snapshot —
+    /// even when one is staged. With no base artefact present the compose serves
+    /// cold, so the cache stays cold: proof the Base arm ran the compose seam
+    /// rather than the per-worktree restore. (Env-free: only asserted when a base
+    /// store dir resolves, mirroring `base_store`'s env-free test posture.)
+    #[cfg(unix)]
+    #[test]
+    fn spawn_route_restore_wires_base_compose_not_snapshot() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let key = WorktreeKey::from_canonical(canonical.clone());
+
+        // Stage a per-worktree snapshot: if the Base arm wrongly fell back to the
+        // per-worktree restore, the cache WOULD warm from this.
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        // Route always Base, with a parser injected so compose is attempted.
+        let st = state()
+            .with_snapshot_dir(dir.clone())
+            .with_parser(Arc::new(FixedParser {
+                file: "src/a.ts".to_string(),
+                names: vec!["alpha".to_string()],
+            }))
+            .with_route_resolver(Arc::new(AlwaysBaseResolver("f".repeat(40))));
+        st.spawn_route_restore(&key, &canonical);
+        await_route_warm(&st, &key);
+        if crate::snapshot_io::base_store::default_base_dir().is_some() {
+            assert!(
+                !st.cache.contains(&key),
+                "a base-routed worktree composes (base absent ⇒ cold); it does NOT \
+                 fall back to the staged per-worktree snapshot",
+            );
+        }
+    }
+
+    /// (e) Base route with **no parser** degrades to the per-worktree path — the
+    /// daemon never parses on its own (ADR-061/064), so a base cannot be composed;
+    /// the worktree still warms from its snapshot rather than serving nothing.
+    #[cfg(unix)]
+    #[test]
+    fn spawn_route_restore_base_without_parser_degrades_to_per_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let key = WorktreeKey::from_canonical(canonical.clone());
+
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        // Base route but NO parser ⇒ degrade to per-worktree restore.
+        let st = state()
+            .with_snapshot_dir(dir.clone())
+            .with_route_resolver(Arc::new(AlwaysBaseResolver("f".repeat(40))));
+        assert!(st.parser.is_none(), "no parser injected");
+        st.spawn_route_restore(&key, &canonical);
+        await_route_warm(&st, &key);
+        assert!(
+            st.cache.contains(&key),
+            "a base route with no parser degrades to the per-worktree snapshot warm",
         );
     }
 

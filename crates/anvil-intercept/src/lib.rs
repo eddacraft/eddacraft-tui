@@ -97,6 +97,13 @@ pub mod graph_base_trigger;
 // `cfg(unix)` platform gap.
 #[cfg(unix)]
 pub mod graph_base_warm_start;
+// GBASE-009 (ADR-105 §7/§8): the re-entrant daemon-side persistence route that
+// sends each admitted worktree to the shared-base path (GBASE-006) or the
+// permanent per-worktree path, re-evaluating on merge-base movement and
+// covered↔uncovered transitions. `cfg(unix)` — it drives the Unix-only base
+// warm-start seam and reuses the Unix-only base_gc git plumbing.
+#[cfg(unix)]
+pub mod persistence_route;
 #[cfg(any(unix, windows))]
 pub mod workspace_admission;
 /// The platform-neutral workspace read anchor (Unix dirfd / Windows directory
@@ -2121,6 +2128,18 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // pool (git shell-out + fs), so the async loop never blocks.
         let mut gbase_gc_tick = tokio::time::interval(Duration::from_hours(1));
         gbase_gc_tick.reset();
+        // GBASE-009 (ADR-105 §8): a low-cadence re-route pass that re-evaluates
+        // every ACTMO-registered worktree's persistence route, riding a background
+        // loop (never the hot path, no new watches). It picks up worktrees that
+        // became coverable (a detached HEAD re-attached, a default branch appeared)
+        // and proactively warms newly-registered cold worktrees; a warm worktree's
+        // route+warm is a cheap no-op (the merge-base movement it may have seen is
+        // reflected at its NEXT composition — the next cold contact — per §8). The
+        // git route resolution rides `spawn_route_restore`'s own background pool, so
+        // this arm only enumerates the registry. Gated + no-op when persistence is
+        // off (inside `spawn_route_restore`).
+        let mut gbase_route_tick = tokio::time::interval(Duration::from_secs(30));
+        gbase_route_tick.reset();
         // CIB-095d + N2: persist every warm worktree's graph on **either** exit
         // path (graceful `token.cancelled()` AND listener-failure) so a warm
         // graph is never silently lost when persistence is enabled. Offloaded to
@@ -2197,6 +2216,25 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                                 &worktrees,
                                 Some(&gc_notifier),
                             );
+                        });
+                    }
+                }
+                _ = gbase_route_tick.tick() => {
+                    // GBASE-009 (ADR-105 §8): re-evaluate every registered
+                    // worktree's persistence route on a background loop. The route
+                    // resolution + warm ride `spawn_route_restore`'s own background
+                    // pool, so this arm only reads the registry (cheap) and enqueues
+                    // — it never blocks the runtime. A no-op when persistence is off.
+                    #[cfg(unix)]
+                    {
+                        let state = Arc::clone(&save_time_state);
+                        let registry = Arc::clone(&daemon_state.registry);
+                        tokio::task::spawn_blocking(move || {
+                            for root in registry.registered_worktrees() {
+                                let key =
+                                    crate::rule_cache::WorktreeKey::from_canonical(root.clone());
+                                state.spawn_route_restore(&key, &root);
+                            }
                         });
                     }
                 }
