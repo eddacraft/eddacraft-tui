@@ -328,7 +328,7 @@ default-on.
     `cache.restore`. Sibling independence is exercised over one on-disk base
     artefact and two cache keys (20× repetition guard).
   - **Daemon-lifecycle wiring fulfilled by GBASE-009 (Merged 2026-07-11 via PR
-    #TBD):** the composition seam (`graph_base_warm_start::compose_worktree_from_base`)
+    #3281):** the composition seam (`graph_base_warm_start::compose_worktree_from_base`)
     is now driven live by GBASE-009's re-entrant `persistence_route` through
     `SaveTimeState::spawn_route_restore` at the post-admission warm-start call
     sites (background-pool, gated exactly like the save-time persistence path). The
