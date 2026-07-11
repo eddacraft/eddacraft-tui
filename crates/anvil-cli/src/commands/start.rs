@@ -2588,7 +2588,10 @@ mod tests {
     }
 
     #[test]
-    fn activation_tui_env_opt_out_is_presence_based() {
+    fn activation_tui_env_opt_out_treats_empty_value_as_unset() {
+        // C-017: `ANVIL_NO_TUI=` (empty) behaves exactly like the sibling
+        // `ANVIL_NO_DAEMON` / `ANVIL_NO_MCP` hatches — empty means unset, only
+        // a non-empty value opts out.
         assert!(!activation_tui_env_opt_out());
         temp_env::with_var("ANVIL_NO_TUI", Some("1"), || {
             assert!(activation_tui_env_opt_out());
@@ -2596,6 +2599,25 @@ mod tests {
         temp_env::with_var("ANVIL_NO_TUI", Some(""), || {
             assert!(!activation_tui_env_opt_out());
         });
+    }
+
+    #[test]
+    fn no_tui_empty_value_semantics_match_sibling_env_hatches() {
+        let args = start_args_default();
+        temp_env::with_vars(
+            [("ANVIL_NO_DAEMON", Some("")), ("ANVIL_NO_MCP", Some(""))],
+            || {
+                assert!(!start_daemon_opt_out(&args));
+                assert!(!start_mcp_opt_out(&args));
+            },
+        );
+        temp_env::with_vars(
+            [("ANVIL_NO_DAEMON", Some("1")), ("ANVIL_NO_MCP", Some("1"))],
+            || {
+                assert!(start_daemon_opt_out(&args));
+                assert!(start_mcp_opt_out(&args));
+            },
+        );
     }
 
     #[test]

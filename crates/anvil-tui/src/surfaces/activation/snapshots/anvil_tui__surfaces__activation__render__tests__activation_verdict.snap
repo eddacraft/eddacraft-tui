@@ -23,4 +23,4 @@ expression: "render_to_string(&verdict_surface, 100, 22)"
   │                                                                                              │  
   │                                                                                              │  
   └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  [↑/↓] Move  [enter/space] Expand  [t] Smoke  [l] Logs  [q] Quit
+  [↑/↓] Move  [enter/space] Expand  [t] Smoke  [e] Evidence  [esc/q] Quit

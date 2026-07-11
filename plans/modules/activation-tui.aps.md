@@ -440,7 +440,12 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-012: Activation TUI polish before default flip
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3284
+- **Shipped:** Promoted into the release cut by the operator-accepted JOURNEY
+  conductor ([`release-user-journeys.aps.md`](./release-user-journeys.aps.md));
+  tier-evidence pane rebound to `e` and pinned flag-free, one `esc/q` exit-key
+  story, dead consent helpers removed, `ANVIL_NO_TUI=` semantics documented as
+  aligned, `celebrate()`/`big-text` deferred with the unused dependency dropped.
 - **Source:** First-run council review C-013, C-014, C-015, C-017, C-018
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-010

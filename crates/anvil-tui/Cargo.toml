@@ -13,7 +13,7 @@ name = "anvil_tui"
 animate = { workspace = true }
 # json-render: anvil-tui hosts the Anvil-domain catalogue, the .anvil/ data
 # context, and the spec-rendering dashboard surface (ADR-054, TUIDASH).
-eddacraft-tui = { workspace = true, features = ["json-render", "big-text"] }
+eddacraft-tui = { workspace = true, features = ["json-render"] }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
@@ -24,7 +24,7 @@ workspace-hack.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true }
-eddacraft-tui = { workspace = true, features = ["test-utils", "big-text"] }
+eddacraft-tui = { workspace = true, features = ["test-utils"] }
 temp-env = "0.3"
 tempfile.workspace = true
 

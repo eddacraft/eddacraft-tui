@@ -3,13 +3,13 @@
 //! This module keeps the activation state vocabulary honest by rendering the
 //! state label supplied by the CLI verbatim. It adds eddacraft-tui widgets around
 //! that fixed truth: `StatusBadge` for the headline, `Tree` for collapsible
-//! evidence, optional `BigBanner` for the first protecting run, `Toast` for the
-//! smoke-test placeholder, and `HelpBar` for contextual keys.
+//! evidence, `Toast` for the smoke-test placeholder, and `HelpBar` for
+//! contextual keys. (The `BigBanner` celebration treatment was deferred with
+//! the first-run wow expansion; ACTTUI-012 removed the unused wiring.)
 
 use eddacraft_tui::keyboard::{Action, Binding};
 use eddacraft_tui::prelude::{
-    BadgeStatus, BigBanner, HelpBar, StatusBadge, Toast, ToastPlacement, ToastStack, Tree,
-    TreeNode, TreeState,
+    BadgeStatus, HelpBar, StatusBadge, Toast, ToastPlacement, ToastStack, Tree, TreeNode, TreeState,
 };
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
@@ -85,8 +85,6 @@ pub struct VerdictModel {
     pub state_label: String,
     pub headline: String,
     pub sections: Vec<VerdictSection>,
-    /// True only for a genuine first protecting run with wow affordances allowed.
-    pub celebrate: bool,
 }
 
 impl VerdictModel {
@@ -100,7 +98,6 @@ impl VerdictModel {
             state_label: state_label.into(),
             headline: headline.into(),
             sections,
-            celebrate: false,
         }
     }
 
@@ -123,12 +120,6 @@ impl VerdictModel {
             format!("Activation state: {state_label}"),
             sections_from_plain(verdict),
         )
-    }
-
-    #[must_use]
-    pub fn celebrate(mut self, celebrate: bool) -> Self {
-        self.celebrate = celebrate;
-        self
     }
 
     #[must_use]
@@ -282,34 +273,20 @@ impl VerdictView {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCraftTheme) {
-    let banner_height = if view.model.celebrate { 4 } else { 0 };
     let chunks = Layout::vertical([
-        Constraint::Length(banner_height),
         Constraint::Length(2),
         Constraint::Min(3),
         Constraint::Length(1),
     ])
     .split(area);
 
-    if view.model.celebrate {
-        render_banner(frame, chunks[0], theme);
-    }
-    render_headline(frame, chunks[1], &view.model, theme);
-    render_tree(frame, chunks[2], view, theme);
-    render_help(frame, chunks[3], theme);
+    render_headline(frame, chunks[0], &view.model, theme);
+    render_tree(frame, chunks[1], view, theme);
+    render_help(frame, chunks[2], theme);
 
     if let Some(message) = view.toast() {
         render_toast(frame, area, message, theme);
     }
-}
-
-fn render_banner(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
-    if area.height == 0 {
-        return;
-    }
-    BigBanner::new(theme, "PROTECTED")
-        .centered()
-        .render(area, frame.buffer_mut());
 }
 
 fn render_headline(frame: &mut Frame, area: Rect, model: &VerdictModel, theme: &EddaCraftTheme) {
@@ -363,12 +340,12 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
             label: "Smoke",
         },
         Binding {
-            keys: "l",
-            action: Action::Character('l'),
-            label: "Logs",
+            keys: "e",
+            action: Action::Character('e'),
+            label: "Evidence",
         },
         Binding {
-            keys: "q",
+            keys: "esc/q",
             action: Action::Quit,
             label: "Quit",
         },
@@ -521,14 +498,5 @@ mod tests {
         assert!(out.contains("Active layers"));
         assert!(out.contains("pending — restart required"));
         assert!(out.contains("Smoke"));
-    }
-
-    #[test]
-    fn first_protecting_run_renders_state_and_banner_area() {
-        let view = VerdictView::new(
-            VerdictModel::new("protecting", "Protecting — live.", sections()).celebrate(true),
-        );
-        let out = render_symbols(&view, 100, 24);
-        assert!(out.contains("state: protecting"));
     }
 }

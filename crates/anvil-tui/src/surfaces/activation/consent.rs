@@ -20,7 +20,6 @@ use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget};
 pub enum ConsentKind {
     Mcp,
     Workflow,
-    Hook,
     Project,
 }
 
@@ -30,7 +29,6 @@ impl ConsentKind {
         match self {
             Self::Mcp => "MCP",
             Self::Workflow => "Workflow",
-            Self::Hook => "Hook",
             Self::Project => "Project",
         }
     }
@@ -95,12 +93,6 @@ impl ConsentItem {
     #[must_use]
     pub fn unsafe_drift(mut self, reason: impl Into<String>) -> Self {
         self.unsafe_drift = Some(reason.into());
-        self
-    }
-
-    #[must_use]
-    pub fn disabled(mut self, reason: ConsentDisabledReason) -> Self {
-        self.disabled = Some(reason);
         self
     }
 
@@ -280,7 +272,7 @@ fn render_hint(frame: &mut Frame, area: Rect, state: &ConsentState, theme: &Edda
         ),
         Span::raw("  "),
         Span::styled(
-            "space toggle  enter toggle/inspect  a apply  q cancel",
+            "space toggle  enter toggle/inspect  a apply  esc/q cancel",
             theme.disabled(),
         ),
     ]);

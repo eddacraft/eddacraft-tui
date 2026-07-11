@@ -30,10 +30,7 @@ use eddacraft_tui::keyboard::Action;
 use eddacraft_tui::prelude::{LogEntry, LogPanelState};
 
 pub use consent::{ConsentDisabledReason, ConsentItem, ConsentKind, ConsentState};
-pub use log_panel::{
-    entries_from_verbose as tier_evidence_entries_from_verbose,
-    entries_from_verdict as tier_evidence_entries_from_verdict,
-};
+pub use log_panel::entries_from_verdict as tier_evidence_entries_from_verdict;
 pub use verdict::{VerdictModel, VerdictSection, VerdictTone, VerdictView};
 
 /// Ordered phases of an `anvil start` activation run.
@@ -311,16 +308,8 @@ impl ActivationSurface {
         self
     }
 
-    /// Append rows parsed from the existing `render_human_verbose` text block.
-    #[must_use]
-    pub fn with_tier_evidence_from_verbose(mut self, verbose: &str) -> Self {
-        self.tier_evidence_entries
-            .extend(log_panel::entries_from_verbose(verbose));
-        self
-    }
-
     /// Toggle the ACTTUI-006 tier-evidence panel. Exposed as a state method so
-    /// tests and future key maps can drive the same behaviour as `l`.
+    /// tests and future key maps can drive the same behaviour as `e`.
     pub fn toggle_tier_evidence(&mut self) {
         self.tier_evidence_pane.toggle();
     }
@@ -390,10 +379,6 @@ impl ActivationSurface {
         self.consent.as_ref()
     }
 
-    pub fn consent_mut(&mut self) -> Option<&mut ConsentState> {
-        self.consent.as_mut()
-    }
-
     fn handle_log_panel_key(&mut self, action: Action) {
         let panel_state = self.log_panel_state.get_mut();
         let visible_count = panel_state
@@ -426,13 +411,29 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
         "Activation"
     }
 
+    // One exit-key story with the welcome surface (first-run council C-014):
+    // `q` always quits and `esc` backs out one level — closing the evidence
+    // panel or the unsafe-drift overlay first, quitting from the base panes.
     #[allow(clippy::unnecessary_literal_bound)]
     fn help_text(&self) -> &str {
-        "q quit"
+        if self.tier_evidence_pane.is_visible() {
+            "j/k scroll  g/G top/bottom  esc close  q quit"
+        } else if self.phase == ActivationPhase::Consent {
+            if self.consent.is_some() {
+                "j/k navigate  space toggle  enter select  a apply  esc/q quit"
+            } else {
+                "esc/q quit"
+            }
+        } else {
+            "j/k navigate  enter expand  t smoke  e evidence  esc/q quit"
+        }
     }
 
     fn handle_key(&mut self, action: Action) {
-        if matches!(action, Action::Character('l' | 'L')) {
+        // `e` toggles tier evidence. The production key map (`KeyHandler::map`)
+        // reserves `j`/`k`/`h`/`l` for arrow navigation, so the toggle must
+        // live on a key that still arrives as `Action::Character`.
+        if matches!(action, Action::Character('e' | 'E')) {
             self.toggle_tier_evidence();
             return;
         }
@@ -687,8 +688,20 @@ mod tests {
         );
     }
 
+    /// Route a character through the production key map. The run loop maps
+    /// keys with `KeyHandler::map`, which reserves `j`/`k`/`h`/`l` for arrow
+    /// navigation — tests that inject raw `Action::Character` values can pass
+    /// while the advertised key is dead in a real terminal (C-013).
+    fn production_action(ch: char) -> Action {
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        eddacraft_tui::keyboard::KeyHandler::map(KeyEvent::new(
+            KeyCode::Char(ch),
+            KeyModifiers::NONE,
+        ))
+    }
+
     #[test]
-    fn l_key_toggles_tier_evidence_without_upgrading_state() {
+    fn e_key_toggles_tier_evidence_through_the_production_key_map() {
         let mut surface = ActivationSurface::from_verdict(
             "ACTIVATION
   state: ready_restart_required
@@ -699,43 +712,65 @@ mod tests {
         );
 
         assert!(!surface.tier_evidence_visible());
-        surface.handle_key(Action::Character('l'));
+        surface.handle_key(production_action('e'));
         assert!(surface.tier_evidence_visible());
         assert_eq!(
             surface.verdict_view().model().state_label,
             "ready_restart_required"
         );
-        surface.handle_key(Action::Character('l'));
+        surface.handle_key(production_action('e'));
         assert!(!surface.tier_evidence_visible());
     }
 
     #[test]
-    fn verbose_why_rows_can_be_attached_to_log_panel() {
-        let surface = ActivationSurface::from_verdict(
+    fn tier_evidence_opens_without_any_startup_flag() {
+        // C-013: the pane must be available on demand for every TUI run — it
+        // must not depend on `--why` (or any other flag) at process start.
+        let mut surface = ActivationSurface::from_verdict(
             "ACTIVATION
-  state: watching
+  state: protecting
+  mcp:
+    Cursor: live_validation
 ",
             false,
-        )
-        .with_tier_evidence_from_verbose(
-            "ACTIVATION (verbose)
-  daemon-attestation: running but this worktree is not registered
-  why: daemon is running but this worktree is not registered — see `anvil intercept status`
-",
         );
-
-        assert!(surface.tier_evidence_entries().iter().any(|entry| {
-            entry.source == "daemon" && entry.message.contains("this worktree is not registered")
-        }));
-        assert!(surface.tier_evidence_entries().iter().any(|entry| {
-            entry.source == "why" && entry.message.contains("anvil intercept status")
-        }));
+        surface.handle_key(production_action('e'));
+        assert!(surface.tier_evidence_visible());
+        assert!(!surface.tier_evidence_entries().is_empty());
     }
 
     #[test]
     fn surface_metadata_is_stable() {
         let surface = ActivationSurface::from_verdict("x", false);
         assert_eq!(surface.surface_name(), "Activation");
-        assert_eq!(surface.help_text(), "q quit");
+        assert_eq!(
+            surface.help_text(),
+            "j/k navigate  enter expand  t smoke  e evidence  esc/q quit"
+        );
+    }
+
+    #[test]
+    fn help_text_names_one_exit_key_story_per_pane() {
+        // C-014: activation and welcome share the `esc/q quit` exit story.
+        let mut surface = ActivationSurface::from_verdict("x", false);
+        assert!(surface.help_text().ends_with("esc/q quit"));
+
+        surface.handle_key(production_action('e'));
+        assert_eq!(
+            surface.help_text(),
+            "j/k scroll  g/G top/bottom  esc close  q quit"
+        );
+
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let consent_surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        assert!(consent_surface.help_text().ends_with("esc/q quit"));
     }
 }

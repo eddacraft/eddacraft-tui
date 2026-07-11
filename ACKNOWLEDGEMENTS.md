@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 351 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 343 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1237,14 +1237,10 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.18.0 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
-| `font8x8` | 0.3.1 | MIT License | https://gitlab.com/saibatizoku/font8x8-rs |
 | `smawk` | 0.3.2 | MIT License | https://github.com/mgeisler/smawk |
 | `static_assertions` | 1.1.0 | MIT License | https://github.com/nvzqz/static-assertions-rs |
-| `darling` | 0.20.11 | MIT License | https://github.com/TedDriggs/darling |
 | `darling` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
-| `darling_core` | 0.20.11 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_core` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
-| `darling_macro` | 0.20.11 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_macro` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
 | `crc32fast` | 1.5.0 | MIT License | https://github.com/srijs/rust-crc32fast |
 | `zeroize` | 1.8.2 | MIT License | https://github.com/RustCrypto/utils |
@@ -1287,7 +1283,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tree-sitter-kotlin-ng` | 1.1.0 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-kotlin |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `tree-sitter-zig` | 1.1.2 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-zig |
-| `tui-big-text` | 0.8.8 | MIT License | https://github.com/ratatui/tui-widgets |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `windows-collections` | 0.2.0 | MIT License | https://github.com/microsoft/windows-rs |
@@ -1388,9 +1383,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `derive_more-impl` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `derive_more` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `tree-sitter-python` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
-| `derive_builder` | 0.20.2 | MIT License | https://github.com/colin-kiegel/rust-derive-builder |
-| `derive_builder_core` | 0.20.2 | MIT License | https://github.com/colin-kiegel/rust-derive-builder |
-| `derive_builder_macro` | 0.20.2 | MIT License | https://github.com/colin-kiegel/rust-derive-builder |
 | `ratatui-core` | 0.1.2 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui-crossterm` | 0.1.2 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui-widgets` | 0.3.2 | MIT License | https://github.com/ratatui/ratatui |

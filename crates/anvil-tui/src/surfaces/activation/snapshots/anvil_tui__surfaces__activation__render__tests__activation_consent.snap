@@ -21,4 +21,4 @@ expression: "render_to_string(&consent_surface, 100, 22)"
   │                                                                                              │  
   │                                                                                              │  
   └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  0 selected  space toggle  enter toggle/inspect  a apply  q cancel
+  0 selected  space toggle  enter toggle/inspect  a apply  esc/q cancel

@@ -45,6 +45,10 @@ The activation TUI rolls out in two steps:
 After the default flip, `--no-tui` and `ANVIL_NO_TUI=1` remain permanent escape
 hatches for plain output.
 
+`ANVIL_NO_TUI` follows the same convention as the other `ANVIL_NO_*` hatches
+(`ANVIL_NO_DAEMON`, `ANVIL_NO_MCP`): any non-empty value opts out, and an empty
+value (`ANVIL_NO_TUI=`) is treated as unset.
+
 ## Trust boundary
 
 The TUI can render only when the process is genuinely interactive:

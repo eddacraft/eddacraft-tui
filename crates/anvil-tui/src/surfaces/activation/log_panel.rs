@@ -1,8 +1,8 @@
 //! Tier-evidence log panel for the activation TUI (ACTTUI-006).
 //!
-//! The panel deliberately consumes presentation-safe evidence rows (plain
-//! activation output, orchestrator lifecycle lines, or the existing verbose
-//! renderer text). It does **not** read daemon skip tracing internals; daemon
+//! The panel deliberately consumes presentation-safe evidence rows (typed
+//! evidence from the CLI, plain activation output, or orchestrator lifecycle
+//! lines). It does **not** read daemon skip tracing internals; daemon
 //! attestation copy remains owned by the activation render layer.
 
 use eddacraft_tui::prelude::{LogEntry, LogLevel, LogPanel, LogPanelState};
@@ -38,15 +38,6 @@ pub fn entries_from_lifecycle(lines: &[String]) -> Vec<LogEntry> {
             ))
         })
         .collect()
-}
-
-/// Convert `render_human_verbose` output into typed [`LogEntry`] rows.
-///
-/// This keeps ACTTUI-006 coupled to the same operator-safe renderer that backs
-/// `--why`, while avoiding a dependency from `anvil-tui` back into `anvil-cli`.
-#[must_use]
-pub fn entries_from_verbose(verbose: &str) -> Vec<LogEntry> {
-    entries_from_lines_with_prefix(verbose.lines(), "activation-verbose")
 }
 
 fn entries_from_lines_with_prefix<'a>(
@@ -217,22 +208,6 @@ pub fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parses_verbose_tier_and_daemon_evidence_without_trace_events() {
-        let verbose = "ACTIVATION (verbose)\n  state: ready_restart_required\n  mcp:\n    Cursor:\n      tier:      restart_handshake_verified (pending restart)\n      daemon:    not running\n  daemon-attestation: not running\n  why: start the intercept daemon\n";
-
-        let entries = entries_from_verbose(verbose);
-
-        assert!(entries.iter().any(|entry| {
-            entry.source == "mcp/Cursor"
-                && entry.message == "tier: restart_handshake_verified (pending restart)"
-        }));
-        assert!(entries.iter().any(|entry| {
-            entry.source == "daemon" && entry.message == "daemon-attestation: not running"
-        }));
-        assert!(entries.iter().any(|entry| entry.level == LogLevel::Warn));
-    }
 
     #[test]
     fn parses_install_detail_from_compact_verdict() {
