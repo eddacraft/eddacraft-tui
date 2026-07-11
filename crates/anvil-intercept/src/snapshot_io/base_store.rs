@@ -699,9 +699,10 @@ pub fn claim(base_dir: &Path, sha: &str, procs: &dyn ClaimProcs) -> io::Result<C
     Ok(ClaimOutcome::Contended)
 }
 
-/// Outcome of a GBASE-008 GC reclaim attempt for one base sha.
+/// Outcome of a GBASE-008 GC reclaim attempt for one base sha. Consumed only by
+/// the sibling [`super::base_gc`] orchestrator, hence crate-private.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BaseReclaimOutcome {
+pub(crate) enum BaseReclaimOutcome {
     /// The base artefact was unlinked — it was unreferenced (the caller's keep-set
     /// decision) and no live production claim held its sha.
     Reclaimed,
@@ -743,7 +744,9 @@ pub enum BaseReclaimOutcome {
 /// base dir fd, or the base `unlinkat` (a clean `NotFound` on the base is
 /// [`BaseReclaimOutcome::Absent`], not an error). The caller treats an error as
 /// non-fatal and logs-and-degrades (ADR-105 §6).
-pub fn reclaim_unreferenced_base(
+///
+/// Crate-private: the sole caller is the sibling [`super::base_gc`] orchestrator.
+pub(crate) fn reclaim_unreferenced_base(
     base_dir: &Path,
     sha: &str,
     procs: &dyn ClaimProcs,

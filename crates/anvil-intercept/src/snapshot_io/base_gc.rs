@@ -59,10 +59,16 @@
 //!
 //! # Failure posture
 //!
-//! Every path is **non-fatal and fail-safe**: a missing/unreadable base dir is a
-//! no-op, a resolver that cannot resolve a worktree's merge-base makes the whole
-//! pass reclaim **nothing** (keep everything), and a per-sha reclaim error is
-//! logged and skipped, never a panic (ADR-105 §6).
+//! Every path is **non-fatal and fail-safe**. A missing/unreadable base dir is a
+//! no-op; a per-sha reclaim error is logged and skipped; nothing ever panics
+//! (ADR-105 §6). Crucially, the keep-set resolver distinguishes a **deterministic
+//! absence** (no merge-base, no default branch, non-git root — the build child
+//! resolves identically, so contributing nothing to the keep-set is correct) from
+//! an **unexpected git failure** (I/O error, repo mid-operation, OOM-kill): the
+//! former is [`MergeBase::Uncovered`] and the pass proceeds, the latter is
+//! [`MergeBase::Unavailable`] and **aborts the whole pass before any unlink** — an
+//! unexpected failure can never silently shrink the keep-set and wrongly reclaim a
+//! referenced base. See the classification table on [`GitMergeBaseResolver`].
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -106,35 +112,92 @@ pub trait KeepSetResolver: Send + Sync {
 /// resolution but keeps **both** candidate keys (default-branch and
 /// `@{upstream}`-refined) rather than preferring the refinement, so the keep-set
 /// is a conservative superset of whatever the child produced under.
-pub struct GitMergeBaseResolver;
+///
+/// # Classification table (fail-safe: uncertainty aborts, never under-retains)
+///
+/// Every git invocation is classified by **exit code + stderr shape**, so a
+/// *deterministic absence* (which the build child would resolve identically, so
+/// contributing nothing is correct) is never confused with an *unexpected
+/// failure* (I/O error, repo mid-operation, OOM-kill) that must abort the pass
+/// before any unlink:
+///
+/// | git call                          | outcome                                   | → |
+/// | --------------------------------- | ----------------------------------------- | - |
+/// | `merge-base HEAD <ref>` exit 0    | prints a sha                              | keep the sha |
+/// | `merge-base HEAD <ref>` exit 1    | commits share no merge-base (documented)  | no key (deterministic) |
+/// | `merge-base` exit >1 / signal     | unexpected                                | **Unavailable → abort** |
+/// | `rev-parse` ref exit 0            | ref resolves                              | resolved |
+/// | `rev-parse` ref non-zero, stderr matches a deterministic missing-ref / non-git-root shape | ref genuinely absent | missing (try next / uncovered) |
+/// | `rev-parse` ref non-zero, stderr **unmatched** | unexpected                    | **Unavailable → abort** |
+/// | `@{upstream}` exit 0             | branch tracks an upstream                 | refine |
+/// | `@{upstream}` any clean non-zero | branch tracks none (child falls back too) | skip refinement (deterministic) |
+/// | any call: spawn failure / killed by signal | git could not run                | **Unavailable → abort** |
+pub struct GitMergeBaseResolver {
+    /// The git binary to invoke — `"git"` in production; a test double swaps it to
+    /// exercise the real [`run_git`] classification against controlled failures.
+    git_bin: std::ffi::OsString,
+}
+
+impl GitMergeBaseResolver {
+    /// The production resolver, invoking `git` off `PATH`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            git_bin: std::ffi::OsString::from("git"),
+        }
+    }
+
+    #[cfg(test)]
+    fn with_git_bin(bin: impl Into<std::ffi::OsString>) -> Self {
+        Self {
+            git_bin: bin.into(),
+        }
+    }
+}
+
+impl Default for GitMergeBaseResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl KeepSetResolver for GitMergeBaseResolver {
     fn merge_base(&self, worktree: &Path) -> MergeBase {
         // Resolve the default branch (origin/HEAD, then the common fallbacks). An
         // absent default branch is an uncovered topology (ADR-105 §8), not a
-        // transient error — such a worktree references no base.
-        let default = match resolve_default_branch(worktree) {
+        // transient error — such a worktree references no base. An UNEXPECTED git
+        // failure here aborts (Unavailable) rather than silently shrinking the
+        // keep-set.
+        let default = match resolve_default_branch(&self.git_bin, worktree) {
             Ok(Some(branch)) => branch,
             Ok(None) => return MergeBase::Uncovered,
             Err(GitUnavailable) => return MergeBase::Unavailable,
         };
 
         let mut keys: BTreeSet<String> = BTreeSet::new();
-        match run_git(
+        match classify_merge_base(run_git(
+            &self.git_bin,
             worktree,
             &["merge-base", "--end-of-options", "HEAD", &default],
-        ) {
-            Ok(Some(sha)) => {
+        )) {
+            MergeBaseCall::Found(sha) => {
                 keys.insert(sha);
             }
-            // No merge-base with the default branch — may still track an upstream.
-            Ok(None) => {}
-            Err(GitUnavailable) => return MergeBase::Unavailable,
+            // Exit 1: HEAD and the default branch share no merge-base — a
+            // deterministic "no shared base" (the child resolves the same). The
+            // branch may still track an upstream, so fall through to the refinement.
+            MergeBaseCall::NoBase => {}
+            MergeBaseCall::Unavailable => return MergeBase::Unavailable,
         }
 
         // `@{upstream}` refinement, only when the branch actually tracks one
-        // (ADR-105 §6). Best-effort: a missing upstream leaves the default key.
-        if let Ok(Some(upstream)) = run_git(
+        // (ADR-105 §6). `@{upstream}` resolution has simple semantics: exit 0 ⇒
+        // tracking; any *clean* non-zero ⇒ not tracking — a deterministic skip the
+        // build child performs identically (it falls back to the default-branch
+        // key), so skipping the refinement never under-retains. Only a spawn/signal
+        // failure is uncertainty.
+        let upstream = match run_git(
+            &self.git_bin,
             worktree,
             &[
                 "rev-parse",
@@ -142,11 +205,30 @@ impl KeepSetResolver for GitMergeBaseResolver {
                 "--symbolic-full-name",
                 "@{upstream}",
             ],
-        ) && let Ok(Some(refined)) = run_git(
-            worktree,
-            &["merge-base", "--end-of-options", "HEAD", &upstream],
         ) {
-            keys.insert(refined);
+            GitRun::Failed => return MergeBase::Unavailable,
+            GitRun::Exited {
+                code: 0,
+                stdout: Some(up),
+                ..
+            } => Some(up),
+            GitRun::Exited { .. } => None,
+        };
+        if let Some(upstream) = upstream {
+            match classify_merge_base(run_git(
+                &self.git_bin,
+                worktree,
+                &["merge-base", "--end-of-options", "HEAD", &upstream],
+            )) {
+                MergeBaseCall::Found(refined) => {
+                    keys.insert(refined);
+                }
+                MergeBaseCall::NoBase => {}
+                // The refinement key is the one the child may have produced under;
+                // an unexpected failure computing it is uncertainty → abort rather
+                // than risk reclaiming a base keyed on the upstream refinement.
+                MergeBaseCall::Unavailable => return MergeBase::Unavailable,
+            }
         }
 
         if keys.is_empty() {
@@ -157,45 +239,164 @@ impl KeepSetResolver for GitMergeBaseResolver {
     }
 }
 
-/// `git` itself could not be run (spawn failure) — a transient, pass-aborting
-/// condition, distinct from a clean "no such ref" (which is `Ok(None)`).
+/// A `git` invocation could not be reduced to a deterministic answer (spawn
+/// failure, killed by signal, or an unexpected non-zero exit) — pass-aborting.
 struct GitUnavailable;
 
-/// Run `git -C <worktree> <args>` and return the trimmed first line of stdout.
-///
-/// - `Ok(Some(line))` — git ran, exited 0, and printed a non-empty first line.
-/// - `Ok(None)` — git ran but exited non-zero or printed nothing (a clean
-///   "unresolvable ref" — e.g. detached HEAD, no upstream, no merge-base).
-/// - `Err(GitUnavailable)` — git could not be spawned at all (missing binary,
-///   permission) — the pass treats this as uncertainty.
-fn run_git(worktree: &Path, args: &[&str]) -> Result<Option<String>, GitUnavailable> {
-    let output = Command::new("git")
+/// The raw result of running a git command, before command-specific
+/// classification.
+enum GitRun {
+    /// git ran to completion: `code` is the exit status, `stdout` the trimmed
+    /// first output line (if non-empty), `stderr` the full stderr text.
+    Exited {
+        code: i32,
+        stdout: Option<String>,
+        stderr: String,
+    },
+    /// git could **not** be run to a clean exit — the process failed to spawn OR
+    /// was killed by a signal (no exit code). Always unexpected → callers map this
+    /// to [`GitUnavailable`] / [`MergeBase::Unavailable`].
+    Failed,
+}
+
+/// Run `<git_bin> -C <worktree> <args>` and capture its exit code + first stdout
+/// line + stderr, or [`GitRun::Failed`] on a spawn failure or signal death. Never
+/// interprets the result — that is each caller's command-specific job (see the
+/// classification table on [`GitMergeBaseResolver`]).
+fn run_git(git_bin: &std::ffi::OsStr, worktree: &Path, args: &[&str]) -> GitRun {
+    // Spawn failure (missing binary, permission) — unexpected.
+    let Ok(output) = Command::new(git_bin)
         .arg("-C")
         .arg(worktree)
         .args(args)
         .output()
-        .map_err(|_| GitUnavailable)?;
-    if !output.status.success() {
-        return Ok(None);
-    }
-    let line = String::from_utf8_lossy(&output.stdout)
+    else {
+        return GitRun::Failed;
+    };
+    // `code()` is `None` when the child was terminated by a signal (e.g. OOM-kill)
+    // — an unexpected death, never a deterministic answer.
+    let Some(code) = output.status.code() else {
+        return GitRun::Failed;
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout)
         .lines()
         .next()
         .unwrap_or("")
         .trim()
         .to_owned();
-    Ok(if line.is_empty() { None } else { Some(line) })
+    let stdout = if stdout.is_empty() {
+        None
+    } else {
+        Some(stdout)
+    };
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    GitRun::Exited {
+        code,
+        stdout,
+        stderr,
+    }
+}
+
+/// The classified outcome of a `git merge-base HEAD <ref>` call.
+enum MergeBaseCall {
+    /// Exit 0: a merge-base sha was printed.
+    Found(String),
+    /// Exit 1: the commits share no merge-base — a **documented, deterministic**
+    /// outcome (`git merge-base` returns 1 when no common ancestor exists).
+    NoBase,
+    /// Exit >1, spawn failure, or signal death — unexpected → abort the pass.
+    Unavailable,
+}
+
+/// Classify a `git merge-base` run by its **documented exit-code semantics**:
+/// `0` = a merge-base was found, `1` = no merge-base exists (deterministic),
+/// anything else (or a spawn/signal failure) = an unexpected error.
+fn classify_merge_base(run: GitRun) -> MergeBaseCall {
+    // Spawn failure / signal death is always unexpected.
+    let GitRun::Exited { code, stdout, .. } = run else {
+        return MergeBaseCall::Unavailable;
+    };
+    match (code, stdout) {
+        (0, Some(sha)) => MergeBaseCall::Found(sha),
+        // Exit 0 with no output cannot occur for `merge-base` in practice; exit 1
+        // is the documented "the commits do not share a common ancestor" —
+        // deterministic, not an error.
+        (0, None) | (1, _) => MergeBaseCall::NoBase,
+        // Exit >1 (128 = bad usage/object, 129 = usage) or any other code =
+        // unexpected.
+        _ => MergeBaseCall::Unavailable,
+    }
+}
+
+/// The classified outcome of a ref-resolving `git rev-parse` call.
+enum RefCall {
+    /// Exit 0: the ref resolved (the printed value is carried).
+    Resolved(String),
+    /// A **deterministic** absence — the ref does not exist, or the root is not a
+    /// git repository (stderr matched a known missing-ref shape). Try the next
+    /// candidate / treat as an uncovered topology.
+    Missing,
+    /// An **unexpected** non-zero exit (stderr unmatched), spawn failure, or signal
+    /// — abort the pass rather than under-retain.
+    Unavailable,
+}
+
+/// Whether `stderr` matches a **deterministic** "this ref/commit does not exist"
+/// or "this is not a git repository" shape (ADR-105 §8 uncovered topologies).
+///
+/// This is deliberately **fragile-but-fail-safe**: the matched shapes are the
+/// stable `git rev-parse` fatals for a genuinely-absent ref or non-git root, and
+/// an **unmatched** non-zero exit is classified [`RefCall::Unavailable`] (abort),
+/// **never** [`RefCall::Missing`] — so a message drift can only ever cause an
+/// over-cautious extra keep, never an under-retaining wrong reclaim.
+fn is_deterministic_missing_ref(stderr: &str) -> bool {
+    let s = stderr.to_ascii_lowercase();
+    s.contains("unknown revision")
+        || s.contains("bad revision")
+        || s.contains("needed a single revision")
+        || s.contains("not a git repository")
+}
+
+/// Classify a ref-resolving `git rev-parse` run (see [`is_deterministic_missing_ref`]).
+fn classify_ref(run: GitRun) -> RefCall {
+    match run {
+        GitRun::Failed => RefCall::Unavailable,
+        GitRun::Exited {
+            code: 0,
+            stdout: Some(value),
+            ..
+        } => RefCall::Resolved(value),
+        // Exit 0 with empty output does not occur for the `rev-parse` forms used
+        // here (both print on success); treat defensively as a deterministic miss.
+        GitRun::Exited { code: 0, .. } => RefCall::Missing,
+        GitRun::Exited { stderr, .. } => {
+            if is_deterministic_missing_ref(&stderr) {
+                RefCall::Missing
+            } else {
+                RefCall::Unavailable
+            }
+        }
+    }
 }
 
 /// Resolve the repo's default branch ref for `worktree` (ADR-105 §6): `origin/HEAD`
-/// first, then the conventional `origin/main` / `origin/master` fallbacks.
+/// first, then the conventional `origin/main` / `origin/master` fallbacks. Each
+/// `rev-parse` is classified so a deterministic missing ref falls through while an
+/// unexpected git failure aborts.
 ///
 /// - `Ok(Some(ref))` — a default branch resolved.
-/// - `Ok(None)` — no default branch is resolvable (an uncovered topology).
-/// - `Err(GitUnavailable)` — git could not be spawned.
-fn resolve_default_branch(worktree: &Path) -> Result<Option<String>, GitUnavailable> {
+/// - `Ok(None)` — no default branch is resolvable (a deterministic uncovered
+///   topology — including a genuinely-non-git root).
+/// - `Err(GitUnavailable)` — an unexpected git failure (abort the pass).
+fn resolve_default_branch(
+    git_bin: &std::ffi::OsStr,
+    worktree: &Path,
+) -> Result<Option<String>, GitUnavailable> {
     // `origin/HEAD` → e.g. `origin/main` (the configured default remote branch).
-    if let Some(head) = run_git(
+    // When origin/HEAD is unset git prints `origin/HEAD` (exit 0) or fatals with a
+    // deterministic `unknown revision` shape — both fall through to the candidates.
+    match classify_ref(run_git(
+        git_bin,
         worktree,
         &[
             "rev-parse",
@@ -203,26 +404,29 @@ fn resolve_default_branch(worktree: &Path) -> Result<Option<String>, GitUnavaila
             "--end-of-options",
             "origin/HEAD",
         ],
-    )? && head != "origin/HEAD"
-    {
-        return Ok(Some(head));
+    )) {
+        RefCall::Resolved(head) if head != "origin/HEAD" => return Ok(Some(head)),
+        RefCall::Resolved(_) | RefCall::Missing => {}
+        RefCall::Unavailable => return Err(GitUnavailable),
     }
     // Fall back to the conventional default branch names, verifying each names a
-    // real commit before trusting it.
+    // real commit before trusting it. `--verify` (no `--quiet`, so the deterministic
+    // fatal reaches stderr for classification) fatals with a known missing-ref shape
+    // when the ref is absent → try the next candidate.
     for candidate in ["origin/main", "origin/master"] {
-        if run_git(
+        match classify_ref(run_git(
+            git_bin,
             worktree,
             &[
                 "rev-parse",
                 "--verify",
-                "--quiet",
                 "--end-of-options",
                 &format!("{candidate}^{{commit}}"),
             ],
-        )?
-        .is_some()
-        {
-            return Ok(Some(candidate.to_owned()));
+        )) {
+            RefCall::Resolved(_) => return Ok(Some(candidate.to_owned())),
+            RefCall::Missing => {}
+            RefCall::Unavailable => return Err(GitUnavailable),
         }
     }
     Ok(None)
@@ -357,7 +561,7 @@ pub fn run_daemon_gc_pass(
     Some(sweep_unreferenced_bases(
         &base_dir,
         worktrees,
-        &GitMergeBaseResolver,
+        &GitMergeBaseResolver::new(),
         &base_store::SystemClaimProcs,
     ))
 }
@@ -723,5 +927,237 @@ mod tests {
             "each worktree resolved exactly once per pass",
         );
         assert!(base_exists(&dir, &a) && base_exists(&dir, &b) && !base_exists(&dir, &orphan));
+    }
+
+    // ---- run_git classification (Copilot FINDING 1): deterministic absence must
+    // never be confused with an unexpected git failure. These exercise the REAL
+    // `run_git` + classification against real processes (a `#!/bin/sh` fake git and
+    // a missing binary), not the sweep-level `FakeResolver` double. ----
+
+    /// Create an executable `#!/bin/sh` fake-git whose behaviour is `body` (a
+    /// `case "$*"` over the invocation args). Returns the tempdir (keep it alive)
+    /// and the binary path to hand to [`GitMergeBaseResolver::with_git_bin`].
+    fn fake_git(body: &str) -> (tempfile::TempDir, std::ffi::OsString) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("fake-git");
+        std::fs::write(&bin, format!("#!/bin/sh\n{body}\n")).unwrap();
+        let mut perms = std::fs::metadata(&bin).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&bin, perms).unwrap();
+        (dir, bin.into_os_string())
+    }
+
+    #[test]
+    fn classify_merge_base_exit_codes() {
+        // Pure classification: exit 0+sha = found; exit 1 = deterministic no-base;
+        // exit >1 / signal-death = unexpected.
+        let found = GitRun::Exited {
+            code: 0,
+            stdout: Some("deadbeef".to_owned()),
+            stderr: String::new(),
+        };
+        assert!(matches!(classify_merge_base(found), MergeBaseCall::Found(s) if s == "deadbeef"));
+        assert!(matches!(
+            classify_merge_base(GitRun::Exited {
+                code: 1,
+                stdout: None,
+                stderr: String::new()
+            }),
+            MergeBaseCall::NoBase
+        ));
+        assert!(matches!(
+            classify_merge_base(GitRun::Exited {
+                code: 128,
+                stdout: None,
+                stderr: "fatal: bad object".to_owned()
+            }),
+            MergeBaseCall::Unavailable
+        ));
+        assert!(matches!(
+            classify_merge_base(GitRun::Failed),
+            MergeBaseCall::Unavailable
+        ));
+    }
+
+    #[test]
+    fn classify_ref_distinguishes_missing_from_unexpected() {
+        // Deterministic missing-ref / non-git-root shapes → Missing; an UNMATCHED
+        // non-zero stderr → Unavailable (fail-safe: never under-retain).
+        for shape in [
+            "fatal: ambiguous argument 'origin/HEAD': unknown revision or path",
+            "fatal: bad revision 'origin/main'",
+            "fatal: Needed a single revision",
+            "fatal: not a git repository (or any parent)",
+        ] {
+            assert!(
+                matches!(
+                    classify_ref(GitRun::Exited {
+                        code: 128,
+                        stdout: None,
+                        stderr: shape.to_owned()
+                    }),
+                    RefCall::Missing
+                ),
+                "deterministic shape must classify Missing: {shape}",
+            );
+        }
+        // An unexpected fatal (I/O error) is NOT a deterministic absence → abort.
+        assert!(matches!(
+            classify_ref(GitRun::Exited {
+                code: 128,
+                stdout: None,
+                stderr: "fatal: unable to read tree; disk I/O error".to_owned()
+            }),
+            RefCall::Unavailable
+        ));
+        // Spawn/signal failure → Unavailable.
+        assert!(matches!(classify_ref(GitRun::Failed), RefCall::Unavailable));
+        // A clean resolution → Resolved.
+        assert!(matches!(
+            classify_ref(GitRun::Exited {
+                code: 0,
+                stdout: Some("origin/main".to_owned()),
+                stderr: String::new()
+            }),
+            RefCall::Resolved(v) if v == "origin/main"
+        ));
+    }
+
+    #[test]
+    fn real_run_git_spawn_failure_is_unavailable_and_aborts_pass() {
+        // (ii) THE fail-safe hole regression, exercised through the REAL run_git on
+        // a real failure mode: a non-existent git binary → spawn failure → Failed →
+        // Unavailable → the pass reclaims NOTHING even with an unreferenced base.
+        let resolver = GitMergeBaseResolver::with_git_bin("/nonexistent/definitely-not-git");
+        let wt = PathBuf::from("/wt/any");
+        assert!(
+            matches!(resolver.merge_base(&wt), MergeBase::Unavailable),
+            "a git spawn failure must classify Unavailable, not Uncovered",
+        );
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let orphan = sha('b');
+        write_base(&dir, &orphan);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(
+            out.aborted_uncertain,
+            "an unexpected git failure aborts the pass"
+        );
+        assert_eq!(out.reclaimed, 0);
+        assert!(
+            base_exists(&dir, &orphan),
+            "fail-safe: a git failure must never shrink the keep-set and reclaim",
+        );
+    }
+
+    #[test]
+    fn real_run_git_merge_base_exit_1_is_uncovered_and_pass_proceeds() {
+        // (i) `git merge-base` exit 1 (no shared history) is a DETERMINISTIC no-base
+        // — the worktree references no base, so the pass proceeds and reclaims an
+        // unrelated orphan. Exercised through the real run_git via a fake git.
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *merge-base*) exit 1 ;; \
+               *@{upstream}*) echo 'fatal: no upstream configured' >&2; exit 128 ;; \
+               *origin/HEAD*) echo origin/main; exit 0 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/unrelated");
+        assert!(
+            matches!(resolver.merge_base(&wt), MergeBase::Uncovered),
+            "merge-base exit 1 (+ no upstream) resolves to Uncovered",
+        );
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let orphan = sha('b');
+        write_base(&dir, &orphan);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(
+            !out.aborted_uncertain,
+            "a deterministic no-base does not abort"
+        );
+        assert_eq!(out.reclaimed, 1, "the unreferenced orphan is reclaimed");
+        assert!(!base_exists(&dir, &orphan));
+    }
+
+    #[test]
+    fn real_run_git_merge_base_exit_gt1_is_unavailable_and_aborts() {
+        // `git merge-base` exit >1 is an UNEXPECTED failure (not the documented
+        // exit-1 no-base) → Unavailable → abort, zero unlinks.
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *merge-base*) echo 'fatal: unexpected' >&2; exit 3 ;; \
+               *@{upstream}*) exit 128 ;; \
+               *origin/HEAD*) echo origin/main; exit 0 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/broken");
+        assert!(matches!(resolver.merge_base(&wt), MergeBase::Unavailable));
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let orphan = sha('b');
+        write_base(&dir, &orphan);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(out.aborted_uncertain);
+        assert_eq!(out.reclaimed, 0);
+        assert!(base_exists(&dir, &orphan));
+    }
+
+    #[test]
+    fn real_run_git_deterministic_missing_default_branch_is_uncovered() {
+        // No resolvable default branch (origin/HEAD unset + no origin/main|master),
+        // every rev-parse fatal matching a deterministic missing-ref shape → the
+        // worktree is Uncovered (it never PRODUCES a base), so the pass proceeds.
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *origin/HEAD*) echo \"fatal: ambiguous argument 'origin/HEAD': unknown revision\" >&2; exit 128 ;; \
+               *rev-parse*) echo 'fatal: Needed a single revision' >&2; exit 128 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/no-default");
+        assert!(matches!(resolver.merge_base(&wt), MergeBase::Uncovered));
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let orphan = sha('b');
+        write_base(&dir, &orphan);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(!out.aborted_uncertain);
+        assert_eq!(out.reclaimed, 1);
+    }
+
+    #[test]
+    fn real_run_git_unexpected_rev_parse_stderr_is_unavailable_and_aborts() {
+        // A non-zero rev-parse whose stderr does NOT match a deterministic shape
+        // (an I/O error) → Unavailable → abort. This is the exact hazard FINDING 1
+        // named: an unexpected failure must not masquerade as a missing ref.
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *origin/HEAD*) echo 'fatal: unable to read tree; disk I/O error' >&2; exit 128 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/io-error");
+        assert!(matches!(resolver.merge_base(&wt), MergeBase::Unavailable));
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let orphan = sha('b');
+        write_base(&dir, &orphan);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(out.aborted_uncertain);
+        assert_eq!(out.reclaimed, 0);
+        assert!(base_exists(&dir, &orphan));
     }
 }
