@@ -109,7 +109,8 @@ impl std::fmt::Display for BaseGraphError {
 
 impl std::error::Error for BaseGraphError {}
 
-/// A 40- or 64-hex-char lowercase object name (SHA-1 or SHA-256).
+/// A 40- or 64-hex-char object name (SHA-1 or SHA-256); either letter case is
+/// accepted, as git itself accepts case-insensitive hex object names.
 fn is_hex_object_name(sha: &str) -> bool {
     (sha.len() == 40 || sha.len() == 64) && sha.bytes().all(|b| b.is_ascii_hexdigit())
 }
@@ -165,6 +166,7 @@ pub fn resolve_default_branch(
                 "rev-parse",
                 "--verify",
                 "--quiet",
+                "--end-of-options",
                 &format!("{branch}^{{commit}}"),
             ],
         )
@@ -208,6 +210,7 @@ pub fn resolve_base_commit(
                 "rev-parse",
                 "--verify",
                 "--quiet",
+                "--end-of-options",
                 &format!("{explicit}^{{commit}}"),
             ],
         )
@@ -223,7 +226,7 @@ pub fn resolve_base_commit(
     let base = git_stdout(
         repo_root,
         "merge-base",
-        &["merge-base", "HEAD", &default_ref],
+        &["merge-base", "--end-of-options", "HEAD", &default_ref],
     )
     .map_err(|e| BaseGraphError::NoBasePossible(format!("HEAD..{default_ref}: {e}")))?;
     if base.is_empty() {
@@ -246,7 +249,7 @@ pub fn resolve_base_commit(
         && let Ok(refined) = git_stdout(
             repo_root,
             "merge-base @{upstream}",
-            &["merge-base", "HEAD", &upstream],
+            &["merge-base", "--end-of-options", "HEAD", &upstream],
         )
         && !refined.is_empty()
     {
@@ -335,9 +338,11 @@ fn enumerate_tree(repo_root: &Path, sha: &str) -> Result<Vec<TreeBlob>, BaseGrap
 }
 
 /// Batch-read committed blob bodies by object id through a single
-/// `git cat-file --batch` child process (the `l4_engine.rs` streaming pattern:
-/// a writer thread feeds oids while the reader drains length-prefixed bodies,
-/// so a full stdout pipe cannot deadlock a full stdin pipe).
+/// `git cat-file --batch` child process (the `l4_engine.rs` pattern: a writer
+/// thread feeds oids while `wait_with_output()` concurrently drains the
+/// child's stdout, so a full stdout pipe cannot deadlock a full stdin pipe;
+/// the length-prefixed bodies are parsed from the captured transcript after
+/// the child exits — see the [`MAX_BLOB_BYTES`] note on what that buffers).
 ///
 /// Returns a vec aligned with `oids`. A slot is `None` when the object is
 /// missing, is not a blob, or exceeds [`MAX_BLOB_BYTES`] (the size guard, read
@@ -663,6 +668,28 @@ mod tests {
             resolve_base_commit(&root, Some(&"a".repeat(40)), None),
             Err(BaseGraphError::NoBasePossible(_))
         ));
+    }
+
+    /// A configured default branch that LOOKS like a git option must be passed
+    /// through as a revspec (behind `--end-of-options`), never parsed as a
+    /// flag: it fails cleanly as an unresolvable ref, it does not change git's
+    /// behaviour.
+    #[test]
+    fn option_shaped_default_branch_is_not_parsed_as_a_flag() {
+        let (_tmp, root) = init_repo();
+        write_file(&root, "src/a.ts", b"export function a() {}\n");
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-q", "-m", "one"]);
+
+        for hostile in ["--help", "--exec-path=/tmp/x", "-v"] {
+            assert!(
+                matches!(
+                    resolve_base_commit(&root, None, Some(hostile)),
+                    Err(BaseGraphError::NoBasePossible(_))
+                ),
+                "option-shaped default branch {hostile:?} must degrade to NoBasePossible",
+            );
+        }
     }
 
     /// (d) Unsupported and binary files are skipped: only the parser-supported
