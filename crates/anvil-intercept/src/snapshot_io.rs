@@ -74,6 +74,14 @@ pub mod store;
 /// refuse-don't-return load rule on top.
 pub mod base_store;
 
+/// GBASE-008 (ADR-105 §5/§9): refcount GC over ACTMO-registered worktrees'
+/// merge-bases. Reclaims the shared-base orphan class — a `<sha>.base` referenced
+/// by no live registered worktree's current merge-base — claim-respecting and
+/// under the same `.guard` the store's destruction invariant uses. The
+/// merge-base-keyed analogue of the per-worktree `.root` sweep (CIB-096), not a
+/// replacement for it.
+pub mod base_gc;
+
 /// Extension for the `<hash>.root` companion (CIB-096): the cleartext canonical
 /// root, sibling to the `.snap`, that the orphan sweep existence-checks.
 const ROOT_EXT: &str = "root";

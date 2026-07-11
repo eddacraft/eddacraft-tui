@@ -1945,6 +1945,31 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             );
         }
 
+        // GBASE-008 (ADR-105 §5/§9): reclaim shared-base artefacts no live
+        // registered worktree references — the merge-base-keyed orphan class the
+        // CIB-096 per-worktree sweep above does NOT cover. Runs at startup (after
+        // the per-worktree sweep) and on a low-cadence periodic tick (below), never
+        // on the hot path (design B). Gated on the SAME persistence condition as
+        // the trigger/save-time path; a no-op when off. Offloaded to a blocking
+        // pool because the keep-set resolves via a bounded `git merge-base`
+        // shell-out per registered worktree (design A option 1) — the async runtime
+        // must never block. Detached (not awaited) so a slow git call never delays
+        // the daemon accepting connections; a missed startup pass is caught by the
+        // next periodic tick. Unix-only, mirroring the persistence dir wiring.
+        #[cfg(unix)]
+        {
+            let registry = Arc::clone(&daemon_state.registry);
+            tokio::task::spawn_blocking(move || {
+                let worktrees = registry.registered_worktrees();
+                // Outcome is structured-logged inside the sweep; the pass is
+                // best-effort so the handle is intentionally dropped.
+                let _ = snapshot_io::base_gc::run_daemon_gc_pass(
+                    env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
+                    &worktrees,
+                );
+            });
+        }
+
         // DSV: reclaim a worktree's warm state (graph cache + assurance
         // machine) when its last session leaves the registry. The hook is
         // installed post-construction because `save_time_state` is built
@@ -2077,6 +2102,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // a 60 s sweep is cheap and bounded.
         let mut reaper_tick = tokio::time::interval(Duration::from_mins(1));
         reaper_tick.reset(); // skip the immediate first fire; startup already reaped
+        // GBASE-008 (design B): a very-low-cadence periodic base-GC pass. Startup
+        // already ran one, so skip the immediate fire. Hourly is ample — the
+        // shared-base orphan class only grows when a registered worktree rebases,
+        // and reclaim is not latency-sensitive. Each pass is offloaded to a blocking
+        // pool (git shell-out + fs), so the async loop never blocks.
+        let mut gbase_gc_tick = tokio::time::interval(Duration::from_hours(1));
+        gbase_gc_tick.reset();
         // CIB-095d + N2: persist every warm worktree's graph on **either** exit
         // path (graceful `token.cancelled()` AND listener-failure) so a warm
         // graph is never silently lost when persistence is enabled. Offloaded to
@@ -2131,6 +2163,24 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                             count = evicted.len(),
                             "evicted stale intercept sessions",
                         );
+                    }
+                }
+                _ = gbase_gc_tick.tick() => {
+                    // GBASE-008 (design B): a periodic base-GC pass on a blocking
+                    // pool. Fire-and-forget — a pass that overruns the interval is
+                    // fine (the next tick just runs another); the sweep is
+                    // idempotent and self-consistent. Gated + no-op when persistence
+                    // is off (inside `run_daemon_gc_pass`).
+                    #[cfg(unix)]
+                    {
+                        let registry = Arc::clone(&daemon_state.registry);
+                        tokio::task::spawn_blocking(move || {
+                            let worktrees = registry.registered_worktrees();
+                            let _ = snapshot_io::base_gc::run_daemon_gc_pass(
+                                env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
+                                &worktrees,
+                            );
+                        });
                     }
                 }
                 _ = reaper_tick.tick() => {

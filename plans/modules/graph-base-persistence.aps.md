@@ -315,7 +315,7 @@ default-on.
 
 #### GBASE-008: Refcount GC over ACTMO-registered worktrees' merge-bases
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3272
 - **Intent:** Reclaim base artefacts no live worktree references, without racing
   producers.
 - **Expected Outcome:** The daemon holds a refcount over the current merge-bases

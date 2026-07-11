@@ -94,8 +94,10 @@ use super::store;
 
 /// Subdirectory under the graph-cache dir that holds shared base artefacts.
 const BASE_SUBDIR: &str = "base";
-/// Extension for a published base artefact (`<sha>.base`).
-const BASE_EXT: &str = "base";
+/// Extension for a published base artefact (`<sha>.base`). Shared with
+/// [`super::base_gc`] so the GC enumerator keys on the same extension the store
+/// writes.
+pub(crate) const BASE_EXT: &str = "base";
 /// Subdirectory (under the base dir) that holds in-flight production claims.
 const PRODUCING_SUBDIR: &str = ".producing";
 /// Extension for a single-flight production claim lock (`<sha>.lock`).
@@ -695,6 +697,84 @@ pub fn claim(base_dir: &Path, sha: &str, procs: &dyn ClaimProcs) -> io::Result<C
     }
     // Persistent churn: concede rather than spin (non-fatal, ADR-105 §6).
     Ok(ClaimOutcome::Contended)
+}
+
+/// Outcome of a GBASE-008 GC reclaim attempt for one base sha.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BaseReclaimOutcome {
+    /// The base artefact was unlinked — it was unreferenced (the caller's keep-set
+    /// decision) and no live production claim held its sha.
+    Reclaimed,
+    /// A live (or un-decidable) production claim holds this sha, so the base is
+    /// **under active production** and must not be removed (ADR-105 §5). Any stale
+    /// lock is left for the claim path to reclaim — GC never touches the lock.
+    SkippedClaimed,
+    /// No base artefact existed for this sha (already gone, or a raced peer removed
+    /// it) — a no-op success.
+    Absent,
+}
+
+/// GBASE-008 (ADR-105 §5/§9): reclaim the base artefact for `sha` **iff no live
+/// production claim holds it**. The caller ([`super::base_gc`]) has already proven
+/// `sha` is referenced by no live registered worktree's merge-base; this function
+/// owns the claim-respecting, guard-honest destruction half.
+///
+/// # Extends the module destruction invariant to base artefacts
+///
+/// The per-`.producing`-dir `.guard` `flock` guards **all** destruction in this
+/// module (claim reclaim + release). GC's base unlink rides the **same** guard:
+/// the classify (is a live claim producing this sha?) and the `unlinkat` of
+/// `<sha>.base` run under one held `.guard` `flock`, so a base unlink never
+/// interleaves with a guarded claim reclaim/release. The **hot-path** claim
+/// (`O_EXCL`/`linkat`) is deliberately lock-free and does not take the guard; a
+/// producer that claims-and-finishes a sha entirely within the tiny window between
+/// GC's under-guard classify and its unlink would see its fresh base reclaimed —
+/// but that only occurs for a sha a worktree just rebased **onto** (so the keep-set
+/// GC resolved a moment earlier is stale by one pass), and the next ref-change
+/// trigger re-produces it while the cold path serves (ADR-105 §6). Under-production
+/// is caught: a live claim classifies [`Existing::Live`] and skips.
+///
+/// A **stale** claim lock ([`Existing::Reclaimable`]) does **not** block base
+/// reclaim, but GC does **not** unlink it either — lock reclaim is the claim
+/// path's job (a subsequent `claim()` for the sha reclaims it), never GC's.
+///
+/// # Errors
+/// Any `io::Error` from ensuring/opening the guarded `.producing` dir, opening the
+/// base dir fd, or the base `unlinkat` (a clean `NotFound` on the base is
+/// [`BaseReclaimOutcome::Absent`], not an error). The caller treats an error as
+/// non-fatal and logs-and-degrades (ADR-105 §6).
+pub fn reclaim_unreferenced_base(
+    base_dir: &Path,
+    sha: &str,
+    procs: &dyn ClaimProcs,
+) -> io::Result<BaseReclaimOutcome> {
+    // The guard lives under `.producing`; ensure it exists so the rendezvous file
+    // has a home even when no production ever claimed this store. Without the guard
+    // we decline to destroy anything (conservative).
+    let producing = producing_dir(base_dir);
+    store::ensure_dir(&producing)?;
+    let pdirfd = crate::path_safety::open_workspace_dir_for_fsync(&producing)?;
+    let _guard = lock_guard(&pdirfd)?;
+
+    // Under the guard, re-verify no live claim is producing this sha. A live or
+    // un-decidable (present-but-unreadable) claim ⇒ respect active production.
+    match classify_existing(&pdirfd, &lock_leaf(sha), procs) {
+        Existing::Live | Existing::Unknown => return Ok(BaseReclaimOutcome::SkippedClaimed),
+        // No claim, a vanished lock, or a provably-stale one: none is active
+        // production, so the base is reclaimable. The stale lock (if any) is the
+        // claim path's to reclaim, not ours.
+        Existing::Vanished | Existing::Reclaimable => {}
+    }
+
+    // Unlink the base artefact under the guard, anchored at the base dir fd
+    // (symlink-safe `unlinkat`, CIB-097 discipline) — the same guard held across
+    // the classify above, so classify→destroy is atomic w.r.t. guarded claim ops.
+    let base_dirfd = crate::path_safety::open_workspace_dir_for_fsync(base_dir)?;
+    match store::unlink_at(&base_dirfd, &base_leaf(sha)) {
+        Ok(()) => Ok(BaseReclaimOutcome::Reclaimed),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(BaseReclaimOutcome::Absent),
+        Err(err) => Err(err),
+    }
 }
 
 #[cfg(test)]
