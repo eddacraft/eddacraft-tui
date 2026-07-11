@@ -4942,14 +4942,16 @@ archive.
   flagged: no PR-triggered CI compiles these crates for non-unix targets under
   `-D warnings` (clippy is Linux-only; the cross matrix is
   release/hotfix/dispatch-gated; the nightly cross job is build-only).
-- **Expected Outcome:** All four non-unix cross legs green on a `rust.yml`
-  dispatch from main (darwin-arm base_store flake tracked separately as
-  CIB-194); a cheap PR-triggered check (e.g. `cargo clippy --target
-  x86_64-pc-windows-msvc -p` the cfg-sensitive crates, or an equivalent
-  check-only leg) so the cross-target cfg bug class fails PRs instead of
-  nightlies.
-- **Validation:** `rust.yml` dispatch green on the three non-flake legs; a PR
-  that reintroduces a non-unix dead binding fails the new PR-triggered check.
+- **Progress:** the dead-code peel half landed via PR #3297 (start.rs helpers
+  gated `cfg(not(windows))`; full six-leg matrix green on dispatch run
+  29168436934) — the remaining scope is the systemic PR-CI gap below.
+- **Expected Outcome:** a cheap PR-triggered check (e.g.
+  `cargo clippy --target x86_64-pc-windows-msvc --all-targets -p eddacraft-anvil-intercept -p anvil-bench -p eddacraft-anvil -- -D warnings`,
+  or an equivalent check-only leg) so the cross-target cfg bug class fails
+  PRs instead of nightlies.
+- **Validation:** a PR that reintroduces a non-unix dead binding fails the
+  new PR-triggered check; the check completes in minutes, not a full cross
+  build.
 - **Identified From:** PR #3290 council (session council-30437e3a,
   adversarial + operations findings); dispatch run 29164882648 on
   6d0fc2d712.
@@ -4957,7 +4959,14 @@ archive.
 
 ### CIB-194: Fix aarch64-apple-darwin base_store race-test failures
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-12 via PR #3297
+- **Resolution:** a product-path platform race, not a test bug: macOS/APFS
+  spuriously returns `ENOENT` under same-directory entry churn, hitting the
+  create-once `.guard` `O_CREAT` open (fixed with a bounded yielding retry)
+  and the `linkat` exclusive publish (fixed by reading the published record
+  back and deciding by the full `{pid, start_time, nonce}` identity). Claim
+  path errors now carry per-step tags for diagnosability. Both darwin legs
+  green on dispatch run 29168436934.
 - **Intent:** On dispatch run 29164882648 (HEAD 6d0fc2d712, files untouched by
   that PR), `snapshot_io::base_store::tests::concurrent_claim_is_single_flight_exactly_one_winner`
   and `reclaim_race_has_exactly_one_winner` panicked on aarch64-apple-darwin
