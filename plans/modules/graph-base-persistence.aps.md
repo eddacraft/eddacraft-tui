@@ -290,7 +290,7 @@ default-on.
 
 #### GBASE-006: Per-worktree materialisation / composition
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3275
 - **Intent:** Materialise one resident graph per worktree by loading the shared
   base and applying its overlay.
 - **Expected Outcome:** Warm-start loads the base by replay and applies the
@@ -304,6 +304,42 @@ default-on.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GBASE-002, GBASE-004, GBASE-005
+- **Recorded scope notes (GBASE-006 as landed):**
+  - **Composition function** `anvil_graph_cache::compose` (new
+    `compose.rs` beside `rebase.rs`): replays the base
+    (`SnapshotPayload::into_graphs`), consumes the GBASE-005 `ComposePlan`,
+    applies tombstones (the `SymbolGraph`/`DependencyGraph` `remove_file`
+    primitives), lifts the rebased upserts (`update_file`), re-resolves the
+    overlay's forward imports/re-exports/calls, and re-binds each surviving-base →
+    re-added-overlay import against the **live** composed graph (never a stale
+    id). The dependency graph is composed Imports-only in lockstep with the cold
+    oracle (base edges minus tombstoned files, plus recomputed edges of the
+    touched neighbourhood). The `rebase.rs` mini-parity fixture now points its
+    **composed** side at this production function, keeping its independent
+    cold-scan builder as ground truth.
+  - **Trust line enforced by reuse, not a parallel mechanism:** the composed pair
+    installs through the **same** `KernelGraphCache::restore` seam the snapshot
+    warm-start uses, which marks the entry a restored stand-in — so `validate_paths`
+    forces the verdict non-`Certified` and the workspace non-`Clean` until the
+    reconcile completes (proven end-to-end through the real cache/assurance path).
+  - **Cache-installation seam:** `anvil_intercept::graph_base_warm_start::compose_worktree_from_base`
+    routes `base_store::load_base` (Absent/Ignored ⇒ cold, no compose) →
+    `overlay_scan::compute_overlay` (fallible ⇒ cold) → `compose` →
+    `cache.restore`. Sibling independence is exercised over one on-disk base
+    artefact and two cache keys (20× repetition guard).
+  - **Daemon-lifecycle wiring partially deferred to GBASE-009 (honest note):** the
+    minimal wire is `SaveTimeState::spawn_compose_restore` (background-pool,
+    gated exactly like the save-time persistence path — mirroring how GBASE-003
+    shipped its trigger executor behind the same gate). The *lifecycle decision*
+    that drives it — resolving a worktree's merge-base sha (git, which the
+    resident daemon never runs) and routing base vs. the permanent per-worktree
+    path — is **GBASE-009**'s re-entrant `persistence_route`; it supplies the sha
+    and calls this seam.
+  - **Persisted-format cross-edge boundary (inherited from GBASE-005):**
+    composition re-resolves **imports**. Base→overlay re-exports/calls, and
+    base→**added** forward references, are not reconstructable from the persisted
+    format (schema-additive follow-up); the GBASE-007 fixture must scope its
+    cross-edge assertions accordingly.
 
 ---
 

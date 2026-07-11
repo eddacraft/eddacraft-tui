@@ -757,9 +757,15 @@ mod tests {
 
     #[test]
     fn composed_edge_set_matches_cold_scan_of_combined_state() {
+        // GBASE-006: point the COMPOSED side at the production `compose` function
+        // (not the local `apply_plan` reference), while keeping the independent
+        // cold-scan builder as ground truth — so this parity anchor now pins the
+        // shipped composition path against a from-scratch scan, not a test helper
+        // against another test helper (strengthening non-circularity).
         let (base_sym, base_dep) = build_base();
-        let plan = plan_compose(&base_sym, &base_dep, &build_fragment());
-        let composed = apply_plan(base_sym, &plan);
+        let payload = SnapshotPayload::from_graphs(&base_sym, &base_dep).expect("base payload");
+        let (composed, _) =
+            crate::compose::compose(payload, &build_fragment()).expect("production compose");
         let cold = cold_scan_combined();
 
         let composed_edges = edge_identities(&composed);

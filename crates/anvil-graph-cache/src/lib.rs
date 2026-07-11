@@ -9,6 +9,7 @@
 
 pub mod call_graph;
 pub mod certify;
+pub mod compose;
 pub mod dependency;
 pub mod hot_index;
 pub mod incremental;
@@ -25,6 +26,7 @@ pub use certify::{
     Certifiability, CertifyStale, ChangeKind, ExportSurfaceDiff, certify,
     clamp_reverse_impact_depth, export_surface_changed, export_surface_diff,
 };
+pub use compose::compose;
 pub use dependency::DependencyGraph;
 pub use hot_index::{
     BackgroundReadApi, HotPathSurface, HotRead, HotReadApi, HotReadMiss, MAX_REVERSE_IMPACT_DEPTH,

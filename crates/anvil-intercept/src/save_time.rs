@@ -588,6 +588,64 @@ impl SaveTimeState {
         }
     }
 
+    /// GBASE-006 (ADR-105 §1/§3): compose a per-worktree resident graph from the
+    /// **shared base** for `sha` plus the worktree's live overlay, and install it
+    /// **stale** — the base-path analogue of [`Self::spawn_restore`]. Runs on the
+    /// **background** pool (base load + walk + parse are disk/CPU work, never the
+    /// save-time hot path), so reads are served the composed (stale) graph rather
+    /// than `NotReady` while the reconcile is pending. No-op when persistence is
+    /// off, no parser is injected, the base store dir is unresolvable, or the key
+    /// is already warm/enqueued. Every load/overlay failure serves cold (the seam
+    /// routes on [`crate::snapshot_io::base_store::BaseLoadOutcome`]).
+    ///
+    /// # Scope (GBASE-006 vs GBASE-009)
+    /// This is the **minimal wire**: the composition + cache-installation seam,
+    /// gated exactly like the save-time persistence path (mirroring how GBASE-003
+    /// shipped its trigger executor behind the same gate). The *lifecycle decision*
+    /// that drives it — resolving a worktree's merge-base `sha` (git, which the
+    /// resident daemon deliberately never runs) and routing base vs. the permanent
+    /// per-worktree path — is **GBASE-009**'s re-entrant `persistence_route`; it
+    /// supplies `sha` and calls this seam. Until then `sha` is passed explicitly.
+    #[cfg(unix)]
+    pub fn spawn_compose_restore(&self, key: &WorktreeKey, canonical_root: &Path, sha: &str) {
+        if !self.persistence_enabled() {
+            return;
+        }
+        let Some(parser) = self.parser.clone() else {
+            // The daemon never parses on its own (ADR-061/064) — with no injected
+            // parser the overlay cannot be computed; serve cold.
+            return;
+        };
+        let Some(base_dir) = crate::snapshot_io::base_store::default_base_dir() else {
+            return;
+        };
+        if self.cache.contains(key) || self.coordinator.is_enqueued(key) {
+            return;
+        }
+        let cache = Arc::clone(&self.cache);
+        let caps = self.caps;
+        let key = key.clone();
+        let root = canonical_root.to_path_buf();
+        let sha = sha.to_owned();
+        self.scheduler.background().spawn(move || {
+            let outcome = crate::graph_base_warm_start::compose_worktree_from_base(
+                &cache,
+                &key,
+                &base_dir,
+                &sha,
+                &root,
+                parser.as_ref(),
+                &caps,
+            );
+            tracing::debug!(
+                target: "anvil_intercept::graph_base_warm_start",
+                workspace_root = %root.display(),
+                outcome = ?outcome,
+                "composed warm-start attempt (GBASE-006)",
+            );
+        });
+    }
+
     /// Persist every warm worktree's graph on graceful shutdown (DSV-030 /
     /// ADR-069 §4 — "written … on graceful daemon shutdown"). No-op when
     /// persistence is off. Best-effort per key; a failure logs and continues.

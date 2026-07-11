@@ -91,6 +91,12 @@ pub mod watcher;
 // `cfg(unix)` platform gap; the real inotify backend is further Linux-gated.
 #[cfg(unix)]
 pub mod graph_base_trigger;
+// GBASE-006 (ADR-105 §1/§3): per-worktree composed warm-start (load base +
+// compute overlay + compose + install stale). `cfg(unix)` — it reads the shared
+// base store (`snapshot_io`, Unix-only), mirroring ADR-105 §8's inherited
+// `cfg(unix)` platform gap.
+#[cfg(unix)]
+pub mod graph_base_warm_start;
 #[cfg(any(unix, windows))]
 pub mod workspace_admission;
 /// The platform-neutral workspace read anchor (Unix dirfd / Windows directory
