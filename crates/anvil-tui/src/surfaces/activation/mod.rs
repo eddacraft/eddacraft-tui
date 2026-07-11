@@ -604,6 +604,7 @@ mod tests {
 
     #[test]
     fn unsafe_overlay_help_advertises_only_its_live_keys() {
+        use eddacraft_tui::surface::Surface as _;
         // The confirm overlay swallows the base consent keys, so the help
         // bar must switch to the overlay's own y/n/esc story while open.
         let consent = ConsentState::new(
@@ -616,7 +617,6 @@ mod tests {
             false,
         );
         let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
-        use eddacraft_tui::surface::Surface as _;
         assert!(surface.help_text().contains("a apply"));
         surface.consent.as_mut().unwrap().unsafe_confirm_index = Some(0);
         assert_eq!(surface.help_text(), "y confirm  n/esc cancel  q quit");
