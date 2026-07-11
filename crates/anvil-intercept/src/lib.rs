@@ -62,6 +62,7 @@ pub mod kernel_cache;
 pub mod kindling_observation;
 pub mod latency;
 pub mod midedit;
+pub mod overlay_scan;
 #[cfg(unix)]
 pub mod path_safety;
 pub mod rate_window;

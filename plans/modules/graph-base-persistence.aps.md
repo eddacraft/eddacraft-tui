@@ -233,7 +233,7 @@ default-on.
 
 #### GBASE-004: Overlay computation via the ADR-085 executor
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3271
 - **Intent:** Compute a worktree's live overlay as the diff of its changed files
   versus the base tree.
 - **Expected Outcome:** The ADR-085 executor is scoped to the files that differ
@@ -245,6 +245,16 @@ default-on.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** GBASE-001
+- **Note (tail-language hashless gap):** the overlay diff is content-hash exact
+  only for base files that carry a hash. Today only TS/Rust/Python stamp one; the
+  tail-language extractors (Dart/Go/Java/Kotlin/C#/C/C++/Zig/Wat via
+  `tail_common::finish`) stamp `None`, so those base files are reconciled
+  **conservatively (always re-parsed + tombstoned)** — correct, but the
+  never-re-parse-the-unchanged-majority win is defeated for them. The real fix is
+  kernel-side follow-up (stamp `content_hash` in `tail_common::finish` like
+  TS/Rust/Python). Flagged for the **GBASE-007** parity fixture (polyglot base +
+  overlay must still equal a cold scan) and the **GBASE-010** graduation gate (a
+  polyglot repo's warm-start overlay perf depends on closing it).
 
 ---
 

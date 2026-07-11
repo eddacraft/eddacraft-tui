@@ -605,6 +605,54 @@ impl SnapshotPayload {
         Ok(payload)
     }
 
+    /// The per-file GV2-032 content-freshness keys this payload carries,
+    /// `(workspace-root-relative file, content_hash)`, **sorted by file**
+    /// ([`SnapshotPayload::from_graphs`] sorts them). This is the
+    /// content-hash-authoritative table the shared-base overlay diff (ADR-105 §1 /
+    /// GBASE-004) uses to decide whether a base file *changed*: a file whose
+    /// worktree bytes hash to the same value is unchanged, a differing hash is a
+    /// modification.
+    ///
+    /// **Only files whose producer stamped a hash appear here** — and not every
+    /// producer does. TS / Rust / Python stamp a real
+    /// [`anvil_kernel_types::content_hash`]; the tail-language extractors
+    /// (Dart / Go / Java / Kotlin / C# / C / C++ / Zig / Wat, via
+    /// `tail_common::finish`) currently stamp `None`, so those files are **absent
+    /// from this table despite being in the base graph**. A caller reconciling a
+    /// worktree therefore MUST NOT treat "absent from `file_hashes`" as "absent
+    /// from the base" — use [`SnapshotPayload::tracked_files`] for base
+    /// membership. Stamping content hashes in `tail_common::finish` (so the whole
+    /// base is hash-authoritative) is kernel-side follow-up work.
+    #[must_use]
+    pub fn file_hashes(&self) -> &[(String, u64)] {
+        &self.file_hashes
+    }
+
+    /// The full set of **workspace-root-relative files the base graph tracks**,
+    /// sorted — the union of every file that produced a symbol (`file_symbol_order`
+    /// keys) and every file that carries a content hash (`file_hashes` keys). This
+    /// is the authoritative base *file set* for the ADR-105 §1 / GBASE-004 overlay
+    /// diff, and is a **superset** of [`SnapshotPayload::file_hashes`]'s keys: it
+    /// also includes hashless files (tail-language files whose extractor stamped
+    /// no hash — see `file_hashes`). A worktree file absent from this set is a
+    /// genuine *add*; a file in this set but absent from `file_hashes` is
+    /// reconciled conservatively (always re-parse + tombstone) since its
+    /// unchangedness cannot be proven by hash.
+    ///
+    /// Residual caveat: a base file that emitted **zero symbols** and carries
+    /// **no hash** is invisible to both keys and hence to this set — it would
+    /// classify as an *add*, not a *modify*. No current producer path
+    /// demonstrably creates one; the GBASE-007 polyglot parity fixture is the
+    /// follow-up that pins this edge.
+    #[must_use]
+    pub fn tracked_files(&self) -> BTreeSet<&str> {
+        self.file_symbol_order
+            .iter()
+            .map(|(f, _)| f.as_str())
+            .chain(self.file_hashes.iter().map(|(f, _)| f.as_str()))
+            .collect()
+    }
+
     /// Rebuild the live graph pair from a decoded payload by **replaying inserts**
     /// (ADR-069 §1) — petgraph re-derives its own ephemeral `NodeIndex`es and the
     /// dependency reverse index is rebuilt from the forward edges. No on-disk
