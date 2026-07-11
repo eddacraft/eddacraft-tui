@@ -776,9 +776,11 @@ impl ProductionSpawner for CurrentExeSpawner {
             .arg("--repo")
             .arg(repo)
             .stdin(Stdio::null())
-            // The one-line JSON summary is for the reaper's debug log; discard it
-            // to avoid a pipe the daemon would have to drain. Inherit stderr so a
-            // producer error lands in the daemon log.
+            // stdout (the child's one-line JSON summary) is DISCARDED, not read:
+            // piping it would hand the daemon a pipe to drain, and the reaper
+            // only consumes the exit status — the store outcome is observable
+            // via the artefact itself. Inherit stderr so a producer error lands
+            // in the daemon log.
             .stdout(Stdio::null())
             .spawn()?;
         let pid = child.id();
@@ -1148,9 +1150,21 @@ impl InotifyRefWatchBackend {
     /// a burst into one trigger.
     #[must_use]
     pub fn drain_repo_events(&self) -> Vec<PathBuf> {
-        let Ok(events) = self.inotify.read_events() else {
+        let events = match self.inotify.read_events() {
+            Ok(events) => events,
             // `EAGAIN`/`EWOULDBLOCK`: nothing pending on the non-blocking instance.
-            return Vec::new();
+            Err(nix::errno::Errno::EAGAIN) => return Vec::new(),
+            Err(err) => {
+                // Anything else is unexpected on a healthy inotify fd; dropping
+                // it silently would leave the trigger blind with no operator
+                // signal.
+                tracing::warn!(
+                    target: "graph_base_trigger",
+                    error = %err,
+                    "inotify read_events failed; ref events may be missed this tick",
+                );
+                return Vec::new();
+            }
         };
         let mut repos: Vec<PathBuf> = Vec::new();
         for event in events {
@@ -1263,10 +1277,23 @@ pub fn activate(
 
     let shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let thread_shutdown = Arc::clone(&shutdown);
-    let handle = std::thread::Builder::new()
+    let handle = match std::thread::Builder::new()
         .name("anvil-gbase-refwatch".to_owned())
         .spawn(move || run_refwatch_loop(&trigger, &mut backend, &registry, &thread_shutdown))
-        .ok()?;
+    {
+        Ok(handle) => handle,
+        Err(err) => {
+            // Without this log a spawn failure would make proactive
+            // pre-production silently disappear (cold path serves) — hard to
+            // diagnose.
+            tracing::warn!(
+                target: "graph_base_trigger",
+                error = %err,
+                "ref-watch thread spawn failed; base pre-production disabled (cold path serves)",
+            );
+            return None;
+        }
+    };
     Some(TriggerActivation {
         shutdown,
         handle: Some(handle),
