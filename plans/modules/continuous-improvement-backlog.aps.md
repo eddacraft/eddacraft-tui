@@ -4874,3 +4874,43 @@ archive.
   ACTTUI-010.
 - **Confidence:** medium — local evidence exists, but the owning aggregate must
   prove it is non-zero-filled and cheap before the line can render.
+
+### CIB-191: Durable continuous-improvement pending queue and harvest
+
+- **Status:** In Progress
+- **Intent:** Stop session CI-log notes from being lost when agents omit the
+  tracked log from single-purpose feature PRs or when worktrees are removed
+  before the note is committed.
+- **Expected Outcome:** Default closeout writes to a shared pending queue under
+  the git common dir (`.git/anvil/ci-log-pending/`), shared across Worktrunk
+  worktrees and invisible to feature-branch `git status`. `pnpm ci-log:harvest`
+  promotes pending notes into
+  `plans/reviews/continuous-improvement-log.md`. All three `dev-workflow`
+  adapters (Claude, OpenCode, Codex) require pending-first closeout.
+  `pnpm test:ci-log` covers append/harvest/status/watermark. Operator guide at
+  `docs/guides/continuous-improvement-log.md`.
+- **Validation:** `pnpm test:ci-log`; `pnpm ci-log:status` shows pending path
+  under git common dir; skills and project-context reference pending-first
+  closeout; tracked log header documents harvest.
+- **Identified From:** 2026-07-12 CI-log health review — ~122 commits / dozens of
+  merged PRs after 2026-07-08 with almost no log growth; worktree scan found
+  lagging logs rather than uncommitted newer entries (notes never landed).
+- **Confidence:** high
+
+### CIB-192: CI-log triage watermark and weekly disposition workflow
+
+- **Status:** In Progress
+- **Intent:** Make the read→promote loop as real as the write path so pending
+  and tracked evidence become CIB items (or deliberate leave/absorb decisions)
+  instead of an unbounded append-only archive.
+- **Expected Outcome:** Tracked log carries a `Last triaged` watermark;
+  `pnpm ci-log:since -- --watermark` and `pnpm ci-log:set-watermark` support
+  review; `.claude/workflows/triage-ci-log.js` runs status → harvest → review →
+  promote/absorb/leave → watermark; Follow-up vocabulary
+  (`none|session:|promote: CIB|theme:|owned:`) is documented in the log header
+  and guide; session-start surfaces pending count.
+- **Validation:** Watermark present in tracked log; `pnpm ci-log:since -- --watermark`
+  exits 0; triage workflow file present; session-start prints CI-log status.
+- **Identified From:** Same 2026-07-12 review — only one explicit promotion pass
+  (2026-05-27) despite continuous write traffic when it was working.
+- **Confidence:** high

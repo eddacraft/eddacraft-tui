@@ -82,3 +82,7 @@ wt remove <feature-branch>
 - Never delete work without typed `discard` confirmation
 - Never force-push without explicit request
 - Always extract post-merge test plans to `plans/reviews/post-merge/` — do not leave them only in the PR description
+
+## Continuous improvement
+
+Before declaring the branch finished, ensure this session recorded a CI note via `pnpm ci-log:append` (pending queue). Do **not** drop the note because it is unrelated to the PR — pending is PR-independent. Harvest is a separate bookkeeping step (`pnpm ci-log:harvest`). See `docs/guides/continuous-improvement-log.md`.

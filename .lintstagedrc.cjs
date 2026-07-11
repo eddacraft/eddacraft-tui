@@ -55,7 +55,9 @@ const toCommandList = (files) => files.map((file) => JSON.stringify(file)).join(
 
 module.exports = {
   '*.{js,jsx,ts,tsx}': (files) => {
-    const kept = filter(files);
+    // Agent-config dirs are prettierignored (skill fences); skip them so
+    // lint-staged does not hand oxfmt an empty target set (CIB-191).
+    const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
     const list = toCommandList(kept);
     return [`oxfmt --write ${list}`, `oxlint --fix ${list}`, `eslint --fix ${list}`];

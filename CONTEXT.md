@@ -32,6 +32,7 @@ Terms you'll see everywhere, and what they actually mean:
 | **APS**                                  | Anvil Plan Spec — the `.aps.md` planning format. All multi-step work uses it.                         |
 | **Module / work item**                   | A unit of planned work (`PREFIX-NNN`) tracked in an APS module file.                                  |
 | **CIB**                                  | Continuous Improvement Backlog — the rolling small-improvement module.                                |
+| **CI-log / pending queue**                 | Session evidence log + `.git/anvil/ci-log-pending/` harvest path; see [`docs/guides/continuous-improvement-log.md`](docs/guides/continuous-improvement-log.md). |
 | **Council**                              | Multi-persona code review (`/council quick\|mini\|full`), run before a PR.                            |
 | **kernel / checks / policy / intercept** | The four engine layers — see _Where things live_.                                                     |
 | **gate / audit / check / drift**         | anvil CLI verbs; only `welcome`'s scan honours `.gitignore`, the rest use standard filters by design. |

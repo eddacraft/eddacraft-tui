@@ -88,7 +88,13 @@
     "generate:package": "nx g @eddacraft/anvil-generators:package",
     "generate:anvil-package": "nx g @eddacraft/anvil-generators:anvil-package",
     "generate:command": "nx g @eddacraft/anvil-generators:command",
-    "agent:run": "bash tools/local-agent-run.sh"
+    "agent:run": "bash tools/local-agent-run.sh",
+    "ci-log:append": "node scripts/ci-log/append.mjs",
+    "ci-log:harvest": "node scripts/ci-log/harvest.mjs",
+    "ci-log:status": "node scripts/ci-log/status.mjs",
+    "ci-log:since": "node scripts/ci-log/since.mjs",
+    "ci-log:set-watermark": "node scripts/ci-log/set-watermark.mjs",
+    "test:ci-log": "bash scripts/ci-log/_test/ci-log.test.sh"
   },
   "private": true,
   "devDependencies": {

@@ -153,13 +153,17 @@ available via the agent runtime — not vendored drift. The definitive inventory
     (often invalid `decision` values like `"allow"` / `"ask"` in the legacy
     schema) that may be silently allowing or blocking commands. Do not just keep
     running.
-16. **Write a continuous-improvement note.** Before the final response on any
-    non-trivial task, append one compact entry to
-    `plans/reviews/continuous-improvement-log.md`. If the user or task contract
-    explicitly forbids writes, do not edit the log; say the CI note was skipped
-    because the task was read-only. Keep entries factual and short; raw
-    observations belong in the log, recurring or executable improvements should
-    be promoted to `plans/modules/continuous-improvement-backlog.aps.md`.
+16. **Write a continuous-improvement note (pending queue).** Before the final
+    response on any non-trivial task, record one compact entry with
+    `pnpm ci-log:append` (default destination: shared pending queue under the
+    git common dir — survives worktree removal and does **not** need to be in
+    the feature PR). If the user or task contract explicitly forbids writes, do
+    not write; say the CI note was skipped because the task was read-only. Keep
+    entries factual and short. Prefer pending over editing the tracked log so
+    single-purpose PRs do not drop the note as "unrelated". Harvest is a
+    separate bookkeeping step (`pnpm ci-log:harvest`). Recurring or executable
+    improvements promote to `plans/modules/continuous-improvement-backlog.aps.md`
+    at triage, not ad-hoc mid-feature.
 
 ## Decision Points
 
@@ -202,20 +206,38 @@ only when the user explicitly asks
 **Multiple independent tasks:** → `parallel-agents` to dispatch subagents per
 task
 
-**Before final response on non-trivial work:** → append a compact
-continuous-improvement note to `plans/reviews/continuous-improvement-log.md` →
-if writes are explicitly forbidden, skip the edit and report that skip → promote
-only concrete follow-up work to `CIB-NNN` if it has an observable outcome and
-validation path
+**Before final response on non-trivial work:** → `pnpm ci-log:append`
+(pending by default; see Continuous Improvement Closeout) → if writes are
+explicitly forbidden, skip and report that skip → do not block the feature PR
+on the tracked log → promote only at triage (`pnpm ci-log:since -- --watermark`)
+when Follow-up is `promote: CIB` or friction recurs
 
 ## Continuous Improvement Closeout
 
 Append exactly one lightweight note per non-trivial session or meaningful failed
-attempt. Do not write long retrospectives. Prefer this compact Markdown shape
-because it is quick for agents, renders visibly, and is easy to search:
+attempt. **Default write path is the pending queue**, not the tracked file:
+
+```bash
+pnpm ci-log:append -- \
+  --agent opencode \
+  --task "..." \
+  --outcome "..." \
+  --worked "..." \
+  --failed "none" \
+  --friction "..." \
+  --improvement "none" \
+  --follow-up "none"
+```
+
+Or pass a full entry with `--stdin` / `--body-file`. Use `--tracked` only on
+bookkeeping PRs that already own the log. Harvest pending notes with
+`pnpm ci-log:harvest` on a bookkeeping branch (see
+`docs/guides/continuous-improvement-log.md`).
+
+Entry shape (also accepted via `--stdin`):
 
 ```md
-### YYYY-MM-DD — opencode|claude|other
+### YYYY-MM-DD — opencode|claude|codex|other
 
 - **Task:** ...
 - **Outcome:** ...
@@ -223,19 +245,23 @@ because it is quick for agents, renders visibly, and is easy to search:
 - **Failed:** ...
 - **Friction:** ...
 - **Improvement:** ...
-- **Follow-up:** ...
+- **Follow-up:** none | session:... | promote: CIB | theme:... | owned: ID
 ```
 
 Rules:
 
-- If there is no useful learning, write `improvement: none` rather than forcing
+- If there is no useful learning, write `Improvement: none` rather than forcing
   a suggestion.
 - Do not include secrets, private tokens, or raw environment dumps.
 - Keep command output out of the log unless the exact command is the lesson.
-- Promote repeated friction or executable fixes to the CIB APS module; do not
-  let the log become a second backlog.
+- **Do not omit the note from the session because it is "unrelated" to the PR**
+  — pending is unrelated by design and still must be written.
+- Promote repeated friction or executable fixes to the CIB APS module at
+  triage; do not let the log become a second backlog.
 - Respect explicit read-only/no-write task contracts; in that case, mention the
-  skipped CI note in the final response instead of editing the log.
+  skipped CI note in the final response instead of writing.
+- Before claiming a multi-day gap is "quiet", run `pnpm ci-log:status` and
+  harvest if pending is non-zero.
 
 ## APS Status Lifecycle
 

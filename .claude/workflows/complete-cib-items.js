@@ -169,8 +169,7 @@ CIB-specific rules:
   conflict). Set it to "In Progress" in your first commit (status flip lands in the PR, not a later reconcile).
 - Do NOT hand-edit the \`N/M\` count in plans/index.aps.md or the CIB module header — it is advisory-derived
   (ADR-053 / CIB-022). Touching it causes cross-PR collisions; leave it alone.
-- Append exactly one compact continuous-improvement note to ${CI_LOG} (it is merge=union, so concurrent
-  appends are safe; end your entry with a trailing blank line).
+- Append exactly one compact continuous-improvement note via `pnpm ci-log:append` (pending queue by default; harvest separately). Tracked path remains ${CI_LOG} (merge=union; concurrent harvests are safe).
 `.trim()
 
 // ===========================================================================
@@ -277,7 +276,7 @@ Procedure:
 3. TDD: failing test first (prove red), minimal fix, refactor. Use the item's Validation command(s) as the acceptance check.
 4. Flip ONLY ${g.item.id}'s own Status line to "In Progress" in ${CIB_PATH}.
 5. Run ALL gates relevant to the files you touched (see rules). Iterate until green.
-6. Append one compact CI-log note to ${CI_LOG} (merge=union; trailing blank line).
+6. Append one compact CI-log note via `pnpm ci-log:append --agent claude --task "..." ...` (pending by default).
 7. Commit with conventional message(s) referencing the item (e.g. "fix(cli): … (${g.item.id})"). Keep it single-purpose.
 8. Do NOT push and do NOT open a PR — later stages do that.
 

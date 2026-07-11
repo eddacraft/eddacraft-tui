@@ -11,7 +11,9 @@
 >
 > - GitHub issues for product bugs and tracked feature requests.
 > - `plans/decisions/DECISION-LOG.md` for ADR-style decisions.
-> - `plans/reviews/continuous-improvement-log.md` for per-session observations.
+> - `plans/reviews/continuous-improvement-log.md` for per-session observations
+>   (write via `pnpm ci-log:append` pending queue; see
+>   `docs/guides/continuous-improvement-log.md`).
 > - `plans/modules/continuous-improvement-backlog.aps.md` (CIB) for promoted
 >   recurring friction.
 

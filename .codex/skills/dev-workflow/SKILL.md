@@ -1,6 +1,6 @@
 ---
 name: dev-workflow
-description: Use at the start of any development task to route to the correct skill, agent, and command for each lifecycle stage, from planning through branch, TDD, review, PR, and cleanup.
+description: Use at the start of any development task to route to the correct skill, agent, and command for each lifecycle stage, from planning through branch, TDD, review, PR, cleanup, and continuous-improvement closeout.
 ---
 
 # Dev Workflow
@@ -80,6 +80,9 @@ Plan Truth Gate -> Isolate -> TDD Code -> Verify -> Review -> PR -> Cleanup
 **Multiple independent tasks:**
 -> `parallel-agents` to dispatch subagents per task
 
+**Before final response on non-trivial work:**
+-> `pnpm ci-log:append` (pending queue; `--agent codex`) — do not rely on editing the tracked log inside a feature PR
+
 **Approved APS plan ready for autonomous execution:**
 -> `aps-loop` after the user has approved the planning/readiness decision
 
@@ -95,6 +98,56 @@ decide whether to continue, replan, or checkpoint:
 | `needs-plan-update`     | The approved item is stale, too broad, already done, or missing validation | route to `planning-workflow` / `aps-planning`                          |
 | `validation-failed`     | Focused implementation attempts did not make validation pass               | route to `systematic-debugging`, then re-enter implementation or block |
 | `needs-user-checkpoint` | Product, scope, safety, destructive, or irreversible decision required     | stop and ask the user                                                  |
+
+
+## Continuous Improvement Closeout
+
+Mandatory on every non-trivial task before the final response (CIB-191).
+
+**Default write path is the shared pending queue** (not the tracked log), so
+feature PRs never have to carry an "unrelated" log file and notes survive
+worktree cleanup:
+
+```bash
+pnpm ci-log:append -- \
+  --agent codex \
+  --task "..." \
+  --outcome "..." \
+  --worked "..." \
+  --failed "none" \
+  --friction "..." \
+  --improvement "none" \
+  --follow-up "none"
+```
+
+Use `--agent codex` from Codex. Pass a full entry with `--stdin` when preferred.
+Use `--tracked` only on bookkeeping PRs. Harvest with `pnpm ci-log:harvest` on a
+bookkeeping branch. Full guide: `docs/guides/continuous-improvement-log.md`.
+
+Entry shape:
+
+```md
+### YYYY-MM-DD — opencode|claude|codex|other
+
+- **Task:** ...
+- **Outcome:** ...
+- **Worked:** ...
+- **Failed:** ...
+- **Friction:** ...
+- **Improvement:** ...
+- **Follow-up:** none | session:... | promote: CIB | theme:... | owned: ID
+```
+
+Rules:
+
+- `Improvement: none` is valid — do not invent filler.
+- No secrets, tokens, or raw environment dumps.
+- **Do not skip the note because it is unrelated to the PR** — pending is
+  designed to be PR-independent.
+- Promote executable/recurring friction to CIB at triage
+  (`pnpm ci-log:since -- --watermark`), not mid-feature.
+- If the task forbids writes, skip and say so in the final response.
+
 
 ## APS Status Lifecycle
 

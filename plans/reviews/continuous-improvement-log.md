@@ -1,8 +1,42 @@
 # Continuous Improvement Log
 
-This file captures lightweight session learning from agents. It is evidence, not
-a backlog. Promote repeated friction or executable follow-up work to
+This file captures lightweight session learning from agents. It is **evidence**,
+not a backlog. Promote repeated friction or executable follow-up work to
 `plans/modules/continuous-improvement-backlog.aps.md` as `CIB-NNN` items.
+
+## How notes enter this file
+
+**Default (preferred):** write to the shared **pending queue** so feature PRs do
+not have to carry an "unrelated" log change, and so notes survive worktree
+cleanup:
+
+```bash
+pnpm ci-log:append -- --agent opencode --task "..." --outcome "..." \
+  --friction "..." --improvement "..." --follow-up "none"
+# or: pnpm ci-log:append -- --stdin < entry.md
+```
+
+Pending notes live under the git common dir
+(`.git/anvil/ci-log-pending/`, shared across every Worktrunk worktree of this
+clone). They are **not** part of `git status` in the worktree.
+
+**Harvest** pending notes into this tracked file on a bookkeeping branch:
+
+```bash
+pnpm ci-log:status
+pnpm ci-log:harvest
+# commit plans/reviews/continuous-improvement-log.md
+```
+
+**Optional:** `pnpm ci-log:append -- --tracked ...` appends here immediately
+(allowed `merge=union` exception on feature PRs when you intentionally include
+the note). Prefer pending + harvest so single-purpose feature PRs stay clean.
+
+Other commands: `pnpm ci-log:since -- --watermark`,
+`pnpm ci-log:set-watermark -- --today`, `pnpm test:ci-log`.
+
+Full operator guide:
+[`docs/guides/continuous-improvement-log.md`](../../docs/guides/continuous-improvement-log.md).
 
 > **Concurrent writes:** this file is `merge=union` (see `.gitattributes`), so
 > independent appends from parallel agents/worktrees merge automatically — both
@@ -12,12 +46,15 @@ a backlog. Promote repeated friction or executable follow-up work to
 > the merge to stay clean, **always append at the end and leave a blank line
 > after your entry** (and don't start it with a leading blank line), so entries
 > that union together stay separated. Never rewrite or reflow existing entries in
-> the same change as adding one.
+> the same change as adding one. Prefer `pnpm ci-log:append` /
+> `pnpm ci-log:harvest` over hand-editing.
+
+> **Last triaged:** 2026-05-27
 
 ## Template
 
 ```md
-### YYYY-MM-DD — opencode|claude|other
+### YYYY-MM-DD — opencode|claude|codex|other
 
 - **Task:** ...
 - **Outcome:** ...
@@ -25,8 +62,23 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Failed:** ...
 - **Friction:** ...
 - **Improvement:** ...
-- **Follow-up:** ...
+- **Follow-up:** none | session:... | promote: CIB | theme:... | owned: MODULE-NNN
 ```
+
+Follow-up vocabulary:
+
+| Value | Meaning |
+| ----- | ------- |
+| `none` | No durable next step |
+| `session:...` | Dies with the branch/session (do not promote) |
+| `promote: CIB` | Ready for a CIB item at next triage |
+| `theme:...` | Recurring theme tag for clustering |
+| `owned: ID` | Already tracked elsewhere |
+
+Triage cadence: weekly (or when picking NBI / draining CIB). Use
+`pnpm ci-log:since -- --watermark`, disposition each entry as
+**promote** / **absorb** / **leave**, then
+`pnpm ci-log:set-watermark -- --today`.
 
 ## Entries
 
@@ -2170,3 +2222,14 @@ a backlog. Promote repeated friction or executable follow-up work to
   with explicit finding notes and targeted test evidence.
 - **Follow-up:** Continue with another two-finding Rust test cluster before moving
   to TS/tooling clusters.
+
+### 2026-07-12 — other — CIB-191
+
+- **Task:** Implement durable CI-log pending queue, harvest, triage watermark, and skill rewiring
+- **Outcome:** Pending-first closeout tools + guide + all three dev-workflow adapters + triage workflow; root cause was feature PRs omitting tracked log and Claude/Codex skills lacking closeout
+- **Worked:** Shared pending under git common dir; worktree audit confirmed no salvageable orphan entries; tests green
+- **Failed:** none
+- **Friction:** Tracked log appends in worktrees were dropped as unrelated PR files; only OpenCode skill required closeout
+- **Improvement:** Default CI notes to pending; harvest on bookkeeping; require closeout in Claude and Codex skills too
+- **Follow-up:** owned: CIB-191
+

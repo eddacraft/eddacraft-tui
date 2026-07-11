@@ -108,6 +108,32 @@ Authoritative details live in `AGENTS.md`,
 [`docs/guides/branching-strategy.md`](../docs/guides/branching-strategy.md), and
 [`docs/guides/worktree-policy.md`](../docs/guides/worktree-policy.md).
 
+
+
+## Continuous Improvement Log
+
+Session evidence for agent friction and process learning. Full guide:
+[`docs/guides/continuous-improvement-log.md`](../docs/guides/continuous-improvement-log.md).
+
+| Surface | Path | Role |
+| ------- | ---- | ---- |
+| Pending queue | `.git/anvil/ci-log-pending/` (git common dir) | Default agent write target; shared across worktrees; not in feature PRs |
+| Tracked log | `plans/reviews/continuous-improvement-log.md` | Durable evidence on `main` (`merge=union`) |
+| Backlog | `plans/modules/continuous-improvement-backlog.aps.md` | Executable `CIB-NNN` after triage |
+
+Rules:
+
+1. Before the final response on non-trivial work, run `pnpm ci-log:append`
+   (pending by default). `Improvement: none` is valid.
+2. Do **not** skip the note because it is unrelated to the feature PR — pending
+   is PR-independent by design (CIB-191).
+3. Harvest with `pnpm ci-log:harvest` on a bookkeeping branch; commit the tracked
+   log there.
+4. Weekly (or when picking NBI / draining CIB): `pnpm ci-log:since -- --watermark`,
+   promote/absorb/leave, then `pnpm ci-log:set-watermark -- --today`.
+5. Tracked-log edits are an allowed `merge=union` exception when intentionally
+   included; prefer pending + harvest so single-purpose feature PRs stay clean.
+
 ## Single Source of Truth
 
 `plans/index.aps.md` is the canonical index of active modules. Do not create

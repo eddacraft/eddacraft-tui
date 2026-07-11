@@ -92,10 +92,11 @@
 
 ## CIB
 
-| Document                                                                                               | Path                                  | Type    | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------- | ------------- | ----- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                         | `docs/runbooks/admin-cli.md`          | Runbook | Authoritative | CIB   | Live   |
-| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md` | Spec    | Authoritative | CIB   | Live   |
+| Document                                                                                               | Path                                        | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                         | `docs/runbooks/admin-cli.md`                | Runbook | Authoritative | CIB   | Live   |
+| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                          | `docs/guides/continuous-improvement-log.md` | Guide   | Authoritative | CIB   | Live   |
+| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`       | Spec    | Authoritative | CIB   | Live   |
 
 ## CLAR
 

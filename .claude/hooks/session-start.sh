@@ -48,6 +48,17 @@ if [[ -d "$PROJECT_DIR/.git" ]]; then
   printf '  Uncommitted changes: %s\n' "$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 fi
 
+
+# Surface pending continuous-improvement notes (shared across worktrees).
+if [[ -f "$PROJECT_DIR/scripts/ci-log/status.mjs" ]] && command -v node >/dev/null 2>&1; then
+  printf '\nContinuous improvement log:\n'
+  if status_out="$(cd "$PROJECT_DIR" && node scripts/ci-log/status.mjs 2>/dev/null)"; then
+    printf '%s\n' "$status_out" | sed -n 's/^/  /p' | head -n 12
+  else
+    printf '  (ci-log:status unavailable)\n'
+  fi
+fi
+
 printf '\nValidation commands:\n'
 printf '  pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test\n'
 printf '  cargo test --workspace\n'
