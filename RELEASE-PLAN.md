@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Reconciled 2026-07-11: assistant-graph and daemon-usefulness implementation are Merged; [`JOURNEY`](./plans/modules/release-user-journeys.aps.md) now conducts the two remaining release outcomes. The cut requires release evidence for DSV-047..051 plus WOW-005, ACTTUI-009/-010/-012, CIB-073/-183/-184/-190, and three-platform candidate rehearsal. Post-cut enhancements remain visible but non-blocking. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Reconciled 2026-07-11: assistant-graph and daemon-usefulness implementations are Merged; [`JOURNEY`](./plans/modules/release-user-journeys.aps.md) now conducts the two remaining release outcomes. The cut requires release evidence for DSV-047..051 plus WOW-005, ACTTUI-009/-010/-012, CIB-073/-183/-184/-190, and three-platform candidate rehearsal. Post-cut enhancements remain visible but non-blocking. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -43,7 +43,7 @@ nothing else.
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
 - **Active window:** `v0.9.0-beta` (below, **assistant-graph and
-  daemon-usefulness implementation Merged; JOURNEY release cut in progress**).
+  daemon-usefulness implementations Merged; JOURNEY release cut in progress**).
   Direction confirmed by the operator 2026-06-13 — assistant-facing graph
   (ADR-075 deferrals) + bug-fixing, with USAGE added as additive scope. The
   ADR-075 entry decisions landed 2026-06-15 (ADR-083 Accepted + the
@@ -116,7 +116,7 @@ substrate produces a compelling first run and trustworthy daily use.
   engine on the hot path (ADR-061 §6 / ADR-064 invariants hold).
 - ADR-031 latency gate (GV2-025 CI job) stays green — context delivery must not
   regress the save-time budget.
-- If the usefulness addendum is promoted into the `v0.9.0-beta` cut-line:
+- The usefulness addendum is part of the `v0.9.0-beta` cut-line:
   `anvil start --no-mcp` from a worktree must register that worktree and run
   unattended save-time validation with no visible `anvil watch` terminal; a
   later-created worktree must have one obvious registration path; duplicate

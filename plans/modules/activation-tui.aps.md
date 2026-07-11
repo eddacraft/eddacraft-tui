@@ -8,8 +8,8 @@
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
 and WOW-005 release-cut gates, while retaining celebration and richer diagnostics
 as coordinated enhancements. The 2026-07-10 ACTTUI-009..011 implementation
-milestone is active on `feat/acttui-009-consent-wiring`. Consent now binds exact selected
-targets and applies only after explicit submission; the contract matrix includes
+milestone is active on `feat/acttui-009-consent-wiring`. Consent now binds the
+exact selected targets and applies only after explicit submission; the contract matrix includes
 real PTY restoration and all-phase snapshots; verdict/evidence models are built
 from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
 e2e checks pass locally. ACTTUI-012 remains Proposed behind the readiness gate.
