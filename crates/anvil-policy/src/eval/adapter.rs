@@ -475,6 +475,10 @@ mod tests {
         assert!(matches!(err, EvalHarnessError::Contract { .. }));
     }
 
+    // Raw os error 26 is ETXTBSY only on Unix — Windows maps 26 to an
+    // unrelated error, so both the scenario and the ErrorKind assertion are
+    // Unix-shaped (ETXTBSY cannot occur there).
+    #[cfg(unix)]
     #[test]
     fn spawn_retry_gives_up_after_max_retries() {
         // A spawn that *always* fails with ETXTBSY (os error 26) must exhaust

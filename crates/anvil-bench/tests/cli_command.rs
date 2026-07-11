@@ -80,8 +80,10 @@ fn cli_command_runner_times_out_and_records_failure_without_panicking() {
 
 #[test]
 fn cli_command_runner_does_not_invoke_a_shell_for_anvil_args() {
-    let capture = tempfile::NamedTempFile::new().unwrap();
-    let capture_path = capture.path().to_path_buf();
+    // A closed path in a temp dir, not a `NamedTempFile`: holding the capture
+    // open would make the fake's `>` redirect a sharing violation on Windows.
+    let capture_dir = tempfile::tempdir().unwrap();
+    let capture_path = capture_dir.path().join("capture.txt");
     let fake = fake_anvil_capture_script(&capture_path);
     let config = CommandBenchmarkConfig {
         name: "fake-literal".to_owned(),

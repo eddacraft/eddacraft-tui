@@ -41,10 +41,14 @@
 use std::fs;
 #[cfg(unix)]
 use std::io::{Read, Write};
+#[cfg(not(target_os = "windows"))]
 use std::path::Path;
 use std::process::Command;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
+// The start-activation fixture tests are `cfg(not(target_os = "windows"))`,
+// so their helpers carry the same gate.
+#[cfg(not(target_os = "windows"))]
 const START_ACTIVATION_FIXTURES: &str = "tests/fixtures/start-activation";
 
 fn run_start_with_home(
@@ -161,12 +165,14 @@ fn git_only_path_shim(home: &std::path::Path) -> std::path::PathBuf {
     shim
 }
 
+#[cfg(not(target_os = "windows"))]
 fn start_activation_fixture_path(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join(START_ACTIVATION_FIXTURES)
         .join(name)
 }
 
+#[cfg(not(target_os = "windows"))]
 fn normalise_start_activation_output(raw: &str, workdir: &Path, home: &Path) -> String {
     raw.replace(&workdir.display().to_string(), "<WORKTREE>")
         .replace(&home.display().to_string(), "<HOME>")
@@ -183,6 +189,7 @@ fn normalise_start_activation_output(raw: &str, workdir: &Path, home: &Path) -> 
         )
 }
 
+#[cfg(not(target_os = "windows"))]
 fn assert_start_activation_fixture(name: &str, raw: &str, workdir: &Path, home: &Path) {
     let actual = normalise_start_activation_output(raw, workdir, home);
     let path = start_activation_fixture_path(name);

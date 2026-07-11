@@ -396,13 +396,25 @@ fn replace_any_annotation(source: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn temp_file(name: &str, content: &str) -> tempfile::NamedTempFile {
-        let file = tempfile::Builder::new()
-            .prefix(name)
-            .tempfile()
-            .expect("temp file");
-        std::fs::write(file.path(), content).expect("write temp file");
-        file
+    struct TempSource {
+        _dir: tempfile::TempDir,
+        path: std::path::PathBuf,
+    }
+
+    impl TempSource {
+        fn path(&self) -> &std::path::Path {
+            &self.path
+        }
+    }
+
+    // A `NamedTempFile` would keep the destination open, and on Windows the fix
+    // engine's atomic rename-over (`tmp.persist`) cannot replace an open file —
+    // so the harness hands out a closed file inside its own temp dir instead.
+    fn temp_file(name: &str, content: &str) -> TempSource {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join(name);
+        std::fs::write(&path, content).expect("write temp file");
+        TempSource { _dir: dir, path }
     }
 
     #[test]
