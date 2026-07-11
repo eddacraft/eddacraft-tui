@@ -47,7 +47,7 @@ pub fn apply_fix_request(
             file,
             line,
             warning_id,
-        } => apply_line_transform(file, *line, |source| {
+        } => apply_line_transform(Path::new(file), file, *line, None, |source| {
             apply_antipattern_fix(source, warning_id).map_err(|()| {
                 format!("No deterministic auto-fix available for {warning_id} on this line")
             })
@@ -68,14 +68,64 @@ pub fn is_auto_fixable_console_statement(line: &str) -> bool {
     CONSOLE_STATEMENT_RE.is_match(line)
 }
 
-/// WOW-005: compute the exact line change [`apply_fix_request`] would write,
-/// without writing anything. The transform is the same function the apply
-/// path runs, so the previewed diff is byte-for-byte what a consented apply
-/// produces. Returns `None` when no deterministic preview exists (unsupported
-/// request kind, unreadable file, out-of-range line, no transform for the
-/// line) — the caller skips the first-win offer rather than showing a diff it
+/// WOW-005: validate a first-win fix target before reading or writing it.
+///
+/// Fail-closed guard shared by [`preview_fix_request`] and
+/// [`apply_previewed_fix_request`]. The discovery scanner reads through
+/// symlinks, but a consented write must only land on a real file inside the
+/// project root, so this refuses when:
+/// - the target, or any path component at or below the project root, is a
+///   symlink; or
+/// - the canonicalised target resolves outside the canonicalised root
+///   (e.g. `../` traversal or a symlinked directory pointing elsewhere).
+fn guarded_fix_target(file: &str, root: &Path) -> Result<std::path::PathBuf, String> {
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|err| format!("Could not resolve the project root: {err}"))?;
+    let raw = Path::new(file);
+    let joined = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        canonical_root.join(raw)
+    };
+
+    // Refuse symlinks anywhere on the target's path at or below the root.
+    // `canonical_root` itself is symlink-free by construction.
+    let mut probe = joined.clone();
+    loop {
+        if let Ok(meta) = std::fs::symlink_metadata(&probe)
+            && meta.file_type().is_symlink()
+        {
+            return Err(format!(
+                "Refusing to modify {file}: the path contains a symlink"
+            ));
+        }
+        if !probe.pop() || probe == canonical_root || !probe.starts_with(&canonical_root) {
+            break;
+        }
+    }
+
+    let canonical = joined
+        .canonicalize()
+        .map_err(|err| format!("Could not resolve {file}: {err}"))?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err(format!(
+            "Refusing to modify {file}: it resolves outside the project root"
+        ));
+    }
+    Ok(canonical)
+}
+
+/// WOW-005: compute the line change a consented apply would write, without
+/// writing anything. The transform is the same function the apply path runs,
+/// and [`apply_previewed_fix_request`] additionally refuses unless the
+/// on-disk line still matches this preview's `before` text exactly — so what
+/// was shown is the only thing that can ever be written. Returns `None` when
+/// no deterministic preview exists (unsupported request kind, unreadable or
+/// guarded-out target, out-of-range line, no transform for the line) — the
+/// caller falls back to the next candidate rather than showing a diff it
 /// cannot honour.
-pub fn preview_fix_request(request: &FixRequest) -> Option<FixPreview> {
+pub fn preview_fix_request(request: &FixRequest, root: &Path) -> Option<FixPreview> {
     let FixRequest::AntiPatternWarning {
         file,
         line,
@@ -84,7 +134,8 @@ pub fn preview_fix_request(request: &FixRequest) -> Option<FixPreview> {
     else {
         return None;
     };
-    let content = std::fs::read_to_string(Path::new(file)).ok()?;
+    let path = guarded_fix_target(file, root).ok()?;
+    let content = std::fs::read_to_string(&path).ok()?;
     let before = content.lines().nth(line.checked_sub(1)?)?.to_string();
     let after = apply_antipattern_fix(&before, warning_id).ok()?;
     Some(FixPreview {
@@ -94,27 +145,73 @@ pub fn preview_fix_request(request: &FixRequest) -> Option<FixPreview> {
     })
 }
 
+/// WOW-005: apply a fix the user consented to after seeing a preview.
+///
+/// Unlike [`apply_fix_request`], this refuses (writing nothing) unless the
+/// on-disk line still equals `expected_before` — the exact text the consent
+/// screen showed. Without this guard a concurrent edit that still matches the
+/// same anti-pattern would be silently rewritten to content the user never
+/// saw. The target is re-validated through [`guarded_fix_target`] at apply
+/// time (fail closed on symlinks and root escapes).
+pub fn apply_previewed_fix_request(
+    request: &FixRequest,
+    expected_before: &str,
+    root: &Path,
+) -> FixOutcome {
+    let FixRequest::AntiPatternWarning {
+        file,
+        line,
+        warning_id,
+    } = request
+    else {
+        return FixOutcome::Failed {
+            reason: "Unsupported fix request for a previewed apply".to_string(),
+        };
+    };
+    let path = match guarded_fix_target(file, root) {
+        Ok(path) => path,
+        Err(reason) => return FixOutcome::Refused { reason },
+    };
+    apply_line_transform(&path, file, *line, Some(expected_before), |source| {
+        apply_antipattern_fix(source, warning_id).map_err(|()| {
+            format!("No deterministic auto-fix available for {warning_id} on this line")
+        })
+    })
+}
+
 fn apply_line_transform(
-    file: &str,
+    path: &Path,
+    display: &str,
     line: usize,
+    expected_before: Option<&str>,
     transform: impl FnOnce(&str) -> Result<String, String>,
 ) -> FixOutcome {
-    let path = Path::new(file);
     let Ok(content) = std::fs::read_to_string(path) else {
         return FixOutcome::Failed {
-            reason: format!("Failed to read {file}"),
+            reason: format!("Failed to read {display}"),
         };
     };
     let had_trailing_newline = content.ends_with('\n');
     let mut lines: Vec<String> = content.lines().map(ToString::to_string).collect();
     if line == 0 || line > lines.len() {
         return FixOutcome::Refused {
-            reason: format!("Line {line} is out of range for {file}"),
+            reason: format!("Line {line} is out of range for {display}"),
         };
     }
 
     let line_index = line - 1;
     let source = lines[line_index].clone();
+    // TOCTOU guard for previewed applies: the write is only valid for the
+    // exact line the user consented to.
+    if let Some(expected) = expected_before
+        && source != expected
+    {
+        return FixOutcome::Refused {
+            reason: format!(
+                "{display}:{line} changed since the preview was shown; nothing was written"
+            ),
+        };
+    }
     let replacement = match transform(&source) {
         Ok(line) => line,
         Err(reason) => return FixOutcome::Refused { reason },
@@ -123,10 +220,10 @@ fn apply_line_transform(
 
     match write_lines(path, &lines, had_trailing_newline) {
         Ok(()) => FixOutcome::Applied {
-            summary: format!("Applied fix in {file}:{line}"),
+            summary: format!("Applied fix in {display}:{line}"),
         },
         Err(err) => FixOutcome::Failed {
-            reason: format!("Failed to write {file}: {err}"),
+            reason: format!("Failed to write {display}: {err}"),
         },
     }
 }
@@ -167,12 +264,28 @@ fn apply_line_removal(
     }
 }
 
+/// Write the fixed content atomically: a straight truncate-and-write can
+/// leave a half-written source file if the process dies mid-write, so the
+/// content goes to a temporary file in the same directory (same filesystem,
+/// so the rename is atomic) and is renamed over the original, preserving the
+/// original file's permissions.
 fn write_lines(path: &Path, lines: &[String], had_trailing_newline: bool) -> std::io::Result<()> {
+    use std::io::Write as _;
+
     let mut output = lines.join("\n");
     if had_trailing_newline && !output.is_empty() {
         output.push('\n');
     }
-    std::fs::write(path, output)
+    let dir = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(output.as_bytes())?;
+    let permissions = std::fs::metadata(path)?.permissions();
+    tmp.as_file().set_permissions(permissions)?;
+    tmp.persist(path).map_err(|err| err.error)?;
+    Ok(())
 }
 
 fn apply_antipattern_fix(source: &str, warning_id: &str) -> Result<String, ()> {
@@ -355,60 +468,188 @@ mod tests {
         assert!(matches!(outcome, FixOutcome::Refused { .. }));
     }
 
-    // ── WOW-005: preview_fix_request ─────────────────────────────────────
+    // ── WOW-005: preview_fix_request / apply_previewed_fix_request ──────
+
+    /// A project root with one relative source file inside it, mirroring how
+    /// discovery findings carry root-relative paths.
+    fn temp_root(file_name: &str, content: &str) -> (tempfile::TempDir, FixRequest) {
+        let root = tempfile::tempdir().expect("temp root");
+        std::fs::write(root.path().join(file_name), content).expect("write source file");
+        let request = FixRequest::AntiPatternWarning {
+            file: file_name.to_string(),
+            line: 1,
+            warning_id: "AP-003".to_string(),
+        };
+        (root, request)
+    }
 
     #[test]
     fn preview_matches_apply_and_does_not_write() {
-        let path = temp_file("preview.ts", "const a = 1;\nconst value: any = source;\n");
+        let root = tempfile::tempdir().expect("temp root");
+        std::fs::write(
+            root.path().join("preview.ts"),
+            "const a = 1;\nconst value: any = source;\n",
+        )
+        .expect("write source file");
         let request = FixRequest::AntiPatternWarning {
-            file: path.path().to_string_lossy().to_string(),
+            file: "preview.ts".to_string(),
             line: 2,
             warning_id: "AP-003".to_string(),
         };
 
-        let preview = preview_fix_request(&request).expect("preview");
+        let preview = preview_fix_request(&request, root.path()).expect("preview");
         assert_eq!(preview.line, 2);
         assert_eq!(preview.before, "const value: any = source;");
         assert_eq!(preview.after, "const value: unknown = source;");
 
         // Preview must not write: the file is unchanged.
-        let content = std::fs::read_to_string(path.path()).expect("read file");
+        let content = std::fs::read_to_string(root.path().join("preview.ts")).expect("read file");
         assert_eq!(content, "const a = 1;\nconst value: any = source;\n");
 
         // The consented apply writes exactly the previewed line.
-        let outcome = apply_fix_request(&request, None);
+        let outcome = apply_previewed_fix_request(&request, &preview.before, root.path());
         assert!(matches!(outcome, FixOutcome::Applied { .. }));
-        let content = std::fs::read_to_string(path.path()).expect("read updated file");
+        let content =
+            std::fs::read_to_string(root.path().join("preview.ts")).expect("read updated file");
         assert_eq!(content.lines().nth(1), Some(preview.after.as_str()));
     }
 
     #[test]
-    fn preview_none_when_no_deterministic_transform() {
-        let path = temp_file("preview.ts", "const value = source;\n");
+    fn previewed_apply_refuses_when_line_changed_since_preview() {
+        // Council repro: a concurrent edit that still matches the same
+        // anti-pattern must not be silently rewritten under a consent that
+        // was given for different content.
+        let (root, request) = temp_root("app.ts", "const value: any = source;\n");
+        let preview = preview_fix_request(&request, root.path()).expect("preview");
+
+        let mutated = "const totallyDifferent: any = elsewhere;\n";
+        std::fs::write(root.path().join("app.ts"), mutated).expect("mutate file");
+
+        let outcome = apply_previewed_fix_request(&request, &preview.before, root.path());
+        match outcome {
+            FixOutcome::Refused { reason } => {
+                assert!(
+                    reason.contains("changed since the preview"),
+                    "reason must name the drift: {reason}"
+                );
+            }
+            other => panic!("expected Refused, got {other:?}"),
+        }
+        // Nothing was written: the concurrent edit is intact.
+        let content = std::fs::read_to_string(root.path().join("app.ts")).expect("read file");
+        assert_eq!(content, mutated);
+    }
+
+    #[test]
+    fn previewed_apply_writes_when_line_still_matches() {
+        let (root, request) = temp_root("app.ts", "const value: any = source;\n");
+        let preview = preview_fix_request(&request, root.path()).expect("preview");
+        let outcome = apply_previewed_fix_request(&request, &preview.before, root.path());
+        assert!(matches!(outcome, FixOutcome::Applied { .. }));
+        let content = std::fs::read_to_string(root.path().join("app.ts")).expect("read file");
+        assert_eq!(content, "const value: unknown = source;\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preview_and_apply_refuse_symlinked_targets() {
+        // A symlinked file inside the repo pointing outside must never be
+        // offered, and a consented apply must refuse it (fail closed).
+        let outside = tempfile::tempdir().expect("outside dir");
+        let victim = outside.path().join("victim.ts");
+        let original = "const value: any = source;\n";
+        std::fs::write(&victim, original).expect("write victim");
+
+        let root = tempfile::tempdir().expect("root dir");
+        std::os::unix::fs::symlink(&victim, root.path().join("link.ts")).expect("symlink");
         let request = FixRequest::AntiPatternWarning {
-            file: path.path().to_string_lossy().to_string(),
+            file: "link.ts".to_string(),
             line: 1,
             warning_id: "AP-003".to_string(),
         };
-        assert!(preview_fix_request(&request).is_none());
+
+        assert!(preview_fix_request(&request, root.path()).is_none());
+        let outcome =
+            apply_previewed_fix_request(&request, "const value: any = source;", root.path());
+        assert!(matches!(outcome, FixOutcome::Refused { .. }), "{outcome:?}");
+        // The symlink target was never touched.
+        let content = std::fs::read_to_string(&victim).expect("read victim");
+        assert_eq!(content, original);
+    }
+
+    #[test]
+    fn preview_and_apply_refuse_targets_outside_root() {
+        let outside = tempfile::tempdir().expect("outside dir");
+        let victim = outside.path().join("victim.ts");
+        let original = "const value: any = source;\n";
+        std::fs::write(&victim, original).expect("write victim");
+
+        let root = tempfile::tempdir().expect("root dir");
+        for file in [
+            victim.to_string_lossy().to_string(),
+            format!(
+                "../{}/victim.ts",
+                outside.path().file_name().unwrap().to_string_lossy()
+            ),
+        ] {
+            let request = FixRequest::AntiPatternWarning {
+                file,
+                line: 1,
+                warning_id: "AP-003".to_string(),
+            };
+            assert!(preview_fix_request(&request, root.path()).is_none());
+            let outcome =
+                apply_previewed_fix_request(&request, "const value: any = source;", root.path());
+            assert!(matches!(outcome, FixOutcome::Refused { .. }), "{outcome:?}");
+        }
+        let content = std::fs::read_to_string(&victim).expect("read victim");
+        assert_eq!(content, original);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn previewed_apply_preserves_file_permissions() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let (root, request) = temp_root("app.ts", "const value: any = source;\n");
+        let path = root.path().join("app.ts");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("set mode");
+        let preview = preview_fix_request(&request, root.path()).expect("preview");
+        let outcome = apply_previewed_fix_request(&request, &preview.before, root.path());
+        assert!(matches!(outcome, FixOutcome::Applied { .. }));
+        let mode = std::fs::metadata(&path)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "atomic rewrite must preserve permissions");
+    }
+
+    #[test]
+    fn preview_none_when_no_deterministic_transform() {
+        let (root, request) = temp_root("preview.ts", "const value = source;\n");
+        assert!(preview_fix_request(&request, root.path()).is_none());
     }
 
     #[test]
     fn preview_none_for_out_of_range_line() {
-        let path = temp_file("preview.ts", "const value: any = source;\n");
+        let (root, _) = temp_root("preview.ts", "const value: any = source;\n");
         for line in [0, 9] {
             let request = FixRequest::AntiPatternWarning {
-                file: path.path().to_string_lossy().to_string(),
+                file: "preview.ts".to_string(),
                 line,
                 warning_id: "AP-003".to_string(),
             };
-            assert!(preview_fix_request(&request).is_none(), "line {line}");
+            assert!(
+                preview_fix_request(&request, root.path()).is_none(),
+                "line {line}"
+            );
         }
     }
 
     #[test]
     fn preview_none_for_non_antipattern_requests() {
-        assert!(preview_fix_request(&FixRequest::DoctorCheck { index: 0 }).is_none());
+        let root = tempfile::tempdir().expect("temp root");
+        assert!(preview_fix_request(&FixRequest::DoctorCheck { index: 0 }, root.path()).is_none());
     }
 
     #[test]

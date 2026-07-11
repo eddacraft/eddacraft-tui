@@ -29,39 +29,38 @@ use super::first_win_render;
 /// Consent row id for the single first-win fix action.
 pub const FIRST_WIN_CONSENT_ID: &str = "first-win-fix";
 
-/// Deterministically select the highest-value actionable real finding.
+/// Actionable first-win candidates, best first.
 ///
 /// Rules (pinned by tests):
-/// - Showcase results are never candidates — example findings must never be
+/// - Showcase results yield no candidates — example findings must never be
 ///   presented as local truth (CIB-170).
 /// - Actionable means the finding carries a deterministic auto-fix
 ///   ([`Finding::fix_request`] returns `Some`).
-/// - Highest value: severity descending, tie-broken by file ascending, then
-///   line ascending, then title ascending — the same total order the
-///   discovery list renders in, so the selected finding is the first
-///   actionable row the user just saw. The comparison is explicit (not
-///   first-in-input-order) so selection is independent of input ordering.
+/// - Order is exactly [`ScanResults::sorted_findings`] — the stable
+///   severity-descending sort the discovery list renders, which preserves
+///   scan emission order on severity ties — filtered to actionable rows.
+///   The first candidate is therefore literally the top actionable row the
+///   user just saw on the discovery screen. Determinism comes from the
+///   scanner's deterministic finding order for identical scan input.
+///
+/// The caller offers the first candidate whose diff preview is computable
+/// and falls back to the next when a preview is transiently unavailable.
 #[must_use]
-pub fn first_win_candidate(results: &ScanResults) -> Option<&Finding> {
+pub fn first_win_candidates(results: &ScanResults) -> Vec<&Finding> {
     if results.is_showcase {
-        return None;
+        return Vec::new();
     }
     results
-        .findings
-        .iter()
+        .sorted_findings()
+        .into_iter()
         .filter(|f| f.fix_request().is_some())
-        .min_by(|a, b| {
-            b.severity
-                .cmp(&a.severity)
-                .then_with(|| a.file.cmp(&b.file))
-                .then_with(|| a.line.cmp(&b.line))
-                .then_with(|| a.title.cmp(&b.title))
-        })
+        .collect()
 }
 
 /// The exact line change the consented fix would write, computed by the CLI
-/// from the same deterministic transform that performs the write — so the
-/// diff shown is byte-for-byte what apply produces.
+/// from the same deterministic transform that performs the write; the apply
+/// path refuses unless the on-disk line still matches `before` exactly, so
+/// the diff shown is the only change that can be written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixPreview {
     /// 1-based line number of the change.
@@ -317,10 +316,10 @@ mod tests {
         )
     }
 
-    // ── first_win_candidate: selection + tie-breaking ────────────────────
+    // ── first_win_candidates: selection order ────────────────────────────
 
     #[test]
-    fn candidate_prefers_actionable_over_higher_severity_unfixable() {
+    fn candidates_skip_unfixable_rows_regardless_of_severity() {
         let r = results(vec![
             non_actionable(FindingSeverity::Error, "src/a.rs"),
             actionable(
@@ -331,60 +330,68 @@ mod tests {
                 "AP-003",
             ),
         ]);
-        let candidate = first_win_candidate(&r).expect("candidate");
-        assert_eq!(candidate.file, "src/b.ts");
+        let candidates = first_win_candidates(&r);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].file, "src/b.ts");
     }
 
     #[test]
-    fn candidate_picks_highest_severity_among_actionable() {
+    fn first_candidate_is_highest_severity_among_actionable() {
         let r = results(vec![
             actionable(FindingSeverity::Info, "src/a.ts", 1, "info", "AP-001"),
             actionable(FindingSeverity::Error, "src/z.ts", 9, "error", "AP-004"),
             actionable(FindingSeverity::Warning, "src/b.ts", 2, "warn", "AP-003"),
         ]);
-        let candidate = first_win_candidate(&r).expect("candidate");
-        assert_eq!(candidate.severity, FindingSeverity::Error);
-        assert_eq!(candidate.file, "src/z.ts");
+        let candidates = first_win_candidates(&r);
+        assert_eq!(candidates[0].severity, FindingSeverity::Error);
+        assert_eq!(candidates[0].file, "src/z.ts");
     }
 
     #[test]
-    fn candidate_tie_breaks_by_file_then_line_then_title() {
-        // Same severity: lexicographically smallest file wins.
+    fn candidates_follow_discovery_render_order_on_severity_ties() {
+        // sorted_findings() is a stable severity-descending sort: severity
+        // ties keep scan emission order, which is exactly the order the
+        // discovery list rendered. The offer must be the top actionable row
+        // the user just saw — NOT a re-sort by file/line/title.
         let r = results(vec![
-            actionable(FindingSeverity::Warning, "src/b.ts", 1, "t", "AP-003"),
-            actionable(FindingSeverity::Warning, "src/a.ts", 9, "t", "AP-003"),
-        ]);
-        assert_eq!(first_win_candidate(&r).expect("candidate").file, "src/a.ts");
-
-        // Same severity + file: lowest line wins.
-        let r = results(vec![
-            actionable(FindingSeverity::Warning, "src/a.ts", 9, "t", "AP-003"),
-            actionable(FindingSeverity::Warning, "src/a.ts", 2, "t", "AP-003"),
-        ]);
-        assert_eq!(first_win_candidate(&r).expect("candidate").line, Some(2));
-
-        // Same severity + file + line: lexicographically smallest title wins.
-        let r = results(vec![
-            actionable(FindingSeverity::Warning, "src/a.ts", 2, "beta", "AP-003"),
+            actionable(FindingSeverity::Warning, "src/z.ts", 9, "zeta", "AP-003"),
             actionable(FindingSeverity::Warning, "src/a.ts", 2, "alpha", "AP-003"),
         ]);
-        assert_eq!(first_win_candidate(&r).expect("candidate").title, "alpha");
-    }
-
-    #[test]
-    fn candidate_is_independent_of_input_order() {
-        let a = actionable(FindingSeverity::Warning, "src/a.ts", 2, "t", "AP-003");
-        let b = actionable(FindingSeverity::Error, "src/z.ts", 9, "t", "AP-004");
-        let forward = results(vec![a.clone(), b.clone()]);
-        let reversed = results(vec![b, a]);
+        let candidates = first_win_candidates(&r);
         assert_eq!(
-            first_win_candidate(&forward).expect("candidate").file,
-            first_win_candidate(&reversed).expect("candidate").file,
+            candidates[0].file, "src/z.ts",
+            "first candidate must be the first rendered actionable row"
         );
+        assert_eq!(candidates[1].file, "src/a.ts");
     }
 
     #[test]
-    fn candidate_none_for_showcase_results() {
+    fn candidates_match_sorted_findings_actionable_rows() {
+        // The candidate list is exactly the discovery list (sorted_findings
+        // order) filtered to actionable rows — nothing reordered, nothing
+        // skipped.
+        let r = results(vec![
+            actionable(FindingSeverity::Warning, "src/b.ts", 4, "w1", "AP-003"),
+            non_actionable(FindingSeverity::Error, "src/secret.rs"),
+            actionable(FindingSeverity::Error, "src/z.ts", 9, "e1", "AP-004"),
+            actionable(FindingSeverity::Info, "src/c.ts", 1, "i1", "AP-001"),
+        ]);
+        let expected: Vec<String> = r
+            .sorted_findings()
+            .into_iter()
+            .filter(|f| f.fix_request().is_some())
+            .map(|f| f.file.clone())
+            .collect();
+        let actual: Vec<String> = first_win_candidates(&r)
+            .into_iter()
+            .map(|f| f.file.clone())
+            .collect();
+        assert_eq!(actual, expected);
+        assert_eq!(actual, ["src/z.ts", "src/b.ts", "src/c.ts"]);
+    }
+
+    #[test]
+    fn candidates_empty_for_showcase_results() {
         // CIB-170: example findings must never be offered as a local win.
         let mut r = results(vec![actionable(
             FindingSeverity::Error,
@@ -394,18 +401,18 @@ mod tests {
             "AP-003",
         )]);
         r.is_showcase = true;
-        assert!(first_win_candidate(&r).is_none());
+        assert!(first_win_candidates(&r).is_empty());
     }
 
     #[test]
-    fn candidate_none_when_nothing_actionable() {
+    fn candidates_empty_when_nothing_actionable() {
         let r = results(vec![non_actionable(FindingSeverity::Error, "src/a.rs")]);
-        assert!(first_win_candidate(&r).is_none());
+        assert!(first_win_candidates(&r).is_empty());
     }
 
     #[test]
-    fn candidate_none_for_empty_results() {
-        assert!(first_win_candidate(&results(vec![])).is_none());
+    fn candidates_empty_for_empty_results() {
+        assert!(first_win_candidates(&results(vec![])).is_empty());
     }
 
     // ── Offer phase: consent boundary ────────────────────────────────────

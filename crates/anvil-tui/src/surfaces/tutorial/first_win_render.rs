@@ -87,11 +87,14 @@ fn render_offer(frame: &mut Frame, area: Rect, offer: &FirstWinOffer, theme: &Ed
         return;
     }
 
+    // The explanation and diff share one wrapped paragraph sized by a `Min`
+    // constraint so real guidance text (the shipped anti-pattern suggestions
+    // run to ~1.5k characters across ~30 authored lines) is neither clipped
+    // by a fixed-height chunk nor collapsed into run-on words; the consent
+    // chrome keeps a fixed footprint at the bottom.
     let chunks = Layout::vertical([
-        Constraint::Length(5), // headline + location + why it matters
-        Constraint::Length(1), // separator
-        Constraint::Length(4), // proposed diff
-        Constraint::Min(8),    // shared ACTTUI consent chrome
+        Constraint::Min(1),    // explanation + proposed diff, wrapped
+        Constraint::Length(9), // shared ACTTUI consent chrome
     ])
     .split(inner);
 
@@ -101,7 +104,8 @@ fn render_offer(frame: &mut Frame, area: Rect, offer: &FirstWinOffer, theme: &Ed
         Some(line) => format!("{}:{line}", offer.finding.file),
         None => offer.finding.file.clone(),
     };
-    let header = vec![
+    let body_style = Style::default().fg(theme.fg());
+    let mut lines = vec![
         Line::from(vec![
             Span::styled(badge_text, badge_style),
             Span::raw(" "),
@@ -112,55 +116,53 @@ fn render_offer(frame: &mut Frame, area: Rect, offer: &FirstWinOffer, theme: &Ed
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw("  "),
-            Span::styled(&offer.finding.title, Style::default().fg(theme.fg())),
+            Span::styled(&offer.finding.title, body_style),
         ]),
         Line::default(),
-        Line::from(vec![
-            Span::styled("Why it matters: ", Style::default().fg(theme.muted())),
-            Span::styled(&offer.finding.message, Style::default().fg(theme.fg())),
-        ]),
-        Line::from(Span::styled(
-            &offer.finding.suggestion,
-            Style::default().fg(theme.fg()),
-        )),
     ];
+    // Authored newlines in the message and suggestion are paragraph and list
+    // structure — preserve them as separate lines instead of flattening them
+    // into one run-on string (which loses the breaks entirely once rendered).
+    let mut message_lines = offer.finding.message.split('\n');
+    lines.push(Line::from(vec![
+        Span::styled("Why it matters: ", Style::default().fg(theme.muted())),
+        Span::styled(message_lines.next().unwrap_or_default(), body_style),
+    ]));
+    for message_line in message_lines {
+        lines.push(Line::from(Span::styled(message_line, body_style)));
+    }
+    for suggestion_line in offer.finding.suggestion.split('\n') {
+        lines.push(Line::from(Span::styled(suggestion_line, body_style)));
+    }
+
+    // ── Proposed diff — shown before any write ───────────────────────────
+    lines.push(Line::from(Span::styled(
+        "\u{2500}".repeat(chunks[0].width as usize),
+        Style::default().fg(theme.muted()),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!(
+            "Proposed change \u{2014} line {} (nothing is written without your consent):",
+            offer.preview.line
+        ),
+        Style::default().fg(theme.muted()),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("- {}", offer.preview.before),
+        Style::default().fg(theme.error()),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("+ {}", offer.preview.after),
+        Style::default().fg(theme.success()),
+    )));
+
     frame.render_widget(
-        Paragraph::new(Text::from(header)).wrap(Wrap { trim: false }),
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
         chunks[0],
     );
 
-    // ── Separator ────────────────────────────────────────────────────────
-    let sep = "\u{2500}".repeat(chunks[1].width as usize);
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            sep,
-            Style::default().fg(theme.muted()),
-        ))),
-        chunks[1],
-    );
-
-    // ── Proposed diff — shown before any write ───────────────────────────
-    let diff = vec![
-        Line::from(Span::styled(
-            format!(
-                "Proposed change \u{2014} line {} (nothing is written without your consent):",
-                offer.preview.line
-            ),
-            Style::default().fg(theme.muted()),
-        )),
-        Line::from(Span::styled(
-            format!("- {}", offer.preview.before),
-            Style::default().fg(theme.error()),
-        )),
-        Line::from(Span::styled(
-            format!("+ {}", offer.preview.after),
-            Style::default().fg(theme.success()),
-        )),
-    ];
-    frame.render_widget(Paragraph::new(Text::from(diff)), chunks[2]);
-
     // ── Consent — shared ACTTUI chrome, unticked by default ─────────────
-    consent::render(frame, chunks[3], &offer.consent, theme);
+    consent::render(frame, chunks[1], &offer.consent, theme);
 }
 
 fn render_done(
@@ -227,7 +229,11 @@ mod tests {
     use crate::surface::Surface;
 
     fn draw(state: &FirstWinState) -> String {
-        let backend = TestBackend::new(100, 30);
+        draw_sized(state, 100, 30)
+    }
+
+    fn draw_sized(state: &FirstWinState, width: u16, height: u16) -> String {
+        let backend = TestBackend::new(width, height);
         let mut terminal = Terminal::new(backend).unwrap();
         let theme = EddaCraftTheme;
         terminal
@@ -286,6 +292,51 @@ mod tests {
         assert!(
             out.contains("[ ] Apply this fix to src/app.ts:3"),
             "rendered: {out}"
+        );
+    }
+
+    #[test]
+    fn offer_preserves_suggestion_line_breaks() {
+        // Authored newlines are paragraph/list structure: flattening them
+        // produced run-on words ("shortcutfor"). Each authored line must
+        // start on its own rendered row.
+        let mut state = offer_state(false);
+        state.offer.as_mut().expect("offer").finding.suggestion =
+            "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape."
+                .to_string();
+        let out = draw(&state);
+        assert!(!out.contains("shortcutfor"), "rendered: {out}");
+        assert!(
+            out.contains("as a shortcut"),
+            "first authored line must be visible: {out}"
+        );
+        assert!(
+            out.contains("for \"I don't want to deal with types right now.\""),
+            "second authored line must be visible on its own row: {out}"
+        );
+        assert!(
+            out.contains("1. **For API responses:**"),
+            "list structure must survive: {out}"
+        );
+    }
+
+    #[test]
+    fn offer_wraps_long_diff_lines_instead_of_clipping() {
+        let mut state = offer_state(false);
+        let long_tail = "WRAPPED_DIFF_TAIL_MARKER";
+        let before = format!(
+            "const value: any = veryLongExpression({}); // {long_tail}",
+            "argument, ".repeat(12)
+        );
+        {
+            let offer = state.offer.as_mut().expect("offer");
+            offer.preview.before = before.clone();
+            offer.preview.after = before.replace(": any", ": unknown");
+        }
+        let out = draw(&state);
+        assert!(
+            out.contains(long_tail),
+            "long diff lines must wrap, not clip: {out}"
         );
     }
 

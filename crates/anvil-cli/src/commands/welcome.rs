@@ -71,34 +71,65 @@ enum FirstWinFlow {
 /// WOW-005: build the first-win surface state for the discovery results, or
 /// `None` when the flow should land on the path picker exactly as before.
 ///
-/// - A real actionable finding with a previewable deterministic fix produces
-///   the offer surface (`first_win_candidate` pins selection determinism).
+/// - Candidates come from `first_win_candidates` in discovery render order
+///   (the stable severity-descending sort the user just saw); the first
+///   candidate whose deterministic fix preview is computable is offered.
+///   A transiently unpreviewable candidate (e.g. unreadable file) falls back
+///   to the next one instead of dropping the whole first win.
 /// - Showcase-substituted results from a scan that actually ran mean the
 ///   repository is clean — state that honestly instead of presenting example
 ///   findings as a local win (CIB-170). A showcase fallback with zero files
 ///   scanned is a scan *failure*, not a clean result, so no claim is made.
-/// - Everything else (nothing actionable, preview unavailable, skipped scan)
+/// - Everything else (nothing actionable or previewable, skipped scan)
 ///   lands on the picker unchanged.
 fn build_first_win_state(
     results: &anvil_tui::surfaces::tutorial::discovery::ScanResults,
     project_writes_gated: bool,
     preview: impl Fn(&FixRequest) -> Option<anvil_tui::surfaces::tutorial::first_win::FixPreview>,
 ) -> Option<anvil_tui::surfaces::tutorial::first_win::FirstWinState> {
-    use anvil_tui::surfaces::tutorial::first_win::{FirstWinState, first_win_candidate};
+    use anvil_tui::surfaces::tutorial::first_win::{FirstWinState, first_win_candidates};
 
-    if let Some(finding) = first_win_candidate(results) {
-        let request = finding.fix_request()?;
-        let preview = preview(&request)?;
-        return Some(FirstWinState::offer(
-            finding.clone(),
-            preview,
-            project_writes_gated,
-        ));
+    let candidates = first_win_candidates(results);
+    for finding in candidates {
+        let Some(request) = finding.fix_request() else {
+            continue;
+        };
+        if let Some(preview) = preview(&request) {
+            return Some(FirstWinState::offer(
+                finding.clone(),
+                preview,
+                project_writes_gated,
+            ));
+        }
     }
     if results.is_showcase && results.files_scanned > 0 {
         return Some(FirstWinState::clean(results.files_scanned));
     }
     None
+}
+
+/// WOW-005: fold a consented apply's outcome back into the reroute state.
+///
+/// Applied prunes the fixed finding from the session scan results so the
+/// WOW-003 picker counts and the WOW-004 completion baseline reflect
+/// post-fix reality; Refused/Failed leave the results untouched and surface
+/// the reason honestly. Split out of the surface loop so the outcome
+/// bookkeeping is directly testable.
+fn handle_apply_outcome(
+    outcome: FixOutcome,
+    request: &FixRequest,
+    results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
+    state: &mut anvil_tui::surfaces::tutorial::first_win::FirstWinState,
+) {
+    match outcome {
+        FixOutcome::Applied { summary } => {
+            remove_fixed_finding(results, request);
+            state.mark_outcome(true, summary);
+        }
+        FixOutcome::Refused { reason } | FixOutcome::Failed { reason } => {
+            state.mark_outcome(false, reason);
+        }
+    }
 }
 
 /// WOW-005: run the first-win reroute between discovery and the tutorial
@@ -113,34 +144,36 @@ fn run_first_win_reroute(
     theme: &EddaCraftTheme,
     results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
 ) -> anyhow::Result<FirstWinFlow> {
+    use crate::services::interactive_fix::{apply_previewed_fix_request, preview_fix_request};
+
+    // The scan roots findings at the process cwd (`scan_project`), so the
+    // preview/apply containment guard uses the same root.
+    let root = std::env::current_dir()?;
     let project_writes_gated = crate::install_root::project_writes_gated();
-    let Some(mut state) = build_first_win_state(
-        results,
-        project_writes_gated,
-        crate::services::interactive_fix::preview_fix_request,
-    ) else {
+    let Some(mut state) = build_first_win_state(results, project_writes_gated, |request| {
+        preview_fix_request(request, &root)
+    }) else {
         return Ok(FirstWinFlow::Continue);
     };
 
     loop {
-        let exit = crate::tui::run_surface_in(terminal, &mut state, theme)?;
+        crate::tui::run_surface_in(terminal, &mut state, theme)?;
 
         if let Some(request) = state.take_pending_apply() {
-            // The apply path re-validates the line and refuses honestly if
-            // the file changed since the preview was shown.
-            match apply_fix_request(&request, None) {
-                FixOutcome::Applied { summary } => {
-                    remove_fixed_finding(results, &request);
-                    state.mark_outcome(true, summary);
-                }
-                FixOutcome::Refused { reason } | FixOutcome::Failed { reason } => {
-                    state.mark_outcome(false, reason);
-                }
-            }
+            // The apply refuses — writing nothing — unless the on-disk line
+            // still matches the previewed text exactly (TOCTOU guard), so the
+            // diff the user consented to is the only change that can land.
+            let outcome = match state.offer.as_ref() {
+                Some(offer) => apply_previewed_fix_request(&request, &offer.preview.before, &root),
+                None => FixOutcome::Failed {
+                    reason: "No previewed fix to apply".to_string(),
+                },
+            };
+            handle_apply_outcome(outcome, &request, results, &mut state);
             continue;
         }
 
-        if state.wants_continue || state.declined || exit == SurfaceExit::Back {
+        if state.wants_continue || state.declined {
             return Ok(FirstWinFlow::Continue);
         }
         return Ok(FirstWinFlow::Quit);
@@ -1772,6 +1805,151 @@ mod tests {
             // zero files scanned: no findings, no clean claim.
             let r = results(vec![], false, 0);
             assert!(build_first_win_state(&r, false, some_preview).is_none());
+        }
+
+        #[test]
+        fn unpreviewable_top_candidate_falls_back_to_the_next() {
+            // A transiently unreadable top candidate must not drop the whole
+            // first win — the next actionable row in discovery order is
+            // offered instead.
+            let mut second = actionable_finding();
+            second.file = "src/second.ts".to_string();
+            let r = results(vec![actionable_finding(), second], false, 10);
+            let state = build_first_win_state(&r, false, |request| match request {
+                anvil_tui::surfaces::fix_request::FixRequest::AntiPatternWarning {
+                    file, ..
+                } if file == "src/second.ts" => some_preview(request),
+                _ => None,
+            })
+            .expect("fallback offer");
+            assert_eq!(
+                state.offer.as_ref().expect("offer").finding.file,
+                "src/second.ts"
+            );
+        }
+
+        // ── handle_apply_outcome bookkeeping ─────────────────────────────
+
+        use super::super::handle_apply_outcome;
+        use crate::services::interactive_fix::FixOutcome;
+        use anvil_tui::surfaces::tutorial::first_win::FirstWinState;
+
+        fn offer_state_for(finding: Finding) -> FirstWinState {
+            FirstWinState::offer(
+                finding,
+                FixPreview {
+                    line: 3,
+                    before: "const value: any = source;".to_string(),
+                    after: "const value: unknown = source;".to_string(),
+                },
+                false,
+            )
+        }
+
+        #[test]
+        fn applied_outcome_prunes_exactly_the_matching_finding() {
+            let fixed = actionable_finding();
+            let mut untouched = actionable_finding();
+            untouched.line = Some(9); // same file, different line — must survive
+            let mut r = results(vec![fixed.clone(), untouched], false, 10);
+            let mut state = offer_state_for(fixed.clone());
+            let request = fixed.fix_request().expect("request");
+
+            handle_apply_outcome(
+                FixOutcome::Applied {
+                    summary: "Applied fix in src/app.ts:3".to_string(),
+                },
+                &request,
+                &mut r,
+                &mut state,
+            );
+
+            // WOW-003/WOW-004 count integrity: only the fixed finding is gone.
+            assert_eq!(r.findings.len(), 1);
+            assert_eq!(r.findings[0].line, Some(9));
+            assert!(matches!(
+                state.phase,
+                FirstWinPhase::Done { applied: true, .. }
+            ));
+        }
+
+        #[test]
+        fn refused_and_failed_outcomes_leave_results_untouched() {
+            let finding = actionable_finding();
+            let request = finding.fix_request().expect("request");
+            for outcome in [
+                FixOutcome::Refused {
+                    reason: "changed since the preview".to_string(),
+                },
+                FixOutcome::Failed {
+                    reason: "failed to write".to_string(),
+                },
+            ] {
+                let mut r = results(vec![finding.clone()], false, 10);
+                let mut state = offer_state_for(finding.clone());
+                handle_apply_outcome(outcome, &request, &mut r, &mut state);
+                assert_eq!(r.findings.len(), 1, "results must be untouched");
+                match &state.phase {
+                    FirstWinPhase::Done { applied, message } => {
+                        assert!(!applied);
+                        assert!(!message.is_empty());
+                    }
+                    other => panic!("expected Done, got {other:?}"),
+                }
+            }
+        }
+
+        // ── Real registry guidance renders in full ────────────────────────
+
+        #[test]
+        fn offer_renders_full_real_ap003_guidance() {
+            // Council repro: the shipped AP-003 suggestion is ~1.5k chars
+            // across ~30 authored lines; the offer must show it in full with
+            // the authored line structure intact (no fixed-height clipping,
+            // no newline-collapsed run-on words).
+            use anvil_tui::surface::Surface as _;
+            use ratatui::Terminal;
+            use ratatui::backend::TestBackend;
+
+            let pattern = anvil_checks::antipattern::patterns::get_pattern("AP-003")
+                .expect("AP-003 pattern in the compiled registry");
+            let mut finding = actionable_finding();
+            finding.message = pattern.explanation.clone();
+            finding.suggestion = pattern.suggestion.clone();
+            let state = offer_state_for(finding);
+
+            let backend = TestBackend::new(110, 72);
+            let mut terminal = Terminal::new(backend).unwrap();
+            let theme = eddacraft_tui::theme::EddaCraftTheme;
+            terminal
+                .draw(|frame| state.render(frame, frame.area(), &theme))
+                .unwrap();
+            let buf = terminal.backend().buffer();
+            let area = buf.area;
+            let mut out = String::new();
+            for y in area.y..area.y + area.height {
+                for x in area.x..area.x + area.width {
+                    out.push_str(buf[(x, y)].symbol());
+                }
+                out.push('\n');
+            }
+
+            // Every authored guidance line is visible verbatim on its own
+            // row (registry lines are pre-wrapped well under the test width).
+            for line in pattern.suggestion.lines() {
+                let line = line.trim_end();
+                if line.is_empty() {
+                    continue;
+                }
+                assert!(
+                    out.contains(line),
+                    "authored guidance line must be visible: {line:?}\nrendered:\n{out}"
+                );
+            }
+            // The reproduced newline-collapse mangle must not occur.
+            assert!(!out.contains("shortcutfor"), "rendered:\n{out}");
+            // The consent chrome is still on screen below the guidance.
+            assert!(out.contains("[ ] Apply this fix to"), "rendered:\n{out}");
         }
     }
 
