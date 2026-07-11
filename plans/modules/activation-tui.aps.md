@@ -4,8 +4,11 @@
 | ------ | ----- | ------ | -------- |
 | ACTTUI | Josh  | In Progress | 2/13      |
 
-**Last reviewed:** 2026-07-10 — ACTTUI-009..011 implementation milestone
-is active on `feat/acttui-009-consent-wiring`. Consent now binds exact selected
+**Last reviewed:** 2026-07-11 — the operator-approved
+[`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
+and WOW-005 release-cut gates, while retaining celebration and richer diagnostics
+as coordinated enhancements. The 2026-07-10 ACTTUI-009..011 implementation
+milestone is active on `feat/acttui-009-consent-wiring`. Consent now binds exact selected
 targets and applies only after explicit submission; the contract matrix includes
 real PTY restoration and all-phase snapshots; verdict/evidence models are built
 from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
@@ -51,8 +54,8 @@ implementation order within that cohort, not across releases.
 | Phase | Scope | Rationale |
 | ----- | ----- | --------- |
 | **A — Foundation** | ACTTUI-000, 001, 002 + shared widget extract | ADR, fixtures, orchestrator events, and shared `HelpBar`/`Select` chrome used by both surfaces |
-| **B — Parallel surfaces** | ACTTUI-003..005 ∥ ACTTUI-008 ∥ WOW-001..004 | Start activation phases and welcome uplift on separate files; converge visually in the same train |
-| **C — Ship gate** | ACTTUI-006 ∥ ACTTUI-007 | Contracts, PTY matrix, TTY-default flip only when **both** surfaces pass |
+| **B — Parallel surfaces** | ACTTUI-003..005 ∥ ACTTUI-008 ∥ WOW-001..005 | Start activation phases and welcome uplift on separate files; converge visually in the same train |
+| **C — Ship gate** | ACTTUI-009 → ACTTUI-010 → ACTTUI-012 ∥ WOW-005 | Working consent, executable contract matrix, default-path polish, and repository-specific first win all pass |
 
 Welcome tutorial narrative uplift stays in
 [`first-run-wow.aps.md`](./first-run-wow.aps.md) (WOW-001..006). ACTTUI-008
@@ -128,6 +131,7 @@ tutorial story changes (WOW owns narrative).
 | ADTRUST-006 | First-run recipe moves in-surface; compact plain fallback retains a one-line "run `anvil status`" next step |
 | TUIN / eddacraft-tui | Enable `big-text` on `anvil-tui`; consider promoting `Tree`/`ParallelProgress` to `stable` if activation depends on them |
 | DSV-046..051 | Daemon attestation copy in `LogPanel`; no change to attestation rules |
+| JOURNEY | Release conductor; ACTTUI-009/-010/-012 are cut gates, while ACTTUI-005 celebration and -006/-011 diagnostic depth remain coordinated enhancements |
 
 ## Work Items
 
@@ -468,8 +472,8 @@ Phase A (foundation — serial):
 
 Phase B (surfaces — parallel after 002):
   Start track:    ACTTUI-003 → 004 → 005
-  Welcome track:  ACTTUI-008 ∥ WOW-001 → 002 → 003 → 004
-  (WOW-005/006 remain Draft — out of this release cohort unless design gates close)
+  Welcome track:  ACTTUI-008 ∥ WOW-001 → 002 → 003 → 004 → 005
+  (WOW-006 remains Proposed as JOURNEY-007 post-cut expansion)
 
 Phase C (ship gate — both surfaces must be green):
   ACTTUI-007 ∥ ACTTUI-006
@@ -481,9 +485,11 @@ Review remediation (post council-d4c804e6):
   ACTTUI-012 blocks only the default flip
 ```
 
-**Release blocker:** ACTTUI-008 + WOW-001..004 complete, not optional for the
-cohort release. ACTTUI-006 (LogPanel / json_render) remains deferrable within
-the cohort if schedule bites.
+**Release blocker (JOURNEY conductor, 2026-07-11):** ACTTUI-009 → ACTTUI-010 →
+ACTTUI-012, plus WOW-005 and the JOURNEY candidate rehearsal. ACTTUI-006
+(LogPanel / json_render) and ACTTUI-011 typed diagnostic depth remain coordinated
+enhancements; they do not block the cut unless required to close a correctness
+defect found by the contract matrix.
 
 ACTTUI-000 is complete; ACTTUI-001 is In Progress (scaffold + opt-in dispatch on `feat/acttui-001-scaffold`). ACTTUI-002 (orchestrator progress events) is the next serial foundation item.
 

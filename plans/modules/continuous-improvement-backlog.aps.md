@@ -1940,7 +1940,8 @@ archive.
 
 ### CIB-073: cumulative "value caught" scoreboard and shareable scorecard
 
-- **Status:** Draft
+- **Status:** Proposed — promoted into the JOURNEY release cut on 2026-07-11;
+  privacy/redaction contract remains the readiness gate
 - **Intent:** Anvil has no surface that answers "what has Anvil saved me?" —
   `anvil insights` reports a rolling 7-day window (witness events, saves,
   findings, suppressions) plus a Unicode sparkline, but there is no cumulative
@@ -1964,8 +1965,10 @@ archive.
 - **Identified From:** demo-readiness review 2026-06-14 (beta waitlist +
   fundraise) — `docs/strategy/beta-demo-script.md`; gap: no cumulative or
   shareable value surface.
-- **Coordinates with:** witness-chain / provenance surface; CIB-074 (the
-  human-readable audit report shares the redaction + rendering concern).
+- **Coordinates with:** JOURNEY-004; witness-chain / provenance surface;
+  CIB-074 (the human-readable audit report shares the redaction + rendering
+  concern); CIB-190 (healthy repeat-start value line consumes only trustworthy
+  local aggregates).
 - **Confidence:** high — additive surface over data Anvil already records;
   the only real care item is leak-safe redaction in the shareable artifact.
 
@@ -4824,3 +4827,28 @@ archive.
   atomic-write utilities, Windows reparse-point handling.
 - **Confidence:** medium — security boundary is clear; portable implementation
   needs a dedicated design pass.
+
+### CIB-190: Healthy repeat-start local value receipt
+
+- **Status:** Proposed
+- **Intent:** Let a healthy repeat `anvil start` answer both "am I protected?"
+  and, when reliable local evidence exists, "what has Anvil done?" without
+  turning the confidence check back into onboarding noise.
+- **Expected Outcome:** After CIB-183 collapses healthy repeat output, the result
+  may include one bounded local value line sourced from trustworthy insights or
+  witness aggregates (for example recent saves checked or findings caught).
+  Missing, stale, ambiguous, or zero-filled evidence is omitted; the aggregate
+  does not delay activation, leak repository details, or appear on repair paths
+  where the recovery action must remain primary. TUI and compact plain paths use
+  the same typed value, while JSON/verify contracts change only through an
+  explicitly versioned owning schema.
+- **Validation:** `cargo test -p eddacraft-anvil start`; `cargo test -p
+  eddacraft-anvil insights`; fixtures cover healthy evidence, absent evidence,
+  stale evidence, repair state, and redaction; repeat-start timing remains within
+  the existing activation budget.
+- **Identified From:** 2026-07-11 release user-journey review and accepted
+  [`JOURNEY` conductor design](../specs/2026-07-11-release-user-journeys-conductor.md).
+- **Coordinates with:** JOURNEY-003, CIB-183, CIB-073, INSIGHTS-001..005,
+  ACTTUI-010.
+- **Confidence:** medium — local evidence exists, but the owning aggregate must
+  prove it is non-zero-filled and cheap before the line can render.

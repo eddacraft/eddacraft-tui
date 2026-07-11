@@ -4,17 +4,17 @@
 | --- | ----- | ----------- | -------- |
 | WOW | Josh  | In Progress | 4/6      |
 
-**Last reviewed:** 2026-07-08 — module created via planning-workflow from the
+**Last reviewed:** 2026-07-11 — the operator-approved
+[`JOURNEY` conductor](./release-user-journeys.aps.md) promotes WOW-005 into the
+release cut and retains WOW-006 as a coordinated post-cut enhancement. The
+module was created 2026-07-08 via planning-workflow from the
 operator's first-run-experience review (interactive session): the tutorial's
 Enter-executes-a-real-command behaviour is not evident before the keypress, and
 the first-run journey underuses the discovery scan's real findings. WOW-001..004
-are Ready (additive UX evidence and personalization on existing surfaces);
-WOW-005 and WOW-006 are Draft pending a design gate (consent posture for
-first-run fix writes; sandbox lifecycle for autoplay). Updated 2026-07-08:
-after the activation-tui (ACTTUI) module landed and took ownership of the
-interactive consent chrome and shared widget vocabulary, WOW-005/006 are now
-gated on ACTTUI's foundation — recorded in each item's design gate and in
-Coordination.
+are Merged. WOW-005's first-win direction and consent boundary are accepted by
+the JOURNEY design, while its execution depends on ACTTUI-009's production
+consent wiring. WOW-006 remains Proposed pending its sandbox-lifecycle design
+gate.
 
 ## Purpose
 
@@ -134,34 +134,41 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-005: First-win reroute after discovery
 
-- **Status:** Draft (design-gated)
+- **Status:** Ready — direction and consent boundary accepted 2026-07-11 via
+  [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md);
+  execution waits for ACTTUI-009
 - **Intent:** A first-run user lands on their repo's highest-severity real
   finding with a guided fix opportunity before seeing the generic path picker,
   so the first minute delivers a concrete win on their own code.
-- **Design gate:** Consent posture for a fix write during onboarding (per the
+- **Design closeout:** Consent posture for a fix write during onboarding (per the
   Constraints section and the CIB-165 precedent: explicit, named, per-action
-  consent; show the diff before apply); flow ownership between discovery,
-  fix surface, and path picker; clean-repo fallback (showcase vs straight to
-  picker); interplay with CIB-127 (activation finding-baseline) so a
-  tutorial-time fix doesn't confuse the baseline. Resolve via `brainstorming`
-  and record the decision (ADR if the consent posture is load-bearing).
+  consent; show the diff before apply) reuses ACTTUI's unticked consent model.
+  Discovery deterministically selects the highest-value actionable real finding;
+  declining returns to the path picker. A clean repository states the clean
+  result and may offer the isolated WOW-006 sandbox, never showcase findings as
+  local truth. CIB-127 coordination remains required so a tutorial-time fix does
+  not confuse the activation baseline.
 - **Depends on ACTTUI (added 2026-07-08):** the onboarding fix write must
   reuse ACTTUI's interactive consent chrome (`Confirm` / `Select` /
   `OverlayStack`) and its repo-scoped-write posture (CIB-165 unticked default;
   suppressed under `project_writes_gated`) rather than hand-roll a second,
   divergent consent surface — and the discovery → fix → picker flow must slot
-  into the activation surface's phase model. The design gate therefore cannot
-  close before ACTTUI-000 (UX contract / trust boundary) and ACTTUI-004
-  (consent phase) land. See [`activation-tui.aps.md`](./activation-tui.aps.md).
-- **Expected Outcome:** (provisional, refined at design close) First-run flow
-  offers "fix your first finding" as the default landing after discovery;
-  declining lands on the path picker exactly as today.
-- **Validation:** defined at design close
-- **Confidence:** low until design closes
+  into the activation surface's phase model. ACTTUI-000/-004 established the
+  model; ACTTUI-009 must make it reachable and apply selections in production.
+  See [`activation-tui.aps.md`](./activation-tui.aps.md).
+- **Expected Outcome:** First-run flow offers the highest-value actionable real
+  finding as the default landing after discovery, explains why it matters, and
+  shows the proposed diff before an explicit write; declining lands on the path
+  picker exactly as today.
+- **Validation:** `cargo test -p eddacraft-anvil-tui tutorial`; `cargo test -p
+  eddacraft-anvil-tui welcome`; JOURNEY-005 candidate rehearsal records time to
+  first repository-specific value and proves Enter-without-consent writes
+  nothing.
+- **Confidence:** medium
 
 ### WOW-006: Autoplay demo mode on a sandboxed fixture
 
-- **Status:** Draft (design-gated)
+- **Status:** Proposed (design-gated; coordinated post-cut by JOURNEY-007)
 - **Intent:** A "watch anvil work" mode plays the tutorial hands-free —
   commands, inline-editor ghost-typing, verification — against a scaffolded
   temp fixture repo, so the demo executes for real without touching the
@@ -188,14 +195,15 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ## Sequencing
 
-**Release cohort (operator decision 2026-07-08):** WOW-001..004 ship in the
-same release as ACTTUI activation TUI — see
+**Release cohort (operator decision updated 2026-07-11):** WOW-001..005 ship in
+the same release as ACTTUI activation TUI — see
 [`activation-tui.aps.md`](./activation-tui.aps.md) phase B (parallel tracks).
 
 Wave 1: WOW-001 → WOW-002 (same surface, 002 builds on 001's render split);
 WOW-003 and WOW-004 are independent of both and of each other — may run in
-parallel with ACTTUI-003..005 after ACTTUI-002 lands. WOW-005/006 remain Draft
-and are **out of this release cohort** unless design gates close.
+parallel with ACTTUI-003..005 after ACTTUI-002 lands. WOW-005 is now a JOURNEY
+release-cut gate after ACTTUI-009; WOW-006 remains a coordinated post-cut
+enhancement unless the operator explicitly promotes it.
 
 ## Coordination
 
@@ -207,8 +215,10 @@ and are **out of this release cohort** unless design gates close.
   shared consent chrome (`Select` / `Confirm` / `OverlayStack`, CIB-165
   unticked posture, `project_writes_gated` gating) and the `eddacraft-tui`
   widget vocabulary. WOW-001..004 shipped in ACTTUI's phase-B cohort.
-  **WOW-005/006 are now gated on ACTTUI** (2026-07-08): their design gates
-  cannot close until ACTTUI's foundation establishes the consent and widget
-  primitives they must reuse — see each item's *Depends on ACTTUI* note.
+  WOW-005 execution is gated on ACTTUI-009's working production consent path;
+  WOW-006 consumes the shared widget foundation when its post-cut design closes.
+- **JOURNEY (release-user-journeys):** conductor for the release outcome.
+  JOURNEY-001 requires WOW-005; JOURNEY-007 retains WOW-006 as visible post-cut
+  expansion without making it a release blocker.
 - **LAUNCH-014 / ADR-080**: tutorial honesty pins and the ungated welcome
   demo posture are load-bearing and unchanged.

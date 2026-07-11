@@ -103,6 +103,13 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - Documented corporate `--no-mcp` path
 - Terminating diagnostics when worktree registration fails (not restart loops)
 
+**Coordinates with:**
+
+- [release-user-journeys](./release-user-journeys.aps.md) — JOURNEY consumes the
+  existing MCP-optional spine and durable-registration work for its daily-use
+  release gate; ACTMO-021 remains optional always-on visibility under
+  JOURNEY-009 and does not block the release cut.
+
 ## Constraints
 
 - UK English spelling in plan and docs
