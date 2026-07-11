@@ -432,8 +432,12 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
     fn handle_key(&mut self, action: Action) {
         // `e` toggles tier evidence. The production key map (`KeyHandler::map`)
         // reserves `j`/`k`/`h`/`l` for arrow navigation, so the toggle must
-        // live on a key that still arrives as `Action::Character`.
-        if matches!(action, Action::Character('e' | 'E')) {
+        // live on a key that still arrives as `Action::Character`. It is
+        // inert during Consent — the consent pane's help never advertises it,
+        // and letting it fire there would silently swap the pane out from
+        // under the picker (and swallow the next consent keystroke).
+        if matches!(action, Action::Character('e' | 'E')) && self.phase != ActivationPhase::Consent
+        {
             self.toggle_tier_evidence();
             return;
         }
@@ -567,6 +571,29 @@ mod tests {
             false,
         );
         let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        assert_eq!(surface.phase(), ActivationPhase::Consent);
+        surface.handle_key(Action::Toggle);
+        assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
+    }
+
+    #[test]
+    fn evidence_key_is_inert_during_consent() {
+        // Council C-001 (session council-eb8c0152): `e` fired before the
+        // phase branch and hijacked the consent pane. It must be inert in
+        // Consent — routed through the production key map, the pane stays
+        // put and the next consent keystroke still lands.
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        surface.handle_key(production_action('e'));
+        assert!(!surface.tier_evidence_visible());
         assert_eq!(surface.phase(), ActivationPhase::Consent);
         surface.handle_key(Action::Toggle);
         assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
