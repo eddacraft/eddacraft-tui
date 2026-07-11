@@ -476,11 +476,33 @@ fn lock_guard(dirfd: &std::os::fd::OwnedFd) -> io::Result<nix::fcntl::Flock<File
 }
 
 /// Tag an `io::Error` with the claim step that produced it, preserving its
-/// [`io::ErrorKind`]. Claim errors are non-fatal — the caller degrades to cold
-/// and the error surfaces only in logs — where the step name turns a bare
-/// "No such file or directory" into a diagnosable report.
+/// [`io::ErrorKind`] and keeping the original error reachable via `source()`.
+/// Claim errors are non-fatal — the caller degrades to cold and the error
+/// surfaces only in logs — where the step name turns a bare "No such file or
+/// directory" into a diagnosable report.
 fn tag_step(step: &'static str) -> impl Fn(io::Error) -> io::Error {
-    move |err| io::Error::new(err.kind(), format!("{step}: {err}"))
+    move |err| io::Error::new(err.kind(), StepError { step, source: err })
+}
+
+/// The payload [`tag_step`] wraps: `Display` renders `"{step}: {source}"`,
+/// and the original `io::Error` stays on the `source()` chain for callers
+/// that introspect past the message.
+#[derive(Debug)]
+struct StepError {
+    step: &'static str,
+    source: io::Error,
+}
+
+impl std::fmt::Display for StepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.step, self.source)
+    }
+}
+
+impl std::error::Error for StepError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
 }
 
 /// A random 64-bit nonce rendered as 16 lowercase hex chars, disambiguating one
@@ -654,11 +676,13 @@ fn try_stamped_create(
         // creating and unlinking temps beside the lock). The source temp
         // provably exists — just created, fsync'd, nonce-unique — so `ENOENT`
         // cannot mean a missing source. Decide by reading the published record
-        // back: our nonce means the link landed and we won; a peer's record or
-        // nothing at all means this attempt lost, and the caller's guarded
-        // slow path re-classifies and retries.
+        // back: our full stamped identity (`{pid, start_time, nonce}` — not
+        // the nonce alone, whose `getrandom`-failure fallback can collide)
+        // means the link landed and we won; a peer's record or nothing at all
+        // means this attempt lost, and the caller's guarded slow path
+        // re-classifies and retries.
         Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            Ok(read_lock_record_at(dirfd, lock_name).is_some_and(|record| record.nonce == nonce))
+            Ok(read_lock_record_at(dirfd, lock_name).is_some_and(|published| published == record))
         }
         other => other.map_err(tag_step("publish linkat")),
     };
