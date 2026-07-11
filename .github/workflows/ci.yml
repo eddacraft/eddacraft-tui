@@ -719,6 +719,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A PR touching a root input (e.g. flags/manifest.json → kernel-types
+      # build.rs) makes EVERY nx project affected, so this job compiles the
+      # full Rust test surface alongside the Node suites and can exhaust the
+      # ubuntu-latest runner disk (3× ENOSPC on PR #3287). Same mitigation the
+      # `Test` job (rust-tests.yml) already applies.
+      - name: Free disk space
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
+        uses: ./.github/actions/free-disk-space
+
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning ~2-3 minutes on pnpm + OPA install.
       # Invoke via `sh` so this doesn't depend on the executable bit surviving
