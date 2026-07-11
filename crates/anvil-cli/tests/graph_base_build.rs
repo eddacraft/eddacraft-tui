@@ -58,11 +58,15 @@ fn graph_base_build_prints_deterministic_json_summary() {
         .trim()
         .to_string();
 
-    let run = || {
+    // Each run pins ANVIL_HOME to a caller-chosen dir so the write-once base
+    // store is hermetic to this test (never the developer's real store) and the
+    // write-once transition can be asserted deliberately per store.
+    let run = |home: &Path| {
         let out = Command::new(ANVIL_BIN)
             .args(["graph-base", "build", "--merge-base", &sha])
             .arg("--repo")
             .arg(root)
+            .env("ANVIL_HOME", home)
             // Local dev bypass so the licence/auth wall never intercepts the
             // hidden harness command in CI.
             .env("ANVIL_DEV", "1")
@@ -77,20 +81,42 @@ fn graph_base_build_prints_deterministic_json_summary() {
         String::from_utf8(out.stdout).expect("utf8 stdout")
     };
 
-    let first = run();
-    let second = run();
-    assert_eq!(
-        json_line(&first),
-        json_line(&second),
-        "the same sha must print byte-identical JSON"
-    );
+    let store_a = tempfile::tempdir().unwrap();
+    let store_b = tempfile::tempdir().unwrap();
 
+    // First run against a fresh store: builds and persists, summary included.
+    let first = run(store_a.path());
     let value: serde_json::Value = serde_json::from_str(json_line(&first)).expect("valid JSON");
-    assert_eq!(value["merge_base"], serde_json::Value::String(sha));
+    assert_eq!(value["merge_base"], serde_json::Value::String(sha.clone()));
+    assert_eq!(value["outcome"], "written", "fresh store persists: {value}");
+    assert_eq!(value["persisted"], true);
     assert_eq!(value["file_count"], 2);
     assert_eq!(value["symbol_count"], 2, "both exported functions: {value}");
     assert_eq!(
         value["edge_count"], 2,
         "the a->b import edge and the a()->b() call edge: {value}"
+    );
+
+    // Second run against the SAME store: the write-once no-op — no rebuild, so
+    // no summary counts; still persisted.
+    let second = run(store_a.path());
+    let value2: serde_json::Value = serde_json::from_str(json_line(&second)).expect("valid JSON");
+    assert_eq!(
+        value2["outcome"], "already-present",
+        "same store is a write-once no-op: {value2}"
+    );
+    assert_eq!(value2["persisted"], true);
+    assert!(
+        value2.get("file_count").is_none(),
+        "the no-op path never rebuilt, so it carries no counts: {value2}"
+    );
+
+    // Determinism: a fresh store must reproduce run 1 byte-for-byte — the
+    // summary is a pure function of the committed tree at the sha.
+    let fresh = run(store_b.path());
+    assert_eq!(
+        json_line(&first),
+        json_line(&fresh),
+        "the same sha against a fresh store must print byte-identical JSON"
     );
 }
