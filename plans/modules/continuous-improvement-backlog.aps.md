@@ -4773,7 +4773,11 @@ archive.
 
 ### CIB-184: Default live MCP picker choices to unticked
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-11 via PR #3279
+- **Summary:** The plain `anvil start` demand picker now offers every MCP
+  candidate (`NotPresent` / `SafeDrift`) unticked, so an Enter-through writes
+  no editor config; picker copy states the opt-in posture and non-interactive
+  auto-install plus the UnsafeDrift refusal are unchanged.
 - **Intent:** The live plain `anvil start` MCP picker should match the TUI
   consent posture: no editor config write is selected by default.
 - **Expected Outcome:** In interactive plain mode, MCP candidates that are

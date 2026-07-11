@@ -7,10 +7,11 @@
 //!
 //! - **Interactive** (TTY, not `--no-tui`): probe each registered
 //!   client, render a [`demand`] `MultiSelect` listing what was found,
-//!   pre-selecting `NotPresent` + `SafeDrift` candidates, and let the
-//!   user confirm or trim the set. Cancellation (Ctrl-C / `Esc`)
-//!   returns an empty selection — the install step becomes a no-op
-//!   without aborting the orchestration.
+//!   with every candidate unticked (CIB-184 — matching the activation
+//!   TUI consent posture and the workflow picker), and let the user
+//!   tick the clients to install. Enter with no tick writes nothing.
+//!   Cancellation (Ctrl-C / `Esc`) returns an empty selection — the
+//!   install step becomes a no-op without aborting the orchestration.
 //!
 //! - **Non-interactive** (`--no-tui`, no TTY, or CI envs like
 //!   `CI=true` / `GIT_DIR` set): auto-install for every `NotPresent`
@@ -29,8 +30,8 @@
 //!
 //! | `DriftClass`          | Interactive default | Non-interactive | Notes                                                           |
 //! |-----------------------|---------------------|-----------------|-----------------------------------------------------------------|
-//! | `NotPresent`          | pre-selected        | auto-install    | fresh write, no merge needed                                    |
-//! | `SafeDrift`           | pre-selected        | auto-install    | rewrite over a recognised anvil entry (likely a version drift)  |
+//! | `NotPresent`          | offered unticked    | auto-install    | fresh write, no merge needed                                    |
+//! | `SafeDrift`           | offered unticked    | auto-install    | rewrite over a recognised anvil entry (likely a version drift)  |
 //! | `UpToDate`            | not shown           | skip            | nothing to do                                                   |
 //! | `UnsafeDrift`         | not shown           | skip with note  | foreign tool / unknown shape — never overwrite                  |
 //!
@@ -257,8 +258,23 @@ fn install_for_clients_with_selection(
     enabled: &BTreeSet<McpClientId>,
     selection: InstallSelection<'_>,
 ) -> InstallReport {
+    install_with_selection_and_picker(workspace, home, fresh, enabled, selection, show_picker)
+}
+
+/// Seam for the interactive branch: `picker` renders the `demand`
+/// `MultiSelect` in production ([`show_picker`]) and is injected by unit
+/// tests so the Enter-without-tick and tick-to-install flows are testable
+/// without a TTY.
+fn install_with_selection_and_picker(
+    workspace: &Path,
+    home: Option<&Path>,
+    fresh: &AnvilEntry,
+    enabled: &BTreeSet<McpClientId>,
+    selection: InstallSelection<'_>,
+    picker: impl FnOnce(&[&Candidate]) -> std::io::Result<Vec<McpClientId>>,
+) -> InstallReport {
     let candidates = collect_candidates(workspace, home, fresh);
-    let chosen_ids = resolve_chosen_ids(&candidates, enabled, selection);
+    let chosen_ids = resolve_chosen_ids(&candidates, enabled, selection, picker);
 
     let mut per_client = BTreeMap::new();
     // Iterate clients alongside candidates so install_one has the
@@ -292,6 +308,7 @@ fn resolve_chosen_ids(
     candidates: &[Candidate],
     enabled: &BTreeSet<McpClientId>,
     selection: InstallSelection<'_>,
+    picker: impl FnOnce(&[&Candidate]) -> std::io::Result<Vec<McpClientId>>,
 ) -> Vec<McpClientId> {
     let picker_inputs = candidates
         .iter()
@@ -307,7 +324,7 @@ fn resolve_chosen_ids(
     match selection {
         InstallSelection::Explicit(selected) => selected.keys().copied().collect(),
         InstallSelection::Mode(InstallConsentMode::DemandPicker) if !picker_inputs.is_empty() => {
-            show_picker(&picker_inputs).unwrap_or_else(|error| {
+            picker(&picker_inputs).unwrap_or_else(|error| {
                 tracing::warn!(%error, "mcp install: picker failed; treating as zero selection");
                 Vec::new()
             })
@@ -750,14 +767,30 @@ fn install_claude_allow_list(mcp_config_path: &Path) -> Result<(), String> {
     })
 }
 
+/// Build the `(client, label, selected)` tuples backing the interactive
+/// picker.
+///
+/// Every candidate defaults to `selected = false` (CIB-184): a plain
+/// Enter-through selects nothing and writes no editor config, so a hurried
+/// operator never silently hands an editor an MCP entry. Ticking a client
+/// is the explicit consent — the same posture as the activation TUI
+/// consent surface and the workflow picker (CIB-165).
+fn mcp_picker_options(candidates: &[&Candidate]) -> Vec<(McpClientId, String, bool)> {
+    candidates
+        .iter()
+        .map(|candidate| (candidate.id, format_picker_label(candidate), false))
+        .collect()
+}
+
 /// Render the `demand::MultiSelect` picker and return the chosen ids.
 ///
 /// Caller filters out `UpToDate` (nothing to do) and `UnsafeDrift`
 /// (refused regardless of selection) before calling, so the picker
-/// only ever offers actionable installs. `NotPresent` and `SafeDrift`
-/// are pre-selected so the user can just hit `Enter` for the obvious
-/// choice. `UnsafeDrift` outcomes are surfaced in the post-install
-/// human render block instead of the picker.
+/// only ever offers actionable installs. Every offered candidate starts
+/// unticked (CIB-184): a plain Enter writes no editor config, and
+/// ticking a client is the explicit consent. `UnsafeDrift` outcomes are
+/// surfaced in the post-install human render block instead of the
+/// picker.
 ///
 /// Returns `Ok(vec![])` if the user dismisses the prompt without
 /// selecting anything (Enter on empty).
@@ -771,23 +804,18 @@ fn install_claude_allow_list(mcp_config_path: &Path) -> Result<(), String> {
 fn show_picker(candidates: &[&Candidate]) -> std::io::Result<Vec<McpClientId>> {
     use demand::{DemandOption, MultiSelect};
 
+    eprintln!("anvil: press Enter to skip MCP client install");
     let mut picker = MultiSelect::new("Install anvil MCP for these clients?")
-        .description("anvil writes a single mcp entry per file. Existing keys are preserved.")
+        .description(
+            "Nothing is selected by default — press Enter to skip. Space ticks a client; \
+             Enter writes one anvil MCP entry per ticked client (existing keys are preserved).",
+        )
         .filterable(false)
         .min(0)
         .max(candidates.len());
 
-    for candidate in candidates {
-        let label = format_picker_label(candidate);
-        let preselected = matches!(
-            candidate.drift,
-            DriftClass::NotPresent | DriftClass::SafeDrift { .. }
-        );
-        picker = picker.option(
-            DemandOption::new(candidate.id)
-                .label(&label)
-                .selected(preselected),
-        );
+    for (id, label, selected) in mcp_picker_options(candidates) {
+        picker = picker.option(DemandOption::new(id).label(&label).selected(selected));
     }
 
     let _raw_guard = RawModeGuard;
@@ -1645,6 +1673,168 @@ mod tests {
             label.len()
         );
         assert!(label.contains("update"));
+    }
+
+    // --- CIB-184: demand picker consent posture ---
+
+    #[test]
+    fn mcp_picker_options_default_every_candidate_unticked() {
+        // CIB-184 — every offerable drift class (NotPresent, SafeDrift)
+        // must start unticked, so a hurried Enter-through selects nothing
+        // and writes no editor config. Ticking a client is the explicit
+        // consent, matching the activation TUI posture and the workflow
+        // picker (CIB-165).
+        let not_present = Candidate {
+            id: McpClientId::Cursor,
+            target_path: PathBuf::from("/home/u/.cursor/mcp.json"),
+            scope: ConfigScope::Global,
+            drift: DriftClass::NotPresent,
+            parsed: None,
+        };
+        let safe_drift = Candidate {
+            id: McpClientId::ClaudeCode,
+            target_path: PathBuf::from("/home/u/.claude.json"),
+            scope: ConfigScope::Global,
+            drift: DriftClass::SafeDrift {
+                reason: "version drift".to_string(),
+            },
+            parsed: None,
+        };
+        let candidates = [&not_present, &safe_drift];
+
+        let options = mcp_picker_options(&candidates);
+
+        // The returned options must correspond 1:1 to the input candidates,
+        // in order — otherwise a helper that duplicated or dropped a client
+        // could still pass the unticked check below.
+        assert_eq!(options.len(), candidates.len());
+        for ((id, _label, selected), candidate) in options.iter().zip(candidates.iter()) {
+            assert_eq!(
+                *id, candidate.id,
+                "picker options must match the input candidates 1:1 and in order",
+            );
+            assert!(
+                !selected,
+                "picker option for {id} must default to unticked (CIB-184)",
+            );
+        }
+    }
+
+    #[test]
+    fn demand_picker_enter_without_tick_writes_nothing() {
+        // CIB-184 — Enter with no explicit tick returns an empty selection
+        // from the picker; the install step must write no MCP config and no
+        // Claude allow-list, and record the offerable clients as
+        // user-deselected.
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+
+        let report = install_with_selection_and_picker(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            InstallSelection::Mode(InstallConsentMode::DemandPicker),
+            |offered| {
+                assert!(
+                    !offered.is_empty(),
+                    "fresh repo must offer candidates to the picker"
+                );
+                Ok(Vec::new())
+            },
+        );
+
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "Enter without a tick must not write the Cursor config"
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "Enter without a tick must not write the Claude Code config"
+        );
+        assert!(
+            !home.path().join(".claude/settings.json").exists(),
+            "Enter without a tick must not refresh the Claude allow-list"
+        );
+        assert!(report.per_client.values().all(|outcome| matches!(
+            outcome,
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected
+            }
+        )));
+    }
+
+    #[test]
+    fn demand_picker_ticked_selection_installs_only_ticked() {
+        // Ticking a client remains the explicit consent: only the ticked
+        // client is written, the rest are recorded as user-deselected.
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+
+        let report = install_with_selection_and_picker(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            InstallSelection::Mode(InstallConsentMode::DemandPicker),
+            |_offered| Ok(vec![McpClientId::Cursor]),
+        );
+
+        assert!(home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+        assert!(matches!(
+            report_outcome(&report, McpClientId::Cursor),
+            InstallOutcome::Installed { .. }
+        ));
+        assert!(matches!(
+            report_outcome(&report, McpClientId::ClaudeCode),
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected
+            }
+        ));
+    }
+
+    #[test]
+    fn demand_picker_never_offers_unsafe_drift() {
+        // UnsafeDrift stays out of the picker and stays refused even if
+        // everything the picker does offer is ticked.
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::create_dir_all(home.path().join(".cursor")).unwrap();
+        let cfg = r#"{"mcpServers": {"anvil": {"command": "/bin/bash", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        let cursor_path = home.path().join(".cursor/mcp.json");
+        fs::write(&cursor_path, cfg).unwrap();
+        let bytes_before = fs::read(&cursor_path).unwrap();
+
+        let report = install_with_selection_and_picker(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            &all_enabled(),
+            InstallSelection::Mode(InstallConsentMode::DemandPicker),
+            |offered| {
+                assert!(
+                    offered
+                        .iter()
+                        .all(|candidate| candidate.id != McpClientId::Cursor),
+                    "UnsafeDrift candidates must be filtered out of the picker"
+                );
+                Ok(offered.iter().map(|candidate| candidate.id).collect())
+            },
+        );
+
+        match report_outcome(&report, McpClientId::Cursor) {
+            InstallOutcome::Skipped {
+                reason: SkipReason::UnsafeDrift(_),
+            } => {}
+            other => panic!("expected UnsafeDrift skip, got {other:?}"),
+        }
+        let bytes_after = fs::read(&cursor_path).unwrap();
+        assert_eq!(bytes_before, bytes_after, "UnsafeDrift must not overwrite");
+        assert!(matches!(
+            report_outcome(&report, McpClientId::ClaudeCode),
+            InstallOutcome::Installed { .. }
+        ));
     }
 
     // --- ACTMO-012: editor-aware install gating ---
