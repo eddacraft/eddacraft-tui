@@ -311,10 +311,10 @@ fn run_one(
     let stdout = child.stdout.take().map(read_pipe_in_background);
     let stderr = child.stderr.take().map(read_pipe_in_background);
 
+    // `sampler` only exists on Linux — every read is behind the same cfg, so a
+    // non-Linux binding would just be dead code under `-D warnings`.
     #[cfg(target_os = "linux")]
     let mut sampler = TreeSampler::start(child.id()).ok();
-    #[cfg(not(target_os = "linux"))]
-    let mut sampler = Option::<()>::None;
 
     let deadline = start + config.timeout;
     let mut timed_out = false;
@@ -611,22 +611,17 @@ fn join_pipe(handle: Option<thread::JoinHandle<io::Result<u64>>>) -> Result<u64>
     }
 }
 
+// Linux-only: the sole caller (the zombie check in the sampling loop) and the
+// unit test are both `#[cfg(target_os = "linux")]`.
+#[cfg(target_os = "linux")]
 fn process_is_zombie(pid: u32) -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
-            return false;
-        };
-        stat.rfind(") ")
-            .and_then(|idx| stat.get(idx + 2..))
-            .and_then(|rest| rest.split_whitespace().next())
-            .is_some_and(|state| state == "Z")
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = pid;
-        false
-    }
+    let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    stat.rfind(") ")
+        .and_then(|idx| stat.get(idx + 2..))
+        .and_then(|rest| rest.split_whitespace().next())
+        .is_some_and(|state| state == "Z")
 }
 
 fn kill_child_group(child: &mut std::process::Child) {
