@@ -1008,8 +1008,10 @@ impl ReapableChild for StdReapableChild {
 /// producer failure — raises the ADR-090 worktree-scoped health envelope (via
 /// `notifier`, when one is wired) for every currently-registered worktree of the
 /// repo, rate-limited to once per class per lineage by the core. The exit maps as:
-/// `Some(0)` ⇒ clean (resets the failure latches); `None` ⇒ signal-killed (our own
-/// cancel — neutral, no envelope); `Some(BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE)` ⇒
+/// `Some(0)` ⇒ clean (resets the failure latches); `None` ⇒ signal-killed, neutral
+/// **only when a cancel intent was recorded for this `spawn_id`** (our own
+/// supersede) — an *unrequested* `None` (OOM-`SIGKILL`, `SIGSEGV`) classifies as a
+/// production failure; `Some(BASE_PRODUCER_CLAIM_FAILURE_EXIT_CODE)` ⇒
 /// a claim-progress failure; any other `Some(code)` ⇒ a general production failure.
 /// Emission happens **outside** the core lock. All classes stay non-fatal: the slot
 /// is cleared exactly as before, so the cold path keeps serving.
