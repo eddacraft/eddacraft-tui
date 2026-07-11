@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anvil value scorecard</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 2rem 1rem;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    background: #101418; color: #e6e9ec;
+    display: flex; justify-content: center;
+  }
+  .card {
+    max-width: 34rem; width: 100%;
+    background: #171d24; border: 1px solid #2a323c; border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+  }
+  h1 { margin: 0; font-size: 1.35rem; letter-spacing: 0.02em; }
+  h2 { margin: 1.4rem 0 0.6rem; font-size: 0.95rem; color: #aeb6bf; }
+  .tagline { margin: 0.2rem 0 0.8rem; color: #aeb6bf; font-size: 0.9rem; }
+  .window { color: #7f8893; font-weight: normal; font-size: 0.8rem; }
+  .stats { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .stat {
+    flex: 1 1 8.5rem; background: #10151b; border: 1px solid #232b34;
+    border-radius: 8px; padding: 0.6rem 0.75rem;
+  }
+  .stat .n { display: block; font-size: 1.5rem; font-weight: 700; }
+  .stat .l { display: block; margin-top: 0.15rem; color: #aeb6bf; font-size: 0.78rem; }
+  .empty { color: #7f8893; font-size: 0.85rem; }
+  footer { margin-top: 1.4rem; color: #7f8893; font-size: 0.75rem; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Anvil</h1>
+    <p class="tagline">Value caught, recorded locally</p>
+    <p class="window">Evidence window: 2026-01-05 to 2026-07-08</p>
+    <h2>Witness events <span class="window">2026-01-05 to 2026-07-01</span></h2>
+    <div class="stats">
+      <div class="stat"><span class="n">412</span><span class="l">witness events since first run</span></div>
+      <div class="stat"><span class="n">58</span><span class="l">witness events, last 30 days</span></div>
+      <div class="stat"><span class="n">190</span><span class="l">witness events, last 90 days</span></div>
+    </div>
+    <h2>Save-time protection <span class="window">retained window 2026-07-05 to 2026-07-08</span></h2>
+    <div class="stats">
+      <div class="stat"><span class="n">120</span><span class="l">save-time checks</span></div>
+      <div class="stat"><span class="n">14</span><span class="l">risky writes flagged</span></div>
+      <div class="stat"><span class="n">3</span><span class="l">writes blocked</span></div>
+      <div class="stat"><span class="n">2</span><span class="l">secret findings caught</span></div>
+      <div class="stat"><span class="n">1</span><span class="l">protective fences engaged</span></div>
+    </div>
+    <footer>Counts only — no repository details. Recorded and rendered locally by Anvil.</footer>
+  </main>
+</body>
+</html>

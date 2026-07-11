@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://docs.eddacraft.ai/anvil/schemas/anvil-insights.v2.json",
   "title": "Anvil Insights v2",
-  "description": "The anvil.insights.v1 rolling-window document extended with the cumulative value aggregate. Emitted by `anvil insights --cumulative --json`; the default `--json` output remains anvil.insights.v1.",
+  "description": "The anvil.insights.v1 rolling-window document extended with the cumulative value aggregate. Emitted by `anvil insights --cumulative --json`; the default `--json` output remains anvil.insights.v1. The top-level v1 fields stay rolling/wall-clock-anchored (window_start/window_end derive from the invocation time), so the document as a whole is not reproducible — only the `cumulative` sub-object is deterministic.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -62,10 +62,12 @@
     "cumulative": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Counts and evidence-window bounds only. `since`/`as_of` are the evidence's own bounds (null when nothing is recorded yet); no generation timestamp appears anywhere, so identical inputs produce identical documents.",
+      "description": "Counts and evidence-window bounds only. `since`/`as_of` are the overall evidence span's own bounds (null when nothing is recorded yet); the 30/90-day witness windows anchor to `witness_last_event` (the witness stream's own latest event), never to the cross-stream `as_of`. No generation timestamp appears in this sub-object, so identical recorded data produces an identical `cumulative` sub-object (the top-level v1 fields remain wall-clock-anchored).",
       "required": [
         "since",
         "as_of",
+        "witness_first_event",
+        "witness_last_event",
         "witness_events_total",
         "witness_events_last_30_days",
         "witness_events_last_90_days",
@@ -77,6 +79,14 @@
           "format": "date-time"
         },
         "as_of": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "witness_first_event": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "witness_last_event": {
           "type": ["string", "null"],
           "format": "date-time"
         },

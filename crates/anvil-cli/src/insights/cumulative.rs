@@ -7,8 +7,16 @@
 //! such as the repeat-start value line). It is deliberately a pure
 //! function of the recorded data — **no wall clock is consulted** — so
 //! the same inputs always produce the same aggregate, and every window
-//! is anchored to the evidence's own bounds rather than a generation
-//! timestamp.
+//! is anchored to its own stream's evidence bounds rather than a
+//! generation timestamp.
+//!
+//! **Scope of the determinism claim:** it covers this aggregate (the
+//! `cumulative` sub-object of the v2 document) and the renders derived
+//! from it (the scoreboard section and the share card). The v1
+//! rolling-window fields that the v2 document also carries remain
+//! wall-clock-anchored (`weekly_summary(root, Utc::now())`), so the v2
+//! document as a whole is *not* reproducible — only its `cumulative`
+//! sub-object is.
 //!
 //! ## Sources and their honest limits
 //!
@@ -57,14 +65,28 @@ pub struct CumulativeValue {
     pub since: Option<String>,
     /// Latest recorded event across all sources (RFC 3339). This is the
     /// evidence window's own end bound; it deliberately replaces any
-    /// "generated at" timestamp so output stays deterministic.
+    /// "generated at" timestamp so output stays deterministic. It labels
+    /// the overall evidence span only — the per-stream windows below
+    /// anchor to their own stream's bounds, never to this cross-stream
+    /// maximum.
     pub as_of: Option<String>,
+    /// Earliest witness event (RFC 3339); `None` when the chain holds no
+    /// events — consumers must render that honestly, never as a
+    /// measured zero.
+    pub witness_first_event: Option<String>,
+    /// Latest witness event (RFC 3339) — the anchor of the 30/90-day
+    /// windows below. Kept per-stream so machine-wide save-time
+    /// activity in another repository can never shift this
+    /// repository's witness windows.
+    pub witness_last_event: Option<String>,
     /// Witness events since the first recorded event (the chain is
     /// append-only, so this is a genuine all-time count).
     pub witness_events_total: u64,
-    /// Witness events in the 30 days ending at [`Self::as_of`].
+    /// Witness events in the 30 days ending at
+    /// [`Self::witness_last_event`].
     pub witness_events_last_30_days: u64,
-    /// Witness events in the 90 days ending at [`Self::as_of`].
+    /// Witness events in the 90 days ending at
+    /// [`Self::witness_last_event`].
     pub witness_events_last_90_days: u64,
     /// Save-time protection counts over the sidecar's retained window.
     pub save_time: SaveTimeCounts,
@@ -105,10 +127,26 @@ impl SaveTimeCounts {
         }
     }
 
-    /// Whether any save-time / fence evidence is present.
+    /// Whether any save-time / fence evidence is present. Requires
+    /// BOTH window bounds so the contract matches its render call
+    /// sites, which read `window_start` and `window_end` together
+    /// (the aggregator always sets the pair from one `(lo, hi)`).
     #[must_use]
     pub const fn has_evidence(&self) -> bool {
-        self.window_start.is_some()
+        self.window_start.is_some() && self.window_end.is_some()
+    }
+}
+
+impl CumulativeValue {
+    /// Whether any witness-chain evidence is present. Mirrors
+    /// [`SaveTimeCounts::has_evidence`] (requiring BOTH bounds, so the
+    /// contract matches the render call sites that read the pair):
+    /// renders must branch to an honest "no witness events recorded
+    /// yet" line when this is `false`, never print measured-looking
+    /// zeros.
+    #[must_use]
+    pub const fn witness_has_evidence(&self) -> bool {
+        self.witness_first_event.is_some() && self.witness_last_event.is_some()
     }
 }
 
@@ -160,9 +198,13 @@ pub fn cumulative_value(repo_root: &Path, sidecar_path: &Path) -> anyhow::Result
         std::cmp::max,
     );
 
-    let (last_30, last_90) = match as_of {
+    // Windows anchor to the witness chain's OWN latest event — never the
+    // cross-stream `as_of`. The sidecar is machine-wide, so save-time
+    // activity in another repository must not shift this repository's
+    // witness windows (council-797f142a major 1).
+    let (last_30, last_90) = match witness_bounds {
         None => (0, 0),
-        Some(anchor) => {
+        Some((_, anchor)) => {
             let count_from = |days: i64| {
                 let start = anchor - Duration::days(days);
                 saturating_u64(
@@ -179,6 +221,8 @@ pub fn cumulative_value(repo_root: &Path, sidecar_path: &Path) -> anyhow::Result
     Ok(CumulativeValue {
         since: since.map(format_utc),
         as_of: as_of.map(format_utc),
+        witness_first_event: witness_bounds.map(|(lo, _)| format_utc(lo)),
+        witness_last_event: witness_bounds.map(|(_, hi)| format_utc(hi)),
         witness_events_total: saturating_u64(witness_ts.len()),
         witness_events_last_30_days: last_30,
         witness_events_last_90_days: last_90,

@@ -99,7 +99,106 @@ fn cumulative_for_root(root: &Path) -> anyhow::Result<CumulativeValue> {
     cumulative::cumulative_value(root, &sidecar)
 }
 
+/// The `--share` flow: render the card, write it safely, and print the
+/// plain summary to `stdout`.
+///
+/// `output` is the user's explicit `--output` path (if any);
+/// `default_path` is the path used when no `--output` was given (the
+/// production caller passes the relative default filename, resolved
+/// against the current directory). Factored out of [`run`] so the
+/// orchestration — honest empty state, refusal semantics, write
+/// hardening — is testable without process-global state.
+fn run_share(
+    value: &CumulativeValue,
+    output: Option<&Path>,
+    default_path: &Path,
+    stdout: &mut impl std::io::Write,
+) -> anyhow::Result<()> {
+    let explicit = output.is_some();
+    let path = output.unwrap_or(default_path);
+
+    let Some(card) = scorecard::render_html_card(value) else {
+        // No evidence: say so honestly and write nothing — an all-zero
+        // card would read as a measured claim.
+        writeln!(stdout, "{}", scorecard::NO_EVENTS_LINE)?;
+        // A card from an earlier run may still sit at the resolved
+        // path; never delete it silently, but say it is stale.
+        if path.symlink_metadata().is_ok() {
+            writeln!(
+                stdout,
+                "Warning: {} was written by an earlier run and is now stale \
+                 (no recorded events back it).",
+                path.display()
+            )?;
+        }
+        return Ok(());
+    };
+
+    write_scorecard(path, &card, explicit)?;
+    write!(stdout, "{}", scorecard::render_plain(value))?;
+    writeln!(stdout, "Scorecard written to {}", path.display())?;
+    Ok(())
+}
+
+/// Write the rendered card to `path` with fail-closed semantics.
+///
+/// The default path (no `--output`) is created exclusively
+/// (`create_new`): an existing file — including a pre-planted symlink —
+/// is refused with a hint rather than truncated or followed. An
+/// explicit `--output` may overwrite an existing regular file (the
+/// user named the destination), but a symlink target is still refused
+/// so the write can never be redirected elsewhere. On Unix a newly
+/// created card is `0o600`.
+fn write_scorecard(path: &Path, card: &str, explicit: bool) -> anyhow::Result<()> {
+    use std::io::Write as _;
+
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true);
+    if explicit {
+        // Fail closed on symlinks even for an explicit destination:
+        // a planted link must not redirect the write.
+        match path.symlink_metadata() {
+            Ok(md) if md.file_type().is_symlink() => anyhow::bail!(
+                "refusing to write scorecard to {}: it is a symlink; \
+                 pass a regular file path",
+                path.display()
+            ),
+            _ => {}
+        }
+        opts.create(true).truncate(true);
+    } else {
+        opts.create_new(true);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        opts.mode(0o600);
+    }
+    let mut file = opts.open(path).map_err(|err| {
+        if !explicit && err.kind() == std::io::ErrorKind::AlreadyExists {
+            anyhow::anyhow!(
+                "{} already exists; pass --output <PATH> to choose a \
+                 destination (an explicit path may overwrite)",
+                path.display()
+            )
+        } else {
+            anyhow::anyhow!("write scorecard {}: {err}", path.display())
+        }
+    })?;
+    file.write_all(card.as_bytes())
+        .map_err(|err| anyhow::anyhow!("write scorecard {}: {err}", path.display()))?;
+    Ok(())
+}
+
 pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    // Reject the unsupported flag combination before touching the
+    // workspace at all.
+    anyhow::ensure!(
+        !(args.share && global.json),
+        "--share writes an HTML scorecard and prints a plain summary; \
+         it does not support --json (use --cumulative --json for the v2 document)"
+    );
+
     let root = util::workspace_root()?;
 
     if args.suppressions {
@@ -123,26 +222,14 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 
     if args.share {
-        anyhow::ensure!(
-            !global.json,
-            "--share writes an HTML scorecard and prints a plain summary; \
-             it does not support --json (use --cumulative --json for the v2 document)"
-        );
         let value = cumulative_for_root(&root)?;
-        let Some(card) = scorecard::render_html_card(&value) else {
-            // No evidence: say so honestly and write nothing — an
-            // all-zero card would read as a measured claim.
-            println!("{}", scorecard::NO_EVENTS_LINE);
-            return Ok(());
-        };
-        let path = args
-            .output
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_SCORECARD_FILENAME));
-        std::fs::write(&path, card)
-            .map_err(|err| anyhow::anyhow!("write scorecard {}: {err}", path.display()))?;
-        print!("{}", scorecard::render_plain(&value));
-        println!("Scorecard written to {}", path.display());
+        let mut stdout = std::io::stdout().lock();
+        run_share(
+            &value,
+            args.output.as_deref(),
+            Path::new(DEFAULT_SCORECARD_FILENAME),
+            &mut stdout,
+        )?;
         return Ok(());
     }
 
@@ -636,8 +723,16 @@ mod tests {
         assert_eq!(value.as_of.as_deref(), Some("2026-07-08T12:00:00Z"));
 
         // Witness chain is genuinely cumulative; rolling windows anchor
-        // at `as_of` (2026-07-08): 30d ⊇ {06-20? no, 07-01}, 90d ⊇
-        // {06-20, 07-01}.
+        // at the witness stream's OWN latest event (2026-07-01): 30d ⊇
+        // {06-20, 07-01}, 90d ⊇ {06-20, 07-01}.
+        assert_eq!(
+            value.witness_first_event.as_deref(),
+            Some("2026-01-05T08:00:00Z")
+        );
+        assert_eq!(
+            value.witness_last_event.as_deref(),
+            Some("2026-07-01T10:00:00Z")
+        );
         assert_eq!(value.witness_events_total, 3);
         assert_eq!(value.witness_events_last_30_days, 2);
         assert_eq!(value.witness_events_last_90_days, 2);
@@ -698,8 +793,109 @@ mod tests {
         let value = cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
         assert_eq!(value.since.as_deref(), Some("2026-07-05T10:00:00Z"));
         assert_eq!(value.witness_events_total, 0);
+        assert!(!value.witness_has_evidence());
         assert_eq!(value.save_time.writes_blocked, 1);
-        assert!(scorecard::render_html_card(&value).is_some());
+
+        // Honest asymmetric empty state: no measured-looking witness
+        // zeros — the absence is stated on both renders.
+        let plain = scorecard::render_plain(&value);
+        assert!(
+            plain.contains("Witness events: none recorded for this repository yet."),
+            "{plain}"
+        );
+        assert!(!plain.contains("0 since first run"), "{plain}");
+
+        let card = scorecard::render_html_card(&value).expect("save-time evidence is shareable");
+        assert!(
+            card.contains("None recorded for this repository yet."),
+            "{card}"
+        );
+        assert!(!card.contains("witness events since first run"), "{card}");
+    }
+
+    /// Council-797f142a major 1 (reproduced by the adversarial
+    /// reviewer): the sidecar is machine-wide, so a save-time row from
+    /// another repository must NOT shift this repository's witness
+    /// windows. With witness events at 2026-01-05 and 2026-01-30 and a
+    /// sidecar row at 2026-02-09, both witness events lie within 30
+    /// days of the witness stream's own latest event — anchoring to the
+    /// cross-stream maximum would silently drop one.
+    #[test]
+    fn witness_windows_anchor_to_witness_stream_not_sidecar() {
+        let tmp = TempDir::new().unwrap();
+        let witness_dir = tmp.path().join("anvil/witness");
+        fs::create_dir_all(&witness_dir).unwrap();
+        let payload: String = [
+            witness_line(1, "2026-01-05T00:00:00Z"),
+            witness_line(2, "2026-01-30T00:00:00Z"),
+        ]
+        .iter()
+        .map(|line| String::from_utf8(line.to_ndjson_line().unwrap()).unwrap())
+        .collect();
+        fs::write(witness_dir.join("active.ndjson"), payload).unwrap();
+
+        let sidecar = tmp.path().join("kindling/usage.ndjson");
+        fs::create_dir_all(sidecar.parent().unwrap()).unwrap();
+        fs::write(
+            &sidecar,
+            format!(
+                "{}\n",
+                save_time_row(
+                    "2026-02-09T00:00:00Z",
+                    Outcome::Pass,
+                    Enforcement::Informational,
+                    &[],
+                    &[],
+                )
+            ),
+        )
+        .unwrap();
+
+        let value = cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
+        // Overall span still labels the cross-stream extremes…
+        assert_eq!(value.as_of.as_deref(), Some("2026-02-09T00:00:00Z"));
+        // …but the witness windows anchor to the witness stream's own
+        // latest event, so BOTH events count in the last 30 days.
+        assert_eq!(
+            value.witness_last_event.as_deref(),
+            Some("2026-01-30T00:00:00Z")
+        );
+        assert_eq!(
+            value.witness_events_last_30_days, 2,
+            "cross-stream sidecar activity must not drop recent witness events"
+        );
+        assert_eq!(value.witness_events_last_90_days, 2);
+    }
+
+    /// Council-797f142a major 2: the v2 DOCUMENT is not reproducible
+    /// (its v1 fields are wall-clock rolling windows), but the
+    /// `cumulative` sub-object must be byte-identical across different
+    /// invocation times over identical recorded data.
+    #[test]
+    fn v2_cumulative_sub_object_is_deterministic_across_now_values() {
+        let (tmp, sidecar) = marker_fixture();
+        let value_a = cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
+        let value_b = cumulative::cumulative_value(tmp.path(), &sidecar).unwrap();
+
+        let now_a = Utc.with_ymd_and_hms(2026, 7, 8, 12, 0, 0).unwrap();
+        let now_b = Utc.with_ymd_and_hms(2026, 9, 1, 3, 30, 0).unwrap();
+        let v2_a = insights_v2(
+            aggregator::weekly_summary(tmp.path(), now_a).unwrap(),
+            value_a,
+        );
+        let v2_b = insights_v2(
+            aggregator::weekly_summary(tmp.path(), now_b).unwrap(),
+            value_b,
+        );
+
+        // The wall-clock v1 fields differ…
+        assert_ne!(v2_a.window_end, v2_b.window_end);
+        // …the cumulative sub-object does not.
+        assert_eq!(
+            serde_json::to_string(&v2_a.cumulative).unwrap(),
+            serde_json::to_string(&v2_b.cumulative).unwrap(),
+            "cumulative sub-object must be byte-identical for identical recorded data"
+        );
     }
 
     #[test]
@@ -782,9 +978,27 @@ mod tests {
         assert_eq!(card, again);
 
         // Self-contained: embedded styling only, no scripts, no network
-        // references of any kind.
+        // references, no external-resource vectors of any kind. (A
+        // golden pin of the full card lives in `insights::scorecard`;
+        // this list guards the properties by name.)
         assert!(card.contains("<style>"));
-        for forbidden in ["<script", "http://", "https://", "src=", "@import", "url("] {
+        for forbidden in [
+            "<script",
+            "<link",
+            "<iframe",
+            "<object",
+            "<embed",
+            "<base",
+            "href=",
+            "src=",
+            "srcset=",
+            "http-equiv",
+            "data:",
+            "http://",
+            "https://",
+            "@import",
+            "url(",
+        ] {
             assert!(
                 !card.contains(forbidden),
                 "card must not contain {forbidden:?}"
@@ -814,6 +1028,210 @@ mod tests {
         );
         assert!(plain.contains("since first run"));
         assert!(plain.contains("Writes blocked: 1"), "{plain}");
+    }
+
+    // ── CIB-073 council fixes: --share orchestration + write hardening ──
+
+    /// A minimal aggregate with witness + save-time evidence, built
+    /// directly (no fs fixture) for the share-flow tests.
+    fn sample_value() -> CumulativeValue {
+        CumulativeValue {
+            since: Some("2026-01-05T08:00:00Z".to_string()),
+            as_of: Some("2026-07-08T12:00:00Z".to_string()),
+            witness_first_event: Some("2026-01-05T08:00:00Z".to_string()),
+            witness_last_event: Some("2026-07-01T10:00:00Z".to_string()),
+            witness_events_total: 3,
+            witness_events_last_30_days: 2,
+            witness_events_last_90_days: 2,
+            save_time: crate::insights::cumulative::SaveTimeCounts {
+                window_start: Some("2026-07-05T10:00:00Z".to_string()),
+                window_end: Some("2026-07-08T12:00:00Z".to_string()),
+                evaluations_observed: 3,
+                risky_writes_flagged: 2,
+                writes_blocked: 1,
+                secret_findings_caught: 2,
+                fences_engaged: 1,
+            },
+        }
+    }
+
+    fn empty_value() -> CumulativeValue {
+        CumulativeValue {
+            since: None,
+            as_of: None,
+            witness_first_event: None,
+            witness_last_event: None,
+            witness_events_total: 0,
+            witness_events_last_30_days: 0,
+            witness_events_last_90_days: 0,
+            save_time: crate::insights::cumulative::SaveTimeCounts {
+                window_start: None,
+                window_end: None,
+                evaluations_observed: 0,
+                risky_writes_flagged: 0,
+                writes_blocked: 0,
+                secret_findings_caught: 0,
+                fences_engaged: 0,
+            },
+        }
+    }
+
+    #[test]
+    fn share_writes_card_at_default_path_and_prints_summary() {
+        let tmp = TempDir::new().unwrap();
+        let default_path = tmp.path().join("anvil-scorecard.html");
+        let mut out = Vec::new();
+        run_share(&sample_value(), None, &default_path, &mut out).unwrap();
+
+        let card = fs::read_to_string(&default_path).unwrap();
+        assert_eq!(
+            Some(card.as_str()),
+            scorecard::render_html_card(&sample_value()).as_deref()
+        );
+        let stdout = String::from_utf8(out).unwrap();
+        assert!(stdout.contains("anvil value scoreboard"), "{stdout}");
+        assert!(stdout.contains("Scorecard written to"), "{stdout}");
+
+        // Freshly created card is private on Unix.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = fs::metadata(&default_path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600, "card must be created 0o600");
+        }
+    }
+
+    #[test]
+    fn share_without_evidence_prints_no_events_and_writes_nothing() {
+        let tmp = TempDir::new().unwrap();
+        let default_path = tmp.path().join("anvil-scorecard.html");
+        let mut out = Vec::new();
+        run_share(&empty_value(), None, &default_path, &mut out).unwrap();
+
+        assert!(
+            !default_path.exists(),
+            "no card may be written without evidence"
+        );
+        let stdout = String::from_utf8(out).unwrap();
+        assert!(stdout.contains(scorecard::NO_EVENTS_LINE), "{stdout}");
+    }
+
+    #[test]
+    fn share_with_json_is_rejected() {
+        let args = InsightsArgs {
+            suppressions: false,
+            drift: false,
+            cumulative: false,
+            share: true,
+            output: None,
+        };
+        let global = GlobalArgs {
+            json: true,
+            ..Default::default()
+        };
+        let err = run(&args, &global).unwrap_err();
+        assert!(
+            err.to_string().contains("--share"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn share_refuses_existing_file_at_default_path() {
+        let tmp = TempDir::new().unwrap();
+        let default_path = tmp.path().join("anvil-scorecard.html");
+        fs::write(&default_path, "precious earlier card").unwrap();
+
+        let mut out = Vec::new();
+        let err = run_share(&sample_value(), None, &default_path, &mut out).unwrap_err();
+        assert!(err.to_string().contains("already exists"), "{err}");
+        assert_eq!(
+            fs::read_to_string(&default_path).unwrap(),
+            "precious earlier card",
+            "the existing file must not be clobbered"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn share_refuses_symlink_at_default_path() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("victim.txt");
+        fs::write(&target, "victim content").unwrap();
+        let default_path = tmp.path().join("anvil-scorecard.html");
+        std::os::unix::fs::symlink(&target, &default_path).unwrap();
+
+        let mut out = Vec::new();
+        let err = run_share(&sample_value(), None, &default_path, &mut out).unwrap_err();
+        assert!(err.to_string().contains("already exists"), "{err}");
+        assert_eq!(
+            fs::read_to_string(&target).unwrap(),
+            "victim content",
+            "a pre-planted symlink must never redirect the write"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn share_refuses_symlink_for_explicit_output() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("victim.txt");
+        fs::write(&target, "victim content").unwrap();
+        let out_path = tmp.path().join("card.html");
+        std::os::unix::fs::symlink(&target, &out_path).unwrap();
+
+        let mut out = Vec::new();
+        let err = run_share(
+            &sample_value(),
+            Some(&out_path),
+            Path::new("unused-default.html"),
+            &mut out,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("symlink"), "{err}");
+        assert_eq!(fs::read_to_string(&target).unwrap(), "victim content");
+    }
+
+    #[test]
+    fn share_explicit_output_overwrites_regular_file() {
+        let tmp = TempDir::new().unwrap();
+        let out_path = tmp.path().join("card.html");
+        fs::write(&out_path, "old card").unwrap();
+
+        let mut out = Vec::new();
+        run_share(
+            &sample_value(),
+            Some(&out_path),
+            Path::new("unused-default.html"),
+            &mut out,
+        )
+        .unwrap();
+        let card = fs::read_to_string(&out_path).unwrap();
+        assert!(
+            card.starts_with("<!doctype html>"),
+            "explicit --output overwrites"
+        );
+    }
+
+    #[test]
+    fn share_empty_evidence_warns_about_stale_card() {
+        let tmp = TempDir::new().unwrap();
+        let default_path = tmp.path().join("anvil-scorecard.html");
+        fs::write(&default_path, "card from an earlier, evidenced run").unwrap();
+
+        let mut out = Vec::new();
+        run_share(&empty_value(), None, &default_path, &mut out).unwrap();
+        let stdout = String::from_utf8(out).unwrap();
+        assert!(stdout.contains(scorecard::NO_EVENTS_LINE), "{stdout}");
+        assert!(
+            stdout.contains("stale"),
+            "must warn the old card is stale: {stdout}"
+        );
+        assert_eq!(
+            fs::read_to_string(&default_path).unwrap(),
+            "card from an earlier, evidenced run",
+            "the stale card is warned about, never deleted silently"
+        );
     }
 
     #[test]

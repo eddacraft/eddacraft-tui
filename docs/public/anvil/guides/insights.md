@@ -18,10 +18,11 @@ sidebar_position: 5
 | `anvil insights`, the witness chain, and `anvil drift` snapshots under `.anvil/` | Operators tracking value signal; `--json` consumers (CI, dashboards, scripts) |
 
 `anvil insights` summarises the signal anvil has already collected for your
-project. It has three project-health views: a default weekly activity summary, a
-suppression health view, and a drift trend. Every view supports `--json` for
-scripting and dashboards. The current release window also adds local
-command-usage views under `anvil kindling usage`.
+project. It has four project-health views: a default weekly activity summary
+(now followed by a cumulative value scoreboard), a suppression health view, a
+drift trend, and a cumulative scoreboard view with a shareable scorecard.
+Every view supports `--json` for scripting and dashboards. The current release
+window also adds local command-usage views under `anvil kindling usage`.
 
 ## Weekly activity (default)
 
@@ -40,7 +41,9 @@ witness chain and recorded activity:
 - Daemon uptime percentage
 
 Add `--json` to emit a schema-versioned `anvil.insights.v1` document for your
-own tooling.
+own tooling. The default `--json` document is unchanged by the cumulative
+scoreboard below; the extended `anvil.insights.v2` document is opt-in via
+`--cumulative --json`.
 
 ## Suppressing a finding
 
@@ -104,8 +107,58 @@ sparkline, derived from your `anvil drift` snapshots:
 `--json` emits a schema-versioned `anvil.drift_trend.v1` document with the
 per-week buckets, the `weeks_with_data` count, and a `sufficient_data` flag.
 
-`--suppressions` and `--drift` are mutually exclusive — pick one view per
-invocation.
+The view flags — `--suppressions`, `--drift`, `--cumulative`, and `--share` —
+are mutually exclusive: pick one view per invocation.
+
+## Cumulative value scoreboard (`--cumulative`)
+
+```bash
+anvil insights --cumulative
+```
+
+Answers "what has anvil saved me?" from evidence already recorded locally:
+
+- **Witness events** — since the first recorded event (the witness chain is
+  append-only, so this is a genuine all-time count), plus 30- and 90-day
+  windows anchored to the chain's own latest event.
+- **Save-time protection** — checks observed, risky writes flagged, writes
+  blocked, secret findings caught, and protective fences engaged, counted over
+  the local observation store's **retained window** (it has bounded 7-day
+  retention, so these are never presented as all-time claims). The window's
+  bounds are named in every render.
+
+Every number is a pure function of the recorded data — no wall clock is
+consulted, and streams with no evidence say so honestly instead of showing
+measured-looking zeros. The scoreboard also appears after the default weekly
+summary.
+
+`--cumulative --json` emits the extended `anvil.insights.v2` document: every
+`anvil.insights.v1` field (still rolling/wall-clock-anchored) plus a
+deterministic `cumulative` object.
+
+## Shareable scorecard (`--share`)
+
+```bash
+anvil insights --share
+anvil insights --share --output ~/reports/anvil-scorecard.html
+```
+
+Writes a self-contained single-file HTML scorecard of the headline numbers and
+prints the plain-text summary. The card is safe to share by design:
+
+- **Redacted by default** — counts, durations, and evidence-window dates only.
+  No repository paths, repo or file names, branch names, secret values,
+  hostnames, usernames, or emails ever appear in the card.
+- **Self-contained and offline** — embedded styling, no scripts, no external
+  assets, no network references.
+- **Deterministic** — identical recorded data produces a byte-identical card;
+  the dates shown are the evidence window's own bounds, not a generation
+  timestamp.
+
+Without `--output`, the card is created as `anvil-scorecard.html` in the
+current directory and an existing file at that name is never overwritten —
+pass `--output <path>` to choose (and overwrite) an explicit destination. When
+there is no recorded evidence yet, `--share` says so and writes nothing.
 
 ## Local command usage (`anvil kindling usage`)
 
