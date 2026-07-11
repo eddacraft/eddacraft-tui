@@ -44,7 +44,10 @@
 //! read primitive is platform-split, behind the one type.
 #![cfg(any(unix, windows))]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+// The compose warm-start dedup set is unix-only, like the whole route+compose path.
+#[cfg(unix)]
+use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
