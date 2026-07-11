@@ -20,9 +20,9 @@ sidebar_position: 5
 `anvil insights` summarises the signal anvil has already collected for your
 project. It has four project-health views: a default weekly activity summary
 (now followed by a cumulative value scoreboard), a suppression health view, a
-drift trend, and a cumulative scoreboard view with a shareable scorecard.
-Every view supports `--json` for scripting and dashboards. The current release
-window also adds local command-usage views under `anvil kindling usage`.
+drift trend, and a cumulative scoreboard view with a shareable scorecard. Every
+view supports `--json` for scripting and dashboards. The current release window
+also adds local command-usage views under `anvil kindling usage`.
 
 ## Weekly activity (default)
 
@@ -119,8 +119,8 @@ anvil insights --cumulative
 Answers "what has anvil saved me?" from evidence already recorded locally:
 
 - **Witness events** — since the first recorded event (the witness chain is
-  append-only, so this is a genuine all-time count), plus 30- and 90-day
-  windows anchored to the chain's own latest event.
+  append-only, so this is a genuine all-time count), plus 30- and 90-day windows
+  anchored to the chain's own latest event.
 - **Save-time protection** — checks observed, risky writes flagged, writes
   blocked, secret findings caught, and protective fences engaged, counted over
   the local observation store's **retained window** (it has bounded 7-day
@@ -155,10 +155,10 @@ prints the plain-text summary. The card is safe to share by design:
   the dates shown are the evidence window's own bounds, not a generation
   timestamp.
 
-Without `--output`, the card is created as `anvil-scorecard.html` in the
-current directory and an existing file at that name is never overwritten —
-pass `--output <path>` to choose (and overwrite) an explicit destination. When
-there is no recorded evidence yet, `--share` says so and writes nothing.
+Without `--output`, the card is created as `anvil-scorecard.html` in the current
+directory and an existing file at that name is never overwritten — pass
+`--output <path>` to choose (and overwrite) an explicit destination. When there
+is no recorded evidence yet, `--share` says so and writes nothing.
 
 ## Local command usage (`anvil kindling usage`)
 

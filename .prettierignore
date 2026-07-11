@@ -54,3 +54,5 @@ crates/anvil-grammar-wat/vendor/
 docs/archive/experiments/html-vs-markdown-tokens/source.md
 docs/archive/experiments/html-vs-markdown-tokens/source.minimal.html
 docs/archive/experiments/html-vs-markdown-tokens/source.structured.html
+# Golden render fixture must stay byte-identical to the scorecard renderer output
+crates/anvil-cli/src/insights/testdata/
