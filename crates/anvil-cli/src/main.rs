@@ -5,6 +5,8 @@ mod commands;
 mod config_summary;
 mod config_view;
 mod feature_flags;
+#[cfg(unix)]
+mod graph_base_producer;
 mod help_layout;
 mod insights;
 mod install_root;
@@ -328,6 +330,9 @@ enum Commands {
     Validate(commands::validate::ValidateArgs),
     /// Show install-method-aware version + upgrade guidance.
     Version(commands::version::VersionArgs),
+    /// Build a shared base graph from a merge-base commit's committed tree.
+    #[command(name = "graph-base", hide = true)]
+    GraphBase(commands::graph_base::GraphBaseArgs),
     /// Log in to anvil (alias for `auth login`).
     #[command(hide = true)]
     Login(commands::auth::LoginArgs),
@@ -393,6 +398,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Uninstall(_) => "uninstall",
         Commands::Validate(_) => "validate",
         Commands::Version(_) => "version",
+        Commands::GraphBase(_) => "graph-base",
         Commands::Login(_) => "login",
         Commands::Logout(_) => "logout",
         Commands::Whoami(_) => "whoami",
@@ -1337,6 +1343,7 @@ fn main() -> ExitCode {
         Commands::Gctx(args) => commands::gctx::run(args, &cli.global),
         Commands::Validate(args) => commands::validate::run(args, &cli.global),
         Commands::Version(args) => commands::version::run(args, &cli.global),
+        Commands::GraphBase(args) => commands::graph_base::run(args, &cli.global),
         Commands::Login(args) => commands::auth::run_login(args, &cli.global),
         Commands::Logout(args) => commands::auth::run_logout(args, &cli.global),
         Commands::Whoami(args) => commands::auth::run_whoami(args, &cli.global),

@@ -1,8 +1,8 @@
 # Graph Base Persistence
 
-| ID    | Owner | Status | Progress |
-| ----- | ----- | ------ | -------- |
-| GBASE | —     | Draft  | 0/11     |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| GBASE | —     | In Progress | 0/11     |
 
 **Last reviewed:** 2026-07-11 (created from planning council `plan-89a47ac7`,
 synthesised as [ADR-105](../decisions/105-shared-base-graph-persistence.md) —
@@ -94,7 +94,7 @@ default-on.
 
 #### GBASE-001: Merge-base tree reader
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3268
 - **Intent:** Produce the full graph of a merge-base commit's committed tree by
   reading git objects, never a working tree.
 - **Expected Outcome:** A CLI-subprocess reader walks the merge-base commit's

@@ -21,6 +21,7 @@ pub mod export;
 pub mod gate;
 pub mod gate_config;
 pub mod gctx;
+pub mod graph_base;
 pub mod hook;
 pub mod hooks;
 pub mod init;

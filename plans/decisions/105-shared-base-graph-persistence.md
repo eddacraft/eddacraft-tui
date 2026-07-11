@@ -2,8 +2,7 @@
 
 ## Status
 
-**Proposed** — 2026-07-11, planning council `plan-89a47ac7` (architect,
-kernel-maintainer, adversarial-reviewer, operations-reviewer, security-analyst).
+Accepted 2026-07-11 (operator, planning-council plan-89a47ac7).
 Successor to [ADR-069](069-graph-v2-persistence.md): it replaces the on-disk
 **storage layout** of the warm-graph snapshot (per-worktree file → one shared
 write-once base + live overlays) while inheriting ADR-069's format machinery,
