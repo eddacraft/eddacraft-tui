@@ -87,11 +87,12 @@ install -d -m 700 "$ANVIL_HOME"   # the daemon requires a 0700, user-owned prefi
 > The daemon binds its socket and PID file directly under the prefix and
 > enforces an owner-only `0700` directory (per ADR-036's runtime-dir hardening).
 > Prefer `install -d -m 700`. If the prefix already exists with a wider mode
-> but is owned by you, anvil **tightens it to `0700` automatically** (#3220)
-> instead of cascading into a misleading `ready_restart_required` / intercept
-> recovery path. Wrong ownership still fails fast with a `chmod 700` recovery
-> string — never start a second foreground daemon to "fix" a permission
-> problem.
+> but is owned by you, the **daemon ensure/bind path** tightens it to `0700`
+> automatically (#3220) instead of cascading into a misleading
+> `ready_restart_required` / intercept recovery path. Client-side probes
+> (`status`, MCP) refuse loose modes without mutating — align the prefix first.
+> Wrong ownership fails with an ownership recovery (recreate as yourself);
+> never start a second foreground daemon to "fix" a permission problem.
 
 Run the candidate binary with the env var exported, or pass `--anvil-home`
 per-command (the flag takes precedence over the env var):

@@ -1004,7 +1004,9 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
 
     // Owner-only repair: loose `mkdir` modes (e.g. 775 under /tmp) otherwise
     // cascade into `ready_restart_required` with a misleading intercept-start
-    // recovery. Tightening is strictly more secure (#3220).
+    // recovery. Tightening is strictly more secure (#3220). Used on the
+    // daemon/ensure path only (not client validation).
+    let from_mode = mode;
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).with_context(|| {
         format!(
             "PID file directory {} has mode {:o}, expected 700; failed to chmod 700 \
@@ -1016,6 +1018,23 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
     })?;
     let metadata = fs::symlink_metadata(path)
         .with_context(|| format!("failed to re-stat PID file directory {}", path.display()))?;
+    // Full gate re-check after repair (type + owner + mode) — aligned with
+    // `unix_perms::ensure_owner_mode` post-repair policy.
+    if metadata.file_type().is_symlink() {
+        anyhow::bail!("refusing symlink PID file directory {}", path.display());
+    }
+    if !metadata.is_dir() {
+        anyhow::bail!("PID file directory is not a directory: {}", path.display());
+    }
+    if metadata.uid() != expected_uid {
+        anyhow::bail!(
+            "PID file directory {} is owned by uid {}, expected {} \
+             (when using ANVIL_HOME, the prefix must be owned by the current user)",
+            path.display(),
+            metadata.uid(),
+            expected_uid,
+        );
+    }
     let mode = metadata.permissions().mode() & 0o777;
     if mode != 0o700 {
         anyhow::bail!(
@@ -1026,6 +1045,12 @@ fn verify_secure_runtime_dir(path: &Path, metadata: &fs::Metadata) -> Result<()>
             path.display(),
         );
     }
+    tracing::info!(
+        path = %path.display(),
+        from_mode = format_args!("{from_mode:o}"),
+        to_mode = "700",
+        "tightened runtime directory mode to 0700"
+    );
 
     Ok(())
 }

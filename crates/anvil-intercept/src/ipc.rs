@@ -526,7 +526,7 @@ pub enum IpcError {
     #[error("socket path is a symlink: {0}")]
     SocketPathIsSymlink(PathBuf),
     #[error(
-        "socket directory has wrong permissions: {path} (mode={mode:o}, expected 0o700, owner={owner_uid}, current={current_uid}). Fix with: chmod 700 '{path}' (required when ANVIL_HOME re-roots the runtime dir)"
+        "socket directory has wrong permissions: {path} (mode={mode:o}, expected 0o700, owner={owner_uid}, current={current_uid}). If you own the path, run: chmod 700 '{path}'. If ownership differs, recreate the prefix as yourself (ANVIL_HOME must be user-owned) — do not start a second daemon"
     )]
     SocketDirPermissions {
         path: PathBuf,
@@ -860,8 +860,10 @@ mod unix_perms {
     /// has a wider mode (common after `mkdir` under a loose umask or an
     /// `ANVIL_HOME` side-by-side prefix), this path **tightens** to
     /// `0700` once before failing — owner-only is strictly more secure
-    /// and unblocks activation without a misleading "start the daemon"
-    /// recovery (#3220).
+    /// and unblocks daemon bind without a misleading "start the daemon"
+    /// recovery (#3220). Repair is intentionally limited to the
+    /// create/bind path; client validation uses
+    /// [`ensure_existing_dir`] and refuses without mutating.
     pub fn ensure_dir(dir: &Path, current_uid: u32) -> Result<(), IpcError> {
         match fs::symlink_metadata(dir) {
             Ok(meta) => {
@@ -870,7 +872,7 @@ mod unix_perms {
                 }
                 // Already exists and is not a symlink — verify (and if
                 // owned by us, repair) owner + mode.
-                ensure_owner_mode(dir, &meta, current_uid)
+                ensure_owner_mode(dir, &meta, current_uid, RepairMode::Allow)
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 // Create the parent recursively first (without our
@@ -886,28 +888,53 @@ mod unix_perms {
                 // Re-verify after creation. If umask or ACLs widened
                 // the mode beyond 0700, tighten once then re-check.
                 let meta = fs::symlink_metadata(dir)?;
-                ensure_owner_mode(dir, &meta, current_uid)
+                ensure_owner_mode(dir, &meta, current_uid, RepairMode::Allow)
             }
             Err(err) => Err(err.into()),
         }
     }
 
+    /// Read-only verify of an existing socket directory (client path).
+    ///
+    /// Does **not** auto-chmod: status / MCP / driver validation must stay
+    /// side-effect free and stay aligned with the TypeScript driver client
+    /// which refuses loose modes (#3220 council M1). Daemon bind repairs
+    /// via [`ensure_dir`].
     pub fn ensure_existing_dir(dir: &Path, current_uid: u32) -> Result<(), IpcError> {
         let meta = fs::symlink_metadata(dir)?;
         if meta.file_type().is_symlink() {
             return Err(IpcError::SocketDirIsSymlink(dir.to_path_buf()));
         }
-        ensure_owner_mode(dir, &meta, current_uid)
+        ensure_owner_mode(dir, &meta, current_uid, RepairMode::Refuse)
+    }
+
+    /// Whether [`ensure_owner_mode`] may tighten a loose owner-matched mode.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum RepairMode {
+        /// Daemon bind / create path: owner-matched loose modes → `0700`.
+        Allow,
+        /// Client validation path: refuse without mutating.
+        Refuse,
     }
 
     /// Verify the directory is owned by `current_uid` and mode `0700`.
-    /// When ownership matches but the mode is wider, attempt a single
-    /// owner-only repair before returning [`IpcError::SocketDirPermissions`].
+    /// When `repair` is [`RepairMode::Allow`] and ownership matches but the
+    /// mode is wider, attempt a single owner-only repair before returning
+    /// [`IpcError::SocketDirPermissions`].
     fn ensure_owner_mode(
         dir: &Path,
         meta: &fs::Metadata,
         current_uid: u32,
+        repair: RepairMode,
     ) -> Result<(), IpcError> {
+        if !meta.is_dir() {
+            return Err(IpcError::SocketDirPermissions {
+                path: dir.to_path_buf(),
+                mode: mode_bits(meta.permissions().mode()),
+                owner_uid: meta.uid(),
+                current_uid,
+            });
+        }
         let mode = mode_bits(meta.permissions().mode());
         let owner_uid = meta.uid();
         if owner_uid != current_uid {
@@ -921,9 +948,26 @@ mod unix_perms {
         if mode == 0o700 {
             return Ok(());
         }
+        if repair == RepairMode::Refuse {
+            return Err(IpcError::SocketDirPermissions {
+                path: dir.to_path_buf(),
+                mode,
+                owner_uid,
+                current_uid,
+            });
+        }
         // Owner-matched, mode too open — tighten once (#3220).
+        let from_mode = mode;
         fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
         let meta = fs::symlink_metadata(dir)?;
+        if meta.file_type().is_symlink() || !meta.is_dir() {
+            return Err(IpcError::SocketDirPermissions {
+                path: dir.to_path_buf(),
+                mode: mode_bits(meta.permissions().mode()),
+                owner_uid: meta.uid(),
+                current_uid,
+            });
+        }
         let mode = mode_bits(meta.permissions().mode());
         let owner_uid = meta.uid();
         if mode != 0o700 || owner_uid != current_uid {
@@ -934,6 +978,12 @@ mod unix_perms {
                 current_uid,
             });
         }
+        tracing::info!(
+            path = %dir.display(),
+            from_mode = format_args!("{from_mode:o}"),
+            to_mode = "700",
+            "tightened socket directory mode to 0700"
+        );
         Ok(())
     }
 
@@ -8678,7 +8728,7 @@ mod tests {
         #[test]
         fn ensure_dir_tightens_existing_with_wrong_mode() {
             // #3220: owner-matched dirs created by plain `mkdir` (loose umask)
-            // must not fail activation — tighten to 0700 instead of refusing.
+            // must not fail daemon bind — tighten to 0700 instead of refusing.
             let tmp = tempfile::tempdir().unwrap();
             let target = tmp.path().join("anvil");
             std::fs::create_dir(&target).unwrap();
@@ -8687,6 +8737,26 @@ mod tests {
             let meta = std::fs::symlink_metadata(&target).unwrap();
             assert_eq!(meta.permissions().mode() & 0o777, 0o700);
             assert_eq!(meta.uid(), current_uid());
+        }
+
+        #[test]
+        fn ensure_existing_dir_refuses_loose_mode_without_mutating() {
+            // Council M1: client validation must stay side-effect free.
+            let tmp = tempfile::tempdir().unwrap();
+            let target = tmp.path().join("anvil");
+            std::fs::create_dir(&target).unwrap();
+            std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let err = unix_perms::ensure_existing_dir(&target, current_uid()).unwrap_err();
+            assert!(
+                matches!(err, IpcError::SocketDirPermissions { mode: 0o755, .. }),
+                "unexpected error: {err:?}"
+            );
+            let meta = std::fs::symlink_metadata(&target).unwrap();
+            assert_eq!(
+                meta.permissions().mode() & 0o777,
+                0o755,
+                "client path must not chmod"
+            );
         }
 
         #[test]

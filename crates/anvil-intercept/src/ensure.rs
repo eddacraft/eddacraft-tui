@@ -199,17 +199,33 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
     // wrong-mode `ANVIL_HOME` surfaces as a chmod recovery instead of a
     // false "daemon did not become ready" + intercept-start hint after
     // the bind timeout. Owner-matched loose modes are tightened inside
-    // `ensure_secure_runtime_dir`; remaining failures keep the path and
-    // `chmod 700` instruction in the recovery string.
+    // `ensure_secure_runtime_dir`; remaining failures keep a cause-specific
+    // recovery (chmod for mode, recreate-as-self for ownership).
     if let Err(err) = crate::ensure_secure_runtime_dir(runtime_dir) {
-        return EnsureOutcome::Failed {
-            recovery: format!(
-                "runtime directory is not usable ({err}). \
+        let err_text = format!("{err:#}");
+        let recovery = if err_text.contains("owned by uid") {
+            format!(
+                "runtime directory is not usable ({err_text}). \
+                 When ANVIL_HOME re-roots the daemon, the prefix must be owned by you \
+                 — recreate it as yourself (`install -d -m 700 '{}'`) and do not start \
+                 a second foreground daemon to 'fix' permissions",
+                runtime_dir.display()
+            )
+        } else if err_text.contains("symlink") {
+            format!(
+                "runtime directory is not usable ({err_text}). \
+                 Point ANVIL_HOME at a real directory you own (`install -d -m 700 '…'`), \
+                 not a symlink"
+            )
+        } else {
+            format!(
+                "runtime directory is not usable ({err_text}). \
                  When ANVIL_HOME re-roots the daemon, the prefix must be mode 0700 \
                  and owned by you — run: chmod 700 '{}'",
                 runtime_dir.display()
-            ),
+            )
         };
+        return EnsureOutcome::Failed { recovery };
     }
     // Both the lock and the log live beside the PID file, so they inherit its
     // per-`ANVIL_HOME` scoping (ADR-060): two re-rooted instances of the same
