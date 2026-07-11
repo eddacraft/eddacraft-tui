@@ -260,7 +260,7 @@ default-on.
 
 #### GBASE-005: Disjoint id allocation + cross-boundary re-resolution
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3273
 - **Intent:** Keep base and overlay id spaces disjoint and re-resolve
   cross-boundary imports at compose time.
 - **Expected Outcome:** The base owns `[0, base_next_id)`; the overlay allocates
@@ -274,6 +274,17 @@ default-on.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GBASE-001, GBASE-004
+- **Note (reexport/call cross-boundary gap):** base→overlay re-resolution is
+  implemented for **imports** — exactly what ADR-105 §3's mechanism specifies
+  and what the persisted format supports (the `DependencyGraph` forward map is
+  deliberately Imports-only per GV2-031; the base stores *resolved*
+  reexport/call edges, not raw `ReexportEdge`/`CallSite`). A surviving base
+  file's reexport or call into an overlay-modified file therefore cannot be
+  re-resolved from the persisted format; closing that needs a schema-additive
+  payload change (an extension of this design, not a redesign). GBASE-007's
+  fixture must scope its cross-edge assertions accordingly and record the gap;
+  full reexport/call parity is follow-up work alongside the tail-language
+  hashless gap.
 
 ---
 
@@ -304,6 +315,11 @@ default-on.
 - **Expected Outcome:** A golden COMBINED-STATE fixture composes `base(X)` with a
   scripted overlay exercising adds, removes, tombstones, and cross-edges, and
   asserts the result is byte-for-byte equal to a cold scan of the combined state.
+  Cross-edge scope: **import** edges (the ADR-105 §3 mechanism GBASE-005
+  implements); base→overlay reexport/call edges are not reconstructable from the
+  persisted format (see the GBASE-005 note) — the fixture must either exclude
+  them from the byte-equality set with an explicit recorded exclusion, or this
+  item grows the schema-additive payload extension that closes the gap.
 - **Validation:** The COMBINED-STATE golden test passes deterministically and
   fails on any composition divergence.
 - **Files:** `crates/anvil-graph-cache/`, `crates/anvil-intercept/`

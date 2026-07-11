@@ -13,6 +13,7 @@ pub mod dependency;
 pub mod hot_index;
 pub mod incremental;
 pub mod overlay;
+pub mod rebase;
 pub mod registry;
 pub mod snapshot;
 pub mod symbol_graph;
@@ -33,6 +34,7 @@ pub use incremental::{
     re_resolve_imports_tracked, re_resolve_reexports, remove_file, update_file,
 };
 pub use overlay::{ChangedSet, OverlayCoverage, OverlayFragment, classify_changes};
+pub use rebase::{BaseReresolve, ComposePlan, InvalidatedEdge, OverlayIdAllocator, plan_compose};
 pub use registry::GraphRegistry;
 pub use snapshot::{
     MAX_SNAPSHOT_BYTES, SNAPSHOT_BACKING_SCHEMA_VERSION, SNAPSHOT_BASE_MAGIC,
