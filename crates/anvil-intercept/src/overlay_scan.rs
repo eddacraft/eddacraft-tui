@@ -807,4 +807,234 @@ mod tests {
             "an unreadable file yields no upsert"
         );
     }
+
+    // =======================================================================
+    // GBASE-007 layer (ii): the REAL end-to-end pipeline parity anchor.
+    //
+    // The graph-cache golden (layer (i)) composes hand-scripted fragments — fast,
+    // hermetic, byte-pinned. This layer runs the **production** overlay pipeline
+    // — a base built via the producer shape, its `SnapshotPayload` round-tripped
+    // through the sealed base bytes, the worktree dirtied on disk, then the REAL
+    // `compute_overlay` (openat2-guarded walk + content hashing + scoped parse) →
+    // `compose` — and asserts the composed graph is identical to a **cold scan of
+    // the dirtied on-disk state**. This is what makes the golden honest: it
+    // exercises the actual walk/hash/classify/parse path, not a fragment a test
+    // hand-wrote. Layer (i) localises a regression to a byte diff; layer (ii)
+    // proves the real machinery upholds `compose == cold scan` on the ADR-105 §3
+    // reconstructable (import) contract.
+    //
+    // The reexport/call divergence (the recorded imports-only exclusion) is pinned
+    // precisely at layer (i); the minimal test parser here does not extract
+    // re-exports, so it is naturally out of scope for this layer — the compose-level
+    // structural gap is the graph-cache golden's job, not the pipeline's.
+    // =======================================================================
+
+    use anvil_graph_cache::{compose, re_resolve_imports};
+    use anvil_kernel_types::{EdgeType, SymbolIdentity};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    /// Derive the Imports-only cross-file dependency graph — the production base
+    /// producer's `derive_dependency_graph` rule (kept in lockstep with the cold
+    /// oracle). The base MUST carry this forward map or `compose`'s `BaseReresolve`
+    /// cannot re-bind a surviving base file's import of a modified overlay file.
+    fn derive_dep(sym: &SymbolGraph) -> DependencyGraph {
+        let mut dep = DependencyGraph::new();
+        for node in sym.inner().node_weights() {
+            for edge in sym.outgoing_edges(node.id) {
+                if edge.edge_type != EdgeType::Imports {
+                    continue;
+                }
+                if let (Some(f), Some(t)) = (sym.get_symbol(edge.from), sym.get_symbol(edge.to))
+                    && f.file != t.file
+                {
+                    dep.add_dependency(f.file.clone(), t.file.clone());
+                }
+            }
+        }
+        dep
+    }
+
+    /// Build a base payload from on-disk files through the **producer shape**
+    /// (parse each file, fold with `update_file`, derive the Imports-only dep map),
+    /// then round-trip it through the sealed `ANVILGB1` base bytes so it is
+    /// recovered exactly as `load_base` would deliver it.
+    fn base_payload_with_dep(
+        root: &Path,
+        files: &[(&str, &str)],
+        parser: &dyn SymbolParser,
+    ) -> SnapshotPayload {
+        let mut sym = SymbolGraph::new();
+        for (rel, body) in files {
+            write(root, rel, body);
+            if let Some(fs) = parser.parse(Path::new(rel), body.as_bytes()) {
+                update_file(&mut sym, fs);
+            }
+        }
+        let dep = derive_dep(&sym);
+        let payload = SnapshotPayload::from_graphs(&sym, &dep).expect("base payload builds");
+        SnapshotPayload::from_base_bytes(&payload.to_base_bytes()).expect("base decodes")
+    }
+
+    /// A cold scan of the current on-disk state: parse every present file fresh,
+    /// fold with `update_file`, then re-resolve every import so forward references
+    /// bind regardless of insertion order — the parity ground truth.
+    fn cold_scan(root: &Path, files: &[&str], parser: &dyn SymbolParser) -> SymbolGraph {
+        let mut sym = SymbolGraph::new();
+        let mut all_imports = Vec::new();
+        for rel in files {
+            let bytes = std::fs::read(root.join(rel)).expect("read on-disk file");
+            if let Some(fs) = parser.parse(Path::new(rel), &bytes) {
+                all_imports.extend(fs.imports.iter().cloned());
+                update_file(&mut sym, fs);
+            }
+        }
+        re_resolve_imports(&mut sym, &all_imports);
+        sym
+    }
+
+    /// The `Imports`-only, id-independent edge set (keyed by stable identity).
+    fn import_identities(
+        sym: &SymbolGraph,
+    ) -> BTreeSet<(SymbolIdentity, SymbolIdentity, EdgeType)> {
+        let mut identity_of: BTreeMap<u64, SymbolIdentity> = BTreeMap::new();
+        let names: BTreeSet<&str> = sym.file_names().collect();
+        for file in names {
+            let symbols = sym.symbols_in_file(file);
+            let identities = SymbolIdentity::for_file_symbols(&symbols);
+            for (node, identity) in symbols.iter().zip(identities) {
+                identity_of.insert(node.id, identity);
+            }
+        }
+        sym.inner()
+            .edge_weights()
+            .filter(|e| e.edge_type == EdgeType::Imports)
+            .filter_map(|e| {
+                Some((
+                    identity_of.get(&e.from)?.clone(),
+                    identity_of.get(&e.to)?.clone(),
+                    e.edge_type,
+                ))
+            })
+            .collect()
+    }
+
+    fn dep_view(dep: &DependencyGraph, files: &[&str]) -> BTreeMap<String, Vec<String>> {
+        let mut out = BTreeMap::new();
+        for f in files {
+            let mut targets: Vec<String> = dep
+                .dependencies_of(f)
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect();
+            targets.sort();
+            if !targets.is_empty() {
+                out.insert((*f).to_owned(), targets);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn real_pipeline_compose_equals_cold_scan_of_dirty_worktree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let parser = PolyParser;
+
+        // --- base(X): a polyglot committed base (TS hashed + Go hashless) ---
+        let payload = base_payload_with_dep(
+            root,
+            &[
+                ("core.ts", "export core"),
+                ("widget.ts", "export widget"),
+                ("gone.ts", "export gone"),
+                ("helper.go", "export Help"), // hashless survivor (unchanged)
+                ("svc.go", "export Svc"),     // hashless (unchanged on disk)
+                ("consumer.ts", "export consumer\nimport ./widget"),
+                ("needsgone.ts", "export needs\nimport ./gone"),
+            ],
+            &parser,
+        );
+
+        // --- dirty the worktree on disk: modify + add + delete ---
+        write(root, "widget.ts", "export widget2"); // modify (base importer: consumer)
+        write(
+            root,
+            "feature.ts",
+            "export feature\nimport ./core\nimport ./widget\nimport ./mid",
+        );
+        write(root, "mid.ts", "export mid\nimport ./core"); // multi-hop feature→mid→core
+        std::fs::remove_file(root.join("gone.ts")).unwrap(); // delete (base importer: needsgone)
+
+        // --- REAL overlay computation (walk + hash + classify + scoped parse) ---
+        // Clone the loaded payload up front so a second determinism run can compose
+        // the same base again (compose takes the payload by value).
+        let payload_rerun = payload.clone();
+        let fragment = compute_overlay(&payload, root, &parser, &caps()).expect("anchor opens");
+
+        // Sanity: the real classifier saw the whole combined change shape, INCLUDING
+        // the hashless (.go) files routed conservative-modified (GBASE-004 note).
+        assert_eq!(fragment.changed.deleted, vec!["gone.ts".to_owned()]);
+        assert!(fragment.changed.added.contains(&"feature.ts".to_owned()));
+        assert!(fragment.changed.added.contains(&"mid.ts".to_owned()));
+        assert!(fragment.changed.modified.contains(&"widget.ts".to_owned()));
+        assert!(
+            fragment.changed.modified.contains(&"svc.go".to_owned())
+                && fragment.changed.modified.contains(&"helper.go".to_owned()),
+            "hashless base files take the conservative always-modified path through compose"
+        );
+
+        // --- compose the loaded base with the REAL overlay ---
+        let (sym, dep) = compose(payload, &fragment).expect("compose");
+
+        // --- cold scan of the dirtied on-disk state (gone.ts absent) ---
+        let combined = [
+            "core.ts",
+            "widget.ts",
+            "consumer.ts",
+            "needsgone.ts",
+            "helper.go",
+            "svc.go",
+            "feature.ts",
+            "mid.ts",
+        ];
+        let cold = cold_scan(root, &combined, &parser);
+
+        // Parity on the reconstructable ADR-105 §3 import contract.
+        let composed_imports = import_identities(&sym);
+        let cold_imports = import_identities(&cold);
+        assert_eq!(
+            composed_imports, cold_imports,
+            "GBASE-007 layer (ii): the REAL pipeline's composed import set must equal a cold scan\n\
+             composed = {composed_imports:#?}\ncold = {cold_imports:#?}"
+        );
+        assert_eq!(
+            composed_imports.len(),
+            5,
+            "must exercise consumer→widget (BaseReresolve), feature→core/widget/mid, mid→core"
+        );
+
+        // Dependency graph parity (Imports-only), incl. the base→overlay re-bind.
+        assert_eq!(
+            dep_view(&dep, &combined),
+            dep_view(&derive_dep(&cold), &combined),
+            "the real pipeline's composed dependency graph must equal the cold scan's"
+        );
+
+        // Determinism: a second run of the SAME real pipeline over the SAME on-disk
+        // state composes to the same import set (no wall-clock, no readdir-order
+        // leak into identities).
+        let fragment_b =
+            compute_overlay(&payload_rerun, root, &parser, &caps()).expect("anchor opens");
+        let (sym_b, dep_b) = compose(payload_rerun, &fragment_b).expect("compose");
+        assert_eq!(
+            import_identities(&sym_b),
+            composed_imports,
+            "the real pipeline is deterministic across runs (import set)"
+        );
+        assert_eq!(
+            dep_view(&dep_b, &combined),
+            dep_view(&dep, &combined),
+            "the real pipeline is deterministic across runs (dependency graph)"
+        );
+    }
 }

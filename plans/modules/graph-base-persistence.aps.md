@@ -345,7 +345,16 @@ default-on.
 
 #### GBASE-007: Combined-state golden parity fixture
 
-- **Status:** Proposed
+- **Status:** Merged 2026-07-11 via PR #3278
+- **Recorded exclusion (as landed):** cross-edge parity is scoped to **import**
+  edges (ADR-105 §3); the base→overlay reexport/call gap is taken as the
+  **recorded exclusion** (schema-additive extension out of budget) and pinned
+  loudly — the golden asserts imports byte-equal AND a test asserts the *exact*
+  reexport divergence, failing if the gap silently closes or widens. Two layers:
+  a hand-scripted graph-cache golden with a committed serialised pin
+  (`crates/anvil-graph-cache/tests/fixtures/gbase007_combined_state.snap`), and a
+  real-pipeline `compute_overlay → compose` intercept integration test asserting
+  compose == cold scan.
 - **Intent:** Prove that a composed base+overlay is identical to a cold scan of
   the combined on-disk state. **(Top schedule risk — correctness anchor.)**
 - **Expected Outcome:** A golden COMBINED-STATE fixture composes `base(X)` with a

@@ -497,6 +497,11 @@ mod tests {
 
     // ---- (a) parity: composed == cold scan of the combined state ----------
 
+    // This is the **fast smoke-check** parity test at unit scale. The exhaustive
+    // GBASE-007 combined-state golden (adds/removes/tombstones/cross-edges both
+    // directions/multi-hop/hashless polyglot + a committed byte-pin + the recorded
+    // reexport-divergence assertion) lives in `tests/combined_state_golden.rs` and
+    // **supersedes this in scale, not in existence** — this stays as a quick signal.
     #[test]
     fn composed_graph_matches_cold_scan_of_combined_state() {
         let (sym, dep) = compose(base_payload(), &fragment()).expect("compose");
