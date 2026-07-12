@@ -48,6 +48,9 @@ cat anvil-release.pub
 - Working copy in GitHub: base64-encode the file and add as the org-scoped
   repository secret `ANVIL_MINISIGN_PRIVATE_KEY` on the `eddacraft/anvil` repo.
   Restrict the secret to `release-sign-artefacts.yml`.
+- The workflow can normalise the legacy form whose outer base64 decodes to only
+  the key-material line, but new rotations must store the complete two-line key
+  file shown here.
 
 ```sh
 base64 -w0 anvil-release.key | pbcopy  # macOS
@@ -157,12 +160,12 @@ is taken) or by the dist config change (recommended path).
 
 ## Failure modes
 
-| Symptom                                               | Cause                                                                 | Action                                                                                                                                                                                                                          |
-| ----------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `anvil update` errors "signature verification failed" | Artefact has been tampered with, or the embedded key is out of sync.  | Verify the release manually (above). If verification fails locally too, the release is compromised — pull it.                                                                                                                   |
-| Release workflow logs "refusing to sign — dev key"    | Repo variable still set to the committed dev fallback.                | Run the One-time setup steps 1–3.                                                                                                                                                                                               |
-| Signing rejects the decoded private-key structure     | The repository secret is not the complete two-line minisign key file. | Re-encode the full `anvil-release.key` file from the secure store and replace `ANVIL_MINISIGN_PRIVATE_KEY`; do not pad or truncate the value to satisfy a byte count.                                                           |
-| Users on legacy binaries cannot verify a new release  | Their embedded key is the dev fallback or an old key.                 | They can update through Homebrew / curl-installer (own verification), then on-board to signed updates from there. The first signed release MUST be reachable through curl-installer / Homebrew — see "Initial bootstrap" below. |
+| Symptom                                               | Cause                                                                                                                    | Action                                                                                                                                                                                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anvil update` errors "signature verification failed" | Artefact has been tampered with, or the embedded key is out of sync.                                                     | Verify the release manually (above). If verification fails locally too, the release is compromised — pull it.                                                                                                                   |
+| Release workflow logs "refusing to sign — dev key"    | Repo variable still set to the committed dev fallback.                                                                   | Run the One-time setup steps 1–3.                                                                                                                                                                                               |
+| Signing rejects the decoded private-key structure     | The repository secret is neither the complete two-line minisign key file nor the supported legacy one-line key material. | Re-encode the full `anvil-release.key` file from the secure store and replace `ANVIL_MINISIGN_PRIVATE_KEY`; do not pad or truncate the value to satisfy a byte count.                                                           |
+| Users on legacy binaries cannot verify a new release  | Their embedded key is the dev fallback or an old key.                                                                    | They can update through Homebrew / curl-installer (own verification), then on-board to signed updates from there. The first signed release MUST be reachable through curl-installer / Homebrew — see "Initial bootstrap" below. |
 
 ## Initial bootstrap
 

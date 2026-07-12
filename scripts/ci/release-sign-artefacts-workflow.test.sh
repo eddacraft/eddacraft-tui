@@ -91,12 +91,13 @@ assert_contains "eddacraft-anvil-installer.ps1.minisig"
 assert_contains 'anvil-${TAG}-provenance.json.minisig'
 assert_contains "steps.release.outputs.commit_sha"
 assert_contains "Validate decoded minisign secret-key structure"
+assert_contains "scripts/release/normalise-minisign-secret-key.sh"
+assert_contains "ANVIL_MINISIGN_PRIVATE_KEY is not valid base64"
 assert_step_order "Download release assets" "Validate decoded minisign secret-key structure"
 assert_contains "Mirror .minisig files to the public release"
 assert_contains "--repo eddacraft/anvil"
 assert_not_contains 'if [ "${size}" -lt 200 ]'
 assert_not_contains '^untrusted\ comment:.*secret\ key$'
-assert_contains '^untrusted\ comment:'
 assert_not_contains "--json targetCommitish"
 assert_not_contains "!github.event.release.prerelease &&"
 
