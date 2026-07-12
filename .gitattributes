@@ -4,7 +4,17 @@
 # Force specific file types to always use LF
 *.sh text eol=lf
 *.ts text eol=lf
+*.mts text eol=lf
+*.cts text eol=lf
+*.tsx text eol=lf
 *.js text eol=lf
+# .mjs especially: shebang'd ESM scripts fail to import under a CRLF checkout
+# ("SyntaxError: Invalid or unexpected token" — the loader's shebang handling
+# breaks on "#!...\r"), which silently killed the infra admin-key suite on
+# every Windows CI leg.
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.jsx text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
