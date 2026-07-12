@@ -93,6 +93,8 @@ assert_contains "steps.release.outputs.commit_sha"
 assert_contains "Validate decoded minisign secret-key structure"
 assert_contains "scripts/release/normalise-minisign-secret-key.sh"
 assert_contains "ANVIL_MINISIGN_PRIVATE_KEY is not valid base64"
+assert_contains "-W \\"
+assert_not_contains 'echo "" | rsign sign'
 assert_step_order "Download release assets" "Validate decoded minisign secret-key structure"
 assert_contains "Mirror .minisig files to the public release"
 assert_contains "--repo eddacraft/anvil"

@@ -194,7 +194,8 @@ jobs:
             echo "Signing ${f} → ${f}.minisig (${label})"
             # rsign sign: -W = no encryption prompt; -t = trusted comment;
             # -c = untrusted comment; -x = output path.
-            echo "" | rsign sign \
+            rsign sign \
+              -W \
               -s "${RUNNER_TEMP}/anvil-release.key" \
               -t "${trusted}" \
               -c "anvil ${TAG} ${label} signature" \
