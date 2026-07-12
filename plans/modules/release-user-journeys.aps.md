@@ -8,9 +8,10 @@
 coordinated code items Merged (CIB-184 #3279, WOW-005 #3280, CIB-073 #3282,
 CIB-183 #3283, ACTTUI-012 #3284, CIB-190 #3286); JOURNEY-001..004 outcomes
 verified on candidate `d6d3aa39c`; Linux rehearsal recorded
-([audit](../audits/2026-07-12-journey-005-linux-rehearsal.md)); macOS/Windows
-manual legs and the final cut decision parked for the operator
-(`plans/execution/escalation.queue.md` ESC-001/ESC-002). Created 2026-07-11
+([audit](../audits/2026-07-12-journey-005-linux-rehearsal.md)). The operator
+cleared the escalation queue 2026-07-12 (ESC-001 accept-CI on the green cross
+matrix, main run 29171614019; ESC-002 approve): JOURNEY-005 is Merged and the
+v0.9.0-beta release is executing under JOURNEY-006. Created 2026-07-11
 from the operator's release goal and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
