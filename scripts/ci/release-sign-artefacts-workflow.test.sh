@@ -95,6 +95,8 @@ assert_step_order "Download release assets" "Validate decoded minisign secret-ke
 assert_contains "Mirror .minisig files to the public release"
 assert_contains "--repo eddacraft/anvil"
 assert_not_contains 'if [ "${size}" -lt 200 ]'
+assert_not_contains '^untrusted\ comment:.*secret\ key$'
+assert_contains '^untrusted\ comment:'
 assert_not_contains "--json targetCommitish"
 assert_not_contains "!github.event.release.prerelease &&"
 

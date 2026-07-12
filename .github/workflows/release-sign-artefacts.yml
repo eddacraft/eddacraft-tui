@@ -168,7 +168,9 @@ jobs:
           first_line=$(sed -n '1p' "${RUNNER_TEMP}/anvil-release.key")
           key_material=$(sed -n '2p' "${RUNNER_TEMP}/anvil-release.key")
           third_line=$(sed -n '3p' "${RUNNER_TEMP}/anvil-release.key")
-          if [[ ! "${first_line}" =~ ^untrusted\ comment:.*secret\ key$ ]] || \
+          # rsign/minisign treat the comment text as opaque; generated and
+          # legacy keys use different suffixes (and may include a key ID).
+          if [[ ! "${first_line}" =~ ^untrusted\ comment: ]] || \
             [ -z "${key_material}" ] || [ -n "${third_line}" ]; then
             echo "::error::Decoded secret-key file does not have the expected two-line minisign structure."
             exit 1
