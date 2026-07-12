@@ -9,17 +9,50 @@ engineering maintenance are recorded in the
 ## [Unreleased]
 
 > **Draft.** This section accumulates customer-relevant changes landed on `main`
-> since `v0.8.2-beta`; the version, date, and final scope are set at the next
+> since `v0.9.0-beta`; the version, date, and final scope are set at the next
 > release.
 
-This is the **assistant-facing graph** window: anvil's resident code graph
-becomes something an AI assistant can query over MCP — symbols, dependencies,
-callers, and change impact — alongside Python project support, new
-infrastructure-hygiene scan surfaces, on-device usage insights, smoother daemon
-startup, and continued beta-reliability polish.
+## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
+
+This window has two centres of gravity. **Your first minute and your daily
+minute:** `anvil welcome` now lands you on a real finding in your own repository
+with a guided, consent-gated fix, and a healthy repeat `anvil start` collapses
+to a six-line confidence check instead of re-running onboarding. **And the
+assistant-facing graph:** anvil's resident code graph becomes something an AI
+assistant can query over MCP — symbols, dependencies, callers, and change impact
+— alongside Python project support, shared warm-start persistence on by default,
+new infrastructure-hygiene scan surfaces, on-device usage insights, and
+continued beta-reliability polish.
 
 ### Added
 
+- **A first win on your own code.** First-run `anvil welcome` discovery now
+  lands on your repository's highest-severity actionable finding, explains why
+  it matters, and shows the exact one-line diff before anything is written.
+  Applying it takes an explicit, unticked consent — the apply refuses honestly
+  if the file changed since the preview — and declining drops you on the
+  familiar path picker. A clean repository gets an honest clean result, never a
+  showcased example dressed up as local truth.
+- **Quiet repeat `anvil start`.** When the repo is already activated and
+  healthy, a repeat `anvil start` collapses to the protection state, daemon and
+  save-time-driver posture, and exactly one next step — the full first-run
+  recipe only returns when something actually needs attention. When trustworthy
+  local evidence exists, the collapsed output may add a single value line (for
+  example risky writes flagged at save time in the last 30 days); missing,
+  stale, or zero evidence is omitted rather than zero-filled.
+- **A shareable value receipt.** `anvil insights` now reports cumulative
+  aggregates (writes blocked, secrets caught, boundary violations prevented)
+  alongside the rolling windows, and `anvil insights --share` writes a
+  deterministic, self-contained scorecard that names its evidence window and
+  redacts by design — counts and dates only, never paths, repository names, or
+  identifiers.
+- **Consent-first activation, everywhere.** The opt-in activation TUI
+  (`anvil start --tui`) now carries real consent end to end — selections drive
+  the same installs as the plain path, nothing ticked means nothing written —
+  and the live plain-mode MCP picker matches it: every candidate starts
+  unticked, so pressing Enter through the picker writes no editor config. Tier
+  evidence opens in-surface with `e`, and activation and welcome share one
+  exit-key story.
 - **Assistant graph context over MCP.** anvil's MCP server now exposes a
   read-only, identity-only view of your codebase's graph to AI assistants
   (Claude Code, Cursor): `anvil_search_symbols`, `anvil_find_dependents`,
@@ -53,6 +86,13 @@ startup, and continued beta-reliability polish.
 
 ### Changed
 
+- **Warm-start graph persistence is now on by default.** The save-time daemon
+  persists one shared, write-once base graph per repository per merge-base
+  commit plus a live per-worktree overlay, so a restarted daemon or a
+  newly-registered worktree warms from disk instead of a cold rebuild — and
+  sibling worktrees of the same repository reuse the same base. Everything stays
+  on your machine under anvil's state directory. Opt out with
+  `ANVIL_PERSIST_GRAPH=0`.
 - **Policy exceptions apply only when committed** (ADR-100). The L4 gate
   (pre-push hook, `anvil l4-validate`, audit-chain rescans) now reads
   `anvil/exceptions/store.json` from the tree of the commit being validated
@@ -134,11 +174,16 @@ startup, and continued beta-reliability polish.
 
 ### Upgrade notes
 
-- **Warm-start snapshots rebuild once after upgrading.** Persistence warm-start
-  snapshots are rebuilt once on first run after upgrading to `v0.9.0-beta` (the
-  snapshot filename hash changed). Opted-in users (`ANVIL_PERSIST_GRAPH=1`) pay
-  a single cold rebuild; this is a default-off feature with no correctness or
-  security impact.
+- **Warm-start persistence turns on, and snapshots rebuild once.** Graph
+  persistence is now on by default (see Changed), and the snapshot filename hash
+  changed — so the first run after upgrading to `v0.9.0-beta` pays a single cold
+  rebuild per repository, after which restarts warm from the shared base. No
+  correctness or security impact; opt out with `ANVIL_PERSIST_GRAPH=0`.
+- **Interactive install pickers no longer pre-select.** If you were used to
+  pressing Enter through `anvil start`'s workflow or MCP pickers to accept the
+  pre-ticked defaults, note that every candidate now starts unticked: tick what
+  you want installed (space), then apply. Enter with nothing ticked writes
+  nothing. Non-interactive and CI auto-install behaviour is unchanged.
 
 See [Engineering History](./ENGINEERING-HISTORY.md) for the full technical
 detail — the Graph V2 consumer layer and multi-graph registry
@@ -1771,9 +1816,5 @@ violations and anti-patterns at save time.
 - Release preparation metadata generated.
 
 ## v0.8.1-beta
-
-- Release preparation metadata generated.
-
-## v0.9.0-beta
 
 - Release preparation metadata generated.

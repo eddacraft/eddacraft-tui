@@ -12,10 +12,35 @@ All notable changes to anvil are documented here.
 ## [Unreleased]
 
 > Draft. This section tracks customer-relevant changes landed after
-> `v0.8.2-beta`; version, date, and final scope are set at release cut.
+> `v0.9.0-beta`; version, date, and final scope are set at release cut.
+
+## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
 
 ### Added
 
+- **A first win on your own code.** First-run `anvil welcome` discovery lands on
+  your repository's highest-severity actionable finding, explains why it
+  matters, and shows the exact one-line diff before anything is written.
+  Applying it takes an explicit, unticked consent — the apply refuses honestly
+  if the file changed since the preview — and declining drops you on the
+  familiar path picker. A clean repository gets an honest clean result.
+- **Quiet repeat `anvil start`.** When the repo is already activated and
+  healthy, a repeat `anvil start` collapses to the protection state, daemon and
+  save-time-driver posture, and exactly one next step. When trustworthy local
+  evidence exists it may add a single value line (for example risky writes
+  flagged at save time in the last 30 days); missing, stale, or zero evidence is
+  omitted rather than zero-filled.
+- **A shareable value receipt.** `anvil insights` reports cumulative aggregates
+  (writes blocked, secrets caught, boundary violations prevented) alongside the
+  rolling windows, and `anvil insights --share` writes a deterministic,
+  self-contained scorecard that names its evidence window and redacts by design
+  — counts and dates only, never paths, repository names, or identifiers.
+- **Consent-first activation, everywhere.** The opt-in activation TUI
+  (`anvil start --tui`) carries real consent end to end — nothing ticked means
+  nothing written — and the live plain-mode MCP picker matches it: every
+  candidate starts unticked, so pressing Enter through the picker writes no
+  editor config. Tier evidence opens in-surface with `e`, and activation and
+  welcome share one exit-key story.
 - **Assistant graph context over MCP.** The Rust MCP server now exposes
   read-only graph-context tools and resources for AI assistants:
   `anvil_search_symbols`, `anvil_find_dependents`, `anvil_find_callers`,
@@ -39,6 +64,18 @@ All notable changes to anvil are documented here.
 
 ### Changed
 
+- **Warm-start graph persistence is now on by default.** The save-time daemon
+  persists one shared, write-once base graph per repository per merge-base
+  commit plus a live per-worktree overlay, so a restarted daemon or a
+  newly-registered worktree warms from disk instead of a cold rebuild — and
+  sibling worktrees of the same repository reuse the same base. Everything stays
+  on your machine under anvil's state directory. The first run after upgrading
+  pays a single cold rebuild per repository (the snapshot format moved). Opt out
+  with `ANVIL_PERSIST_GRAPH=0`.
+- **Interactive install pickers no longer pre-select.** Every workflow and MCP
+  picker candidate starts unticked: tick what you want installed, then apply;
+  Enter with nothing ticked writes nothing. Non-interactive and CI auto-install
+  behaviour is unchanged.
 - **`anvil start` and `anvil watch` now manage the save-time daemon.**
   Daemon-backed protection is the normal path rather than an operator-only
   foreground ceremony (Linux and macOS). In an interactive terminal
@@ -1270,9 +1307,5 @@ See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.
 - Release preparation metadata generated.
 
 ## v0.8.1-beta
-
-- Release preparation metadata generated.
-
-## v0.9.0-beta
 
 - Release preparation metadata generated.
