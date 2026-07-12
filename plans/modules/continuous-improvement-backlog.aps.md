@@ -4984,3 +4984,27 @@ archive.
 - **Identified From:** PR #3290 council evidence run 29164882648
   (operations-reviewer finding C-001 residual).
 - **Confidence:** medium
+
+### CIB-195: Fix the TS OPA executor's real-binary path on Windows
+
+- **Status:** Ready
+- **Intent:** The legacy TS policy executor's real-binary evaluations must
+  either work on Windows or be explicitly retired there — never fail silently.
+- **Expected Outcome:** On the Windows release-gate leg, every real-binary
+  `opa eval` from `packages/anvil/policy` exits 2 with an EMPTY stderr —
+  including the permitted-builtins control — so the whole real-binary path is
+  broken there (capabilities semantics never enter into it). Diagnose the
+  Windows spawn/eval failure (now made visible by surfacing stdout in
+  `describeEvalFailure`), fix it, and remove the `process.platform === 'win32'`
+  skip from the CIB-108 real-binary suite — or, if the JS/TS workspace
+  retirement lands first, retire the suite with the workspace.
+- **Validation:** Release-gate `Unit Tests (Node 22.x, windows-latest)` runs
+  the CIB-108 real-binary describe block green with the skip removed.
+- **Identified From:** v0.9.0-beta promotion PR #3301 — the release gate is
+  the only CI context that runs this suite on Windows, and the suite
+  (2026-07-02) postdates the previous release cut, so the gap was latent.
+- **Coordinates with:** CIB-108 (the capabilities control — mock coverage
+  still runs on Windows; real-binary coverage stays on unix legs), the JS/TS
+  workspace retirement, CIB-132 (admin-key Windows nightly failures live in
+  the same retiring workspace).
+- **Confidence:** medium

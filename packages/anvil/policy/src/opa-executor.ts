@@ -598,7 +598,11 @@ export class OPAExecutor {
    * compiler error.
    */
   private describeEvalFailure(result: SpawnResult): string {
-    const detail = result.stderr || `OPA eval failed with code ${result.code}`;
+    // `opa eval -f json` reports compile/eval errors on STDOUT (as a JSON
+    // `errors` array) and may leave stderr empty — fall through to stdout so
+    // a failure message never degrades to a bare exit code (CIB-195: that
+    // masking is exactly what hid the Windows real-binary breakage).
+    const detail = result.stderr || result.stdout || `OPA eval failed with code ${result.code}`;
     const denied = [...OPA_DENIED_BUILTINS].find(
       (name) =>
         detail.includes(`undefined function ${name}`) ||
