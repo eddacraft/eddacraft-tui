@@ -2,7 +2,7 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 4/10 |
+| JOURNEY | Conductor | Josh | high | In Progress | 5/10 |
 
 **Last reviewed:** 2026-07-12 — release-cut implementation complete: all six
 coordinated code items Merged (CIB-184 #3279, WOW-005 #3280, CIB-073 #3282,
@@ -169,15 +169,18 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-005: Three-platform release journey rehearsal
 
-- **Status:** In Progress 2026-07-12 — Linux leg complete on candidate
-  `d6d3aa39c`
+- **Status:** Merged 2026-07-12 — Linux interactive rehearsal complete on
+  candidate `d6d3aa39c`
   ([rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md)):
   fresh welcome, first/repeat start, `--verify`/`--json` byte contracts,
   no-MCP, daemon stop/restart with durable-registration reload, and a
-  repair path all pass. Cross-platform CI evidence dispatched on the same
-  SHA (`ci-nightly.yml` run 29161637384, `rust.yml` run 29161638249).
-  macOS/Windows interactive legs are operator-parked (ESC-001 in
-  `plans/execution/escalation.queue.md`).
+  repair path all pass. macOS/Windows evidence per the operator's ESC-001
+  **accept-CI** resolution (2026-07-12): the full `rust.yml` cross matrix is
+  green on main (run 29171614019) after the candidate runs surfaced and the
+  loop fixed the accumulated non-unix dead-code drift (PR #3290) and the
+  macOS/APFS `base_store` claim races + Windows harnesses (CIB-194 via PR
+  #3297). Manual macOS/Windows interactive legs were explicitly waived for
+  this cut; the PR-CI cross-lint gap stays tracked as CIB-193.
 - **Intent:** Prove the release candidate survives the real installation,
   restart, repeat-use, degraded, and recovery paths on every supported platform.
 - **Expected Outcome:** One candidate SHA has recorded Linux, macOS, and Windows
@@ -193,12 +196,14 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-006: Outcome-based release gate
 
-- **Status:** Blocked — evidence matrix assembled (Linux metrics in the
-  [rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md):
+- **Status:** In Progress 2026-07-12 — the operator approved the cut (ESC-002
+  **approve**, 2026-07-12) on the assembled evidence matrix (Linux metrics in
+  the [rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md):
   first run 0.34 s, healthy repeat 0.026 s / 6 lines, one-next-action
   compliance on every observed terminal state, byte-stable machine
-  contracts, redaction green); the cut decision is the operator's
-  (ESC-002 in `plans/execution/escalation.queue.md`), pending ESC-001.
+  contracts, redaction green; cross matrix green on main run 29171614019).
+  Release execution for v0.9.0-beta is underway; flips Merged when the tag
+  lands.
 - **Intent:** Decide the cut from reproducible journey outcomes rather than the
   completion of disconnected feature lists.
 - **Expected Outcome:** The candidate records time to first value, activation

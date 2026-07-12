@@ -636,3 +636,24 @@ never with feature work.
 - Checkpoints raised: ESC-001, ESC-002 (operator); ESC-003 (low priority).
 - Next: loop idles on JOURNEY until the operator clears the queue;
   post-cut expansion items (JOURNEY-007..010) remain Proposed by design.
+
+## Cycle — 2026-07-12 (escalation queue cleared; release approved)
+
+- Items: operator cleared the queue — ESC-001 accept-CI, ESC-002 approve,
+  ESC-003 accept (found already done: the GBASE close had flipped ADR-105
+  to Accepted 2026-07-11).
+- Outcome: JOURNEY-005 Merged (Linux rehearsal + green cross matrix on
+  main, run 29171614019, per accept-CI); JOURNEY-006 In Progress —
+  v0.9.0-beta release execution authorised and underway.
+- Coordination note: a sibling session landed PR #3297 (macOS/APFS
+  base_store claim races [CIB-194] + Windows-honest test harnesses) on top
+  of this loop's PR #3290 dead-code fixes — together turning the matrix
+  green. This loop's duplicate in-flight CIB-193 implementation agent was
+  stopped and its PR #3296 closed before collision; sibling's CIB-193
+  (PR-CI cross-lint gap) stays Ready, non-blocking.
+- Plan changes: queue entries moved to Resolved with decisions + evidence;
+  aps:index count refresh in the same commit.
+- Checkpoints raised: none — the remaining gate (tag) executes under the
+  operator's ESC-002 approval.
+- Next: run the release skill for v0.9.0-beta; flip JOURNEY-006 Merged on
+  the tag; module then rides Released/Shipped → Complete per lifecycle.
