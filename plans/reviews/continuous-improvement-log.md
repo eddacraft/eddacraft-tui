@@ -2233,3 +2233,73 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** Default CI notes to pending; harvest on bookkeeping; require closeout in Claude and Codex skills too
 - **Follow-up:** owned: CIB-191
 
+### 2026-07-11 — claude
+
+- **Task:** priority GH CIB-182 closeout: closed 6 landed issues; fix #3220 ANVIL_HOME perms in PR #3291
+- **Outcome:** six issues closed; #3220 PR open with auto-repair + docs
+- **Worked:** issue hygiene against #3253; owner-matched 0700 tighten on socket/PID ensure; ensure preflight; quickstart/runbook
+- **Failed:** none
+- **Friction:** GH issues stayed open after #3253 because PR used Relates to not Fixes
+- **Improvement:** prefer Fixes #N in PR body when issues are fully resolved
+- **Follow-up:** after #3291 merges: close #3223, mark CIB-182 Merged
+
+### 2026-07-11 — codex
+
+- **Task:** CIB backlog readiness pass and CIB-157 path-safety consolidation
+- **Outcome:** CIB-157 implemented and verified in an isolated worktree; awaiting branch finish choice
+- **Worked:** APS truth gate, TDD, focused Rust tests, Clippy, docs checks, and standard Council review
+- **Failed:** Broad MCP tool sweep has nine unrelated GCTX daemon-state expectation failures on current main
+- **Friction:** Worktree Git metadata and shared Cargo cache required sandbox escalation
+- **Improvement:** none
+- **Follow-up:** owned: CIB-157
+
+### 2026-07-12 — codex
+
+- **Task:** Address review feedback and close out CI for PR #3250
+- **Outcome:** No unresolved review threads; synced main and verified all required CI checks green
+- **Worked:** GraphQL reviewThreads query, merge-based base sync, and focused CI polling
+- **Failed:** Initial git fetch was blocked by read-only git metadata and rerun with approved escalation
+- **Friction:** Long-running Rust and resource-budget checks required extended polling
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-07-12 — codex
+
+- **Task:** Rebase and force-push PR #3250 onto main
+- **Outcome:** Rebased to a linear history, regenerated lock-derived artefacts, force-pushed with lease, and verified CI green
+- **Worked:** Conflict-aware rebase, canonical Hakari and acknowledgements regeneration, force-with-lease, and terminal CI polling
+- **Failed:** Initial acknowledgements regeneration lacked license-checker; installed it in a temporary tool directory and reran successfully
+- **Friction:** Generated files conflicted across the stale dependency branch and current main
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-07-12 — codex
+
+- **Task:** Resume v0.9.0-beta release after failed publish
+- **Outcome:** Blocked at publish credential boundary after deterministic retry
+- **Worked:** Reconciled Claude handoff with live tag and GitHub state; reran only failed host job using retained artefacts; recorded evidence on issue #3305
+- **Failed:** Attempt 2 reproduced HTTP 401 from ANVIL_RELEASES_TOKEN before publication
+- **Friction:** Release workflow accepts an invalid cross-repository PAT until the host provenance step
+- **Improvement:** Add an early credential preflight before platform builds
+  (implemented by PR #3309)
+- **Follow-up:** none
+
+### 2026-07-12 — codex
+
+- **Task:** DOCSYNC-027 Rust-only public documentation audit
+- **Outcome:** Updated README and public Anvil documentation to current v0.9.0-beta Rust CLI; 205 command examples parse and all documentation gates pass.
+- **Worked:** Compiling the shipped CLI and mechanically checking fenced examples exposed stale commands alongside the prose review.
+- **Failed:** Initial checks used the wrong docs-site path and omitted required audit-script arguments; corrected without repository impact.
+- **Friction:** The docs checker emits a large baselined warning set, which obscures the zero-new-error result.
+- **Improvement:** Add a maintained documentation command-example parser check to CI so removed commands fail close to the docs change.
+- **Follow-up:** promote: CIB
+
+### 2026-07-12 — codex
+
+- **Task:** Complete v0.9.0-beta release recovery and signing closeout
+- **Outcome:** Published both releases, hardened signing recovery, cryptographically verified three signatures, and recorded durable evidence.
+- **Worked:** Failure-specific workflow traces, production-shape key fixtures, and independent local verification isolated the token, key-normalisation, and terminal-prompt failures.
+- **Failed:** Early recovery attempts lacked actions read permission, rejected the raw binary key representation, or invoked rsign through a terminal prompt; each failed before signature upload.
+- **Friction:** The slow Docs Lint fixture and repeated hosted workflow round trips lengthened each narrow recovery iteration.
+- **Improvement:** Add fake-gh end-to-end signing integration coverage; tracked by GitHub issue #3310.
+- **Follow-up:** none
