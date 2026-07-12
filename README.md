@@ -1,12 +1,12 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                              |
-| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-26 from `benchmarks/history/2026-06-26.json` (full quiet-box + gate benches); prior review 2026-06-17 |
+| Type   | Authority | Owner  | Status | Freshness                                                                 |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Operator cockpit 2026-07-13; agent-vault local secrets; product tag `v0.8.2-beta` |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
-| `RELEASE-PLAN.md`, `plans/index.aps.md`, docs policies | Repository users and contributors |
+| `RELEASE-PLAN.md`, `plans/index.aps.md`, docs policies | Repository operators and agents   |
 
 <p align="center">
   <img src="apps/website/public/images/anvil-brandmark-ember.svg" alt="anvil brandmark" width="120" />
@@ -14,662 +14,470 @@
 
 > **AI agents make software probabilistic. anvil makes it deterministic.**
 
-anvil enforces policy at generation time, not at review. It sits between
-probabilistic AI agents and production code as a deterministic governance layer
-that catches architectural drift, anti-patterns, security risks, and policy
-violations **before they ever leave the developer's machine.**
+anvil is a pure-Rust governance layer that sits between AI coding agents and
+production code. It watches saves, runs checks and policies, and warns on **new**
+violations — architecture drift, anti-patterns, secrets, policy breaks — before
+they leave the machine. Warnings over blocks; new edges only.
 
-**[→ Early access at eddacraft.ai](https://eddacraft.ai)** ·
-[Docs](https://docs.eddacraft.ai/anvil/overview) ·
-[GTM strategy](https://github.com/eddacraft/eddacraft-gtm) ·
-[Brand & design](https://github.com/eddacraft/brand-and-design)
+**Shipped product:** Rust binary + MCP shim · **Monorepo also has:** TypeScript
+docs/API/tooling, Pulumi infra, APS plans.
 
-> **New here?** [`CONTEXT.md`](CONTEXT.md) is the repo map for contributors and
-> agents — what we call things, where they live, and where to go next.
+| Surface | Link |
+| ------- | ---- |
+| Early access | [eddacraft.ai](https://eddacraft.ai) |
+| Public docs | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
+| Install | [install.eddacraft.ai](https://install.eddacraft.ai) |
+| Latest tag | **`v0.8.2-beta`** |
+| Live work | [`plans/index.aps.md`](./plans/index.aps.md) |
+| Release cut | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) |
 
-## Hero stats
+> **Orienting in this repo?** Start with [`CONTEXT.md`](CONTEXT.md) — vocabulary,
+> where things live, and where to go next. Behaviour contract:
+> [`AGENTS.md`](AGENTS.md).
+
+---
+
+## Operator cockpit
+
+Use this table when you open the repo and need the right door fast.
+
+| I need to… | Go here |
+| ---------- | ------- |
+| See active modules / pick work | [`plans/index.aps.md`](plans/index.aps.md) |
+| Check release cut-line and blockers | [`RELEASE-PLAN.md`](RELEASE-PLAN.md) |
+| Understand the tree (apps / packages / crates) | [`CONTEXT.md`](CONTEXT.md) |
+| Know workflow, commits, validation policy | [`AGENTS.md`](AGENTS.md) |
+| Set up machine / open a PR | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Branch / worktree rules | [branching](docs/guides/branching-strategy.md) · [worktrees](docs/guides/worktree-policy.md) |
+| Architecture / scope guard | [overview](docs/architecture/overview.md) · [scope](docs/vision/anvil-scope-guard.md) |
+| ADR index | [`plans/decisions/DECISION-LOG.md`](plans/decisions/DECISION-LOG.md) |
+| Run a release | [release runbook](docs/runbooks/release-runbook.md) · [cadence](docs/policies/release-cadence.md) |
+| Approve waitlist / invite beta | [admin CLI runbook](docs/runbooks/admin-cli.md) · § [Admin CLI](#admin-cli-anvil-admin) below |
+| Dogfood candidate vs prod | [ANVIL_HOME runbook](docs/runbooks/anvil-home-side-by-side.md) |
+| Full CLI command catalogue | [cli-surface runbook](docs/runbooks/cli-surface.md) |
+| Docs authority model | [documentation governance](docs/guides/documentation-governance.md) |
+| Feature flags | [flag governance](docs/guides/feature-flag-governance.md) · `flags/manifest.json` |
+| Local secrets / `.env` | § [agent-vault](#local-secrets-agent-vault) below |
+| Agent skills / commands inventory | [agent-surface-inventory](docs/guides/agent-surface-inventory.md) |
+
+### Local secrets (agent-vault)
+
+We use **`agent-vault`** (CLI on `PATH`, typically `~/.local/bin/agent-vault`) for
+local developer secrets — API keys, admin tokens, `.env` values, and anything
+that must not land in agent transcripts or git.
+
+**Hard rule for agents and for you when pairing with agents:** do not
+`Read`/`Write`/`Edit` secret-bearing files (`.env`, credentials, compose with
+keys). Use agent-vault instead so values stay redacted in context.
+
+```bash
+# --- Safe for agents (and day-to-day) ---
+agent-vault list                         # key names only (no values)
+agent-vault has <key> [keys...]          # existence check; --json ok
+agent-vault read <file>                  # file with secrets as <agent-vault:key>
+agent-vault write <file> --content '…'   # write; placeholders resolved from vault
+# placeholders: <agent-vault:key-name>   (lowercase, hyphens)
+
+# --- Human / TTY only (you run these; agents must not) ---
+agent-vault init                         # first-time vault on this machine
+agent-vault set <key>                    # store a secret (interactive)
+agent-vault get <key> --reveal           # show a value
+agent-vault import <file>                # bulk import from .env
+agent-vault rm <key>                     # remove a key
+agent-vault scan <file>                  # audit a file for secrets
+```
+
+Typical local-dev flow:
+
+```bash
+# 1. Put keys in the vault once (you)
+agent-vault set anvil-admin-key
+agent-vault set openai-key   # example
+
+# 2. Confirm without revealing
+agent-vault has anvil-admin-key openai-key
+
+# 3. Materialise or update a .env with placeholders (agents can do this)
+agent-vault write .env --content $'ANVIL_ADMIN_KEY=<agent-vault:anvil-admin-key>\n'
+
+# 4. Or inject for one command via your shell after you reveal/export yourself
+#    Prefer anvil admin auth set / 1Password for admin when possible.
+```
+
+For `anvil admin`, prefer `anvil admin auth set 1password op://…` or
+`anvil admin auth set key -` over long-lived plaintext `.env` exports. Use
+agent-vault when a file-backed env or agent-editable config is required.
+
+### Setup
+
+Prerequisites (root `package.json` engines): **Node >= 24**, **pnpm >= 11**,
+**Git >= 2.54**, plus a Rust toolchain via [rustup](https://rustup.rs/).
+
+```bash
+gx clone eddacraft/anvil-001 && gx anvil-001
+pnpm install
+pnpm build                     # TypeScript workspace (Nx); needed before many JS tests
+```
+
+Full setup and package-filter recipes: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Repo-manager conventions: [`docs/guides/repository-operations.md`](docs/guides/repository-operations.md).
+
+### Build locally
+
+```bash
+# Whole monorepo (TypeScript apps/packages via Nx)
+pnpm build
+
+# Rust CLI binary (debug)
+cargo build -p eddacraft-anvil
+# → target/debug/anvil
+
+# Rust CLI binary (release — dogfood / candidate)
+cargo build -p eddacraft-anvil --release
+# → target/release/anvil
+
+# One-shot run without installing
+cargo run -p eddacraft-anvil -- --help
+cargo run -p eddacraft-anvil -- status
+```
+
+Package-scoped TS work (after `pnpm build` at least once for project references):
+
+```bash
+pnpm -F @eddacraft/anvil-aps test
+pnpm exec nx test @eddacraft/anvil-core
+pnpm exec nx build @eddacraft/anvil-docs-meta
+
+# Local app dev servers (secrets via agent-vault — never commit .env)
+# agent-vault read .env   /   agent-vault write .env …
+pnpm -F @eddacraft/anvil-website dev
+pnpm -F @eddacraft/anvil-api dev          # wrangler
+pnpm -F @eddacraft/anvil-api migrate:dry-run
+pnpm -F @eddacraft/docs-public start      # Docusaurus public docs
+```
+
+### Dev auth override (`ANVIL_DEV`)
+
+Licence-gated CLI commands need a beta session unless you opt into the local
+developer bypass. Set **`ANVIL_DEV=1`** — it is a documented local override on
+`cli.licence-gate` (and unlocks the APS dashboard flag). Use only on your
+machine; never in CI or user-facing docs.
+
+```bash
+export ANVIL_DEV=1
+
+# Debug binary
+cargo run -p eddacraft-anvil -- status
+cargo run -p eddacraft-anvil -- start
+
+# Or point at a release build
+./target/release/anvil status
+./target/release/anvil welcome
+```
+
+Real device-flow login (no bypass) against a chosen API host:
+
+```bash
+ANVIL_API_URL="https://api.eddacraft.ai" anvil auth login
+```
+
+Flag inventory / override contract:
+[`docs/guides/feature-flag-inventory.md`](docs/guides/feature-flag-inventory.md).
+
+### Dogfood a candidate (`ANVIL_HOME`)
+
+Run a local build beside the production install without clobbering credentials
+or the prod daemon socket:
+
+```bash
+export ANVIL_HOME="$HOME/.anvil-candidate"
+install -d -m 700 "$ANVIL_HOME"
+export ANVIL_DEV=1
+
+cargo build -p eddacraft-anvil --release
+ANVIL_HOME="$ANVIL_HOME" ./target/release/anvil status --json
+ANVIL_HOME="$ANVIL_HOME" ./target/release/anvil start
+```
+
+Under a non-default `ANVIL_HOME`, durable **project** writes (baseline, witness,
+hooks, init, …) are gated read-only unless you pass `--touch-project-state` or
+set `ANVIL_TOUCH_PROJECT_STATE=1`. Full procedure:
+[`docs/runbooks/anvil-home-side-by-side.md`](docs/runbooks/anvil-home-side-by-side.md).
+
+Older symlink helper (still useful for a named `anvil-beta` on PATH):
+`scripts/dev/run-candidate.sh` (`--status` / `--restore`).
+
+### Product CLI (local dogfood)
+
+After `cargo build -p eddacraft-anvil` (and usually `export ANVIL_DEV=1`):
+
+```bash
+anvil=./target/debug/anvil   # or target/release/anvil
+
+$anvil welcome                 # discovery scan; no login
+$anvil start                   # daemon + hooks + (by default) MCP config
+$anvil start --no-mcp          # activation without writing editor MCP config
+ANVIL_NO_MCP=1 $anvil start    # same via env
+
+$anvil status                  # project + daemon health
+$anvil status --json
+$anvil doctor                  # cheap diagnostics (witness, hooks, daemon)
+$anvil doctor --fix            # apply safe repairs (refused under gated ANVIL_HOME)
+
+$anvil check                   # anti-pattern / secret / policy pass
+$anvil gate --profile ai       # curated AI guardrail gate
+$anvil hooks status
+$anvil hooks install           # file-mode hooks (default)
+$anvil hooks install --config  # Git 2.54 native hook.<event>.command
+
+$anvil mcp-config --verify     # drift-check editor MCP config
+$anvil mcp serve --stdio       # MCP server (what editors launch)
+
+$anvil auth login              # real beta device-flow (needs network + API)
+$anvil auth status
+$anvil auth logout
+```
+
+Useful env vars (operator machine only):
+
+| Env | Purpose |
+| --- | ------- |
+| `ANVIL_DEV=1` | Local licence-gate bypass (`cli.licence-gate`) |
+| `ANVIL_HOME=<dir>` | Re-root install state (daemon socket, credentials, cache) |
+| `ANVIL_TOUCH_PROJECT_STATE=1` | Allow project mutations under non-default `ANVIL_HOME` |
+| `ANVIL_API_URL` | API host for auth / admin (default `https://api.eddacraft.ai`) |
+| `ANVIL_ADMIN_KEY` | Admin bearer (prefer `anvil admin auth set` or agent-vault — never commit) |
+| `ANVIL_NO_MCP=1` | Skip MCP config writes on `start` |
+| `ANVIL_NO_PROMPT=1` | Non-interactive; no TTY prompts |
+
+Catalogue + flags: [`docs/runbooks/cli-surface.md`](docs/runbooks/cli-surface.md).
+Activation without MCP:
+[`docs/runbooks/anvil-no-mcp-activation.md`](docs/runbooks/anvil-no-mcp-activation.md).
+
+### Admin CLI (`anvil admin`)
+
+`anvil admin` is the **Rust** operator surface on the same binary (legacy Node
+`anvil-admin` is archived). It talks to `/admin/*` on the API — waitlist,
+invites, revoke, audit, migration mail. **Does not use `ANVIL_DEV`**; it uses
+the admin key.
+
+```bash
+# One-time credential setup (preferred: 1Password; key never in shell history)
+anvil admin auth set 1password op://Anvil/admin-key/credential
+# Or store key locally (0600):  anvil admin auth set key -   # paste then Enter
+anvil admin auth status
+
+# Optional host override
+export ANVIL_API_URL="https://api.eddacraft.ai"
+
+# Day-to-day
+anvil admin list
+anvil admin list --status pending --limit 20
+anvil admin show someone@example.com
+anvil admin approve someone@example.com
+anvil admin approve --batch 10
+anvil admin invite someone@example.com --name "Name"
+anvil admin revoke someone@example.com --yes
+anvil admin audit --action user.approved --limit 20
+anvil admin send-migration                    # dry-run default
+anvil admin send-migration --no-dry-run --yes # actually send
+
+# Scoped one-shot without stored config
+op run --env-file=admin.env -- anvil admin list
+# admin.env: ANVIL_ADMIN_KEY="op://Anvil/admin-key/credential"
+```
+
+Resolution order: `ANVIL_ADMIN_KEY` env → configured source in `admin-auth.json`
+(`1password` or `key`). Do not paste keys on the command line. If the key lives
+in a local `.env` or agent-edited config, store it with **agent-vault**
+(`agent-vault set …` / `agent-vault write .env …`) rather than plain files in
+git. Full procedures, exit codes, per-operator keys, rotation:
+[`docs/runbooks/admin-cli.md`](docs/runbooks/admin-cli.md). Waitlist email ops:
+[`docs/runbooks/waitlist-email-operations.md`](docs/runbooks/waitlist-email-operations.md).
+
+### Release and post-deploy
+
+Command-driven release (do not hand-edit release state on a normal cut):
+
+```bash
+bash scripts/release/assess.sh --help
+bash scripts/release/preflight.sh --help
+bash scripts/release/prepare.sh --help
+bash scripts/release/promote.sh --help
+bash scripts/release/tag.sh --help
+bash scripts/release/monitor.sh --help
+bash scripts/release/verify.sh --help
+bash scripts/release/closeout.sh --help
+```
+
+Post-deploy smoke (API + site):
+
+```bash
+curl -sS https://api.eddacraft.ai/api/v1/health
+curl -I https://eddacraft.ai/
+```
+
+- [Release runbook](docs/runbooks/release-runbook.md)
+- [Post-deploy smoke](docs/runbooks/post-deploy-smoke-check.md)
+- [Release plan](RELEASE-PLAN.md) · [cadence](docs/policies/release-cadence.md)
+
+### Key pnpm tasks
+
+| Task | What it does |
+| ---- | ------------ |
+| `pnpm build` | Build all Nx TS targets |
+| `pnpm test` | JS unit tests + `cargo test --workspace` |
+| `pnpm test:js` / `pnpm test:rust` | Stack-split tests |
+| `pnpm test:e2e:harness` | Vitest E2E harness (`apps/e2e`) |
+| `pnpm test:coverage` | TS + Rust coverage (slow; also nightly CI) |
+| `pnpm typecheck` | TS typecheck + Rust `check` via Nx |
+| `pnpm lint` / `pnpm lint:check` | oxlint + ESLint + Rust + markdownlint |
+| `pnpm format` / `pnpm format:check` | oxfmt write / CI check |
+| `pnpm validate:changed` | Narrow local gate on git changes |
+| `pnpm validate:staged` | Same, staged only |
+| `pnpm validate:full` | Full local confidence before PR |
+| `pnpm docs:check` | Docs metadata, links, APS, ADR, indexes |
+| `pnpm docs:index` | Regenerate `docs/indexes/` |
+| `pnpm aps:index` | Refresh APS `N/M` counts |
+| `pnpm aps:index:check` | Fail if stored counts drift |
+| `pnpm aps:active-lint` | Lint active APS modules |
+| `pnpm aps:drift` | APS drift check |
+| `pnpm adr:check` | ADR index integrity |
+| `pnpm release-plan:check` | `RELEASE-PLAN.md` shape |
+| `pnpm bench` | Kernel / resource bench harness |
+| `pnpm ci-log:status` / `pnpm ci-log:harvest` | Continuous-improvement log |
+| `pnpm agent:run` | Local agent-run helper (`tools/local-agent-run.sh`) |
+| `pnpm licenses:verify` | Third-party acknowledgements freshness |
+
+### Runbooks worth bookmarking
+
+| Runbook | When |
+| ------- | ---- |
+| [admin-cli](docs/runbooks/admin-cli.md) | Waitlist, invite, revoke, audit, admin key |
+| [cli-surface](docs/runbooks/cli-surface.md) | Full `anvil` command catalogue |
+| [anvil-home-side-by-side](docs/runbooks/anvil-home-side-by-side.md) | Candidate install root |
+| [anvil-hook-coexistence](docs/runbooks/anvil-hook-coexistence.md) | Hooks + Husky / config-mode |
+| [anvil-witness-chain](docs/runbooks/anvil-witness-chain.md) | Witness break / doctor |
+| [github-device-flow](docs/runbooks/github-device-flow.md) | Auth login troubleshooting |
+| [release-runbook](docs/runbooks/release-runbook.md) | Cut a release |
+| [post-deploy-smoke-check](docs/runbooks/post-deploy-smoke-check.md) | After deploy |
+| [emergency-hotfix](docs/runbooks/emergency-hotfix.md) | Hotfix path |
+| [secret-rotation](docs/runbooks/secret-rotation.md) | Rotate CI/prod secrets |
+| [waitlist-email-operations](docs/runbooks/waitlist-email-operations.md) | Email / Resend ops |
+
+### Iterate / open a branch
+
+```bash
+# Prefer narrow validation while coding
+pnpm validate:changed          # or: pnpm validate:staged
+pnpm validate:full             # before PR
+
+# Branch work (from main)
+wt switch --create feat/<short-name>
+```
+
+Testing detail: [`docs/guides/testing.md`](docs/guides/testing.md).
+
+### Performance snapshot
+
+Save-time path is effectively free vs the 100 ms ADR-031 budget (latest clean
+quiet-box run **2026-06-26** on the deus reference box):
 
 ```
-28.3 µs    save-time incremental (single file reparse + graph update + call lift)
-1.6 µs     full policy evaluation (all invariants)
-6.5 ms     cold graph build, 100-file codebase
-0          perceptible delay
+28.3 µs   incremental single-file (reparse + graph + call lift)
+1.6 µs    full policy evaluation
+6.5 ms    cold graph build, 100 files
+~700K/s   parallel anti-pattern scan (320-artefact corpus)
 ```
 
-Latest clean measurements 2026-06-26 on deus (16-core reference box) via
-Criterion (release build). The incremental figure includes GCALL call-site
-extraction and resident call-edge lifting — ~3.6× vs 2026-05-30 (7.8 µs) but
-still ~3,500× under the 100 ms ADR-031 target. Previously measured 2026-05-30,
-2026-06-12 (partial), 2026-05-08, 2026-04-28 and 2026-04-03. Governance overhead
-is effectively zero — anvil is in a different category from SAST, not a faster
-scanner.
+History, gates, and how to re-run:
 
-Latest `anvil-bench` data (deus reference box):
+- [`benchmarks/history/2026-06-26.json`](./benchmarks/history/2026-06-26.json)
+- [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md)
+- `pnpm bench` / `cargo bench --bench kernel`
 
-**Full quiet-box run (2026-06-26)** — see
-[`benchmarks/history/2026-06-26.json`](./benchmarks/history/2026-06-26.json):
+---
 
-- **Parallel anti-pattern scan** — 0.46 ms per pass on the 320-artefact mixed
-  corpus → **~700K artefacts/sec** (within noise of the 2026-05-30 752K peak).
-- **Secret scan parallel** — **~7.3×** speedup (serial ~6.23 s vs parallel ~0.86
-  s on its corpus).
-- **Walk discovery (20k candidates)** — sequential **92.6 ms** vs parallel
-  **15.2 ms** → **~6.1×** speedup (`walk_discovery` bench).
-- **Hot-read latency gate (GV2-025)** — all eight `HotReadApi` ops pass; worst
-  p95 **0.035 ms** on `certify` (80 ms ADR-031 budget).
-- **Call-lift latency gate (GCALL-006)** — all three lift paths pass; worst p95
-  **7.8 ms** on a `MAX_CALL_SITES` ceiling file (80 ms budget).
-- **Watch resource budget** — pass at 13.0% CPU / 40.6 MiB RSS (50% / 300 MiB).
-- **MCP resource budget** — pass at 82.5% CPU / 11.9 MiB RSS, 86,720
-  `tools/call` requests (200% / 96 MiB).
-- **Intercept daemon budget** — pass at 0.0% CPU idle and 100.3% CPU burst;
-  ~13.0 MiB RSS throughout.
-- **Concurrent watch + MCP + intercept budget** — pass at 195.4% CPU / 65.0 MiB
-  RSS (800% / 700 MiB aggregate).
+## Product install (end users)
 
-**Prior clean run (2026-05-30)** — see
-[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json) for
-the pre-GCALL incremental baseline (7.8 µs) and 752K artefacts/sec scan peak.
-
-See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
-[the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
-for marketing-ready proof points.
-
-## What anvil is
-
-**Agentic engineering governance** — a category being defined right now. anvil
-is not a SAST scanner, not a linter, not an observability product, not a
-compliance dashboard. It is the governance layer that complements and constrains
-AI coding tools (Cursor, Copilot, Codex) in real time, in the developer workflow
-— _not_ in the PR queue.
-
-For full positioning, ICP definition, competitive intelligence, and the GTM
-primer, see
-[`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm).
-
-## Why now
-
-The **EU AI Act becomes substantially enforceable on 2 August 2026** — under
-four months out. High-risk obligations (Annex III), Article 50 transparency,
-conformity assessments, technical documentation, CE marking, and EU database
-registration all become required by that date for in-scope systems. Every
-EU-exposed engineering team now has a hard deadline to prove their agents are
-governed.
-
-At the same time, adjacent funding tells the same story: Qodo closed a $70M
-Series B and DAM Secure closed a $4M seed in the same week (April 2026);
-Microsoft, GitHub, Cisco, Zapier, Nvidia, and JetBrains are all shipping
-adjacent primitives in Q1–Q2 2026. The category is being built right now.
-
-Full market context and the parallel-track ICP framing that follows from this
-deadline live in
-[`eddacraft-gtm/GTM-PRIMER.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/GTM-PRIMER.md).
-
-## Related repos
-
-| Repo                                                                          | Purpose                                                                       |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm)       | GTM strategy, positioning, competitive radar, market signals, benchmark proof |
-| [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Visual identity, design system, deck templates, brand assets                  |
-| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec)   | The APS planning format used throughout this repo                             |
-
-## Install
-
-Get the latest release from
-[**install.eddacraft.ai**](https://install.eddacraft.ai) — auto-detects your OS
-and highlights the recommended command.
+Get the recommended command for your OS from
+[**install.eddacraft.ai**](https://install.eddacraft.ai).
 
 ```bash
 # Linux / macOS
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 
-# macOS (Homebrew)
+# macOS
 brew install eddacraft/tap/anvil
 ```
 
 ```powershell
-# Windows (PowerShell)
-irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
-
-# Windows (WinGet)
+# Windows
 winget install eddacraft.anvil
-
-# Windows (Scoop)
-scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
-scoop install anvil
+# or: irm .../eddacraft-anvil-installer.ps1 | iex
 ```
 
-### Upgrading on Windows
+First value after install: `anvil welcome` (no login) or `anvil start` (daemon,
+beta auth). Details: [Quick Start](./docs/public/anvil/quickstart.md).
 
-`anvil update` cannot self-replace `anvil.exe` on Windows in the current release
-(the cargo-dist updater sidecar is disabled until upstream ships an ARM64
-Windows build). Use your package manager or re-run the installer:
-
-```powershell
-winget upgrade --id eddacraft.anvil
-# or
-irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
-```
-
-If the installer fails with
-`The process cannot access the file ... because it is being used by another process`,
-an anvil MCP server is still running. Quit Cursor / Claude Code (or stop any
-`anvil mcp serve` process) and retry.
-
-## Release Status
-
-Latest repository tag: **`v0.7.2-beta`** (published 2026-05-25) — Save-Time
-Scanning & Tooling Honesty, the second Boring Week patch on top of the
-`v0.7.0-beta` daemon-working slate. It preserves the daemon, hooks, witness
-chain, baseline, and wrapped agent-launch protection claim while shipping the
-beta-feedback fixes for save-time scanning and tooling diagnostics.
-
-Current release planning, cut-line detail, docs-phase closure, and deferrals
-live in [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
-[`plans/index.aps.md`](./plans/index.aps.md).
-
-Release cadence and beta support-window expectations are documented in
-[`docs/policies/release-cadence.md`](./docs/policies/release-cadence.md).
+On Windows, `anvil update` cannot self-replace while an MCP process holds the
+binary — quit the IDE / stop `anvil mcp serve`, then re-run the installer or
+`winget upgrade --id eddacraft.anvil`.
 
 ---
 
-## For contributors
-
-[![CI](https://github.com/eddacraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/eddacraft/anvil-001/actions/workflows/ci.yml)
-[![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
-[![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Rust](https://img.shields.io/badge/Rust-2024%20edition-DEA584.svg?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=22.13-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
-
-eddacraft monorepo. Currently home to **anvil** — a deterministic development
-automation platform that catches architecture drift and AI anti-patterns at file
-save, before they reach code review. The current shipped baseline is
-`v0.7.2-beta`; active release planning and candidate scope live in
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md) and
-[`plans/index.aps.md`](./plans/index.aps.md).
-
-Coverage is advisory rather than a merge gate. Nightly CI publishes the
-authoritative coverage artefacts; local commands are listed in
-[Test Coverage](#test-coverage).
-
-Contributor workflow quick links:
-
-- [Branching strategy](docs/guides/branching-strategy.md) — main-first release
-  and integration flow
-- [Worktree policy](docs/guides/worktree-policy.md) — permanent vs disposable
-  worktrees
-- [Release runbook](docs/runbooks/release-runbook.md) — direct promotion vs
-  `release/*` stabilisation
-- [Release cadence policy](docs/policies/release-cadence.md) — patch cadence,
-  beta support windows, and hotfix expectations
-- [Contributing](CONTRIBUTING.md) — setup, commands, and submission checklist
-
-## Vision
-
-anvil ensures AI and humans cannot produce unsafe software.
-
-AI generates code, infrastructure, and decisions at unprecedented speed. anvil
-acts as a deterministic governance layer in the developer workflow, intercepting
-and validating changes at the moment of creation.
-
-It prevents:
-
-- Anti-patterns
-- Security risks
-- Policy violations
-
-Before they are ever executed. Only correct, compliant, and safe outcomes are
-allowed to proceed.
-
-## Repository Structure
-
-This is an NX-managed pnpm workspace containing the following apps, packages,
-and tooling.
-
-### Root files
-
-| File                       | Purpose                                                                    |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `package.json`             | Workspace scripts, shared devDependencies, and package manager constraints |
-| `pnpm-workspace.yaml`      | Workspace package discovery for apps, packages, tools, and infra           |
-| `nx.json`                  | Nx task and workspace configuration                                        |
-| `rust-toolchain.toml`      | Pinned Rust toolchain for workspace crates                                 |
-| `dist-workspace.toml`      | `cargo-dist` release configuration for Rust binaries                       |
-| `.anvilrc`                 | Repository-level anvil configuration                                       |
-| `.node-version` / `.nvmrc` | Node version hints for CI and local tooling                                |
-
-### Apps
-
-| Directory                 | Package                         | Description                                                  | Deployment |
-| ------------------------- | ------------------------------- | ------------------------------------------------------------ | ---------- |
-| `apps/admin-cli`          | `@eddacraft/anvil-admin-cli`    | Operator CLI for beta/admin workflows                        | —          |
-| `apps/anvil-api`          | —                               | API service                                                  | Vercel     |
-| `apps/anvil-docs-private` | `@eddacraft/anvil-docs-private` | Private Docusaurus docs app                                  | Vercel     |
-| `apps/docs-public`        | `@eddacraft/docs-public`        | Public Docusaurus docs app                                   | Vercel     |
-| `apps/docs-shell`         | `@eddacraft/docs-shell`         | Documentation shell and auth/proxy entrypoint                | Vercel     |
-| `apps/docs-site`          | `@eddacraft/docs-site`          | Legacy docs app retained during the docs-platform transition | Vercel     |
-| `apps/e2e`                | —                               | End-to-end Vitest harness                                    | —          |
-| `apps/website`            | `@eddacraft/anvil-website`      | Marketing website (Next.js)                                  | Vercel     |
-
-### Packages — anvil core
-
-| Directory                  | Package                      | Description                                               |
-| -------------------------- | ---------------------------- | --------------------------------------------------------- |
-| `packages/anvil/contracts` | `@eddacraft/anvil-contracts` | Schemas, types, and events with zero dependencies         |
-| `packages/anvil/ports`     | `@eddacraft/anvil-ports`     | Interface definitions depending only on contracts         |
-| `packages/anvil/core`      | `@eddacraft/anvil-core`      | Pure domain logic depending on ports and contracts        |
-| `packages/anvil/runtime`   | `@eddacraft/anvil-runtime`   | Orchestration and I/O depending on core, ports, contracts |
-| `packages/anvil/policy`    | `@eddacraft/anvil-policy`    | OPA/Rego wrappers depending on contracts                  |
-
-### Packages — Ecosystem
-
-| Directory                       | Package                                 | Description                                       |
-| ------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
-| `packages/anvil-driver-client`  | `@eddacraft/anvil-driver-client`        | TypeScript driver-client contracts                |
-| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                               |
-| `packages/docs-meta`            | `@eddacraft/anvil-docs-meta`            | Documentation metadata and docs-check parser      |
-| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
-| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
-| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
-| `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |
-
-Archived integrations retained for historical context:
-
-| Directory                              | Former package                | Status                                            |
-| -------------------------------------- | ----------------------------- | ------------------------------------------------- |
-| `anvil-archive/anvil-vscode-extension` | `anvil-vscode`                | Archived per ADR-033; not release-active          |
-| `anvil-archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server` | Archived TypeScript MCP server; Rust shim is live |
-| `packages/libs/render`                 | `@eddacraft/render`           | Retained package; not part of the active release  |
-| `packages/shared`                      | —                             | Retained shared utilities                         |
-
-### Packages — Tooling
-
-| Directory                        | Description                      |
-| -------------------------------- | -------------------------------- |
-| `packages/tooling/tsconfig`      | Shared TypeScript configurations |
-| `packages/tooling/eslint-config` | Shared ESLint configurations     |
-
-### Crates (Rust)
-
-| Directory                      | Description                                                        |
-| ------------------------------ | ------------------------------------------------------------------ |
-| `crates/anvil-architecture`    | Architecture rule evaluation                                       |
-| `crates/anvil-attribution`     | Agent/session attribution primitives for protection evidence       |
-| `crates/anvil-baseline`        | Baseline adoption and genesis witness helpers                      |
-| `crates/anvil-bench`           | Stress-test harness for capacity discovery                         |
-| `crates/anvil-checks`          | Gate checks ported to Rust (secret scan, anti-pattern, AI-001)     |
-| `crates/anvil-checks-napi`     | Node bindings build canary for the checks crate (ADR-033)          |
-| `crates/anvil-cli`             | Native CLI binary (cross-platform: macOS, Linux, Windows)          |
-| `crates/anvil-config`          | Multi-format `.anvil.<ext>` configuration discovery and validation |
-| `crates/anvil-hook`            | Git hook installation, coexistence, witness writes, and L4 handoff |
-| `crates/anvil-intercept`       | Mid-edit intercept daemon (RTAI launch path)                       |
-| `crates/anvil-intercept-proto` | Wire protocol types shared with the intercept daemon               |
-| `crates/anvil-intercept-rules` | Rule set evaluated by the intercept daemon                         |
-| `crates/anvil-intercept-win32` | Windows-specific intercept transport bits                          |
-| `crates/anvil-kernel`          | Rust kernel — watcher, parser, semantic graph, policy              |
-| `crates/anvil-kernel-types`    | Shared types for kernel, diagnostics, and protection claims        |
-| `crates/anvil-l4`              | L4 policy and witness-chain validation engine                      |
-| `crates/anvil-observability`   | Tracing baseline, traceparent envelope, redaction (TRACE)          |
-| `crates/anvil-policy`          | Policy wrapper and OPA integration surface                         |
-| `crates/anvil-policy-engine`   | Policy-engine internals                                            |
-| `crates/anvil-rayon-init`      | Shared Rayon initialisation                                        |
-| `crates/anvil-rules`           | Rule registry and deterministic rules digest                       |
-| `crates/anvil-run`             | Wrapped agent launcher and session registration ingress            |
-| `crates/anvil-tui`             | Ratatui TUI surfaces (dashboard, wizard, gate explorer)            |
-| `crates/anvil-witness`         | Hash-chained witness log writer, rollover, manifest, and verifier  |
-| `crates/eddacraft-tui`         | Shared TUI component primitives used by anvil TUI surfaces         |
-| `crates/spike`                 | Validation spikes for tree-sitter, notify-rs, petgraph             |
-| `crates/workspace-hack`        | Hakari-managed feature unifier for build times                     |
-
-### Infrastructure
-
-| Directory | Package                  | Description                     |
-| --------- | ------------------------ | ------------------------------- |
-| `infra`   | `@eddacraft/anvil-infra` | Pulumi IaC (Vercel, DNS, cloud) |
-
-### Tools
-
-| Directory          | Description                        |
-| ------------------ | ---------------------------------- |
-| `tools/scripts`    | Build and utility scripts          |
-| `tools/generators` | NX code generators                 |
-| `tools/codemods`   | Codemod transformations            |
-| `tools/test-utils` | Shared test utilities and fixtures |
-
-### Plans
-
-| Directory         | Description                     |
-| ----------------- | ------------------------------- |
-| `plans/modules`   | APS module specs and work items |
-| `plans/decisions` | Architecture decision records   |
-| `plans/execution` | Step-level execution evidence   |
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** >= 22.13.0 (minimum per `package.json` engines); **Node 22** is
-  the default CI/setup-workspace version, with Node 24 exercised in nightly
-  compatibility jobs
-- **pnpm** >= 10.20.0
-- **Git** >= 2.54.0
-- **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
-- **cargo-llvm-cov** (optional, for Rust coverage) —
-  `cargo install cargo-llvm-cov`
-- **cargo-nextest** (optional, required by `pnpm test:coverage:rust`) —
-  `cargo install cargo-nextest --locked`
-
-### Setup
-
-```bash
-gx clone eddacraft/anvil-001
-gx anvil-001
-pnpm install
-pnpm build
-```
-
-### Common Commands
-
-```bash
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Type checking
-pnpm typecheck
-
-# Linting / formatting / docs checks
-pnpm lint:check
-pnpm format:check
-pnpm docs:check
-
-```
-
-NX is used under the hood — you can also use `npx nx` commands directly for
-targeted builds, affected-only runs, and task graph visualisation.
-
-## Test Coverage
-
-Coverage data changes frequently enough that the repository README should point
-to the commands, generated reports, and CI artefacts rather than freeze a
-per-project table that goes stale.
-
-### Running coverage
-
-```bash
-# Full monorepo (TypeScript + Rust)
-pnpm test:coverage
-
-# TypeScript only (via Nx — runs project-level Vitest configs)
-pnpm test:coverage:ts
-
-# Rust only (cargo-llvm-cov → target/llvm-cov/html/)
-pnpm test:coverage:rust
-
-# E2E harness (kept separate from coverage totals)
-pnpm test:e2e:harness
-```
-
-TypeScript coverage is emitted by each Vitest project under its local
-`coverage/` directory, with JSON summaries in `coverage/coverage-summary.json`
-where the project config enables them. Per APS CICD-006, CI coverage runs in the
-nightly `ci-nightly.yml` workflow — not on PR or `main` push events; the
-`coverage-typescript` nightly job uploads the root, package, and app `coverage/`
-directories as `coverage-report-22.x` (14-day retention) and writes a
-per-project line/branch/function/statement table to the GitHub Actions job
-summary.
-
-Rust coverage is collected by `scripts/ci/rust-coverage.sh` (also invoked via
-`pnpm test:coverage:rust`). The script cleans stale profiles, runs
-`cargo llvm-cov --no-report nextest` with `--test-threads 1`, then emits
-`coverage-rust.json`, `coverage-rust-summary.txt`, and HTML under
-`target/llvm-cov/html/`. The nightly `coverage-rust` job uploads those artefacts
-as `coverage-report-rust` (14-day retention) using a dedicated `rust-coverage`
-cache namespace so instrumented builds do not collide with the non-instrumented
-`rust-ci` gate. PRs and `main` push runs use plain `cargo nextest` without
-coverage instrumentation to keep feedback fast.
-
-The E2E harness is reported separately from unit coverage totals. Its JSON
-result is uploaded as `e2e-results` from `coverage/e2e-results.json`.
-
-## Rust Kernel Benchmarks
-
-The Rust kernel (`anvil-kernel`) includes Criterion micro-benchmarks for
-regression detection. These validate the performance targets defined in the
-[Kernel Spec](./docs/architecture/rust-kernel-spec.md).
-
-### Performance Targets vs Measured
-
-The kernel was designed against the targets in the
-[Kernel Spec](./docs/architecture/rust-kernel-spec.md). Latest clean committed
-run on the reference box is 2026-06-26 (see
-[`benchmarks/history/2026-06-26.json`](./benchmarks/history/2026-06-26.json)).
-2026-05-30 remains the pre-GCALL incremental baseline. 2026-04-03 values appear
-only in parenthetical historical notes where later direct measurements from
-`benchmarks/history/` are absent.
-
-| Metric                                    | Target      | Measured (2026-06-26 clean) | Status                                        |
-| ----------------------------------------- | ----------- | --------------------------- | --------------------------------------------- |
-| Cold graph build, 100 files               | —           | **6.5 ms**                  | Validated (↓22% vs 2026-05-30)                |
-| Cold graph build, 1,000 files             | —           | **231 ms**                  | Validated (↓56% vs 2026-05-30)                |
-| Cold graph build, 2,500 files             | —           | —                           | Pending (extrapolation retired)               |
-| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness      | Pending                                       |
-| Incremental update (single file)          | < 100 ms    | **28.3 µs**                 | Validated · ~3,500× under target (GCALL cost) |
-| Hot-read API (worst op p95)               | < 80 ms     | **0.035 ms**                | Validated · GV2-025 gate                      |
-| Call-lift (worst op p95)                  | < 80 ms     | **7.8 ms**                  | Validated · GCALL-006 gate                    |
-| Policy evaluation (all invariants)        | —           | **1.6 µs**                  | Validated                                     |
-| Event emission (1,000 events)             | < 10 ms     | **255 µs**                  | Validated · ~39× under target                 |
-| Memory footprint (medium repo)            | < 500 MB    | Pending stress test         | Pending                                       |
-| File detection latency (p99)              | < 20 ms     | Validated (spike)           | Validated                                     |
-| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)   | Validated                                     |
-
-Full benchmark report and marketing-ready angles:
-[`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
-
-### Scan throughput across releases
-
-`anvil-bench` measures end-to-end scanner throughput on a 320-artefact mixed
-corpus (60% source, 20% PR descriptions, 10% commit messages, 10% agent output)
-on a fixed dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool)
-so cross-release numbers stay honest.
-
-| Release / spot          | Date       | Per-pass time | Throughput              | Notes                                                                                                          |
-| ----------------------- | ---------- | ------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
-| pre-RUSTNX-008          | 2026-04-22 | 14.6 ms       | 21.9K artefacts/sec     | Baseline before workspace-hack                                                                                 |
-| **v0.4.0-beta**         | 2026-04-25 | **11.2 ms**   | **28.6K artefacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress                                    |
-| **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artefacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                                     |
-| 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artefacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `benchmarks/history/2026-05-30.json`) |
-| 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artefacts/sec     | Indicative only (concurrent with secret scan; see `benchmarks/history/2026-06-12.json` caveats)                |
-| **2026-06-26 (clean)**  | 2026-06-26 | **0.46 ms**   | **~700K artefacts/sec** | Full pre-release quiet-box run; within noise of 05-30 peak (`benchmarks/history/2026-06-26.json`)              |
-
-```mermaid
-xychart-beta
-    title "antipattern_scan throughput (artefacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)", "2026-05-30 clean", "2026-06-26 clean"]
-    y-axis "artefacts / sec" 0 --> 800000
-    bar [21900, 28600, 39900, 752000, 700000]
-    line [21900, 28600, 39900, 752000, 700000]
-```
-
-Each release (and clean spot-check on the reference "deus" machine) adds a row
-so scan-path drift is visible over time. The 2026-06-26 entry is the latest full
-quiet-box run in `benchmarks/history/`, including walk-discovery, hot-read, and
-call-lift gate benches. Per-run detail lives in
-[`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md). Note the
-dramatic post-v0.5 improvement captured by the harness.
-
-### Walk discovery (SCAN-005)
-
-`walk_discovery` compares sequential `ignore::WalkBuilder` vs `WalkParallel` on
-a 20,000-candidate synthetic corpus (same box, 2026-06-26):
-
-| Strategy   | Median      | Throughput          |
-| ---------- | ----------- | ------------------- |
-| Sequential | **92.6 ms** | ~216K candidates/s  |
-| Parallel   | **15.2 ms** | ~1.32M candidates/s |
-
-**~6.1×** parallel speedup — consistent with the 2026-06-02 SCAN-005 spike
-(~6×).
-
-### Benchmark Groups
-
-| Group                       | What it measures                                   | Scale                                |
-| --------------------------- | -------------------------------------------------- | ------------------------------------ |
-| `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files       |
-| `incremental_update`        | Reparse + graph delta for single file change       | 1 file                               |
-| `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC               |
-| `symbol_extraction`         | Extract symbols from a parsed AST                  | 10, 100, 500, 1000 LOC               |
-| `import_resolution`         | Re-resolve imports against known files             | 100, 1k, 10k files                   |
-| `trust_annotation`          | Annotate graph symbols with trust levels           | 100, 1k, 5k files                    |
-| `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                |
-| `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas |
-| `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                          |
-| `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
-| `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
-| `filter_throughput`         | `should_process` over mixed project paths          | 1k, 10k, 50k paths                   |
-| `walk_discovery`            | Sequential vs parallel filesystem discovery walk   | 20k candidates (configurable)        |
-| `hot_read`                  | Resident-graph hot-read API latency gate (GV2-025) | 8 ops × 200 samples                  |
-| `call_lift`                 | Save-time call-edge lift latency gate (GCALL-006)  | 3 ops × 200 samples                  |
-
-### Running Benchmarks
-
-```bash
-# Run the full routine benchmark suite
-pnpm bench
-
-# Run all Criterion micro-benchmarks
-cargo bench --bench kernel
-
-# Run a specific group
-cargo bench --bench kernel -- cold_graph_build
-cargo bench --bench kernel -- incremental_update
-cargo bench --bench kernel -- incremental_update_varied
-cargo bench --bench kernel -- symbol_extraction
-cargo bench --bench kernel -- import_resolution
-cargo bench --bench kernel -- trust_annotation
-cargo bench --bench kernel -- policy_evaluation
-cargo bench --bench kernel -- policy_scaling
-cargo bench --bench kernel -- event_emission
-cargo bench --bench kernel -- graph_query
-cargo bench --bench kernel -- debouncer_throughput
-cargo bench --bench kernel -- filter_throughput
-```
-
-Criterion produces HTML reports in `target/criterion/` — open
-`target/criterion/report/index.html` for detailed charts and comparison against
-previous runs.
-
-### Planned Extensions
-
-The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
-defines a stress-test harness (`anvil-bench`) for capacity discovery — watcher
-saturation, graph memory ceiling, incremental throughput under sustained load,
-and cold start scaling. See the
-[BENCH module](./plans/archive/modules/kernel-benchmarking.aps.md) for archived
-Phase 2 and Phase 3 work items.
-
-## Deployment
-
-| App / surface             | Platform                     | Trigger                                                |
-| ------------------------- | ---------------------------- | ------------------------------------------------------ |
-| `anvil` (Rust)            | GitHub Releases / cargo-dist | Git tag (`v*`) via `release.yml`                       |
-| Homebrew formula          | `eddacraft/tap`              | Release follow-up via `homebrew-bump.yml`              |
-| Release signatures        | GitHub Actions artefacts     | `release-sign-artefacts.yml`                           |
-| Release readiness         | GitHub Actions               | Exact-SHA readiness checks via `release-readiness.yml` |
-| `apps/docs-public`        | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/anvil-docs-private` | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/docs-shell`         | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/website`            | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-| `apps/anvil-api`          | Vercel                       | Push to `main` (automatic via Vercel Git integration)  |
-
-The legacy Node CLI and TypeScript MCP server are archived; new releases ship
-the Rust binary and Rust MCP shim surfaces.
-
-### Native Binary Targets
-
-The Rust CLI is built for the following platforms via cargo-dist:
-
-| Platform | Architecture            | Binary      |
-| -------- | ----------------------- | ----------- |
-| macOS    | x86_64                  | `anvil`     |
-| macOS    | aarch64 (Apple Silicon) | `anvil`     |
-| Linux    | x86_64                  | `anvil`     |
-| Linux    | aarch64                 | `anvil`     |
-| Windows  | x86_64                  | `anvil.exe` |
-
-> Windows aarch64 is not yet shipped via `cargo-dist` / GitHub Releases —
-> axoupdater has no prebuilt binary for that target, so it is excluded from the
-> `cargo-dist` matrix until upstream support lands. The target is still built in
-> Rust CI (`.github/workflows/rust.yml`).
-
-## CI/CD
-
-The repository has several GitHub Actions workflows:
-
-- **ci.yml** — main/PR TypeScript lint, format, typecheck, unit tests, build,
-  E2E harness, docs lint, docs metadata validation, and change classification.
-- **rust.yml** — Rust clippy, tests, formatting, OPA/Rego checks,
-  acknowledgements freshness, and targeted cross-platform build smoke.
-- **ci-nightly.yml** — nightly coverage and broader Node 22/24 compatibility
-  coverage.
-- **release-readiness.yml** — exact-SHA release-readiness checks without
-  publishing credentials.
-- **release.yml** — cargo-dist release workflow for `v*` tags.
-- **release-sign-artefacts.yml** — release artefact signing.
-- **homebrew-bump.yml** — Homebrew tap formula update workflow.
-- **release-harness.yml** — release command harness validation.
-- **resource-budget.yml** — runtime resource-budget validation.
-- **security.yml** — dependency audit, secret scan, OPA/Regal, and security
-  targeting.
-- **codeql.yml** — GitHub CodeQL static analysis.
-- **bench.yml** / **bench-nightly.yml** — Rust kernel benchmark runs.
-- **infra.yml** — Infrastructure provisioning and validation.
-- **napi.yml** — NAPI/native binding canary workflow.
-- **labeler.yml** — Automatic PR labelling based on changed paths.
-
-A reusable **Anvil Check** GitHub Action (that is the action's declared name) is
-also provided at `.github/actions/anvil-check/` for running anvil analysis in
-your own workflows.
-
-## Code Conventions
-
-- **UK English** — organise, colour, behaviour
-- **ESM with .js extensions** — `import { foo } from './bar.js'`
-- **Zod-first schemas** — Define with Zod, export inferred types
-- **Tests co-located** — `file.ts` + `file.test.ts`
-
-## Contributing
-
-1. Fork and clone with `gx clone <repo>`
-2. Create a Worktrunk branch from `main`: `wt switch --create feat/my-feature`
-3. Make changes, run
-   `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test`
-4. `git commit` will also run the Husky pre-commit hook, which applies
-   `lint-staged` fixes and re-checks staged `oxfmt`-managed files
-5. Open PR
-
-See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
-
-## Documentation
-
-Most users want one of these golden-path entrypoints:
-
-| Audience             | Start here                                                                                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| New users            | [Quick Start](./docs/public/anvil/quickstart.md)                                                                                                |
-| Contributors         | [CONTRIBUTING.md](./CONTRIBUTING.md), [AGENTS.md](./AGENTS.md)                                                                                  |
-| Operators / release  | [Release Runbook](./docs/runbooks/release-runbook.md), [Release Plan](./RELEASE-PLAN.md), [Release Cadence](./docs/policies/release-cadence.md) |
-| Architecture readers | [Architecture overview](./docs/architecture/overview.md)                                                                                        |
-| Planners             | [APS index](./plans/index.aps.md)                                                                                                               |
-
-For everything else, route through the generated documentation indexes:
-
-- [`docs/indexes/README.md`](./docs/indexes/README.md) — discovery surface over
-  governed documents, grouped by type, authority, owner, status, and tag.
-- [`docs/guides/documentation-governance.md`](./docs/guides/documentation-governance.md)
-  — authority model, metadata convention, and closeout protocol.
+## Related repos
+
+| Repo | Purpose |
+| ---- | ------- |
+| [`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm) | GTM, positioning, competitive radar, marketing bench write-ups |
+| [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Brand and design system |
+| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) | APS format used in `plans/` |
+
+---
+
+## Docs map
+
+| Audience | Start here |
+| -------- | ---------- |
+| New users | [Quick Start](./docs/public/anvil/quickstart.md) |
+| This monorepo (you / agents) | [`CONTEXT.md`](./CONTEXT.md) → [`AGENTS.md`](./AGENTS.md) |
+| Contributors | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
+| Operators / release | [Release runbook](./docs/runbooks/release-runbook.md), [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) |
+| Architecture | [Overview](./docs/architecture/overview.md) |
+| Planners | [`plans/index.aps.md`](./plans/index.aps.md) |
+| Everything else | [`docs/indexes/README.md`](./docs/indexes/README.md) |
+
+Generated indexes stay current via `pnpm docs:index`. Do not invent parallel
+module lists — `plans/index.aps.md` is the only work index.
+
+---
+
+## CI at a glance
+
+| Workflow | Role |
+| -------- | ---- |
+| `ci.yml` | PR/main TypeScript gates, docs, E2E harness |
+| `rust.yml` | clippy, tests, fmt, OPA, cross-platform smoke |
+| `ci-nightly.yml` | coverage + Node matrix (coverage is not a PR merge gate) |
+| `release.yml` + readiness/sign/homebrew | cargo-dist publish on `v*` tags |
+| `security.yml` / `codeql.yml` | audits and static analysis |
+| `bench.yml` / `bench-nightly.yml` | kernel benches |
+
+Reusable check action: `.github/actions/anvil-check/`.
+
+Deploy surfaces (docs, website, API) ship via Vercel on `main`; the CLI ships via
+GitHub Releases (macOS/Linux/Windows x86_64 + aarch64 where cargo-dist supports
+the target). Detail lives in the workflows under `.github/workflows/`.
+
+---
+
+## Conventions (short)
+
+- **UK English** in plans and docs
+- **ESM** with `.js` import extensions in TypeScript
+- **Zod-first** schemas where TS packages expose contracts
+- **Tests co-located** (`file.ts` + `file.test.ts`)
+- Multi-step work uses **APS**; implementation on Worktrunk branches from `main`
+- **Local secrets** go through **agent-vault**, not plain commits or agent Read/Write
