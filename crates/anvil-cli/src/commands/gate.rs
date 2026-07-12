@@ -317,11 +317,6 @@ fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
         tracing::debug!("gate snapshot: workspace root unresolved; skipping persist");
         return;
     };
-    let dir = root.join(".anvil");
-    if let Err(e) = std::fs::create_dir_all(&dir) {
-        tracing::debug!(error = %e, "gate snapshot: could not create .anvil/; skipping persist");
-        return;
-    }
     let snapshot = gate_snapshot_from_result(result, aggregate);
     let json = match serde_json::to_vec_pretty(&snapshot) {
         Ok(json) => json,
@@ -330,9 +325,142 @@ fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
             return;
         }
     };
-    if let Err(e) = crate::util::atomic_write(&dir.join(GATE_SNAPSHOT_FILE), &json) {
+    if let Err(e) = persist_gate_snapshot_json(&root, &json) {
         tracing::debug!(error = %e, "gate snapshot: write to .anvil/gates.json failed");
     }
+}
+
+#[cfg(unix)]
+fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
+    use std::fs::File;
+    use std::io::Write as _;
+    use std::os::fd::AsFd as _;
+
+    use nix::errno::Errno;
+    use nix::fcntl::{OFlag, openat, renameat};
+    use nix::sys::stat::{Mode, mkdirat};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("canonicalising gate workspace {}", root.display()))?;
+    let root_fd = nix::fcntl::open(
+        &canonical_root,
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .with_context(|| format!("opening gate workspace {}", canonical_root.display()))?;
+
+    match mkdirat(&root_fd, ".anvil", Mode::S_IRWXU) {
+        Ok(()) | Err(Errno::EEXIST) => {}
+        Err(error) => return Err(error).context("creating held .anvil directory"),
+    }
+    let anvil_fd = openat(
+        root_fd.as_fd(),
+        ".anvil",
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .context("opening .anvil without following symlinks")?;
+
+    let temporary = format!(".{GATE_SNAPSHOT_FILE}.{}.tmp", uuid::Uuid::new_v4());
+    let flags =
+        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let file_fd = openat(
+        anvil_fd.as_fd(),
+        temporary.as_str(),
+        flags,
+        Mode::S_IRUSR | Mode::S_IWUSR,
+    )
+    .context("creating held gate snapshot temporary file")?;
+    let mut file = File::from(file_fd);
+    if let Err(error) = file.write_all(json).and_then(|()| file.flush()) {
+        let _ = unlinkat(
+            anvil_fd.as_fd(),
+            temporary.as_str(),
+            UnlinkatFlags::NoRemoveDir,
+        );
+        return Err(error).context("writing held gate snapshot temporary file");
+    }
+    drop(file);
+    if let Err(error) = renameat(
+        anvil_fd.as_fd(),
+        temporary.as_str(),
+        anvil_fd.as_fd(),
+        GATE_SNAPSHOT_FILE,
+    ) {
+        let _ = unlinkat(
+            anvil_fd.as_fd(),
+            temporary.as_str(),
+            UnlinkatFlags::NoRemoveDir,
+        );
+        return Err(error).context("publishing held gate snapshot");
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
+    let canonical_root = root
+        .canonicalize()
+        .with_context(|| format!("canonicalising gate workspace {}", root.display()))?;
+    let directory = canonical_root.join(".anvil");
+    match std::fs::create_dir(&directory) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error).context("creating .anvil directory"),
+    }
+    validate_gate_snapshot_parent(&canonical_root, &directory)?;
+    // Re-check immediately before the path-based atomic write. On Windows this
+    // rejects both symlinks and junction/reparse points and proves the resolved
+    // parent is still beneath the canonical workspace.
+    validate_gate_snapshot_parent(&canonical_root, &directory)?;
+    crate::util::atomic_write(&directory.join(GATE_SNAPSHOT_FILE), json)
+}
+
+#[cfg(not(unix))]
+fn validate_gate_snapshot_parent(canonical_root: &Path, directory: &Path) -> Result<()> {
+    let metadata = std::fs::symlink_metadata(directory)
+        .with_context(|| format!("inspecting gate snapshot parent {}", directory.display()))?;
+    if gate_snapshot_parent_is_redirect(metadata.file_type().is_symlink(), &metadata) {
+        bail!(
+            "refusing gate snapshot parent {} because it is a symlink or reparse point",
+            directory.display()
+        );
+    }
+    if !metadata.is_dir() {
+        bail!(
+            "refusing gate snapshot parent {} because it is not a directory",
+            directory.display()
+        );
+    }
+    let canonical_parent = directory.canonicalize().with_context(|| {
+        format!(
+            "canonicalising gate snapshot parent {}",
+            directory.display()
+        )
+    })?;
+    if !canonical_parent.starts_with(canonical_root) {
+        bail!(
+            "refusing gate snapshot parent {} outside workspace {}",
+            canonical_parent.display(),
+            canonical_root.display()
+        );
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn gate_snapshot_parent_is_redirect(is_symlink: bool, metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt as _;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    is_symlink || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(any(unix, windows)))]
+fn gate_snapshot_parent_is_redirect(is_symlink: bool, _metadata: &std::fs::Metadata) -> bool {
+    is_symlink
 }
 
 /// CIB-011 / #1803 — actionable next-step hint shown beneath a
@@ -3847,6 +3975,70 @@ mod tests {
         assert_eq!(
             snap.duration_seconds, "0.5",
             "sub-second run shows tenths, not 0"
+        );
+    }
+
+    #[test]
+    fn gate_snapshot_creates_a_missing_real_anvil_directory() {
+        let workspace = tempfile::tempdir().expect("workspace");
+
+        persist_gate_snapshot_json(workspace.path(), br#"{"status":"pass"}"#)
+            .expect("missing .anvil is created safely");
+
+        assert_eq!(
+            std::fs::read(workspace.path().join(".anvil/gates.json")).expect("gate snapshot"),
+            br#"{"status":"pass"}"#
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gate_snapshot_refuses_a_symlinked_anvil_parent() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::tempdir().expect("outside");
+        symlink(outside.path(), workspace.path().join(".anvil")).expect("symlink .anvil");
+
+        let error = persist_gate_snapshot_json(workspace.path(), b"redirected")
+            .expect_err("symlinked .anvil must fail closed");
+
+        assert!(
+            format!("{error:#}").contains("symlink"),
+            "error should identify the unsafe component: {error:#}"
+        );
+        assert!(
+            !outside.path().join("gates.json").exists(),
+            "the snapshot must not escape the workspace"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn gate_snapshot_refuses_a_junctioned_anvil_parent() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::tempdir().expect("outside");
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(workspace.path().join(".anvil"))
+            .arg(outside.path())
+            .status()
+            .expect("run mklink");
+        assert!(
+            status.success(),
+            "mklink /J creates an unprivileged junction"
+        );
+
+        let error = persist_gate_snapshot_json(workspace.path(), b"redirected")
+            .expect_err("junctioned .anvil must fail closed");
+
+        assert!(
+            format!("{error:#}").contains("reparse"),
+            "error should identify the unsafe component: {error:#}"
+        );
+        assert!(
+            !outside.path().join("gates.json").exists(),
+            "the snapshot must not escape the workspace"
         );
     }
 
