@@ -254,7 +254,7 @@ let result = client
 
 ## Corrections to the KDS draft module
 
-Update `plans/modules/kindling-daemon-sink.aps.md` in anvil when starting work:
+Update `plans/archive/modules/kindling-daemon-sink.aps.md` in anvil when starting work:
 
 | Draft says | Reality (2026-06-24) |
 | ---------- | -------------------- |

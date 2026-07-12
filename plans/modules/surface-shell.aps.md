@@ -51,7 +51,7 @@ Phase 3 deliverable.
 **Depends on:**
 
 - Existing `command_safety` runtime check — share rule definitions.
-- [`operational-supplement`](./operational-supplement.aps.md) — check
+- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
   registry, per-track feature flag, file-presence guard.
 - Rust suppression parser per
   [ADR-029](../decisions/029-suppression-parser-authority.md) — `#`

@@ -147,7 +147,7 @@ Kindling row to join to.
 - [ADR-019](019-flags-observability-alignment.md) - feature flag telemetry and
   Kindling boundary
 - [ADR-035](035-three-pipe-observability-rule.md) - three-pipe observability rule
-- [USAGE module](../modules/usage-analytics.aps.md) - USAGE-002 flag-context
+- [USAGE module](../archive/modules/usage-analytics.aps.md) - USAGE-002 flag-context
   correlation
 - [FLAGCAT module](../modules/feature-flag-catalogue.aps.md) - FLAGCAT-007
   contract task

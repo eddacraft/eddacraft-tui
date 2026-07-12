@@ -4,9 +4,9 @@
 | ---- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Spec | Authoritative | CIB   | Live   | Last reviewed 2026-06-17 against `main`; frozen at v1 by CIB-078 ([`plans/modules/continuous-improvement-backlog.aps.md`](../../plans/modules/continuous-improvement-backlog.aps.md)) before EVAL binds (EVAL-001/-002) |
 
-| Upstream                                                                                                                                                   | Downstream                                                                                                                                                                    |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/anvil-cli/src/commands/policy/eval.rs` (`EvalOutput` — the serialisation site), `crates/anvil-policy-engine/src/result.rs` (`Finding`, `Severity`) | EVAL harness adapter ([`plans/modules/eval-harness-integration.aps.md`](../../plans/modules/eval-harness-integration.aps.md)), CI gates that parse `anvil policy eval --json` |
+| Upstream                                                                                                                                                   | Downstream                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/src/commands/policy/eval.rs` (`EvalOutput` — the serialisation site), `crates/anvil-policy-engine/src/result.rs` (`Finding`, `Severity`) | EVAL harness adapter ([`plans/archive/modules/eval-harness-integration.aps.md`](../../plans/archive/modules/eval-harness-integration.aps.md)), CI gates that parse `anvil policy eval --json` |
 
 **Version:** 1.0.0 **Status:** Live **Created:** 2026-06-17 **Last Updated:**
 2026-06-17
@@ -19,7 +19,7 @@
 of a Rego evaluation: the policy and query that ran, the findings produced, and
 the process exit code. POLENG-007 shipped this surface preview-gated, with the
 wire shape explicitly **not yet a stable contract**. The
-[eval-harness-integration](../../plans/modules/eval-harness-integration.aps.md)
+[eval-harness-integration](../../plans/archive/modules/eval-harness-integration.aps.md)
 module (EVAL) is about to bind an adapter to it (`EvalRunSummary`,
 `EvalRegressionReport`). This spec freezes the shape at **v1 before EVAL locks
 onto it**, so the adapter has a durable contract and a later eval-output

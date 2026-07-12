@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Flip GCALL-002 status `In Progress → Merged YYYY-MM-DD via PR #NNN` in
-      `plans/modules/symbol-call-graph.aps.md`; bump the GCALL module count
+      `plans/archive/modules/symbol-call-graph.aps.md`; bump the GCALL module count
       `1/7 → 2/7` (module header + Last-reviewed note + index module-table row)
       and refresh the NBI: GCALL-003 (resident edges + read API) is the next pick
       now that its `GCALL-002` dependency is satisfied. (agent: yes)

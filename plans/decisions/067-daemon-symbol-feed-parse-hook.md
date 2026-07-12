@@ -102,6 +102,6 @@ bytes synchronously on the verdict path.**
 - **Refines** [ADR-064](064-intercept-graph-cache-crate-boundary.md): this is the
   resolution of its "Task 7/8 must nail" wiring detail; it does not weaken the
   no-tree-sitter-in-the-daemon boundary.
-- **Realised by** DSV-005 (`plans/modules/daemon-save-time-validation.aps.md`).
-- Sub-phase A′ ([GV2](../modules/graph-v2-foundation.aps.md)) supersedes the
+- **Realised by** DSV-005 (`plans/archive/modules/daemon-save-time-validation.aps.md`).
+- Sub-phase A′ ([GV2](../archive/modules/graph-v2-foundation.aps.md)) supersedes the
   interim id-base scheme with durable graph identity.

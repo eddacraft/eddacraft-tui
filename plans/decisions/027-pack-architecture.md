@@ -52,7 +52,7 @@ follows — this ADR is referenced from PACKPUL's Ready Checklist.
    and registered through the `crates/anvil-packs/` aggregate at build
    time. No dynamic plugin loading, no separate distribution, no out-of-band
    pack installation. Per-pack feature flags from the operational supplement
-   ([OPSUP](../modules/operational-supplement.aps.md)) control runtime
+   ([OPSUP](../archive/modules/operational-supplement.aps.md)) control runtime
    activation.
 
 4. **Pack activation detection**: each pack declares the file-shape and
@@ -141,5 +141,5 @@ have infrastructure for. Per-pack feature flags from OPSUP cover the
   [pack-nextjs](../modules/pack-nextjs.aps.md),
   [pack-hono](../modules/pack-hono.aps.md),
   [pack-tokio](../modules/pack-tokio.aps.md),
-  [operational-supplement](../modules/operational-supplement.aps.md)
+  [operational-supplement](../archive/modules/operational-supplement.aps.md)
   (per-pack feature flags + check registry + activation guards)

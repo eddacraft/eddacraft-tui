@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-03
 **Prepared for:** the POLRESET-001 design gate ("Policy value and enforcement
-design gate", [`policy-value-enforcement-reset.aps.md`](../modules/policy-value-enforcement-reset.aps.md)).
+design gate", [`policy-value-enforcement-reset.aps.md`](../archive/modules/policy-value-enforcement-reset.aps.md)).
 **Status:** Briefing only. This document makes no decisions; it maps what
 ADR-002, ADR-015, ADR-037, and ADR-040 currently pin, what the code actually
 does today, the conflicts the gate ADR must resolve, and the open decisions
@@ -256,8 +256,8 @@ validation-command fix.
   [064](../decisions/064-intercept-graph-cache-crate-boundary.md),
   [067](../decisions/067-daemon-symbol-feed-parse-hook.md),
   [071](../decisions/071-ast-aware-antipattern-detection.md)
-- Modules: [POLRESET](../modules/policy-value-enforcement-reset.aps.md),
+- Modules: [POLRESET](../archive/modules/policy-value-enforcement-reset.aps.md),
   [EXCEPT](../modules/git-native-exceptions.aps.md),
-  [POLVAL](../modules/policy-pack-validation.aps.md),
+  [POLVAL](../archive/modules/policy-pack-validation.aps.md),
   [OPAE](../modules/opa-enhancements.aps.md),
   [EVALCI](../modules/eval-regression-ci-gate.aps.md)

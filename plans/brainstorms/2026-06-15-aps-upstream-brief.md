@@ -247,7 +247,7 @@ governance scripts as optional extras, they should follow these guardrails:
 - Continuous improvement: `plans/reviews/continuous-improvement-log.md`; standing CIB module
 - Related decisions: ADR-055 (OSS carve-out for APS consumers), ADR-018 (product IP boundaries), various in `plans/decisions/`
 - Product implementation: `packages/aps/` (parser/validator/loader/state/templates) + adapters
-- Example of NBI-driven work in practice: `plans/modules/graph-v2-foundation.aps.md` (Last reviewed notes), recent NBI review notes in the index, `plans/reviews/continuous-improvement-log.md` entries mentioning NBI
+- Example of NBI-driven work in practice: `plans/archive/modules/graph-v2-foundation.aps.md` (Last reviewed notes), recent NBI review notes in the index, `plans/reviews/continuous-improvement-log.md` entries mentioning NBI
 
 This pattern set has made APS the genuine backbone of delivery rather than a side artefact. Sharing the successful abstractions (while respecting the portable core) would materially help the APS project achieve its adoption goals.
 

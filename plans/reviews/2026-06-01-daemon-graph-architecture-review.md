@@ -78,7 +78,7 @@ and previous public/privileged baseline keys
 removes all symbols for the file and re-adds the new symbols
 (`crates/anvil-kernel/src/graph/incremental.rs:40-87`). Stable symbol identity
 and changed-node semantics remain Draft GV2 work
-(`plans/modules/graph-v2-foundation.aps.md:158-192`).
+(`plans/archive/modules/graph-v2-foundation.aps.md:158-192`).
 
 Risk: Sub-phase A cannot reliably tell "implementation body changed" from
 "export surface changed" without either a conservative fallback or a real stable
@@ -135,7 +135,7 @@ diagnostic envelopes serialise through the same shared struct.
 ### Major: the canonical Graph v2 architecture spec file is still absent
 
 GV2-001 names `docs/architecture/graph-v2-foundation-spec.md` as the architecture
-spec and taxonomy authority (`plans/modules/graph-v2-foundation.aps.md:141-154`).
+spec and taxonomy authority (`plans/archive/modules/graph-v2-foundation.aps.md:141-154`).
 That file is not present on `origin/main`; only the APS module and ADR-061
 consumer contract currently carry the taxonomy.
 
@@ -180,7 +180,7 @@ artefact still needs to exist.
 - `plans/decisions/063-gv2-hot-path-boundary.md`
 - `plans/specs/2026-06-01-daemon-save-time-validation-contract.md`
 - `plans/execution/2026-06-01-daemon-save-time-subphase-a.md`
-- `plans/modules/graph-v2-foundation.aps.md`
+- `plans/archive/modules/graph-v2-foundation.aps.md`
 - `docs/architecture/intercept-as-built.md`
 - `docs/architecture/kernel-as-built.md`
 - `crates/anvil-kernel/src/graph/dependency.rs`

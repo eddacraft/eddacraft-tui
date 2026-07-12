@@ -17,7 +17,7 @@ work items retargeted per ADR-098 AD-2).
 > first policy-value slice **has shipped** (POLRESET Done 10/10, 2026-07-05),
 > so the live prerequisite is **ORGHIER** (itself Draft, demand-gated) —
 > lifecycle applies per tier and has no meaning before the hierarchy exists.
-> Coordinated by [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> Coordinated by [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** lifecycle state belongs above
 > the ADR-040/POLENG runtime. Promotion, canary, grace, and rollback metadata

@@ -339,7 +339,7 @@ problems (overloads, dynamic dispatch) out of the budget-sensitive save path.
   does no traversal), ADR-064 (`anvil-graph-cache` parse-free daemon boundary),
   ADR-067 (injected `SymbolParser` seam), ADR-084 (GCTX daemon-RPC + `GctxProjector`
   egress spine), ADR-085 (full-scan executor — the background-warm fallback path)
-- APS modules: GCALL-001 (this ADR), GCALL-002..007 (`plans/modules/symbol-call-graph.aps.md`),
+- APS modules: GCALL-001 (this ADR), GCALL-002..007 (`plans/archive/modules/symbol-call-graph.aps.md`),
   GCTX-014 (`anvil_find_callers`, the consumer), GV2-026 (reverse-impact depth lever)
 - Reviews: `plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md`
   (PV-9 / CE-1..CE-12 — the caller-egress posture GCALL-007 ratifies)

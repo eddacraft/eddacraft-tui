@@ -20,7 +20,7 @@ shipped admission in `crates/anvil-policy-engine/src/pack/`.)
 > primitives** (shipped — manifest/metadata/versioning/discovery in
 > `crates/anvil-policy-engine/src/pack/`), **POLLC lifecycle state** (Draft),
 > and **ORGHIER** (Draft, demand-gated). Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** POLFED should federate signed
 > Rego packs, lifecycle state, and pack metadata; evaluation remains the

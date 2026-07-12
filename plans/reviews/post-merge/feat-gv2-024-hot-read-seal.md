@@ -11,7 +11,7 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Step 1 — Confirm the merge commit is on `origin/main` and the `Test` +
       `Clippy` + `Format` checks were green for it. (agent: yes — `gh run list`)
 - [ ] Step 2 — Flip GV2-024 `In Progress → Merged` in
-      `plans/modules/graph-v2-foundation.aps.md` (`Merged YYYY-MM-DD via PR #N`)
+      `plans/archive/modules/graph-v2-foundation.aps.md` (`Merged YYYY-MM-DD via PR #N`)
       and bump the GV2 module count in `plans/index.aps.md` (Merged is counted;
       11/19 → 12/19 — regenerate via `pnpm aps:index` rather than by hand).
       (agent: yes)

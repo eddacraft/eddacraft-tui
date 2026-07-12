@@ -2,7 +2,7 @@
 
 | Field  | Value                                                                                            |
 | ------ | ------------------------------------------------------------------------------------------------ |
-| Source | [../modules/adversarial-testing-catalog.aps.md](../modules/adversarial-testing-catalog.aps.md)   |
+| Source | [../archive/modules/adversarial-testing-catalog.aps.md](../archive/modules/adversarial-testing-catalog.aps.md)   |
 | Task   | ATC — Full module execution                                                                      |
 | Status | Done                                                                                             |
 

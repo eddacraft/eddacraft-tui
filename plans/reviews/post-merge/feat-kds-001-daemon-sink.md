@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [x] Mark KDS-001 + KDS-003 **Merged** in
-      `plans/modules/kindling-daemon-sink.aps.md` (status + `Merged 2026-06-24 via
+      `plans/archive/modules/kindling-daemon-sink.aps.md` (status + `Merged 2026-06-24 via
       PR #2897`) and bump the header / index count to 2/5 — done via PR #2898
 - [x] Notify kindling (eddacraft/kindling) that the PORT-011 acceptance landed —
       done via **[eddacraft/kindling#124](https://github.com/eddacraft/kindling/issues/124)**.

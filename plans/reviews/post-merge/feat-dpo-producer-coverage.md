@@ -27,7 +27,7 @@ Verified: <!-- filled by cleanup agent -->
 
 Council MINOR producer follow-ups are tracked as **DPO-006** in
 `plans/modules/daemon-protection-observability.aps.md`. KDS-005 retirement of
-the NDJSON writer is tracked in `plans/modules/kindling-daemon-sink.aps.md`.
+the NDJSON writer is tracked in `plans/archive/modules/kindling-daemon-sink.aps.md`.
 
 Producers are activated to the `usage.ndjson` sidecar, extending the USAGE-004
 sink contract; this is the interim store until KDS lands the authoritative

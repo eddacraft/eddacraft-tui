@@ -12,9 +12,13 @@ Cross-cutting convention: see plans/aps-rules.md#module-types-vertical-and-condu
 
 | ID    | Owner   | Status      | Progress |
 | ----- | ------- | ----------- | -------- |
-| OPSUP | OpenCode | In Progress | 7/7      |
+| OPSUP | OpenCode | Complete | 7/7      |
 
 **Last reviewed:** 2026-06-18
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 ## Cross-cutting convention
 
@@ -23,7 +27,7 @@ This module follows the cross-cutting convention. The normative spec lives in
 operational prerequisites it lists below. Surface and pack modules own their own
 rule catalogues, validation runs, and task counts.
 
-[rules]: ../aps-rules.md#module-types-vertical-and-conductor
+[rules]: ../../aps-rules.md#module-types-vertical-and-conductor
 
 Task bodies that depend on OPSUP slices should use `Blocks on:` or
 `Coordinates with:` callouts and close those callouts when the dependent task is
@@ -42,7 +46,7 @@ completed, per ADR-034.
 ## Purpose
 
 Single home for the cross-cutting operational concerns surfaced by the
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 council review (§16.5 #7). Every Track 3 governance surface and Track 4
 semantic pack pulls these in as prerequisites; without one shared module
 each new module would re-design the same operational story differently.
@@ -88,7 +92,7 @@ Specifically owns:
   - Flag naming convention (e.g. `track.surface.sql`, `track.pack.pulumi`)
   - Default-state policy (new tracks start opt-in for one release)
   - Integration with the existing flag governance per
-    [feature-flag-governance.md](../../docs/guides/feature-flag-governance.md)
+    [feature-flag-governance.md](../../../docs/guides/feature-flag-governance.md)
 - CI runtime budget framework:
   - Per-check declared file-shape needs
   - File-presence guards short-circuit before work
@@ -116,7 +120,7 @@ Specifically owns:
 - Existing `check_catalog.rs` naming catalogue (migrates from).
 - Existing `SCHEMA_VERSION` in `drift.rs` (migrates from).
 - Existing feature-flag system per
-  [`feature-flag-catalogue`](./feature-flag-catalogue.aps.md) (FLAGS and FLAGM
+  [`feature-flag-catalogue`](../../modules/feature-flag-catalogue.aps.md) (FLAGS and FLAGM
   are archived; FLAGCAT is the live catalogue module).
 - Kindling pipeline (likely host for FP telemetry).
 
@@ -167,12 +171,12 @@ Remaining non-registry slices move to **Ready** when:
 - **Files:** `crates/anvil-cli/src/commands/check_catalog.rs`,
   `crates/anvil-cli/src/commands/gate.rs`,
   `crates/anvil-cli/src/commands/gate_config.rs`,
-  `plans/modules/operational-supplement.aps.md`, `plans/index.aps.md`
+  `plans/archive/modules/operational-supplement.aps.md`, `plans/index.aps.md`
 - **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate_config && cargo test -p eddacraft-anvil commands::gate::tests::normalize_gate_check_set_accepts_stable_ids_and_aliases && cargo test -p eddacraft-anvil commands::gate::tests::read_anvilrc_checks_parses_stable_ids`
 
 ### OPSUP-002 — Registry-backed skip and disable resolution
 
-- **Status:** Merged 2026-06-20 via PR #2824
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-20 via PR #2824
 - **Intent:** Resolve skip and disable paths against the stable check registry
   wherever durable IDs are required.
 - **Expected Outcome:** `--skip-checks` and the `.anvil.<ext>` `checks:` list
@@ -201,7 +205,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-003 — Drift baseline schema versioning
 
-- **Status:** Merged 2026-06-17 via PR #2694
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via PR #2694
 - **Intent:** Replace ad hoc schema constants with a versioned drift baseline
   schema model and per-field declarations.
 - **Expected Outcome:** The single `SCHEMA_VERSION = "1.0.0"` string constant
@@ -230,7 +234,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-004 — Drift migration command
 
-- **Status:** Merged 2026-06-20 via PR #2826
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-20 via PR #2826
 - **Intent:** Add `anvil drift migrate` and an on-upgrade migration path for
   existing baselines.
 - **Expected Outcome:** `anvil drift migrate` upgrades an existing drift
@@ -255,7 +259,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-005 — Per-track feature flag taxonomy
 
-- **Status:** Merged 2026-06-18 via PR #2755
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via PR #2755
 - **Intent:** Define per-track flag naming, defaults, and governance alignment
   for new surfaces and packs.
 - **Expected Outcome:** A documented flag taxonomy lets a user disable a noisy
@@ -265,8 +269,8 @@ Remaining non-registry slices move to **Ready** when:
   flag count does not explode one-per-surface. Each new track ships opt-in
   behind its leaf flag for one release, then the default flips on. The taxonomy
   registers through the existing flag system per
-  [feature-flag-governance.md](../../docs/guides/feature-flag-governance.md)
-  and through [`feature-flag-catalogue`](./feature-flag-catalogue.aps.md)
+  [feature-flag-governance.md](../../../docs/guides/feature-flag-governance.md)
+  and through [`feature-flag-catalogue`](../../modules/feature-flag-catalogue.aps.md)
   (FLAGCAT), not a parallel flag system; every flag carries `createdFor`
   linking to its owning surface/pack work item and a sunset/review date per
   flag governance.
@@ -314,14 +318,14 @@ Remaining non-registry slices move to **Ready** when:
   `crates/anvil-cli/src/commands/check_guards.rs`,
   `crates/anvil-cli/src/commands/gate.rs`,
   `crates/anvil-cli/src/commands/mod.rs`,
-  `plans/modules/operational-supplement.aps.md`,
+  `plans/archive/modules/operational-supplement.aps.md`,
   `plans/index.aps.md`
 - **Validation:** Validation passed 2026-05-17 with `cargo test -p eddacraft-anvil commands::check_guards && cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate::tests`.
 - **Validation Evidence:** Passed 2026-05-17 with `cargo test -p eddacraft-anvil commands::check_guards && cargo test -p eddacraft-anvil commands::check_catalog && cargo test -p eddacraft-anvil commands::gate::tests`.
 
 ### OPSUP-007 — False-positive reporting channel
 
-- **Status:** Merged 2026-06-21 via PR #2840
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-21 via PR #2840
 - **Intent:** Define the CLI and telemetry path for users to report false
   positives without shipping source content by default.
 - **Expected Outcome (CLI surface, deterministic):** `anvil report-fp

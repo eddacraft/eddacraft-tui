@@ -49,7 +49,7 @@ Phase 2 deliverable (spec §9 step 7).
 **Depends on:**
 
 - Existing OPA pipeline.
-- [`operational-supplement`](./operational-supplement.aps.md) — check
+- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
   registry, drift schema versioning, per-track feature flag, file-presence
   guard.
 - Rust suppression parser per

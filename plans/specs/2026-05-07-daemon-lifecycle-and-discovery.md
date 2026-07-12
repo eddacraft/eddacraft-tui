@@ -1273,7 +1273,7 @@ in §8.6.
 **Outstanding deferrals.** DLIFE-010 reclassified to v1.5 (Prag-A
 recommendation). DLIFE-005 conceptually first in implementation order
 even though listed at position 5 (Prag-A note); module header in
-`plans/modules/daemon-lifecycle.aps.md` will document the recommended
+`plans/archive/modules/daemon-lifecycle.aps.md` will document the recommended
 landing order: DLIFE-005 → -001 → -002 → -003 → -004 → -011 → -006 →
 -012 → -007 → -009. -008 v1.5; -010 v1.5.
 
@@ -1284,7 +1284,7 @@ amendments resolved here, with no implementation in flight.
 
 ## 12. APS module: `daemon-lifecycle` (DLIFE) — proposed work items
 
-A new APS module `plans/modules/daemon-lifecycle.aps.md` is proposed,
+A new APS module `plans/archive/modules/daemon-lifecycle.aps.md` is proposed,
 owning the runtime work this spec implies. Suggested work items, sized
 by scope (file count + test surface, not duration):
 

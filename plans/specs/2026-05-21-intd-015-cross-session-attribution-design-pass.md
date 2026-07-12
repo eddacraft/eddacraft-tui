@@ -461,7 +461,7 @@ mirror only and carries no `originating_session_id`
 path today.
 
 **Authoritative boundary.** The later
-[DSV-044](../modules/daemon-save-time-validation.aps.md) grounding
+[DSV-044](../archive/modules/daemon-save-time-validation.aps.md) grounding
 (2026-06-04) re-drew the ownership line and supersedes D5's producer
 clause:
 

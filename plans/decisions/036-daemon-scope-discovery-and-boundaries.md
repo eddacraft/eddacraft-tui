@@ -259,7 +259,7 @@ Why per-execution-scope specifically:
   - ADR-039 — Baseline policy + hard-pinned rule classes
 - **APS modules:**
   - `plans/archive/modules/intercept-daemon.aps.md` (parent — INTD)
-  - `plans/modules/daemon-lifecycle.aps.md` (DLIFE — partial scope; some work items consolidated into MLP)
+  - `plans/archive/modules/daemon-lifecycle.aps.md` (DLIFE — partial scope; some work items consolidated into MLP)
   - `plans/archive/modules/multilayer-protection.aps.md` (MLP — primary v1 module)
 - **Related ADRs:**
   - ADR-015 — Intercept loop enforcement (parent of INTD)

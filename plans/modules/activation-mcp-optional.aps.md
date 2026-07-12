@@ -93,7 +93,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - [ADR-061](../decisions/061-save-time-daemon-delta-validation.md) — save-time path
 - [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md) — daemon ensure
 - [ADR-092](../decisions/092-mcp-optional-activation-spine.md) — spine decision
-- [daemon-lifecycle](daemon-lifecycle.aps.md) — DLIFE (merged; ensure primitive)
+- [daemon-lifecycle](../archive/modules/daemon-lifecycle.aps.md) — DLIFE (merged; ensure primitive)
 - [multilayer-protection-v2](multilayer-protection-v2.aps.md) — MLP2-051f promotion
 - GH [#2937](https://github.com/eddacraft/anvil-001/issues/2937) — smoke evidence
 

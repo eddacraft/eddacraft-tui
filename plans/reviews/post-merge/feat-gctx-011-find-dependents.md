@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Flip GCTX-011 status `In Progress → Merged YYYY-MM-DD via PR #NNN` in
-      `plans/modules/graph-context-delivery.aps.md` (agent: yes — if not already
+      `plans/archive/modules/graph-context-delivery.aps.md` (agent: yes — if not already
       carried in the merge commit). Bump the GCTX module count `3/13 → 4/13` and
       reconcile the index narrative in `plans/index.aps.md` (GCTX-011 no longer
       Draft). (agent: yes)

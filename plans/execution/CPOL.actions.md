@@ -2,7 +2,7 @@
 
 | Field  | Value                                                                                             |
 | ------ | ------------------------------------------------------------------------------------------------- |
-| Source | [../modules/contextual-policy-assertions.aps.md](../modules/contextual-policy-assertions.aps.md) |
+| Source | [../archive/modules/contextual-policy-assertions.aps.md](../archive/modules/contextual-policy-assertions.aps.md) |
 | Task   | CPOL-001..003 — assertion schema, context adapters, guidance                                      |
 | Status | Done                                                                                              |
 

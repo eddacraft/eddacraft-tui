@@ -167,7 +167,7 @@ implementation — not a Unix-only crate with a stubbed Windows shell. Delivered
 - `crates/anvil-intercept/src/{change_class,path_safety,save_time,assurance,
   validate_paths,workspace_admission,confinement,ipc}.rs`;
   `crates/anvil-intercept-win32/src/{lib,read_safety}.rs`.
-- DSV-010 / DSV-011, `plans/modules/daemon-save-time-validation.aps.md`.
+- DSV-010 / DSV-011, `plans/archive/modules/daemon-save-time-validation.aps.md`.
 - Microsoft Learn: `GetFileInformationByHandleEx` / `FILE_ID_INFO`;
   `GetNamedPipeClientProcessId`; `OpenProcessToken` / `TokenUser`.
 - MLP2-028 (Windows peer-PID extraction — the `peer_pid = None` gap).

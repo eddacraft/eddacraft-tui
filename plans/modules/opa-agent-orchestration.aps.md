@@ -16,7 +16,7 @@ pickup does not re-plan merged work; TS-era `OPAG.steps.md` deleted).
 > touching agent tool calls, the ADR-098 AD-4 tool-call-interception ADR.
 > Several work items below are now partially delivered under other modules —
 > each carries a delta note. Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Status correction (2026-06-24; reset 2026-07-02):** demoted Ready →
 > Proposed. OPAG depends on the policy product contracts now reset under

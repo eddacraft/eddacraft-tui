@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Flip GV2-022 `In Progress → Merged` in
-      `plans/modules/graph-v2-foundation.aps.md` and reconcile the Phase 2 Stats
+      `plans/archive/modules/graph-v2-foundation.aps.md` and reconcile the Phase 2 Stats
       count (1/4 → 2/4 done) + the index total (5/19 → 6/19) — as its own
       `chore(aps)` PR (the #2421/#2432 pattern), to avoid colliding with the
       concurrent GV2-012/-028/-029 sibling flips on the same hot files. (agent: yes)

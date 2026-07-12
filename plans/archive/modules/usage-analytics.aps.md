@@ -14,18 +14,22 @@ Cross-cutting convention: see plans/aps-rules.md#module-types-vertical-and-condu
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 5/5 |
+| USAGE | @eddacraft | Complete | 5/5 |
 
 **Last reviewed:** 2026-06-14
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 > **Provenance:** Founder request 2026-05-10. Current observability story
 > (TRACE-001 + JSON logs) gives a debug surface but no durable answer to
 > "who is using what" for dev-investment decisions. Per
-> [ADR-035](../decisions/035-three-pipe-observability-rule.md), usage
+> [ADR-035](../../decisions/035-three-pipe-observability-rule.md), usage
 > facts are governance-shaped (durable, queryable, source-of-truth) and
 > belong on Kindling, not on the tracing pipe. This module is the
 > **third trial** of the cross-cutting module convention promoted under
-> [ADR-034](../decisions/034-cross-cutting-modules-as-aps-primitive.md).
+> [ADR-034](../../decisions/034-cross-cutting-modules-as-aps-primitive.md).
 
 ## Cross-cutting convention
 
@@ -33,7 +37,7 @@ This module follows the cross-cutting convention. The normative spec
 lives in [`plans/aps-rules.md#module-types-vertical-and-conductor`][rules] and is
 cited by anchor link wherever a callout is used in a task body.
 
-[rules]: ../aps-rules.md#module-types-vertical-and-conductor
+[rules]: ../../aps-rules.md#module-types-vertical-and-conductor
 
 > **Anti-drift hook (per ADR-034):** changes to the
 > `## Module Types: Vertical and Conductor` section of `aps-rules.md` update this
@@ -151,8 +155,8 @@ This module is **Ready** when:
       Salt rotation is a deliberate privacy reset, not routine.
       USAGE-001's contract test pins the hash function and asserts the
       raw principal never lands in a Kindling row.
-- [x] OQ5 resolved: FLAGS cross-clarification ([`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007))
-      — [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md)
+- [x] OQ5 resolved: FLAGS cross-clarification ([`FLAGCAT-007`](../../modules/feature-flag-catalogue.aps.md#flagcat-007))
+      — [ADR-041](../../decisions/041-flag-snapshot-usage-join-contract.md)
       says USAGE stores resolved flag context inline on the usage row,
       joins by manifest `key`, and ADR-019 stays gate-affecting-only for
       standalone Kindling flag facts.
@@ -308,7 +312,7 @@ requires founder review. The contract doc lives in
   "existing secrets store" resolved to the per-deployment config dir
   where credentials already live. **JSON-RPC producer descoped to
   USAGE-004** (no principal/resolver on the daemon path).
-- **Status:** Merged 2026-06-13 via PR #2603
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-13 via PR #2603
 
 ---
 
@@ -321,7 +325,7 @@ requires founder review. The contract doc lives in
 - **Expected Outcome:**
   - The active flag set is captured as a stable, queryable inline
     `flag_set` field on every USAGE-001 observation, per
-    [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md):
+    [ADR-041](../../decisions/041-flag-snapshot-usage-join-contract.md):
     sorted by manifest `key`, with resolved variant, resolution source,
     and whether the entry was gate-affecting. The field contains flags
     resolved or inherited as active context for that invocation; it is
@@ -373,7 +377,7 @@ requires founder review. The contract doc lives in
   (`status`) carries `cli.licence-gate` in `flag_set` and a non-gated
   command (`version`) has an empty `flag_set`.
 - **Confidence:** medium
-- **Status:** Merged 2026-06-14 via PR #2607
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-14 via PR #2607
 
 ---
 
@@ -422,7 +426,7 @@ requires founder review. The contract doc lives in
   against a seeded fixture sidecar (the module's non-empty-result
   contract).
 - **Confidence:** medium-low — depends on USAGE-001/-002 shapes.
-- **Status:** Merged 2026-06-14 via PR #2612
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-14 via PR #2612
 
 ---
 
@@ -495,7 +499,7 @@ requires founder review. The contract doc lives in
     daemon path).
 - **Confidence:** medium — both gating decisions resolved 2026-06-18;
   scope is a bounded protocol-additive change plus producer wiring.
-- **Status:** Merged 2026-06-18 via PR #2744
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via PR #2744
 
 ---
 
@@ -557,7 +561,7 @@ requires founder review. The contract doc lives in
 - **Confidence:** medium — auth-semantics change; security-reviewed
   (code correct, fail-closed, no regression, no new vector; the single
   finding was a doc-framing correction, applied).
-- **Status:** Merged 2026-06-14 via PR #2614
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-14 via PR #2614
 
 ## Risks
 
@@ -608,8 +612,8 @@ requires founder review. The contract doc lives in
   evidence-based dev-investment decisions need cross-system joins
   or when a third party (board / investor) asks for usage rollups
   outside Anvil.
-- **OQ5 (resolved 2026-05-11 by [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md)
-  via [`FLAGCAT-007`](./feature-flag-catalogue.aps.md#flagcat-007)):**
+- **OQ5 (resolved 2026-05-11 by [ADR-041](../../decisions/041-flag-snapshot-usage-join-contract.md)
+  via [`FLAGCAT-007`](../../modules/feature-flag-catalogue.aps.md#flagcat-007)):**
   The catalogue/FLAGS do not publish a separate per-invocation resolved
   snapshot row. USAGE-002 stores the resolved flag context inline on the
   usage row as `flag_set`, sorted by manifest `key`, with resolved

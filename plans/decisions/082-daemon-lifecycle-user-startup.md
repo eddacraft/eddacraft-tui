@@ -110,4 +110,4 @@ implementation work changes runtime behaviour.
 - Supersedes if accepted: [ADR-079](079-watch-daemon-guidance-only.md)
 - Builds on: [ADR-061](061-save-time-daemon-delta-validation.md),
   [ADR-075](075-v080-graph-product-scope.md)
-- APS module: [Daemon Lifecycle](../modules/daemon-lifecycle.aps.md)
+- APS module: [Daemon Lifecycle](../archive/modules/daemon-lifecycle.aps.md)

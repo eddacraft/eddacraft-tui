@@ -73,7 +73,7 @@ build verdicts when redirects are already known.
   *docs* reconciliation
 - [documentation-sync](./documentation-sync.aps.md) — DOCSYNC-012 public policy
   tutorial (coordinate with CLICT-002)
-- [policy-value-enforcement-reset](./policy-value-enforcement-reset.aps.md) —
+- [policy-value-enforcement-reset](../archive/modules/policy-value-enforcement-reset.aps.md) —
   POLRESET product truth for CLICT-002 policy slice
 
 ## Acceptance Criteria

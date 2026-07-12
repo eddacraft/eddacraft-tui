@@ -456,8 +456,8 @@ that ships them.
   [`CIB-047`](../../modules/continuous-improvement-backlog.aps.md) (watch TUI fallback
   indicator), [`CIB-054`](../../modules/continuous-improvement-backlog.aps.md) /
   [`CIB-055`](../../modules/continuous-improvement-backlog.aps.md) (pre-tag wording +
-  release-plan reconcile), [`INSIGHTS-005`](../../modules/usage-insights.aps.md)
+  release-plan reconcile), [`INSIGHTS-005`](usage-insights.aps.md)
   (first-week nudge on welcome),
   [`DISTRIB-002`](./distribution-and-update.aps.md)
-  (update advisory), [`DSV-021`](../../modules/daemon-save-time-validation.aps.md)
+  (update advisory), [`DSV-021`](daemon-save-time-validation.aps.md)
   (routing modes), ADR-075 (rollout controls).

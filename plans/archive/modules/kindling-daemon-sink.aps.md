@@ -4,7 +4,11 @@
 
 | ID  | Owner      | Status      | Progress |
 | --- | ---------- | ----------- | -------- |
-| KDS | @eddacraft | In Progress | 5/5      |
+| KDS | @eddacraft | Complete | 5/5      |
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 > **All 5 work items Merged (5/5)** — the daemon is now the authoritative store
 > for `command.invoked`: `KindlingDaemonSink` over `kindling-client` (KDS-001/-003,
@@ -17,7 +21,7 @@
 > archival). The durable-emit layer ships **inside `kindling-client` behind
 > `features = ["spool"]`** — there is **no** standalone `kindling-spool` crate. A
 > provisional index row is present under
-> [Usage Analytics](../index.aps.md#usage-analytics).
+> [Usage Analytics](../../index.aps.md#usage-analytics).
 
 ## Cross-cutting convention
 
@@ -164,7 +168,7 @@ need a short ADR to reconcile the wording.
   delivered-when-up (row retrievable), spooled-when-down, replay-on-reconnect,
   rejection-propagates; the existing `daemon_dep_boundary` guard asserts
   `anvil-intercept` gained no networking dep.
-- **Status:** Merged 2026-06-24 via PR #2897
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-24 via PR #2897
 - **Dependencies:** none remaining — kindling crates on crates.io (`0.2.0`, Done)
 
 ### KDS-002: Wire the daemon sink as primary, with sink selection
@@ -193,7 +197,7 @@ need a short ADR to reconcile the wording.
   case / whitespace / unrecognised); tests that `off` and the break-glass both
   yield no emitter, that `daemon` wires an emitter, and that the default/unset
   path still wires the NDJSON sink (privacy contract unchanged).
-- **Status:** Merged 2026-06-24 via PR #2906
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-24 via PR #2906
 - **Dependencies:** KDS-001 (Merged)
 
 ### KDS-003: Daemon-vs-NDJSON parity
@@ -207,7 +211,7 @@ need a short ADR to reconcile the wording.
 - **Validation:** the parity test above, green in CI. (Lives as a `#[cfg(test)]`
   module beside the sink, not a `tests/` integration file — `anvil-cli` is a
   bin-only crate with no library target for `tests/` to link against.)
-- **Status:** Merged 2026-06-24 via PR #2897
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-24 via PR #2897
 - **Dependencies:** KDS-001
 
 ### KDS-004: Re-source the usage views from the authoritative store
@@ -236,7 +240,7 @@ need a short ADR to reconcile the wording.
   (keyset cursor) and skip-unparseable-content; a CLI integration test that the
   command succeeds and keeps the sidecar rows under the daemon sink. Existing
   `usage_views` tests unchanged (pure view logic).
-- **Status:** Merged 2026-06-26 via PR #2945
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-26 via PR #2945
 - **Dependencies:** KDS-002 (Merged); `kindling-client` 0.3 read API (KINTEG-003,
   #2910 — **landed**)
 
@@ -263,7 +267,7 @@ need a short ADR to reconcile the wording.
   unrecognised → `daemon`; `off` → off); `usage_observation` confirms the CLI
   producer still writes the sidecar under the new default. The spool caps are
   covered by `kindling-client` 0.3's own retention tests.
-- **Status:** Merged 2026-06-26 via PR #2949
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-26 via PR #2949
 - **Dependencies:** KDS-002 (Merged); KDS-004 (Merged, #2945 — read path so the
   views stay complete under the flip); `kindling-client` 0.3 spool cap (KINTEG-009,
   #2916 — landed)

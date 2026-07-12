@@ -98,5 +98,5 @@ Adopt an **MCP-optional activation spine** for `anvil start`:
 - [ADR-044](044-mcp-entry-activation-owned.md) — MCP config ownership
 - [ADR-061](061-save-time-daemon-delta-validation.md) — save-time validation
 - [ADR-082](082-daemon-lifecycle-user-startup.md) — daemon ensure on start
-- [daemon-lifecycle](../modules/daemon-lifecycle.aps.md) — DLIFE (merged)
+- [daemon-lifecycle](../archive/modules/daemon-lifecycle.aps.md) — DLIFE (merged)
 - [activation-mcp-optional](../modules/activation-mcp-optional.aps.md) — ACTMO

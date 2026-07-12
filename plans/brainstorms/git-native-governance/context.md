@@ -666,7 +666,7 @@ packages/edda-stack/src/ember/README.md
 packages/edda-stack/src/edda/README.md
 docs/guides/edda-memory.md
 packages/edda-stack/src/contracts/edda-memory.ts
-plans/modules/graph-v2-foundation.aps.md
+plans/archive/modules/graph-v2-foundation.aps.md
 plans/modules/compliance-evidence-workspace.aps.md
 plans/reviews/edda-ember-stack-review.md
 ```

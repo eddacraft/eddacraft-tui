@@ -1,8 +1,8 @@
 # Graph v2 Foundation — Architecture Spec
 
-| Type | Authority | Owner                                                                                              | Status | Freshness                                                                                                                                                                                                                                                                            |
-| ---- | --------- | -------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Spec | Derived   | GV2 ([`plans/modules/graph-v2-foundation.aps.md`](../../plans/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session + plan/provenance graph contracts added 2026-06-13 (GV2-013/GV2-014; G-05/G-02 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
+| Type | Authority | Owner                                                                                                              | Status | Freshness                                                                                                                                                                                                                                                                            |
+| ---- | --------- | ------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Spec | Derived   | GV2 ([`plans/archive/modules/graph-v2-foundation.aps.md`](../../plans/archive/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session + plan/provenance graph contracts added 2026-06-13 (GV2-013/GV2-014; G-05/G-02 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
 
 | Upstream                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                                                                              |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -767,7 +767,7 @@ longer make the export-diff silently under-fire (regression-tested in
 ## Related docs
 
 - Module plan:
-  [`plans/modules/graph-v2-foundation.aps.md`](../../plans/modules/graph-v2-foundation.aps.md)
+  [`plans/archive/modules/graph-v2-foundation.aps.md`](../../plans/archive/modules/graph-v2-foundation.aps.md)
 - Ratification verdict:
   [`plans/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md`](../../plans/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md)
 - Wave verdict:
@@ -782,6 +782,6 @@ longer make the export-diff silently under-fire (regression-tested in
 - Seam sources: [`intercept-as-built.md`](./intercept-as-built.md) §10,
   [`edda-stack.md`](./edda-stack.md)
 - Consumers:
-  [`plans/modules/graph-context-delivery.aps.md`](../../plans/modules/graph-context-delivery.aps.md),
+  [`plans/archive/modules/graph-context-delivery.aps.md`](../../plans/archive/modules/graph-context-delivery.aps.md),
   [`graph-context-delivery-spec.md`](./graph-context-delivery-spec.md) (GCTX-001
   projection contract — the assistant-facing egress rules over this substrate)

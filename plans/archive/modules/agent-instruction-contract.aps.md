@@ -5,7 +5,11 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| AICON | —     | Done        | 5/5      |
+| AICON | —     | Complete        | 5/5      |
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 ## Purpose
 

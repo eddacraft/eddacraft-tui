@@ -8,7 +8,7 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Advance OPSUP-006 status `In Progress` → `Merged` in `plans/modules/operational-supplement.aps.md` (agent: yes)
+- [ ] Advance OPSUP-006 status `In Progress` → `Merged` in `plans/archive/modules/operational-supplement.aps.md` (agent: yes)
 - [ ] Update OPSUP module note in `plans/index.aps.md` row to drop the "In Progress (file-presence + wall-time framework)" call-out once status reflects merge (agent: yes)
 - [ ] Confirm `cargo test -p eddacraft-anvil --bin anvil 'commands::check_guards'` passes on `main` after merge (agent: yes)
 - [ ] Confirm `cargo test -p eddacraft-anvil --bin anvil commands::check_catalog::tests::opsup_006_core_checks_default_to_unguarded` passes on `main` after merge (agent: yes)

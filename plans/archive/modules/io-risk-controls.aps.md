@@ -2,13 +2,17 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| IORISK | @aneki | Done |
+| IORISK | @aneki | Complete |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
 were delivered via POLRESET-004 / PR #3139, so the module advances to Done.
 Concrete heavyweight scanners remain later intake — file them as new work
 items, e.g. under ACTAX risk-score fusion, when prioritised).
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 > **Retarget (POLRESET-004 / ADR-098, 2026-07-04):** taxonomy contracts stay
 > in `crates/anvil-kernel-types` (pure serde types); the scanner-contract
@@ -58,4 +62,4 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 
 ## Execution
 
-Action plan: [../execution/IORISK.actions.md](../execution/IORISK.actions.md)
+Action plan: [../../execution/IORISK.actions.md](../../execution/IORISK.actions.md)

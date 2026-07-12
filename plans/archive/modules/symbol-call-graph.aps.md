@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| GCALL | —     | In Progress | 7/7   |
+| GCALL | —     | Complete | 7/7   |
 
 **Last reviewed:** 2026-06-18 (post-merge milestone Council review + remediation,
 #2745; created 2026-06-17 from the GCTX-014 `anvil_find_callers`
@@ -17,7 +17,7 @@ the daemon already holds, mirroring how GCTX consumes GV2.
 Module **In Progress, 7/7** — all work items Merged; the module advances to
 Complete on the release tag that includes the GCALL substrate.
 **GCALL-001** design accepted as
-[ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
+[ADR-086](../../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
 2026-06-17; Merged via #2705) — the call-edge model, the `FileSymbols` `calls`
 contract, the ADR-031 budget posture, and the PV-9 caller-egress posture.
 **GCALL-002** (TS/JS extraction) **Merged via #2707**; **GCALL-003** (resident
@@ -36,6 +36,10 @@ identity cache + node-count-independent `resolve_import`, and the cap-ceiling
 latency-gate op (~15× under the ADR-031 budget). No new work item — all 7 stay
 Merged (Released/Shipped → Complete still pending the release tag); this is
 hardening on the already-merged substrate.)
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 ## Purpose
 
@@ -74,8 +78,8 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-001: Call-graph substrate design + ADR
 
-- **Status:** Merged 2026-06-17 via #2705 — design accepted as
-  [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2705 — design accepted as
+  [ADR-086](../../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
   2026-06-17); ratifies the call-edge model, the `FileSymbols` `calls` contract,
   the ADR-031 budget posture, and the PV-9 caller-egress posture that
   GCALL-002..007 build on.
@@ -97,7 +101,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-002: TS/JS call-site extraction into `FileSymbols`
 
-- **Status:** Merged 2026-06-17 via #2707 — landed the `CallSite` / `CalleeRef` /
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2707 — landed the `CallSite` / `CalleeRef` /
   `LocalSymbolRef` types + the `serde(default) calls` channel on `FileSymbols` in
   `anvil-kernel-types`, and the TS/JS extractor's call-site pass (caller via
   `for_file_symbols` ordinals / `module_scope` synthetic node; callee export-name +
@@ -119,7 +123,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-003: Resident call edges + caller read API
 
-- **Status:** Merged 2026-06-17 via #2708 — lifts `FileSymbols.calls` into
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2708 — lifts `FileSymbols.calls` into
   resident `EdgeType::Calls` edges (`re_resolve_calls` + `all_calls` accumulator)
   and the bounded `callers_of` read API on the GCALL-002 producer (#2707); the
   CALL-1 heuristic/partial honesty marker landed via #2712.
@@ -140,7 +144,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-004: Rust call-site extraction
 
-- **Status:** Merged 2026-06-17 via #2711 — extends the GCALL-002 two-pass
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2711 — extends the GCALL-002 two-pass
   extractor to Rust in `rust.rs`: a parallel `spans` vec over Pass 1 symbols + a
   Pass 2 `extract_call_sites` walking `call_expression`s, with a `use`-derived
   binding table (alias reverse-map), `Self::`/`self.` → `Owner.method`
@@ -160,7 +164,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-005: Python call-site extraction
 
-- **Status:** Merged 2026-06-18 via #2733 — extends the PYLAN-002 Python
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via #2733 — extends the PYLAN-002 Python
   extractor with a Pass 2 call-site walk in `python.rs`: a parallel `spans` vec
   over Pass 1 symbols + a `walk_calls` over `call` nodes, with an import-binding
   table
@@ -182,7 +186,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-006: Save-time hot-path budget validation
 
-- **Status:** Merged 2026-06-18 via #2735 — added
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via #2735 — added
   `crates/anvil-graph-cache/benches/call_lift.rs`
   (`harness=false`, mirroring the GV2-025 `hot_read` gate): an in-process bench
   timing the two call-graph save-time ops — `update_file` (the full per-save
@@ -209,8 +213,8 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-007: Caller-egress privacy review
 
-- **Status:** Merged 2026-06-17 via #2710 — verdict filed
-  ([2026-06-17 caller-egress privacy review](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md),
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2710 — verdict filed
+  ([2026-06-17 caller-egress privacy review](../../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md),
   APPROVE-WITH-CONDITIONS): caller egress is identity-only and equivalent-risk to
   the PV-9-approved `find_dependents`; conditions CALL-1..CALL-5 folded into
   GCTX-014 (Merged #2715). The one new substrate condition (CALL-1,

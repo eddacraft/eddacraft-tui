@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                              | Downstream                                                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [ACTMO-013](../modules/activation-mcp-optional.aps.md), [ADR-092](../decisions/092-mcp-optional-activation-spine.md), [DSV-046](../modules/daemon-save-time-validation.aps.md), [RELEASE-PLAN](../../RELEASE-PLAN.md) | [ADR-094](../decisions/094-worktree-registration-ux.md), ACTMO-014..021 work items |
+| [ACTMO-013](../modules/activation-mcp-optional.aps.md), [ADR-092](../decisions/092-mcp-optional-activation-spine.md), [DSV-046](../archive/modules/daemon-save-time-validation.aps.md), [RELEASE-PLAN](../../RELEASE-PLAN.md) | [ADR-094](../decisions/094-worktree-registration-ux.md), ACTMO-014..021 work items |
 
 ## Problem
 
@@ -458,5 +458,5 @@ The ADR captures the durable decisions; ratified Accepted 2026-06-29 (operator).
 - [ADR-094](../decisions/094-worktree-registration-ux.md) — worktree registration UX (this design's decision record)
 - [ADR-061](../decisions/061-save-time-daemon-delta-validation.md) — daemon-mediated save-time validation
 - [activation-mcp-optional](../modules/activation-mcp-optional.aps.md) — ACTMO module (ACTMO-013 + split items)
-- [daemon-save-time-validation](../modules/daemon-save-time-validation.aps.md) — DSV-046 headless driver contract
+- [daemon-save-time-validation](../archive/modules/daemon-save-time-validation.aps.md) — DSV-046 headless driver contract
 - [RELEASE-PLAN](../../RELEASE-PLAN.md) — v0.9.0-beta daemon usefulness addendum

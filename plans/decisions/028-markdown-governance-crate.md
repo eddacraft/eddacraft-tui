@@ -46,7 +46,7 @@ Markdown governance lives in a **standalone Rust crate**:
 
 - The crate consumes the existing scanner infrastructure (suppression
   parser, drift baseline, check registry from
-  [OPSUP](../modules/operational-supplement.aps.md)) but does **not** live
+  [OPSUP](../archive/modules/operational-supplement.aps.md)) but does **not** live
   inside `crates/anvil-kernel/`.
 - The crate uses an existing markdown parser dependency (`pulldown-cmark`
   is the current Rust ecosystem default) — **not** `tree-sitter-markdown`.
@@ -132,7 +132,7 @@ from the tree-sitter pool.
   §8.5, §16.5 #11, council finding C-017
 - APS modules: [markdown-governance](../modules/markdown-governance.aps.md)
   (this ADR is its Ready Checklist gating prerequisite),
-  [operational-supplement](../modules/operational-supplement.aps.md)
+  [operational-supplement](../archive/modules/operational-supplement.aps.md)
   (check registry that the new crate registers against)
 - External: [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) —
   the markdown parser this crate adopts

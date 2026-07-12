@@ -10,7 +10,7 @@ Verified: <!-- filled by cleanup agent -->
 
 - [ ] Flip GV2-029 `In Progress → Merged 2026-06-08 via PR #N` and GV2-027
       `In Progress → Merged 2026-06-08 via PR #N` in
-      `plans/modules/graph-v2-foundation.aps.md`; reconcile Phase 3 (`1/7 → 3/7`)
+      `plans/archive/modules/graph-v2-foundation.aps.md`; reconcile Phase 3 (`1/7 → 3/7`)
       and the module + index total (`9/19 → 11/19`). Run
       `node scripts/aps/index-counts.mjs --check`. Own `chore(aps)` PR
       (#2421/#2432 pattern), to avoid colliding with any concurrent GV2 flips. (agent: yes)

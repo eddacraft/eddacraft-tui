@@ -44,7 +44,7 @@ Phase 3 deliverable — ranked #3 in Track 3, ships after Phase 1
 
 **Depends on:**
 
-- [`operational-supplement`](./operational-supplement.aps.md) — check
+- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
   registry, drift schema versioning, per-track feature flag, file-presence
   guard.
 - Rust suppression parser per

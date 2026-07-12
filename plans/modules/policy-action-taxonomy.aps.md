@@ -20,7 +20,7 @@ retargeted per ADR-098 AD-2; ACTAX-022 reframed over the shipped routing).
 > and both POLCAP-009 and AGOV-007 wait on ACTAX-001 — an argument for
 > promoting it when policy work resumes); **Phase D** tool-call interception
 > still requires its own ADR per ADR-098 AD-4, unchanged. Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 > Inspired by [permit0](https://github.com/permit0-ai/permit0) (Apache 2.0).
 > Anvil already owns the engine (regorus / ADR-040), intercept loop (ADR-015),
 > pack architecture (ADR-027), and witness chain (ADR-037). This module adds

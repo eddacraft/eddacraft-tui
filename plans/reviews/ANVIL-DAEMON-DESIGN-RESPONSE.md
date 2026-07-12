@@ -123,7 +123,7 @@ Everything else GV2 defines — plan/provenance (GV2-014), transitive impact,
 explanation, context projection for agents — is **explicitly off the hot path**
 and not in the first slice. This isn't me trimming; it's GV2's own Decision 3,
 "hot indexes over hot traversal," and its constraint that "expensive traversal …
-must stay off the daemon hot path" (`plans/modules/graph-v2-foundation.aps.md`
+must stay off the daemon hot path" (`plans/archive/modules/graph-v2-foundation.aps.md`
 Decisions / Constraints).
 
 So the first useful Graph V2 slice =

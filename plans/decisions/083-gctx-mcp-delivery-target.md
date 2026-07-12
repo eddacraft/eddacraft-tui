@@ -21,7 +21,7 @@ The council explicitly flagged two entry gates for that surface:
 - An unresolved *architectural* prerequisite: **GCTX-002** — "which MCP target" the context delivery lands on.
 - A distinct **context-egress privacy review** (PV-9) for any export/sync/transmit of graph-derived assistant context (the 2026-06-08 GV2 privacy verdict covered only the machine-local persistence snapshot; PV-9 reserves export surfaces for a separate review).
 
-The GCTX module (see [`graph-context-delivery.aps.md`](../modules/graph-context-delivery.aps.md)) scopes assistant-facing query tools (`anvil_search_symbols`, `anvil_find_callers`, `anvil_impact_of_change`, `anvil_affected_tests`, etc.), MCP resources (`graph://*`), and context-slicing / token-reduction utilities over the GV2 query contract. It is deliberately framed as a *projection* — Graph v2 remains Anvil-first for enforcement/provenance/trust; assistant use is secondary and must not distort the substrate.
+The GCTX module (see [`graph-context-delivery.aps.md`](../archive/modules/graph-context-delivery.aps.md)) scopes assistant-facing query tools (`anvil_search_symbols`, `anvil_find_callers`, `anvil_impact_of_change`, `anvil_affected_tests`, etc.), MCP resources (`graph://*`), and context-slicing / token-reduction utilities over the GV2 query contract. It is deliberately framed as a *projection* — Graph v2 remains Anvil-first for enforcement/provenance/trust; assistant use is secondary and must not distort the substrate.
 
 Per ADR-033 (Park IDE/MCP Surfaces; Retire TS Scanner Now, Proposed), the original TypeScript MCP server lives in `archive/anvil-mcp-server/` (frozen reference). The Rust full-port effort (`rust-mcp-full-port` / RMCPF module, currently 6/10) owns the `anvil mcp serve --stdio` path, the tool/resource/prompt capability surface, and the driver integration. RMCPF already exposes a small set of tools and has the registry + composition story for daemon-backed `anvil_check` / `anvil_gate`.
 
@@ -62,7 +62,7 @@ The TS MCP server is archived (ADR-033). Resurrecting it for GCTX would contradi
 
 - ADR-075 (GCTX → v0.9 deferral + explicit callout of GCTX-002 as architectural prerequisite)
 - ADR-033 (park IDE/MCP surfaces; retire TS scanner + TS MCP server)
-- [`graph-context-delivery.aps.md`](../modules/graph-context-delivery.aps.md) (GCTX-002 work item and module constraints)
+- [`graph-context-delivery.aps.md`](../archive/modules/graph-context-delivery.aps.md) (GCTX-002 work item and module constraints)
 - [`rust-mcp-full-port.aps.md`](../modules/rust-mcp-full-port.aps.md) (RMCPF current state and ownership of `anvil mcp serve`)
 - GV2 spine spec and hot/non-hot boundary (ADR-063)
 - 2026-06-08 GV2 privacy review verdict (PV-9 explicitly reserves export/egress surfaces)

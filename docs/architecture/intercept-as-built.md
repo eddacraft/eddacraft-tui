@@ -20,7 +20,7 @@
 > `crates/anvil-intercept` (+ `anvil-intercept-proto`, `anvil-intercept-rules`,
 > `anvil-intercept-win32`) **Module owner (APS):** INTD
 > (`plans/archive/modules/intercept-daemon.aps.md`, 16/16 complete), DSV
-> (`plans/modules/daemon-save-time-validation.aps.md`), INTL
+> (`plans/archive/modules/daemon-save-time-validation.aps.md`), INTL
 > (`plans/archive/modules/intercept-launcher.aps.md`, Complete 9/9) **Used by:**
 > `anvil intercept` CLI surface (`crates/anvil-cli/src/commands/intercept.rs`),
 > `anvil-cli/src/mcp/validation.rs` (daemon-backed validation client), driver
@@ -332,11 +332,12 @@ framing.
 > 2026-05-07 full review (DSV arc) and the doc's `§N` cross-references are
 > load-bearing.
 
-The save-time arc (DSV, `plans/modules/daemon-save-time-validation.aps.md`) adds
-a second validation surface beside the pre-write `scan_buffer` path: the daemon
-certifies a **just-written** change set against its resident warm graph cache
-and answers with a verdict-shaped `ValidatePathsResponse`. `anvil watch` is the
-consuming client; the MCP pre-write path stays on `scan_buffer` (§12).
+The save-time arc (DSV,
+`plans/archive/modules/daemon-save-time-validation.aps.md`) adds a second
+validation surface beside the pre-write `scan_buffer` path: the daemon certifies
+a **just-written** change set against its resident warm graph cache and answers
+with a verdict-shaped `ValidatePathsResponse`. `anvil watch` is the consuming
+client; the MCP pre-write path stays on `scan_buffer` (§12).
 
 ### 4a.1 Verdict core
 

@@ -186,7 +186,7 @@ tipping point before a tester does, and prove a fix actually moved it.
 
 ## 8. How GV2 (the five graphs) relates to cold start
 
-GV2 (`plans/modules/graph-v2-foundation.aps.md`, Draft) is a deliberately
+GV2 (`plans/archive/modules/graph-v2-foundation.aps.md`, Draft) is a deliberately
 **"multiple joined graphs, not one mega-graph"** design (`:32`). It's the natural
 home for the *warm substrate* that would kill cold-start construction (§4.1) —
 but only graphs 1–2 (and partly 3) touch the per-save hot path; 4–5 are
@@ -247,8 +247,8 @@ global CPU budget (§5) are still separate levers.
 | budget bench blind spots | `crates/anvil-bench/src/watch_resource_budget.rs:124`, `:135`, `:161` |
 | MCP server | `crates/anvil-cli/src/commands/mcp.rs:77`, `:17` |
 | intercept daemon | `crates/anvil-cli/src/commands/intercept.rs:4` |
-| GV2 five-graph taxonomy | `plans/modules/graph-v2-foundation.aps.md:32`, `:137` |
-| GV2 hot/cold read split | `plans/modules/graph-v2-foundation.aps.md:206` (GV2-011), `:209-214` |
-| GV2 persistence/snapshot | `plans/modules/graph-v2-foundation.aps.md:301` (GV2-021), `:46` |
-| GV2 "provenance-first" framing | `plans/modules/graph-v2-foundation.aps.md:26` |
+| GV2 five-graph taxonomy | `plans/archive/modules/graph-v2-foundation.aps.md:32`, `:137` |
+| GV2 hot/cold read split | `plans/archive/modules/graph-v2-foundation.aps.md:206` (GV2-011), `:209-214` |
+| GV2 persistence/snapshot | `plans/archive/modules/graph-v2-foundation.aps.md:301` (GV2-021), `:46` |
+| GV2 "provenance-first" framing | `plans/archive/modules/graph-v2-foundation.aps.md:26` |
 | plan / tracking | `plans/modules/resource-load-benchmarking.aps.md`, GH #2156 |

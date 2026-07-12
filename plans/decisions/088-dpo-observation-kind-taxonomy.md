@@ -105,6 +105,6 @@ before emit (operator-supplied text never lands verbatim).
 - [ADR-031](031-validation-latency-rubric.md) — latency gate on the save-time path
 - [ADR-064](064-intercept-graph-cache-crate-boundary.md) — daemon dependency
   boundary (the Kindling sink is minted in `anvil-cli`, never `anvil-intercept`)
-- [KDS module](../modules/kindling-daemon-sink.aps.md) — the sink backend that
+- [KDS module](../archive/modules/kindling-daemon-sink.aps.md) — the sink backend that
   must map the new kind
 - Planning council session `plan-a50aa93d`

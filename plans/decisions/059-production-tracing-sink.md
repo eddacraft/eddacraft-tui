@@ -103,7 +103,7 @@ Cross-cutting constraints:
   around.
 - **Feature-flagged usage analytics is NOT this pipe.** Per ADR-035 usage facts
   are governance-shaped and durable, so they live on **Kindling** (the
-  [usage-analytics](../modules/usage-analytics.aps.md) module is the source of
+  [usage-analytics](../archive/modules/usage-analytics.aps.md) module is the source of
   record). App Insights `customEvents` MAY carry usage *breadcrumbs* to feed a
   convenience dashboard, but Kindling stays the system of record — the dashboard
   must never become the store.
@@ -175,7 +175,7 @@ on **stack consolidation**:
   [ADR-019](019-flags-observability-alignment.md) (OTEL metrics vs Kindling rows)
 - APS modules: EXPORT-001 (resolves OQ1), TRACE-001 / TRACE-002 / TRACE-003
   (subscriber init, TS wiring, redaction layer this exporter must honour),
-  [USAGE](../modules/usage-analytics.aps.md) (feature-flagged usage is
+  [USAGE](../archive/modules/usage-analytics.aps.md) (feature-flagged usage is
   Kindling-of-record, not this pipe)
 - External: OpenTelemetry OTLP exporter spec; Azure Monitor OpenTelemetry
   exporter / Application Insights OTel ingestion; Azure Managed Grafana + the

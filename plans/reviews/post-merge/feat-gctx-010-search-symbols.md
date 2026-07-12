@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Advance GCTX-010 from Ready (#2635) → In Progress in
-      `plans/modules/graph-context-delivery.aps.md` and the Phase-1 row in the
+      `plans/archive/modules/graph-context-delivery.aps.md` and the Phase-1 row in the
       Stats table; this PR deliberately did not touch `plans/` to avoid
       colliding with the in-flight readiness PR #2635 (agent: no — needs the
       #2635 text as the base; do after #2635 merges)

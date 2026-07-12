@@ -11,7 +11,7 @@
 ## Problem Statement
 
 POLRESET-001 is the design gate for Anvil's policy-value reset
-([`policy-value-enforcement-reset.aps.md`](../modules/policy-value-enforcement-reset.aps.md)).
+([`policy-value-enforcement-reset.aps.md`](../archive/modules/policy-value-enforcement-reset.aps.md)).
 It must reconcile four standing decisions — ADR-002 (warnings-first), ADR-015
 (warn / fence / interrupt intercept enforcement), ADR-037 (witness / L4
 acceptance policy), and ADR-040 (regorus engine) — into one accepted record for
@@ -336,8 +336,8 @@ Stated as non-negotiable during the operator interrogation:
   [096](096-diagnostic-severity-category-forward-compat.md)
 - Input brief:
   [POLRESET-001 ADR Reconciliation Brief](../brainstorms/2026-07-03-polreset-001-adr-reconciliation-brief.md)
-- Modules: [POLRESET](../modules/policy-value-enforcement-reset.aps.md),
+- Modules: [POLRESET](../archive/modules/policy-value-enforcement-reset.aps.md),
   [EXCEPT](../modules/git-native-exceptions.aps.md),
-  [POLVAL](../modules/policy-pack-validation.aps.md),
+  [POLVAL](../archive/modules/policy-pack-validation.aps.md),
   [OPAE](../modules/opa-enhancements.aps.md),
   [EVALCI](../modules/eval-regression-ci-gate.aps.md)

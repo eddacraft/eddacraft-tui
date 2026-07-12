@@ -22,7 +22,7 @@ starter pack it plans shipped, and still framed it as future work.)
 > the `arch_boundary` suite) and **CPACKS-007**'s known-gaps docs audit.
 > Everything beyond (broad OWASP/SOC 2/ISO/GDPR/AI packs) remains
 > post-first-slice expansion behind CPACKS-008. Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Reset note:** the previous CPACKS draft tried to author six broad compliance
 > packs (OWASP, SOC 2, ISO 27001, GDPR, NIST AI RMF, EU AI Act) against retired
@@ -64,16 +64,16 @@ small, deterministic pack before Anvil makes broader compliance claims.
 **Depends on:**
 
 <!-- 2026-07-11: every listed prerequisite for the first wave has shipped; none block CPACKS-006/007 today. -->
-- [POLRESET](./policy-value-enforcement-reset.aps.md) — first-slice sequencing
+- [POLRESET](../archive/modules/policy-value-enforcement-reset.aps.md) — first-slice sequencing
   (Done 10/10, 2026-07-05).
-- [POLVAL](./policy-pack-validation.aps.md) — metadata, manifest, validation,
+- [POLVAL](../archive/modules/policy-pack-validation.aps.md) — metadata, manifest, validation,
   and test contract (Done).
 - [OPAE](./opa-enhancements.aps.md) — policy install UX, regorus-backed user
   policy loading, guidance, and enforcement-routing contracts (OPAE-001..008
   Done; 009/010/011 remain but do not block CPACKS).
-- [CPOL](./contextual-policy-assertions.aps.md) — deterministic context and
+- [CPOL](../archive/modules/contextual-policy-assertions.aps.md) — deterministic context and
   guidance payloads (Done).
-- [IORISK](./io-risk-controls.aps.md) — risk vocabulary when a starter pack
+- [IORISK](../archive/modules/io-risk-controls.aps.md) — risk vocabulary when a starter pack
   covers IO/prompt risk (Done).
 - [EVALCI](./eval-regression-ci-gate.aps.md) — report-only regression coverage
   (005/006 Merged via #3170 — the surface CPACKS-006 wires into).

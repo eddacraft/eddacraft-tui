@@ -166,7 +166,7 @@ the critical-section hold.
 Because GCTX is daemon-required, its usefulness depends on the daemon actually
 running. Today the save-time daemon has no auto-start and falls back silently
 (DSV-021), so the Phase-1 slice leans on
-[daemon-lifecycle (DLIFE)](../modules/daemon-lifecycle.aps.md) making
+[daemon-lifecycle (DLIFE)](../archive/modules/daemon-lifecycle.aps.md) making
 daemon-backed protection the normal user path. Sequence GCTX-010's rollout
 against DLIFE so the slice does not ship into an environment where the daemon is
 still opt-in (where every GCTX query returns `GraphUnavailable`).
@@ -252,6 +252,6 @@ no new transitive parser deps.
 - [GCTX-001 projection contract](../../docs/architecture/graph-context-delivery-spec.md) — CE-1..CE-12, sealed egress DTO, `GctxProjector`
 - [PV-9 context-egress privacy review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - [graph-v2-foundation-spec.md](../../docs/architecture/graph-v2-foundation-spec.md) — GV2-020 registry + GV2-023 consumer query contract
-- [`graph-context-delivery.aps.md`](../modules/graph-context-delivery.aps.md) — GCTX module + work items
-- [daemon-lifecycle (DLIFE)](../modules/daemon-lifecycle.aps.md) — makes daemon-backed protection the normal user path; GCTX's daemon-required posture depends on it
+- [`graph-context-delivery.aps.md`](../archive/modules/graph-context-delivery.aps.md) — GCTX module + work items
+- [daemon-lifecycle (DLIFE)](../archive/modules/daemon-lifecycle.aps.md) — makes daemon-backed protection the normal user path; GCTX's daemon-required posture depends on it
 - Planning council session: `plan-f211c211`

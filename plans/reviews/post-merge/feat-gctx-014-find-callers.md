@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [x] Flip GCTX-014 status `In Progress → Merged 2026-06-17 via PR #2715` in
-      `plans/modules/graph-context-delivery.aps.md`; bump the GCTX module count
+      `plans/archive/modules/graph-context-delivery.aps.md`; bump the GCTX module count
       `6/14 → 7/14` (module header + Last-reviewed note + index module-table row)
       and reconcile the index NBI table/narrative. With GCTX-014 merged, the GCTX
       Phase-1 tool surface (010/011/012/013/014) is complete; remaining GCTX items

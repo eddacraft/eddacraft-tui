@@ -41,7 +41,7 @@ the MVP cut.
   ADR-029 directive form; the reason clause is optional).
 - Policy hook integration with the existing OPA pipeline.
 - Drift baseline default-on for `.sql` files (per the schema-versioning
-  story owned by [OPSUP](./operational-supplement.aps.md), council §16.5 #7).
+  story owned by [OPSUP](../archive/modules/operational-supplement.aps.md), council §16.5 #7).
 - Acceptance bar per council §16.5 #9: FP rate < N% on Anvil's own repo
   AND ≥ 1 external codebase validation run.
 
@@ -61,7 +61,7 @@ the MVP cut.
 **Depends on:**
 
 - Existing OPA pipeline.
-- [`operational-supplement`](./operational-supplement.aps.md) — check
+- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
   registry IDs, drift schema versioning, per-track feature flag,
   file-presence guard, FP reporting channel.
 - Rust suppression parser per
@@ -76,7 +76,7 @@ the MVP cut.
 
 ## Prerequisites
 
-- [OPSUP](./operational-supplement.aps.md) check-registry slice + drift
+- [OPSUP](../archive/modules/operational-supplement.aps.md) check-registry slice + drift
   schema-versioning slice + per-track feature-flag slice landed (full
   OPSUP delivery not required — surfaces can move to Ready against the
   slices they need; see OPSUP §Risks).

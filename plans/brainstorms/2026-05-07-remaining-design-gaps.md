@@ -309,7 +309,7 @@ implementation.
 ## 9. DLIFE module skeleton
 
 **Why it matters.** ADR-036 + MLP module reference DLIFE; the
-module file at `plans/modules/daemon-lifecycle.aps.md` doesn't exist.
+module file at `plans/archive/modules/daemon-lifecycle.aps.md` doesn't exist.
 APS hygiene says the file should exist before any DLIFE work item is
 counted.
 

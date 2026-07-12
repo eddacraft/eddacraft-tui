@@ -97,7 +97,7 @@ Anticipated:
 - PACKPUL-001: Land the `crates/anvil-pack-pulumi/` crate skeleton +
   `crates/anvil-packs/` registry entry per
   [ADR-027](../decisions/027-pack-architecture.md). Activation guard via
-  [OPSUP](./operational-supplement.aps.md) check registry.
+  [OPSUP](../archive/modules/operational-supplement.aps.md) check registry.
 - PACKPUL-002: Pulumi-program detection (`@pulumi/*` imports).
 - PACKPUL-003: IAM / S3 ACL rule set.
 - PACKPUL-004: Versioning / stack-crossing rule set.

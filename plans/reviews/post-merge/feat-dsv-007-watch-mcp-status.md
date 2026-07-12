@@ -26,7 +26,7 @@ Verified: <!-- filled by cleanup agent -->
       pre-write proposed-content gate). Carry this into the parity corpus design.
       (agent: no — design note for the DSV-009 owner)
 - [ ] Advance DSV-007 `In Progress → Merged` in
-      `plans/modules/daemon-save-time-validation.aps.md` once this PR merges, and
+      `plans/archive/modules/daemon-save-time-validation.aps.md` once this PR merges, and
       `Released/Shipped`/`Complete` per the normal release evidence. (agent: yes)
 
 ## Notes

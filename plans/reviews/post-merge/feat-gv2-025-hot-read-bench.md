@@ -16,7 +16,7 @@ Verified: <!-- filled by cleanup agent -->
       regression** step passed (it asserts the gate exits non-zero under
       `ANVIL_BENCH_HOTREAD_STALL_MS=120`). (agent: yes — check step logs)
 - [ ] Step 3 — Flip GV2-025 `In Progress → Merged` in
-      `plans/modules/graph-v2-foundation.aps.md` with `Merged YYYY-MM-DD via PR #N`
+      `plans/archive/modules/graph-v2-foundation.aps.md` with `Merged YYYY-MM-DD via PR #N`
       (count stays 11/19 until released — Merged is not Done). (agent: yes)
 
 ## Notes

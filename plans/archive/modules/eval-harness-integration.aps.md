@@ -2,12 +2,16 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| EVAL | @aneki | Done |
+| EVAL | @aneki | Complete |
 
 > All work items (EVAL-001..005) Merged 2026-06-30 via PR #3013; module
 > advances to Released/Shipped on the next release tag.
 
 **Last reviewed:** 2026-06-30
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 > NOTE(post-rust): Validation commands targeted retired TS test runners.
 > Updated to `cargo test` against the Rust workspace. The
@@ -43,7 +47,7 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 - `opa-agent-orchestration`
 - `drift-reporting`
 - `anvil policy eval --json` output contract, frozen at v1 — see
-  [`docs/specs/policy-eval-output-v1.md`](../../docs/specs/policy-eval-output-v1.md)
+  [`docs/specs/policy-eval-output-v1.md`](../../../docs/specs/policy-eval-output-v1.md)
   (CIB-078). The adapter (EVAL-002) normalises from this contract; bind to its
   frozen surface (`schema_version` / `findings` / `exit_code`), not the
   diagnostic fields.
@@ -62,34 +66,34 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 ## Work Items
 
 ### EVAL-001: Define EvalHarnessPort
-- **Status:** Merged 2026-06-30 via PR #3013
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-30 via PR #3013
 - **Intent:** Define a stable adapter contract for harness execution and result retrieval.
 - **Expected Outcome:** Core domain depends on contract only.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_harness_port`
 
 ### EVAL-002: Implement framework adapter
-- **Status:** Merged 2026-06-30 via PR #3013
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-30 via PR #3013
 - **Intent:** Add a concrete adapter for harness suite execution.
-- **Expected Outcome:** Harness suites run via adapter with normalised outputs, normalised from the frozen [`policy-eval-output-v1`](../../docs/specs/policy-eval-output-v1.md) contract.
+- **Expected Outcome:** Harness suites run via adapter with normalised outputs, normalised from the frozen [`policy-eval-output-v1`](../../../docs/specs/policy-eval-output-v1.md) contract.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_harness_adapter`
 - **Dependencies:** EVAL-001
 
 ### EVAL-003: Add CI regression command
-- **Status:** Merged 2026-06-30 via PR #3013
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-30 via PR #3013
 - **Intent:** Make trust regressions part of standard CI checks.
 - **Expected Outcome:** CI command emits pass/fail and delta summary.
 - **Validation:** `cargo test -p eddacraft-anvil -- eval_regression_command`
 - **Dependencies:** EVAL-002
 
 ### EVAL-004: Persist canonical eval results
-- **Status:** Merged 2026-06-30 via PR #3013
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-30 via PR #3013
 - **Intent:** Store evaluation outcomes in Anvil schema for trends and evidence use.
 - **Expected Outcome:** Historical run data is queryable independent of framework format.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_result_persistence`
 - **Dependencies:** EVAL-002
 
 ### EVAL-005: Link eval failures to policy guidance
-- **Status:** Merged 2026-06-30 via PR #3013
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-30 via PR #3013
 - **Intent:** Connect eval regressions to remediation-oriented policy messages.
 - **Expected Outcome:** Failures include policy context and recommended next actions.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_policy_guidance`
@@ -97,4 +101,4 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 
 ## Execution
 
-Steps: [../execution/EVAL.steps.md](../execution/EVAL.steps.md)
+Steps: [../../execution/EVAL.steps.md](../../execution/EVAL.steps.md)

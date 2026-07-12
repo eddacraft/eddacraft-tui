@@ -16,7 +16,7 @@ the scoped fallback.
 - `plans/decisions/082-daemon-lifecycle-user-startup.md` — lifecycle decision and ADR-079 supersession path
 - `plans/decisions/079-watch-daemon-guidance-only.md` — status update once superseded
 - `plans/decisions/DECISION-LOG.md` — ADR index row for ADR-082 and ADR-079 status update
-- `plans/modules/daemon-lifecycle.aps.md` — APS authority for lifecycle work
+- `plans/archive/modules/daemon-lifecycle.aps.md` — APS authority for lifecycle work
 - `plans/index.aps.md` — canonical module index row
 - `crates/anvil-cli/src/commands/intercept.rs` — low-level daemon launch/status integration and shared ensure primitive entry point
 - `crates/anvil-cli/src/commands/start.rs` — activation command lifecycle integration

@@ -8,7 +8,7 @@ security-analyst, operations-reviewer.
 020 → 022** (the "hot-read slice" enabling daemon save-time validation sub-phase
 A′). Mandate: _"ensure we have it right and haven't undercooked it; expand if
 needed."_
-**Inputs:** `plans/modules/graph-v2-foundation.aps.md`;
+**Inputs:** `plans/archive/modules/graph-v2-foundation.aps.md`;
 `plans/specs/2026-06-01-daemon-save-time-validation-contract.md`; ADR-061, -063,
 -064, -069, -031; `plans/reviews/2026-06-01-daemon-graph-council-verdict.md`;
 and current `crates/anvil-graph-cache/` + `crates/anvil-intercept/` code at

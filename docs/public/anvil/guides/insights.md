@@ -9,9 +9,9 @@ sidebar_position: 5
 
 # Insights
 
-| Type        | Authority     | Owner                                                                                                                                    | Status | Freshness                                                                          |
-| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
-| Public docs | Authoritative | INSIGHTS ([`plans/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-06-10 against `main` for the v0.8.0-beta `anvil insights` views |
+| Type        | Authority     | Owner                                                                                                                                            | Status | Freshness                                                                          |
+| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------------- |
+| Public docs | Authoritative | INSIGHTS ([`plans/archive/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-06-10 against `main` for the v0.8.0-beta `anvil insights` views |
 
 | Upstream                                                                         | Downstream                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |

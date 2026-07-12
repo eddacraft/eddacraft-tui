@@ -207,11 +207,11 @@
 | --------------------------------------------------------------- | ------------------------------------ | ----- | ------------- | ----- | ------ |
 | [AI Context Delivery](../../docs/guides/ai-context-delivery.md) | `docs/guides/ai-context-delivery.md` | Guide | Authoritative | GCTX  | Live   |
 
-## GCTX (plans/modules/graph-context-delivery.aps.md)
+## GCTX (plans/archive/modules/graph-context-delivery.aps.md)
 
-| Document                                                                                             | Path                                               | Type | Authority | Owner                                              | Status |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---- | --------- | -------------------------------------------------- | ------ |
-| [Graph Context Delivery — Architecture Spec](../../docs/architecture/graph-context-delivery-spec.md) | `docs/architecture/graph-context-delivery-spec.md` | Spec | Derived   | GCTX (plans/modules/graph-context-delivery.aps.md) | Live   |
+| Document                                                                                             | Path                                               | Type | Authority | Owner                                                      | Status |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---- | --------- | ---------------------------------------------------------- | ------ |
+| [Graph Context Delivery — Architecture Spec](../../docs/architecture/graph-context-delivery-spec.md) | `docs/architecture/graph-context-delivery-spec.md` | Spec | Derived   | GCTX (plans/archive/modules/graph-context-delivery.aps.md) | Live   |
 
 ## GHCLIAUTH
 
@@ -237,11 +237,11 @@
 | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- | --------- | ----- | ------ |
 | [Entire's Branch-as-Sidecar Pattern for Session Storage](../../docs/architecture/references/entire-branch-sidecar.md) | `docs/architecture/references/entire-branch-sidecar.md` | Guide | Advisory  | GV2   | Live   |
 
-## GV2 (plans/modules/graph-v2-foundation.aps.md)
+## GV2 (plans/archive/modules/graph-v2-foundation.aps.md)
 
-| Document                                                                                       | Path                                            | Type | Authority | Owner                                          | Status |
-| ---------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ---------------------------------------------- | ------ |
-| [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md) | `docs/architecture/graph-v2-foundation-spec.md` | Spec | Derived   | GV2 (plans/modules/graph-v2-foundation.aps.md) | Live   |
+| Document                                                                                       | Path                                            | Type | Authority | Owner                                                  | Status |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ------------------------------------------------------ | ------ |
+| [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md) | `docs/architecture/graph-v2-foundation-spec.md` | Spec | Derived   | GV2 (plans/archive/modules/graph-v2-foundation.aps.md) | Live   |
 
 ## HARNESS
 
@@ -249,11 +249,11 @@
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- | ------------- | ------- | ------ |
 | [eddacraft Autonomy Constitution (v0)](../../docs/guides/eddacraft-autonomy-constitution.md) | `docs/guides/eddacraft-autonomy-constitution.md` | Guide | Authoritative | HARNESS | Draft  |
 
-## INSIGHTS (plans/modules/usage-insights.aps.md)
+## INSIGHTS (plans/archive/modules/usage-insights.aps.md)
 
-| Document                                               | Path                                   | Type        | Authority     | Owner                                          | Status |
-| ------------------------------------------------------ | -------------------------------------- | ----------- | ------------- | ---------------------------------------------- | ------ |
-| [Insights](../../docs/public/anvil/guides/insights.md) | `docs/public/anvil/guides/insights.md` | Public docs | Authoritative | INSIGHTS (plans/modules/usage-insights.aps.md) | Live   |
+| Document                                               | Path                                   | Type        | Authority     | Owner                                                  | Status |
+| ------------------------------------------------------ | -------------------------------------- | ----------- | ------------- | ------------------------------------------------------ | ------ |
+| [Insights](../../docs/public/anvil/guides/insights.md) | `docs/public/anvil/guides/insights.md` | Public docs | Authoritative | INSIGHTS (plans/archive/modules/usage-insights.aps.md) | Live   |
 
 ## INTD
 

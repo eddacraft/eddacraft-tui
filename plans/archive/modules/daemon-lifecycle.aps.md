@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| DLIFE | Josh  | In Progress | 6/6      |
+| DLIFE | Josh  | Complete | 6/6      |
 
 **Last reviewed:** 2026-06-18 (**DLIFE-005 Merged 2026-06-18 via PR #2765** —
 public docs, CLI long help, beta guide, troubleshooting, and release notes now
@@ -43,6 +43,10 @@ Module created
 2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
 daemon-backed protection the normal path, with an explicit opt-out.)
 
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
+
 ## Purpose
 
 Make daemon-backed protection a normal user workflow rather than an operator-only
@@ -71,10 +75,10 @@ operator/debugging surface.
 
 **Depends on:**
 
-- [ADR-061](../decisions/061-save-time-daemon-delta-validation.md) — daemon-mediated save-time validation
-- [ADR-075](../decisions/075-v080-graph-product-scope.md) — v0.8 rollout controls and default-on routing context
-- [ADR-079](../decisions/079-watch-daemon-guidance-only.md) — current live posture to supersede if ADR-082 is accepted
-- [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md) — proposed lifecycle decision
+- [ADR-061](../../decisions/061-save-time-daemon-delta-validation.md) — daemon-mediated save-time validation
+- [ADR-075](../../decisions/075-v080-graph-product-scope.md) — v0.8 rollout controls and default-on routing context
+- [ADR-079](../../decisions/079-watch-daemon-guidance-only.md) — current live posture to supersede if ADR-082 is accepted
+- [ADR-082](../../decisions/082-daemon-lifecycle-user-startup.md) — proposed lifecycle decision
 - [daemon-save-time-validation](daemon-save-time-validation.aps.md) — DSV-021 routing semantics and fallback path
 
 **Exposes:**
@@ -108,7 +112,7 @@ operator/debugging surface.
 - **Intent:** Supersede ADR-079 with an accepted user-facing daemon lifecycle posture.
 - **Expected Outcome:** ADR-082 is accepted or replaced by an accepted ADR; ADR-079 is marked superseded; the decision log states the new `start`/`watch` posture and the opt-out semantics.
 - **Validation:** `pnpm adr:check`; `pnpm aps:index:check`; review confirms ADR-079 status and decision-log row are consistent.
-- **Files:** `plans/decisions/082-daemon-lifecycle-user-startup.md`, `plans/decisions/079-watch-daemon-guidance-only.md`, `plans/decisions/DECISION-LOG.md`, `plans/modules/daemon-lifecycle.aps.md`, `plans/index.aps.md`
+- **Files:** `plans/decisions/082-daemon-lifecycle-user-startup.md`, `plans/decisions/079-watch-daemon-guidance-only.md`, `plans/decisions/DECISION-LOG.md`, `plans/archive/modules/daemon-lifecycle.aps.md`, `plans/index.aps.md`
 - **Dependencies:** None
 - **Confidence:** medium
 - **Risks:** Product consent posture may need operator choice before implementation can proceed.
@@ -119,7 +123,7 @@ operator/debugging surface.
 
 ### DLIFE-002: Add idempotent daemon ensure primitive
 
-- **Status:** Merged 2026-06-15 via PR #2644
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via PR #2644
 - **Intent:** Provide a safe internal `ensure_daemon` primitive that user-facing CLI commands (`start`, `watch`) call to bring up the per-user daemon, reusing a live one and never double-starting under concurrency.
 - **Expected Outcome:** A typed ensure primitive returns one of `Reused` (a live daemon already answers the per-user endpoint), `Started` (exactly one daemon was launched and now answers), `NoStart{reason}` where `reason` is a **typed enum** with at least `OptOut`, `NonInteractive`, and `PlatformUnsupported` arms (so `start`/`watch` can render a platform-specific advisory distinct from a deliberate opt-out — a Windows user must not see the opt-out hint), or `Failed{recovery}` (launch or bind failed, with an actionable recovery hint). Repeated and concurrent calls across `start` and `watch` converge on exactly one daemon; stale sockets/PIDs are detected (endpoint present but no status answer) and recovered from **without unlinking a live-but-slow daemon's endpoint**; every non-`Started` path preserves the existing ADR-061 scoped fallback for watch and the activation honesty contract for start (no `Protecting` claim before the daemon attests).
 - **Design:** The primitive lives in the `anvil-intercept` library (testable without the CLI) with a thin entry point in `intercept.rs`; `start.rs`/`watch.rs` consume the typed outcome only. Flow: **probe** the per-user save-time endpoint for a live status answer → if live, `Reused`; else acquire a same-user advisory lock around the spawn critical section so concurrent callers serialise (reuse the existing cross-platform `fs2` file-lock pattern at `lib.rs:620` — `flock` on Unix, `LockFileEx` on Windows — and scope the lock path **per-`ANVIL_HOME`**, not per-uid, so ADR-060 re-rooted instances of the same user do not share a lock) → re-probe under the lock (a racing caller may have started one → `Reused`) → otherwise spawn a detached background child running the existing `run_foreground` loop **with stdout/stderr redirected to a log file in the runtime/PID directory before exec** (the parent surface owns the terminal; `main.rs:46-53` flags DLIFE as owner of this capture story), then bound-wait — to a **named timeout constant**, not an implicit duration — for it to bind and answer the status verb → `Started`; a spawn that never binds within the timeout → `Failed{recovery}` naming the log path. Stale detection must distinguish a **dead** endpoint (connect fails fast) from a **live-but-slow** one (connect succeeds but no status answer within the probe timeout): only the former is unlinked and re-spawned, so a daemon under graph/GC load is never torn out from under its own listener. Startup is gated by an explicit caller capability flag, so headless/JSON/CI/MCP/hook/`--verify` callers get `NoStart` deterministically and never spawn or prompt. This retires the current `anvil intercept start` foreground-only bail (`intercept.rs` ~L974) for internal callers; the pinned `run_start_without_foreground_bails_with_actionable_message` test is updated to reflect that backgrounded launch now flows through `ensure_daemon` while the operator `--foreground` surface stays available.
@@ -136,7 +140,7 @@ operator/debugging surface.
 
 ### DLIFE-003: Make `anvil start` manage daemon lifecycle
 
-- **Status:** Merged 2026-06-16 via PR #2678
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-16 via PR #2678
 - **Intent:** Make `anvil start` the canonical command that brings a normal user to daemon-backed protection when the accepted lifecycle posture allows it.
 - **Expected Outcome:** `anvil start` configures protection, ensures the per-user daemon by default (tiered auto-start with explicit `--no-daemon` opt-out per the accepted ADR-082 posture), reports the resulting daemon-backed posture, and keeps `--verify` / `--json` non-mutating and non-interactive.
 - **Validation:** Activation tests cover daemon absent, daemon live, daemon ensure failure, `--verify`, `--json`, and repair-hint rendering.
@@ -150,7 +154,7 @@ operator/debugging surface.
 
 ### DLIFE-004: Make `anvil watch` start or offer daemon startup by default
 
-- **Status:** Merged 2026-06-18 via PR #2759
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via PR #2759
 - **Intent:** Close the fallback-only gap for bare `anvil watch` while preserving explicit opt-out and machine-readable behaviour.
 - **Expected Outcome:** Bare `anvil watch` follows the accepted lifecycle posture when no daemon answers; `--no-daemon` and `ANVIL_WATCH_DAEMON=0` never start or prompt; `--json` and headless modes are deterministic and parse-safe.
 - **Validation:** Watch routing tests cover live daemon, absent daemon with startup allowed, absent daemon with startup disabled, daemon startup failure, JSON mode, non-TTY mode, and forced/disabled environment values.
@@ -164,7 +168,7 @@ operator/debugging surface.
 
 ### DLIFE-005: Align docs, help text, and runbooks with daemon lifecycle
 
-- **Status:** Merged 2026-06-18 via PR #2765
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via PR #2765
 - **Intent:** Replace guidance-only daemon startup instructions with the accepted user-facing lifecycle model.
 - **Expected Outcome:** Public docs, CLI long help, beta testing guide, troubleshooting, and release notes all describe the same `start`/`watch`/opt-out behaviour and reserve `anvil intercept start --foreground` for operator/debugging use.
 - **Validation:** `pnpm docs:check`; `pnpm docs:index:check`; `pnpm aps:index:check`; targeted help-text tests pass.
@@ -178,7 +182,7 @@ operator/debugging surface.
 
 ### DLIFE-006: Make `--verify` give a terminating reason when the daemon is unreachable
 
-- **Status:** Merged 2026-06-15 via PR #2639
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via PR #2639
 - **Intent:** When daemon attestation is `Unreachable`, `anvil start --verify` and `anvil status --verify` must give a terminating, actionable reason rather than silently parking at `ready_restart_required` as if another editor restart would help (recurring symptom: #2609, #2583, #1831).
 - **Expected Outcome:** On `DaemonAttestation::Unreachable`, the rendered repair hint names *why* protection cannot graduate (no daemon answering the worktree) and the concrete next step to obtain a live daemon, and reads as an end state rather than a transient "restart again" loop. The `ReadyRestartRequired` headline is also made attestation-aware (via a shared `headline_for` selector routed through by both the human and `--json` surfaces) so the prominent first line no longer tells the user to "restart your editor" when no daemon is answering; the existing `state_explanation()` meaning line (#2590) is reused unchanged. `--verify` stays read-only and starts no daemon; `--json` keeps its stable key set (the `headline` value varies by attestation, as the schema already permits).
 - **Validation:** Activation render tests cover the `Unreachable` repair-hint wording for `ReadyRestartRequired`, the `--verify` read-only contract (no daemon spawned), and `--json` shape stability; UK spelling check.
@@ -193,4 +197,4 @@ operator/debugging surface.
 ## Action Plan
 
 Detailed execution checkpoints live in
-[`plans/execution/DLIFE.actions.md`](../execution/DLIFE.actions.md).
+[`plans/execution/DLIFE.actions.md`](../../execution/DLIFE.actions.md).

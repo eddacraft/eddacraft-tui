@@ -72,7 +72,7 @@ is replacing — the bar must reflect that reality.
 - [ADR-029](../decisions/029-suppression-parser-authority.md) — Rust
   suppression parser is authoritative; this crate consumes it via
   `crates/anvil-checks`.
-- [OPSUP](./operational-supplement.aps.md) check registry — this crate
+- [OPSUP](../archive/modules/operational-supplement.aps.md) check registry — this crate
   registers its checks through OPSUP like any other source.
 
 **Exposes:**
@@ -86,7 +86,7 @@ is replacing — the bar must reflect that reality.
 - [ADR-028](../decisions/028-markdown-governance-crate.md) advanced from
   Proposed → Accepted.
 - [ADR-029](../decisions/029-suppression-parser-authority.md) Accepted.
-- [OPSUP](./operational-supplement.aps.md) check-registry slice landed (or
+- [OPSUP](../archive/modules/operational-supplement.aps.md) check-registry slice landed (or
   agreed to land before MDGOV's first task).
 - Acceptance bar wording agreed (council C-016).
 

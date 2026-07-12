@@ -2,10 +2,14 @@
 
 | ID       | Type      | Owner | Priority | Status   | Progress |
 | -------- | --------- | ----- | -------- | -------- | -------- |
-| POLRESET | Conductor | —     | high     | Done     | 10/10    |
+| POLRESET | Conductor | —     | high     | Complete     | 10/10    |
 
 **Last reviewed:** 2026-07-05 (POLRESET-009 closed via the ATC chain, PR #3181;
 module complete at 10/10).
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 ## Purpose
 
@@ -79,20 +83,20 @@ The first policy-value slice is complete when:
 | Module | Role in Reset | Reset Posture |
 | ------ | ------------- | ------------- |
 | [policy-pack-validation](./policy-pack-validation.aps.md) | validates packs before evaluation | Retarget to Rust/regorus and promote first |
-| [opa-enhancements](./opa-enhancements.aps.md) | policy authoring/runtime UX contracts | Reset from broad OPAE wishlist to narrow regorus-backed UX |
+| [opa-enhancements](../../modules/opa-enhancements.aps.md) | policy authoring/runtime UX contracts | Reset from broad OPAE wishlist to narrow regorus-backed UX |
 | [contextual-policy-assertions](./contextual-policy-assertions.aps.md) | deterministic context and guidance | Keep Ready; coordinate schema overlap with OPAE/ACTAX |
 | [io-risk-controls](./io-risk-controls.aps.md) | shared risk taxonomy for policy outcomes | Keep Ready; use when starter pack needs IO/prompt risk |
-| [git-native-exceptions](./git-native-exceptions.aps.md) | scoped, expiring, auditable exceptions | Required before blocking/fencing policy modes |
-| [compliance-policy-packs](./compliance-policy-packs.aps.md) | starter and later compliance packs | Reset first wave to one or two high-signal starter packs |
-| [eval-regression-ci-gate](./eval-regression-ci-gate.aps.md) | report-only, then blocking policy regression CI | Promote EVALCI-005/006 after starter policy path exists |
+| [git-native-exceptions](../../modules/git-native-exceptions.aps.md) | scoped, expiring, auditable exceptions | Required before blocking/fencing policy modes |
+| [compliance-policy-packs](../../modules/compliance-policy-packs.aps.md) | starter and later compliance packs | Reset first wave to one or two high-signal starter packs |
+| [eval-regression-ci-gate](../../modules/eval-regression-ci-gate.aps.md) | report-only, then blocking policy regression CI | Promote EVALCI-005/006 after starter policy path exists |
 | [adversarial-testing-catalog](./adversarial-testing-catalog.aps.md) | adversarial policy/eval depth | Execute after report-only eval path |
-| [prompt-attack-regression-packs](./prompt-attack-regression-packs.aps.md) | prompt attack regression depth | Execute after ATC/eval substrate |
-| [policy-action-taxonomy](./policy-action-taxonomy.aps.md) | YAML/action taxonomy and risk-score authoring | Phase 2; do not block first Rego-backed value slice |
-| [opa-agent-orchestration](./opa-agent-orchestration.aps.md) | agent-facing orchestration | Keep Proposed until save-time path and agent surface are re-approved |
-| [org-policy-hierarchy](./org-policy-hierarchy.aps.md) | enterprise hierarchy | Later enterprise expansion |
-| [policy-lifecycle](./policy-lifecycle.aps.md) | policy rollout lifecycle | Later enterprise expansion |
-| [compliance-reporting](./compliance-reporting.aps.md) | compliance evidence/reporting | Later, after packs and evidence semantics |
-| [agent-governance-patterns](./agent-governance-patterns.aps.md) | agent trust/capability signals | Later signal producers, not first-slice prerequisites |
+| [prompt-attack-regression-packs](../../modules/prompt-attack-regression-packs.aps.md) | prompt attack regression depth | Execute after ATC/eval substrate |
+| [policy-action-taxonomy](../../modules/policy-action-taxonomy.aps.md) | YAML/action taxonomy and risk-score authoring | Phase 2; do not block first Rego-backed value slice |
+| [opa-agent-orchestration](../../modules/opa-agent-orchestration.aps.md) | agent-facing orchestration | Keep Proposed until save-time path and agent surface are re-approved |
+| [org-policy-hierarchy](../../modules/org-policy-hierarchy.aps.md) | enterprise hierarchy | Later enterprise expansion |
+| [policy-lifecycle](../../modules/policy-lifecycle.aps.md) | policy rollout lifecycle | Later enterprise expansion |
+| [compliance-reporting](../../modules/compliance-reporting.aps.md) | compliance evidence/reporting | Later, after packs and evidence semantics |
+| [agent-governance-patterns](../../modules/agent-governance-patterns.aps.md) | agent trust/capability signals | Later signal producers, not first-slice prerequisites |
 
 ## Work Items
 
@@ -101,13 +105,13 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-001: Policy value and enforcement design gate
 
-- **Status:** Merged 2026-07-04 via PR #3121
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3121
 - **Intent:** Produce the accepted ADR/spec that resets policy module boundaries,
   first-slice scope, and enforcement semantics.
 - **Expected Outcome:** A decision record pins the Rego-first path, validation
   before load, exception requirements, pre-write boundary, and `warn` / `fence` /
   `interrupt` mapping.
-- **Decision Record:** [ADR-098 — Policy Enforcement Reset Gate](../decisions/098-policy-enforcement-reset-gate.md),
+- **Decision Record:** [ADR-098 — Policy Enforcement Reset Gate](../../decisions/098-policy-enforcement-reset-gate.md),
   produced via planning council plan-18c47503 (operator-ratified all gate
   questions). Ratifies ADR-015 as bookkeeping.
 - **Validation:** `pnpm adr:check` and `pnpm aps:active-lint`
@@ -117,7 +121,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-002: Policy pack validation foundation
 
-- **Status:** Merged 2026-07-04 via PR #3138
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3138
 - **Intent:** Retarget POLVAL to the Rust/regorus path and promote its first wave
   when the design gate lands.
 - **Expected Outcome:** Pack metadata, manifests, tests, CLI validation, and gate
@@ -131,7 +135,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-003: OPAE product-contract reset
 
-- **Status:** Merged 2026-07-04 via PR #3136
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3136
 - **Intent:** Replace OPAE's stale broad wishlist with first-wave policy
   authoring, loading, install, guidance, and enforcement-routing contracts.
 - **Expected Outcome:** OPAE exposes only the contracts needed for policy value and
@@ -143,7 +147,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-004: Deterministic policy context and risk vocabulary
 
-- **Status:** Merged 2026-07-04 via PR #3139
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3139
 - **Intent:** Ensure policy evaluation receives deterministic changed-code,
   workflow, graph, and risk context before enforcement routing is attempted.
 - **Expected Outcome:** CPOL and IORISK provide reusable input contracts for
@@ -176,7 +180,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-006: Save-time policy enforcement routing
 
-- **Status:** Merged 2026-07-04 via PR #3165 — the routing contract (OPAE-007,
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3165 — the routing contract (OPAE-007,
   `crates/anvil-intercept-rules/src/policy_routing.rs`) plus its MCP pre-write
   consumer (`crates/anvil-cli/src/mcp/policy_prewrite.rs`) connect regorus-backed
   policy results to the unified kernel-types `ControlDecision` vocabulary without
@@ -213,7 +217,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-007: Starter policy pack proof
 
-- **Status:** Merged 2026-07-04 via PR #3167
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3167
 - **Intent:** Ship one high-signal starter pack that proves real policy value
   before broad compliance-pack expansion.
 - **Expected Outcome:** A starter pack installs, validates, evaluates through
@@ -253,7 +257,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-008: Report-only policy regression CI
 
-- **Status:** Merged 2026-07-04 via PR #3170
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3170
 - **Intent:** Promote the already-hardened EVALCI path into visible report-only
   policy regression coverage.
 - **Expected Outcome:** Every PR gets a non-blocking eval-regression report over a
@@ -296,7 +300,7 @@ modules named by each `Coordinates with` field.
 
 ### POLRESET-010: Enterprise policy backlog reset
 
-- **Status:** Merged 2026-07-04 via PR #3134
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3134
 - **Intent:** Reclassify hierarchy, lifecycle, reporting, federation, compliance,
   and agent-governance modules as post-first-slice expansion until their
   prerequisites are real.

@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Flip GCTX-013 status `In Progress → Merged YYYY-MM-DD via PR #NNN` in
-      `plans/modules/graph-context-delivery.aps.md` (if not carried in the merge
+      `plans/archive/modules/graph-context-delivery.aps.md` (if not carried in the merge
       commit); bump the GCTX module count `5/14 → 6/14` (module header + Stats
       table total + index row) and reconcile the index NBI table + narrative
       (GCTX-013 no longer Ready; next pick is GCTX-014 once GV2 call-edges land,

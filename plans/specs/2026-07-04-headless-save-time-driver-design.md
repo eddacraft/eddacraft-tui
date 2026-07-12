@@ -2,7 +2,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [DSV-046](../modules/daemon-save-time-validation.aps.md), [ADR-061](../decisions/061-save-time-daemon-delta-validation.md), [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md), [ADR-092](../decisions/092-mcp-optional-activation-spine.md), [ADR-094](../decisions/094-worktree-registration-ux.md), [RELEASE-PLAN](../../RELEASE-PLAN.md) | [ADR-101](../decisions/101-headless-save-time-driver.md), DSV-047..051 work items |
+| [DSV-046](../archive/modules/daemon-save-time-validation.aps.md), [ADR-061](../decisions/061-save-time-daemon-delta-validation.md), [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md), [ADR-092](../decisions/092-mcp-optional-activation-spine.md), [ADR-094](../decisions/094-worktree-registration-ux.md), [RELEASE-PLAN](../../RELEASE-PLAN.md) | [ADR-101](../decisions/101-headless-save-time-driver.md), DSV-047..051 work items |
 
 ## Problem
 
@@ -218,6 +218,6 @@ Recommended wave:
 
 ## References
 
-- [daemon-save-time-validation](../modules/daemon-save-time-validation.aps.md)
+- [daemon-save-time-validation](../archive/modules/daemon-save-time-validation.aps.md)
 - [activation-mcp-optional](../modules/activation-mcp-optional.aps.md) — ACTMO-017 soft-dep
 - [RELEASE-PLAN](../../RELEASE-PLAN.md) — usefulness addendum cut criteria

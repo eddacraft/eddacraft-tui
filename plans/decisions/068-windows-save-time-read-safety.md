@@ -158,7 +158,7 @@ ladder`:
   `MAX_GUARDED_READ_BYTES` refuse-don't-truncate ceiling).
 - `crates/anvil-intercept-win32/src/lib.rs` — the FFI isolation crate this lands
   in.
-- DSV-010 / DSV-011, `plans/modules/daemon-save-time-validation.aps.md`
+- DSV-010 / DSV-011, `plans/archive/modules/daemon-save-time-validation.aps.md`
   (Sub-phase A-W).
 - Microsoft Learn: `NtCreateFile` / `OBJECT_ATTRIBUTES` (`RootDirectory`,
   `OBJ_DONT_REPARSE`); *Reparse Points and File Operations*; `CreateFileW`

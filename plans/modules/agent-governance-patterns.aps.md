@@ -19,7 +19,7 @@ items in the followup list below).
 > #3167, POLRESET-008 #3170). The live gate is the one at the end of this
 > note block: a **product decision on which signal producers actually ship**,
 > plus CPACKS coordination. Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** AGOV remains Draft. Its signal
 > producers should feed `crates/anvil-policy` / `crates/anvil-checks` and Rego

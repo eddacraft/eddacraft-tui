@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [`first-run-wow`](../modules/first-run-wow.aps.md), [`activation-tui`](../modules/activation-tui.aps.md), [`activation-mcp-optional`](../modules/activation-mcp-optional.aps.md), [`continuous-improvement-backlog`](../modules/continuous-improvement-backlog.aps.md), [`usage-insights`](../modules/usage-insights.aps.md), [`dashboard-foundation`](../modules/dashboard-foundation.aps.md) | [`release-user-journeys`](../modules/release-user-journeys.aps.md), [`RELEASE-PLAN`](../../RELEASE-PLAN.md) |
+| [`first-run-wow`](../modules/first-run-wow.aps.md), [`activation-tui`](../modules/activation-tui.aps.md), [`activation-mcp-optional`](../modules/activation-mcp-optional.aps.md), [`continuous-improvement-backlog`](../modules/continuous-improvement-backlog.aps.md), [`usage-insights`](../archive/modules/usage-insights.aps.md), [`dashboard-foundation`](../modules/dashboard-foundation.aps.md) | [`release-user-journeys`](../modules/release-user-journeys.aps.md), [`RELEASE-PLAN`](../../RELEASE-PLAN.md) |
 
 ## Problem
 

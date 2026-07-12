@@ -2,7 +2,7 @@
 
 | Field  | Value                                                                                 |
 | ------ | ------------------------------------------------------------------------------------- |
-| Source | [../modules/eval-harness-integration.aps.md](../modules/eval-harness-integration.aps.md) |
+| Source | [../archive/modules/eval-harness-integration.aps.md](../archive/modules/eval-harness-integration.aps.md) |
 | Task   | EVAL — Full module execution                                                          |
 | Status | Draft                                                                                 |
 

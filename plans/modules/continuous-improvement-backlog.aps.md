@@ -2112,7 +2112,7 @@ archive.
 - **Status:** Merged 2026-06-17 via PR #2717
 - **Intent:** POLENG-007 shipped `anvil policy eval --json` preview-gated, with
   the wire shape explicitly _not_ a stable contract. The
-  [eval-harness-integration](eval-harness-integration.aps.md) module (EVAL) is
+  [eval-harness-integration](../archive/modules/eval-harness-integration.aps.md) module (EVAL) is
   next to bind an adapter (`EvalRunSummary`/`EvalRegressionReport`) to that
   output. Freeze the shape at v1 _before_ EVAL locks onto it so the adapter has
   a durable contract and a later eval-output refactor cannot silently break
@@ -2131,7 +2131,7 @@ archive.
   `EVAL_OUTPUT_SCHEMA_VERSION`, snapshot test),
   `crates/anvil-cli/src/commands/policy/snapshots/`,
   `docs/specs/policy-eval-output-v1.md`,
-  `plans/modules/eval-harness-integration.aps.md`.
+  `plans/archive/modules/eval-harness-integration.aps.md`.
 - **Validation:** `cargo test -p eddacraft-anvil eval::tests`; `pnpm docs:check`.
 - **Identified From:** the 2026-06-17 OPA/policy-cluster readiness review — the
   one outstanding Regorus follow-up was that the eval output shape is not yet a

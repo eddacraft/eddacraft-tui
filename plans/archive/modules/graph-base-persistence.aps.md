@@ -2,11 +2,11 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| GBASE | —     | Done        | 11/11     |
+| GBASE | —     | Complete        | 11/11     |
 
 **Last reviewed:** 2026-07-11 (created from planning council `plan-89a47ac7`,
-synthesised as [ADR-105](../decisions/105-shared-base-graph-persistence.md) —
-the [ADR-069](../decisions/069-graph-v2-persistence.md) storage-layout
+synthesised as [ADR-105](../../decisions/105-shared-base-graph-persistence.md) —
+the [ADR-069](../../decisions/069-graph-v2-persistence.md) storage-layout
 successor). Replaces ADR-069's per-`WorktreeKey` snapshot (O(worktrees) on disk
 and scan even with a correct sweep — the per-worktree orphan race is already
 closed by CIB-096; layout blocking `ANVIL_PERSIST_GRAPH` default-on) with **one
@@ -16,6 +16,10 @@ line, and privacy line unchanged, and amends only ADR-069 §5 (single-owner) and
 §10 (orphan sweep). All work items reference ADR-105 and are **Merged / Done**
 (2026-07-12) — the terminal GBASE-010 graduation gate cleared and flipped
 `ANVIL_PERSIST_GRAPH` default-on.
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 ## Purpose
 
@@ -60,14 +64,14 @@ default-on.
 
 ## Dependencies
 
-- [ADR-105](../decisions/105-shared-base-graph-persistence.md) (this module's
-  binding decision) and [ADR-069](../decisions/069-graph-v2-persistence.md)
+- [ADR-105](../../decisions/105-shared-base-graph-persistence.md) (this module's
+  binding decision) and [ADR-069](../../decisions/069-graph-v2-persistence.md)
   (inherited format, trust line, privacy line).
-- [ADR-085](../decisions/085-daemon-full-scan-executor.md) (the executor that
+- [ADR-085](../../decisions/085-daemon-full-scan-executor.md) (the executor that
   computes the overlay scoped to changed-vs-base files).
-- [ADR-090](../decisions/090-daemon-worktree-scoped-health-envelopes.md)
+- [ADR-090](../../decisions/090-daemon-worktree-scoped-health-envelopes.md)
   (worktree-scoped failure signalling).
-- [ADR-094](../decisions/094-worktree-registration-ux.md) (ACTMO durable
+- [ADR-094](../../decisions/094-worktree-registration-ux.md) (ACTMO durable
   worktree registration = the GC keep-set).
 - ADR-061/063/064/067 (lean resident daemon; parser injected via the CLI, never
   resident — honoured by the CLI-subprocess producer).
@@ -96,7 +100,7 @@ default-on.
 
 #### GBASE-001: Merge-base tree reader
 
-- **Status:** Merged 2026-07-11 via PR #3268
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3268
 - **Intent:** Produce the full graph of a merge-base commit's committed tree by
   reading git objects, never a working tree.
 - **Expected Outcome:** A CLI-subprocess reader walks the merge-base commit's
@@ -117,7 +121,7 @@ default-on.
 
 #### GBASE-002: Content-addressed write-once base store + single-flight claim
 
-- **Status:** Merged 2026-07-11 via PR #3269
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3269
 - **Intent:** Persist a base as a content-addressed, write-once artefact keyed by
   merge-base sha, with race-safe single-flight production.
 - **Expected Outcome:** A base is written once per merge-base sha (magic
@@ -149,7 +153,7 @@ default-on.
 
 #### GBASE-003: Proactive pre-production trigger
 
-- **Status:** Merged 2026-07-11 via PR #3270
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3270
 - **Intent:** Pre-produce the base when the repo's merge-base moves, driven by
   ref changes rather than a save.
 - **Expected Outcome:** A new `graph_base_trigger` module beside `watcher.rs`
@@ -235,7 +239,7 @@ default-on.
 
 #### GBASE-004: Overlay computation via the ADR-085 executor
 
-- **Status:** Merged 2026-07-11 via PR #3271
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3271
 - **Intent:** Compute a worktree's live overlay as the diff of its changed files
   versus the base tree.
 - **Expected Outcome:** The ADR-085 executor is scoped to the files that differ
@@ -262,7 +266,7 @@ default-on.
 
 #### GBASE-005: Disjoint id allocation + cross-boundary re-resolution
 
-- **Status:** Merged 2026-07-11 via PR #3273
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3273
 - **Intent:** Keep base and overlay id spaces disjoint and re-resolve
   cross-boundary imports at compose time.
 - **Expected Outcome:** The base owns `[0, base_next_id)`; the overlay allocates
@@ -292,7 +296,7 @@ default-on.
 
 #### GBASE-006: Per-worktree materialisation / composition
 
-- **Status:** Merged 2026-07-11 via PR #3275
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3275
 - **Intent:** Materialise one resident graph per worktree by loading the shared
   base and applying its overlay.
 - **Expected Outcome:** Warm-start loads the base by replay and applies the
@@ -348,7 +352,7 @@ default-on.
 
 #### GBASE-007: Combined-state golden parity fixture
 
-- **Status:** Merged 2026-07-11 via PR #3278
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3278
 - **Recorded exclusion (as landed):** cross-edge parity is scoped to **import**
   edges (ADR-105 §3); the base→overlay reexport/call gap is taken as the
   **recorded exclusion** (schema-additive extension out of budget) and pinned
@@ -379,7 +383,7 @@ default-on.
 
 #### GBASE-008: Refcount GC over ACTMO-registered worktrees' merge-bases
 
-- **Status:** Merged 2026-07-11 via PR #3272
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3272
 - **Intent:** Reclaim base artefacts no live worktree references, without racing
   producers.
 - **Expected Outcome:** The daemon holds a refcount over the current merge-bases
@@ -401,7 +405,7 @@ default-on.
 
 #### GBASE-009: Re-entrant persistence-route topology / staleness routing
 
-- **Status:** Merged 2026-07-11 via PR #3281
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3281
 - **Intent:** Route each worktree to the base path or the per-worktree path, and
   re-evaluate on merge-base movement and coverage transitions.
 - **Expected Outcome:** A daemon-side `persistence_route` module returns
@@ -458,12 +462,12 @@ default-on.
 
 #### GBASE-010: Graduation gate + default-on flip
 
-- **Status:** Merged 2026-07-12 via PR #3287
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-12 via PR #3287
 - **Recorded outcome (as landed):** the ADR-105 §11 successor-specific criteria
   (warm-start latency / herd-miss single-flight / corrupt-shared-base) plus the
   standing correctness/GC criteria are green, evidenced by committed harnesses and
   the gate document
-  [`plans/audits/2026-07-12-gbase-graduation-gate.md`](../audits/2026-07-12-gbase-graduation-gate.md).
+  [`plans/audits/2026-07-12-gbase-graduation-gate.md`](../../audits/2026-07-12-gbase-graduation-gate.md).
   `ANVIL_PERSIST_GRAPH` flipped **default-on with an explicit opt-out**
   (`persist_graph_enabled`: absence ⇒ enabled, `0`/`false`/`no`/`off` ⇒ disabled;
   `flags/manifest.json` `daemon.persist-graph` `defaultVariant: enabled`). The gate
@@ -489,7 +493,7 @@ default-on.
 
 #### GBASE-011: ADR-090 health-envelope wiring for base failures
 
-- **Status:** Merged 2026-07-11 via PR #3276
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-11 via PR #3276
 - **Intent:** Surface base-production failure, claim timeout, and GC error as
   worktree-scoped health signals. **(Parallel track.)**
 - **Expected Outcome:** Base-production failure, `O_EXCL` claim timeout, and GC

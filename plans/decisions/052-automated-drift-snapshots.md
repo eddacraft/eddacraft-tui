@@ -23,7 +23,7 @@ investigated how to populate it and surfaced three findings that reframe the
 decision away from the original "scheduled CI workflow → weekly snapshot PR":
 
 1. **The consumer's spec names a different source.** INSIGHTS-003
-   (`plans/modules/usage-insights.aps.md`) says its data "is derived from
+   (`plans/archive/modules/usage-insights.aps.md`) says its data "is derived from
    **baseline diff entries**" (`crates/anvil-baseline/*`) — *not*
    `.anvil/snapshots/`. The original ADR silently re-pointed it at whole-state
    snapshots.

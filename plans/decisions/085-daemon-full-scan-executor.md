@@ -6,12 +6,12 @@
 (`plan-898d9222`) at the owner's request, after
 [ADR-084](084-gctx-graph-handle-access.md) fixed GCTX's graph-handle access as
 daemon-RPC over `anvil/gctx/*` and surfaced **binding condition C1** (cold-start
-warm-up) on [GCTX-010](../modules/graph-context-delivery.aps.md): the daemon's
+warm-up) on [GCTX-010](../archive/modules/graph-context-delivery.aps.md): the daemon's
 `KernelGraphCache` is *save-populated*, so a fresh MCP session sees an empty
 graph until a file is saved. This ADR decides the executor that drives a
 `request_full_scan` to completion and populates the cache, so the warm-up
 triggers C1 demands have something to drive. The executor is owned by a new DSV
-work item, [DSV-045](../modules/daemon-save-time-validation.aps.md), which merges
+work item, [DSV-045](../archive/modules/daemon-save-time-validation.aps.md), which merges
 **before** the GCTX-010 PR that adds the session-init + on-demand triggers.
 
 ## Date
@@ -299,8 +299,8 @@ The decisions below (1–13) map the council's authoritative outcomes.
 - [ADR-067](067-daemon-symbol-feed-parse-hook.md) — daemon symbol feed via injected `SymbolParser`
 - [ADR-031](031-validation-latency-rubric.md) — save-time latency budget (80 ms p95)
 - [ADR-061](061-save-time-daemon-delta-validation.md) — save-time daemon delta validation; assurance states
-- [DSV-006](../modules/daemon-save-time-validation.aps.md) — two-pool scheduler, `walk_capped`, `run_chunked_scan`, `ScanCancel`, `DosCaps`
-- [DSV-045](../modules/daemon-save-time-validation.aps.md) — full-scan executor (owns this ADR's implementation)
-- [GCTX-010](../modules/graph-context-delivery.aps.md) — `anvil_search_symbols`; consumes the warmed cache, adds the warm-up triggers
-- [daemon-lifecycle (DLIFE)](../modules/daemon-lifecycle.aps.md) — soft dependency; makes daemon-backed protection the normal path
+- [DSV-006](../archive/modules/daemon-save-time-validation.aps.md) — two-pool scheduler, `walk_capped`, `run_chunked_scan`, `ScanCancel`, `DosCaps`
+- [DSV-045](../archive/modules/daemon-save-time-validation.aps.md) — full-scan executor (owns this ADR's implementation)
+- [GCTX-010](../archive/modules/graph-context-delivery.aps.md) — `anvil_search_symbols`; consumes the warmed cache, adds the warm-up triggers
+- [daemon-lifecycle (DLIFE)](../archive/modules/daemon-lifecycle.aps.md) — soft dependency; makes daemon-backed protection the normal path
 - Planning council session: `plan-898d9222`

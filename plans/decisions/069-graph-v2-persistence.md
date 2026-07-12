@@ -472,8 +472,8 @@ convention.
   §9 (Backing & persistence)
 - APS modules: GV2-021 (this ADR's owner), GV2-010/011/020/022 (the warm indexes
   serialized), DSV sub-phase B (consumer)
-  ([`plans/modules/graph-v2-foundation.aps.md`](../modules/graph-v2-foundation.aps.md),
-  [`plans/modules/daemon-save-time-validation.aps.md`](../modules/daemon-save-time-validation.aps.md))
+  ([`plans/archive/modules/graph-v2-foundation.aps.md`](../archive/modules/graph-v2-foundation.aps.md),
+  [`plans/archive/modules/daemon-save-time-validation.aps.md`](../archive/modules/daemon-save-time-validation.aps.md))
 - Design-council provenance (the §1 serialization verdict): Enterprise Integration
   Patterns — [Canonical Data Model](https://www.enterpriseintegrationpatterns.com/patterns/messaging/CanonicalDataModel.html),
   [Message Translator](https://www.enterpriseintegrationpatterns.com/patterns/messaging/MessageTranslator.html),

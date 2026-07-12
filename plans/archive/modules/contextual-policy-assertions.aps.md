@@ -2,11 +2,15 @@
 
 | ID   | Owner  | Status |
 | ---- | ------ | ------ |
-| CPOL | @aneki | Done |
+| CPOL | @aneki | Complete |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
 were delivered via POLRESET-004 / PR #3139, so the module advances to Done).
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 > **Retarget (POLRESET-004 / ADR-098, 2026-07-04):** assertion schema,
 > context adapters, and guidance live in the product-path crate,
@@ -58,4 +62,4 @@ richer runtime context while preserving Anvil policy-pack semantics.
 
 ## Execution
 
-Action plan: [../execution/CPOL.actions.md](../execution/CPOL.actions.md)
+Action plan: [../../execution/CPOL.actions.md](../../execution/CPOL.actions.md)

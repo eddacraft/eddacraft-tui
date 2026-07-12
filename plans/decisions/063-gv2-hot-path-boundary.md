@@ -164,7 +164,7 @@ exists to prevent.
   ADR-030 (surface drivers / DRVR), ADR-015 (intercept loop)
 - Spec: [`plans/specs/2026-06-01-daemon-save-time-validation-contract.md`](../specs/2026-06-01-daemon-save-time-validation-contract.md)
 - APS modules: GV2-010, GV2-011, GV2-020, GV2-022, GV2-023
-  ([`plans/modules/graph-v2-foundation.aps.md`](../modules/graph-v2-foundation.aps.md));
+  ([`plans/archive/modules/graph-v2-foundation.aps.md`](../archive/modules/graph-v2-foundation.aps.md));
   RTAI, RLB (consumers of the daemon hot path)
 - Ratification: Accepted by Josh (sole owner) 2026-06-01 — closes the ADR-061 §9
   boundary gate; clears GV2-022 to freeze and sub-phase A′ to start

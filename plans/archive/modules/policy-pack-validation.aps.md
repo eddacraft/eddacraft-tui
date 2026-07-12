@@ -5,7 +5,7 @@
 
 | ID  | Owner | Priority | Status |
 | ------ | ----- | -------- | ------ |
-| POLVAL | —     | high     | Done |
+| POLVAL | —     | high     | Complete |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all five items
@@ -14,6 +14,10 @@ resolved as satisfied: install-time admission (OPAE-004) plus the gate's
 fail-fast compile admission (ADR-098 AD-1 PR-B) deliver its intent; a
 manifest-level preflight inside `anvil gate` itself remains available as
 future intake, not owed by this module).
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 > **Retarget (POLRESET-002 / ADR-098, 2026-07-04):** pack admission code must
 > NOT extend `crates/anvil-policy`'s OPA-era `loader.rs`/`library.rs` — those

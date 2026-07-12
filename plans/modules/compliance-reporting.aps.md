@@ -21,7 +21,7 @@ dependency block rewritten to shipped surfaces).
 > commits/refs, retention, and framing — which is defined **nowhere** today.
 > Authoring that design (doc or ADR) is an explicit gate before this module
 > can move to Ready; no compliance claims before it exists. Coordinated by
-> [`POLRESET`](./policy-value-enforcement-reset.aps.md).
+> [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** COMPLY should consume
 > regorus-backed policy outcomes (`anvil policy eval --json` v1, pack metadata,

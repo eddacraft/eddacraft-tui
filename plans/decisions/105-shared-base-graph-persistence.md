@@ -346,6 +346,6 @@ permanently for uncovered topologies (§8 above).
   = the GC keep-set), [ADR-070](070-daemon-windows-buildability.md) (the inherited
   `cfg(unix)` Windows gap), [ADR-031](031-validation-latency-rubric.md) (the hot-read
   budget shared-RAM tiering must not risk — deferred)
-- APS module: [`graph-base-persistence`](../modules/graph-base-persistence.aps.md)
+- APS module: [`graph-base-persistence`](../archive/modules/graph-base-persistence.aps.md)
   (GBASE-001..011)
 - Council provenance: planning council `plan-89a47ac7`

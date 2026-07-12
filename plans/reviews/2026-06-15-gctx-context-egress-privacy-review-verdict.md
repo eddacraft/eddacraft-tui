@@ -6,7 +6,7 @@ review council)
 **Panel:** security-analyst (lead), adversarial-reviewer, operations-reviewer,
 kernel-maintainer
 **Artifact under review:** the assistant-facing graph-context **egress** surface
-defined by the [`graph-context-delivery`](../modules/graph-context-delivery.aps.md)
+defined by the [`graph-context-delivery`](../archive/modules/graph-context-delivery.aps.md)
 (GCTX) module — the MCP tools (`anvil_search_symbols`, `anvil_find_callers`,
 `anvil_find_dependents`, `anvil_impact_of_change`, `anvil_symbol_context`,
 `anvil_affected_tests`), the `graph://symbols` / `graph://edges` / `graph://stats`

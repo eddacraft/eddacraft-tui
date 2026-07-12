@@ -61,15 +61,15 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 **Depends on:**
 
-- [POLRESET](./policy-value-enforcement-reset.aps.md) — reset sequence and
+- [POLRESET](../archive/modules/policy-value-enforcement-reset.aps.md) — reset sequence and
   enforcement design gate.
 - [POLENG](../archive/modules/policy-engine.aps.md) / ADR-040 — regorus facade,
   `PolicyInput` v1, result post-processing, and `anvil policy eval` substrate.
-- [POLVAL](./policy-pack-validation.aps.md) — pack metadata, manifests,
+- [POLVAL](../archive/modules/policy-pack-validation.aps.md) — pack metadata, manifests,
   validation, and test enforcement.
-- [CPOL](./contextual-policy-assertions.aps.md) — deterministic context and
+- [CPOL](../archive/modules/contextual-policy-assertions.aps.md) — deterministic context and
   guidance payloads.
-- [IORISK](./io-risk-controls.aps.md) — shared risk vocabulary when starter packs
+- [IORISK](../archive/modules/io-risk-controls.aps.md) — shared risk vocabulary when starter packs
   need IO/prompt-risk dimensions.
 - [EXCEPT](./git-native-exceptions.aps.md) — valid exception verification before
   fencing or interrupting.

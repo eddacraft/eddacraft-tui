@@ -587,8 +587,8 @@
       "broken link \"./rust-mcp-launch-shim.aps.md\" — target file does not exist",
       "broken link \"./surface-drivers.aps.md\" — target file does not exist"
     ],
-    "plans/modules/usage-analytics.aps.md": [
-      "broken anchor \"./feature-flag-catalogue.aps.md#flagcat-007\" — file exists but heading \"#flagcat-007\" not found"
+    "plans/archive/modules/usage-analytics.aps.md": [
+      "broken anchor \"../../modules/feature-flag-catalogue.aps.md#flagcat-007\" — file exists but heading \"#flagcat-007\" not found"
     ],
     "plans/specs/2026-04-24-adr-030-council-findings.md": [
       "broken link \"../modules/anvil-ts-scanner-retirement.aps.md\" — target file does not exist",

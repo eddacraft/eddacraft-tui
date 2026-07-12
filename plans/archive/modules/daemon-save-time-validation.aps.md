@@ -2,13 +2,17 @@
 
 | ID  | Owner | Status      |
 | --- | ----- | ----------- |
-| DSV | Josh  | Done |
+| DSV | Josh  | Complete |
 
 **Last reviewed:** 2026-07-06 (Sub-phase C implementation merged: DSV-048
 Merged via PR #3186, DSV-047 Merged via PR #3191, DSV-049 Merged on `main` with
 status wire validation evidence, DSV-050 Merged via PR #3200, and DSV-051 Merged
 via PR #3205. DSV now awaits release evidence before Released/Shipped and
 Complete lifecycle advancement.)
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
 routing) confirmed in the v0.8.0-beta tag (record:
@@ -23,14 +27,14 @@ Complete lifecycle advancement.
 2026-06-16: added **DSV-045 (full-scan executor, Ready)** — the loop that drives
 `request_full_scan` `Pending → Running → Clean` and populates the warm graph
 cache without a save, so a fresh session is not cold. Architecture decided by
-[ADR-085](../decisions/085-daemon-full-scan-executor.md) (planning council
+[ADR-085](../../decisions/085-daemon-full-scan-executor.md) (planning council
 `plan-898d9222`); merges before the GCTX-010 warm-up triggers. Module total
 19 → 20.
 
 2026-07-04: **DSV-046** shaped and promoted — planning-council direction validate
-on the headless save-time driver; [ADR-101](../decisions/101-headless-save-time-driver.md)
+on the headless save-time driver; [ADR-101](../../decisions/101-headless-save-time-driver.md)
 Accepted (operator); design
-[`specs/2026-07-04-headless-save-time-driver-design.md`](../specs/2026-07-04-headless-save-time-driver-design.md).
+[`specs/2026-07-04-headless-save-time-driver-design.md`](../../specs/2026-07-04-headless-save-time-driver-design.md).
 DSV-046 marked **Done** (design); splits into **DSV-047..051** (Ready, cut-line).
 Module total 21 → 26. Closes the RELEASE-PLAN usefulness addendum implementation
 gap alongside merged ACTMO-014..020.
@@ -46,7 +50,7 @@ become thin daemon clients with a scoped (never `--all`) fallback.
 **Why:** this work has grown past a single work item. It spans ~6 crates, a new
 crate extraction (ADR-064), three ADRs (061/063/064), and three sequenced
 sub-phases. It was previously tracked only as the interim-backing item
-[MLP2-067](multilayer-protection-v2.aps.md) plus an execution plan, which
+[MLP2-067](../../modules/multilayer-protection-v2.aps.md) plus an execution plan, which
 under-represented its scope in `plans/index.aps.md`. This module is the durable
 home that makes progress trackable and keeps the sub-phases coherent.
 
@@ -60,9 +64,9 @@ persistence) without consumers re-integrating.
   client + MCP re-point, backed by an interim per-`WorktreeKey` `SymbolGraph`
   cache (rebuild-on-restart, no persistence). Authorised to start
   (GO-WITH-CONDITIONS — see the
-  [holistic re-review verdict](../reviews/2026-06-02-b-corrections-holistic-verdict.md)).
+  [holistic re-review verdict](../../reviews/2026-06-02-b-corrections-holistic-verdict.md)).
   Action plan:
-  [`execution/2026-06-01-daemon-save-time-subphase-a.md`](../execution/2026-06-01-daemon-save-time-subphase-a.md)
+  [`execution/2026-06-01-daemon-save-time-subphase-a.md`](../../execution/2026-06-01-daemon-save-time-subphase-a.md)
   (Tasks 0–17).
 - **Sub-phase A-W — Windows + cross-platform parity.** Bring the Sub-phase A
   save-time surface (daemon verbs + `watch`/`status` clients) to the other
@@ -77,9 +81,9 @@ persistence) without consumers re-integrating.
   cache with the GV2 resident warm-index slice under the unchanged wire, then
   make daemon routing the safe default for `check` watches. **Done** — the
   hot-/non-hot-path boundary gate is closed by
-  [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted 2026-06-01), and
+  [ADR-063](../../decisions/063-gv2-hot-path-boundary.md) (Accepted 2026-06-01), and
   the swap is the **headline v0.8.0-beta payload** per
-  [ADR-075](../decisions/075-v080-graph-product-scope.md) (Accepted via council).
+  [ADR-075](../../decisions/075-v080-graph-product-scope.md) (Accepted via council).
   GV2-027 merged the backing swap with verdict parity, GV2-025 supplied the
   ADR-031 Criterion gate, and DSV-021 flipped `ANVIL_WATCH_DAEMON` default-on
   with the rollout controls required by ADR-075.
@@ -90,7 +94,7 @@ persistence) without consumers re-integrating.
   waits only for release-tag lifecycle advancement.
 - **Sub-phase C — headless background driver.** Unattended filesystem observation
   for durable registered worktrees without a visible `anvil watch` terminal.
-  **Design Done:** DSV-046 + [ADR-101](../decisions/101-headless-save-time-driver.md)
+  **Design Done:** DSV-046 + [ADR-101](../../decisions/101-headless-save-time-driver.md)
   (2026-07-04). **Implementation Ready:** DSV-047..051 — daemon-supervised detached
   `--save-time-driver` sidecars consuming the ACTMO-014 membership hook. This is
   the `v0.9.0-beta` usefulness cut-line gate alongside merged ACTMO registration UX.
@@ -134,10 +138,10 @@ persistence) without consumers re-integrating.
 
 **Depends on:**
 
-- `anvil-graph-cache` (net-new, [ADR-064](../decisions/064-intercept-graph-cache-crate-boundary.md))
+- `anvil-graph-cache` (net-new, [ADR-064](../../decisions/064-intercept-graph-cache-crate-boundary.md))
   — `SymbolGraph`, `DependencyGraph`, incremental apply-delta, `certify`
 - `anvil-intercept` / INTD — daemon transport, SO_PEERCRED handshake, IPC
-  dispatch; [`intercept-daemon`](../archive/modules/intercept-daemon.aps.md) is
+  dispatch; [`intercept-daemon`](./intercept-daemon.aps.md) is
   archived Complete, so daemon integration debt lives here and in MLP2
 - `anvil-intercept-proto` — the shared `DiagnosticEnvelope` (B3, landed) and the
   frozen method constants
@@ -145,10 +149,10 @@ persistence) without consumers re-integrating.
   entrypoint
 - [GV2](graph-v2-foundation.aps.md) — GV2-010/011/020/022 (hot-read slice, A′) and
   GV2-021 (persistence ADR, B)
-- [MLP2-067](multilayer-protection-v2.aps.md) — the originating interim-backing
+- [MLP2-067](../../modules/multilayer-protection-v2.aps.md) — the originating interim-backing
   item, now delivered here as Sub-phase A
-- [RLB](resource-load-benchmarking.aps.md) — RLB-002/-005/-008 resource model + SLO
-- [DRVR](../archive/modules/surface-drivers.aps.md) — MCP `anvil_validate_write` re-point (archived Complete)
+- [RLB](../../modules/resource-load-benchmarking.aps.md) — RLB-002/-005/-008 resource model + SLO
+- [DRVR](./surface-drivers.aps.md) — MCP `anvil_validate_write` re-point (archived Complete)
 - ADR-061 (save-time daemon delta validation), ADR-063 (GV2 hot-path boundary),
   ADR-064 (graph-cache crate boundary), ADR-031 (latency rubric), ADR-035
   (notification envelope)
@@ -176,7 +180,7 @@ persistence) without consumers re-integrating.
 
 - ADR-061, ADR-063, ADR-064 accepted (done 2026-06-01/-02)
 - The B-corrections holistic re-review applied (done — verdict
-  [`2026-06-02-b-corrections-holistic-verdict.md`](../reviews/2026-06-02-b-corrections-holistic-verdict.md))
+  [`2026-06-02-b-corrections-holistic-verdict.md`](../../reviews/2026-06-02-b-corrections-holistic-verdict.md))
 - For A′: the GV2 hot-/non-hot-path boundary gate agreed with INTD/DRVR owners
 - For B: the GV2-021 persistence ADR accepted (**done**; ADR-069 Accepted,
   GV2-021 Released/Shipped, DSV-030 Merged)
@@ -341,7 +345,7 @@ awaits release-tag lifecycle advancement.
      delivery is the shared Phase E producer wire-up (as for fence transitions).
   3. **Kernel symbol feed (Task 7) as a dependency-inverted parse hook.** Modelled
      as the EIP **Content Enricher behind a Messaging Gateway** (see
-     [ADR-067](../decisions/067-daemon-symbol-feed-parse-hook.md)): the daemon
+     [ADR-067](../../decisions/067-daemon-symbol-feed-parse-hook.md)): the daemon
      defines the `SymbolParser` trait (no tree-sitter — ADR-064 holds), and
      `anvil-cli` injects a kernel-backed impl via `ForegroundOpts`. `validate_paths`
      hands the parser the **exact** guarded bytes it hashed (no second read → no
@@ -628,8 +632,8 @@ flake on the Windows leg). Sub-phase A-W is closed 2/2.
   same-user peer authorisation via the named-pipe ACL / `pipe_name_for_current_user`
   (the SO_PEERCRED equivalent); the frozen wire and verdict semantics are unchanged.
 - **Read-safety design (was the gating unknown — resolved by
-  [ADR-068](../decisions/068-windows-save-time-read-safety.md), Accepted; staged
-  by [ADR-070](../decisions/070-daemon-windows-buildability.md), Accepted):** the
+  [ADR-068](../../decisions/068-windows-save-time-read-safety.md), Accepted; staged
+  by [ADR-070](../../decisions/070-daemon-windows-buildability.md), Accepted):** the
   verdict's Unix guard (`path_safety.rs` — `openat2(RESOLVE_NO_SYMLINKS |
   RESOLVE_BENEATH)` against a held `O_PATH` dirfd) has no Windows analogue. ADR-068
   mirrors it with `NtCreateFile` anchored at a held workspace directory handle +
@@ -649,7 +653,7 @@ flake on the Windows leg). Sub-phase A-W is closed 2/2.
 - **Confidence:** high — delivered; the read-safety design gate is closed (was:
   low, gated on the design decision above; ADR-068/070 Accepted and shipped).
 - **Priority:** High (short-term-supported target).
-- **Dependencies:** DSV-005; [ADR-068](../decisions/068-windows-save-time-read-safety.md) Accepted (Windows read-safety); [ADR-070](../decisions/070-daemon-windows-buildability.md) Accepted (buildability staging).
+- **Dependencies:** DSV-005; [ADR-068](../../decisions/068-windows-save-time-read-safety.md) Accepted (Windows read-safety); [ADR-070](../../decisions/070-daemon-windows-buildability.md) Accepted (buildability staging).
 - **Source:** DSV-007 follow-up (macOS + Windows are short-term save-time targets);
   ADR-015; brainstorms `2026-05-01-hearth-rearchitecture.md` /
   `2026-05-07-daemon-sessions-surfaces-boundaries.md`.
@@ -882,7 +886,7 @@ Merged item; each is an additive improvement under the frozen wire.
   `cargo test -p eddacraft-anvil-intercept --lib` (603 passed) and
   `cargo test -p eddacraft-anvil-intercept-proto` (71 passed).
 - **Unblocked 2026-06-08:** the subscriber surface this depended on —
-  [MLP2-071](multilayer-protection-v2.aps.md) **Phase 2** (the IPC
+  [MLP2-071](../../modules/multilayer-protection-v2.aps.md) **Phase 2** (the IPC
   `subscribe-telemetry` accept-loop multiplex → `Fanout::register`, and the
   `TelemetryBroadcaster` that calls `Fanout::route` and delivers per-subscriber
   envelopes) — landed via PR
@@ -896,7 +900,7 @@ Merged item; each is an additive improvement under the frozen wire.
   telemetry scoping + cross-session redaction), so it still warrants the
   design/Council pass this entry calls for, coordinated with the MLP2-071 owner.
   The producer/consumer ownership boundary is recorded in
-  [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md)
+  [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md)
   (2026-06-08 addendum, "Phase 2 Council follow-ups"): DSV owns the emit call
   sites in `save_time`/`telemetry`/`fence.rs`; the broadcaster handle they call
   is MLP2-071's, shipped. The addendum also flags the open identity assumption
@@ -911,7 +915,7 @@ Merged item; each is an additive improvement under the frozen wire.
   routes it through `Fanout::route` to authorised subscribers. **Cross-module:**
   the subscribe-handler (`IpcCommand::SubscribeTelemetry` per-connection JSON-RPC
   handler → `Fanout::register`) and the producer broadcaster are
-  [MLP2-071](multilayer-protection-v2.aps.md) Phase 2 / Phase E, *not* DSV; DSV
+  [MLP2-071](../../modules/multilayer-protection-v2.aps.md) Phase 2 / Phase E, *not* DSV; DSV
   owns only the assurance-transition emission call sites. Security-sensitive
   (per-session telemetry scoping + cross-session redaction) — warrants its own
   design/Council pass coordinated with the MLP2-071 owner; do not land the
@@ -988,7 +992,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-030: Warm-start persistence for the daemon graph cache
 
-- **Status:** Merged 2026-06-17 via PR #2688
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via PR #2688
 - **Intent:** Let the daemon restore graph indexes (not verdicts) on restart so a fresh
   connection is not `Stale` until a full scan completes.
 - **Expected Outcome:** A default-off, per-uid, owner-only snapshot location;
@@ -1007,7 +1011,7 @@ Merged item; each is an additive improvement under the frozen wire.
   still re-derived from bytes after warm-start.
 - **Confidence:** low
 - **Priority:** Low
-- **Dependencies:** [ADR-069](../decisions/069-graph-v2-persistence.md) (Accepted);
+- **Dependencies:** [ADR-069](../../decisions/069-graph-v2-persistence.md) (Accepted);
   GV2-021 (Released/Shipped via #2301); DSV-020; DSV-045 (the reconcile scan).
 - **Follow-up (not this item; tracked for the default-on graduation, ADR-069 §7):**
   (a) the content-hash **fast**-reconcile (ADR-069 §3 — skip re-parse of files whose
@@ -1025,7 +1029,7 @@ Merged item; each is an additive improvement under the frozen wire.
   the DSV-045 scan coalescing already bounds); (f) **Windows** persistence (Unix-only
   here, mirroring the DSV-010/011 parity split).
 - **Source:** ADR-061 §9; validation contract §9;
-  [ADR-069](../decisions/069-graph-v2-persistence.md) (GV2-021).
+  [ADR-069](../../decisions/069-graph-v2-persistence.md) (GV2-021).
 
 ---
 
@@ -1038,13 +1042,13 @@ nothing drives `Pending → Running → Clean` or populates the warm
 `KernelGraphCache`. Population today is **only** via save-time `validate_paths` →
 `apply_delta`, so a fresh session's graph stays cold until a file is saved. This
 item builds the executor loop that closes that gap (and the
-[ADR-084](../decisions/084-gctx-graph-handle-access.md) C1 cold-start
+[ADR-084](../../decisions/084-gctx-graph-handle-access.md) C1 cold-start
 requirement). Architecture decided by
-[ADR-085](../decisions/085-daemon-full-scan-executor.md).
+[ADR-085](../../decisions/085-daemon-full-scan-executor.md).
 
 #### DSV-045: Full-scan executor
 
-- **Status:** Merged 2026-06-16 via PR #2674
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-16 via PR #2674
 - **Intent:** Drive a queued `request_full_scan` to completion on the background
   pool — walk, parse, apply, complete — so the warm graph cache is populated
   without a save, with cancellation, a timeout watchdog, eviction-rewarm, a
@@ -1127,7 +1131,7 @@ requirement). Architecture decided by
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** DSV-006 (scan primitives);
-  [ADR-085](../decisions/085-daemon-full-scan-executor.md). Soft dependency on
+  [ADR-085](../../decisions/085-daemon-full-scan-executor.md). Soft dependency on
   DLIFE-002 (UX docs only — code ships independently). Unblocks
   [GCTX-010](graph-context-delivery.aps.md) C1 (session-init + on-demand warm-up
   triggers rebase onto this).
@@ -1139,9 +1143,9 @@ requirement). Architecture decided by
 #### DSV-046: Headless background save-time driver contract
 
 - **Status:** Done 2026-07-04 — design deliverable (planning-council direction
-  validate). [ADR-101](../decisions/101-headless-save-time-driver.md) Accepted
+  validate). [ADR-101](../../decisions/101-headless-save-time-driver.md) Accepted
   (operator); hardened spec at
-  [`specs/2026-07-04-headless-save-time-driver-design.md`](../specs/2026-07-04-headless-save-time-driver-design.md).
+  [`specs/2026-07-04-headless-save-time-driver-design.md`](../../specs/2026-07-04-headless-save-time-driver-design.md).
   **Keystone:** daemon-supervised detached `anvil watch --save-time-driver`
   sidecars (one per durable registration), not in-daemon `notify` (ADR-064). The
   registry `membership_hook` (ACTMO-014) is the spawn/stop seam. Splits into
@@ -1161,7 +1165,7 @@ requirement). Architecture decided by
 
 #### DSV-047: Daemon `SaveTimeDriverSupervisor`
 
-- **Status:** Merged 2026-07-04 via PR #3191
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3191
 - **Progress (2026-07-04, delivery):** `save_time_driver.rs` lands the
   supervisor honouring all four review pins (enqueue-only hook; no
   auto-respawn; spawn-failure ⇒ `failed` never panic; `DaemonLauncher` seam
@@ -1182,7 +1186,7 @@ requirement). Architecture decided by
   production `anvil intercept start --foreground` entry (test/embedded hosts
   must never re-exec their own binary); `ANVIL_NO_SAVE_TIME_DRIVER` opt-out
   honoured on top. DSV-049 consumes `driver_status`/`status_snapshot`.
-- **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 1;
+- **Source:** [ADR-101](../../decisions/101-headless-save-time-driver.md) decision 1;
   design spec §Driver contract.
 - **Intent:** Consume durable membership changes and manage detached driver
   children without duplicating registration semantics.
@@ -1221,7 +1225,7 @@ requirement). Architecture decided by
 
 #### DSV-048: CLI `anvil watch --save-time-driver` headless mode
 
-- **Status:** Merged 2026-07-04 via PR #3186
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-04 via PR #3186
 - **Progress (2026-07-04, delivery):** shipped as designed plus review
   hardening: new `crates/anvil-cli/src/commands/watch_driver.rs` (child-owned
   `DriverLog` — append + Windows-safe remove-then-rename rotation to `.1` at
@@ -1235,8 +1239,8 @@ requirement). Architecture decided by
   conflict). Worktree canonicalised before the log id is derived. 10 new
   `watch_save_time_driver*` tests; live-daemon E2E deferred to DSV-051 (local
   smoke blocked by the beta licence wall, exit 3). Post-merge plan:
-  [`reviews/post-merge/feat-dsv-048-save-time-driver.md`](../reviews/post-merge/feat-dsv-048-save-time-driver.md).
-- **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decision 2;
+  [`reviews/post-merge/feat-dsv-048-save-time-driver.md`](../../reviews/post-merge/feat-dsv-048-save-time-driver.md).
+- **Source:** [ADR-101](../../decisions/101-headless-save-time-driver.md) decision 2;
   design spec §Spawn shape.
 - **Intent:** Provide a stable, headless entrypoint the supervisor can spawn without
   a visible terminal or daemon lifecycle prompts.
@@ -1266,7 +1270,7 @@ requirement). Architecture decided by
 
 #### DSV-049: `save_time_driver` status wire + derivation
 
-- **Status:** Merged 2026-07-05 — implementation present on `origin/main` at
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-05 — implementation present on `origin/main` at
   `370167883` (`feat(daemon): surface save-time driver in status (DSV-049)`) and
   `de3721a67` (`test(daemon): pin Failed driver overlay through the provider
   (DSV-049)`) when validated in `feat/dsv-049-status-wire`; closeout reconciles
@@ -1279,7 +1283,7 @@ requirement). Architecture decided by
   `cargo test -p eddacraft-anvil -- status_save_time_driver`;
   `cargo test -p eddacraft-anvil-intercept-proto save_time_driver`;
   `cargo test -p eddacraft-anvil -- driver_attached`.
-- **Source:** [ADR-101](../decisions/101-headless-save-time-driver.md) decisions 4–5;
+- **Source:** [ADR-101](../../decisions/101-headless-save-time-driver.md) decisions 4–5;
   ADR-094 decision 6 assurance axis; ACTMO-017 soft-dep.
 - **Intent:** Make driver attachment observable so `watching` is evidence-backed.
 - **Expected Outcome:** `WorktreeStatusV1` gains `save_time_driver: attached | absent
@@ -1306,7 +1310,7 @@ requirement). Architecture decided by
 
 #### DSV-050: Activation copy — honest armed posture without `anvil watch`
 
-- **Status:** Merged 2026-07-05 via PR #3200
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-07-05 via PR #3200
 - **Source:** ACTMO-006; design spec; CIB-162..166 class (misleading next-step).
 - **Intent:** When the supervisor attaches a driver for the current worktree,
   `anvil start` must not recommend a foreground `anvil watch`.
@@ -1332,7 +1336,7 @@ requirement). Architecture decided by
 
 #### DSV-051: Runbook + E2E regression matrix
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged
 - **Source:** RELEASE-PLAN cut criteria; design spec §Validation matrix.
 - **Intent:** Prove the usefulness addendum end-to-end and document operator
   recovery paths.
@@ -1348,7 +1352,7 @@ requirement). Architecture decided by
   E2E cases use small fixture worktrees and serialise on the Linux leg (known
   inotify-exhaustion risk on shared runners); (c) the Windows operator
   verification checklist lives at
-  [`execution/DSV-051.windows.actions.md`](../execution/DSV-051.windows.actions.md).
+  [`execution/DSV-051.windows.actions.md`](../../execution/DSV-051.windows.actions.md).
 - **Validation evidence (2026-07-06):**
   `pnpm --filter @eddacraft/anvil-e2e exec vitest run smoke/save-time-driver.e2e.test.ts`
   passes (3/3 DSV-051 driver tests); `pnpm run aps:index:check`,

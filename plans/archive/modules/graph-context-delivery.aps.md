@@ -2,9 +2,13 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 15/15 |
+| GCTX | —     | Complete | 15/15 |
 
-**Last reviewed:** 2026-06-26 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 15/15** (all work items Merged; awaiting v0.9 release-tag evidence before Complete/archive) (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag; **GCTX-020 Done 2026-06-20** — parser-free conservative token estimator in `anvil-graph-cache`, with deterministic fixed-corpus and input-cap tests). With the Phase 1 tool queue + resource surface complete and GCTX-020 done, the Phase-2 snippet items (021..023) are **promoted Draft → Ready 2026-06-23** with the PV-9 snippet gates folded into item text and the substrate prerequisite filed as **[GV2-032](graph-v2-foundation.aps.md)** (span + per-file content-hash producer); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084. **GCTX-031 (token-reduction benchmark harness) Merged 2026-06-26 via #2942** — a deterministic `token_reduction` bench in `anvil-bench` measuring the real `ImpactOutcome::Ready(ImpactReport)` payload against naive file-reading over the 2-hop reverse-impact closure (89.2%/87.3% mean reduction vs whole-repo/neighbourhood), golden-pinned, with the GCTX-020 estimator's source-vs-identity bias disclosed. **GCTX-032 (user guide) Merged 2026-06-26 via #2952** — `docs/guides/ai-context-delivery.md`, the assistant graph-context guide (clients, tools/resources, identity-only privacy, graph states, and the launch-validation distinction), Council/Copilot fact-checked against the live surface. **GCTX-024 (frictionless consented snippet-egress opt-in) Merged 2026-06-29 via #2980** — `anvil gctx egress enable/disable/status` over a per-workspace, gitignored consent record (`anvil/witness/gctx-egress.json`) and the `resolve_snippet_egress` precedence resolver, keeping the identity-only default (CE-1); full Council reviewed. **All 15 work items are now Merged**; the module is Complete-eligible pending v0.9 release-tag evidence (archive is a separate post-release step).)
+**Last reviewed:** 2026-06-26 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 15/15** (all work items Merged; awaiting v0.9 release-tag evidence before Complete/archive) (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag; **GCTX-020 Done 2026-06-20** — parser-free conservative token estimator in `anvil-graph-cache`, with deterministic fixed-corpus and input-cap tests). With the Phase 1 tool queue + resource surface complete and GCTX-020 done, the Phase-2 snippet items (021..023) are **promoted Draft → Ready 2026-06-23** with the PV-9 snippet gates folded into item text and the substrate prerequisite filed as **[GV2-032](graph-v2-foundation.aps.md)** (span + per-file content-hash producer); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084. **GCTX-031 (token-reduction benchmark harness) Merged 2026-06-26 via #2942** — a deterministic `token_reduction` bench in `anvil-bench` measuring the real `ImpactOutcome::Ready(ImpactReport)` payload against naive file-reading over the 2-hop reverse-impact closure (89.2%/87.3% mean reduction vs whole-repo/neighbourhood), golden-pinned, with the GCTX-020 estimator's source-vs-identity bias disclosed. **GCTX-032 (user guide) Merged 2026-06-26 via #2952** — `docs/guides/ai-context-delivery.md`, the assistant graph-context guide (clients, tools/resources, identity-only privacy, graph states, and the launch-validation distinction), Council/Copilot fact-checked against the live surface. **GCTX-024 (frictionless consented snippet-egress opt-in) Merged 2026-06-29 via #2980** — `anvil gctx egress enable/disable/status` over a per-workspace, gitignored consent record (`anvil/witness/gctx-egress.json`) and the `resolve_snippet_egress` precedence resolver, keeping the identity-only default (CE-1); full Council reviewed. **All 15 work items are now Merged**; the module is Complete-eligible pending v0.9 release-tag evidence (archive is a separate post-release step).)
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 **Readiness update 2026-06-23:** GCTX-021..023 are now **Ready**. The
 CE-1/CE-2/CE-3/CE-5/CE-6/CE-7/CE-9/CE-11/CE-12 snippet gates are written into the
@@ -17,7 +21,7 @@ daemon-side in `anvil-gctx-egress` through the single CE-5 `GctxProjector`; the
 GCTX-020 (`estimate_gctx_tokens`) remains the non-egress estimator GCTX-022
 consumes.
 
-> **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
+> **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
 > council recommended against it: 0/13, unproven, with an unresolved GCTX-002
 > architectural decision (which MCP target) and an unmet **context-egress privacy
@@ -27,9 +31,9 @@ consumes.
 > privacy review is a v0.9 cut prerequisite.
 
 > **Entry gates landed (2026-06-15).** Both ADR-075 entry decisions are now
-> resolved: [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (Accepted)
+> resolved: [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) (Accepted)
 > fixes the MCP delivery target as the Rust `anvil mcp serve` (RMCPF) surface,
-> and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+> and the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 > (APPROVE-WITH-CONDITIONS, 4/4) discharges the egress-privacy prerequisite. Its
 > conditions **CE-1..CE-12** fold into GCTX-001 (contract) and the named per-item
 > targets; **CE-1** (snippet egress opt-in, identity-only default) and **CE-5**
@@ -121,7 +125,7 @@ enforcement/provenance requirements conflict, GV2 wins and this module adapts.
   CE-1/CE-2/CE-3/CE-5). Sensitive diagnostics, secret content, and private
   provenance fields are redacted by default before crossing MCP boundaries; the
   full conditions are recorded in the
-  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - MCP tools are additive and must not break existing tool contracts
 - This module must not introduce schema requirements that belong in GV2
 - Benchmarks must be reproducible and checked in before marketing claims are made
@@ -141,15 +145,15 @@ Module promoted to **Ready** 2026-06-15 (both ADR-075 entry gates landed):
 
 - [x] GV2 query contract exposes the graph reads this module needs — GV2-023
       consumer query contract authored 2026-06-15 in
-      [`graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
+      [`graph-v2-foundation-spec.md`](../../../docs/architecture/graph-v2-foundation-spec.md)
       ("The consumer query contract (GV2-023)"); GCTX's mapped scenario is the
       identity-only impact-set projection through the `GctxProjector` choke point
       (PV-9 CE-5), with source-text egress gated behind `gctx.egress` (CE-1)
 - [x] MCP delivery target decided: interim TS server, Rust RMCPF server, or both —
-      [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted (Rust RMCPF
+      [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted (Rust RMCPF
       `anvil mcp serve`)
 - [x] Redaction rules for graph context are reviewed by security —
-      [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
+      [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
       APPROVE-WITH-CONDITIONS (CE-1..CE-12 fold into GCTX-001)
 
 All entry-gate readiness criteria are satisfied. The items below are
@@ -168,12 +172,12 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-001: Assistant graph projection contract
 
-- **Status:** Merged 2026-06-15 via #2628 — sole dependency GV2-023 **Merged
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via #2628 — sole dependency GV2-023 **Merged
   2026-06-15 via #2621**, and both ADR-075 entry gates landed
-  ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted +
-  [PV-9 egress review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  ([ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted +
+  [PV-9 egress review](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   filed). The contract spec is authored in
-  [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
+  [`graph-context-delivery-spec.md`](../../../docs/architecture/graph-context-delivery-spec.md)
   (identity-only default, sealed egress DTO + single `GctxProjector` choke point,
   egress allowlist/residual table, CE-1..CE-12 fold). This is the contract item
   that folds CE-1..CE-12 into the spec; its CE-1 / CE-5 hard gates carry into the
@@ -183,7 +187,7 @@ blockers — they are resolved during execution, not before promotion:
 - **Expected Outcome:** Contract maps assistant tasks to graph projections,
   redaction rules, warming/stale-state behaviour, pagination, and deterministic
   ordering. It **must absorb the egress conditions CE-1..CE-12** from the
-  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md):
+  [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md):
   identity-only default with opt-in source-text egress behind `gctx.egress`
   (CE-1); deny-by-default secret scanning (CE-2) and sensitive-path / gitignore
   filtering (CE-3) on snippets; an egress field allowlist + named residual table
@@ -209,13 +213,13 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-002: MCP delivery target decision
 
-- **Status:** Merged 2026-06-15 via #2619 — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)). RMCPF defers GCTX work by design (rust-mcp-full-port Out of Scope: "Creating new graph-context tools beyond what GCTX explicitly owns"), so the decision needs no edit there. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via #2619 — discharged by [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)). RMCPF defers GCTX work by design (rust-mcp-full-port Out of Scope: "Creating new graph-context tools beyond what GCTX explicitly owns"), so the decision needs no edit there. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
 - **Intent:** Decide whether graph context tools first land on the interim TS MCP
   server, the Rust RMCPF server, or both.
 - **Expected Outcome:** Decision records the target server, compatibility stance,
   and migration path so GCTX does not fight RMCP/RMCPF sequencing.
 - **Validation:** Decision reviewed by RMCP/RMCPF owner and MCP server owner
-- **Files:** `plans/modules/graph-context-delivery.aps.md`,
+- **Files:** `plans/archive/modules/graph-context-delivery.aps.md`,
   `plans/modules/rust-mcp-full-port.aps.md`
 - **Confidence:** medium
 - **Priority:** Critical
@@ -225,7 +229,7 @@ blockers — they are resolved during execution, not before promotion:
 
 ### Phase 1 — Graph Query Tools
 
-> **Graph-handle access fixed by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
+> **Graph-handle access fixed by [ADR-084](../../decisions/084-gctx-graph-handle-access.md)
 > (Accepted 2026-06-15, planning council `plan-f211c211`).** GCTX tools query the
 > running `anvil-intercept` daemon over a new read-only `anvil/gctx/*` RPC
 > (daemon-required; degrade via the existing `WorkspaceAssurance`/CE-7 signal — no
@@ -243,8 +247,8 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-010: `anvil_search_symbols` tool
 
-- **Status:** Merged 2026-06-16 via #2657 — architecture fixed by
-  [ADR-084](../decisions/084-gctx-graph-handle-access.md) **Accepted** (daemon-RPC
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-16 via #2657 — architecture fixed by
+  [ADR-084](../../decisions/084-gctx-graph-handle-access.md) **Accepted** (daemon-RPC
   + daemon-side projection); the ADR-084 binding conditions C1–C5 are folded as
   acceptance criteria below. This is the **CE-5 hard-gate item**: it builds the
   reusable spine — the sealed egress DTO crate (`anvil-gctx-types`), the single
@@ -257,7 +261,7 @@ blockers — they are resolved during execution, not before promotion:
   (session-init `request_full_scan` on MCP `initialize` + on-demand re-warm when a
   `search_symbols` query returns `NotReady`, both client-side and best-effort) —
   landed on top of the DSV-045 full-scan executor it relies on
-  ([ADR-085](../decisions/085-daemon-full-scan-executor.md); **DSV-045 Merged
+  ([ADR-085](../../decisions/085-daemon-full-scan-executor.md); **DSV-045 Merged
   2026-06-16 via #2674**) so the enqueue actually drives `Pending → Running →
   Clean` rather than sitting inert. The C4 `gctx.egress` **manifest** flag
   (FLAGCAT Rust+TS consumers) is deferred to Phase 2, where it gates the snippet
@@ -328,7 +332,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-011: `anvil_find_dependents` dependency traversal tool
 
-- **Status:** Merged 2026-06-16 via #2685 — built directly on the GCTX-010
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-16 via #2685 — built directly on the GCTX-010
   spine (Merged 2026-06-16 via #2657): the sealed `anvil-gctx-types` DTOs, the
   single `GctxProjector` choke point in `anvil-gctx-egress`, and the
   `GctxDispatch` RPC surface, plus the new `anvil/gctx/find_dependents` RPC and
@@ -390,14 +394,14 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-012: `anvil_impact_of_change` tool
 
-- **Status:** Merged 2026-06-17 via #2693 — built directly on the GCTX-010/011
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2693 — built directly on the GCTX-010/011
   spine: the sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke
   point in `anvil-gctx-egress` (`collect_impact` multi-source reverse-impact BFS
   + `project_impact`), the `GctxDispatch` RPC (`anvil/gctx/impact_of_change`),
   and the graph-free `anvil_impact_of_change` MCP tool. **No new graph
   substrate** — the report composes existing warm-graph reads (`symbols_in_file`
   + `dependents_of`). Contract fixed by the GCTX-001 spec
-  ([`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)):
+  ([`graph-context-delivery-spec.md`](../../../docs/architecture/graph-context-delivery-spec.md)):
   paths-only input, a ≤200 input-file cap (CE-6), and an identity-only
   deterministic `ImpactReport` (affected symbols + dependent files + heuristic
   known tests); both result sets are node-budget capped with `summary.truncated`.
@@ -476,7 +480,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-013: `anvil_affected_tests` tool
 
-- **Status:** Merged 2026-06-17 via #2700 — built directly on the GCTX-010/011/012 spine (all Merged):
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2700 — built directly on the GCTX-010/011/012 spine (all Merged):
   the sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke point, the
   `GctxDispatch` RPC surface, GCTX-012's `is_test_file` heuristic, and the
   reverse-impact walk. **No new graph substrate** — it adds *attribution* and
@@ -549,7 +553,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-014: `anvil_find_callers` symbol caller traversal
 
-- **Status:** Merged 2026-06-17 via #2715 — the `anvil_find_callers` MCP tool +
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2715 — the `anvil_find_callers` MCP tool +
   `anvil/gctx/find_callers` RPC projecting the GCALL-003 `callers_of` read API as
   a sealed identity-only DTO (`heuristic` per caller + report `partial`),
   reusing the GCTX-010/011 spine; CALL-1..CALL-5 met. The GCALL substrate now
@@ -560,7 +564,7 @@ blockers — they are resolved during execution, not before promotion:
   now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
   module (filed 2026-06-17). **GCALL-003** (resident call edges + `callers_of`
   read API) Merged 2026-06-17 via #2708; **GCALL-007** (caller-egress privacy
-  review) APPROVE-WITH-CONDITIONS 2026-06-17 ([verdict](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
+  review) APPROVE-WITH-CONDITIONS 2026-06-17 ([verdict](../../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
   CALL-1..CALL-5 folded below). The **CALL-1 substrate prerequisite** is met:
   `callers_of` now carries the per-caller `heuristic` (overload fan-out) marker
   (GCALL-003 follow-up); the report-level `partial` (unresolved callers) is
@@ -677,7 +681,7 @@ blockers — they are resolved during execution, not before promotion:
 - **Status:** Done on branch (pending merge) 2026-06-24 (`feat/gctx-021-snippet-extractor`;
   GV2-032 substrate on branch; secret-scan wiring = injected redactor per ADR-064, not a direct
   `anvil-checks` dep on the leaf projector). **Both privacy gaps from the 2026-06-24 deep review
-  ([record](../reviews/2026-06-24-gctx-snippet-line-review.md)) are now closed:** **CE-3 gitignore
+  ([record](../../reviews/2026-06-24-gctx-snippet-line-review.md)) are now closed:** **CE-3 gitignore
   omission is implemented** — the daemon injects an `ignore::Gitignore` matcher (built from the
   admitted root) into `resolve_snippet_location` + `collect_context_candidates`, so gitignored
   files are omitted entirely (tests in `anvil-gctx-egress`); and **CE-2 redaction now handles
@@ -688,9 +692,9 @@ blockers — they are resolved during execution, not before promotion:
   `SymbolContextOutcome`. **Tail-language span gap** (GV2-032 follow-up): Dart/Go/Java/Kotlin/C#/
   C/C++ files carry `span: None`, so GCTX-021 returns them as `Unlocatable` (no snippet) — a
   graceful, documented limitation until tail-language span population lands. — architecture
-  settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
+  settled by [ADR-084](../../decisions/084-gctx-graph-handle-access.md)
   (daemon-side projection) and the snippet gates fully specified by the
-  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   (CE-1/CE-2/CE-3/CE-5/CE-7). Substrate prerequisite **[GV2-032](graph-v2-foundation.aps.md)**
   (Ready) supplies the byte span to locate and the content hash to freshness-check;
   without it there is no producer for spans. Extraction runs **daemon-side** in
@@ -798,7 +802,7 @@ blockers — they are resolved during execution, not before promotion:
   tool, composing
   the Phase-1 query spine (search + impact) with GCTX-021 snippets and GCTX-022
   budgeting into one MCP tool on the existing `GctxDispatch`. MCP target settled by
-  [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (Rust `anvil mcp serve`).
+  [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) (Rust `anvil mcp serve`).
 - **Intent:** Given a symbol or file, return the bounded context an assistant needs
   to work safely — identity by default, source text only under explicit opt-in.
 - **Expected Outcome:** `anvil_symbol_context` combines symbol search, local impact,
@@ -834,7 +838,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-024: Frictionless, consented snippet-egress opt-in
 
-- **Status:** Merged 2026-06-29 via #2980 — created + started 2026-06-29 via planning-workflow.
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-29 via #2980 — created + started 2026-06-29 via planning-workflow.
   **Scope correction (2026-06-29):** the snippet line (GCTX-021/022/023) is
   **already on `main`** via **PR #2908 (Merged 2026-06-24, rebase-merge)** —
   `anvil_symbol_context` with `include_source` egress gating, the `SnippetResult`
@@ -955,7 +959,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-030: `graph://` MCP resources
 
-- **Status:** Merged 2026-06-18 via #2772 — the three read-only `graph://`
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-18 via #2772 — the three read-only `graph://`
   resources (`stats`/`symbols`/`edges`) over the daemon `anvil/gctx/*` surface,
   identity-only through the CE-5 `GctxProjector`, with CE-6 keyset pagination, a
   `bounded` honesty flag on edges, warm-on-`NotReady`, and the `resources`
@@ -997,7 +1001,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-031: Token-reduction benchmark harness
 
-- **Status:** Merged 2026-06-26 via #2942 — deterministic `token_reduction`
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-26 via #2942 — deterministic `token_reduction`
   bench scenario (`crates/anvil-bench`) measuring identity-only graph-context
   delivery vs naive file-reading for change-impact questions over the 2-hop
   reverse-impact closure, using the GCTX-020 estimator. The graph payload is the
@@ -1021,7 +1025,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-032: User guide for assistant graph context
 
-- **Status:** Merged 2026-06-26 via #2952 — `docs/guides/ai-context-delivery.md`
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-26 via #2952 — `docs/guides/ai-context-delivery.md`
   documents the read-only graph-context surface for AI assistants: the six GCTX
   tools, the three `graph://` resources, identity-only privacy + the three-state
   `ANVIL_GCTX_EGRESS` control, the named graph outcome states, and the

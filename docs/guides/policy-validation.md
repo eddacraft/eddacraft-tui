@@ -4,9 +4,9 @@
 | ----- | ------------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | POLVAL | Live   | Last reviewed 2026-07-04 against `crates/anvil-policy-engine/src/pack/` and the `anvil policy validate` command |
 
-| Upstream                                                                                                                                                                               | Downstream                                                              |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `crates/anvil-policy-engine/src/pack/` (metadata, manifest, validator, test runner), [`opa-policy-testing.md`](./opa-policy-testing.md), `plans/modules/policy-pack-validation.aps.md` | Policy pack authors, CI pack checks, policy governance, gate evaluation |
+| Upstream                                                                                                                                                                                       | Downstream                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `crates/anvil-policy-engine/src/pack/` (metadata, manifest, validator, test runner), [`opa-policy-testing.md`](./opa-policy-testing.md), `plans/archive/modules/policy-pack-validation.aps.md` | Policy pack authors, CI pack checks, policy governance, gate evaluation |
 
 `anvil policy validate` checks that a policy pack is complete, well-formed, and
 tested before it is loaded for gate evaluation. It catches missing metadata,

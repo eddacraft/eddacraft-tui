@@ -177,7 +177,7 @@ GV2-002 stable identity before the export fast-path graduates from conservative-
 ## APS mapping
 
 **Canonical home (2026-06-03):** this effort is tracked by the
-[`daemon-save-time-validation`](../modules/daemon-save-time-validation.aps.md) module
+[`daemon-save-time-validation`](../archive/modules/daemon-save-time-validation.aps.md) module
 (DSV). This file is its Sub-phase A action plan; the work items live in DSV. INTD and
 DRVR are archived **Complete** (their statuses cannot advance); MLP2-067 is the
 *originating* interim-backing record and stays put as an origin pointer. RLB-002/-005/-008
@@ -542,7 +542,7 @@ Render `clean|stale|pending|running|unavailable` (+ `reason`), and `confined: N`
 ## Waves
 
 Delivery order for Sub-phase A, derived from the task dependencies below and tracked as
-the work items of the [`daemon-save-time-validation`](../modules/daemon-save-time-validation.aps.md)
+the work items of the [`daemon-save-time-validation`](../archive/modules/daemon-save-time-validation.aps.md)
 module (DSV). Tasks in the same wave are independent; each wave's gate must pass before
 the next begins. **Task 10 splits**: `10a` = interactive-pool construction (spine, Wave 0);
 `10b` = chunked background-scan loop (Wave 4). Sub-phases A′ (DSV-020) and B (DSV-030) are

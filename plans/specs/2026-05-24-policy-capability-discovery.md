@@ -320,5 +320,5 @@ as a normative list:
 - `plans/modules/agent-governance-patterns.aps.md` (AGOV-007 capability
   manifest — declared intent surface).
 - `plans/modules/policy-action-taxonomy.aps.md` (ACTAX domain.verbs).
-- `plans/modules/io-risk-controls.aps.md` (risk dimensions).
+- `plans/archive/modules/io-risk-controls.aps.md` (risk dimensions).
 - `plans/modules/skill-discovery-observability.aps.md` (skill inventory).

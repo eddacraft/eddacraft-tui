@@ -4,16 +4,20 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 5/5 |
+| INSIGHTS | @aneki | Complete | 5/5 |
 
 **Last reviewed:** 2026-06-10 (INSIGHTS-005 filed from the v0.8.0-beta
 user-journey completeness review — extend the INSIGHTS-004 first-week nudge
 to the `anvil welcome` closing output, the one command every new user runs.
 Previously 2026-05-14: promoted **Proposed → Ready** alongside acceptance of
-[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Module-level `In Progress` means Wave 4 work has started. INSIGHTS-001
 is load-bearing; the others extend its data path. All data stays
 local-only — no telemetry on this module.)
+
+2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
+plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
+ready to archive per the archive cascade.
 
 ## Purpose
 
@@ -288,7 +292,7 @@ number visible to the user, not just to a future post-release survey.
 
 ### INSIGHTS-005: First-Week Nudge on the Welcome Surface
 
-- **Status:** Merged 2026-06-26 via #2957 — the existing
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-26 via #2957 — the existing
   `first_week_insights_hint` (INSIGHTS-004) now also renders on the `anvil
   welcome` closing output, under the same contract (14-day window, once per week,
   suppressed after `anvil insights`, shared `.anvil/insights-hint.json` state).
@@ -311,7 +315,7 @@ number visible to the user, not just to a future post-release survey.
     shared with status/watch)
 - **Dependencies:** INSIGHTS-004 (hint mechanism; PR #2226)
 - **Identified From:** 2026-06-10 v0.8.0-beta user-journey completeness
-  review; coordinates with [`UJ-001`](../archive/modules/user-journey.aps.md) (welcome
+  review; coordinates with [`UJ-001`](./user-journey.aps.md) (welcome
   closing-output threading).
 - **Confidence:** high
 - **changeType:** feature
@@ -338,10 +342,10 @@ what it caught and what's drifting" line in `v0.7.0-beta`.
 
 ## Cross-References
 
-- Coordinates with: [`MLP-002`](../archive/modules/multilayer-protection.aps.md) (witness chain
-  as canonical event source), [`MLP-007`](../archive/modules/multilayer-protection.aps.md)
-  (baseline diff for drift), [`MLP-003`](../archive/modules/multilayer-protection.aps.md)
-  (suppression log for suppression view), [`ADTRUST-001`](../archive/modules/adoption-trust-surface.aps.md)
+- Coordinates with: [`MLP-002`](./multilayer-protection.aps.md) (witness chain
+  as canonical event source), [`MLP-007`](./multilayer-protection.aps.md)
+  (baseline diff for drift), [`MLP-003`](./multilayer-protection.aps.md)
+  (suppression log for suppression view), [`ADTRUST-001`](./adoption-trust-surface.aps.md)
   (status surface where first-week hint renders).
 - Blocks on: none at module level; INSIGHTS-002 / -003 inherit MLP data
   contracts already in place.

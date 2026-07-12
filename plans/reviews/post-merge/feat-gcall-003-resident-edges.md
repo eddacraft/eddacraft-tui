@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Flip GCALL-003 status `In Progress → Merged YYYY-MM-DD via PR #NNN` in
-      `plans/modules/symbol-call-graph.aps.md`; bump the GCALL module count
+      `plans/archive/modules/symbol-call-graph.aps.md`; bump the GCALL module count
       `2/7 → 3/7` (module header + Last-reviewed note + index module-table row)
       and refresh the NBI. With GCALL-003 merged, **GCTX-014 `anvil_find_callers`
       is unblocked on the substrate side** (still gated on GCALL-007, the

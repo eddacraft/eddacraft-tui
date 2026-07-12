@@ -9,7 +9,7 @@
 > **DRAFT** — authored via planning-workflow on 2026-06-20 (producer-first
 > sequencing, new-module placement); design-gated by planning council
 > `plan-a50aa93d` the same day. Sibling to
-> [Kindling Daemon Sink](kindling-daemon-sink.aps.md) (KDS): KDS owns the
+> [Kindling Daemon Sink](../archive/modules/kindling-daemon-sink.aps.md) (KDS): KDS owns the
 > **sink backend**; DPO owns **producer coverage + the read/dashboard
 > surface**. The observation-kind taxonomy is decided in
 > [ADR-088](../decisions/088-dpo-observation-kind-taxonomy.md) (**Accepted**

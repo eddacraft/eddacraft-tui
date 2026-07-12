@@ -166,7 +166,7 @@ Migrate in waves:
   section names and field names; historical archive modules remain unchanged.
 - **Validation:** Active-scope APS lint passes after each migrated batch.
 - **Files:** `plans/modules/*.aps.md`, `plans/index.aps.md`,
-  `plans/modules/adversarial-testing-catalog.aps.md`,
+  `plans/archive/modules/adversarial-testing-catalog.aps.md`,
   `plans/execution/ATC.actions.md` (renamed from `ATC.steps.md` per APSCAN-005)
 - **Dependencies:** APSCAN-001, APSCAN-003
 - **Closeout:** First active-module migration landed on
@@ -305,7 +305,7 @@ Migrate in waves:
   warnings tracked separately).
 - **Files:** `plans/modules/prompt-attack-regression-packs.aps.md`,
   `plans/modules/trust-center-automation.aps.md`,
-  `plans/modules/contextual-policy-assertions.aps.md`,
+  `plans/archive/modules/contextual-policy-assertions.aps.md`,
   `plans/execution/{PATT,TRUST,CPOL}.actions.md` (renamed from `.steps.md`),
   `plans/modules/aps-canonical-alignment.aps.md`
 - **Dependencies:** APSCAN-001, APSCAN-002, APSCAN-003, APSCAN-006, APSCAN-009
