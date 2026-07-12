@@ -141,7 +141,8 @@ jobs:
           github.event_name == 'pull_request' &&
           needs.detect-changes.result == 'success' &&
           needs.detect-changes.outputs.markdownlint-required != 'true' &&
-          needs.detect-changes.outputs.source-changed != 'true'
+          needs.detect-changes.outputs.source-changed != 'true' &&
+          needs.detect-changes.outputs.script-fixtures-required != 'true'
         run: |
           echo "Skipped — no .md changes detected (CIB-038)"
           echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion for docs-only PRs so the main ruleset sees CLEAN (no success+skipped duplicate). Real work only on markdownlint-required paths.'
@@ -150,14 +151,16 @@ jobs:
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
-          needs.detect-changes.outputs.source-changed == 'true'
+          needs.detect-changes.outputs.source-changed == 'true' ||
+          needs.detect-changes.outputs.script-fixtures-required == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup workspace
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
-          needs.detect-changes.outputs.source-changed == 'true'
+          needs.detect-changes.outputs.source-changed == 'true' ||
+          needs.detect-changes.outputs.script-fixtures-required == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
