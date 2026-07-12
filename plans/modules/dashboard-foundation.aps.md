@@ -274,22 +274,33 @@ Change status to **Ready** when:
 
 ### DASH-006: OpenAPI contract and generated TypeScript client
 
+- **Status:** In Progress 2026-07-13 — deterministic Rust export, committed
+  OpenAPI/TypeScript output, typed `openapi-fetch` seam, and byte-for-byte drift
+  check implemented on `feat/dash-wave-1`.
 - **Intent:** Establish the Rust API -> OpenAPI -> generated client seam.
 - **Expected Outcome:** Dashboard server emits OpenAPI for Protection Overview
   and Plan Driver read endpoints. A generated TypeScript client is committed or
   reproducibly generated for `apps/dashboard/`, and validation fails on drift.
 - **Files:**
   - `crates/anvil-dashboard-server/src/openapi.rs`
+  - `crates/anvil-dashboard-server/src/bin/export_openapi.rs`
   - `crates/anvil-dashboard-server/tests/openapi_snapshot.rs`
   - `apps/dashboard/src/api/generated/`
   - `apps/dashboard/src/api/client.ts`
+  - `apps/dashboard/scripts/generate-api.mjs`
   - `apps/dashboard/package.json`
+  - `pnpm-lock.yaml`
 - **Dependencies:** DASH-004, DASH-005
-- **Validation:** OpenAPI snapshot test passes; generated TS client typechecks
+- **Validation:** `pnpm --dir apps/dashboard check:api` exits 0;
+  `cargo test -p eddacraft-anvil-dashboard-server --test openapi_snapshot`
+  passes 2 tests; generated TypeScript client passes dashboard typecheck.
 - **Confidence:** medium
 
 ### DASH-007: TanStack Query resource layer
 
+- **Status:** In Progress 2026-07-13 — stable query provider/client lifetimes,
+  generated-client hooks, structured query boundary, and test fixtures
+  implemented on `feat/dash-wave-1`.
 - **Intent:** Wrap the generated client with stable query keys and loading/error
   boundaries.
 - **Expected Outcome:** Dashboard app has query providers and hooks for
@@ -301,27 +312,47 @@ Change status to **Ready** when:
   - `apps/dashboard/src/hooks/use-protection-overview.ts`
   - `apps/dashboard/src/hooks/use-plan-driver.ts`
   - `apps/dashboard/src/components/query-boundary.tsx`
+  - `apps/dashboard/src/api/fixtures.ts`
+  - `apps/dashboard/src/api/query-layer.test.tsx`
   - `apps/dashboard/src/main.tsx`
 - **Dependencies:** DASH-006
-- **Validation:** Hook tests cover loading, success, structured error, and cache
-  key stability
+- **Validation:** `pnpm exec nx run dashboard:test --skip-nx-cache` passes 19
+  tests including loading, success, structured error, and stable key coverage;
+  dashboard typecheck, lint, and build targets exit 0.
 - **Confidence:** high
 
 ### DASH-008: URL state, command palette, and deep linking
 
+- **Status:** In Progress 2026-07-13 — Zod-validated search state, router-owned
+  view/evidence filters, registered module/resource commands, and Cmd+K
+  navigation implemented on `feat/dash-wave-1`. This slice also repairs the
+  prior manifest's single-route shape with explicit resource-bound routes.
 - **Intent:** Make dashboard navigation and filters addressable without a Next
   route dependency.
 - **Expected Outcome:** TanStack Router owns route/search params with Zod
   validation. Cmd+K opens a command palette over registered modules and current
   module resources. Back/forward navigation restores filters.
 - **Files:**
-  - `apps/dashboard/src/routes/__root.tsx`
+  - `apps/dashboard/src/router.tsx`
   - `apps/dashboard/src/lib/search-params.ts`
+  - `apps/dashboard/src/lib/search-params.test.ts`
   - `apps/dashboard/src/components/command-palette.tsx`
   - `apps/dashboard/src/hooks/use-command-search.ts`
+  - `apps/dashboard/src/hooks/use-command-search.test.ts`
+  - `apps/dashboard/src/modules/manifest.ts`
+  - `apps/dashboard/src/modules/registry.ts`
+  - `apps/dashboard/src/modules/registry.test.ts`
+  - `apps/dashboard/src/routes/plans.tsx`
+  - `apps/dashboard/src/components/shell/dashboard-shell.tsx`
+  - `apps/dashboard/src/components/shell/sidebar.tsx`
+  - `apps/dashboard/src/components/shell/mobile-navigation.tsx`
+  - `apps/dashboard/src/modules/protection/protection-overview.tsx`
+  - `apps/dashboard/src/modules/protection/protection-tables.tsx`
 - **Dependencies:** DASH-002, DASH-007
-- **Validation:** Route search params validate; invalid params fall back safely;
-  Cmd+K navigates to registered module routes
+- **Validation:** Dashboard tests cover valid and invalid search fallbacks,
+  explicit manifest route/resource bindings, registered command entries, and
+  Cmd+K visibility for Protection and Plan Driver resources; dashboard
+  typecheck, lint, and build targets exit 0.
 - **Confidence:** medium
 
 ### DASH-009: Remove `apps/anvil-ui/` placeholder

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ChevronDown, CircleHelp, FileText, Menu, Search, ShieldCheck } from 'lucide-react';
+import { ChevronDown, CircleHelp, Menu, Search, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +20,12 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
   return (
     <>
       <header className="dashboard-mobile-header" data-mobile-header>
-        <Link aria-label="Anvil Dashboard home" className="mobile-brand" to="/">
+        <Link
+          aria-label="Anvil Dashboard home"
+          className="mobile-brand"
+          search={{ severity: 'all', view: 'runs' }}
+          to="/"
+        >
           <span aria-hidden="true" className="dashboard-brand-mark">
             A
           </span>
@@ -54,14 +59,15 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
                 {dashboardModuleRegistry.manifests.map((manifest) => {
                   const Icon = manifest.navigation.icon ?? ShieldCheck;
                   return (
-                    <Link key={manifest.id} to={manifest.navigation.path}>
+                    <Link
+                      key={manifest.id}
+                      search={{ severity: 'all', view: 'runs' }}
+                      to={manifest.navigation.path}
+                    >
                       <Icon aria-hidden="true" /> {manifest.navigation.label}
                     </Link>
                   );
                 })}
-                <span aria-disabled="true">
-                  <FileText aria-hidden="true" /> Plans <small>soon</small>
-                </span>
                 <button type="button">
                   <CircleHelp aria-hidden="true" /> Help
                 </button>
@@ -79,16 +85,16 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
         {dashboardModuleRegistry.manifests.map((manifest) => {
           const Icon = manifest.navigation.icon ?? ShieldCheck;
           return (
-            <Link key={manifest.id} to={manifest.navigation.path}>
+            <Link
+              key={manifest.id}
+              search={{ severity: 'all', view: 'runs' }}
+              to={manifest.navigation.path}
+            >
               <Icon aria-hidden="true" />
               {manifest.navigation.label}
             </Link>
           );
         })}
-        <span aria-disabled="true">
-          <FileText aria-hidden="true" />
-          Plans
-        </span>
         <button type="button">
           <CircleHelp aria-hidden="true" />
           Help

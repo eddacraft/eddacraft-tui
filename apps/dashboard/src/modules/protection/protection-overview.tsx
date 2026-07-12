@@ -1,5 +1,7 @@
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import { QueryBoundary } from '@/components/query-boundary';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
 import {
@@ -10,6 +12,7 @@ import {
   type ProtectionWarning,
 } from '@/modules/protection/fixture';
 import { ProtectionSummary } from '@/modules/protection/protection-summary';
+import { useProtectionOverview } from '@/hooks/use-protection-overview';
 import {
   AffectedFilesTable,
   RunsTable,
@@ -25,20 +28,34 @@ function focusInspector() {
   });
 }
 
-export function ProtectionOverview() {
+function ProtectionOverviewContent({
+  sourceMessage,
+  state,
+}: {
+  sourceMessage: string;
+  state: string;
+}) {
+  const search = useSearch({ from: '/' });
+  const navigate = useNavigate({ from: '/' });
   const [selectedRunId, setSelectedRunId] = useState(latestRun.id);
-  const [selectedWarningId, setSelectedWarningId] = useState(nextAttention.id);
+  const selectedWarningId = search.evidence ?? nextAttention.id;
+  const filteredWarnings =
+    search.severity === 'all'
+      ? protectionWarnings
+      : protectionWarnings.filter((warning) => warning.severity.toLowerCase() === search.severity);
   const selectedWarning =
     protectionWarnings.find((warning) => warning.id === selectedWarningId) ?? nextAttention;
 
   const selectRun = (run: ProtectionRun) => setSelectedRunId(run.id);
   const selectWarning = (warning: ProtectionWarning, moveFocus = false) => {
-    setSelectedWarningId(warning.id);
+    void navigate({
+      search: (previous) => ({ ...previous, evidence: warning.id, view: 'warnings' }),
+    });
     if (moveFocus) focusInspector();
   };
 
   return (
-    <div className="protection-overview">
+    <div className="protection-overview" data-dashboard-state={state}>
       <header className="protection-heading">
         <p className="eyebrow">Workspace protection</p>
         <h1 id="protection-title" tabIndex={-1}>
@@ -48,17 +65,31 @@ export function ProtectionOverview() {
           Read-only summary of what Anvil protected on save, what needs attention, and the
           deterministic evidence behind each finding.
         </p>
+        <p className="sr-only">{sourceMessage}</p>
       </header>
 
       <ProtectionSummary
         onInspectAttention={() => {
-          setSelectedWarningId(nextAttention.id);
+          void navigate({
+            search: (previous) => ({ ...previous, evidence: nextAttention.id, view: 'warnings' }),
+          });
           focusInspector();
         }}
       />
 
       <div className="protection-grid">
-        <Tabs className="protection-tabs" defaultValue="runs">
+        <Tabs
+          className="protection-tabs"
+          onValueChange={(view) =>
+            void navigate({
+              search: (previous) => ({
+                ...previous,
+                view: view === 'warnings' ? 'warnings' : 'runs',
+              }),
+            })
+          }
+          value={search.view}
+        >
           <TabsList
             aria-label="Protection activity"
             className="protection-tabs-list"
@@ -90,6 +121,7 @@ export function ProtectionOverview() {
             <WarningsTable
               onSelectWarning={(warning) => selectWarning(warning)}
               selectedWarningId={selectedWarningId}
+              warnings={filteredWarnings}
             />
           </TabsContent>
         </Tabs>
@@ -108,6 +140,7 @@ export function ProtectionOverview() {
         <AffectedFilesTable
           onSelectWarning={(warning) => selectWarning(warning, true)}
           selectedWarningId={selectedWarningId}
+          warnings={filteredWarnings}
         />
       </section>
 
@@ -117,5 +150,19 @@ export function ProtectionOverview() {
         <span>No network calls</span>
       </p>
     </div>
+  );
+}
+
+export function ProtectionOverview() {
+  const query = useProtectionOverview();
+  return (
+    <QueryBoundary loadingLabel="Loading protection overview" query={query}>
+      {(overview) => (
+        <ProtectionOverviewContent
+          sourceMessage={overview.source_message}
+          state={overview.data_state}
+        />
+      )}
+    </QueryBoundary>
   );
 }

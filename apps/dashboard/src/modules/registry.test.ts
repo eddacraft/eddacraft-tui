@@ -13,6 +13,7 @@ const protectionModule: DashboardModuleManifest = {
     label: 'Protection',
     path: '/',
   },
+  routes: [{ id: 'overview', path: '/', resource: 'protection-overview' }],
   queryBindings: ['protection-overview'],
   renderers: ['ProtectionOverview'],
 };
@@ -48,5 +49,12 @@ describe('dashboard module registry', () => {
     expect(
       Object.values(manifest.actionRequests?.[0] ?? {}).some((value) => typeof value === 'function')
     ).toBe(false);
+  });
+
+  it('keeps each module route explicitly bound to a registered resource', () => {
+    const registry = createModuleRegistry([protectionModule]);
+    expect(registry.require('protection').routes).toEqual([
+      { id: 'overview', path: '/', resource: 'protection-overview' },
+    ]);
   });
 });

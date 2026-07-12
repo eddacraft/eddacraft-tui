@@ -1,7 +1,7 @@
 import { Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import { CommandSearch } from '@/components/shell/command-search';
+import { CommandPalette } from '@/components/command-palette';
 import { MobileNavigation } from '@/components/shell/mobile-navigation';
 import { DashboardSidebar } from '@/components/shell/sidebar';
 import { TopBar } from '@/components/shell/top-bar';
@@ -36,7 +36,7 @@ export function DashboardShell() {
           </main>
         </div>
       </div>
-      <CommandSearch onOpenChange={setSearchOpen} open={searchOpen} />
+      <CommandPalette onOpenChange={setSearchOpen} open={searchOpen} />
     </>
   );
 }

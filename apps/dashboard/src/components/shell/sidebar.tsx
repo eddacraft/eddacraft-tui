@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { CircleHelp, FileText, ShieldCheck } from 'lucide-react';
+import { CircleHelp, ShieldCheck } from 'lucide-react';
 
 import { Separator } from '@/components/ui/separator';
 import { dashboardModuleRegistry } from '@/modules/registry';
@@ -9,7 +9,7 @@ const exactRouteMatch = { exact: true } as const;
 export function DashboardSidebar() {
   return (
     <aside aria-label="Dashboard modules" className="dashboard-sidebar" data-desktop-sidebar>
-      <Link className="dashboard-brand" to="/">
+      <Link className="dashboard-brand" search={{ severity: 'all', view: 'runs' }} to="/">
         <span aria-hidden="true" className="dashboard-brand-mark">
           A
         </span>
@@ -28,17 +28,17 @@ export function DashboardSidebar() {
         {dashboardModuleRegistry.manifests.map((manifest) => {
           const Icon = manifest.navigation.icon ?? ShieldCheck;
           return (
-            <Link activeOptions={exactRouteMatch} key={manifest.id} to={manifest.navigation.path}>
+            <Link
+              activeOptions={exactRouteMatch}
+              key={manifest.id}
+              search={{ severity: 'all', view: 'runs' }}
+              to={manifest.navigation.path}
+            >
               <Icon aria-hidden="true" />
               {manifest.navigation.label}
             </Link>
           );
         })}
-        <span aria-disabled="true" className="dashboard-nav-disabled">
-          <FileText aria-hidden="true" />
-          Plans
-          <small>soon</small>
-        </span>
       </nav>
 
       <div className="dashboard-sidebar-footer">

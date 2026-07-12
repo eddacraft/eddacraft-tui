@@ -242,15 +242,15 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `crates/anvil-dashboard-server/src/bin/export_openapi.rs`
 - Modify: `apps/dashboard/package.json`
 
-- [ ] Add OpenAPI snapshot coverage for Protection Overview and Plan Driver
+- [x] Add OpenAPI snapshot coverage for Protection Overview and Plan Driver
       endpoint groups.
-- [ ] Run the snapshot test and verify it fails.
-- [ ] Implement deterministic OpenAPI generation plus
+- [x] Run the snapshot test and verify it fails.
+- [x] Implement deterministic OpenAPI generation plus
       `pnpm --dir apps/dashboard generate:api`; the command writes
       `src/api/generated/openapi.json` and uses `openapi-typescript` plus
       `openapi-fetch` for the typed client seam.
-- [ ] Run OpenAPI snapshot tests and `pnpm exec nx run dashboard:typecheck`.
-- [ ] Commit: `feat(dash): add dashboard OpenAPI client seam`
+- [x] Run OpenAPI snapshot tests and `pnpm exec nx run dashboard:typecheck`.
+- [x] Commit in the combined DASH-006..008 client-foundation slice.
 
 ### Task 7: Add TanStack Query resource layer
 
@@ -264,12 +264,12 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `apps/dashboard/src/api/fixtures.ts`
 - Modify: `apps/dashboard/src/main.tsx`
 
-- [ ] Add hook tests for loading, success, structured error, and query-key
+- [x] Add hook tests for loading, success, structured error, and query-key
       stability.
-- [ ] Run dashboard tests and verify they fail.
-- [ ] Implement query providers, query keys, hooks, and query boundary.
-- [ ] Run dashboard tests and typecheck.
-- [ ] Commit: `feat(dash): add dashboard query layer`
+- [x] Run dashboard tests and verify they fail.
+- [x] Implement query providers, query keys, hooks, and query boundary.
+- [x] Run dashboard tests and typecheck.
+- [x] Commit in the combined DASH-006..008 client-foundation slice.
 
 ### Task 8: Add URL state and command palette
 
@@ -280,12 +280,12 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `apps/dashboard/src/components/command-palette.tsx`
 - Create: `apps/dashboard/src/hooks/use-command-search.ts`
 
-- [ ] Add tests for valid/invalid route search params and command navigation.
-- [ ] Run dashboard tests and verify they fail.
-- [ ] Implement Zod-validated search params and Cmd+K search over registered
+- [x] Add tests for valid/invalid route search params and command navigation.
+- [x] Run dashboard tests and verify they fail.
+- [x] Implement Zod-validated search params and Cmd+K search over registered
       modules.
-- [ ] Run dashboard tests and typecheck.
-- [ ] Commit: `feat(dash): add dashboard deep linking`
+- [x] Run dashboard tests and typecheck.
+- [x] Commit in the combined DASH-006..008 client-foundation slice.
 
 ### Task 9: Remove the old placeholder app (already done on `main`)
 

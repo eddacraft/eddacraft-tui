@@ -1,4 +1,4 @@
-import { ShieldCheck } from 'lucide-react';
+import { FileText, ShieldCheck } from 'lucide-react';
 
 import type { DashboardModuleManifest } from './manifest';
 
@@ -55,7 +55,25 @@ export const dashboardModuleRegistry = createModuleRegistry([
       path: '/',
       icon: ShieldCheck,
     },
+    routes: [{ id: 'overview', path: '/', resource: 'protection-overview' }],
     queryBindings: ['protection-overview'],
     renderers: ['ProtectionOverview'],
+    resources: [
+      { id: 'runs', label: 'Latest runs', search: { view: 'runs' } },
+      { id: 'warnings', label: 'Active warnings', search: { view: 'warnings' } },
+      {
+        id: 'evidence',
+        label: 'Evidence inspector',
+        search: { view: 'warnings', evidence: 'warning-api-key' },
+      },
+    ],
+  },
+  {
+    id: 'plans',
+    navigation: { label: 'Plans', path: '/plans', icon: FileText },
+    routes: [{ id: 'index', path: '/plans', resource: 'plans' }],
+    queryBindings: ['plans', 'plan-detail'],
+    renderers: ['PlanDriverBoundary'],
+    resources: [{ id: 'index', label: 'Plan Driver' }],
   },
 ]);

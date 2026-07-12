@@ -106,4 +106,30 @@ describe('dashboard app host', () => {
     expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Runs');
     expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Warnings (12)');
   });
+
+  it('opens Cmd+K over registered module resources', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+    });
+
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('Active warnings');
+    expect(document.body.textContent).toContain('Plan Driver');
+
+    const planCommand = [...document.querySelectorAll<HTMLElement>('[cmdk-item]')].find(
+      (item) => item.textContent?.trim() === 'Plan Driver'
+    );
+    await act(async () => {
+      planCommand?.click();
+      await new Promise((next) => setTimeout(next, 20));
+    });
+    expect(container.textContent).toContain('indexed plans available');
+  });
 });

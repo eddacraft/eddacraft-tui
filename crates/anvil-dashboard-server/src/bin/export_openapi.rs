@@ -7,7 +7,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .map(PathBuf::from)
         .ok_or("usage: export-openapi <output-path>")?;
-    let document = serde_json::to_vec_pretty(&openapi_document())?;
+    let mut document = serde_json::to_vec_pretty(&openapi_document())?;
+    document.push(b'\n');
     std::fs::write(output, document)?;
     Ok(())
 }

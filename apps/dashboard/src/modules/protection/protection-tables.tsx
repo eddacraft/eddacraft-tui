@@ -25,6 +25,7 @@ interface RunsTableProps {
 interface WarningsTableProps {
   selectedWarningId: string;
   onSelectWarning: (warning: ProtectionWarning) => void;
+  warnings?: readonly ProtectionWarning[];
 }
 
 function Result({ run }: { run: ProtectionRun }) {
@@ -106,7 +107,11 @@ export function RunsTable({ selectedRunId, onSelectRun }: RunsTableProps) {
   );
 }
 
-export function WarningsTable({ selectedWarningId, onSelectWarning }: WarningsTableProps) {
+export function WarningsTable({
+  selectedWarningId,
+  onSelectWarning,
+  warnings = protectionWarnings,
+}: WarningsTableProps) {
   return (
     <Table className="operations-table warnings-table">
       <TableCaption className="sr-only">Active protection warnings for anvil-001</TableCaption>
@@ -121,7 +126,7 @@ export function WarningsTable({ selectedWarningId, onSelectWarning }: WarningsTa
         </TableRow>
       </TableHeader>
       <TableBody>
-        {protectionWarnings.map((warning) => (
+        {warnings.map((warning) => (
           <TableRow data-selected={selectedWarningId === warning.id || undefined} key={warning.id}>
             <TableCell>
               <SeverityBadge warning={warning} />
@@ -157,7 +162,11 @@ export function WarningsTable({ selectedWarningId, onSelectWarning }: WarningsTa
   );
 }
 
-export function AffectedFilesTable({ selectedWarningId, onSelectWarning }: WarningsTableProps) {
+export function AffectedFilesTable({
+  selectedWarningId,
+  onSelectWarning,
+  warnings = protectionWarnings,
+}: WarningsTableProps) {
   return (
     <Table className="operations-table affected-files-table">
       <TableCaption className="sr-only">Files affected by active protection warnings</TableCaption>
@@ -174,7 +183,7 @@ export function AffectedFilesTable({ selectedWarningId, onSelectWarning }: Warni
         </TableRow>
       </TableHeader>
       <TableBody>
-        {protectionWarnings.map((warning) => (
+        {warnings.map((warning) => (
           <TableRow data-selected={selectedWarningId === warning.id || undefined} key={warning.id}>
             <TableCell>
               <button
