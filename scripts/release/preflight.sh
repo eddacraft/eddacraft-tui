@@ -2,7 +2,7 @@
 set -uo pipefail
 
 readonly DEFAULT_REPO="eddacraft/anvil-001"
-readonly CARGO_HAKARI_VERSION="0.9.37"
+readonly CARGO_HAKARI_VERSION="0.9.38"
 readonly CARGO_DENY_VERSION="0.19.4"
 readonly STEP_TIMEOUT="${ANVIL_RELEASE_STEP_TIMEOUT:-600}"
 # pnpm test runs `nx run-many -t test` with `test → ^build`, so every node
@@ -326,7 +326,7 @@ run_gates() {
   run_gate "hakari-version" "hakari version" "cargo hakari --version" require_cargo_tool_version cargo-hakari hakari "$CARGO_HAKARI_VERSION"
   run_gate "cargo-hakari" "cargo hakari" "cargo hakari verify" cargo hakari verify
   run_gate "deny-version" "deny version" "cargo deny --version" require_cargo_tool_version cargo-deny deny "$CARGO_DENY_VERSION"
-  run_gate "cargo-deny" "cargo deny" "cargo deny check" cargo deny check
+  run_gate "cargo-deny" "cargo deny" "cargo deny check --config attribution/deny.toml" cargo deny check --config attribution/deny.toml
   run_gate "cargo-clippy" "cargo clippy" "cargo clippy --workspace --all-targets -- -D warnings" cargo clippy --workspace --all-targets -- -D warnings
   run_gate "cargo-test" "cargo test" "cargo test --workspace" cargo test --workspace
   run_gate "pnpm-format" "pnpm format" "pnpm format:check" pnpm format:check
