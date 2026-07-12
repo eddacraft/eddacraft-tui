@@ -1,12 +1,12 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                 |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------- |
+| Type   | Authority | Owner  | Status | Freshness                                                                         |
+| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------- |
 | README | Advisory  | DOCGOV | Live   | Operator cockpit 2026-07-13; agent-vault local secrets; product tag `v0.8.2-beta` |
 
-| Upstream                                               | Downstream                        |
-| ------------------------------------------------------ | --------------------------------- |
-| `RELEASE-PLAN.md`, `plans/index.aps.md`, docs policies | Repository operators and agents   |
+| Upstream                                               | Downstream                      |
+| ------------------------------------------------------ | ------------------------------- |
+| `RELEASE-PLAN.md`, `plans/index.aps.md`, docs policies | Repository operators and agents |
 
 <p align="center">
   <img src="apps/website/public/images/anvil-brandmark-ember.svg" alt="anvil brandmark" width="120" />
@@ -15,24 +15,24 @@
 > **AI agents make software probabilistic. anvil makes it deterministic.**
 
 anvil is a pure-Rust governance layer that sits between AI coding agents and
-production code. It watches saves, runs checks and policies, and warns on **new**
-violations — architecture drift, anti-patterns, secrets, policy breaks — before
-they leave the machine. Warnings over blocks; new edges only.
+production code. It watches saves, runs checks and policies, and warns on
+**new** violations — architecture drift, anti-patterns, secrets, policy breaks —
+before they leave the machine. Warnings over blocks; new edges only.
 
 **Shipped product:** Rust binary + MCP shim · **Monorepo also has:** TypeScript
 docs/API/tooling, Pulumi infra, APS plans.
 
-| Surface | Link |
-| ------- | ---- |
-| Early access | [eddacraft.ai](https://eddacraft.ai) |
-| Public docs | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
-| Install | [install.eddacraft.ai](https://install.eddacraft.ai) |
-| Latest tag | **`v0.8.2-beta`** |
-| Live work | [`plans/index.aps.md`](./plans/index.aps.md) |
-| Release cut | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) |
+| Surface      | Link                                                                |
+| ------------ | ------------------------------------------------------------------- |
+| Early access | [eddacraft.ai](https://eddacraft.ai)                                |
+| Public docs  | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
+| Install      | [install.eddacraft.ai](https://install.eddacraft.ai)                |
+| Latest tag   | **`v0.8.2-beta`**                                                   |
+| Live work    | [`plans/index.aps.md`](./plans/index.aps.md)                        |
+| Release cut  | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md)                              |
 
-> **Orienting in this repo?** Start with [`CONTEXT.md`](CONTEXT.md) — vocabulary,
-> where things live, and where to go next. Behaviour contract:
+> **Orienting in this repo?** Start with [`CONTEXT.md`](CONTEXT.md) —
+> vocabulary, where things live, and where to go next. Behaviour contract:
 > [`AGENTS.md`](AGENTS.md).
 
 ---
@@ -41,30 +41,30 @@ docs/API/tooling, Pulumi infra, APS plans.
 
 Use this table when you open the repo and need the right door fast.
 
-| I need to… | Go here |
-| ---------- | ------- |
-| See active modules / pick work | [`plans/index.aps.md`](plans/index.aps.md) |
-| Check release cut-line and blockers | [`RELEASE-PLAN.md`](RELEASE-PLAN.md) |
-| Understand the tree (apps / packages / crates) | [`CONTEXT.md`](CONTEXT.md) |
-| Know workflow, commits, validation policy | [`AGENTS.md`](AGENTS.md) |
-| Set up machine / open a PR | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Branch / worktree rules | [branching](docs/guides/branching-strategy.md) · [worktrees](docs/guides/worktree-policy.md) |
-| Architecture / scope guard | [overview](docs/architecture/overview.md) · [scope](docs/vision/anvil-scope-guard.md) |
-| ADR index | [`plans/decisions/DECISION-LOG.md`](plans/decisions/DECISION-LOG.md) |
-| Run a release | [release runbook](docs/runbooks/release-runbook.md) · [cadence](docs/policies/release-cadence.md) |
-| Approve waitlist / invite beta | [admin CLI runbook](docs/runbooks/admin-cli.md) · § [Admin CLI](#admin-cli-anvil-admin) below |
-| Dogfood candidate vs prod | [ANVIL_HOME runbook](docs/runbooks/anvil-home-side-by-side.md) |
-| Full CLI command catalogue | [cli-surface runbook](docs/runbooks/cli-surface.md) |
-| Docs authority model | [documentation governance](docs/guides/documentation-governance.md) |
-| Feature flags | [flag governance](docs/guides/feature-flag-governance.md) · `flags/manifest.json` |
-| Local secrets / `.env` | § [agent-vault](#local-secrets-agent-vault) below |
-| Agent skills / commands inventory | [agent-surface-inventory](docs/guides/agent-surface-inventory.md) |
+| I need to…                                     | Go here                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| See active modules / pick work                 | [`plans/index.aps.md`](plans/index.aps.md)                                                        |
+| Check release cut-line and blockers            | [`RELEASE-PLAN.md`](RELEASE-PLAN.md)                                                              |
+| Understand the tree (apps / packages / crates) | [`CONTEXT.md`](CONTEXT.md)                                                                        |
+| Know workflow, commits, validation policy      | [`AGENTS.md`](AGENTS.md)                                                                          |
+| Set up machine / open a PR                     | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                              |
+| Branch / worktree rules                        | [branching](docs/guides/branching-strategy.md) · [worktrees](docs/guides/worktree-policy.md)      |
+| Architecture / scope guard                     | [overview](docs/architecture/overview.md) · [scope](docs/vision/anvil-scope-guard.md)             |
+| ADR index                                      | [`plans/decisions/DECISION-LOG.md`](plans/decisions/DECISION-LOG.md)                              |
+| Run a release                                  | [release runbook](docs/runbooks/release-runbook.md) · [cadence](docs/policies/release-cadence.md) |
+| Approve waitlist / invite beta                 | [admin CLI runbook](docs/runbooks/admin-cli.md) · § [Admin CLI](#admin-cli-anvil-admin) below     |
+| Dogfood candidate vs prod                      | [ANVIL_HOME runbook](docs/runbooks/anvil-home-side-by-side.md)                                    |
+| Full CLI command catalogue                     | [cli-surface runbook](docs/runbooks/cli-surface.md)                                               |
+| Docs authority model                           | [documentation governance](docs/guides/documentation-governance.md)                               |
+| Feature flags                                  | [flag governance](docs/guides/feature-flag-governance.md) · `flags/manifest.json`                 |
+| Local secrets / `.env`                         | § [agent-vault](#local-secrets-agent-vault) below                                                 |
+| Agent skills / commands inventory              | [agent-surface-inventory](docs/guides/agent-surface-inventory.md)                                 |
 
 ### Local secrets (agent-vault)
 
-We use **`agent-vault`** (CLI on `PATH`, typically `~/.local/bin/agent-vault`) for
-local developer secrets — API keys, admin tokens, `.env` values, and anything
-that must not land in agent transcripts or git.
+We use **`agent-vault`** (CLI on `PATH`, typically `~/.local/bin/agent-vault`)
+for local developer secrets — API keys, admin tokens, `.env` values, and
+anything that must not land in agent transcripts or git.
 
 **Hard rule for agents and for you when pairing with agents:** do not
 `Read`/`Write`/`Edit` secret-bearing files (`.env`, credentials, compose with
@@ -120,7 +120,8 @@ pnpm build                     # TypeScript workspace (Nx); needed before many J
 ```
 
 Full setup and package-filter recipes: [`CONTRIBUTING.md`](CONTRIBUTING.md).
-Repo-manager conventions: [`docs/guides/repository-operations.md`](docs/guides/repository-operations.md).
+Repo-manager conventions:
+[`docs/guides/repository-operations.md`](docs/guides/repository-operations.md).
 
 ### Build locally
 
@@ -141,7 +142,8 @@ cargo run -p eddacraft-anvil -- --help
 cargo run -p eddacraft-anvil -- status
 ```
 
-Package-scoped TS work (after `pnpm build` at least once for project references):
+Package-scoped TS work (after `pnpm build` at least once for project
+references):
 
 ```bash
 pnpm -F @eddacraft/anvil-aps test
@@ -240,18 +242,19 @@ $anvil auth logout
 
 Useful env vars (operator machine only):
 
-| Env | Purpose |
-| --- | ------- |
-| `ANVIL_DEV=1` | Local licence-gate bypass (`cli.licence-gate`) |
-| `ANVIL_HOME=<dir>` | Re-root install state (daemon socket, credentials, cache) |
-| `ANVIL_TOUCH_PROJECT_STATE=1` | Allow project mutations under non-default `ANVIL_HOME` |
-| `ANVIL_API_URL` | API host for auth / admin (default `https://api.eddacraft.ai`) |
-| `ANVIL_ADMIN_KEY` | Admin bearer (prefer `anvil admin auth set` or agent-vault — never commit) |
-| `ANVIL_NO_MCP=1` | Skip MCP config writes on `start` |
-| `ANVIL_NO_PROMPT=1` | Non-interactive; no TTY prompts |
+| Env                           | Purpose                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `ANVIL_DEV=1`                 | Local licence-gate bypass (`cli.licence-gate`)                             |
+| `ANVIL_HOME=<dir>`            | Re-root install state (daemon socket, credentials, cache)                  |
+| `ANVIL_TOUCH_PROJECT_STATE=1` | Allow project mutations under non-default `ANVIL_HOME`                     |
+| `ANVIL_API_URL`               | API host for auth / admin (default `https://api.eddacraft.ai`)             |
+| `ANVIL_ADMIN_KEY`             | Admin bearer (prefer `anvil admin auth set` or agent-vault — never commit) |
+| `ANVIL_NO_MCP=1`              | Skip MCP config writes on `start`                                          |
+| `ANVIL_NO_PROMPT=1`           | Non-interactive; no TTY prompts                                            |
 
-Catalogue + flags: [`docs/runbooks/cli-surface.md`](docs/runbooks/cli-surface.md).
-Activation without MCP:
+Catalogue + flags:
+[`docs/runbooks/cli-surface.md`](docs/runbooks/cli-surface.md). Activation
+without MCP:
 [`docs/runbooks/anvil-no-mcp-activation.md`](docs/runbooks/anvil-no-mcp-activation.md).
 
 ### Admin CLI (`anvil admin`)
@@ -323,47 +326,47 @@ curl -I https://eddacraft.ai/
 
 ### Key pnpm tasks
 
-| Task | What it does |
-| ---- | ------------ |
-| `pnpm build` | Build all Nx TS targets |
-| `pnpm test` | JS unit tests + `cargo test --workspace` |
-| `pnpm test:js` / `pnpm test:rust` | Stack-split tests |
-| `pnpm test:e2e:harness` | Vitest E2E harness (`apps/e2e`) |
-| `pnpm test:coverage` | TS + Rust coverage (slow; also nightly CI) |
-| `pnpm typecheck` | TS typecheck + Rust `check` via Nx |
-| `pnpm lint` / `pnpm lint:check` | oxlint + ESLint + Rust + markdownlint |
-| `pnpm format` / `pnpm format:check` | oxfmt write / CI check |
-| `pnpm validate:changed` | Narrow local gate on git changes |
-| `pnpm validate:staged` | Same, staged only |
-| `pnpm validate:full` | Full local confidence before PR |
-| `pnpm docs:check` | Docs metadata, links, APS, ADR, indexes |
-| `pnpm docs:index` | Regenerate `docs/indexes/` |
-| `pnpm aps:index` | Refresh APS `N/M` counts |
-| `pnpm aps:index:check` | Fail if stored counts drift |
-| `pnpm aps:active-lint` | Lint active APS modules |
-| `pnpm aps:drift` | APS drift check |
-| `pnpm adr:check` | ADR index integrity |
-| `pnpm release-plan:check` | `RELEASE-PLAN.md` shape |
-| `pnpm bench` | Kernel / resource bench harness |
-| `pnpm ci-log:status` / `pnpm ci-log:harvest` | Continuous-improvement log |
-| `pnpm agent:run` | Local agent-run helper (`tools/local-agent-run.sh`) |
-| `pnpm licenses:verify` | Third-party acknowledgements freshness |
+| Task                                         | What it does                                        |
+| -------------------------------------------- | --------------------------------------------------- |
+| `pnpm build`                                 | Build all Nx TS targets                             |
+| `pnpm test`                                  | JS unit tests + `cargo test --workspace`            |
+| `pnpm test:js` / `pnpm test:rust`            | Stack-split tests                                   |
+| `pnpm test:e2e:harness`                      | Vitest E2E harness (`apps/e2e`)                     |
+| `pnpm test:coverage`                         | TS + Rust coverage (slow; also nightly CI)          |
+| `pnpm typecheck`                             | TS typecheck + Rust `check` via Nx                  |
+| `pnpm lint` / `pnpm lint:check`              | oxlint + ESLint + Rust + markdownlint               |
+| `pnpm format` / `pnpm format:check`          | oxfmt write / CI check                              |
+| `pnpm validate:changed`                      | Narrow local gate on git changes                    |
+| `pnpm validate:staged`                       | Same, staged only                                   |
+| `pnpm validate:full`                         | Full local confidence before PR                     |
+| `pnpm docs:check`                            | Docs metadata, links, APS, ADR, indexes             |
+| `pnpm docs:index`                            | Regenerate `docs/indexes/`                          |
+| `pnpm aps:index`                             | Refresh APS `N/M` counts                            |
+| `pnpm aps:index:check`                       | Fail if stored counts drift                         |
+| `pnpm aps:active-lint`                       | Lint active APS modules                             |
+| `pnpm aps:drift`                             | APS drift check                                     |
+| `pnpm adr:check`                             | ADR index integrity                                 |
+| `pnpm release-plan:check`                    | `RELEASE-PLAN.md` shape                             |
+| `pnpm bench`                                 | Kernel / resource bench harness                     |
+| `pnpm ci-log:status` / `pnpm ci-log:harvest` | Continuous-improvement log                          |
+| `pnpm agent:run`                             | Local agent-run helper (`tools/local-agent-run.sh`) |
+| `pnpm licenses:verify`                       | Third-party acknowledgements freshness              |
 
 ### Runbooks worth bookmarking
 
-| Runbook | When |
-| ------- | ---- |
-| [admin-cli](docs/runbooks/admin-cli.md) | Waitlist, invite, revoke, audit, admin key |
-| [cli-surface](docs/runbooks/cli-surface.md) | Full `anvil` command catalogue |
-| [anvil-home-side-by-side](docs/runbooks/anvil-home-side-by-side.md) | Candidate install root |
-| [anvil-hook-coexistence](docs/runbooks/anvil-hook-coexistence.md) | Hooks + Husky / config-mode |
-| [anvil-witness-chain](docs/runbooks/anvil-witness-chain.md) | Witness break / doctor |
-| [github-device-flow](docs/runbooks/github-device-flow.md) | Auth login troubleshooting |
-| [release-runbook](docs/runbooks/release-runbook.md) | Cut a release |
-| [post-deploy-smoke-check](docs/runbooks/post-deploy-smoke-check.md) | After deploy |
-| [emergency-hotfix](docs/runbooks/emergency-hotfix.md) | Hotfix path |
-| [secret-rotation](docs/runbooks/secret-rotation.md) | Rotate CI/prod secrets |
-| [waitlist-email-operations](docs/runbooks/waitlist-email-operations.md) | Email / Resend ops |
+| Runbook                                                                 | When                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------ |
+| [admin-cli](docs/runbooks/admin-cli.md)                                 | Waitlist, invite, revoke, audit, admin key |
+| [cli-surface](docs/runbooks/cli-surface.md)                             | Full `anvil` command catalogue             |
+| [anvil-home-side-by-side](docs/runbooks/anvil-home-side-by-side.md)     | Candidate install root                     |
+| [anvil-hook-coexistence](docs/runbooks/anvil-hook-coexistence.md)       | Hooks + Husky / config-mode                |
+| [anvil-witness-chain](docs/runbooks/anvil-witness-chain.md)             | Witness break / doctor                     |
+| [github-device-flow](docs/runbooks/github-device-flow.md)               | Auth login troubleshooting                 |
+| [release-runbook](docs/runbooks/release-runbook.md)                     | Cut a release                              |
+| [post-deploy-smoke-check](docs/runbooks/post-deploy-smoke-check.md)     | After deploy                               |
+| [emergency-hotfix](docs/runbooks/emergency-hotfix.md)                   | Hotfix path                                |
+| [secret-rotation](docs/runbooks/secret-rotation.md)                     | Rotate CI/prod secrets                     |
+| [waitlist-email-operations](docs/runbooks/waitlist-email-operations.md) | Email / Resend ops                         |
 
 ### Iterate / open a branch
 
@@ -429,25 +432,25 @@ binary — quit the IDE / stop `anvil mcp serve`, then re-run the installer or
 
 ## Related repos
 
-| Repo | Purpose |
-| ---- | ------- |
-| [`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm) | GTM, positioning, competitive radar, marketing bench write-ups |
-| [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Brand and design system |
-| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) | APS format used in `plans/` |
+| Repo                                                                          | Purpose                                                        |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [`eddacraft/eddacraft-gtm`](https://github.com/eddacraft/eddacraft-gtm)       | GTM, positioning, competitive radar, marketing bench write-ups |
+| [`eddacraft/brand-and-design`](https://github.com/eddacraft/brand-and-design) | Brand and design system                                        |
+| [`eddacraft/anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec)   | APS format used in `plans/`                                    |
 
 ---
 
 ## Docs map
 
-| Audience | Start here |
-| -------- | ---------- |
-| New users | [Quick Start](./docs/public/anvil/quickstart.md) |
-| This monorepo (you / agents) | [`CONTEXT.md`](./CONTEXT.md) → [`AGENTS.md`](./AGENTS.md) |
-| Contributors | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
-| Operators / release | [Release runbook](./docs/runbooks/release-runbook.md), [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) |
-| Architecture | [Overview](./docs/architecture/overview.md) |
-| Planners | [`plans/index.aps.md`](./plans/index.aps.md) |
-| Everything else | [`docs/indexes/README.md`](./docs/indexes/README.md) |
+| Audience                     | Start here                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------- |
+| New users                    | [Quick Start](./docs/public/anvil/quickstart.md)                                              |
+| This monorepo (you / agents) | [`CONTEXT.md`](./CONTEXT.md) → [`AGENTS.md`](./AGENTS.md)                                     |
+| Contributors                 | [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                                        |
+| Operators / release          | [Release runbook](./docs/runbooks/release-runbook.md), [`RELEASE-PLAN.md`](./RELEASE-PLAN.md) |
+| Architecture                 | [Overview](./docs/architecture/overview.md)                                                   |
+| Planners                     | [`plans/index.aps.md`](./plans/index.aps.md)                                                  |
+| Everything else              | [`docs/indexes/README.md`](./docs/indexes/README.md)                                          |
 
 Generated indexes stay current via `pnpm docs:index`. Do not invent parallel
 module lists — `plans/index.aps.md` is the only work index.
@@ -456,20 +459,20 @@ module lists — `plans/index.aps.md` is the only work index.
 
 ## CI at a glance
 
-| Workflow | Role |
-| -------- | ---- |
-| `ci.yml` | PR/main TypeScript gates, docs, E2E harness |
-| `rust.yml` | clippy, tests, fmt, OPA, cross-platform smoke |
-| `ci-nightly.yml` | coverage + Node matrix (coverage is not a PR merge gate) |
-| `release.yml` + readiness/sign/homebrew | cargo-dist publish on `v*` tags |
-| `security.yml` / `codeql.yml` | audits and static analysis |
-| `bench.yml` / `bench-nightly.yml` | kernel benches |
+| Workflow                                | Role                                                     |
+| --------------------------------------- | -------------------------------------------------------- |
+| `ci.yml`                                | PR/main TypeScript gates, docs, E2E harness              |
+| `rust.yml`                              | clippy, tests, fmt, OPA, cross-platform smoke            |
+| `ci-nightly.yml`                        | coverage + Node matrix (coverage is not a PR merge gate) |
+| `release.yml` + readiness/sign/homebrew | cargo-dist publish on `v*` tags                          |
+| `security.yml` / `codeql.yml`           | audits and static analysis                               |
+| `bench.yml` / `bench-nightly.yml`       | kernel benches                                           |
 
 Reusable check action: `.github/actions/anvil-check/`.
 
-Deploy surfaces (docs, website, API) ship via Vercel on `main`; the CLI ships via
-GitHub Releases (macOS/Linux/Windows x86_64 + aarch64 where cargo-dist supports
-the target). Detail lives in the workflows under `.github/workflows/`.
+Deploy surfaces (docs, website, API) ship via Vercel on `main`; the CLI ships
+via GitHub Releases (macOS/Linux/Windows x86_64 + aarch64 where cargo-dist
+supports the target). Detail lives in the workflows under `.github/workflows/`.
 
 ---
 
@@ -480,4 +483,5 @@ the target). Detail lives in the workflows under `.github/workflows/`.
 - **Zod-first** schemas where TS packages expose contracts
 - **Tests co-located** (`file.ts` + `file.test.ts`)
 - Multi-step work uses **APS**; implementation on Worktrunk branches from `main`
-- **Local secrets** go through **agent-vault**, not plain commits or agent Read/Write
+- **Local secrets** go through **agent-vault**, not plain commits or agent
+  Read/Write
