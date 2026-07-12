@@ -34,6 +34,7 @@ members = [
   "crates/anvil-l4",
   "crates/anvil-architecture",
   "crates/anvil-attribution",
+  "crates/anvil-dashboard-server",
   "crates/eddacraft-tui",
   "crates/workspace-hack",
 ]
@@ -45,6 +46,10 @@ license = "LicenseRef-Proprietary"
 repository = "https://github.com/eddacraft/anvil-001"
 
 [workspace.dependencies]
+# Local HTTP surfaces
+axum = "0.8"
+tower = "0.5"
+
 # Parsing
 tree-sitter = "0.26"
 tree-sitter-typescript = "0.23"

@@ -76,11 +76,37 @@ impl WorkspaceAnchor {
     pub fn read_rel(&self, rel: &str) -> io::Result<Vec<u8>> {
         #[cfg(unix)]
         {
+            self.read_rel_capped(rel, crate::path_safety::MAX_GUARDED_READ_BYTES)
+        }
+        #[cfg(windows)]
+        {
+            self.read_rel_capped(
+                rel,
+                anvil_intercept_win32::read_safety::MAX_GUARDED_READ_BYTES,
+            )
+        }
+    }
+
+    /// Read `rel` beneath the held workspace anchor, refusing any symlink,
+    /// reparse, or structural escape and refusing input larger than
+    /// `max_bytes`.
+    ///
+    /// The limit is enforced while reading the already-guarded handle, so a
+    /// consumer can apply a smaller capability-specific allocation ceiling
+    /// without weakening workspace containment. Oversized input is refused,
+    /// never returned as a truncated prefix.
+    ///
+    /// # Errors
+    /// Returns the same path/open errors as [`Self::read_rel`], or
+    /// [`io::ErrorKind::FileTooLarge`] when the file exceeds `max_bytes`.
+    pub fn read_rel_capped(&self, rel: &str, max_bytes: u64) -> io::Result<Vec<u8>> {
+        #[cfg(unix)]
+        {
             use std::os::fd::AsFd;
             let parsed = crate::path_safety::normalise_rel(rel).map_err(|escape| {
                 io::Error::new(io::ErrorKind::InvalidInput, format!("{escape:?}"))
             })?;
-            crate::path_safety::read_under(self.dirfd.as_fd(), &parsed)
+            crate::path_safety::read_under_capped(self.dirfd.as_fd(), &parsed, max_bytes)
         }
         #[cfg(windows)]
         {
@@ -88,7 +114,7 @@ impl WorkspaceAnchor {
                 anvil_intercept_win32::read_safety::normalise_rel(rel).map_err(|escape| {
                     io::Error::new(io::ErrorKind::InvalidInput, format!("{escape:?}"))
                 })?;
-            anvil_intercept_win32::read_safety::read_under(&self.dir, &parsed)
+            anvil_intercept_win32::read_safety::read_under_capped(&self.dir, &parsed, max_bytes)
         }
     }
 }
@@ -108,6 +134,25 @@ mod tests {
         assert_eq!(
             anchor.read_rel("src/lib.rs").expect("read"),
             b"fn main() {}"
+        );
+    }
+
+    #[test]
+    fn caller_limit_is_enforced_before_returning_guarded_bytes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(tmp.path().join("ten.bin"), b"0123456789").expect("write 10 bytes");
+        let anchor = WorkspaceAnchor::open(tmp.path()).expect("open anchor");
+
+        let err = anchor
+            .read_rel_capped("ten.bin", 5)
+            .expect_err("a guarded read over the caller limit must be refused");
+
+        assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
+        assert_eq!(
+            anchor
+                .read_rel_capped("ten.bin", 10)
+                .expect("exact-limit read"),
+            b"0123456789"
         );
     }
 

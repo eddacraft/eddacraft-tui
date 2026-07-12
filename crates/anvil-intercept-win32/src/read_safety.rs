@@ -293,6 +293,24 @@ impl Drop for OwnedHandle {
 /// an over-ceiling file is `ErrorKind::FileTooLarge`; any other open/read
 /// failure surfaces its own error.
 pub fn read_under(dir: &WorkspaceDir, rel: &WinRelPath) -> io::Result<Vec<u8>> {
+    read_under_capped(dir, rel, MAX_GUARDED_READ_BYTES)
+}
+
+/// Read the full bytes of `rel` beneath `dir`, refusing reparse traversal and
+/// input larger than the caller-provided `max_bytes`.
+///
+/// The limit is enforced on the already-guarded file handle. At most
+/// `max_bytes + 1` bytes are observed to distinguish an exact-limit file from an
+/// oversized one; oversized input is refused rather than truncated.
+///
+/// # Errors
+/// Returns the same path/open errors as [`read_under`], or
+/// [`ErrorKind::FileTooLarge`] when the file exceeds `max_bytes`.
+pub fn read_under_capped(
+    dir: &WorkspaceDir,
+    rel: &WinRelPath,
+    max_bytes: u64,
+) -> io::Result<Vec<u8>> {
     let (last, parents) = rel
         .components
         .split_last()
@@ -311,7 +329,7 @@ pub fn read_under(dir: &WorkspaceDir, rel: &WinRelPath) -> io::Result<Vec<u8>> {
 
     let anchor = current.as_ref().map_or_else(|| dir.raw(), |h| h.0);
     let file = OwnedHandle(nt_open_at(anchor, last, false)?);
-    read_handle_capped(file.0, MAX_GUARDED_READ_BYTES)
+    read_handle_capped(file.0, max_bytes)
 }
 
 /// Open a single path `component` relative to `parent`, refusing a reparse point
@@ -389,18 +407,28 @@ fn nt_open_at(parent: HANDLE, component: &str, directory: bool) -> io::Result<HA
 /// past the ceiling: a file over it is refused (`FileTooLarge`), never truncated
 /// to a wrong, hashable prefix (B2).
 fn read_handle_capped(handle: HANDLE, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let probe_bytes = max_bytes.checked_add(1).ok_or_else(|| {
+        io::Error::new(
+            ErrorKind::InvalidInput,
+            "guarded-read ceiling must be less than u64::MAX",
+        )
+    })?;
     let mut buf: Vec<u8> = Vec::new();
     let mut chunk = [0u8; 64 * 1024];
     loop {
+        let remaining_probe = probe_bytes - buf.len() as u64;
+        let request_bytes = remaining_probe.min(chunk.len() as u64) as u32;
         let mut read: u32 = 0;
         // SAFETY: `handle` is a live read handle; `chunk` is a valid mutable
-        // buffer of `len` bytes; `&mut read` is a valid out parameter; null
-        // OVERLAPPED matches the synchronous handle.
+        // buffer of `request_bytes`; `&mut read` is a valid out parameter; null
+        // OVERLAPPED matches the synchronous handle. Limiting each request to
+        // the remaining `max_bytes + 1` probe budget means oversized input is
+        // detected without reading or allocating beyond that boundary.
         let ok = unsafe {
             ReadFile(
                 handle,
                 chunk.as_mut_ptr(),
-                chunk.len() as u32,
+                request_bytes,
                 &mut read,
                 null_mut(),
             )
@@ -685,5 +713,22 @@ mod tests {
         let f = open();
         let err = read_handle_capped(f.as_raw_handle() as HANDLE, 5).expect_err("over-cap refused");
         assert_eq!(err.kind(), ErrorKind::FileTooLarge);
+    }
+
+    #[test]
+    fn read_under_capped_enforces_the_caller_limit_on_the_guarded_handle() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(tmp.path().join("ten.bin"), b"0123456789").expect("write 10 bytes");
+        let dir = WorkspaceDir::open(tmp.path()).expect("open root");
+        let rel = normalise_rel("ten.bin").expect("normalise path");
+
+        let err = read_under_capped(&dir, &rel, 5)
+            .expect_err("a guarded read over the caller limit must be refused");
+
+        assert_eq!(err.kind(), ErrorKind::FileTooLarge);
+        assert_eq!(
+            read_under_capped(&dir, &rel, 10).expect("exact-limit read"),
+            b"0123456789"
+        );
     }
 }

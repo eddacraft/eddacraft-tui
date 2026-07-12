@@ -212,9 +212,28 @@ pub fn open_workspace_dir_for_fsync(dir: &Path) -> io::Result<OwnedFd> {
 /// under `RESOLVE_BENEATH`) is not observable here: [`normalise_rel`], a
 /// precondition of constructing a [`RelPath`], rejects those before any read.
 pub fn read_under(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>> {
+    read_under_capped(dirfd, rel, MAX_GUARDED_READ_BYTES)
+}
+
+/// Read the full bytes of `rel` beneath `dirfd`, refusing symlink/escape
+/// resolution and refusing input larger than the caller-provided `max_bytes`.
+///
+/// This is the capability-facing form of [`read_under`]: consumers with a
+/// smaller artefact budget can apply it while retaining the same held-handle
+/// containment. The read buffers at most `max_bytes + 1` bytes so an oversized
+/// file is detected and refused rather than truncated.
+///
+/// # Errors
+/// Returns the same path/open errors as [`read_under`], or
+/// [`io::ErrorKind::FileTooLarge`] when the file exceeds `max_bytes`.
+pub fn read_under_capped(
+    dirfd: BorrowedFd<'_>,
+    rel: &RelPath,
+    max_bytes: u64,
+) -> io::Result<Vec<u8>> {
     #[cfg(target_os = "linux")]
     {
-        match read_under_openat2(dirfd, rel) {
+        match read_under_openat2(dirfd, rel, max_bytes) {
             // `openat2` unavailable: ENOSYS on old kernels, EPERM when a
             // seccomp filter rejects the unknown syscall. Both mean "syscall
             // absent", not "this path is forbidden" — fall back to the ladder.
@@ -224,26 +243,26 @@ pub fn read_under(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>> {
                     Some(code) if code == Errno::ENOSYS as i32 || code == Errno::EPERM as i32
                 ) =>
             {
-                read_under_ladder(dirfd, rel)
+                read_under_ladder_capped(dirfd, rel, max_bytes)
             }
             other => other,
         }
     }
     #[cfg(not(target_os = "linux"))]
     {
-        read_under_ladder(dirfd, rel)
+        read_under_ladder_capped(dirfd, rel, max_bytes)
     }
 }
 
 #[cfg(target_os = "linux")]
-fn read_under_openat2(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>> {
+fn read_under_openat2(dirfd: BorrowedFd<'_>, rel: &RelPath, max_bytes: u64) -> io::Result<Vec<u8>> {
     use nix::fcntl::{OpenHow, ResolveFlag, openat2};
 
     let how = OpenHow::new()
         .flags(OFlag::O_RDONLY | OFlag::O_CLOEXEC)
         .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH);
     let fd = openat2(dirfd, rel.as_str(), how).map_err(io::Error::from)?;
-    read_fd_to_end(fd)
+    read_fd_capped(fd, max_bytes)
 }
 
 /// Fallback for kernels/platforms without `openat2`: walk one component at a
@@ -257,7 +276,16 @@ fn read_under_openat2(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8
 /// same-uid writer could swap a real (non-symlink) intermediate directory.
 /// That window is in-model — the trust boundary is `SO_PEERCRED` same-uid
 /// (contract §4) — and only reachable on pre-5.6 Linux / non-Linux.
+#[cfg(test)]
 fn read_under_ladder(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>> {
+    read_under_ladder_capped(dirfd, rel, MAX_GUARDED_READ_BYTES)
+}
+
+fn read_under_ladder_capped(
+    dirfd: BorrowedFd<'_>,
+    rel: &RelPath,
+    max_bytes: u64,
+) -> io::Result<Vec<u8>> {
     // Intermediate directory hops are opened WITHOUT `O_PATH`: with `O_PATH`,
     // `O_NOFOLLOW` on a symlink succeeds (it returns a handle to the symlink
     // itself) instead of failing `ELOOP`, which would defeat the per-hop
@@ -288,7 +316,7 @@ fn read_under_ladder(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>
         Mode::empty(),
     )
     .map_err(io::Error::from)?;
-    read_fd_to_end(file_fd)
+    read_fd_capped(file_fd, max_bytes)
 }
 
 /// Hard upper bound on the bytes [`read_under`] will buffer for one file — the
@@ -305,10 +333,6 @@ fn read_under_ladder(dirfd: BorrowedFd<'_>, rel: &RelPath) -> io::Result<Vec<u8>
 /// ceiling only ever trips on pathological input.
 pub const MAX_GUARDED_READ_BYTES: u64 = 64 * 1024 * 1024;
 
-fn read_fd_to_end(fd: OwnedFd) -> io::Result<Vec<u8>> {
-    read_fd_capped(fd, MAX_GUARDED_READ_BYTES)
-}
-
 /// Read at most `max_bytes` of `fd`, refusing a file that delivers more.
 ///
 /// The allocation is bounded to `max_bytes + 1`: a file over the ceiling is
@@ -317,9 +341,15 @@ fn read_fd_to_end(fd: OwnedFd) -> io::Result<Vec<u8>> {
 /// disk. The `+ 1` distinguishes "exactly at the ceiling" (allowed) from "over
 /// it" (refused) without a separate fstat that could race the read.
 fn read_fd_capped(fd: OwnedFd, max_bytes: u64) -> io::Result<Vec<u8>> {
+    let probe_bytes = max_bytes.checked_add(1).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "guarded-read ceiling must be less than u64::MAX",
+        )
+    })?;
     let file = File::from(fd);
     let mut buf = Vec::new();
-    let read = file.take(max_bytes + 1).read_to_end(&mut buf)?;
+    let read = file.take(probe_bytes).read_to_end(&mut buf)?;
     if read as u64 > max_bytes {
         return Err(io::Error::new(
             io::ErrorKind::FileTooLarge,
@@ -355,6 +385,23 @@ mod tests {
         // Over the cap: refused with FileTooLarge, never a truncated prefix.
         let err = read_fd_capped(open(), 5).expect_err("over-cap refused");
         assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
+    }
+
+    #[test]
+    fn read_under_capped_enforces_the_caller_limit_on_the_guarded_handle() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(tmp.path().join("ten.bin"), b"0123456789").expect("write 10 bytes");
+        let dirfd = open_workspace_dirfd(tmp.path()).expect("open root");
+        let rel = normalise_rel("ten.bin").expect("normalise path");
+
+        let err = read_under_capped(dirfd.as_fd(), &rel, 5)
+            .expect_err("a guarded read over the caller limit must be refused");
+
+        assert_eq!(err.kind(), io::ErrorKind::FileTooLarge);
+        assert_eq!(
+            read_under_capped(dirfd.as_fd(), &rel, 10).expect("exact-limit read"),
+            b"0123456789"
+        );
     }
 
     // ---- normalise_rel ----

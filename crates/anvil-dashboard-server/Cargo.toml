@@ -1,0 +1,43 @@
+[package]
+name = "eddacraft-anvil-dashboard-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Loopback-only read API for the Anvil dashboard"
+
+[lib]
+name = "anvil_dashboard_server"
+
+[[bin]]
+name = "anvil-dashboard-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "export-openapi"
+path = "src/bin/export_openapi.rs"
+
+[dependencies]
+anvil-intercept = { path = "../anvil-intercept", package = "eddacraft-anvil-intercept" }
+anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-run = { path = "../anvil-run", package = "eddacraft-anvil-run" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+workspace-hack.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+
+[lints]
+workspace = true

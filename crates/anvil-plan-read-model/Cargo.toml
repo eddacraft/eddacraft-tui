@@ -1,0 +1,17 @@
+[package]
+name = "eddacraft-anvil-plan-read-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Pure APS plan read model shared by Anvil presentation adapters"
+
+[lib]
+name = "anvil_plan_read_model"
+
+[dependencies]
+serde = { workspace = true }
+workspace-hack.workspace = true
+
+[lints]
+workspace = true

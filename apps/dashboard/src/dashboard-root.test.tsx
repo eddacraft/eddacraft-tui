@@ -55,7 +55,7 @@ describe('dashboard app host', () => {
     expect(skipLink?.textContent).toBe('Skip to dashboard content');
   });
 
-  it('renders a truthful empty state until protection data is connected', async () => {
+  it('renders deterministic local protection data without scaffold placeholders', async () => {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -64,9 +64,46 @@ describe('dashboard app host', () => {
       root?.render(<DashboardApp />);
     });
 
-    expect(container.textContent).toContain('No protection data connected');
-    expect(container.textContent).not.toContain('Save-time status');
+    expect(container.textContent).toContain('2025-05-28 14:32:07');
+    expect(container.textContent).toContain('hardcoded-api-key');
+    expect(container.textContent).not.toContain('No protection data connected');
     expect(container.textContent).not.toContain('Pending API');
     expect(container.textContent).not.toContain('Read-only Wave 1');
+  });
+
+  it('renders the protection workspace as labelled operational regions', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    expect(container.textContent).toContain('Save-time protection active');
+    expect(container.textContent).toContain('Next attention');
+    expect(container.textContent).toContain('Evidence inspector');
+    expect(container.textContent).toContain('Affected files (6)');
+    expect(container.querySelectorAll('table')).toHaveLength(3);
+    expect(container.querySelectorAll('caption')).toHaveLength(3);
+    expect(container.querySelector('[aria-labelledby="protection-summary-title"]')).not.toBeNull();
+  });
+
+  it('provides sibling desktop and mobile navigation surfaces', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    expect(container.querySelector('[data-desktop-sidebar]')).not.toBeNull();
+    expect(container.querySelector('[data-mobile-header]')).not.toBeNull();
+    expect(container.querySelector('[data-mobile-bottom-nav]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Search dashboard"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="Open navigation"]')).not.toBeNull();
+    expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Runs');
+    expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Warnings (12)');
   });
 });
