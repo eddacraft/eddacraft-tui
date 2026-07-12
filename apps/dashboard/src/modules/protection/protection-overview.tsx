@@ -15,27 +15,44 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProtectionOverview } from '@/hooks/use-protection-overview';
+import type { DashboardSearch } from '@/lib/search-params';
 import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
 import { ProtectionSummary } from '@/modules/protection/protection-summary';
 
 type Overview = components['schemas']['ProtectionOverview'];
+type ProtectionView = DashboardSearch['view'];
+type SeverityFilter = DashboardSearch['severity'];
+
+const severityOptions: readonly SeverityFilter[] = ['all', 'high', 'medium', 'low'];
 
 export function ProtectionOverviewContent({
   overview,
   initialEvidence,
   onEvidenceChange,
+  onSeverityChange,
+  onViewChange,
+  severity = 'all',
+  view = 'runs',
 }: {
   overview: Overview;
   initialEvidence?: string;
   onEvidenceChange?: (id: string) => void;
+  onSeverityChange?: (severity: SeverityFilter) => void;
+  onViewChange?: (view: ProtectionView) => void;
+  severity?: SeverityFilter;
+  view?: ProtectionView;
 }) {
   const [selectedId, setSelectedId] = useState(
     initialEvidence ?? overview.next_attention?.evidence_id ?? overview.warnings[0]?.id
   );
+  const filteredWarnings =
+    severity === 'all'
+      ? overview.warnings
+      : overview.warnings.filter((warning) => warning.severity === severity);
   const selected =
-    overview.warnings.find(
+    filteredWarnings.find(
       (warning) => warning.id === selectedId || warning.evidence_id === selectedId
-    ) ?? overview.warnings[0];
+    ) ?? filteredWarnings[0];
   const select = (id: string) => {
     setSelectedId(id);
     onEvidenceChange?.(id);
@@ -82,7 +99,13 @@ export function ProtectionOverviewContent({
         warning={selected}
       />
       <div className="protection-grid">
-        <Tabs className="protection-tabs" defaultValue="runs">
+        <Tabs
+          className="protection-tabs"
+          onValueChange={(nextView) => {
+            if (nextView === 'runs' || nextView === 'warnings') onViewChange?.(nextView);
+          }}
+          value={view}
+        >
           <TabsList
             aria-label="Protection activity"
             className="protection-tabs-list"
@@ -120,12 +143,28 @@ export function ProtectionOverviewContent({
               </TableBody>
             </Table>
           </TabsContent>
-          <TabsContent className="panel activity-panel" forceMount value="warnings">
+          <TabsContent className="panel activity-panel warnings-panel" forceMount value="warnings">
             <header className="panel-header">
               <div>
-                <h2>Active warnings ({overview.warnings.length})</h2>
+                <h2>Active warnings ({filteredWarnings.length})</h2>
                 <p>Ordered by severity and recency</p>
               </div>
+              <label className="severity-filter">
+                <span>Severity</span>
+                <select
+                  aria-label="Filter warnings by severity"
+                  onChange={(event) =>
+                    onSeverityChange?.(event.currentTarget.value as SeverityFilter)
+                  }
+                  value={severity}
+                >
+                  {severityOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'all' ? 'All' : option.charAt(0).toUpperCase() + option.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </header>
             <Table className="operations-table">
               <TableHeader>
@@ -137,7 +176,7 @@ export function ProtectionOverviewContent({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {overview.warnings.map((warning) => (
+                {filteredWarnings.map((warning) => (
                   <TableRow
                     data-selected={warning.id === selected?.id || undefined}
                     key={warning.id}
@@ -218,7 +257,13 @@ export function ProtectionOverview() {
           onEvidenceChange={(evidence) =>
             void navigate({ search: (previous) => ({ ...previous, evidence, view: 'warnings' }) })
           }
+          onSeverityChange={(severity) =>
+            void navigate({ search: (previous) => ({ ...previous, severity }) })
+          }
+          onViewChange={(view) => void navigate({ search: (previous) => ({ ...previous, view }) })}
           overview={overview}
+          severity={search.severity}
+          view={search.view}
         />
       )}
     </QueryBoundary>

@@ -714,6 +714,30 @@ kbd {
   color: var(--orange);
 }
 
+.severity-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.54rem;
+}
+
+.severity-filter select {
+  height: 1.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.32rem;
+  background: var(--panel);
+  color: var(--foreground);
+  font: inherit;
+  padding: 0 1.45rem 0 0.45rem;
+}
+
+.severity-filter select:focus-visible {
+  border-color: var(--blue);
+  outline: 2px solid color-mix(in srgb, var(--blue) 45%, transparent);
+  outline-offset: 1px;
+}
+
 [data-slot='table-container'] {
   scrollbar-color: var(--border-strong) var(--panel);
   scrollbar-width: thin;
@@ -1480,6 +1504,17 @@ kbd {
   }
 
   .activity-panel .panel-header {
+    display: none;
+  }
+
+  .warnings-panel .panel-header {
+    display: flex;
+    min-height: 2.3rem;
+    justify-content: flex-end;
+    padding-block: 0.3rem;
+  }
+
+  .warnings-panel .panel-header > div:first-child {
     display: none;
   }
 

@@ -15,6 +15,7 @@ afterEach(() => {
   }
 
   container?.remove();
+  window.history.replaceState(null, '', '/');
   root = null;
   container = null;
 });
@@ -131,5 +132,33 @@ describe('dashboard app host', () => {
       await new Promise((next) => setTimeout(next, 20));
     });
     expect(container.textContent).toContain('Plan Driver');
+  });
+
+  it('restores protection filters from the URL and writes filter navigation back', async () => {
+    window.history.replaceState(null, '', '/?view=warnings&severity=high');
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toContain(
+      'Warnings'
+    );
+    const severityFilter = container.querySelector<HTMLSelectElement>(
+      'select[aria-label="Filter warnings by severity"]'
+    );
+    expect(severityFilter?.value).toBe('high');
+
+    await act(async () => {
+      if (!severityFilter) return;
+      severityFilter.value = 'medium';
+      severityFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((next) => setTimeout(next, 0));
+    });
+
+    expect(new URLSearchParams(window.location.search).get('severity')).toBe('medium');
   });
 });
