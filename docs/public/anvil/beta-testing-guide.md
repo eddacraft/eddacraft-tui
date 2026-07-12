@@ -30,7 +30,7 @@ If you only have a short session, these are the right places to spend it.
 
 - **First win on your own code.** Run `anvil welcome` on a real repo. Confirm it
   lands on a real local finding (or an honest clean result), shows a one-line
-  preview before writing, and requires explicit consent before apply. Decline
+  preview before writing, and requires explicit consent before applying. Decline
   once and confirm you return to the path picker without a write.
 - **Quiet repeat `anvil start`.** On an already-activated healthy repo, confirm
   a second `anvil start` collapses to protection state + one next step rather
