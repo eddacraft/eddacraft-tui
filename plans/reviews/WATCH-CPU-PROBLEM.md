@@ -186,7 +186,7 @@ tipping point before a tester does, and prove a fix actually moved it.
 
 ## 8. How GV2 (the five graphs) relates to cold start
 
-GV2 (`plans/archive/modules/graph-v2-foundation.aps.md`, Draft) is a deliberately
+GV2 (`plans/archive/modules/graph-v2-foundation.aps.md`) is a deliberately
 **"multiple joined graphs, not one mega-graph"** design (`:32`). It's the natural
 home for the *warm substrate* that would kill cold-start construction (§4.1) —
 but only graphs 1–2 (and partly 3) touch the per-save hot path; 4–5 are
