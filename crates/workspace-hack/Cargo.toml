@@ -28,6 +28,7 @@ form_urlencoded = { version = "1" }
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = { version = "0.3" }
 futures-sink = { version = "0.3" }
+futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 globset = { version = "0.4", features = ["simd-accel"] }
@@ -57,6 +58,7 @@ serde_json = { version = "1", features = ["alloc", "preserve_order", "raw_value"
 slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new"] }
 strum = { version = "0.28", default-features = false, features = ["derive", "std"] }
+sync_wrapper = { version = "1", default-features = false, features = ["futures"] }
 textwrap = { version = "0.16" }
 thiserror = { version = "2" }
 tokio = { version = "1", features = ["full"] }
