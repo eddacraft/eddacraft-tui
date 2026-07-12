@@ -47,7 +47,7 @@ nothing else.
   operator's scope confirmation**). Scoped from what is `Ready` today: the DASH
   dashboard-foundation wave (the team-lead browser surface, Horizon 2) plus the
   `v0.9.x` follow-through patch lane and the v0.9 closeout hygiene. Records for
-  `v0.6.x`–`v0.9.0` are in [`plans/releases/`](./plans/releases/).
+  `v0.6.x`–`v0.9.x` are in [`plans/releases/`](./plans/releases/).
 
 ---
 
