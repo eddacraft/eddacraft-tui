@@ -9,66 +9,138 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
-## Unreleased — daemon lifecycle for `anvil start` / `anvil watch`
+## Upgrading to 0.9.0-beta
 
-No config migration and no protection-claim vocabulary change. The behavioural
-change is that daemon-backed save-time validation is now the normal path:
+Upgrade from `0.8.x-beta` (or earlier) with the installer, package manager, or
+`anvil update`. There is no config-file schema migration and no protection-claim
+vocabulary change, but several **behavioural** contracts moved — read the
+action-required list before scripting against the new cut.
+
+```bash
+# Upgrade via the installer (Homebrew-aware)
+sh <(curl -fsSL https://install.eddacraft.ai)
+
+# Or via the built-in updater
+anvil update
+
+# Or via Homebrew
+brew upgrade eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell installer)
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via WinGet
+winget upgrade --id eddacraft.anvil
+
+# Or via Scoop
+scoop update anvil
+```
+
+### What's new in 0.9.0-beta
+
+- **First win on your own code** via `anvil welcome` (consent-gated local fix
+  preview), quiet repeat `anvil start`, shareable `anvil insights --share`
+  scorecard, and consent-first install pickers (every candidate starts
+  unticked).
+- **Assistant graph context over MCP** — identity-only graph tools and
+  `graph://` resources; source snippets require operator egress consent and a
+  per-request opt-in. See the [MCP integration guide](../integrations/mcp.md).
+- **Python project support** and **infrastructure-hygiene** gate surfaces
+  (Dockerfiles, GitHub Actions, shell scripts, SQL migrations — default-on,
+  flag-gated).
+- **Warm-graph persistence default-on** and **daemon lifecycle** for interactive
+  `anvil start` / `anvil watch` (Linux and macOS). Details below.
+
+Full customer-facing notes live in the
+[changelog](changelog.md#090-beta--2026-07-12--first-run-wins-and-the-assistant-graph).
+
+### Action required
+
+1. **Auth-required action commands now exit `3` (breaking for scripts).** When
+   you are not logged in, gated _action_ commands — `anvil start`, `init`,
+   `watch`, `gate`, `check`, `audit`, and siblings — exit `3` (authentication
+   required) instead of `0`. The human message and the `--json` `authRequired`
+   envelope shape are unchanged; only the exit code moved. Read-only
+   `anvil status` and the `whoami` / `auth whoami` probes keep their prior
+   contracts. If a script relied on exit `0` at the auth wall, gate on the
+   explicit exit code or authenticate first.
+
+2. **Interactive install pickers no longer pre-select.** Every workflow and MCP
+   picker candidate starts unticked. Tick what you want (space), then apply.
+   Enter with nothing ticked writes nothing. Non-interactive / CI auto-install
+   is unchanged.
+
+3. **Warm-graph persistence is default-on.** The save-time daemon persists and
+   warm-restarts its resident graph by default (previously opt-in via
+   `ANVIL_PERSIST_GRAPH`; graduated after the GBASE-010 gate, ADR-105).
+   - **What it writes:** identity-only sealed snapshots — symbol names,
+     import/path identity, edges, and content hashes for boundary checks. It
+     **never** persists source text, snippets, or comments. Files are
+     machine-local, `0600`, under a `0700` state dir.
+   - **Where:** `graph-cache/base` under the state dir — one write-once artefact
+     per repository per merge-base commit, with cheap per-worktree overlays.
+   - **First run after upgrade:** pays a single cold rebuild per repository
+     (snapshot format moved), then restarts warm from the shared base.
+   - **Rollback:** set **`ANVIL_PERSIST_GRAPH=0` in the daemon's spawn
+     environment** (not merely `~/.bashrc` / `~/.zshrc` — those do not reach a
+     systemd-user- or IDE-launched daemon). For `systemd --user`, use
+     `systemctl --user set-environment ANVIL_PERSIST_GRAPH=0` (or an
+     `Environment=` line) and restart the daemon. Toggling off does not delete
+     existing snapshots.
+   - **Disk pressure:** `anvil graph-base gc` (or `--purge-all`). Deleting under
+     `graph-cache/` by hand is also safe — the daemon cold-rebuilds.
+   - **Failure posture:** all persistence failure is non-fatal.
+
+4. **Policy exception grants count only when committed (ADR-100).** L4 gates
+   (`pre-push`, `anvil l4-validate`, audit-chain rescans) read
+   `anvil/exceptions/store.json` from the tree of the commit being validated —
+   never from the working tree. Grant, commit the store, then push. The legacy
+   `.anvil/exceptions.json` never influences gates; run
+   `anvil exception migrate` and commit the tracked store.
+
+5. **Allowlist confinement is exact-match only.** In `allowlist` mode the
+   intercept daemon admits **exactly** the roots you add with
+   `anvil workspace allow`, and nothing else (including no implicit primary
+   check-in root). An empty allow-list admits no roots. If you use allowlist
+   mode, add the roots you want served before upgrading. Default `open` mode is
+   unchanged. See
+   [workspace confinement](../operations/config.md#workspace-confinement).
+
+### Daemon lifecycle (carried into 0.9.0-beta)
+
+Daemon-backed save-time validation is the normal path on Linux and macOS:
 
 - In an interactive terminal, `anvil start` auto-starts the per-user save-time
-  daemon (Linux and macOS) and reports the result on a `daemon:` line. An
-  interactive `anvil watch` offers to start one when none is answering.
+  daemon and reports the result on a `daemon:` line. An interactive
+  `anvil watch` offers to start one when none is answering.
 - A daemon already running is always reused; concurrent invocations never start
   a second one.
 - Opt out with `--no-daemon` (or `ANVIL_NO_DAEMON=1` for `start`); `anvil watch`
   also honours `ANVIL_WATCH_DAEMON=0` as a hard opt-out that disables reuse too.
 - Headless, `--json`, CI, hook, and piped runs never start, offer, or prompt and
   fall back deterministically to the scoped check; `--verify` stays read-only.
-- `anvil intercept start --foreground` is unchanged — it remains the
-  operator/debug surface and the only launch mode on Windows for now.
+- `anvil intercept start --foreground` remains the operator/debug surface and
+  the only launch mode on Windows for now.
 
-If you relied on the daemon never starting on its own: for `anvil start`, pass
-`--no-daemon` (or set `ANVIL_NO_DAEMON=1`). For `anvil watch`, `--no-daemon`
-only suppresses the offer — a daemon already running is still reused; set
-`ANVIL_WATCH_DAEMON=0` if you want watch to make no daemon contact at all.
+### Optional: try the activation TUI
 
-## Unreleased — warm-graph persistence is default-on
+```bash
+anvil start --tui
+# or
+ANVIL_ACTIVATION_TUI=1 anvil start
+```
 
-No config migration and no protection-claim vocabulary change. The save-time
-daemon now **persists and warm-restarts its resident graph by default**
-(previously opt-in via `ANVIL_PERSIST_GRAPH`). It graduated after the GBASE-010
-gate (ADR-105).
-
-- **What it writes:** identity-only sealed snapshots — symbol names, import/path
-  identity, edges, and content hashes used for boundary checks. It **never**
-  persists source text, snippets, or comments. Files are machine-local, `0600`,
-  under a `0700` state dir.
-- **Where:** the shared base store lives under the state dir at
-  `graph-cache/base` — one write-once, content-addressed artefact per repository
-  per merge-base commit, with cheap per-worktree overlays composed at
-  warm-start.
-- **Rollback:** set **`ANVIL_PERSIST_GRAPH=0`**. This must be set in the
-  **daemon's spawn environment**, not merely a login shell: a value in
-  `~/.bashrc` / `~/.zshrc` does **not** reach a daemon launched by systemd user
-  units, an IDE, or a desktop session. For a `systemd --user` daemon, set it in
-  the unit environment (e.g.
-  `systemctl --user set-environment ANVIL_PERSIST_GRAPH=0` or an `Environment=`
-  line) and restart the daemon; for an IDE-launched daemon, set it in the
-  IDE/session environment. Toggling off does not delete existing snapshots —
-  they go inert until re-enabled.
-- **Disk-pressure remediation:** the base store is bounded (one artefact per
-  distinct merge-base, reclaimed by refcount GC over registered worktrees), but
-  if you need to reclaim space on demand, run `anvil graph-base gc` for one GC
-  pass, or `anvil graph-base gc --purge-all` to empty the base store. A base
-  under active production is skipped (re-run once it settles); deleting anything
-  under `graph-cache/` by hand is also safe — the daemon cold-rebuilds.
-- **Failure posture:** all persistence failure is non-fatal — an absent,
-  corrupt, or unreadable base makes the daemon serve a cold scan.
+The TUI is still opt-in. Consent is end-to-end: nothing ticked means nothing
+written. Scripts keep `--verify` / `--json` / `--no-tui`. See
+[start output contracts](../guides/start-output-contracts.md).
 
 ## Versions covered
 
-This page carries the per-version migration guides through `0.7.2-beta`. For
-newer tagged releases (`0.8.0-beta`, `0.8.1-beta`) and the unreleased
-daemon-lifecycle change noted above, see the [changelog](changelog.md).
+This page carries the per-version migration guides from `0.9.0-beta` back
+through `0.1.2-beta`. Narrative release history for `0.8.x` and earlier also
+lives in the [changelog](changelog.md).
 
 ## Upgrading to 0.7.2-beta
 

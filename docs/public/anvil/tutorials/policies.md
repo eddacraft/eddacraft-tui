@@ -127,6 +127,12 @@ Scoped, expiring exceptions live in `anvil/exceptions/store.json` and are
 managed with `anvil exception grant|revoke|list|verify` — see
 [`policy-exceptions`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/policy-exceptions.md).
 
+**Grants count only when committed** (ADR-100). L4 gates read the store from the
+tree of the commit being validated, never from the working tree. Grant, commit
+`anvil/exceptions/store.json`, then push. The legacy `.anvil/exceptions.json`
+never influences gates — promote it with `anvil exception migrate` and commit
+the result.
+
 Opt-in save-time enforcement (`warn`, `fence`, `interrupt`) is controlled by
 `ANVIL_POLICY_ENFORCEMENT` (defaults to report-only). See
 [`save-time-validation`](../guides/save-time-validation.md).

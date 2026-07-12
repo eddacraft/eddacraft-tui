@@ -105,6 +105,22 @@ All notable changes to anvil are documented here.
   base serves cold. The first run after upgrading pays a single cold rebuild per
   repository (the snapshot format moved), after which restarts warm from the
   shared base.
+- **Policy exceptions apply only when committed** (ADR-100). The L4 gate
+  (pre-push hook, `anvil l4-validate`, audit-chain rescans) now reads
+  `anvil/exceptions/store.json` from the tree of the commit being validated
+  against — never from the working tree. Grant, commit the store, then push. The
+  legacy `.anvil/exceptions.json` never influences gates; run
+  `anvil exception migrate` and commit the tracked store.
+- **Breaking (beta): auth-required now exits `3` on action commands.** When you
+  aren't logged in, gated _action_ commands — `anvil start`, `init`, `watch`,
+  `gate`, `check`, `audit`, and siblings — now exit `3` (authentication
+  required) instead of `0`, so `anvil start && deploy` stops at an unactivated
+  repo rather than advancing past the auth wall. The human message is unchanged
+  and still actionable, and the `--json` `authRequired` envelope shape is
+  unchanged (only the exit code moved). The read-only `anvil status` surface and
+  the `whoami` / `auth whoami` state probes keep their existing contracts. If a
+  script relied on the previous exit-`0` mapping, gate on the explicit exit code
+  or authenticate first.
 
 ### Fixed
 
@@ -123,6 +139,35 @@ All notable changes to anvil are documented here.
   (previously stderr), per the CLI output-stream policy and matching the main
   auth wall. Plain-text messages stay on stderr and exit codes are unchanged;
   scripts that read these envelopes from stderr should switch to stdout.
+
+### Security
+
+- **Allowlist confinement admits only configured allow entries.** In `allowlist`
+  mode the intercept daemon previously also served each connection's declared
+  primary check-in root. That root is client-declared, not daemon-attested, so a
+  same-uid caller could have an unlisted workspace served. `allowlist` mode now
+  admits **exactly** the roots you add with `anvil workspace allow`, and nothing
+  else; an empty allow-list admits no roots (fail-closed). `open` mode (the
+  default) is unchanged. If you rely on `allowlist` mode, add the roots you want
+  served before upgrading.
+- **Per-connection workspace-root limit.** The intercept daemon caps how many
+  **distinct** workspace roots a single connection may admit
+  (`enforcement.dos.max_admitted_roots`, default 32). A long-lived connection
+  that legitimately touches more than 32 distinct roots is refused the 33rd with
+  a clear budget-exceeded error; raise the limit under
+  `enforcement.dos.max_admitted_roots` and restart the daemon if needed.
+- **Session lifecycle operations are bound to the registering peer.**
+  `Heartbeat` and `UnregisterSession` for a live, lineage-verified session are
+  accepted only from the peer that registered it (matching the recorded launcher
+  pid). Sessions registered without a verified lineage claim keep the existing
+  same-uid-socket boundary; durable worktree memberships and Windows sessions
+  continue as before.
+
+### Upgrade notes
+
+See [Upgrade Notes — 0.9.0-beta](upgrade-notes.md#upgrading-to-090-beta) for the
+action-required operator checklist (auth exit code, consent pickers, warm-graph
+persistence, exception commits, allowlist exact-match).
 
 ## [0.8.2-beta] — 2026-06-22 — Daemon Lifecycle Polish
 

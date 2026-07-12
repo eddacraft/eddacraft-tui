@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner  | Status | Freshness                                                                         |
 | ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Operator cockpit 2026-07-13; agent-vault local secrets; product tag `v0.8.2-beta` |
+| README | Advisory  | DOCGOV | Live   | Operator cockpit 2026-07-13; agent-vault local secrets; product tag `v0.9.0-beta` |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |
@@ -27,7 +27,7 @@ docs/API/tooling, Pulumi infra, APS plans.
 | Early access | [eddacraft.ai](https://eddacraft.ai)                                |
 | Public docs  | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
 | Install      | [install.eddacraft.ai](https://install.eddacraft.ai)                |
-| Latest tag   | **`v0.8.2-beta`**                                                   |
+| Latest tag   | **`v0.9.0-beta`**                                                   |
 | Live work    | [`plans/index.aps.md`](./plans/index.aps.md)                        |
 | Release cut  | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md)                              |
 

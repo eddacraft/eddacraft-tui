@@ -697,13 +697,13 @@ not supported.
 
 ## Exit Codes
 
-| Code | Meaning         | Typical action         |
-| ---- | --------------- | ---------------------- |
-| 0    | All checks pass | Continue               |
-| 1    | General error   | Investigate            |
-| 2    | Gate failure    | Block merge            |
-| 3    | Auth required   | Run `anvil auth login` |
-| 4    | Config error    | Fix `.anvilrc`         |
+| Code | Meaning         | Typical action                                                                                                     |
+| ---- | --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 0    | All checks pass | Continue                                                                                                           |
+| 1    | General error   | Investigate                                                                                                        |
+| 2    | Gate failure    | Block merge                                                                                                        |
+| 3    | Auth required   | Run `anvil auth login` (action commands exit `3` at the auth wall as of `v0.9.0-beta`; they previously exited `0`) |
+| 4    | Config error    | Fix `.anvilrc`                                                                                                     |
 
 ---
 

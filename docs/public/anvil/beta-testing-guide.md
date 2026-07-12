@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Latest tagged beta:** 0.8.2-beta
+**Latest tagged beta:** 0.9.0-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -23,12 +23,32 @@ pre-write attachment is not available.
 
 ## What's New to Focus Testing On
 
-The current release-candidate window builds on `v0.8.2-beta`. These are the
-highest-leverage flows. If you only have a short session, these are the right
-places to spend it.
+`v0.9.0-beta` is the current tagged cut. These are the highest-leverage flows.
+If you only have a short session, these are the right places to spend it.
 
-### Current release-candidate focus
+### New in `v0.9.0-beta` — first-run wins and the assistant graph
 
+- **First win on your own code.** Run `anvil welcome` on a real repo. Confirm it
+  lands on a real local finding (or an honest clean result), shows a one-line
+  preview before writing, and requires explicit consent before apply. Decline
+  once and confirm you return to the path picker without a write.
+- **Quiet repeat `anvil start`.** On an already-activated healthy repo, confirm
+  a second `anvil start` collapses to protection state + one next step rather
+  than replaying full onboarding. Missing value evidence should omit the value
+  line, not zero-fill it.
+- **Consent-first install pickers.** In plain and TUI activation
+  (`anvil start --tui`), every MCP/workflow candidate starts **unticked**. Press
+  Enter with nothing selected and confirm nothing is written.
+- **Shareable value receipt.** Run `anvil insights` and
+  `anvil insights --share`. The HTML scorecard must stay redacted (counts and
+  dates only — no paths, repo names, or identifiers).
+- **Warm-graph persistence default-on.** After `anvil start`, restart the daemon
+  and confirm the next warm is fast (or opt out with `ANVIL_PERSIST_GRAPH=0` in
+  the daemon's spawn environment). First post-upgrade run may pay one cold
+  rebuild per repo.
+- **Auth wall exit code.** Unauthenticated action commands (`start`, `watch`,
+  `check`, `gate`, …) should exit `3`, not `0`. Scripts that assumed exit `0` at
+  the auth wall need updating.
 - **Assistant graph context.** In Cursor or Claude Code, confirm the Rust MCP
   server exposes graph tools such as `anvil_search_symbols`,
   `anvil_impact_of_change`, and `anvil_symbol_context`, plus the `graph://stats`
@@ -46,7 +66,7 @@ places to spend it.
   `anvil report-fp`, `anvil drift migrate`, and typo suggestions for unknown
   `--skip`/`--disable` check IDs.
 
-### New in `v0.8.1-beta` — daemon lifecycle
+### Still load-bearing from `v0.8.1-beta` / `v0.8.2-beta` — daemon lifecycle
 
 `anvil start` and `anvil watch` manage the per-user save-time daemon, so
 daemon-backed protection is the normal path rather than an operator-only
@@ -70,10 +90,7 @@ foreground ceremony (Linux and macOS).
   prompting or polluting a JSON stream. `anvil intercept start --foreground`
   remains the operator/debug surface.
 
-### New in `v0.8.0-beta` — the daemon-backed save path
-
-These are the freshest surfaces in the current cut and the right places to focus
-a testing session.
+### Still load-bearing from `v0.8.0-beta` — the daemon-backed save path
 
 - **Daemon-backed save-time validation is default-on when live.** With a live
   daemon (started by `anvil start`), `anvil watch` routes each save through the

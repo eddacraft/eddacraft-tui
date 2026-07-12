@@ -13,17 +13,17 @@ blocked, and start giving feedback -- all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (`0.6.0-beta`). The CLI is a single native
-binary -- no Node.js required. APIs and behaviour may change between releases.
-Your feedback directly shapes the product before public launch.
+This is **pre-release software** (`v0.9.0-beta`). The CLI is a single native
+binary -- no Node.js required for anvil itself. APIs and behaviour may change
+between releases. Your feedback directly shapes the product before public
+launch.
 
 :::
 
 ## Prerequisites
 
-- A real repository you know well (TypeScript, JavaScript, or Rust gets the
-  strongest coverage; SQL and Markdown get partial coverage; Python is
-  unsupported in v1)
+- A real repository you know well (TypeScript, JavaScript, Python, or Rust is
+  supported; SQL and Markdown get partial coverage)
 - **macOS**, **Linux**, or **Windows** (x86_64 or aarch64)
 - Cursor or Claude Code installed if you want to test the MCP catch path
 
@@ -70,50 +70,68 @@ brew upgrade eddacraft/tap/anvil
 Use one install method per machine. To switch from Homebrew to the standalone
 installer, uninstall the Homebrew formula first.
 
-## Step 2 -- `anvil start` (the wow-start)
+## Step 2 -- Discover with `anvil welcome` (optional, no login)
 
-From inside a real repository, `anvil start` is the activation entrypoint. It
-runs `anvil init`, scans the repo to baseline existing findings, detects your
-repo's language profile, and writes MCP entries so Cursor or Claude Code can
-call `anvil_validate_write` before each AI write.
+Before authenticating, you can see what anvil finds in your own repo:
 
 ```bash
 cd your-project
+anvil welcome
+```
+
+On first run it lands on a real local finding (or an honest clean result), shows
+a one-line fix preview, and requires explicit consent before applying anything.
+When you are ready for ongoing protection, authenticate and run `anvil start`.
+
+## Step 3 -- Authenticate and `anvil start`
+
+Durable surfaces (`start`, `watch`, `check`, `gate`, …) require beta
+authentication. Sign in, then activate:
+
+```bash
+anvil auth login
 anvil start
 ```
+
+`anvil start` is the activation entrypoint. It runs `anvil init` if needed,
+baselines existing findings, detects your repo's language profile, and wires MCP
+entries so Cursor or Claude Code can call `anvil_validate_write` before each AI
+write. On Linux and macOS an interactive terminal also auto-starts the per-user
+save-time daemon (pass `--no-daemon` to suppress). On a healthy,
+already-activated repo a repeat `anvil start` collapses to a short confidence
+check.
 
 The activation summary ends with a literal protection state -- one of
 `protecting`, `ready_restart_required`, `watching`, `needs_action`,
 `unsupported`, or `error`. Trust that literal: if `anvil start` reports
 `needs_action`, pre-write protection is **not** live yet.
 
-`anvil start` writes:
+`anvil start` writes (only for clients you consent to install):
 
 - `~/.cursor/mcp.json` (Cursor)
 - `~/.claude.json` (Claude Code)
 
-Restart the editor after activation. On Unix, the MCP path is daemon-backed when
-the local daemon is running; the embedded path is a correctness-equivalent
-fallback otherwise. On Windows, the daemon path is currently `not-wired` from
-the MCP correlation envelope (this is documented v1 scope, not a regression).
+Install pickers start **unticked** — nothing selected means nothing written.
+Restart the editor after activation. When the daemon is reachable, MCP
+validation is daemon-backed on every supported OS (named pipes on Windows as of
+`v0.7.1-beta`); the embedded path is the correctness-equivalent fallback.
 
 **Useful flags:**
 
 ```bash
 anvil start --verify   # Read-only probe; no init, no scan, no MCP write
 anvil start --watch    # After activation, fall back to save-time watch mode
+anvil start --tui      # Opt-in activation TUI (consent-first)
 ```
 
-`--watch` is a save-time **fallback** -- it spawns the kernel watcher and
-reports findings on save. It is not pre-write interception, and `anvil start`
-will refuse to spawn it when MCP pre-write validation is already live (it would
-just be redundant noise).
+`--watch` is a save-time **fallback** -- it reports findings on save. It is not
+pre-write interception.
 
 The first watch pass builds baseline/readiness state. Existing findings in the
 repository are not reported as new save-time violations until a later file
 change introduces or re-surfaces them.
 
-## Step 3 -- Try the MCP catch
+## Step 4 -- Try the MCP catch
 
 With `anvil start` reporting `protecting` and your editor restarted, ask the AI
 inside Cursor or Claude Code to make a change you know is wrong (e.g. "add an
@@ -124,7 +142,7 @@ the write and the AI sees the rejection.
 For a guided walk-through, see the
 [wow-start demo](/anvil/guides/wow-start-demo).
 
-## Step 4 -- Run the Tutorial
+## Step 5 -- Run the Tutorial
 
 For a guaranteed-value path (especially when your repo doesn't trip anything
 straight away), run the protection-loop tutorial:
@@ -143,7 +161,7 @@ anvil tutorial --reset     # Start fresh if you have run it before
 For deeper dives into specific features, see the
 [written tutorials](/anvil/tutorials) (policies, architecture, drift, CI).
 
-## Step 5 -- Diagnostics
+## Step 6 -- Diagnostics
 
 ```bash
 anvil doctor              # Environment, config, and hook checks
@@ -160,7 +178,7 @@ project cleanup, `anvil uninstall --yes` to remove project state, and
 `anvil uninstall --global` when you also want user-level state and Anvil MCP
 entries removed. The command does not remove the binary itself.
 
-## Step 6 -- Watch Fallback
+## Step 7 -- Watch Fallback
 
 When MCP can't attach (no Cursor / Claude Code, or the editor refused to load
 the server), watch mode is the save-time fallback:
@@ -187,54 +205,49 @@ state and generated directories such as `.claude`, `.opencode`, `.gemini`,
 `.serena`, `.worktrees`, `node_modules`, `target`, `dist`, and cache folders are
 skipped by default so first-run scans do not spend time on local machinery.
 
-## Sign In (optional)
+## Sign In
 
 ```bash
-anvil auth login           # Device-code flow
+anvil auth login           # Device-code flow (default)
 anvil auth login --otp     # Email OTP
 ```
 
-Anvil's local protection works without sign-in; auth is for online-only features
-such as update checks.
+`anvil welcome` is ungated for discovery. Daily protection (`anvil start` and
+siblings) requires beta authentication. Unauthenticated action commands exit
+`3`.
 
 ---
 
 ## What to Test
 
-We are especially interested in feedback on these areas in the current beta:
+We are especially interested in feedback on these areas in `v0.9.0-beta`:
 
 | Area                                       | What to try                                                                                                 |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **`anvil welcome` first win**              | Real local finding (or honest clean), consent-gated apply, no write on decline                              |
 | **Wow-start activation (`anvil start`)**   | Does the first minute land? Does the printed protection state match what is actually wired?                 |
+| **Quiet repeat start**                     | Second `anvil start` on a healthy repo collapses rather than replaying onboarding                           |
 | **MCP catch via Cursor / Claude Code**     | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?    |
+| **Assistant graph context**                | Do graph tools / `graph://` resources answer identity-only without unintended source snippets?              |
+| **Python + infrastructure hygiene**        | Are Python files analysed? Do Dockerfile / GHA / shell / SQL checks fire usefully?                          |
 | **Activation states copy (no over-claim)** | If activation reports `needs_action` or `unsupported`, is the explanation specific and the next step real?  |
-| **Language profile honesty**               | If your repo is mostly Python, does the activation summary name the gap instead of pretending?              |
 | **Tutorial experience (`ProtectionLoop`)** | Is the protection-loop walk clear? Does it leave you in a useful state?                                     |
 | **`anvil version`**                        | Does it correctly identify your install method and print the right upgrade command?                         |
 | **Watch fallback**                         | When MCP can't attach, does `anvil watch --source` / `anvil start --watch` produce useful save-time signal? |
 
 ## Known Limitations
 
-- **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
-  install, and Copilot / Codex CLI integration are explicitly out of scope.
-- **`anvil intercept status` works on every supported target.** The Unix path
-  speaks the UDS IPC; the Windows path drives the same wire shape over the named
-  pipe and `--json` returns the same `DaemonStatusV1` on either OS. The
-  remaining Windows gap is in the MCP correlation envelope only:
-  `correlation.daemonStatus` returned by `anvil_validate_write` is always
-  `not-wired` on Windows in this cut, tracked under `chore/windows-status`.
-- **Daemon runs in foreground only.** Use `anvil intercept start --foreground`
-  -- backgrounding is not a v1 surface. Operators running under systemd /
-  launchd should run foreground under the manager's supervision.
-- **Fences survive daemon restart.** The `anvil intercept stop` and
-  `anvil intercept unblock` CLI subcommands are not wired in v1 (a follow-up
-  INTD task tracks the front-end). Recovery is: stop the foreground daemon
-  (Ctrl-C, or SIGTERM by PID), then
-  `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"` to clear fence state,
-  then re-launch.
+- **MCP install is Cursor and Claude Code only.** Windsurf, VS Code MCP install,
+  and Copilot / Codex CLI integration are explicitly out of scope for automated
+  install; hand-write config if needed (see the MCP guide).
+- **Daemon auto-start is Linux and macOS.** Interactive `anvil start` /
+  `anvil watch` manage the per-user daemon on Unix; Windows still uses
+  foreground daemon launch for operator/debug, while MCP can reach the daemon
+  over named pipes when it is running (`v0.7.1-beta`+).
 - **macOS interrupt ladder is fence-first.** Interrupt decisions on macOS fence
-  the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recover
-  the same way as above: stop the daemon and remove the fence directory.
+  the worktree rather than running the SIGINT/SIGTERM/SIGKILL ladder. Recover by
+  stopping the daemon and clearing fence state (see the security / intercept
+  docs).
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change. File Windows bugs with
   that caveat noted.

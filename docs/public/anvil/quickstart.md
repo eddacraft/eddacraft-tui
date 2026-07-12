@@ -28,13 +28,13 @@ protection, authenticate and run `anvil start`.
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.8.2-beta`. If your
+anvil is currently in beta — the latest tagged release is `v0.9.0-beta`. If your
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
-gaps. If you're upgrading an existing `0.6.x` install, see the
-[0.7.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-070-beta) for
-the operator delta.
+gaps. If you're upgrading, see the
+[0.9.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-090-beta) for
+the operator delta (auth exit codes, consent pickers, warm-graph persistence).
 
 :::
 
@@ -111,8 +111,13 @@ anvil welcome
 `anvil welcome` is deliberately **ungated** — the discovery scan, interactive
 tutorial, and welcome hub all run without `anvil auth login`. This is the beta
 demo surface: see what anvil finds in your own repo before the licence wall. On
-a first run it offers guided setup; afterwards it lands on the welcome hub. When
-you are done exploring, it points you at `anvil start` for daily protection.
+a first run it lands on your repository's highest-severity actionable finding,
+explains why it matters, and shows the exact one-line diff before anything is
+written. Applying the fix takes an explicit, unticked consent — declining drops
+you on the familiar path picker, and a clean repository gets an honest clean
+result rather than a showcased example. Afterwards it lands on the welcome hub.
+When you are done exploring, it points you at `anvil start` for daily
+protection.
 
 The licence wall begins at that handoff. Durable surfaces — `start`, `watch`,
 `check`, `status`, `gate`, and the rest — require beta authentication.
@@ -146,6 +151,12 @@ From your repo root:
 ```bash
 anvil start
 ```
+
+On a healthy, already-activated repository a repeat `anvil start` collapses to
+the protection state, daemon and save-time-driver posture, and exactly one next
+step — the full first-run recipe only returns when something needs attention.
+When trustworthy local evidence exists it may add a single value line (for
+example risky writes flagged at save time); missing or zero evidence is omitted.
 
 `anvil start` is the activation entrypoint. It runs `anvil init` if needed,
 baselines the repo, wires MCP entries for the MCP-capable editors it detects

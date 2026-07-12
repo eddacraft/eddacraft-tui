@@ -11,11 +11,11 @@ anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
 :::info Rust shim is the primary surface
 
-As of `v0.6.0-beta`, the Rust CLI's `anvil mcp serve --stdio` shim is the
-primary MCP surface, backed by the local Anvil daemon over owner-only IPC for
-validation. It exposes `anvil_validate_write` for pre-write validation,
-`anvil_status` for read-only workspace health, and read-only graph-context tools
-for assistant planning — see [Available Tools](#available-tools) below. The
+The Rust CLI's `anvil mcp serve --stdio` shim is the primary MCP surface, backed
+by the local Anvil daemon over owner-only IPC for validation. It exposes
+`anvil_validate_write` for pre-write validation, `anvil_status` for read-only
+workspace health, and (as of `v0.9.0-beta`) the full assistant graph-context
+tool and resource surface — see [Available Tools](#available-tools) below. The
 daemon-backed validation path uses Unix sockets on Linux/macOS and owner-only
 named pipes on Windows as of `v0.7.1-beta`; the embedded scanner is the
 correctness-equivalent fallback when the daemon is not reachable. As of
@@ -23,11 +23,10 @@ correctness-equivalent fallback when the daemon is not reachable. As of
 validation path by default when the daemon is live (`ANVIL_WATCH_DAEMON=0` opts
 out; see the [save-time validation guide](../guides/save-time-validation.md) for
 the full routing story), so editor/agent MCP writes and terminal watch converge
-on one warm verdict path instead of two separate scanners. As of `v0.8.2-beta`,
-on Linux and macOS an interactive `anvil start` can auto-start that daemon and
-`anvil watch` can offer to start one, so the daemon-backed path is the normal
-one rather than something you launch by hand. Windows still uses foreground
-daemon launch for now — see the
+on one warm verdict path instead of two separate scanners. On Linux and macOS an
+interactive `anvil start` auto-starts that daemon and `anvil watch` can offer to
+start one, so the daemon-backed path is the normal one rather than something you
+launch by hand. Windows still uses foreground daemon launch for now — see the
 [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at

@@ -7,8 +7,9 @@ sidebar_position: 4
 
 # First Project
 
-This guide walks through setting up anvil in an existing TypeScript project with
-intentional architecture boundaries.
+This guide walks through setting up anvil in an existing TypeScript (or other
+supported-language) project with intentional architecture boundaries. Python and
+Rust follow the same activation path; only the example tree below is TypeScript.
 
 :::tip Activate first with `anvil start`
 
