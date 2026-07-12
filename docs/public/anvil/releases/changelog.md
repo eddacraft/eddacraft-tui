@@ -64,14 +64,6 @@ All notable changes to anvil are documented here.
 
 ### Changed
 
-- **Warm-start graph persistence is now on by default.** The save-time daemon
-  persists one shared, write-once base graph per repository per merge-base
-  commit plus a live per-worktree overlay, so a restarted daemon or a
-  newly-registered worktree warms from disk instead of a cold rebuild — and
-  sibling worktrees of the same repository reuse the same base. Everything stays
-  on your machine under anvil's state directory. The first run after upgrading
-  pays a single cold rebuild per repository (the snapshot format moved). Opt out
-  with `ANVIL_PERSIST_GRAPH=0`.
 - **Interactive install pickers no longer pre-select.** Every workflow and MCP
   picker candidate starts unticked: tick what you want installed, then apply;
   Enter with nothing ticked writes nothing. Non-interactive and CI auto-install
@@ -110,7 +102,9 @@ All notable changes to anvil are documented here.
   a systemd-user- or IDE-launched daemon). Disk pressure can be relieved on
   demand with the hidden `anvil graph-base gc` (or `--purge-all` to empty the
   base store). All persistence failure is non-fatal — an absent or unreadable
-  base serves cold.
+  base serves cold. The first run after upgrading pays a single cold rebuild per
+  repository (the snapshot format moved), after which restarts warm from the
+  shared base.
 
 ### Fixed
 
