@@ -153,12 +153,12 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `apps/dashboard/src/components/shell/workspace-switcher.tsx`
 - Modify: `apps/dashboard/src/routes/__root.tsx`
 
-- [ ] Write a manifest registry test for duplicate IDs and unknown module
+- [x] Write a manifest registry test for duplicate IDs and unknown module
       failures.
-- [ ] Run the test and verify it fails.
-- [ ] Implement the module manifest type, registry, shell, sidebar, and top bar.
-- [ ] Run the test and `pnpm exec nx run dashboard:typecheck`.
-- [ ] Commit: `feat(dash): add dashboard module host`
+- [x] Run the test and verify it fails.
+- [x] Implement the module manifest type, registry, shell, sidebar, and top bar.
+- [x] Run the test and `pnpm exec nx run dashboard:typecheck`.
+- [x] Commit in the combined DASH-002..005 foundation slice.
 
 ### Task 3: Add theme and component catalogue
 
@@ -183,12 +183,13 @@ must not accidentally decide those through a development-server shortcut.
 - Create via shadcn CLI: `apps/dashboard/src/components/ui/skeleton.tsx`
 - Create via shadcn CLI: `apps/dashboard/src/components/ui/table.tsx`
 
-- [ ] Add render/catalogue tests proving known components validate and unknown
+- [x] Add render/catalogue tests proving known components validate and unknown
       components fail.
-- [ ] Run the test and verify it fails.
-- [ ] Implement primitives, Tailwind tokens, and json-render catalogue mapping.
-- [ ] Run dashboard tests and typecheck.
-- [ ] Commit: `feat(dash): add dashboard component catalogue`
+- [x] Run the test and verify it fails.
+- [x] Implement primitives, Tailwind tokens, and the thin dashboard adapter over
+      the authoritative `@eddacraft/render` json-render catalogue.
+- [x] Run dashboard tests and typecheck.
+- [x] Commit in the combined DASH-002..005 foundation slice.
 
 ### Task 4: Scaffold `crates/anvil-dashboard-server`
 
@@ -203,14 +204,14 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `crates/anvil-dashboard-server/tests/server_smoke.rs`
 - Modify: `Cargo.toml`
 
-- [ ] Write a smoke test for `/healthz` and `/openapi.json`.
-- [ ] Run `cargo test -p eddacraft-anvil-dashboard-server` and verify it fails.
-- [ ] Implement `GET /healthz`, `GET /openapi.json`,
+- [x] Write a smoke test for `/healthz` and `/openapi.json`.
+- [x] Run `cargo test -p eddacraft-anvil-dashboard-server` and verify it fails.
+- [x] Implement `GET /healthz`, `GET /openapi.json`,
       `GET /api/v1/protection`, `GET /api/v1/plans`, and
       `GET /api/v1/plans/{id}`. The listener must reject non-loopback bind
       addresses and the router must expose no mutating method.
-- [ ] Run `cargo test -p eddacraft-anvil-dashboard-server`.
-- [ ] Commit: `feat(dash): add dashboard server crate`
+- [x] Run `cargo test -p eddacraft-anvil-dashboard-server`.
+- [x] Commit in the combined DASH-002..005 foundation slice.
 
 ### Task 5: Enforce workspace read containment
 
@@ -221,14 +222,14 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `crates/anvil-dashboard-server/tests/workspace_boundary.rs`
 - Modify: `crates/anvil-dashboard-server/src/lib.rs`
 
-- [ ] Add tests for `..`, symlink escapes, absolute outside-root paths, missing
+- [x] Add tests for `..`, symlink escapes, absolute outside-root paths, missing
       artefacts, and oversized artefacts.
-- [ ] Run `cargo test -p eddacraft-anvil-dashboard-server workspace_boundary` and
+- [x] Run `cargo test -p eddacraft-anvil-dashboard-server workspace_boundary` and
       verify it fails.
-- [ ] Implement root canonicalisation, path containment, size limits, and
+- [x] Implement root canonicalisation, path containment, size limits, and
       structured errors.
-- [ ] Run `cargo test -p eddacraft-anvil-dashboard-server`.
-- [ ] Commit: `feat(dash): constrain dashboard artefact reads`
+- [x] Run `cargo test -p eddacraft-anvil-dashboard-server`.
+- [x] Commit in the combined DASH-002..005 foundation slice.
 
 ### Task 6: Generate OpenAPI and TypeScript client
 

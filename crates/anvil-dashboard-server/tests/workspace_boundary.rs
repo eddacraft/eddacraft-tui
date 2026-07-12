@@ -83,3 +83,21 @@ fn rejects_missing_and_oversized_artefacts() {
         Err(WorkspaceReadError::TooLarge { .. })
     ));
 }
+
+#[test]
+fn exposes_stable_structured_error_codes() {
+    let unsafe_path = WorkspaceReadError::UnsafePath {
+        path: "../outside.json".to_owned(),
+    };
+    let missing = WorkspaceReadError::Missing {
+        path: ".anvil/missing.json".to_owned(),
+    };
+    let too_large = WorkspaceReadError::TooLarge {
+        path: ".anvil/large.json".to_owned(),
+        max_bytes: MAX_ARTEFACT_BYTES,
+    };
+
+    assert_eq!(unsafe_path.code(), "unsafe-artefact-path");
+    assert_eq!(missing.code(), "artefact-not-found");
+    assert_eq!(too_large.code(), "artefact-too-large");
+}

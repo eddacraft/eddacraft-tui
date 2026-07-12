@@ -170,8 +170,8 @@ Change status to **Ready** when:
 
 ### DASH-002: Dashboard module host and navigation
 
-- **Status:** In Progress 2026-07-11 — first Wave 1 implementation group on
-  `feat/dash-001-dashboard-scaffold`.
+- **Status:** Done 2026-07-13 — manifests, fail-closed registry, and
+  registry-driven desktop/mobile navigation verified on `feat/dash-wave-1`.
 - **Intent:** Define the dashboard module adapter shape and navigation registry.
 - **Expected Outcome:** Dashboard modules register manifests with route entries,
   nav metadata, query bindings, renderers, and optional action-request
@@ -180,19 +180,24 @@ Change status to **Ready** when:
 - **Files:**
   - `apps/dashboard/src/modules/manifest.ts`
   - `apps/dashboard/src/modules/registry.ts`
+  - `apps/dashboard/src/modules/registry.test.ts`
   - `apps/dashboard/src/components/shell/dashboard-shell.tsx`
   - `apps/dashboard/src/components/shell/sidebar.tsx`
   - `apps/dashboard/src/components/shell/top-bar.tsx`
+  - `apps/dashboard/src/components/shell/mobile-navigation.tsx`
+  - `apps/dashboard/src/components/shell/workspace-switcher.tsx`
   - `apps/dashboard/src/routes/__root.tsx`
 - **Dependencies:** DASH-001
-- **Validation:** Module manifests render navigation; unknown modules fail
-  closed in tests
+- **Validation:** `pnpm exec nx run dashboard:test --skip-nx-cache` (11 tests);
+  `pnpm exec nx run dashboard:typecheck --skip-nx-cache`; duplicate and unknown
+  module identifiers fail closed.
 - **Confidence:** high
 
 ### DASH-003: Theme and component catalogue
 
-- **Status:** In Progress 2026-07-11 — first Wave 1 implementation group on
-  `feat/dash-001-dashboard-scaffold`.
+- **Status:** Done 2026-07-13 — shared primitives and a thin dashboard adapter
+  over the authoritative `@eddacraft/render` catalogue verified on
+  `feat/dash-wave-1`.
 - **Intent:** Build the shared UI primitives and json-render catalogue used by
   dashboard modules.
 - **Expected Outcome:** Dashboard theme tokens cover severity, status, and chart
@@ -210,15 +215,23 @@ Change status to **Ready** when:
   - `apps/dashboard/src/components/primitives/loading-skeleton.tsx`
   - `apps/dashboard/src/components/primitives/charts.tsx`
   - `apps/dashboard/src/lib/render/catalog.ts`
+  - `apps/dashboard/src/lib/render/catalog.test.tsx`
+  - `apps/dashboard/src/components/ui/card.tsx`
+  - `apps/dashboard/src/components/ui/empty.tsx`
+  - `apps/dashboard/src/components/ui/skeleton.tsx`
+  - `apps/dashboard/package.json`
+  - `pnpm-lock.yaml`
 - **Dependencies:** DASH-001
-- **Validation:** Components render in isolation; json-render rejects unknown
-  component names
+- **Validation:** `pnpm exec nx run dashboard:test --skip-nx-cache` (11 tests);
+  dashboard lint, typecheck, and build targets exit 0; json-render accepts known
+  catalogue components and rejects unknown component names.
 - **Confidence:** medium
 
 ### DASH-004: Local dashboard server crate
 
-- **Status:** In Progress 2026-07-11 — first Wave 1 implementation group on
-  `feat/dash-001-dashboard-scaffold`.
+- **Status:** Done 2026-07-13 — loopback listener enforcement, Host-header
+  guard, read-only routing, health, and OpenAPI behaviour verified on
+  `feat/dash-wave-1`.
 - **Intent:** Create the Rust server boundary for local dashboard data.
 - **Expected Outcome:** `crates/anvil-dashboard-server/` exposes a loopback-only
   read-only HTTP server with health and OpenAPI endpoints. It does not implement
@@ -232,12 +245,17 @@ Change status to **Ready** when:
   - `crates/anvil-dashboard-server/tests/server_smoke.rs`
   - `Cargo.toml`
 - **Dependencies:** DASH-001
-- **Validation:** `cargo test -p eddacraft-anvil-dashboard-server`; server binds
-  loopback only and exposes `/healthz` plus `/openapi.json`
+- **Validation:** `cargo test -p eddacraft-anvil-dashboard-server` (14 tests);
+  dashboard-server clippy passes with warnings denied; the listener rejects
+  non-loopback addresses and exposes only read routes, including `/healthz` and
+  `/openapi.json`.
 - **Confidence:** medium
 
 ### DASH-005: Workspace artefact read boundary
 
+- **Status:** Done 2026-07-13 — held-root containment, traversal and symlink
+  rejection, size limits, and structured read-error codes verified on
+  `feat/dash-wave-1`.
 - **Intent:** Make local `.anvil/` and tracked `anvil/` reads safe and explicit.
 - **Expected Outcome:** Dashboard server resolves a configured workspace root,
   canonicalises requested paths, rejects traversal/symlink escapes, applies size
@@ -248,8 +266,10 @@ Change status to **Ready** when:
   - `crates/anvil-dashboard-server/src/error.rs`
   - `crates/anvil-dashboard-server/tests/workspace_boundary.rs`
 - **Dependencies:** DASH-004
-- **Validation:** Boundary tests cover `..`, symlink escapes, outside-root
-  absolute paths, missing artefacts, and oversized artefacts
+- **Validation:** `cargo test -p eddacraft-anvil-dashboard-server` (14 tests);
+  boundary tests cover `..`, symlink escapes, outside-root absolute paths,
+  missing artefacts, oversized artefacts, and stable structured error codes;
+  `cargo fmt --all --check`.
 - **Confidence:** high
 
 ### DASH-006: OpenAPI contract and generated TypeScript client

@@ -1457,7 +1457,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-dashboard-server"
-version = "0.8.1-beta"
+version = "0.9.0-beta"
 dependencies = [
  "axum",
  "eddacraft-anvil-intercept",
@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-plan-read-model"
-version = "0.8.1-beta"
+version = "0.9.0-beta"
 dependencies = [
  "serde",
  "workspace-hack",

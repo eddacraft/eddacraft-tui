@@ -10,6 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { dashboardModuleRegistry } from '@/modules/registry';
 
 interface MobileNavigationProps {
   onSearch: () => void;
@@ -50,9 +51,14 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
                 <SheetDescription>Local workspace dashboard</SheetDescription>
               </SheetHeader>
               <nav aria-label="Mobile menu" className="mobile-sheet-nav">
-                <Link to="/">
-                  <ShieldCheck aria-hidden="true" /> Protection
-                </Link>
+                {dashboardModuleRegistry.manifests.map((manifest) => {
+                  const Icon = manifest.navigation.icon ?? ShieldCheck;
+                  return (
+                    <Link key={manifest.id} to={manifest.navigation.path}>
+                      <Icon aria-hidden="true" /> {manifest.navigation.label}
+                    </Link>
+                  );
+                })}
                 <span aria-disabled="true">
                   <FileText aria-hidden="true" /> Plans <small>soon</small>
                 </span>
@@ -70,10 +76,15 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
         className="mobile-bottom-nav"
         data-mobile-bottom-nav
       >
-        <Link to="/">
-          <ShieldCheck aria-hidden="true" />
-          Protection
-        </Link>
+        {dashboardModuleRegistry.manifests.map((manifest) => {
+          const Icon = manifest.navigation.icon ?? ShieldCheck;
+          return (
+            <Link key={manifest.id} to={manifest.navigation.path}>
+              <Icon aria-hidden="true" />
+              {manifest.navigation.label}
+            </Link>
+          );
+        })}
         <span aria-disabled="true">
           <FileText aria-hidden="true" />
           Plans

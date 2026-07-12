@@ -1,0 +1,61 @@
+import { ShieldCheck } from 'lucide-react';
+
+import type { DashboardModuleManifest } from './manifest';
+
+export class DuplicateDashboardModuleError extends Error {
+  constructor(id: string) {
+    super(`dashboard module identifier is already registered: ${id}`);
+    this.name = 'DuplicateDashboardModuleError';
+  }
+}
+
+export class UnknownDashboardModuleError extends Error {
+  constructor(id: string) {
+    super(`dashboard module is not registered: ${id}`);
+    this.name = 'UnknownDashboardModuleError';
+  }
+}
+
+export interface DashboardModuleRegistry {
+  readonly manifests: readonly DashboardModuleManifest[];
+  find: (id: string) => DashboardModuleManifest | undefined;
+  require: (id: string) => DashboardModuleManifest;
+}
+
+export function createModuleRegistry(
+  manifests: readonly DashboardModuleManifest[]
+): DashboardModuleRegistry {
+  const byId = new Map<string, DashboardModuleManifest>();
+  for (const manifest of manifests) {
+    if (byId.has(manifest.id)) {
+      throw new DuplicateDashboardModuleError(manifest.id);
+    }
+    byId.set(manifest.id, Object.freeze(manifest));
+  }
+
+  const registered = Object.freeze([...byId.values()]);
+  return Object.freeze({
+    manifests: registered,
+    find: (id: string) => byId.get(id),
+    require: (id: string) => {
+      const manifest = byId.get(id);
+      if (!manifest) {
+        throw new UnknownDashboardModuleError(id);
+      }
+      return manifest;
+    },
+  });
+}
+
+export const dashboardModuleRegistry = createModuleRegistry([
+  {
+    id: 'protection',
+    navigation: {
+      label: 'Protection',
+      path: '/',
+      icon: ShieldCheck,
+    },
+    queryBindings: ['protection-overview'],
+    renderers: ['ProtectionOverview'],
+  },
+]);

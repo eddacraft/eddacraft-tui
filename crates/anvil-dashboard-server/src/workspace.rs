@@ -107,3 +107,18 @@ pub enum WorkspaceReadError {
     #[error("artefact is unavailable: {path}")]
     Unavailable { path: String, source: io::Error },
 }
+
+impl WorkspaceReadError {
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidRoot { .. } => "invalid-workspace-root",
+            Self::UnsafePath { .. } => "unsafe-artefact-path",
+            Self::Symlink { .. } => "symlinked-artefact-path",
+            Self::Missing { .. } => "artefact-not-found",
+            Self::TooLarge { .. } => "artefact-too-large",
+            Self::BoundaryUnavailable => "workspace-boundary-unavailable",
+            Self::Unavailable { .. } => "artefact-unavailable",
+        }
+    }
+}

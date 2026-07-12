@@ -1,6 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use anvil_dashboard_server::{app, ensure_loopback};
+use anvil_dashboard_server::{ServerError, app, ensure_loopback, serve};
 use axum::body::{Body, to_bytes};
 use axum::http::header::HOST;
 use axum::http::{Method, Request, StatusCode};
@@ -88,4 +88,18 @@ fn only_loopback_addresses_are_accepted() {
 
     assert!(ensure_loopback(local).is_ok());
     assert!(ensure_loopback(public).is_err());
+}
+
+#[tokio::test]
+async fn serving_rejects_a_non_loopback_listener() {
+    let workspace = tempdir().expect("workspace");
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0))
+        .await
+        .expect("listener");
+
+    let error = serve(listener, workspace.path())
+        .await
+        .expect_err("non-loopback listeners must fail closed");
+
+    assert!(matches!(error, ServerError::NonLoopback));
 }

@@ -12,7 +12,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@eddacraft/render": "workspace:*",
     "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -20,6 +22,7 @@
     "radix-ui": "^1.6.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "recharts": "^3.9.2",
     "tailwind-merge": "3.6.0",
     "zod": "^4.4.3"
   },

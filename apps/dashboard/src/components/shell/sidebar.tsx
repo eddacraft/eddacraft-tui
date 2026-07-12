@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { CircleHelp, FileText, ShieldCheck } from 'lucide-react';
 
 import { Separator } from '@/components/ui/separator';
+import { dashboardModuleRegistry } from '@/modules/registry';
 
 const exactRouteMatch = { exact: true } as const;
 
@@ -24,10 +25,15 @@ export function DashboardSidebar() {
       </div>
 
       <nav className="dashboard-nav" aria-label="Primary">
-        <Link activeOptions={exactRouteMatch} to="/">
-          <ShieldCheck aria-hidden="true" />
-          Protection
-        </Link>
+        {dashboardModuleRegistry.manifests.map((manifest) => {
+          const Icon = manifest.navigation.icon ?? ShieldCheck;
+          return (
+            <Link activeOptions={exactRouteMatch} key={manifest.id} to={manifest.navigation.path}>
+              <Icon aria-hidden="true" />
+              {manifest.navigation.label}
+            </Link>
+          );
+        })}
         <span aria-disabled="true" className="dashboard-nav-disabled">
           <FileText aria-hidden="true" />
           Plans
