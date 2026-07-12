@@ -720,12 +720,12 @@ never with feature work.
   dashboard tests, API drift and OpenAPI conformance, typecheck/lint/build,
   affected Rust clippy with warnings denied, formatting, and desktop/mobile
   Playwright flows without console errors or horizontal overflow.
-- Review: final independent verification and Council re-review are pending on
-  the reconciled candidate; no merge authority is inferred.
+- Review: independent verification passed at `f3aee55f2`; architecture,
+  frontend, and security Council lanes all approved after the final repair
+  round. No merge authority is inferred.
 - Plan changes: refreshed implemented file maps and validation evidence; item
   statuses remain In Progress and aggregate counters remain unchanged until
   integration.
 - Checkpoints raised: none. Shared `/tmp` is full, so backend generation used a
   worktree-local temporary directory without deleting other sessions' artefacts.
-- Next: verify and re-review the exact candidate, then publish the review-ready
-  PR and wait for CI/review state.
+- Next: publish the review-ready PR and wait for CI/review state.

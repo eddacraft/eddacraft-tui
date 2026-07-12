@@ -371,6 +371,8 @@ green on `feat/dash-wave-1`; browser proof is captured at
       unmerged items remain In Progress.
 - [x] Run `pnpm aps:active-lint` (117 active plans clean).
 - [x] Run `pnpm aps:index:check` (green with existing stale-count advisories).
+- [x] Independent verification passed on the final implementation candidate;
+      architecture, frontend, and security Council lanes all approved.
 - [ ] Run `pnpm validate:changed` — DASH-relevant checks passed, but the
       repo-wide Rust test phase cannot allocate an inotify instance for the
       existing `anvil-bench` watcher-saturation tests (`MaxFilesWatch`).
