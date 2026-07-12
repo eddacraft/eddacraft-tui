@@ -706,3 +706,26 @@ never with feature work.
   advisory rather than a DASH product or implementation blocker.
 - Next: run independent verification and Council, repair any blocking findings,
   then publish the candidate for PR review and CI.
+
+## Cycle — 2026-07-13 (DASH Wave 1 verification and Council repairs)
+
+- Items: DASH-002, DASH-004..008, DASH-010, and DASH-011.
+- Outcome: repaired — independent verification found and closed router-owned
+  view/severity/evidence history gaps; Council then found and repaired fabricated
+  protection fallback, shadow gate contracts, unbounded plan reads, cross-origin
+  and router-binding gaps, mislabeled validation evidence, OpenAPI drift risk,
+  partial-state truth gaps, and mobile/navigation recovery defects.
+- Validation: independent verification passed at `d11329a0c`; the repair
+  commits `77c93b46f` and `164688f62` pass 27 backend/read-model tests, 36
+  dashboard tests, API drift and OpenAPI conformance, typecheck/lint/build,
+  affected Rust clippy with warnings denied, formatting, and desktop/mobile
+  Playwright flows without console errors or horizontal overflow.
+- Review: final independent verification and Council re-review are pending on
+  the reconciled candidate; no merge authority is inferred.
+- Plan changes: refreshed implemented file maps and validation evidence; item
+  statuses remain In Progress and aggregate counters remain unchanged until
+  integration.
+- Checkpoints raised: none. Shared `/tmp` is full, so backend generation used a
+  worktree-local temporary directory without deleting other sessions' artefacts.
+- Next: verify and re-review the exact candidate, then publish the review-ready
+  PR and wait for CI/review state.

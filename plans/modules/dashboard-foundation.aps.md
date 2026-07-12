@@ -231,9 +231,10 @@ Change status to **Ready** when:
 
 ### DASH-004: Local dashboard server crate
 
-- **Status:** In Progress 2026-07-13 — loopback listener enforcement,
-  Host-header guard, read-only routing, health, and OpenAPI behaviour are
-  verified on `feat/dash-wave-1`, pending branch integration.
+- **Status:** In Progress 2026-07-13 — loopback listener enforcement, exact
+  Host/Origin/Sec-Fetch-Site guards, private router construction, read-only
+  routing, health, and OpenAPI behaviour are verified on `feat/dash-wave-1`,
+  pending branch integration.
 - **Intent:** Create the Rust server boundary for local dashboard data.
 - **Expected Outcome:** `crates/anvil-dashboard-server/` exposes a loopback-only
   read-only HTTP server with health and OpenAPI endpoints. It does not implement
@@ -247,17 +248,18 @@ Change status to **Ready** when:
   - `crates/anvil-dashboard-server/tests/server_smoke.rs`
   - `Cargo.toml`
 - **Dependencies:** DASH-001
-- **Validation:** `cargo test -p eddacraft-anvil-dashboard-server` (14 tests);
+- **Validation:** dashboard-server/read-model suites pass 27 tests;
   dashboard-server clippy passes with warnings denied; the listener rejects
-  non-loopback addresses and exposes only read routes, including `/healthz` and
-  `/openapi.json`.
+  non-loopback addresses and hostile cross-origin requests, and exposes only
+  read routes, including `/healthz` and `/openapi.json`.
 - **Confidence:** medium
 
 ### DASH-005: Workspace artefact read boundary
 
 - **Status:** In Progress 2026-07-13 — held-root containment, traversal and
-  symlink rejection, size limits, and structured read-error codes are verified
-  on `feat/dash-wave-1`, pending branch integration.
+  symlink rejection, per-file and aggregate plan-read budgets, duplicate-path
+  rejection, and structured read-error codes are verified on
+  `feat/dash-wave-1`, pending branch integration.
 - **Intent:** Make local `.anvil/` and tracked `anvil/` reads safe and explicit.
 - **Expected Outcome:** Dashboard server resolves a configured workspace root,
   canonicalises requested paths, rejects traversal/symlink escapes, applies size
@@ -268,17 +270,19 @@ Change status to **Ready** when:
   - `crates/anvil-dashboard-server/src/error.rs`
   - `crates/anvil-dashboard-server/tests/workspace_boundary.rs`
 - **Dependencies:** DASH-004
-- **Validation:** `cargo test -p eddacraft-anvil-dashboard-server` (14 tests);
+- **Validation:** dashboard-server/read-model suites pass 27 tests;
   boundary tests cover `..`, symlink escapes, outside-root absolute paths,
-  missing artefacts, oversized artefacts, and stable structured error codes;
-  `cargo fmt --all --check`.
+  missing artefacts, oversized artefacts, duplicate modules, module/work-item
+  counts, aggregate bytes/reads, and stable structured error codes; `cargo fmt
+  --all --check`.
 - **Confidence:** high
 
 ### DASH-006: OpenAPI contract and generated TypeScript client
 
 - **Status:** In Progress 2026-07-13 — deterministic Rust export, committed
-  OpenAPI/TypeScript output, typed `openapi-fetch` seam, and byte-for-byte drift
-  check implemented on `feat/dash-wave-1`.
+  OpenAPI/TypeScript output, typed `openapi-fetch` seam, DTO/status conformance,
+  and build-integrated byte-for-byte drift checking are implemented on
+  `feat/dash-wave-1`.
 - **Intent:** Establish the Rust API -> OpenAPI -> generated client seam.
 - **Expected Outcome:** Dashboard server emits OpenAPI for Protection Overview
   and Plan Driver read endpoints. A generated TypeScript client is committed or
@@ -293,16 +297,19 @@ Change status to **Ready** when:
   - `apps/dashboard/package.json`
   - `pnpm-lock.yaml`
 - **Dependencies:** DASH-004, DASH-005
-- **Validation:** `pnpm --dir apps/dashboard check:api` exits 0;
+- **Validation:** `pnpm --dir apps/dashboard check:api` exits 0 and is required
+  by the dashboard build;
   `cargo test -p eddacraft-anvil-dashboard-server --test openapi_snapshot`
-  passes 2 tests; generated TypeScript client passes dashboard typecheck.
+  passes 5 DTO/status conformance tests; generated TypeScript client passes
+  dashboard typecheck.
 - **Confidence:** medium
 
 ### DASH-007: TanStack Query resource layer
 
 - **Status:** In Progress 2026-07-13 — stable query provider/client lifetimes,
-  generated-client hooks, structured query boundary, and test fixtures
-  implemented on `feat/dash-wave-1`.
+  generated-client hooks, retryable structured query boundary, and explicit
+  test-only fixtures are implemented on `feat/dash-wave-1`; transport failures
+  remain unavailable rather than fabricating protection data.
 - **Intent:** Wrap the generated client with stable query keys and loading/error
   boundaries.
 - **Expected Outcome:** Dashboard app has query providers and hooks for
@@ -318,8 +325,8 @@ Change status to **Ready** when:
   - `apps/dashboard/src/api/query-layer.test.tsx`
   - `apps/dashboard/src/main.tsx`
 - **Dependencies:** DASH-006
-- **Validation:** `pnpm exec nx run dashboard:test --skip-nx-cache` passes 19
-  tests including loading, success, structured error, and stable key coverage;
+- **Validation:** dashboard tests pass 36 tests including loading, success,
+  structured error/retry, transport failure, and stable key coverage;
   dashboard typecheck, lint, and build targets exit 0.
 - **Confidence:** high
 
@@ -353,7 +360,8 @@ Change status to **Ready** when:
 - **Dependencies:** DASH-002, DASH-007
 - **Validation:** Dashboard tests cover valid and invalid search fallbacks,
   explicit manifest route/resource bindings, registered command entries, and
-  Cmd+K visibility for Protection and Plan Driver resources; dashboard
+  Cmd+K visibility for Protection and Plan Driver resources; after-mount browser
+  Back/Forward restores view, severity, and evidence selection; dashboard
   typecheck, lint, and build targets exit 0.
 - **Confidence:** medium
 
@@ -372,11 +380,11 @@ Change status to **Ready** when:
 
 ### DASH-010: Protection Overview proof module
 
-- **Status:** In Progress 2026-07-13 — typed full/partial/empty and
-  offline/loading/error presentation, runs, warnings, affected files, evidence
-  selection, freshness, desktop/mobile rendering, and read-only API fixtures
-  implemented on `feat/dash-wave-1`; focused server, UI, typecheck, and
-  Playwright evidence is green, pending branch integration.
+- **Status:** In Progress 2026-07-13 — typed complete/partial/unavailable and
+  loading/error presentation, canonical gate state, warnings, affected files,
+  evidence selection, freshness, and desktop/mobile rendering are implemented
+  on `feat/dash-wave-1`; absent producer data remains unavailable rather than
+  fabricated, pending branch integration.
 - **Intent:** Ship the first user-facing dashboard module for Anvil's core
   protection promise.
 - **Expected Outcome:** Protection Overview shows current save-time protection
@@ -393,23 +401,25 @@ Change status to **Ready** when:
   - `apps/dashboard/src/modules/protection/evidence-inspector.tsx`
   - `apps/dashboard/src/routes/index.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-007
-- **Validation:** API fixture renders the Protection Overview module with real
-  typed data; empty state explains missing local artefacts without implying
-  failure
+- **Validation:** the shared canonical gate type serialises from the CLI
+  producer and deserialises in the dashboard server; dashboard tests prove
+  complete/partial/unavailable state semantics and honest transport failure;
+  desktop and 390 px Playwright flows have no console errors or overflow
 - **Confidence:** medium
 
 ### DASH-011: Plan Driver proof module
 
 - **Status:** In Progress 2026-07-13 — `/plans` and `/plans/$id`, typed list and
-  detail hooks, readiness/evidence timeline, visibly deferred disabled actions,
-  and the bounded `anvil-plan-read-model` adapter implemented on
+  detail hooks, readiness/validation contract, visibly deferred disabled
+  actions, and the bounded `anvil-plan-read-model` adapter implemented on
   `feat/dash-wave-1`; focused server, UI, typecheck, and Playwright evidence is
   green, pending branch integration.
 - **Intent:** Keep an internal/dogfood APS module that proves the same dashboard
   module seam over plan data.
 - **Expected Outcome:** Plan Driver shows APS plan list, selected plan detail,
-  run/evidence timeline, status/readiness indicators, and disabled/deferred
-  approval action affordances. The UI can request no write actions in Wave 1.
+  declared validation contract, status/readiness indicators, and
+  disabled/deferred approval action affordances. The UI can request no write
+  actions in Wave 1 and does not mislabel declarations as execution evidence.
 - **Files:**
   - `crates/anvil-dashboard-server/src/capabilities/plans.rs`
   - `crates/anvil-dashboard-server/tests/plan_driver.rs`
@@ -421,6 +431,7 @@ Change status to **Ready** when:
   - `apps/dashboard/src/routes/plans.tsx`
   - `apps/dashboard/src/router.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-007
-- **Validation:** API fixture renders plan list and plan detail; disabled action
-  affordances cannot mutate state
+- **Validation:** bounded API tests render plan list and detail, reject duplicate
+  and over-budget inputs, label declarations as validation contracts, and prove
+  disabled action affordances cannot mutate state
 - **Confidence:** medium

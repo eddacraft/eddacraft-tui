@@ -87,9 +87,9 @@ must not accidentally decide those through a development-server shortcut.
 - Repository gates: `pnpm validate:changed`, `pnpm docs:check`,
   `pnpm aps:active-lint`, `pnpm aps:index:check`, `pnpm format:check`, and
   `git diff --check`, derived from root scripts and CI.
-- Isolation: existing Worktrunk worktree
-  `feat/dash-001-dashboard-scaffold`; the dashboard smoke suite is the
-  post-isolation green proof.
+- Isolation: Worktrunk worktree `feat/dash-wave-1`; the recovered DASH-001
+  scaffold and current dashboard smoke suite are the post-isolation green
+  proof.
 - CI: `.github/workflows/ci.yml`, Rust, security, CodeQL, Council, and
   infrastructure workflows are present; draft PR #3261 had a green scaffold
   baseline before this wave continued.
@@ -105,14 +105,15 @@ must not accidentally decide those through a development-server shortcut.
   keys.
 - `apps/dashboard/src/components/ui/` — shadcn source components used by the
   dashboard shell and command surfaces.
-- `apps/dashboard/src/data/` — deterministic browser fixtures used only when the
-  local API is unavailable in development/tests.
+- `apps/dashboard/src/api/fixtures.ts` — explicit test data; production and
+  development transport failures remain unavailable rather than falling back
+  to fixtures.
 - `crates/anvil-dashboard-server/` — local read-only dashboard server.
 - `crates/anvil-dashboard-server/src/api.rs` — versioned sealed dashboard DTOs.
 - `crates/anvil-dashboard-server/src/capabilities/` — capability adapters for
   Protection Overview and Plan Driver.
-- `crates/anvil-dashboard-server/tests/fixtures/` — canonical API fixtures for
-  full, empty, partial, and plan data.
+- `crates/anvil-kernel-types/src/gate_snapshot.rs` — canonical gate artefact
+  contract shared by the CLI producer and dashboard consumer.
 - `Cargo.toml` — Cargo workspace membership for the dashboard server crate.
 - `plans/modules/dashboard-foundation.aps.md` — item-level status and validation
   evidence only; feature work does not rewrite aggregate counters.
@@ -301,45 +302,42 @@ must not accidentally decide those through a development-server shortcut.
 
 ### Task 10: Ship Protection Overview proof module
 
-**Status:** In Progress 2026-07-13 — implementation and focused browser proof
-are green on `feat/dash-wave-1`; the original concept binaries are unavailable
-in this execution thread, so visual fidelity was checked against the approved
-textual contract and captured at `/tmp/dash-protection-desktop.png` and
-`/tmp/dash-protection-mobile-390.png` pending branch integration.
+**Status:** In Progress 2026-07-13 — implementation, Council truth-state repairs,
+and focused browser proof are green on `feat/dash-wave-1`; the accepted visual
+contract is captured at `/tmp/dash-wave1-desktop.png` and
+`/tmp/dash-wave1-mobile-390.png`, pending branch integration.
 
 **Files:**
 
 - Create: `crates/anvil-dashboard-server/src/capabilities/protection.rs`
 - Create: `crates/anvil-dashboard-server/tests/protection_overview.rs`
+- Create: `crates/anvil-kernel-types/src/gate_snapshot.rs`
 - Create: `apps/dashboard/src/modules/protection/manifest.ts`
 - Create: `apps/dashboard/src/modules/protection/protection-overview.tsx`
-- Create: `apps/dashboard/src/modules/protection/latest-runs.tsx`
-- Create: `apps/dashboard/src/modules/protection/active-warnings.tsx`
+- Create: `apps/dashboard/src/modules/protection/protection-summary.tsx`
+- Create: `apps/dashboard/src/modules/protection/protection-tables.tsx`
 - Create: `apps/dashboard/src/modules/protection/evidence-inspector.tsx`
-- Create: `apps/dashboard/src/modules/protection/affected-files.tsx`
-- Create: `apps/dashboard/src/routes/protection.index.tsx`
+- Create: `apps/dashboard/src/routes/index.tsx`
 
 - [x] Add API fixture tests for present artefacts and empty-state artefacts.
 - [x] Add UI tests for the Protection Overview module.
 - [x] Run tests and verify they fail for the missing typed contract and views.
 - [x] Implement read-only protection state, latest runs, active warnings,
       affected files, freshness, and evidence links.
-- [ ] Match both approved concept references at their native aspect; the image
-      binaries are unavailable in this thread. The accepted textual contract
-      was verified at desktop and 390 px mobile portrait, including no page
-      overflow, labelled full/partial/empty and offline evidence, preserved
-      last-known-good evidence, and console health.
-- [x] Run `CARGO_TARGET_DIR=/tmp/anvil-dash-target cargo test -p
-      eddacraft-anvil-dashboard-server` (15 passed), dashboard tests (23 passed),
-      dashboard typecheck, and the Playwright Protection/Plan flow (1 passed).
+- [x] Match the accepted visual contract at desktop and 390 px mobile portrait,
+      including no page overflow, truthful complete/partial/unavailable states,
+      keyboard navigation, and console health.
+- [x] Run dashboard-server/read-model tests (27 passed), dashboard tests (36
+      passed), dashboard typecheck/lint/build, and the Playwright
+      Protection/Plan desktop and mobile flows.
 - [x] Commit in `feat(dash): complete proof modules`.
 
 ### Task 11: Ship Plan Driver proof module
 
 **Status:** In Progress 2026-07-13 — typed list/detail routes, selected module
-timeline, canonical read-model reuse, and inert actions are green on
-`feat/dash-wave-1`; browser proof is captured at
-`/tmp/dash-plan-detail-desktop.png`, pending branch integration.
+validation contract, bounded canonical read-model reuse, and inert actions are
+green on `feat/dash-wave-1`; browser proof is captured at
+`/tmp/dash-wave1-desktop-navigation.png`, pending branch integration.
 
 **Files:**
 
@@ -355,11 +353,11 @@ timeline, canonical read-model reuse, and inert actions are green on
 - [x] Add API fixture tests for plan list and detail.
 - [x] Add UI tests proving disabled action affordances cannot mutate state.
 - [x] Run tests and verify they fail for the missing detail route and view.
-- [x] Implement read-only Plan Driver list, detail, evidence timeline, and
+- [x] Implement read-only Plan Driver list, detail, validation contract, and
       disabled/deferred action affordances.
-- [x] Run dashboard server tests (15 passed), dashboard tests (23 passed),
-      dashboard typecheck, and Playwright Cmd+K/list/detail/action proof (1
-      passed).
+- [x] Run dashboard-server/read-model tests (27 passed), dashboard tests (36
+      passed), dashboard typecheck/lint/build, and Playwright
+      Cmd+K/list/detail/action proof at desktop and mobile sizes.
 - [x] Commit in `feat(dash): complete proof modules`.
 
 ### Task 12: Reconcile APS and validation
