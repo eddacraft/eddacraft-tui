@@ -183,6 +183,36 @@ function deniedBuiltinErrorScript(): string {
   ].join('\n');
 }
 
+/** Mock `opa` that fails eval with the error on STDOUT and an empty stderr —
+ * `opa eval -f json` reports errors as a JSON document on stdout, so the
+ * executor must not degrade the failure detail to a bare exit code. */
+function stdoutOnlyErrorScript(): string {
+  const stdoutLine =
+    '{"errors":[{"message":"rego_type_error: undefined function net.lookup_ip_addr"}]}';
+  if (platform() === 'win32') {
+    return [
+      '@echo off',
+      'if "%1"=="capabilities" goto caps',
+      `echo ${stdoutLine}`,
+      'exit /b 2',
+      ':caps',
+      `echo ${FULL_CAPABILITIES}`,
+      'exit /b 0',
+      '',
+    ].join('\r\n');
+  }
+  return [
+    '#!/bin/sh',
+    'if [ "$1" = "capabilities" ]; then',
+    `  echo '${FULL_CAPABILITIES}'`,
+    '  exit 0',
+    'fi',
+    `echo '${stdoutLine}'`,
+    'exit 2',
+    '',
+  ].join('\n');
+}
+
 function writeScript(path: string, content: string): void {
   writeFileSync(path, content);
   if (platform() !== 'win32') {
@@ -319,6 +349,26 @@ describe('OPAExecutor capabilities restriction (CIB-108)', () => {
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain('http.send');
     expect(result.errors[0]).toMatch(/not permitted/);
+  });
+
+  it('surfaces stdout when opa eval exits non-zero with an empty stderr', async () => {
+    // `opa eval -f json` reports compile/eval errors on STDOUT and can leave
+    // stderr empty. The failure detail must carry that stdout instead of
+    // degrading to a bare exit code — the masking that hid the Windows
+    // real-binary breakage (CIB-195).
+    const binary = join(tempDir, platform() === 'win32' ? 'opa.cmd' : 'opa');
+    writeScript(binary, stdoutOnlyErrorScript());
+
+    const executor = new OPAExecutor(binary, { timeout: 5000 });
+    const result = await executor.evaluate(
+      [policy('test_policy', 'package anvil.policies.test_policy')],
+      baseInput(tempDir)
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('rego_type_error');
+    expect(result.error).toContain('net.lookup_ip_addr');
+    expect(result.error).not.toContain('OPA eval failed with code');
   });
 });
 
