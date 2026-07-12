@@ -217,6 +217,43 @@ describe('State File Operations', () => {
       expect(Object.keys(state.tasks).sort()).toEqual(taskIds);
     });
 
+    it('on win32, EPERM from a contended lock open retries instead of failing', async () => {
+      // Win32 reports EPERM/EACCES/EBUSY (not EEXIST/ENOENT) when an open,
+      // stat, or rename overlaps another contender's in-flight delete of the
+      // lock file. Simulate the platform and one such artefact on the first
+      // O_EXCL open; the writer must retry and succeed rather than throw
+      // "Failed to acquire state file lock: EPERM" — the exact failure the
+      // Windows release-gate leg reproduced under real contention.
+      const { vi } = await import('vitest');
+      const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+      const realOpen = fs.open.bind(fs);
+      let injected = false;
+      const openSpy = vi.spyOn(fs, 'open').mockImplementation(((...args: unknown[]) => {
+        const [path, flags] = args as [string, string?];
+        if (!injected && String(path).endsWith('state.json.lock') && flags === 'wx') {
+          injected = true;
+          const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, open');
+          err.code = 'EPERM';
+          return Promise.reject(err);
+        }
+        return realOpen(path as string, flags as string);
+      }) as typeof fs.open);
+
+      try {
+        await updateTaskState(tempDir, 'WINRETRY-01', {
+          status: 'locked',
+          locked_at: '2025-12-17T10:00:00.000Z',
+          locked_by: 'win-retry',
+        });
+        const state = await readStateFile(tempDir);
+        expect(Object.keys(state.tasks)).toContain('WINRETRY-01');
+        expect(injected).toBe(true);
+      } finally {
+        openSpy.mockRestore();
+        platformSpy.mockRestore();
+      }
+    });
+
     it('concurrent updates to the same task apply a single winner without corruption', async () => {
       await Promise.all(
         Array.from({ length: 10 }, (_, i) =>

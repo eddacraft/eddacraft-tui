@@ -319,12 +319,34 @@ const STATE_LOCK_STALE_MS = 10_000;
  *    contender wins the reap even under contention. Only ENOENT (lock
  *    released/reaped between attempts) is treated as benign; other
  *    stat/rename failures are rethrown rather than silently retried.
+ *    On Windows only, EPERM/EACCES/EBUSY are additionally treated as
+ *    contention at every step: Win32 reports those (not EEXIST/ENOENT) when
+ *    an open/stat/rename overlaps another process's in-flight delete or
+ *    rename of the same path, so under contention they mean "lost the race,
+ *    try again" — the pending-delete window is bounded by the loser's next
+ *    syscall. On unix they still fail fast as real permission errors.
  * 3. The lock is removed in a `finally`, but only after verifying the on-disk
  *    token still matches this holder's (fencing): if a reaper stole the lock
  *    while this holder was paused past the stale threshold and a new holder
  *    re-created it, release becomes a no-op instead of deleting the new
  *    holder's live lock.
  */
+
+/** Win32 delete/rename-race artefacts that mean "retry", never on unix. */
+const WIN32_CONTENTION_CODES = new Set(['EPERM', 'EACCES', 'EBUSY']);
+
+function isWin32Contention(error: unknown): boolean {
+  return (
+    process.platform === 'win32' &&
+    WIN32_CONTENTION_CODES.has((error as NodeJS.ErrnoException).code ?? '')
+  );
+}
+
+/** Contention on the O_EXCL create: the lock exists, or (win32) is mid-delete. */
+function isLockContention(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === 'EEXIST' || isWin32Contention(error);
+}
+
 async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): Promise<T> {
   const statePath = getStateFilePath(projectRoot);
   const lockPath = `${statePath}.lock`;
@@ -342,7 +364,7 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
       await fd.close();
       break;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+      if (!isLockContention(error)) {
         // Clean up only if this process created the file (fd was assigned).
         if (fd) {
           await fd.close().catch(() => {});
@@ -361,7 +383,12 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
       const stats = await fs.stat(lockPath);
       heldSinceMs = stats.mtime.getTime();
     } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (
+        (statError as NodeJS.ErrnoException).code === 'ENOENT' ||
+        // Win32: a stat overlapping another contender's in-flight delete
+        // reports EPERM/EACCES/EBUSY — same meaning as ENOENT here.
+        isWin32Contention(statError)
+      ) {
         // Released between attempts — retry the O_EXCL create.
         if (Date.now() >= deadline) {
           throw new StateError(
@@ -385,7 +412,12 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
         await fs.rename(lockPath, reapPath);
         await fs.unlink(reapPath).catch(() => {});
       } catch (reapError) {
-        if ((reapError as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if (
+          (reapError as NodeJS.ErrnoException).code !== 'ENOENT' &&
+          // Win32: losing the reap race to a concurrent rename/delete
+          // reports EPERM/EACCES/EBUSY rather than ENOENT.
+          !isWin32Contention(reapError)
+        ) {
           throw new StateError(
             `Failed to reap stale state file lock: ${reapError instanceof Error ? reapError.message : String(reapError)}`,
             lockPath
