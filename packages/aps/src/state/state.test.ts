@@ -2,7 +2,7 @@
  * State module tests
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promises as fs, mkdtempSync } from 'node:fs';
@@ -70,6 +70,7 @@ describe('State File Operations', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await cleanupTempDir(tempDir);
   });
 
@@ -224,11 +225,10 @@ describe('State File Operations', () => {
       // O_EXCL open; the writer must retry and succeed rather than throw
       // "Failed to acquire state file lock: EPERM" — the exact failure the
       // Windows release-gate leg reproduced under real contention.
-      const { vi } = await import('vitest');
-      const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
       const realOpen = fs.open.bind(fs);
       let injected = false;
-      const openSpy = vi.spyOn(fs, 'open').mockImplementation(((...args: unknown[]) => {
+      vi.spyOn(fs, 'open').mockImplementation(((...args: unknown[]) => {
         const [path, flags] = args as [string, string?];
         if (!injected && String(path).endsWith('state.json.lock') && flags === 'wx') {
           injected = true;
@@ -239,19 +239,85 @@ describe('State File Operations', () => {
         return realOpen(path as string, flags as string);
       }) as typeof fs.open);
 
-      try {
-        await updateTaskState(tempDir, 'WINRETRY-01', {
-          status: 'locked',
-          locked_at: '2025-12-17T10:00:00.000Z',
-          locked_by: 'win-retry',
-        });
-        const state = await readStateFile(tempDir);
-        expect(Object.keys(state.tasks)).toContain('WINRETRY-01');
-        expect(injected).toBe(true);
-      } finally {
-        openSpy.mockRestore();
-        platformSpy.mockRestore();
-      }
+      await updateTaskState(tempDir, 'WINRETRY-01', {
+        status: 'locked',
+        locked_at: '2025-12-17T10:00:00.000Z',
+        locked_by: 'win-retry',
+      });
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks)).toContain('WINRETRY-01');
+      expect(injected).toBe(true);
+    });
+
+    it('on win32, EPERM from a lock stat mid-delete retries instead of failing', async () => {
+      // The holder-inspection stat can also overlap a concurrent delete on
+      // win32. Real lock on disk forces the EEXIST → stat path; the first
+      // stat is injected to fail EPERM (mid-delete artefact), and to let the
+      // retry proceed the lock is removed alongside — exactly what a real
+      // contender releasing the lock does.
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+      const lockPath = `${getStateFilePath(tempDir)}.lock`;
+      await fs.mkdir(dirname(lockPath), { recursive: true });
+      await fs.writeFile(lockPath, 'live-holder-token');
+
+      const realStat = fs.stat.bind(fs);
+      let injected = false;
+      vi.spyOn(fs, 'stat').mockImplementation(((...args: unknown[]) => {
+        const [path] = args as [string];
+        if (!injected && String(path).endsWith('state.json.lock')) {
+          injected = true;
+          const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, stat');
+          err.code = 'EPERM';
+          // The concurrent holder finishes its release.
+          return fs.unlink(lockPath).then(() => Promise.reject(err));
+        }
+        return realStat(path as string);
+      }) as typeof fs.stat);
+
+      await updateTaskState(tempDir, 'WINSTAT-01', {
+        status: 'locked',
+        locked_at: '2025-12-17T10:00:00.000Z',
+        locked_by: 'win-stat-retry',
+      });
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks)).toContain('WINSTAT-01');
+      expect(injected).toBe(true);
+    });
+
+    it('on win32, EPERM from a lost reap race retries instead of failing', async () => {
+      // A stale lock's rename-aside reap can lose to a concurrent contender;
+      // win32 reports that as EPERM rather than ENOENT. Stale lock on disk
+      // forces the reap; the injected rename fails EPERM and removes the lock
+      // (the winning contender's reap), so the retry must acquire cleanly.
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+      const lockPath = `${getStateFilePath(tempDir)}.lock`;
+      await fs.mkdir(dirname(lockPath), { recursive: true });
+      await fs.writeFile(lockPath, 'crashed-holder-token');
+      const past = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath, past, past);
+
+      const realRename = fs.rename.bind(fs);
+      let injected = false;
+      vi.spyOn(fs, 'rename').mockImplementation(((...args: unknown[]) => {
+        const [from, to] = args as [string, string];
+        if (!injected && String(from).endsWith('state.json.lock')) {
+          injected = true;
+          const err: NodeJS.ErrnoException = new Error('EPERM: operation not permitted, rename');
+          err.code = 'EPERM';
+          // The winning reaper removes the stale lock.
+          return fs.unlink(lockPath).then(() => Promise.reject(err));
+        }
+        return realRename(from as string, to as string);
+      }) as typeof fs.rename);
+
+      await updateTaskState(tempDir, 'WINREAP-01', {
+        status: 'locked',
+        locked_at: '2025-12-17T10:00:00.000Z',
+        locked_by: 'win-reap-retry',
+      });
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks)).toContain('WINREAP-01');
+      expect(injected).toBe(true);
     });
 
     it('concurrent updates to the same task apply a single winner without corruption', async () => {
