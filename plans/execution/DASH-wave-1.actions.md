@@ -312,7 +312,7 @@ contract is captured at `/tmp/dash-wave1-desktop.png` and
 - Create: `crates/anvil-dashboard-server/src/capabilities/protection.rs`
 - Create: `crates/anvil-dashboard-server/tests/protection_overview.rs`
 - Create: `crates/anvil-kernel-types/src/gate_snapshot.rs`
-- Create: `apps/dashboard/src/modules/protection/manifest.ts`
+- Modify: `apps/dashboard/src/modules/registry.ts`
 - Create: `apps/dashboard/src/modules/protection/protection-overview.tsx`
 - Create: `apps/dashboard/src/modules/protection/protection-summary.tsx`
 - Create: `apps/dashboard/src/modules/protection/protection-tables.tsx`
@@ -343,12 +343,12 @@ green on `feat/dash-wave-1`; browser proof is captured at
 
 - Create: `crates/anvil-dashboard-server/src/capabilities/plans.rs`
 - Create: `crates/anvil-dashboard-server/tests/plan_driver.rs`
-- Create: `apps/dashboard/src/modules/plans/manifest.ts`
+- Modify: `apps/dashboard/src/modules/registry.ts`
 - Create: `apps/dashboard/src/modules/plans/plan-list.tsx`
 - Create: `apps/dashboard/src/modules/plans/plan-detail.tsx`
 - Create: `apps/dashboard/src/modules/plans/evidence-timeline.tsx`
-- Create: `apps/dashboard/src/routes/plans.index.tsx`
-- Create: `apps/dashboard/src/routes/plans.$id.tsx`
+- Create: `apps/dashboard/src/routes/plans.tsx`
+- Modify: `apps/dashboard/src/router.tsx`
 
 - [x] Add API fixture tests for plan list and detail.
 - [x] Add UI tests proving disabled action affordances cannot mutate state.

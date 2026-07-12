@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ChevronDown, CircleHelp, Menu, Search, ShieldCheck } from 'lucide-react';
+import { CircleHelp, Menu, Search, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -32,9 +32,7 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
           </span>
           <strong>ANVIL</strong>
         </Link>
-        <span className="mobile-workspace">
-          anvil-001 <ChevronDown aria-hidden="true" />
-        </span>
+        <span className="mobile-workspace">Current workspace</span>
         <div className="mobile-header-actions">
           <Button
             aria-label="Search dashboard"

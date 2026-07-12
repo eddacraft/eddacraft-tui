@@ -57,6 +57,11 @@ describe('Protection Overview typed resource', () => {
     expect(container?.textContent).not.toContain('Save-time protection failed');
   });
 
+  it('explains an empty recent-runs resource instead of rendering a blank table', async () => {
+    await render({ recent_runs: [] });
+    expect(container?.textContent).toContain('No recent runs');
+  });
+
   it('renders unavailable warning and affected-file resources without claiming zero results', async () => {
     await render({
       data_state: 'partial',

@@ -182,26 +182,33 @@ export function ProtectionOverviewContent({
               </div>
               <span className="panel-count">{overview.recent_runs.length} runs</span>
             </header>
-            <Table className="operations-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Started</TableHead>
-                  <TableHead>Result</TableHead>
-                  <TableHead>Warnings</TableHead>
-                  <TableHead>Changed</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {overview.recent_runs.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell>{run.started_at}</TableCell>
-                    <TableCell>{run.label}</TableCell>
-                    <TableCell>{run.warning_count}</TableCell>
-                    <TableCell>{run.changed_file_count}</TableCell>
+            {overview.recent_runs.length > 0 ? (
+              <Table className="operations-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Result</TableHead>
+                    <TableHead>Warnings</TableHead>
+                    <TableHead>Changed</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {overview.recent_runs.map((run) => (
+                    <TableRow key={run.id}>
+                      <TableCell>{run.started_at}</TableCell>
+                      <TableCell>{run.label}</TableCell>
+                      <TableCell>{run.warning_count}</TableCell>
+                      <TableCell>{run.changed_file_count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                description="No retained save-time run summaries are available."
+                title="No recent runs"
+              />
+            )}
           </TabsContent>
           <TabsContent className="panel activity-panel warnings-panel" forceMount value="warnings">
             <header className="panel-header">

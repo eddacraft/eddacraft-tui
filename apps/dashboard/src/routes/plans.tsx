@@ -10,7 +10,7 @@ export function DashboardPlansRoute() {
       <header className="protection-heading">
         <p className="eyebrow">APS dogfood</p>
         <h1 id="plan-driver-title">Plan Driver</h1>
-        <p>Read-only plan status, readiness and evidence.</p>
+        <p>Read-only plan status, readiness and validation contracts.</p>
       </header>
       <QueryBoundary loadingLabel="Loading plans" query={plans}>
         {(items) => <PlanList plans={items} />}

@@ -116,6 +116,11 @@ describe('dashboard app host', () => {
     expect(container.querySelector('[data-desktop-sidebar]')?.textContent).not.toContain(
       'No network calls'
     );
+    expect(container.querySelector('[data-mobile-header]')?.textContent).toContain(
+      'Current workspace'
+    );
+    expect(container.querySelector('[data-mobile-header]')?.textContent).not.toContain('anvil-001');
+    expect(container.querySelector('.mobile-workspace svg')).toBeNull();
     expect(container.querySelector('button[aria-label="Search dashboard"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Open navigation"]')).not.toBeNull();
     expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Runs');
@@ -151,6 +156,8 @@ describe('dashboard app host', () => {
       await new Promise((next) => setTimeout(next, 20));
     });
     expect(container.textContent).toContain('Plan Driver');
+    expect(container.textContent).toContain('readiness and validation contracts');
+    expect(container.textContent).not.toContain('readiness and evidence');
   });
 
   it('marks only the current mobile module active and keeps Plans active on detail routes', async () => {
