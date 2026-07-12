@@ -5008,3 +5008,31 @@ archive.
   workspace retirement, CIB-132 (admin-key Windows nightly failures live in
   the same retiring workspace).
 - **Confidence:** medium
+
+### CIB-196: prepare.sh changelog promotion needs manual curation
+
+- **Status:** Ready
+- **Intent:** The release prepare step should promote the Unreleased draft
+  into a changelog section that needs at most light review — not a structural
+  rewrite during the cut.
+- **Expected Outcome:** At the v0.9.0-beta cut, `prepare.sh`'s changelog
+  promotion left a bottom metadata stub for the version in both changelogs,
+  missed draft-worthy entries (the JOURNEY-wave items and the GBASE
+  `ANVIL_PERSIST_GRAPH` default-on change), and retained an upgrade note that
+  still described persistence as default-off. Curation took two follow-up
+  commits on the promotion PR (`2315c3952`, `6b0ed1d1d`), including a
+  Copilot-caught duplicated persistence bullet introduced during the
+  hand-edit. Fix `prepare.sh` so the promoted section carries the complete
+  Unreleased draft without stubs, and add the curation diff to the promotion
+  PR review checklist so hand-edits get the same scrutiny as generated
+  content.
+- **Validation:** The next release's `prepare.sh` output passes promotion-PR
+  review without structural changelog rewrites (no metadata stub, no
+  missing-draft-entry curation); `scripts/release/_test` covers the promotion
+  path.
+- **Identified From:** v0.9.0-beta cut — curation commits
+  `2315c3952`/`6b0ed1d1d` on promotion PR #3306; recorded in
+  [`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md).
+- **Coordinates with:** the `release` skill (`scripts/release/prepare.sh`),
+  #3309 publication-recovery hardening (same release-mechanics intake wave).
+- **Confidence:** high

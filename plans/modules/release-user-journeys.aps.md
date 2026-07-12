@@ -4,15 +4,19 @@
 | -- | ---- | ----- | -------- | ------ | -------- |
 | JOURNEY | Conductor | Josh | high | In Progress | 5/10 |
 
-**Last reviewed:** 2026-07-12 — release-cut implementation complete: all six
-coordinated code items Merged (CIB-184 #3279, WOW-005 #3280, CIB-073 #3282,
-CIB-183 #3283, ACTTUI-012 #3284, CIB-190 #3286); JOURNEY-001..004 outcomes
-verified on candidate `d6d3aa39c`; Linux rehearsal recorded
-([audit](../audits/2026-07-12-journey-005-linux-rehearsal.md)). The operator
-cleared the escalation queue 2026-07-12 (ESC-001 accept-CI on the green cross
-matrix, main run 29171614019; ESC-002 approve): JOURNEY-005 is Merged and the
-v0.9.0-beta release is executing under JOURNEY-006. Created 2026-07-11
-from the operator's release goal and the accepted
+**Last reviewed:** 2026-07-12 — **`v0.9.0-beta` shipped** under JOURNEY-006:
+tag at source `6b0ed1d1d`, published on both repos 2026-07-12T17:06Z
+(release run 29190475570 attempt 3; verification and closeout on
+[#3305](https://github.com/eddacraft/anvil-001/issues/3305); record:
+[`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md)). The release
+cut chain (JOURNEY-001..006) is complete — all six coordinated code items
+Merged (CIB-184 #3279, WOW-005 #3280, CIB-073 #3282, CIB-183 #3283,
+ACTTUI-012 #3284, CIB-190 #3286), outcomes verified on the candidate, Linux
+rehearsal recorded
+([audit](../audits/2026-07-12-journey-005-linux-rehearsal.md)), escalation
+queue cleared (ESC-001 accept-CI, ESC-002 approve). JOURNEY-007..010 remain
+Proposed post-cut expansion. Created 2026-07-11 from the operator's release
+goal and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
 ## Purpose
@@ -197,14 +201,20 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-006: Outcome-based release gate
 
-- **Status:** In Progress 2026-07-12 — the operator approved the cut (ESC-002
-  **approve**, 2026-07-12) on the assembled evidence matrix (Linux metrics in
-  the [rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md):
+- **Status:** Merged 2026-07-12 — the tag landed: `v0.9.0-beta` cut at source
+  `6b0ed1d1d` and published on both repos (release run 29190475570, success on
+  attempt 3 after the operator rotated the expired `ANVIL_RELEASES_TOKEN`;
+  verification record and closeout on
+  [#3305](https://github.com/eddacraft/anvil-001/issues/3305)). The operator
+  approved the cut (ESC-002 **approve**, 2026-07-12) on the assembled evidence
+  matrix (Linux metrics in the
+  [rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md):
   first run 0.34 s, healthy repeat 0.026 s / 6 lines, one-next-action
-  compliance on every observed terminal state, byte-stable machine
-  contracts, redaction green; cross matrix green on main run 29171614019).
-  Release execution for v0.9.0-beta is underway; flips Merged when the tag
-  lands.
+  compliance on every observed terminal state, byte-stable machine contracts,
+  redaction green; cross matrix green on main run 29171614019). Released/
+  Shipped via v0.9.0-beta (2026-07-12); record:
+  [`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); execution
+  journal: [`plans/execution/JOURNEY-006.actions.md`](../execution/JOURNEY-006.actions.md).
 - **Intent:** Decide the cut from reproducible journey outcomes rather than the
   completion of disconnected feature lists.
 - **Expected Outcome:** The candidate records time to first value, activation

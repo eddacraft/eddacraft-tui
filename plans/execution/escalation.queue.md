@@ -10,6 +10,22 @@ is one closed question with a marked default. Move cleared items to
 
 ## Resolved
 
+### ESC-004 · RESOLVED 2026-07-12: **operator-rotated** (operator)
+
+- decision: the operator rotated the expired `ANVIL_RELEASES_TOKEN` repo
+  secret directly (17:04 UTC) and reran the failed release jobs (run
+  29190475570 attempt 3, 17:06 UTC) rather than clearing the parked queue
+  item — the parking PR #3308 was closed unmerged as moot, so ESC-004 is
+  recorded here at resolution.
+- context: the v0.9.0-beta `host` job had failed twice pre-publish at
+  "Generate build provenance manifest" with `gh: Bad credentials (HTTP 401)`
+  (the secret was untouched since 2026-04-01); no partial release state was
+  created. Details on
+  [#3305](https://github.com/eddacraft/anvil-001/issues/3305).
+- consequence: attempt 3 reused the retained build artefacts and published
+  `v0.9.0-beta` end-to-end on both repos; verification and closeout recorded
+  on #3305; publication-recovery hardening is intake via PR #3309.
+
 ### ESC-001 · RESOLVED 2026-07-12: **accept-CI** (operator)
 
 - decision: CI matrix evidence accepted in lieu of manual macOS/Windows
