@@ -2,7 +2,7 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 5/10 |
+| JOURNEY | Conductor | Josh | high | In Progress | 6/10 |
 
 **Last reviewed:** 2026-07-12 — **`v0.9.0-beta` shipped** under JOURNEY-006:
 tag at source `6b0ed1d1d`, published on both repos 2026-07-12T17:06Z
