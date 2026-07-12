@@ -42,9 +42,10 @@ export function ProtectionOverviewContent({
   severity?: SeverityFilter;
   view?: ProtectionView;
 }) {
-  const [selectedId, setSelectedId] = useState(
-    initialEvidence ?? overview.next_attention?.evidence_id ?? overview.warnings[0]?.id
-  );
+  const fallbackEvidence = overview.next_attention?.evidence_id ?? overview.warnings[0]?.id;
+  const [localSelectedId, setLocalSelectedId] = useState(initialEvidence ?? fallbackEvidence);
+  const evidenceIsControlled = initialEvidence !== undefined || onEvidenceChange !== undefined;
+  const selectedId = evidenceIsControlled ? (initialEvidence ?? fallbackEvidence) : localSelectedId;
   const filteredWarnings =
     severity === 'all'
       ? overview.warnings
@@ -54,7 +55,7 @@ export function ProtectionOverviewContent({
       (warning) => warning.id === selectedId || warning.evidence_id === selectedId
     ) ?? filteredWarnings[0];
   const select = (id: string) => {
-    setSelectedId(id);
+    if (!evidenceIsControlled) setLocalSelectedId(id);
     onEvidenceChange?.(id);
   };
   const offline = overview.gaps.some((gap) => gap.component === 'live-protection');

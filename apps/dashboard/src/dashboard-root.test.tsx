@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { protectionOverviewFixture } from '@/api/fixtures';
 import { DashboardApp } from '@/main';
 
 let root: Root | null = null;
@@ -15,6 +16,10 @@ afterEach(() => {
   }
 
   container?.remove();
+  const historyWarningIndex = protectionOverviewFixture.warnings.findIndex(
+    (warning) => warning.id === 'warning-history'
+  );
+  if (historyWarningIndex >= 0) protectionOverviewFixture.warnings.splice(historyWarningIndex, 1);
   window.history.replaceState(null, '', '/');
   root = null;
   container = null;
@@ -160,5 +165,59 @@ describe('dashboard app host', () => {
     });
 
     expect(new URLSearchParams(window.location.search).get('severity')).toBe('medium');
+  });
+
+  it('restores evidence selection when browser history changes after mount', async () => {
+    protectionOverviewFixture.warnings.push({
+      ...protectionOverviewFixture.warnings[0],
+      id: 'warning-history',
+      evidence_id: 'evidence-history',
+      rule: 'history-restored-rule',
+      file_path: 'src/history.ts',
+      line: 24,
+    });
+    window.history.replaceState(
+      null,
+      '',
+      '/?view=warnings&severity=all&evidence=evidence-typed-secret'
+    );
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    const inspector = container.querySelector('#evidence-inspector');
+    expect(inspector?.textContent).toContain('typed-secret-rule');
+
+    await act(async () => {
+      [...container!.querySelectorAll<HTMLButtonElement>('.table-rule')]
+        .find((button) => button.textContent?.trim() === 'history-restored-rule')
+        ?.click();
+      await new Promise((next) => setTimeout(next, 0));
+    });
+
+    expect(new URLSearchParams(window.location.search).get('evidence')).toBe('warning-history');
+    expect(inspector?.textContent).toContain('history-restored-rule');
+
+    await act(async () => {
+      window.history.back();
+      await new Promise((next) => setTimeout(next, 20));
+    });
+
+    expect(new URLSearchParams(window.location.search).get('evidence')).toBe(
+      'evidence-typed-secret'
+    );
+    expect(inspector?.textContent).toContain('typed-secret-rule');
+
+    await act(async () => {
+      window.history.forward();
+      await new Promise((next) => setTimeout(next, 20));
+    });
+
+    expect(new URLSearchParams(window.location.search).get('evidence')).toBe('warning-history');
+    expect(inspector?.textContent).toContain('history-restored-rule');
   });
 });
