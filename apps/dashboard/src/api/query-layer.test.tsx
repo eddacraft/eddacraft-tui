@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DashboardApi } from '@/api/client';
 import { DashboardQueryProvider } from '@/api/query-client';
@@ -95,5 +95,33 @@ describe('dashboard query layer', () => {
     });
     expect(container?.textContent).toContain('workspace-unavailable');
     expect(container?.textContent).toContain('Workspace unavailable');
+    expect(container?.textContent).toContain('Start or restart the local dashboard server');
+    expect(container?.querySelector('button')?.textContent).toContain('Retry');
+  });
+
+  it('lets the user retry a failed query', async () => {
+    const getProtectionOverview = vi
+      .fn<DashboardApi['getProtectionOverview']>()
+      .mockRejectedValueOnce(new TypeError('network offline'))
+      .mockResolvedValueOnce({ source_message: 'Recovered API data' } as never);
+    const api: DashboardApi = {
+      getProtectionOverview,
+      listPlans: async () => [],
+      getPlan: async () => {
+        throw new Error('unused');
+      },
+    };
+    await renderWith(api);
+    await act(async () => {
+      await new Promise((next) => setTimeout(next, 20));
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button')?.click();
+      await new Promise((next) => setTimeout(next, 20));
+    });
+
+    expect(getProtectionOverview).toHaveBeenCalledTimes(2);
+    expect(container?.textContent).toContain('Recovered API data');
   });
 });

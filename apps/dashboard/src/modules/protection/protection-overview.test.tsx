@@ -57,6 +57,74 @@ describe('Protection Overview typed resource', () => {
     expect(container?.textContent).not.toContain('Save-time protection failed');
   });
 
+  it('renders unavailable warning and affected-file resources without claiming zero results', async () => {
+    await render({
+      data_state: 'partial',
+      warnings_state: 'unavailable',
+      warnings: [],
+      affected_files_state: 'unavailable',
+      affected_files: [],
+      gaps: [
+        { component: 'retained-warning-history', reason: 'Warning history is unavailable.' },
+        { component: 'affected-files', reason: 'Affected files are unavailable.' },
+      ],
+    });
+
+    expect(container?.textContent).toContain('Warnings unavailable');
+    expect(container?.textContent).toContain('Warning history is unavailable.');
+    expect(container?.textContent).toContain('Affected files unavailable');
+    expect(container?.textContent).toContain('Affected files are unavailable.');
+    expect(container?.textContent).not.toContain('Warnings (0)');
+    expect(container?.textContent).not.toContain('Affected files (0)');
+  });
+
+  it('labels partial warning and affected-file resources without claiming complete counts', async () => {
+    await render({
+      warnings_state: 'partial',
+      affected_files_state: 'partial',
+      warnings: [],
+      affected_files: [],
+      gaps: [
+        { component: 'retained-warning-history', reason: 'Only the latest gate is available.' },
+        { component: 'affected-files', reason: 'The affected-file index is incomplete.' },
+      ],
+    });
+
+    expect(container?.textContent).toContain('Warnings partial');
+    expect(container?.textContent).toContain('Affected files partial');
+    expect(container?.textContent).not.toContain('Warnings (0)');
+    expect(container?.textContent).not.toContain('Affected files (0)');
+  });
+
+  it('labels non-empty partial resources as shown subsets rather than total counts', async () => {
+    await render({
+      warnings_state: 'partial',
+      affected_files_state: 'partial',
+      gaps: [
+        { component: 'retained-warning-history', reason: 'Warning history is incomplete.' },
+        { component: 'affected-files', reason: 'The affected-file index is incomplete.' },
+      ],
+    });
+
+    expect(container?.textContent).toContain('Warnings partial (1 shown)');
+    expect(container?.textContent).toContain('Affected files partial (1 shown)');
+  });
+
+  it('claims zero warning and affected-file results only when each resource is complete', async () => {
+    await render({
+      warnings_state: 'complete',
+      warnings: [],
+      affected_files_state: 'complete',
+      affected_files: [],
+      gaps: [],
+    });
+
+    expect(container?.textContent).toContain('Warnings (0)');
+    expect(container?.textContent).toContain('Affected files (0)');
+    expect(container?.textContent).toContain('No active warnings');
+    expect(container?.textContent).toContain('No affected files');
+  });
+
   it('restores the controlled activity tab and reports tab navigation', async () => {
     const onViewChange = vi.fn();
     await render({}, { view: 'warnings', onViewChange });

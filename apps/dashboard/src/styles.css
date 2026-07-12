@@ -240,6 +240,22 @@ kbd {
   padding: 0.5rem 0.6rem;
 }
 
+.dashboard-help:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.dashboard-help span {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.dashboard-help small {
+  color: var(--muted);
+  font-size: 0.54rem;
+  font-weight: 400;
+}
+
 .dashboard-nav svg,
 .dashboard-help svg {
   width: 0.95rem;
@@ -330,7 +346,7 @@ kbd {
   display: flex;
   min-height: 2.85rem;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   border-bottom: 1px solid var(--border);
   background: rgb(8 11 14 / 90%);
   padding: 0.35rem 1.35rem;
@@ -1102,6 +1118,37 @@ kbd {
   margin-top: 0.55rem;
 }
 
+.resource-state-notice,
+.query-error {
+  display: grid;
+  gap: 0.4rem;
+  padding: 1rem;
+  color: var(--muted-strong);
+}
+
+.resource-state-notice strong,
+.query-error strong {
+  color: var(--foreground);
+  font-size: 0.72rem;
+}
+
+.resource-state-notice p,
+.query-error p {
+  margin: 0;
+  font-size: 0.66rem;
+}
+
+.query-error {
+  width: min(100%, 48rem);
+  margin: 2rem auto;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+}
+
+.query-error [data-slot='button'] {
+  width: fit-content;
+}
+
 .plan-driver,
 .plan-detail {
   display: grid;
@@ -1207,6 +1254,10 @@ kbd {
 }
 
 .mobile-sheet-nav a {
+  color: var(--muted-strong);
+}
+
+.mobile-sheet-nav a[aria-current='page'] {
   background: var(--blue-dim);
   color: #d7e0ff;
 }
@@ -1359,7 +1410,7 @@ kbd {
     font-size: 0.53rem;
   }
 
-  .mobile-bottom-nav a {
+  .mobile-bottom-nav a[aria-current='page'] {
     color: #b7c9f0;
     box-shadow: inset 0 2px var(--blue);
   }

@@ -10,5 +10,6 @@ describe('dashboard command registry', () => {
     expect(entries.map((entry) => entry.id)).toContain('module:protection');
     expect(entries.map((entry) => entry.id)).toContain('resource:protection:warnings');
     expect(entries.map((entry) => entry.to)).toContain('/plans');
+    expect(entries.map((entry) => entry.id)).not.toContain('resource:plans:detail');
   });
 });

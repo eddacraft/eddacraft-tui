@@ -4,6 +4,7 @@ import { ChevronDown, CircleHelp, Menu, Search, ShieldCheck } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -59,17 +60,22 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
                 {dashboardModuleRegistry.manifests.map((manifest) => {
                   const Icon = manifest.navigation.icon ?? ShieldCheck;
                   return (
-                    <Link
-                      key={manifest.id}
-                      search={{ severity: 'all', view: 'runs' }}
-                      to={manifest.navigation.path}
-                    >
-                      <Icon aria-hidden="true" /> {manifest.navigation.label}
-                    </Link>
+                    <SheetClose asChild key={manifest.id}>
+                      <Link
+                        activeOptions={{
+                          exact: manifest.navigation.path === '/',
+                          includeSearch: false,
+                        }}
+                        search={{ severity: 'all', view: 'runs' }}
+                        to={manifest.navigation.path}
+                      >
+                        <Icon aria-hidden="true" /> {manifest.navigation.label}
+                      </Link>
+                    </SheetClose>
                   );
                 })}
-                <button type="button">
-                  <CircleHelp aria-hidden="true" /> Help
+                <button disabled title="Help is unavailable in Wave 1" type="button">
+                  <CircleHelp aria-hidden="true" /> Help unavailable in Wave 1
                 </button>
               </nav>
             </SheetContent>
@@ -86,6 +92,10 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
           const Icon = manifest.navigation.icon ?? ShieldCheck;
           return (
             <Link
+              activeOptions={{
+                exact: manifest.navigation.path === '/',
+                includeSearch: false,
+              }}
               key={manifest.id}
               search={{ severity: 'all', view: 'runs' }}
               to={manifest.navigation.path}
@@ -95,9 +105,9 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
             </Link>
           );
         })}
-        <button type="button">
+        <button disabled title="Help is unavailable in Wave 1" type="button">
           <CircleHelp aria-hidden="true" />
-          Help
+          Help unavailable
         </button>
       </nav>
     </>

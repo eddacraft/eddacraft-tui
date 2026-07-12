@@ -4,8 +4,6 @@ import { CircleHelp, ShieldCheck } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { dashboardModuleRegistry } from '@/modules/registry';
 
-const exactRouteMatch = { exact: true } as const;
-
 export function DashboardSidebar() {
   return (
     <aside aria-label="Dashboard modules" className="dashboard-sidebar" data-desktop-sidebar>
@@ -29,7 +27,10 @@ export function DashboardSidebar() {
           const Icon = manifest.navigation.icon ?? ShieldCheck;
           return (
             <Link
-              activeOptions={exactRouteMatch}
+              activeOptions={{
+                exact: manifest.navigation.path === '/',
+                includeSearch: false,
+              }}
               key={manifest.id}
               search={{ severity: 'all', view: 'runs' }}
               to={manifest.navigation.path}
@@ -55,8 +56,17 @@ export function DashboardSidebar() {
           </li>
         </ul>
         <p className="dashboard-version">v0.1.0 · Wave 1</p>
-        <button className="dashboard-help" type="button">
-          <CircleHelp aria-hidden="true" /> Help
+        <button
+          aria-describedby="dashboard-help-explanation"
+          className="dashboard-help"
+          disabled
+          type="button"
+        >
+          <CircleHelp aria-hidden="true" />
+          <span>
+            Help
+            <small id="dashboard-help-explanation">Help unavailable in Wave 1</small>
+          </span>
         </button>
       </div>
     </aside>

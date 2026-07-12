@@ -111,6 +111,10 @@ describe('dashboard app host', () => {
     expect(container.querySelector('button[aria-label="Open navigation"]')).not.toBeNull();
     expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Runs');
     expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Warnings (1)');
+    expect(container.textContent).not.toContain('~/dev/anvil-001');
+    expect(container.textContent).not.toContain('2025-05-28');
+    expect(container.querySelector('button.dashboard-help')?.hasAttribute('disabled')).toBe(true);
+    expect(container.textContent).toContain('Help unavailable in Wave 1');
   });
 
   it('opens Cmd+K over registered module resources', async () => {
@@ -128,6 +132,7 @@ describe('dashboard app host', () => {
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(document.body.textContent).toContain('Active warnings');
     expect(document.body.textContent).toContain('Plan Driver');
+    expect(document.body.textContent).not.toContain('Selected plan detail');
 
     const planCommand = [...document.querySelectorAll<HTMLElement>('[cmdk-item]')].find(
       (item) => item.textContent?.trim() === 'Plan Driver'
@@ -136,6 +141,76 @@ describe('dashboard app host', () => {
       planCommand?.click();
       await new Promise((next) => setTimeout(next, 20));
     });
+    expect(container.textContent).toContain('Plan Driver');
+  });
+
+  it('marks only the current mobile module active and keeps Plans active on detail routes', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    const mobileNav = container.querySelector('[data-mobile-bottom-nav]');
+    const mobileProtection = [...mobileNav!.querySelectorAll('a')].find(
+      (link) => link.textContent?.trim() === 'Protection'
+    );
+    const mobilePlans = [...mobileNav!.querySelectorAll('a')].find(
+      (link) => link.textContent?.trim() === 'Plans'
+    );
+    expect(mobileProtection?.getAttribute('aria-current')).toBe('page');
+    expect(mobilePlans?.hasAttribute('aria-current')).toBe(false);
+
+    await act(async () => root?.unmount());
+    container.remove();
+    window.history.replaceState(null, '', '/plans/example');
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(<DashboardApp />);
+      await new Promise((next) => setTimeout(next, 20));
+    });
+
+    const detailMobileNav = container.querySelector('[data-mobile-bottom-nav]');
+    const detailMobileProtection = [...detailMobileNav!.querySelectorAll('a')].find(
+      (link) => link.textContent?.trim() === 'Protection'
+    );
+    const detailMobilePlans = [...detailMobileNav!.querySelectorAll('a')].find(
+      (link) => link.textContent?.trim() === 'Plans'
+    );
+    const sidebarPlans = [...container.querySelectorAll('.dashboard-nav a')].find(
+      (link) => link.textContent?.trim() === 'Plans'
+    );
+    expect(detailMobileProtection?.hasAttribute('aria-current')).toBe(false);
+    expect(detailMobilePlans?.getAttribute('aria-current')).toBe('page');
+    expect(sidebarPlans?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('closes the mobile drawer after navigating to a module', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Open navigation"]')?.click();
+      await new Promise((next) => setTimeout(next, 0));
+    });
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+
+    await act(async () => {
+      [...dialog!.querySelectorAll<HTMLElement>('a')]
+        .find((link) => link.textContent?.trim() === 'Plans')
+        ?.click();
+      await new Promise((next) => setTimeout(next, 20));
+    });
+
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(container.textContent).toContain('Plan Driver');
   });
 

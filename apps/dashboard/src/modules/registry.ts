@@ -77,9 +77,6 @@ export const dashboardModuleRegistry = createModuleRegistry([
     ],
     queryBindings: ['plans', 'plan-detail'],
     renderers: ['PlanDriverBoundary'],
-    resources: [
-      { id: 'index', label: 'Plan Driver' },
-      { id: 'detail', label: 'Selected plan detail' },
-    ],
+    resources: [{ id: 'index', label: 'Plan Driver' }],
   },
 ]);

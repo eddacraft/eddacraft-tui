@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { PlanDetailView } from '@/modules/plans/plan-detail';
+import { PlanList } from '@/modules/plans/plan-list';
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
@@ -38,7 +39,7 @@ it('renders readiness evidence and keeps deferred actions inert', async () => {
               id: 'DASH-001',
               title: 'Proof',
               status: 'Ready',
-              evidence: '`pnpm test`',
+              validation_contract: '`pnpm test`',
               readiness: true,
             },
           ],
@@ -53,4 +54,19 @@ it('renders readiness evidence and keeps deferred actions inert', async () => {
   expect(container.textContent).toContain('pnpm test');
   expect(action?.disabled).toBe(true);
   expect(click).not.toHaveBeenCalled();
+});
+
+it('renders an explicit empty state when no indexed plans are available', async () => {
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(<PlanList plans={[]} />);
+  });
+
+  expect(container.textContent).toContain('No indexed plans');
+  expect(container.textContent).toContain(
+    'No APS modules are available from the local dashboard server.'
+  );
+  expect(container.querySelector('table')).toBeNull();
 });

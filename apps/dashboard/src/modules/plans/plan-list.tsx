@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 
 import type { components } from '@/api/generated/openapi';
+import { EmptyState } from '@/components/primitives/empty-state';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -14,6 +15,20 @@ import {
 type PlanSummary = components['schemas']['PlanSummary'];
 
 export function PlanList({ plans }: { plans: PlanSummary[] }) {
+  if (plans.length === 0) {
+    return (
+      <section className="panel plan-list" aria-labelledby="plan-list-title">
+        <h2 className="sr-only" id="plan-list-title">
+          Indexed plans
+        </h2>
+        <EmptyState
+          description="No APS modules are available from the local dashboard server."
+          title="No indexed plans"
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="panel plan-list" aria-labelledby="plan-list-title">
       <header className="panel-header">

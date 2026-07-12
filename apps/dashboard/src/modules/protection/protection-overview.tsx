@@ -20,10 +20,41 @@ import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
 import { ProtectionSummary } from '@/modules/protection/protection-summary';
 
 type Overview = components['schemas']['ProtectionOverview'];
+type DataState = components['schemas']['DataState'];
 type ProtectionView = DashboardSearch['view'];
 type SeverityFilter = DashboardSearch['severity'];
 
 const severityOptions: readonly SeverityFilter[] = ['all', 'high', 'medium', 'low'];
+
+function resourceLabel(label: string, state: DataState, count: number) {
+  if (state === 'complete') return `${label} (${count})`;
+  if (state === 'partial' && count > 0) return `${label} partial (${count} shown)`;
+  return `${label} ${state}`;
+}
+
+function gapReason(overview: Overview, components: readonly string[], fallback: string) {
+  return overview.gaps.find((gap) => components.includes(gap.component))?.reason ?? fallback;
+}
+
+function ResourceStateNotice({
+  label,
+  reason,
+  state,
+}: {
+  label: string;
+  reason: string;
+  state: Exclude<DataState, 'complete'>;
+}) {
+  return (
+    <div className="resource-state-notice" role="status">
+      <strong>Availability detail</strong>
+      <p>{reason}</p>
+      <span className="sr-only">
+        {label} {state}
+      </span>
+    </div>
+  );
+}
 
 export function ProtectionOverviewContent({
   overview,
@@ -59,6 +90,30 @@ export function ProtectionOverviewContent({
     onEvidenceChange?.(id);
   };
   const offline = overview.gaps.some((gap) => gap.component === 'live-protection');
+  const warningsLabel = resourceLabel(
+    'Warnings',
+    overview.warnings_state,
+    overview.warnings.length
+  );
+  const affectedFilesLabel = resourceLabel(
+    'Affected files',
+    overview.affected_files_state,
+    overview.affected_files.length
+  );
+  const warningsGap = gapReason(
+    overview,
+    ['retained-warning-history', 'warnings'],
+    overview.warnings_state === 'partial'
+      ? 'Only part of the warning history is available.'
+      : 'Warning history is not available.'
+  );
+  const affectedFilesGap = gapReason(
+    overview,
+    ['affected-files'],
+    overview.affected_files_state === 'partial'
+      ? 'Only part of the affected-file index is available.'
+      : 'Affected files are not available.'
+  );
 
   if (
     overview.data_state === 'unavailable' &&
@@ -89,7 +144,11 @@ export function ProtectionOverviewContent({
         <p>Read-only local evidence for save-time protection and its next attention item.</p>
         <div className="data-state-row">
           <Badge variant="outline">
-            {overview.data_state === 'complete' ? 'Full data' : 'Partial data'}
+            {overview.data_state === 'complete'
+              ? 'Full data'
+              : overview.data_state === 'partial'
+                ? 'Partial data'
+                : 'Data unavailable'}
           </Badge>
           {offline ? <Badge variant="outline">Offline · last-known evidence</Badge> : null}
         </div>
@@ -113,7 +172,7 @@ export function ProtectionOverviewContent({
             variant="line"
           >
             <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="warnings">Warnings ({overview.warnings.length})</TabsTrigger>
+            <TabsTrigger value="warnings">{warningsLabel}</TabsTrigger>
           </TabsList>
           <TabsContent className="panel activity-panel" forceMount value="runs">
             <header className="panel-header">
@@ -147,8 +206,16 @@ export function ProtectionOverviewContent({
           <TabsContent className="panel activity-panel warnings-panel" forceMount value="warnings">
             <header className="panel-header">
               <div>
-                <h2>Active warnings ({filteredWarnings.length})</h2>
-                <p>Ordered by severity and recency</p>
+                <h2>
+                  {overview.warnings_state === 'complete'
+                    ? `Active warnings (${filteredWarnings.length})`
+                    : warningsLabel}
+                </h2>
+                <p>
+                  {overview.warnings_state === 'complete'
+                    ? 'Ordered by severity and recency'
+                    : 'Coverage reported by the local dashboard API'}
+                </p>
               </div>
               <label className="severity-filter">
                 <span>Severity</span>
@@ -167,41 +234,60 @@ export function ProtectionOverviewContent({
                 </select>
               </label>
             </header>
-            <Table className="operations-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Rule</TableHead>
-                  <TableHead>File</TableHead>
-                  <TableHead>Age</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredWarnings.map((warning) => (
-                  <TableRow
-                    data-selected={warning.id === selected?.id || undefined}
-                    key={warning.id}
-                  >
-                    <TableCell>{warning.severity.toUpperCase()}</TableCell>
-                    <TableCell>
-                      <button
-                        className="table-select-button table-rule"
-                        onClick={() => select(warning.id)}
-                        type="button"
-                      >
-                        {warning.rule}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <code>
-                        {warning.file_path ?? 'Workspace'}:{warning.line ?? '—'}
-                      </code>
-                    </TableCell>
-                    <TableCell>{warning.age_label}</TableCell>
+            {filteredWarnings.length > 0 ? (
+              <Table className="operations-table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Severity</TableHead>
+                    <TableHead>Rule</TableHead>
+                    <TableHead>File</TableHead>
+                    <TableHead>Age</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredWarnings.map((warning) => (
+                    <TableRow
+                      data-selected={warning.id === selected?.id || undefined}
+                      key={warning.id}
+                    >
+                      <TableCell>{warning.severity.toUpperCase()}</TableCell>
+                      <TableCell>
+                        <button
+                          className="table-select-button table-rule"
+                          onClick={() => select(warning.id)}
+                          type="button"
+                        >
+                          {warning.rule}
+                        </button>
+                      </TableCell>
+                      <TableCell>
+                        <code>
+                          {warning.file_path ?? 'Workspace'}:{warning.line ?? '—'}
+                        </code>
+                      </TableCell>
+                      <TableCell>{warning.age_label}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : overview.warnings_state === 'complete' ? (
+              <EmptyState
+                description={
+                  overview.warnings.length === 0
+                    ? 'The complete warning resource contains no active warnings.'
+                    : 'No active warnings match the selected severity.'
+                }
+                title={
+                  overview.warnings.length === 0 ? 'No active warnings' : 'No matching warnings'
+                }
+              />
+            ) : (
+              <ResourceStateNotice
+                label="Warnings"
+                reason={warningsGap}
+                state={overview.warnings_state}
+              />
+            )}
           </TabsContent>
         </Tabs>
         <EvidenceInspector warning={selected} />
@@ -209,38 +295,55 @@ export function ProtectionOverviewContent({
       <section aria-labelledby="affected-files-title" className="panel affected-files-panel">
         <header className="panel-header">
           <div>
-            <h2 id="affected-files-title">Affected files ({overview.affected_files.length})</h2>
-            <p>Files with active warnings in the latest evidence</p>
+            <h2 id="affected-files-title">{affectedFilesLabel}</h2>
+            <p>
+              {overview.affected_files_state === 'complete'
+                ? 'Files with active warnings in the latest evidence'
+                : 'Coverage reported by the local dashboard API'}
+            </p>
           </div>
         </header>
-        <Table className="operations-table">
-          <TableHeader>
-            <TableRow>
-              <TableHead>File path</TableHead>
-              <TableHead>Warnings</TableHead>
-              <TableHead>Highest severity</TableHead>
-              <TableHead>Last seen</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {overview.affected_files.map((file) => (
-              <TableRow key={file.path}>
-                <TableCell>
-                  <button
-                    className="table-select-button"
-                    onClick={() => select(file.warning_id)}
-                    type="button"
-                  >
-                    {file.path}
-                  </button>
-                </TableCell>
-                <TableCell>{file.warning_count}</TableCell>
-                <TableCell>{file.highest_severity.toUpperCase()}</TableCell>
-                <TableCell>{file.last_seen}</TableCell>
+        {overview.affected_files.length > 0 ? (
+          <Table className="operations-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>File path</TableHead>
+                <TableHead>Warnings</TableHead>
+                <TableHead>Highest severity</TableHead>
+                <TableHead>Last seen</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {overview.affected_files.map((file) => (
+                <TableRow key={file.path}>
+                  <TableCell>
+                    <button
+                      className="table-select-button"
+                      onClick={() => select(file.warning_id)}
+                      type="button"
+                    >
+                      {file.path}
+                    </button>
+                  </TableCell>
+                  <TableCell>{file.warning_count}</TableCell>
+                  <TableCell>{file.highest_severity.toUpperCase()}</TableCell>
+                  <TableCell>{file.last_seen}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : overview.affected_files_state === 'complete' ? (
+          <EmptyState
+            description="The complete affected-file resource contains no active warning locations."
+            title="No affected files"
+          />
+        ) : (
+          <ResourceStateNotice
+            label="Affected files"
+            reason={affectedFilesGap}
+            state={overview.affected_files_state}
+          />
+        )}
       </section>
     </div>
   );

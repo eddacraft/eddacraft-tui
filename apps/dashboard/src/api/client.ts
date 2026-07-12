@@ -1,6 +1,5 @@
 import createClient from 'openapi-fetch';
 
-import { protectionOverviewFixture } from '@/api/fixtures';
 import type { components, paths } from '@/api/generated/openapi';
 
 type ProtectionOverview = components['schemas']['ProtectionOverview'];
@@ -23,6 +22,10 @@ export interface DashboardApi {
   getPlan: (id: string) => Promise<PlanDetail>;
 }
 
+interface OpenApiClient {
+  GET: ReturnType<typeof createClient<paths>>['GET'];
+}
+
 const client = createClient<paths>({ baseUrl: '/' });
 
 function unwrap<T>(result: { data?: T; error?: unknown }): T {
@@ -34,19 +37,18 @@ function unwrap<T>(result: { data?: T; error?: unknown }): T {
   );
 }
 
-export const dashboardApi: DashboardApi = {
-  async getProtectionOverview() {
-    try {
-      return unwrap(await client.GET('/api/v1/protection'));
-    } catch (error) {
-      if (import.meta.env.DEV && error instanceof TypeError) return protectionOverviewFixture;
-      throw error;
-    }
-  },
-  async listPlans() {
-    return unwrap(await client.GET('/api/v1/plans'));
-  },
-  async getPlan(id) {
-    return unwrap(await client.GET('/api/v1/plans/{id}', { params: { path: { id } } }));
-  },
-};
+export function createDashboardApi(apiClient: OpenApiClient): DashboardApi {
+  return {
+    async getProtectionOverview() {
+      return unwrap(await apiClient.GET('/api/v1/protection'));
+    },
+    async listPlans() {
+      return unwrap(await apiClient.GET('/api/v1/plans'));
+    },
+    async getPlan(id) {
+      return unwrap(await apiClient.GET('/api/v1/plans/{id}', { params: { path: { id } } }));
+    },
+  };
+}
+
+export const dashboardApi = createDashboardApi(client);
