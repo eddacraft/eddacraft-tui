@@ -8,19 +8,23 @@
 name: Release — sign artefacts
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
         description: 'Release tag to sign (e.g. v0.7.0-beta)'
+        required: true
+      run_id:
+        description: 'Successful tag-triggered Release workflow run ID'
         required: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-sign-${{ github.event.release.tag_name || github.event.inputs.tag }}
+  group: release-sign-${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
@@ -28,11 +32,13 @@ jobs:
     name: Sign installer artefacts
     runs-on: ubuntu-22.04
     if:
-      ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
-      }}
+      ${{ (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.tag, 'v')) ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event ==
+      'push' && startsWith(github.event.workflow_run.head_branch, 'v')) }}
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+      TAG: ${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}
+      RELEASE_RUN_ID: ${{ github.event.inputs.run_id || github.event.workflow_run.id }}
     steps:
       - name: Checkout (for verification helpers)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -75,43 +81,47 @@ jobs:
         # To update: vet the new release, then bump the `=X.Y.Z` pin.
         run: cargo install rsign2 --version =0.6.6 --locked
 
-      - name: Materialise signing key
-        env:
-          ANVIL_MINISIGN_PRIVATE_KEY: ${{ secrets.ANVIL_MINISIGN_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          umask 077
-          printf '%s' "${ANVIL_MINISIGN_PRIVATE_KEY}" | base64 -d > "${RUNNER_TEMP}/anvil-release.key"
-          # Refuse to run if the key file is suspiciously small (truncated
-          # secret) — base64 errors above also abort.
-          size=$(stat -c '%s' "${RUNNER_TEMP}/anvil-release.key")
-          if [ "${size}" -lt 200 ]; then
-            echo "::error::Decoded secret-key file is ${size} bytes — looks truncated. Aborting."
-            exit 1
-          fi
-
       - name: Resolve release target commit
         id: release
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "release" ]; then
-            commit_sha="${{ github.event.release.target_commitish }}"
-          else
-            commit_sha=$(gh release view "${TAG}" --json targetCommitish --jq '.targetCommitish')
+          run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}")
+          run_name=$(jq -r '.name' <<< "$run_json")
+          run_event=$(jq -r '.event' <<< "$run_json")
+          run_conclusion=$(jq -r '.conclusion' <<< "$run_json")
+          run_tag=$(jq -r '.head_branch' <<< "$run_json")
+          commit_sha=$(jq -r '.head_sha' <<< "$run_json")
+          tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '.sha')
+
+          [ "$run_name" = "Release" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} is '${run_name}', not the Release workflow."
+            exit 1
+          }
+          [ "$run_event" = "push" ] && [ "$run_conclusion" = "success" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} is not a successful tag-triggered push run."
+            exit 1
+          }
+          [ "$run_tag" = "$TAG" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} built ${run_tag}, not ${TAG}."
+            exit 1
+          }
+          if [[ ! "${commit_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Run ${RELEASE_RUN_ID} does not expose a valid source SHA."
+            exit 1
           fi
-          if [ -z "${commit_sha}" ]; then
-            echo "::error::Could not resolve target commit for tag ${TAG}"
+          if [ "$tag_sha" != "$commit_sha" ]; then
+            echo "::error::Tag ${TAG} now resolves to ${tag_sha}, but run ${RELEASE_RUN_ID} built ${commit_sha}."
             exit 1
           fi
           echo "commit_sha=${commit_sha}" >> "${GITHUB_OUTPUT}"
+          echo "run_id=${RELEASE_RUN_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Download release assets
         env:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          mkdir -p assets
-          cd assets
+          mkdir -p assets public-assets
           # We sign two classes of asset:
           #   * Installer scripts (cargo-dist outputs). These cover the
           #     binary chain of trust because the installer scripts
@@ -121,13 +131,58 @@ jobs:
           #     they were built from; signing it lets downstream
           #     verifiers trust the binding without trusting the
           #     containing GitHub Release.
-          gh release view "${TAG}" --json assets --jq '.assets[].name' \
-            | grep -E -- '(-installer\.(sh|ps1)|-provenance\.json)$' \
-            | while read -r asset; do
-                echo "Fetching ${asset}"
-                gh release download "${TAG}" --pattern "${asset}"
-              done
-          ls -la
+          required_assets=(
+            "eddacraft-anvil-installer.sh"
+            "eddacraft-anvil-installer.ps1"
+            "anvil-${TAG}-provenance.json"
+          )
+          for asset in "${required_assets[@]}"; do
+            echo "Fetching private ${asset}"
+            gh release download "${TAG}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --pattern "${asset}" \
+              --dir assets
+            echo "Fetching public ${asset}"
+            gh release download "${TAG}" \
+              --repo eddacraft/anvil \
+              --pattern "${asset}" \
+              --dir public-assets
+          done
+
+          bash scripts/release/validate-signing-inputs.sh \
+            --tag "${TAG}" \
+            --source-sha "${{ steps.release.outputs.commit_sha }}" \
+            --run-id "${{ steps.release.outputs.run_id }}" \
+            --private-dir assets \
+            --public-dir public-assets
+
+      - name: Validate decoded minisign secret-key structure
+        env:
+          ANVIL_MINISIGN_PRIVATE_KEY: ${{ secrets.ANVIL_MINISIGN_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "${ANVIL_MINISIGN_PRIVATE_KEY}" | base64 -d > "${RUNNER_TEMP}/anvil-release.key"
+
+          first_line=$(sed -n '1p' "${RUNNER_TEMP}/anvil-release.key")
+          key_material=$(sed -n '2p' "${RUNNER_TEMP}/anvil-release.key")
+          third_line=$(sed -n '3p' "${RUNNER_TEMP}/anvil-release.key")
+          if [[ ! "${first_line}" =~ ^untrusted\ comment:.*secret\ key$ ]] || \
+            [ -z "${key_material}" ] || [ -n "${third_line}" ]; then
+            echo "::error::Decoded secret-key file does not have the expected two-line minisign structure."
+            exit 1
+          fi
+
+          if ! printf '%s' "${key_material}" | base64 -d > "${RUNNER_TEMP}/anvil-release.key.raw"; then
+            echo "::error::Decoded secret-key material is not valid base64."
+            exit 1
+          fi
+          decoded_size=$(stat -c '%s' "${RUNNER_TEMP}/anvil-release.key.raw")
+          rm -f "${RUNNER_TEMP}/anvil-release.key.raw"
+          if [ "${decoded_size}" -lt 64 ]; then
+            echo "::error::Decoded minisign key material is ${decoded_size} bytes — looks truncated."
+            exit 1
+          fi
 
       - name: Sign each release artefact
         run: |
@@ -135,8 +190,12 @@ jobs:
           cd assets
           commit_sha="${{ steps.release.outputs.commit_sha }}"
           built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          shopt -s nullglob
-          for f in *-installer.sh *-installer.ps1 anvil-*-provenance.json; do
+          required_assets=(
+            "eddacraft-anvil-installer.sh"
+            "eddacraft-anvil-installer.ps1"
+            "anvil-${TAG}-provenance.json"
+          )
+          for f in "${required_assets[@]}"; do
             trusted="tag=${TAG};commit=${commit_sha};built=${built_at}"
             case "$f" in
               *.json) label="provenance manifest" ;;
@@ -165,8 +224,12 @@ jobs:
             printf 'untrusted comment: minisign public key\n'
             printf '%s\n' "${ANVIL_MINISIGN_PUBLIC_KEY}"
           } > "${RUNNER_TEMP}/anvil-release.pub"
-          shopt -s nullglob
-          for f in *-installer.sh *-installer.ps1 anvil-*-provenance.json; do
+          required_assets=(
+            "eddacraft-anvil-installer.sh"
+            "eddacraft-anvil-installer.ps1"
+            "anvil-${TAG}-provenance.json"
+          )
+          for f in "${required_assets[@]}"; do
             echo "Verifying ${f} against ${f}.minisig"
             rsign verify -p "${RUNNER_TEMP}/anvil-release.pub" -x "${f}.minisig" "${f}"
           done
@@ -175,12 +238,40 @@ jobs:
         run: |
           set -euo pipefail
           cd assets
-          shopt -s nullglob
-          for sig in *.minisig; do
+          required_signatures=(
+            "eddacraft-anvil-installer.sh.minisig"
+            "eddacraft-anvil-installer.ps1.minisig"
+            "anvil-${TAG}-provenance.json.minisig"
+          )
+          for sig in "${required_signatures[@]}"; do
+            [ -f "$sig" ] || {
+              echo "::error::Required signature is missing: ${sig}"
+              exit 1
+            }
             echo "Uploading ${sig}"
             # `--clobber` so re-runs of this workflow can replace the signature.
             gh release upload "${TAG}" "${sig}" --clobber
           done
+
+      - name: Mirror .minisig files to the public release
+        env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::secrets.ANVIL_RELEASES_TOKEN is required to mirror signatures publicly."
+            exit 1
+          fi
+          cd assets
+          signatures=(
+            "eddacraft-anvil-installer.sh.minisig"
+            "eddacraft-anvil-installer.ps1.minisig"
+            "anvil-${TAG}-provenance.json.minisig"
+          )
+          gh release upload "${TAG}" \
+            --repo eddacraft/anvil \
+            --clobber \
+            "${signatures[@]}"
 
       - name: Erase signing key from runner
         if: always()

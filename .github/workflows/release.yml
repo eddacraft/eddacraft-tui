@@ -584,7 +584,6 @@ jobs:
               artifacts/*
           fi
       - name: Publish ACKNOWLEDGEMENTS.md to eddacraft/anvil
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
@@ -600,8 +599,8 @@ jobs:
           fi
 
           if [ ! -f ACKNOWLEDGEMENTS.md ]; then
-            echo "::warning title=Missing ACKNOWLEDGEMENTS.md::File not found at repo root; skipping publish."
-            exit 0
+            echo "::error title=Missing ACKNOWLEDGEMENTS.md::File not found at repo root; required public publication cannot continue."
+            exit 1
           fi
 
           # Upload as a release asset for per-release download link.
@@ -613,27 +612,24 @@ jobs:
           # Commit to the public repo's main so it is visible in the GitHub
           # file browser. Uses the contents API with the existing SHA (if any)
           # so we update in place rather than creating a parallel file history.
-          CONTENT=$(base64 -w 0 ACKNOWLEDGEMENTS.md)
           EXISTING_SHA=$(gh api repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --jq '.sha' 2>/dev/null || echo "")
-
-          SHA_ARG=""
+          ACK_PAYLOAD="${RUNNER_TEMP}/acknowledgements-payload.json"
+          base64 -w 0 ACKNOWLEDGEMENTS.md \
+            | jq -Rs --arg message "chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG" \
+              '{message:$message, content:.}' > "$ACK_PAYLOAD"
           if [ -n "$EXISTING_SHA" ]; then
-            SHA_ARG="-f sha=$EXISTING_SHA"
+            jq --arg sha "$EXISTING_SHA" '. + {sha:$sha}' "$ACK_PAYLOAD" \
+              > "${ACK_PAYLOAD}.tmp"
+            mv "${ACK_PAYLOAD}.tmp" "$ACK_PAYLOAD"
           fi
 
-          gh api \
-            --method PUT \
-            repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md \
-            -f message="chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG" \
-            -f content="$CONTENT" \
-            $SHA_ARG
+          gh api --method PUT repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --input "$ACK_PAYLOAD"
 
       # CIB-034: commit the sanitised release-evidence to the public repo's
       # `releases/` path so it is browsable alongside each release (the evidence
       # is also already a release asset via the `artifacts/*` upload above). Same
       # contents-API update-in-place pattern as ACKNOWLEDGEMENTS.
       - name: Publish release evidence to eddacraft/anvil
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
@@ -645,25 +641,23 @@ jobs:
 
           EVIDENCE="artifacts/release-evidence-${RELEASE_TAG}.md"
           if [ ! -f "$EVIDENCE" ]; then
-            echo "::warning title=Missing release evidence::$EVIDENCE not found; skipping public commit."
-            exit 0
+            echo "::error title=Missing release evidence::$EVIDENCE not found; required public publication cannot continue."
+            exit 1
           fi
 
           DEST="releases/release-evidence-${RELEASE_TAG}.md"
-          CONTENT=$(base64 -w 0 "$EVIDENCE")
           EXISTING_SHA=$(gh api "repos/eddacraft/anvil/contents/${DEST}" --jq '.sha' 2>/dev/null || echo "")
-
-          SHA_ARG=""
+          EVIDENCE_PAYLOAD="${RUNNER_TEMP}/release-evidence-payload.json"
+          base64 -w 0 "$EVIDENCE" \
+            | jq -Rs --arg message "chore(release): add release evidence for $RELEASE_TAG" \
+              '{message:$message, content:.}' > "$EVIDENCE_PAYLOAD"
           if [ -n "$EXISTING_SHA" ]; then
-            SHA_ARG="-f sha=$EXISTING_SHA"
+            jq --arg sha "$EXISTING_SHA" '. + {sha:$sha}' "$EVIDENCE_PAYLOAD" \
+              > "${EVIDENCE_PAYLOAD}.tmp"
+            mv "${EVIDENCE_PAYLOAD}.tmp" "$EVIDENCE_PAYLOAD"
           fi
 
-          gh api \
-            --method PUT \
-            "repos/eddacraft/anvil/contents/${DEST}" \
-            -f message="chore(release): add release evidence for $RELEASE_TAG" \
-            -f content="$CONTENT" \
-            $SHA_ARG
+          gh api --method PUT "repos/eddacraft/anvil/contents/${DEST}" --input "$EVIDENCE_PAYLOAD"
 
       - name: Promote public release to Latest
         env:

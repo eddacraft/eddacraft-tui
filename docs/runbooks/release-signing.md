@@ -1,8 +1,8 @@
 # Release Signing — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                    |
-| ------- | ------------- | ------ | ------ | -------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-15 alongside DISTRIB-001 |
+| Type    | Authority     | Owner  | Status | Freshness                                                                       |
+| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last verified 2026-07-13 against `.github/workflows/release-sign-artefacts.yml` |
 
 | Upstream                                                                                                                                                                                                                                            | Downstream                                                                                                                                                                                                                                      |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -104,12 +104,26 @@ Once setup is complete, no operator action is required per release:
 
 1. Cut the tag as usual (`anvil release …`).
 2. `release.yml` runs cargo-dist and publishes the GitHub Release.
-3. `release-sign-artefacts.yml` triggers on the `release: published` event,
-   signs every `*-installer.sh` / `*-installer.ps1` asset, and uploads the
-   `.minisig` files back to the release.
+3. A successful tag-triggered `Release` workflow emits `workflow_run`, which
+   starts `release-sign-artefacts.yml`. Pull-request runs are excluded before
+   secrets are consumed. The signing workflow resolves the tag to its exact
+   commit, signs every `*-installer.sh` / `*-installer.ps1` asset plus the
+   provenance manifest, self-verifies the signatures, and uploads the `.minisig`
+   files to both the private source release and the public `eddacraft/anvil`
+   release.
 4. Users on v0.7.0+ run `anvil update`; the library-fallback path verifies the
    signature against the embedded public key before replacing the running
    binary.
+
+If automatic signing needs a deterministic retry, provide both the tag and the
+successful tag-triggered Release run ID. The signer revalidates their SHA and
+provenance binding before touching the private key or public release:
+
+```sh
+gh workflow run release-sign-artefacts.yml --ref main \
+  -f tag=v0.9.0-beta \
+  -f run_id=29190475570
+```
 
 ## Verifying a release locally
 
@@ -143,11 +157,12 @@ is taken) or by the dist config change (recommended path).
 
 ## Failure modes
 
-| Symptom                                               | Cause                                                                | Action                                                                                                                                                                                                                          |
-| ----------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `anvil update` errors "signature verification failed" | Artefact has been tampered with, or the embedded key is out of sync. | Verify the release manually (above). If verification fails locally too, the release is compromised — pull it.                                                                                                                   |
-| Release workflow logs "refusing to sign — dev key"    | Repo variable still set to the committed dev fallback.               | Run the One-time setup steps 1–3.                                                                                                                                                                                               |
-| Users on legacy binaries cannot verify a new release  | Their embedded key is the dev fallback or an old key.                | They can update through Homebrew / curl-installer (own verification), then on-board to signed updates from there. The first signed release MUST be reachable through curl-installer / Homebrew — see "Initial bootstrap" below. |
+| Symptom                                               | Cause                                                                 | Action                                                                                                                                                                                                                          |
+| ----------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anvil update` errors "signature verification failed" | Artefact has been tampered with, or the embedded key is out of sync.  | Verify the release manually (above). If verification fails locally too, the release is compromised — pull it.                                                                                                                   |
+| Release workflow logs "refusing to sign — dev key"    | Repo variable still set to the committed dev fallback.                | Run the One-time setup steps 1–3.                                                                                                                                                                                               |
+| Signing rejects the decoded private-key structure     | The repository secret is not the complete two-line minisign key file. | Re-encode the full `anvil-release.key` file from the secure store and replace `ANVIL_MINISIGN_PRIVATE_KEY`; do not pad or truncate the value to satisfy a byte count.                                                           |
+| Users on legacy binaries cannot verify a new release  | Their embedded key is the dev fallback or an old key.                 | They can update through Homebrew / curl-installer (own verification), then on-board to signed updates from there. The first signed release MUST be reachable through curl-installer / Homebrew — see "Initial bootstrap" below. |
 
 ## Initial bootstrap
 
