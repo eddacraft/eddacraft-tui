@@ -14,25 +14,41 @@ output="$2"
 [ -f "$input" ] || die "decoded key input does not exist"
 [ -n "$output" ] || die "normalised output path is empty"
 
-lines=()
-while IFS= read -r line || [ -n "$line" ]; do
-  lines+=("${line%$'\r'}")
-done < "$input"
-case "${#lines[@]}" in
-  1)
-    comment="untrusted comment: legacy minisign secret key material"
-    key_material="${lines[0]}"
-    ;;
-  2)
-    comment="${lines[0]}"
-    key_material="${lines[1]}"
-    [[ "$comment" =~ ^untrusted\ comment: ]] \
-      || die "two-line key must start with an untrusted comment"
-    ;;
-  *)
-    die "decoded key must contain a comment plus key material, or legacy one-line key material"
-    ;;
-esac
+has_nul=$(LC_ALL=C od -An -v -tu1 "$input" | awk '
+  {
+    for (i = 1; i <= NF; i++) {
+      if ($i == 0) {
+        print "yes"
+        exit
+      }
+    }
+  }
+')
+
+if [ "$has_nul" = "yes" ]; then
+  comment="untrusted comment: legacy raw minisign secret key material"
+  key_material=$(base64 < "$input" | tr -d '\r\n')
+else
+  lines=()
+  while IFS= read -r line || [ -n "$line" ]; do
+    lines+=("${line%$'\r'}")
+  done < "$input"
+  case "${#lines[@]}" in
+    1)
+      comment="untrusted comment: legacy minisign secret key material"
+      key_material="${lines[0]}"
+      ;;
+    2)
+      comment="${lines[0]}"
+      key_material="${lines[1]}"
+      [[ "$comment" =~ ^untrusted\ comment: ]] \
+        || die "two-line key must start with an untrusted comment"
+      ;;
+    *)
+      die "decoded key must contain a comment plus key material, legacy one-line key material, or a raw key blob"
+      ;;
+  esac
+fi
 
 [ -n "$key_material" ] || die "decoded key material is empty"
 

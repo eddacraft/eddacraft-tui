@@ -28,6 +28,20 @@ grep -Fqx "untrusted comment: legacy minisign secret key material" "$tmp/bare.ou
 bare_mode=$(stat -c '%a' "$tmp/bare.out" 2>/dev/null || stat -f '%Lp' "$tmp/bare.out")
 [ "$bare_mode" = "600" ] || fail "normalised key permissions are not 0600"
 
+fixture_key="${repo_root}/crates/anvil-cli/tests/fixtures/minisign/anvil-test.key"
+fixture_material=$(sed -n '2p' "$fixture_key")
+if printf '%s' "$fixture_material" | base64 -d > "$tmp/raw.key" 2>/dev/null; then
+  :
+else
+  printf '%s' "$fixture_material" | base64 -D > "$tmp/raw.key"
+fi
+raw_material=$(base64 < "$tmp/raw.key" | tr -d '\r\n')
+"$normaliser" "$tmp/raw.key" "$tmp/raw.out"
+grep -Fqx "untrusted comment: legacy raw minisign secret key material" "$tmp/raw.out" \
+  || fail "raw key material was not wrapped"
+[ "$(sed -n '2p' "$tmp/raw.out")" = "$raw_material" ] || fail "raw key material changed"
+[ "$raw_material" = "$fixture_material" ] || fail "raw fixture did not reconstruct the minisign key"
+
 printf 'sentinel\n' > "$tmp/symlink-target"
 ln -s "$tmp/symlink-target" "$tmp/symlink.out"
 "$normaliser" "$tmp/bare.key" "$tmp/symlink.out"
