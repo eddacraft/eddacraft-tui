@@ -40,11 +40,6 @@ const UUID: &str = "01997e4a-1b2c-7345-8901-abcdef123456";
 const TS: &str = "2026-07-01T00:00:00Z";
 
 fn main() {
-    if let Ok(root) = env::var(ROOT_ENV) {
-        let tag = env::var(TAG_ENV).unwrap_or_default();
-        worker(Path::new(&root), &tag);
-        return;
-    }
     // `harness = false` still owes nextest/libtest the list protocol:
     // `--list --format terse` must print `<name>: test` and run NOTHING
     // (nextest parses that output to build the test list; a second
@@ -53,12 +48,20 @@ fn main() {
     // 6-process linearisation at list time and its summary line broke list
     // parsing — the release-gate Test job is the only CI context that runs
     // nextest over this binary, so the gap stayed latent from CIB-125 until
-    // the v0.9.0-beta cut.
+    // the v0.9.0-beta cut. The `--list` check deliberately precedes the
+    // worker-env branch: workers are spawned with no argv, and an ambient
+    // `ANVIL_WITNESS_XPROC_ROOT` must never turn a list pass into a worker
+    // that blocks on the go-signal.
     let args: Vec<String> = env::args().collect();
     if args.iter().any(|a| a == "--list") {
         if !args.iter().any(|a| a == "--ignored") {
             println!("cross_process_linearisation: test");
         }
+        return;
+    }
+    if let Ok(root) = env::var(ROOT_ENV) {
+        let tag = env::var(TAG_ENV).unwrap_or_default();
+        worker(Path::new(&root), &tag);
         return;
     }
     parent();
