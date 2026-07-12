@@ -4,8 +4,10 @@ use std::sync::Arc;
 
 use axum::extract::{Path as AxumPath, Request, State};
 use axum::http::StatusCode;
-use axum::http::header::{CACHE_CONTROL, HOST, HeaderName, HeaderValue, X_CONTENT_TYPE_OPTIONS};
-use axum::http::uri::Authority;
+use axum::http::header::{
+    CACHE_CONTROL, HOST, HeaderName, HeaderValue, ORIGIN, X_CONTENT_TYPE_OPTIONS,
+};
+use axum::http::uri::{Authority, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -24,7 +26,7 @@ struct AppState {
     workspace: Arc<Workspace>,
 }
 
-pub fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
+fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
     let state = AppState {
         workspace: Arc::new(Workspace::new(root)?),
     };
@@ -39,22 +41,28 @@ pub fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
 }
 
 async fn loopback_host_guard(request: Request, next: Next) -> Response {
-    let is_loopback_host = request
+    let host = request
         .headers()
         .get(HOST)
         .and_then(|host| host.to_str().ok())
-        .and_then(|host| host.parse::<Authority>().ok())
-        .is_some_and(|authority| {
-            let host = authority.host();
-            host == "127.0.0.1"
-                || host == "::1"
-                || host == "[::1]"
-                || host.eq_ignore_ascii_case("localhost")
-        });
+        .and_then(|host| host.parse::<Authority>().ok());
+    let is_loopback_host = host.as_ref().is_some_and(|authority| {
+        let host = authority.host();
+        host == "127.0.0.1"
+            || host == "::1"
+            || host == "[::1]"
+            || host.eq_ignore_ascii_case("localhost")
+    });
+    let origin_allowed = host
+        .as_ref()
+        .is_some_and(|authority| browser_origin_is_allowed(&request, authority));
+    let fetch_site_allowed = request
+        .headers()
+        .get(HeaderName::from_static("sec-fetch-site"))
+        .and_then(|value| value.to_str().ok())
+        .is_none_or(|site| matches!(site, "same-origin" | "none"));
 
-    let mut response = if is_loopback_host {
-        next.run(request).await
-    } else {
+    let mut response = if !is_loopback_host {
         (
             StatusCode::MISDIRECTED_REQUEST,
             Json(serde_json::json!({
@@ -63,6 +71,17 @@ async fn loopback_host_guard(request: Request, next: Next) -> Response {
             })),
         )
             .into_response()
+    } else if !origin_allowed || !fetch_site_allowed {
+        (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "code": "cross-origin-request-rejected",
+                "message": "dashboard requests must originate from the exact loopback authority"
+            })),
+        )
+            .into_response()
+    } else {
+        next.run(request).await
     };
     let headers = response.headers_mut();
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -76,6 +95,18 @@ async fn loopback_host_guard(request: Request, next: Next) -> Response {
         HeaderValue::from_static("no-referrer"),
     );
     response
+}
+
+fn browser_origin_is_allowed(request: &Request, host: &Authority) -> bool {
+    request
+        .headers()
+        .get(ORIGIN)
+        .and_then(|origin| origin.to_str().ok())
+        .is_none_or(|origin| {
+            origin.parse::<Uri>().ok().is_some_and(|origin| {
+                origin.scheme_str() == Some("http") && origin.authority() == Some(host)
+            })
+        })
 }
 
 pub fn ensure_loopback(address: SocketAddr) -> Result<(), ServerError> {

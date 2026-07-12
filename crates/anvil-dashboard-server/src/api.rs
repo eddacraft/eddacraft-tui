@@ -35,9 +35,9 @@ pub struct GateRunSummary {
     pub score: Option<f64>,
     pub warning_count: usize,
     pub duration_seconds: Option<f64>,
-    pub started_at: String,
-    pub new_warning_count: usize,
-    pub changed_file_count: usize,
+    pub started_at: Option<String>,
+    pub new_warning_count: Option<usize>,
+    pub changed_file_count: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,7 +168,7 @@ pub struct PlanTimelineEntry {
     pub id: String,
     pub title: String,
     pub status: String,
-    pub evidence: Option<String>,
+    pub validation_contract: Option<String>,
     pub readiness: bool,
 }
 

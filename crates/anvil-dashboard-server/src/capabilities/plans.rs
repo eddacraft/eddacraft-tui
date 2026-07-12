@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anvil_plan_read_model::{
-    PlanStatusSnapshot, build_plan_status_snapshot_from_sources, extract_markdown_section,
+    PlanReadLimitError, PlanReadLimits, PlanStatusSnapshot,
+    build_bounded_plan_status_snapshot_from_sources, extract_markdown_section,
 };
 use thiserror::Error;
 
@@ -11,6 +12,9 @@ use crate::api::{PlanDetail, PlanSummary, PlanTimelineEntry};
 use crate::{Workspace, WorkspaceReadError};
 
 const PLAN_INDEX: &str = "plans/index.aps.md";
+pub const MAX_PLAN_MODULES: usize = 256;
+pub const MAX_PLAN_WORK_ITEMS: usize = 4096;
+pub const MAX_PLAN_SOURCE_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Error)]
 pub enum PlanReadError {
@@ -18,6 +22,8 @@ pub enum PlanReadError {
     InvalidId,
     #[error("plan data is not valid UTF-8")]
     InvalidUtf8,
+    #[error(transparent)]
+    Limit(#[from] PlanReadLimitError),
     #[error(transparent)]
     Workspace(#[from] WorkspaceReadError),
 }
@@ -53,7 +59,7 @@ pub fn load_plan(workspace: &Workspace, id: &str) -> Result<Option<PlanDetail>, 
             id: item.id.clone(),
             title: item.title.clone(),
             status: item.status.clone(),
-            evidence: item.validation.clone(),
+            validation_contract: item.validation.clone(),
             readiness: item.status.to_ascii_lowercase().starts_with("ready"),
         })
         .collect();
@@ -69,9 +75,15 @@ fn load_snapshot(
 ) -> Result<(PlanStatusSnapshot, RefCell<BTreeMap<PathBuf, String>>), PlanReadError> {
     let index = read_text(workspace, Path::new(PLAN_INDEX))?;
     let sources = RefCell::new(BTreeMap::new());
-    let snapshot = build_plan_status_snapshot_from_sources(
+    let snapshot = build_bounded_plan_status_snapshot_from_sources(
         workspace.root().to_path_buf(),
         &index,
+        PlanReadLimits {
+            max_modules: MAX_PLAN_MODULES,
+            max_work_items: MAX_PLAN_WORK_ITEMS,
+            max_source_bytes: MAX_PLAN_SOURCE_BYTES,
+            max_module_reads: MAX_PLAN_MODULES,
+        },
         |relative_path| {
             let source = read_text(workspace, &Path::new("plans").join(relative_path)).ok()?;
             sources
@@ -79,7 +91,7 @@ fn load_snapshot(
                 .insert(relative_path.to_path_buf(), source.clone());
             Some(source)
         },
-    );
+    )?;
     Ok((snapshot, sources))
 }
 

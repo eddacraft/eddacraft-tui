@@ -1466,6 +1466,7 @@ dependencies = [
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-plan-read-model",
  "eddacraft-anvil-run",
+ "jsonschema 0.47.0",
  "nix 0.31.3",
  "serde",
  "serde_json",

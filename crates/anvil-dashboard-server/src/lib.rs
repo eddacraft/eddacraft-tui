@@ -21,9 +21,12 @@ pub use api::{
     GateRunSummary, HealthResponse, PlanDetail, PlanSummary, PlanTimelineEntry, ProtectionOverview,
     SaveTimeSummary, WarningSummary,
 };
-pub use capabilities::plans::{PlanReadError, load_plan, load_plans};
+pub use capabilities::plans::{
+    MAX_PLAN_MODULES, MAX_PLAN_SOURCE_BYTES, MAX_PLAN_WORK_ITEMS, PlanReadError, load_plan,
+    load_plans,
+};
 pub use capabilities::protection::{load_persisted_protection_overview, load_protection_overview};
 pub use error::{ApiError, ServerError};
 pub use openapi::openapi_document;
-pub use server::{app, ensure_loopback, serve};
+pub use server::{ensure_loopback, serve};
 pub use workspace::{MAX_ARTEFACT_BYTES, Workspace, WorkspaceReadError};

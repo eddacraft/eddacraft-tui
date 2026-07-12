@@ -3,6 +3,8 @@
 //! This crate parses caller-supplied content only. Filesystem access, path
 //! containment, size limits, and symlink policy belong to the calling adapter.
 
+use std::collections::BTreeSet;
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -67,6 +69,45 @@ pub enum PlanWarningKind {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct PlanEnrichment;
 
+#[derive(Debug, Clone, Copy)]
+pub struct PlanReadLimits {
+    pub max_modules: usize,
+    pub max_work_items: usize,
+    pub max_source_bytes: usize,
+    pub max_module_reads: usize,
+}
+
+impl PlanReadLimits {
+    pub const UNBOUNDED: Self = Self {
+        max_modules: usize::MAX,
+        max_work_items: usize::MAX,
+        max_source_bytes: usize::MAX,
+        max_module_reads: usize::MAX,
+    };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanReadLimitError {
+    ModuleCount,
+    WorkItemCount,
+    SourceBytes,
+    ModuleReads,
+}
+
+impl fmt::Display for PlanReadLimitError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let boundary = match self {
+            Self::ModuleCount => "module count",
+            Self::WorkItemCount => "work-item count",
+            Self::SourceBytes => "aggregate source bytes",
+            Self::ModuleReads => "module read count",
+        };
+        write!(formatter, "plan {boundary} exceeds the configured limit")
+    }
+}
+
+impl std::error::Error for PlanReadLimitError {}
+
 /// Build a plan snapshot from caller-supplied, already-bounded APS content.
 ///
 /// `read_module` receives each module path exactly as declared beneath
@@ -78,16 +119,53 @@ pub struct PlanEnrichment;
 pub fn build_plan_status_snapshot_from_sources<F>(
     repo_root: PathBuf,
     index: &str,
-    mut read_module: F,
+    read_module: F,
 ) -> PlanStatusSnapshot
 where
     F: FnMut(&Path) -> Option<String>,
 {
+    build_bounded_plan_status_snapshot_from_sources(
+        repo_root,
+        index,
+        PlanReadLimits::UNBOUNDED,
+        read_module,
+    )
+    .expect("unbounded plan read cannot exceed a configured limit")
+}
+
+/// Build a plan snapshot while bounding unique modules, work items, aggregate
+/// caller-supplied source bytes, and module read attempts.
+#[allow(clippy::too_many_lines)]
+pub fn build_bounded_plan_status_snapshot_from_sources<F>(
+    repo_root: PathBuf,
+    index: &str,
+    limits: PlanReadLimits,
+    mut read_module: F,
+) -> Result<PlanStatusSnapshot, PlanReadLimitError>
+where
+    F: FnMut(&Path) -> Option<String>,
+{
     let mut modules = parse_index_modules(index);
+    let mut unique_paths = BTreeSet::new();
+    modules.retain(|module| unique_paths.insert(module.path.clone()));
+    if modules.len() > limits.max_modules {
+        return Err(PlanReadLimitError::ModuleCount);
+    }
+    let mut source_bytes = index.len();
+    if source_bytes > limits.max_source_bytes {
+        return Err(PlanReadLimitError::SourceBytes);
+    }
+    let mut module_reads = 0usize;
     let mut work_items = Vec::new();
     let mut warnings = Vec::new();
 
     for module in &mut modules {
+        module_reads = module_reads
+            .checked_add(1)
+            .ok_or(PlanReadLimitError::ModuleReads)?;
+        if module_reads > limits.max_module_reads {
+            return Err(PlanReadLimitError::ModuleReads);
+        }
         let Some(contents) = read_module(&module.path) else {
             warnings.push(PlanWarning {
                 kind: PlanWarningKind::MissingModulePath,
@@ -97,6 +175,12 @@ where
             });
             continue;
         };
+        source_bytes = source_bytes
+            .checked_add(contents.len())
+            .ok_or(PlanReadLimitError::SourceBytes)?;
+        if source_bytes > limits.max_source_bytes {
+            return Err(PlanReadLimitError::SourceBytes);
+        }
 
         if let Some(header) = parse_module_header(&module.scope, &contents) {
             if module.status.is_empty() || module.status == "Unknown" {
@@ -109,6 +193,13 @@ where
         }
 
         let parsed_items = parse_work_items(&module.scope, &contents);
+        if work_items
+            .len()
+            .checked_add(parsed_items.len())
+            .is_none_or(|count| count > limits.max_work_items)
+        {
+            return Err(PlanReadLimitError::WorkItemCount);
+        }
         let done = parsed_items
             .iter()
             .filter(|item| is_done(&item.status))
@@ -206,13 +297,13 @@ where
     // Stable row order helps tests and later non-interactive renderers.
     modules.sort_by(|left, right| left.scope.cmp(&right.scope));
 
-    PlanStatusSnapshot {
+    Ok(PlanStatusSnapshot {
         repo_root,
         modules,
         work_items,
         warnings,
         enrichments,
-    }
+    })
 }
 
 fn parse_index_modules(index: &str) -> Vec<ModuleSummary> {
@@ -604,5 +695,85 @@ mod tests {
             warning.kind == PlanWarningKind::MissingModulePath
                 && warning.module.as_deref() == Some("DASH")
         }));
+    }
+
+    #[test]
+    fn bounded_snapshot_enforces_work_item_and_aggregate_byte_limits() {
+        let work_item_error = build_bounded_plan_status_snapshot_from_sources(
+            PathBuf::from("/workspace"),
+            INDEX,
+            PlanReadLimits {
+                max_modules: 1,
+                max_work_items: 0,
+                max_source_bytes: usize::MAX,
+                max_module_reads: 1,
+            },
+            |_path| Some(MODULE.to_owned()),
+        )
+        .expect_err("work-item count must be bounded");
+        assert_eq!(work_item_error, PlanReadLimitError::WorkItemCount);
+
+        let byte_error = build_bounded_plan_status_snapshot_from_sources(
+            PathBuf::from("/workspace"),
+            INDEX,
+            PlanReadLimits {
+                max_modules: 1,
+                max_work_items: 1,
+                max_source_bytes: INDEX.len() + MODULE.len() - 1,
+                max_module_reads: 1,
+            },
+            |_path| Some(MODULE.to_owned()),
+        )
+        .expect_err("aggregate source bytes must be bounded");
+        assert_eq!(byte_error, PlanReadLimitError::SourceBytes);
+    }
+
+    #[test]
+    fn bounded_snapshot_deduplicates_paths_before_enforcing_read_budget() {
+        let duplicate_index = format!(
+            "{INDEX}| [dashboard duplicate](./modules/dashboard.aps.md) | DASH2 | Ready | 0/1 | Duplicate |\n"
+        );
+        let mut reads = 0;
+        let snapshot = build_bounded_plan_status_snapshot_from_sources(
+            PathBuf::from("/workspace"),
+            &duplicate_index,
+            PlanReadLimits {
+                max_modules: 1,
+                max_work_items: 1,
+                max_source_bytes: usize::MAX,
+                max_module_reads: 1,
+            },
+            |_path| {
+                reads += 1;
+                Some(MODULE.to_owned())
+            },
+        )
+        .expect("duplicate paths share one bounded read");
+
+        assert_eq!(reads, 1);
+        assert_eq!(snapshot.modules.len(), 1);
+        assert_eq!(snapshot.work_items.len(), 1);
+    }
+
+    #[test]
+    fn bounded_snapshot_enforces_module_read_budget() {
+        let second_module = INDEX.replace(
+            "| [dashboard](./modules/dashboard.aps.md) | DASH |",
+            "| [dashboard](./modules/dashboard.aps.md) | DASH |\n| [other](./modules/other.aps.md) | OTHER |",
+        );
+        let error = build_bounded_plan_status_snapshot_from_sources(
+            PathBuf::from("/workspace"),
+            &second_module,
+            PlanReadLimits {
+                max_modules: 2,
+                max_work_items: usize::MAX,
+                max_source_bytes: usize::MAX,
+                max_module_reads: 1,
+            },
+            |_path| Some(MODULE.to_owned()),
+        )
+        .expect_err("module read count must be bounded");
+
+        assert_eq!(error, PlanReadLimitError::ModuleReads);
     }
 }

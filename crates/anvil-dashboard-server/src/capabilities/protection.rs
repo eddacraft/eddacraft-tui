@@ -6,84 +6,16 @@ use anvil_intercept_proto::protocol::{
     WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::status::{DaemonStatusV1, SaveTimeDriverStatusV1};
-use anvil_kernel_types::protection_claim::ProtectionClaim;
-use serde::Deserialize;
+use anvil_kernel_types::{GateSnapshot, protection_claim::ProtectionClaim};
 use serde_json::Value;
 
 use crate::api::{
-    AffectedFile, AssuranceSummary, AttentionItem, DataGap, DataState, EvidenceLine,
-    GateRunSummary, PROTECTION_OVERVIEW_SCHEMA, ProtectionOverview, SaveTimeSummary,
-    WarningSummary,
+    AssuranceSummary, AttentionItem, DataGap, DataState, GateRunSummary,
+    PROTECTION_OVERVIEW_SCHEMA, ProtectionOverview, SaveTimeSummary,
 };
 use crate::{Workspace, WorkspaceReadError};
 
 const GATE_ARTEFACT: &str = ".anvil/gates.json";
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GateArtefact {
-    status: String,
-    status_label: String,
-    #[serde(default)]
-    score: Option<f64>,
-    #[serde(default)]
-    warnings: String,
-    #[serde(default)]
-    duration_seconds: String,
-    #[serde(default)]
-    check_rows: Vec<Vec<String>>,
-    #[serde(default)]
-    runs: Vec<GateRunArtefact>,
-    #[serde(default)]
-    warning_details: Vec<WarningArtefact>,
-    #[serde(default)]
-    affected_files: Vec<AffectedFileArtefact>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GateRunArtefact {
-    id: String,
-    result: String,
-    label: String,
-    score: Option<f64>,
-    warning_count: usize,
-    duration_seconds: Option<f64>,
-    started_at: String,
-    #[serde(default)]
-    new_warning_count: usize,
-    #[serde(default)]
-    changed_file_count: usize,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WarningArtefact {
-    id: String,
-    severity: String,
-    rule: String,
-    category: String,
-    message: String,
-    file_path: Option<String>,
-    line: Option<usize>,
-    age_label: String,
-    evidence_id: String,
-    explanation: String,
-    matched_pattern: String,
-    #[serde(default)]
-    evidence_excerpt: Vec<EvidenceLine>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AffectedFileArtefact {
-    path: String,
-    highest_severity: String,
-    warning_count: usize,
-    first_seen: String,
-    last_seen: String,
-    warning_id: String,
-}
 
 struct LiveProtectionSnapshot {
     claim: ProtectionClaim,
@@ -123,7 +55,7 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
             return overview;
         }
     };
-    let gate: GateArtefact = if let Ok(gate) = serde_json::from_slice(&bytes) {
+    let gate: GateSnapshot = if let Ok(gate) = serde_json::from_slice(&bytes) {
         gate
     } else {
         let mut overview =
@@ -132,57 +64,24 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         return overview;
     };
 
-    let warnings = if gate.warning_details.is_empty() {
-        gate.check_rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, row)| warning_from_row(index, row))
-            .collect::<Vec<_>>()
-    } else {
-        gate.warning_details
-            .into_iter()
-            .map(WarningSummary::from)
-            .collect()
-    };
-    let next_attention = warnings.first().map(|warning| AttentionItem {
-        title: format!("Review {}", warning.category),
+    let next_attention = gate.warning_list.first().map(|warning| AttentionItem {
+        title: "Review latest gate attention item".to_owned(),
         detail: warning.message.clone(),
-        evidence_id: Some(warning.evidence_id.clone()),
+        evidence_id: None,
     });
-    let warning_count = gate.warnings.parse().unwrap_or(warnings.len());
-
-    let recent_runs = gate
-        .runs
-        .into_iter()
-        .map(GateRunSummary::from)
-        .collect::<Vec<_>>();
-    let affected_files = gate
-        .affected_files
-        .into_iter()
-        .map(AffectedFile::from)
-        .collect::<Vec<_>>();
-    let latest_run = recent_runs.first().cloned().or_else(|| {
-        Some(GateRunSummary {
-            id: "latest-gate".to_owned(),
-            result: gate.status,
-            label: gate.status_label,
-            score: gate.score,
-            warning_count,
-            duration_seconds: gate.duration_seconds.parse().ok(),
-            started_at: "latest gate".to_owned(),
-            new_warning_count: 0,
-            changed_file_count: 0,
-        })
+    let warning_count = gate.warnings.parse().unwrap_or(gate.warning_list.len());
+    let latest_run = Some(GateRunSummary {
+        id: "latest-gate".to_owned(),
+        result: gate.status,
+        label: gate.status_label,
+        score: Some(gate.score),
+        warning_count,
+        duration_seconds: gate.duration_seconds.parse().ok(),
+        started_at: None,
+        new_warning_count: None,
+        changed_file_count: None,
     });
-    let affected_files_state = if affected_files.is_empty() {
-        DataState::Unavailable
-    } else {
-        DataState::Complete
-    };
-    let mut gaps = history_gaps();
-    if !affected_files.is_empty() {
-        gaps.retain(|gap| gap.component != "affected-files");
-    }
+    let gaps = history_gaps();
 
     ProtectionOverview {
         schema_version: PROTECTION_OVERVIEW_SCHEMA.to_owned(),
@@ -195,12 +94,12 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         save_time: None,
         observed_at_unix: None,
         latest_run,
-        recent_runs,
+        recent_runs: Vec::new(),
         next_attention,
-        warnings_state: DataState::Partial,
-        warnings,
-        affected_files_state,
-        affected_files,
+        warnings_state: DataState::Unavailable,
+        warnings: Vec::new(),
+        affected_files_state: DataState::Unavailable,
+        affected_files: Vec::new(),
         gaps,
     }
 }
@@ -336,90 +235,13 @@ fn history_gaps() -> Vec<DataGap> {
     vec![
         DataGap {
             component: "retained-warning-history".to_owned(),
-            reason: "No reusable retained-diagnostics read model is available.".to_owned(),
+            reason: "The canonical gate snapshot records only summary attention items; retained diagnostic details are unavailable.".to_owned(),
         },
         DataGap {
             component: "affected-files".to_owned(),
             reason: "Affected files are unavailable without retained diagnostics.".to_owned(),
         },
     ]
-}
-
-fn warning_from_row(index: usize, row: &[String]) -> Option<WarningSummary> {
-    if row.len() < 4 || row[1].eq_ignore_ascii_case("passed") {
-        return None;
-    }
-    let category = row[0].clone();
-    let message = row[3]
-        .lines()
-        .next()
-        .unwrap_or("Check needs attention")
-        .chars()
-        .take(240)
-        .collect::<String>();
-    let evidence_id = format!("gate-check-{index}");
-    Some(WarningSummary {
-        id: evidence_id.clone(),
-        severity: "high".to_owned(),
-        category,
-        message,
-        file_path: None,
-        age_label: "latest gate".to_owned(),
-        evidence_id,
-        rule: row[0].clone(),
-        line: None,
-        explanation: "The latest gate reported this check as needing attention.".to_owned(),
-        matched_pattern: "Unavailable in the gate summary artefact".to_owned(),
-        evidence_excerpt: Vec::new(),
-    })
-}
-
-impl From<GateRunArtefact> for GateRunSummary {
-    fn from(run: GateRunArtefact) -> Self {
-        Self {
-            id: run.id,
-            result: run.result,
-            label: run.label,
-            score: run.score,
-            warning_count: run.warning_count,
-            duration_seconds: run.duration_seconds,
-            started_at: run.started_at,
-            new_warning_count: run.new_warning_count,
-            changed_file_count: run.changed_file_count,
-        }
-    }
-}
-
-impl From<WarningArtefact> for WarningSummary {
-    fn from(warning: WarningArtefact) -> Self {
-        Self {
-            id: warning.id,
-            severity: warning.severity,
-            category: warning.category,
-            message: warning.message,
-            file_path: warning.file_path,
-            age_label: warning.age_label,
-            evidence_id: warning.evidence_id,
-            rule: warning.rule,
-            line: warning.line,
-            explanation: warning.explanation,
-            matched_pattern: warning.matched_pattern,
-            evidence_excerpt: warning.evidence_excerpt,
-        }
-    }
-}
-
-impl From<AffectedFileArtefact> for AffectedFile {
-    fn from(file: AffectedFileArtefact) -> Self {
-        Self {
-            path: file.path,
-            highest_severity: file.highest_severity,
-            warning_count: file.warning_count,
-            first_seen: file.first_seen,
-            last_seen: file.last_seen,
-            warning_id: file.warning_id,
-        }
-    }
 }
 
 #[cfg(test)]

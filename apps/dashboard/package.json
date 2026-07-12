@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build": "pnpm check:api && tsc -p tsconfig.json --noEmit && vite build",
     "check:api": "node scripts/generate-api.mjs --check",
     "dev": "vite --host 127.0.0.1",
     "generate:api": "node scripts/generate-api.mjs",

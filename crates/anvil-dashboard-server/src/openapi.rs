@@ -11,10 +11,10 @@ pub fn openapi_document() -> Value {
         "servers": [{ "url": "/", "description": "Current loopback server" }],
         "paths": {
             "/healthz": {
-                "get": operation("Health", "HealthResponse", "Dashboard server health")
+                "get": operation("Health", "HealthResponse", "Dashboard server health", false)
             },
             "/api/v1/protection": {
-                "get": operation("Protection", "ProtectionOverview", "Current local protection evidence")
+                "get": operation("Protection", "ProtectionOverview", "Current local protection evidence", true)
             },
             "/api/v1/plans": {
                 "get": {
@@ -32,7 +32,11 @@ pub fn openapi_document() -> Value {
                                     }
                                 }
                             }
-                        }
+                        },
+                        "403": response("Cross-origin request rejected", "Error"),
+                        "421": response("Loopback Host required", "Error"),
+                        "500": response("Dashboard worker failed", "Error"),
+                        "503": response("Plan data unavailable", "Error")
                     }
                 }
             },
@@ -49,7 +53,12 @@ pub fn openapi_document() -> Value {
                     }],
                     "responses": {
                         "200": response("Plan detail", "PlanDetail"),
-                        "404": response("Plan not found", "Error")
+                        "400": response("Invalid plan identifier", "Error"),
+                        "403": response("Cross-origin request rejected", "Error"),
+                        "404": response("Plan not found", "Error"),
+                        "421": response("Loopback Host required", "Error"),
+                        "500": response("Dashboard worker failed", "Error"),
+                        "503": response("Plan data unavailable", "Error")
                     }
                 }
             },
@@ -58,7 +67,11 @@ pub fn openapi_document() -> Value {
                     "operationId": "getOpenApi",
                     "summary": "This OpenAPI document",
                     "tags": ["Contract"],
-                    "responses": { "200": { "description": "OpenAPI 3.1 document" } }
+                    "responses": {
+                        "200": { "description": "OpenAPI 3.1 document" },
+                        "403": response("Cross-origin request rejected", "Error"),
+                        "421": response("Loopback Host required", "Error")
+                    }
                 }
             }
         },
@@ -68,17 +81,34 @@ pub fn openapi_document() -> Value {
     })
 }
 
-fn operation(tag: &str, schema: &str, summary: &str) -> Value {
+fn operation(tag: &str, schema: &str, summary: &str, worker_failure: bool) -> Value {
     let operation_id = match schema {
         "HealthResponse" => "getHealth",
         "ProtectionOverview" => "getProtectionOverview",
         _ => "getResource",
     };
+    let mut responses = serde_json::Map::from_iter([
+        ("200".to_owned(), response("Successful response", schema)),
+        (
+            "403".to_owned(),
+            response("Cross-origin request rejected", "Error"),
+        ),
+        (
+            "421".to_owned(),
+            response("Loopback Host required", "Error"),
+        ),
+    ]);
+    if worker_failure {
+        responses.insert(
+            "500".to_owned(),
+            response("Dashboard worker failed", "Error"),
+        );
+    }
     json!({
         "operationId": operation_id,
         "summary": summary,
         "tags": [tag],
-        "responses": { "200": response("Successful response", schema) }
+        "responses": responses
     })
 }
 
@@ -128,11 +158,15 @@ fn schemas() -> Value {
                         "required": ["identifier", "state"],
                         "properties": {
                             "identifier": { "type": "string" },
-                            "state": { "type": "string" }
+                            "state": { "$ref": "#/components/schemas/SurfaceClaimState" }
                         }
                     }
                 }
             }
+        },
+        "SurfaceClaimState": {
+            "type": "string",
+            "enum": ["unbound", "attached", "participating", "embedded-fallback", "degraded", "cross-boundary-refused", "quarantined", "detached"]
         },
         "GateRunSummary": {
             "type": "object",
@@ -144,9 +178,9 @@ fn schemas() -> Value {
                 "score": { "type": ["number", "null"] },
                 "warning_count": { "type": "integer", "minimum": 0 },
                 "duration_seconds": { "type": ["number", "null"] },
-                "started_at": { "type": "string" },
-                "new_warning_count": { "type": "integer", "minimum": 0 },
-                "changed_file_count": { "type": "integer", "minimum": 0 }
+                "started_at": { "type": ["string", "null"] },
+                "new_warning_count": { "type": ["integer", "null"], "minimum": 0 },
+                "changed_file_count": { "type": ["integer", "null"], "minimum": 0 }
             }
         },
         "EvidenceLine": {
@@ -279,17 +313,18 @@ fn schemas() -> Value {
         "PlanTimelineEntry": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "title", "status", "evidence", "readiness"],
+            "required": ["id", "title", "status", "validation_contract", "readiness"],
             "properties": {
                 "id": { "type": "string" },
                 "title": { "type": "string" },
                 "status": { "type": "string" },
-                "evidence": { "type": ["string", "null"] },
+                "validation_contract": { "type": ["string", "null"] },
                 "readiness": { "type": "boolean" }
             }
         },
         "Error": {
             "type": "object",
+            "additionalProperties": false,
             "required": ["code", "message"],
             "properties": {
                 "code": { "type": "string" },

@@ -118,9 +118,19 @@ export interface components {
         | 'path-uncertain';
       surfaces: {
         identifier: string;
-        state: string;
+        state: components['schemas']['SurfaceClaimState'];
       }[];
     };
+    /** @enum {string} */
+    SurfaceClaimState:
+      | 'unbound'
+      | 'attached'
+      | 'participating'
+      | 'embedded-fallback'
+      | 'degraded'
+      | 'cross-boundary-refused'
+      | 'quarantined'
+      | 'detached';
     GateRunSummary: {
       id: string;
       result: string;
@@ -128,9 +138,9 @@ export interface components {
       score: number | null;
       warning_count: number;
       duration_seconds: number | null;
-      started_at: string;
-      new_warning_count: number;
-      changed_file_count: number;
+      started_at: string | null;
+      new_warning_count: number | null;
+      changed_file_count: number | null;
     };
     EvidenceLine: {
       number: number;
@@ -222,7 +232,7 @@ export interface components {
       id: string;
       title: string;
       status: string;
-      evidence: string | null;
+      validation_contract: string | null;
       readiness: boolean;
     };
     Error: {
@@ -256,6 +266,24 @@ export interface operations {
           'application/json': components['schemas']['HealthResponse'];
         };
       };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
     };
   };
   getProtectionOverview: {
@@ -276,6 +304,33 @@ export interface operations {
           'application/json': components['schemas']['ProtectionOverview'];
         };
       };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Dashboard worker failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
     };
   };
   listPlans: {
@@ -294,6 +349,42 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['PlanSummary'][];
+        };
+      };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Dashboard worker failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Plan data unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
         };
       };
     };
@@ -318,8 +409,53 @@ export interface operations {
           'application/json': components['schemas']['PlanDetail'];
         };
       };
+      /** @description Invalid plan identifier */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
       /** @description Plan not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Dashboard worker failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Plan data unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -344,6 +480,24 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
       };
     };
   };

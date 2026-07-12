@@ -5,6 +5,7 @@ pub mod enforcement;
 mod events;
 pub mod feature_flags;
 pub mod feature_flags_catalogue;
+pub mod gate_snapshot;
 mod graph;
 pub mod hooks;
 pub mod io_risk;
@@ -28,6 +29,7 @@ pub use feature_flags::{
     TRACK_PACK_GROUP, TRACK_SURFACE_FLAG, TRACK_SURFACE_GROUP, TargetingCondition,
     TargetingOperator, TargetingRule,
 };
+pub use gate_snapshot::{GateSnapshot, GateSnapshotWarning};
 pub use graph::{
     ByteRange, CallSite, CalleeRef, EdgeType, FileSymbols, ImportEdge, LocalSymbolRef,
     MAX_CALL_SITES, ReexportEdge, SymbolEdge, SymbolIdentity, SymbolKind, SymbolNode, Visibility,

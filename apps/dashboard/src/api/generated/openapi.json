@@ -27,6 +27,26 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Cross-origin request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "421": {
+            "description": "Loopback Host required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -43,6 +63,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProtectionOverview"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-origin request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "421": {
+            "description": "Loopback Host required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Dashboard worker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -65,6 +115,46 @@
                   "items": {
                     "$ref": "#/components/schemas/PlanSummary"
                   }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-origin request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "421": {
+            "description": "Loopback Host required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Dashboard worker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Plan data unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -99,8 +189,58 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid plan identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-origin request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Plan not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "421": {
+            "description": "Loopback Host required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Dashboard worker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Plan data unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -120,6 +260,26 @@
         "responses": {
           "200": {
             "description": "OpenAPI 3.1 document"
+          },
+          "403": {
+            "description": "Cross-origin request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "421": {
+            "description": "Loopback Host required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -179,12 +339,25 @@
                   "type": "string"
                 },
                 "state": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/SurfaceClaimState"
                 }
               }
             }
           }
         }
+      },
+      "SurfaceClaimState": {
+        "type": "string",
+        "enum": [
+          "unbound",
+          "attached",
+          "participating",
+          "embedded-fallback",
+          "degraded",
+          "cross-boundary-refused",
+          "quarantined",
+          "detached"
+        ]
       },
       "GateRunSummary": {
         "type": "object",
@@ -220,14 +393,14 @@
             "type": ["number", "null"]
           },
           "started_at": {
-            "type": "string"
+            "type": ["string", "null"]
           },
           "new_warning_count": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "minimum": 0
           },
           "changed_file_count": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "minimum": 0
           }
         }
@@ -600,7 +773,7 @@
       "PlanTimelineEntry": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "title", "status", "evidence", "readiness"],
+        "required": ["id", "title", "status", "validation_contract", "readiness"],
         "properties": {
           "id": {
             "type": "string"
@@ -611,7 +784,7 @@
           "status": {
             "type": "string"
           },
-          "evidence": {
+          "validation_contract": {
             "type": ["string", "null"]
           },
           "readiness": {
@@ -621,6 +794,7 @@
       },
       "Error": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["code", "message"],
         "properties": {
           "code": {

@@ -37,6 +37,7 @@ nix = { version = "0.31", default-features = false }
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
 [dev-dependencies]
+jsonschema = "0.47"
 tempfile = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 
