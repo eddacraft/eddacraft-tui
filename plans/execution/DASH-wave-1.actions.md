@@ -301,6 +301,12 @@ must not accidentally decide those through a development-server shortcut.
 
 ### Task 10: Ship Protection Overview proof module
 
+**Status:** In Progress 2026-07-13 — implementation and focused browser proof
+are green on `feat/dash-wave-1`; the original concept binaries are unavailable
+in this execution thread, so visual fidelity was checked against the approved
+textual contract and captured at `/tmp/dash-protection-desktop.png` and
+`/tmp/dash-protection-mobile-390.png` pending branch integration.
+
 **Files:**
 
 - Create: `crates/anvil-dashboard-server/src/capabilities/protection.rs`
@@ -313,18 +319,27 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `apps/dashboard/src/modules/protection/affected-files.tsx`
 - Create: `apps/dashboard/src/routes/protection.index.tsx`
 
-- [ ] Add API fixture tests for present artefacts and empty-state artefacts.
-- [ ] Add UI tests for the Protection Overview module.
-- [ ] Run tests and verify they fail.
-- [ ] Implement read-only protection state, latest runs, active warnings,
+- [x] Add API fixture tests for present artefacts and empty-state artefacts.
+- [x] Add UI tests for the Protection Overview module.
+- [x] Run tests and verify they fail for the missing typed contract and views.
+- [x] Implement read-only protection state, latest runs, active warnings,
       affected files, freshness, and evidence links.
-- [ ] Match both approved concept references at their native aspect and verify
-      desktop plus 390 px mobile portrait. The full/partial/empty fixtures must
-      preserve last-known-good evidence and name their data state.
-- [ ] Run `cargo test -p eddacraft-anvil-dashboard-server` and dashboard tests.
+- [ ] Match both approved concept references at their native aspect; the image
+      binaries are unavailable in this thread. The accepted textual contract
+      was verified at desktop and 390 px mobile portrait, including no page
+      overflow, labelled full/partial/empty and offline evidence, preserved
+      last-known-good evidence, and console health.
+- [x] Run `CARGO_TARGET_DIR=/tmp/anvil-dash-target cargo test -p
+      eddacraft-anvil-dashboard-server` (15 passed), dashboard tests (23 passed),
+      dashboard typecheck, and the Playwright Protection/Plan flow (1 passed).
 - [ ] Commit: `feat(dash): add protection overview module`
 
 ### Task 11: Ship Plan Driver proof module
+
+**Status:** In Progress 2026-07-13 — typed list/detail routes, selected module
+timeline, canonical read-model reuse, and inert actions are green on
+`feat/dash-wave-1`; browser proof is captured at
+`/tmp/dash-plan-detail-desktop.png`, pending branch integration.
 
 **Files:**
 
@@ -337,12 +352,14 @@ must not accidentally decide those through a development-server shortcut.
 - Create: `apps/dashboard/src/routes/plans.index.tsx`
 - Create: `apps/dashboard/src/routes/plans.$id.tsx`
 
-- [ ] Add API fixture tests for plan list and detail.
-- [ ] Add UI tests proving disabled action affordances cannot mutate state.
-- [ ] Run tests and verify they fail.
-- [ ] Implement read-only Plan Driver list, detail, evidence timeline, and
+- [x] Add API fixture tests for plan list and detail.
+- [x] Add UI tests proving disabled action affordances cannot mutate state.
+- [x] Run tests and verify they fail for the missing detail route and view.
+- [x] Implement read-only Plan Driver list, detail, evidence timeline, and
       disabled/deferred action affordances.
-- [ ] Run `cargo test -p eddacraft-anvil-dashboard-server` and dashboard tests.
+- [x] Run dashboard server tests (15 passed), dashboard tests (23 passed),
+      dashboard typecheck, and Playwright Cmd+K/list/detail/action proof (1
+      passed).
 - [ ] Commit: `feat(dash): add plan driver module`
 
 ### Task 12: Reconcile APS and validation

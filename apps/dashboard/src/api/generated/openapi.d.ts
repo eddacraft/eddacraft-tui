@@ -128,6 +128,14 @@ export interface components {
       score: number | null;
       warning_count: number;
       duration_seconds: number | null;
+      started_at: string;
+      new_warning_count: number;
+      changed_file_count: number;
+    };
+    EvidenceLine: {
+      number: number;
+      text: string;
+      highlighted: boolean;
     };
     WarningSummary: {
       id: string;
@@ -137,6 +145,11 @@ export interface components {
       file_path: string | null;
       age_label: string;
       evidence_id: string;
+      rule: string;
+      line: number | null;
+      explanation: string;
+      matched_pattern: string;
+      evidence_excerpt: components['schemas']['EvidenceLine'][];
     };
     AttentionItem: {
       title: string;
@@ -147,6 +160,9 @@ export interface components {
       path: string;
       highest_severity: string;
       warning_count: number;
+      first_seen: string;
+      last_seen: string;
+      warning_id: string;
     };
     AssuranceSummary: {
       /** @enum {string} */
@@ -177,6 +193,7 @@ export interface components {
       save_time: components['schemas']['SaveTimeSummary'] | null;
       observed_at_unix: number | null;
       latest_run: components['schemas']['GateRunSummary'] | null;
+      recent_runs: components['schemas']['GateRunSummary'][];
       next_attention: components['schemas']['AttentionItem'] | null;
       warnings_state: components['schemas']['DataState'];
       warnings: components['schemas']['WarningSummary'][];
@@ -198,6 +215,15 @@ export interface components {
       purpose: string;
       /** @constant */
       actions_enabled: false;
+      action_message: string;
+      timeline: components['schemas']['PlanTimelineEntry'][];
+    };
+    PlanTimelineEntry: {
+      id: string;
+      title: string;
+      status: string;
+      evidence: string | null;
+      readiness: boolean;
     };
     Error: {
       code: string;

@@ -14,6 +14,10 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,
+    proxy: {
+      '/api': 'http://127.0.0.1:4217',
+      '/openapi.json': 'http://127.0.0.1:4217',
+    },
   },
   preview: {
     host: '127.0.0.1',

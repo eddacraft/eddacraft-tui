@@ -1072,6 +1072,64 @@ kbd {
   color: #b9c9ed;
 }
 
+.data-state-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.plan-driver,
+.plan-detail {
+  display: grid;
+  gap: 0.9rem;
+  width: min(100%, 105rem);
+  margin-inline: auto;
+}
+
+.plan-readiness > p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.68rem;
+  padding: 0.75rem;
+}
+
+.plan-readiness [data-slot='button']:disabled {
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-strong);
+  color: var(--muted);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.plan-timeline {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-timeline li {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+}
+
+.plan-timeline li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.plan-timeline p,
+.plan-timeline code {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
 .mobile-connection-note {
   display: none;
 }

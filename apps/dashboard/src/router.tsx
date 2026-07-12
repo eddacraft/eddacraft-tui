@@ -2,7 +2,7 @@ import { createRootRoute, createRoute, createRouter } from '@tanstack/react-rout
 
 import { DashboardRootRoute } from './routes/__root';
 import { DashboardIndexRoute } from './routes/index';
-import { DashboardPlansRoute } from './routes/plans';
+import { DashboardPlanDetailRoute, DashboardPlansRoute } from './routes/plans';
 import { dashboardSearchSchema } from './lib/search-params';
 
 const rootRoute = createRootRoute({
@@ -22,7 +22,16 @@ const plansRoute = createRoute({
   component: DashboardPlansRoute,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, plansRoute]);
+const planDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/plans/$id',
+  component: function PlanDetailRouteComponent() {
+    const { id } = planDetailRoute.useParams();
+    return <DashboardPlanDetailRoute id={id} />;
+  },
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, plansRoute, planDetailRoute]);
 
 export function createDashboardRouter() {
   return createRouter({

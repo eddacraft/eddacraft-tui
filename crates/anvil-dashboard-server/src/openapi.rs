@@ -136,19 +136,32 @@ fn schemas() -> Value {
         },
         "GateRunSummary": {
             "type": "object",
-            "required": ["id", "result", "label", "score", "warning_count", "duration_seconds"],
+            "required": ["id", "result", "label", "score", "warning_count", "duration_seconds", "started_at", "new_warning_count", "changed_file_count"],
             "properties": {
                 "id": { "type": "string" },
                 "result": { "type": "string" },
                 "label": { "type": "string" },
                 "score": { "type": ["number", "null"] },
                 "warning_count": { "type": "integer", "minimum": 0 },
-                "duration_seconds": { "type": ["number", "null"] }
+                "duration_seconds": { "type": ["number", "null"] },
+                "started_at": { "type": "string" },
+                "new_warning_count": { "type": "integer", "minimum": 0 },
+                "changed_file_count": { "type": "integer", "minimum": 0 }
+            }
+        },
+        "EvidenceLine": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["number", "text", "highlighted"],
+            "properties": {
+                "number": { "type": "integer", "minimum": 0 },
+                "text": { "type": "string" },
+                "highlighted": { "type": "boolean" }
             }
         },
         "WarningSummary": {
             "type": "object",
-            "required": ["id", "severity", "category", "message", "file_path", "age_label", "evidence_id"],
+            "required": ["id", "severity", "category", "message", "file_path", "age_label", "evidence_id", "rule", "line", "explanation", "matched_pattern", "evidence_excerpt"],
             "properties": {
                 "id": { "type": "string" },
                 "severity": { "type": "string" },
@@ -156,7 +169,12 @@ fn schemas() -> Value {
                 "message": { "type": "string" },
                 "file_path": { "type": ["string", "null"] },
                 "age_label": { "type": "string" },
-                "evidence_id": { "type": "string" }
+                "evidence_id": { "type": "string" },
+                "rule": { "type": "string" },
+                "line": { "type": ["integer", "null"], "minimum": 0 },
+                "explanation": { "type": "string" },
+                "matched_pattern": { "type": "string" },
+                "evidence_excerpt": { "type": "array", "items": { "$ref": "#/components/schemas/EvidenceLine" } }
             }
         },
         "AttentionItem": {
@@ -170,11 +188,14 @@ fn schemas() -> Value {
         },
         "AffectedFile": {
             "type": "object",
-            "required": ["path", "highest_severity", "warning_count"],
+            "required": ["path", "highest_severity", "warning_count", "first_seen", "last_seen", "warning_id"],
             "properties": {
                 "path": { "type": "string" },
                 "highest_severity": { "type": "string" },
-                "warning_count": { "type": "integer", "minimum": 0 }
+                "warning_count": { "type": "integer", "minimum": 0 },
+                "first_seen": { "type": "string" },
+                "last_seen": { "type": "string" },
+                "warning_id": { "type": "string" }
             }
         },
         "AssuranceSummary": {
@@ -211,7 +232,7 @@ fn schemas() -> Value {
         },
         "ProtectionOverview": {
             "type": "object",
-            "required": ["schema_version", "data_state", "source_message", "claim", "assurance", "save_time", "observed_at_unix", "latest_run", "next_attention", "warnings_state", "warnings", "affected_files_state", "affected_files", "gaps"],
+            "required": ["schema_version", "data_state", "source_message", "claim", "assurance", "save_time", "observed_at_unix", "latest_run", "recent_runs", "next_attention", "warnings_state", "warnings", "affected_files_state", "affected_files", "gaps"],
             "properties": {
                 "schema_version": { "type": "string", "const": "anvil.dashboard.protection.v1" },
                 "data_state": { "$ref": "#/components/schemas/DataState" },
@@ -221,6 +242,7 @@ fn schemas() -> Value {
                 "save_time": { "oneOf": [{ "$ref": "#/components/schemas/SaveTimeSummary" }, { "type": "null" }] },
                 "observed_at_unix": { "type": ["integer", "null"], "minimum": 0 },
                 "latest_run": { "oneOf": [{ "$ref": "#/components/schemas/GateRunSummary" }, { "type": "null" }] },
+                "recent_runs": { "type": "array", "items": { "$ref": "#/components/schemas/GateRunSummary" } },
                 "next_attention": { "oneOf": [{ "$ref": "#/components/schemas/AttentionItem" }, { "type": "null" }] },
                 "warnings_state": { "$ref": "#/components/schemas/DataState" },
                 "warnings": { "type": "array", "items": { "$ref": "#/components/schemas/WarningSummary" } },
@@ -244,12 +266,26 @@ fn schemas() -> Value {
         "PlanDetail": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["schema_version", "summary", "purpose", "actions_enabled"],
+            "required": ["schema_version", "summary", "purpose", "actions_enabled", "action_message", "timeline"],
             "properties": {
                 "schema_version": { "type": "string", "const": "anvil.dashboard.plans.v1" },
                 "summary": { "$ref": "#/components/schemas/PlanSummary" },
                 "purpose": { "type": "string" },
-                "actions_enabled": { "type": "boolean", "const": false }
+                "actions_enabled": { "type": "boolean", "const": false },
+                "action_message": { "type": "string" },
+                "timeline": { "type": "array", "items": { "$ref": "#/components/schemas/PlanTimelineEntry" } }
+            }
+        },
+        "PlanTimelineEntry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "title", "status", "evidence", "readiness"],
+            "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "status": { "type": "string" },
+                "evidence": { "type": ["string", "null"] },
+                "readiness": { "type": "boolean" }
             }
         },
         "Error": {

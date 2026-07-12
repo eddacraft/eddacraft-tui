@@ -188,7 +188,17 @@
       },
       "GateRunSummary": {
         "type": "object",
-        "required": ["id", "result", "label", "score", "warning_count", "duration_seconds"],
+        "required": [
+          "id",
+          "result",
+          "label",
+          "score",
+          "warning_count",
+          "duration_seconds",
+          "started_at",
+          "new_warning_count",
+          "changed_file_count"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -208,6 +218,34 @@
           },
           "duration_seconds": {
             "type": ["number", "null"]
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "new_warning_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "changed_file_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "EvidenceLine": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["number", "text", "highlighted"],
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "text": {
+            "type": "string"
+          },
+          "highlighted": {
+            "type": "boolean"
           }
         }
       },
@@ -220,7 +258,12 @@
           "message",
           "file_path",
           "age_label",
-          "evidence_id"
+          "evidence_id",
+          "rule",
+          "line",
+          "explanation",
+          "matched_pattern",
+          "evidence_excerpt"
         ],
         "properties": {
           "id": {
@@ -243,6 +286,25 @@
           },
           "evidence_id": {
             "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "line": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "matched_pattern": {
+            "type": "string"
+          },
+          "evidence_excerpt": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceLine"
+            }
           }
         }
       },
@@ -263,7 +325,14 @@
       },
       "AffectedFile": {
         "type": "object",
-        "required": ["path", "highest_severity", "warning_count"],
+        "required": [
+          "path",
+          "highest_severity",
+          "warning_count",
+          "first_seen",
+          "last_seen",
+          "warning_id"
+        ],
         "properties": {
           "path": {
             "type": "string"
@@ -274,6 +343,15 @@
           "warning_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "first_seen": {
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "string"
+          },
+          "warning_id": {
+            "type": "string"
           }
         }
       },
@@ -355,6 +433,7 @@
           "save_time",
           "observed_at_unix",
           "latest_run",
+          "recent_runs",
           "next_attention",
           "warnings_state",
           "warnings",
@@ -417,6 +496,12 @@
               }
             ]
           },
+          "recent_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateRunSummary"
+            }
+          },
           "next_attention": {
             "oneOf": [
               {
@@ -478,7 +563,14 @@
       "PlanDetail": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["schema_version", "summary", "purpose", "actions_enabled"],
+        "required": [
+          "schema_version",
+          "summary",
+          "purpose",
+          "actions_enabled",
+          "action_message",
+          "timeline"
+        ],
         "properties": {
           "schema_version": {
             "type": "string",
@@ -493,6 +585,37 @@
           "actions_enabled": {
             "type": "boolean",
             "const": false
+          },
+          "action_message": {
+            "type": "string"
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanTimelineEntry"
+            }
+          }
+        }
+      },
+      "PlanTimelineEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "status", "evidence", "readiness"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": ["string", "null"]
+          },
+          "readiness": {
+            "type": "boolean"
           }
         }
       },

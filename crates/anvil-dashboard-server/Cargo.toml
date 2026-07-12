@@ -21,6 +21,7 @@ path = "src/bin/export_openapi.rs"
 anvil-intercept = { path = "../anvil-intercept", package = "eddacraft-anvil-intercept" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-plan-read-model = { path = "../anvil-plan-read-model", package = "eddacraft-anvil-plan-read-model" }
 anvil-run = { path = "../anvil-run", package = "eddacraft-anvil-run" }
 axum = { workspace = true }
 serde = { workspace = true }

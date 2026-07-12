@@ -504,6 +504,25 @@ pub fn is_done_status(status: &str) -> bool {
     )
 }
 
+/// Extract a second-level Markdown section from caller-supplied APS content.
+///
+/// Presentation adapters use this helper so section parsing remains owned by
+/// the pure read model rather than being reimplemented at each filesystem
+/// boundary.
+pub fn extract_markdown_section(source: &str, heading: &str) -> String {
+    let marker = format!("## {heading}");
+    let Some((_, section)) = source.split_once(&marker) else {
+        return String::new();
+    };
+    let section = section.split("\n## ").next().unwrap_or(section);
+    section
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn is_done(status: &str) -> bool {
     is_done_status(status)
 }

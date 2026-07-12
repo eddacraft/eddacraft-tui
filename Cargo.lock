@@ -1464,6 +1464,7 @@ dependencies = [
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-win32",
  "eddacraft-anvil-kernel-types",
+ "eddacraft-anvil-plan-read-model",
  "eddacraft-anvil-run",
  "nix 0.31.3",
  "serde",

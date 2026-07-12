@@ -370,6 +370,11 @@ Change status to **Ready** when:
 
 ### DASH-010: Protection Overview proof module
 
+- **Status:** In Progress 2026-07-13 — typed full/partial/empty and
+  offline/loading/error presentation, runs, warnings, affected files, evidence
+  selection, freshness, desktop/mobile rendering, and read-only API fixtures
+  implemented on `feat/dash-wave-1`; focused server, UI, typecheck, and
+  Playwright evidence is green, pending branch integration.
 - **Intent:** Ship the first user-facing dashboard module for Anvil's core
   protection promise.
 - **Expected Outcome:** Protection Overview shows current save-time protection
@@ -390,6 +395,11 @@ Change status to **Ready** when:
 
 ### DASH-011: Plan Driver proof module
 
+- **Status:** In Progress 2026-07-13 — `/plans` and `/plans/$id`, typed list and
+  detail hooks, readiness/evidence timeline, visibly deferred disabled actions,
+  and the bounded `anvil-plan-read-model` adapter implemented on
+  `feat/dash-wave-1`; focused server, UI, typecheck, and Playwright evidence is
+  green, pending branch integration.
 - **Intent:** Keep an internal/dogfood APS module that proves the same dashboard
   module seam over plan data.
 - **Expected Outcome:** Plan Driver shows APS plan list, selected plan detail,

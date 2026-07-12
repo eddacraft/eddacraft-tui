@@ -1,13 +1,29 @@
-import { ArrowRight, Check, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ArrowRight, Check, ShieldCheck, ShieldOff, TriangleAlert } from 'lucide-react';
 
+import type { components } from '@/api/generated/openapi';
 import { Button } from '@/components/ui/button';
-import { latestRun, nextAttention, workspace } from '@/modules/protection/fixture';
+
+type Overview = components['schemas']['ProtectionOverview'];
+type Warning = components['schemas']['WarningSummary'];
 
 interface ProtectionSummaryProps {
+  overview: Overview;
+  warning?: Warning;
   onInspectAttention: () => void;
 }
 
-export function ProtectionSummary({ onInspectAttention }: ProtectionSummaryProps) {
+function freshness(observedAt: number | null) {
+  if (!observedAt) return 'Not observed';
+  return new Date(observedAt * 1000).toLocaleString('en-GB', { timeZone: 'UTC' });
+}
+
+export function ProtectionSummary({
+  overview,
+  warning,
+  onInspectAttention,
+}: ProtectionSummaryProps) {
+  const active = overview.save_time?.active === true;
+  const latest = overview.latest_run;
   return (
     <div className="protection-summary-stack">
       <section aria-labelledby="protection-summary-title" className="protection-summary">
@@ -15,68 +31,81 @@ export function ProtectionSummary({ onInspectAttention }: ProtectionSummaryProps
           Protection summary
         </h2>
         <div className="summary-primary">
-          <span aria-hidden="true" className="summary-icon summary-icon-green">
-            <ShieldCheck />
+          <span aria-hidden="true" className={`summary-icon ${active ? 'summary-icon-green' : ''}`}>
+            {active ? <ShieldCheck /> : <ShieldOff />}
           </span>
           <div>
-            <strong>Save-time protection active</strong>
+            <strong>
+              {active ? 'Save-time protection active' : 'Save-time protection not observed'}
+            </strong>
             <span>
-              <Check aria-hidden="true" /> New violations only
+              {active ? <Check aria-hidden="true" /> : null}
+              {overview.save_time?.state ?? 'No live state'}
             </span>
           </div>
         </div>
         <dl className="summary-facts">
           <div>
             <dt>Last run</dt>
-            <dd>
-              <span className="result-indicator result-indicator-issues" /> Completed with issues
+            <dd>{latest?.label ?? 'No run recorded'}</dd>
+            <dd className="summary-subvalue">
+              {latest ? `${latest.warning_count} warnings` : 'Waiting for local evidence'}
             </dd>
-            <dd className="summary-subvalue">{latestRun.violations} violations</dd>
           </div>
           <div>
             <dt>Freshness</dt>
-            <dd>{workspace.freshness}</dd>
-            <dd className="summary-subvalue">{workspace.refreshedAt}</dd>
+            <dd>{freshness(overview.observed_at_unix)}</dd>
+            <dd className="summary-subvalue">
+              Data state:{' '}
+              {overview.data_state === 'complete'
+                ? 'Full'
+                : overview.data_state === 'partial'
+                  ? 'Partial'
+                  : 'Empty'}
+            </dd>
           </div>
         </dl>
       </section>
 
-      <section aria-labelledby="next-attention-title" className="next-attention">
-        <span aria-hidden="true" className="summary-icon summary-icon-red">
-          <TriangleAlert />
-        </span>
-        <div className="attention-copy">
-          <p className="eyebrow" id="next-attention-title">
-            Next attention
-          </p>
-          <strong>
-            <span className="severity severity-high">HIGH</span> Hard-coded API key detected
-          </strong>
-          <code>
-            {nextAttention.file}:{nextAttention.line}
-          </code>
-        </div>
-        <dl className="attention-facts">
-          <div>
-            <dt>First seen</dt>
-            <dd>{nextAttention.age} ago</dd>
+      {warning ? (
+        <section aria-labelledby="next-attention-title" className="next-attention">
+          <span aria-hidden="true" className="summary-icon summary-icon-red">
+            <TriangleAlert />
+          </span>
+          <div className="attention-copy">
+            <p className="eyebrow" id="next-attention-title">
+              Next attention
+            </p>
+            <strong>
+              <span className="severity severity-high">{warning.severity.toUpperCase()}</span>
+              {warning.rule}
+            </strong>
+            <code>
+              {warning.file_path ?? 'Workspace'}:{warning.line ?? '—'}
+            </code>
           </div>
-          <div>
-            <dt>Category</dt>
-            <dd>{nextAttention.category}</dd>
-          </div>
-        </dl>
-        <Button
-          aria-controls="evidence-inspector"
-          className="attention-action"
-          onClick={onInspectAttention}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Inspect evidence <ArrowRight aria-hidden="true" />
-        </Button>
-      </section>
+          <dl className="attention-facts">
+            <div>
+              <dt>First seen</dt>
+              <dd>{warning.age_label}</dd>
+            </div>
+            <div>
+              <dt>Category</dt>
+              <dd>{warning.category}</dd>
+            </div>
+          </dl>
+          <Button
+            aria-controls="evidence-inspector"
+            className="attention-action"
+            onClick={onInspectAttention}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Inspect evidence <ArrowRight aria-hidden="true" data-icon="inline-end" />
+          </Button>
+        </section>
+      ) : null}
     </div>
   );
 }

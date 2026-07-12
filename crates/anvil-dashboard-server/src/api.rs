@@ -35,6 +35,16 @@ pub struct GateRunSummary {
     pub score: Option<f64>,
     pub warning_count: usize,
     pub duration_seconds: Option<f64>,
+    pub started_at: String,
+    pub new_warning_count: usize,
+    pub changed_file_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidenceLine {
+    pub number: usize,
+    pub text: String,
+    pub highlighted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +56,11 @@ pub struct WarningSummary {
     pub file_path: Option<String>,
     pub age_label: String,
     pub evidence_id: String,
+    pub rule: String,
+    pub line: Option<usize>,
+    pub explanation: String,
+    pub matched_pattern: String,
+    pub evidence_excerpt: Vec<EvidenceLine>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -60,6 +75,9 @@ pub struct AffectedFile {
     pub path: String,
     pub highest_severity: String,
     pub warning_count: usize,
+    pub first_seen: String,
+    pub last_seen: String,
+    pub warning_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -95,6 +113,7 @@ pub struct ProtectionOverview {
     pub save_time: Option<SaveTimeSummary>,
     pub observed_at_unix: Option<u64>,
     pub latest_run: Option<GateRunSummary>,
+    pub recent_runs: Vec<GateRunSummary>,
     pub next_attention: Option<AttentionItem>,
     pub warnings_state: DataState,
     pub warnings: Vec<WarningSummary>,
@@ -114,6 +133,7 @@ impl ProtectionOverview {
             save_time: None,
             observed_at_unix: None,
             latest_run: None,
+            recent_runs: Vec::new(),
             next_attention: None,
             warnings_state: DataState::Unavailable,
             warnings: Vec::new(),
@@ -139,15 +159,33 @@ pub struct PlanDetail {
     pub summary: PlanSummary,
     pub purpose: String,
     pub actions_enabled: bool,
+    pub action_message: String,
+    pub timeline: Vec<PlanTimelineEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlanTimelineEntry {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub evidence: Option<String>,
+    pub readiness: bool,
 }
 
 impl PlanDetail {
-    pub fn read_only(summary: PlanSummary, purpose: String) -> Self {
+    pub fn read_only(
+        summary: PlanSummary,
+        purpose: String,
+        timeline: Vec<PlanTimelineEntry>,
+    ) -> Self {
         Self {
             schema_version: PLAN_DRIVER_SCHEMA.to_owned(),
             summary,
             purpose,
             actions_enabled: false,
+            action_message: "Approval and execution actions are deferred beyond read-only Wave 1."
+                .to_owned(),
+            timeline,
         }
     }
 }

@@ -17,8 +17,9 @@ mod server;
 mod workspace;
 
 pub use api::{
-    AffectedFile, AssuranceSummary, AttentionItem, DataGap, DataState, GateRunSummary,
-    HealthResponse, PlanDetail, PlanSummary, ProtectionOverview, SaveTimeSummary, WarningSummary,
+    AffectedFile, AssuranceSummary, AttentionItem, DataGap, DataState, EvidenceLine,
+    GateRunSummary, HealthResponse, PlanDetail, PlanSummary, PlanTimelineEntry, ProtectionOverview,
+    SaveTimeSummary, WarningSummary,
 };
 pub use capabilities::plans::{PlanReadError, load_plan, load_plans};
 pub use capabilities::protection::{load_persisted_protection_overview, load_protection_overview};

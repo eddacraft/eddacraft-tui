@@ -71,9 +71,15 @@ export const dashboardModuleRegistry = createModuleRegistry([
   {
     id: 'plans',
     navigation: { label: 'Plans', path: '/plans', icon: FileText },
-    routes: [{ id: 'index', path: '/plans', resource: 'plans' }],
+    routes: [
+      { id: 'index', path: '/plans', resource: 'plans' },
+      { id: 'detail', path: '/plans/$id', resource: 'plan-detail' },
+    ],
     queryBindings: ['plans', 'plan-detail'],
     renderers: ['PlanDriverBoundary'],
-    resources: [{ id: 'index', label: 'Plan Driver' }],
+    resources: [
+      { id: 'index', label: 'Plan Driver' },
+      { id: 'detail', label: 'Selected plan detail' },
+    ],
   },
 ]);

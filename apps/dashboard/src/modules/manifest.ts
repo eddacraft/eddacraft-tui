@@ -14,7 +14,7 @@ export interface DashboardModuleNavigation {
 
 export interface DashboardModuleRoute {
   readonly id: string;
-  readonly path: '/' | '/plans';
+  readonly path: '/' | '/plans' | '/plans/$id';
   readonly resource: string;
 }
 

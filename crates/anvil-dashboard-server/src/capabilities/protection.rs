@@ -11,8 +11,9 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::api::{
-    AssuranceSummary, AttentionItem, DataGap, DataState, GateRunSummary,
-    PROTECTION_OVERVIEW_SCHEMA, ProtectionOverview, SaveTimeSummary, WarningSummary,
+    AffectedFile, AssuranceSummary, AttentionItem, DataGap, DataState, EvidenceLine,
+    GateRunSummary, PROTECTION_OVERVIEW_SCHEMA, ProtectionOverview, SaveTimeSummary,
+    WarningSummary,
 };
 use crate::{Workspace, WorkspaceReadError};
 
@@ -31,6 +32,57 @@ struct GateArtefact {
     duration_seconds: String,
     #[serde(default)]
     check_rows: Vec<Vec<String>>,
+    #[serde(default)]
+    runs: Vec<GateRunArtefact>,
+    #[serde(default)]
+    warning_details: Vec<WarningArtefact>,
+    #[serde(default)]
+    affected_files: Vec<AffectedFileArtefact>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GateRunArtefact {
+    id: String,
+    result: String,
+    label: String,
+    score: Option<f64>,
+    warning_count: usize,
+    duration_seconds: Option<f64>,
+    started_at: String,
+    #[serde(default)]
+    new_warning_count: usize,
+    #[serde(default)]
+    changed_file_count: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WarningArtefact {
+    id: String,
+    severity: String,
+    rule: String,
+    category: String,
+    message: String,
+    file_path: Option<String>,
+    line: Option<usize>,
+    age_label: String,
+    evidence_id: String,
+    explanation: String,
+    matched_pattern: String,
+    #[serde(default)]
+    evidence_excerpt: Vec<EvidenceLine>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AffectedFileArtefact {
+    path: String,
+    highest_severity: String,
+    warning_count: usize,
+    first_seen: String,
+    last_seen: String,
+    warning_id: String,
 }
 
 struct LiveProtectionSnapshot {
@@ -80,18 +132,57 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         return overview;
     };
 
-    let warnings = gate
-        .check_rows
-        .iter()
-        .enumerate()
-        .filter_map(|(index, row)| warning_from_row(index, row))
-        .collect::<Vec<_>>();
+    let warnings = if gate.warning_details.is_empty() {
+        gate.check_rows
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| warning_from_row(index, row))
+            .collect::<Vec<_>>()
+    } else {
+        gate.warning_details
+            .into_iter()
+            .map(WarningSummary::from)
+            .collect()
+    };
     let next_attention = warnings.first().map(|warning| AttentionItem {
         title: format!("Review {}", warning.category),
         detail: warning.message.clone(),
         evidence_id: Some(warning.evidence_id.clone()),
     });
     let warning_count = gate.warnings.parse().unwrap_or(warnings.len());
+
+    let recent_runs = gate
+        .runs
+        .into_iter()
+        .map(GateRunSummary::from)
+        .collect::<Vec<_>>();
+    let affected_files = gate
+        .affected_files
+        .into_iter()
+        .map(AffectedFile::from)
+        .collect::<Vec<_>>();
+    let latest_run = recent_runs.first().cloned().or_else(|| {
+        Some(GateRunSummary {
+            id: "latest-gate".to_owned(),
+            result: gate.status,
+            label: gate.status_label,
+            score: gate.score,
+            warning_count,
+            duration_seconds: gate.duration_seconds.parse().ok(),
+            started_at: "latest gate".to_owned(),
+            new_warning_count: 0,
+            changed_file_count: 0,
+        })
+    });
+    let affected_files_state = if affected_files.is_empty() {
+        DataState::Unavailable
+    } else {
+        DataState::Complete
+    };
+    let mut gaps = history_gaps();
+    if !affected_files.is_empty() {
+        gaps.retain(|gap| gap.component != "affected-files");
+    }
 
     ProtectionOverview {
         schema_version: PROTECTION_OVERVIEW_SCHEMA.to_owned(),
@@ -103,20 +194,14 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         assurance: None,
         save_time: None,
         observed_at_unix: None,
-        latest_run: Some(GateRunSummary {
-            id: "latest-gate".to_owned(),
-            result: gate.status,
-            label: gate.status_label,
-            score: gate.score,
-            warning_count,
-            duration_seconds: gate.duration_seconds.parse().ok(),
-        }),
+        latest_run,
+        recent_runs,
         next_attention,
         warnings_state: DataState::Partial,
         warnings,
-        affected_files_state: DataState::Unavailable,
-        affected_files: Vec::new(),
-        gaps: history_gaps(),
+        affected_files_state,
+        affected_files,
+        gaps,
     }
 }
 
@@ -281,7 +366,60 @@ fn warning_from_row(index: usize, row: &[String]) -> Option<WarningSummary> {
         file_path: None,
         age_label: "latest gate".to_owned(),
         evidence_id,
+        rule: row[0].clone(),
+        line: None,
+        explanation: "The latest gate reported this check as needing attention.".to_owned(),
+        matched_pattern: "Unavailable in the gate summary artefact".to_owned(),
+        evidence_excerpt: Vec::new(),
     })
+}
+
+impl From<GateRunArtefact> for GateRunSummary {
+    fn from(run: GateRunArtefact) -> Self {
+        Self {
+            id: run.id,
+            result: run.result,
+            label: run.label,
+            score: run.score,
+            warning_count: run.warning_count,
+            duration_seconds: run.duration_seconds,
+            started_at: run.started_at,
+            new_warning_count: run.new_warning_count,
+            changed_file_count: run.changed_file_count,
+        }
+    }
+}
+
+impl From<WarningArtefact> for WarningSummary {
+    fn from(warning: WarningArtefact) -> Self {
+        Self {
+            id: warning.id,
+            severity: warning.severity,
+            category: warning.category,
+            message: warning.message,
+            file_path: warning.file_path,
+            age_label: warning.age_label,
+            evidence_id: warning.evidence_id,
+            rule: warning.rule,
+            line: warning.line,
+            explanation: warning.explanation,
+            matched_pattern: warning.matched_pattern,
+            evidence_excerpt: warning.evidence_excerpt,
+        }
+    }
+}
+
+impl From<AffectedFileArtefact> for AffectedFile {
+    fn from(file: AffectedFileArtefact) -> Self {
+        Self {
+            path: file.path,
+            highest_severity: file.highest_severity,
+            warning_count: file.warning_count,
+            first_seen: file.first_seen,
+            last_seen: file.last_seen,
+            warning_id: file.warning_id,
+        }
+    }
 }
 
 #[cfg(test)]

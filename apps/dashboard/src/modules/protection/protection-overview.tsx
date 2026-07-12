@@ -1,166 +1,224 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 
+import type { components } from '@/api/generated/openapi';
 import { QueryBoundary } from '@/components/query-boundary';
+import { EmptyState } from '@/components/primitives/empty-state';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
-import {
-  latestRun,
-  nextAttention,
-  protectionWarnings,
-  type ProtectionRun,
-  type ProtectionWarning,
-} from '@/modules/protection/fixture';
-import { ProtectionSummary } from '@/modules/protection/protection-summary';
 import { useProtectionOverview } from '@/hooks/use-protection-overview';
-import {
-  AffectedFilesTable,
-  RunsTable,
-  WarningsTable,
-} from '@/modules/protection/protection-tables';
+import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
+import { ProtectionSummary } from '@/modules/protection/protection-summary';
 
-function focusInspector() {
-  requestAnimationFrame(() => {
-    document.querySelector<HTMLElement>('#evidence-inspector')?.focus({ preventScroll: true });
-    document
-      .querySelector('#evidence-inspector')
-      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  });
-}
+type Overview = components['schemas']['ProtectionOverview'];
 
-function ProtectionOverviewContent({
-  sourceMessage,
-  state,
+export function ProtectionOverviewContent({
+  overview,
+  initialEvidence,
+  onEvidenceChange,
 }: {
-  sourceMessage: string;
-  state: string;
+  overview: Overview;
+  initialEvidence?: string;
+  onEvidenceChange?: (id: string) => void;
 }) {
-  const search = useSearch({ from: '/' });
-  const navigate = useNavigate({ from: '/' });
-  const [selectedRunId, setSelectedRunId] = useState(latestRun.id);
-  const selectedWarningId = search.evidence ?? nextAttention.id;
-  const filteredWarnings =
-    search.severity === 'all'
-      ? protectionWarnings
-      : protectionWarnings.filter((warning) => warning.severity.toLowerCase() === search.severity);
-  const selectedWarning =
-    protectionWarnings.find((warning) => warning.id === selectedWarningId) ?? nextAttention;
-
-  const selectRun = (run: ProtectionRun) => setSelectedRunId(run.id);
-  const selectWarning = (warning: ProtectionWarning, moveFocus = false) => {
-    void navigate({
-      search: (previous) => ({ ...previous, evidence: warning.id, view: 'warnings' }),
-    });
-    if (moveFocus) focusInspector();
+  const [selectedId, setSelectedId] = useState(
+    initialEvidence ?? overview.next_attention?.evidence_id ?? overview.warnings[0]?.id
+  );
+  const selected =
+    overview.warnings.find(
+      (warning) => warning.id === selectedId || warning.evidence_id === selectedId
+    ) ?? overview.warnings[0];
+  const select = (id: string) => {
+    setSelectedId(id);
+    onEvidenceChange?.(id);
   };
+  const offline = overview.gaps.some((gap) => gap.component === 'live-protection');
+
+  if (
+    overview.data_state === 'unavailable' &&
+    overview.recent_runs.length === 0 &&
+    overview.warnings.length === 0
+  ) {
+    return (
+      <section className="protection-overview">
+        <header className="protection-heading">
+          <p className="eyebrow">Workspace protection</p>
+          <h1>Protection overview</h1>
+        </header>
+        <EmptyState
+          description={overview.source_message}
+          title="No local protection evidence yet"
+        />
+      </section>
+    );
+  }
 
   return (
-    <div className="protection-overview" data-dashboard-state={state}>
+    <div className="protection-overview" data-dashboard-state={overview.data_state}>
       <header className="protection-heading">
         <p className="eyebrow">Workspace protection</p>
         <h1 id="protection-title" tabIndex={-1}>
           Protection overview
         </h1>
-        <p>
-          Read-only summary of what Anvil protected on save, what needs attention, and the
-          deterministic evidence behind each finding.
-        </p>
-        <p className="sr-only">{sourceMessage}</p>
+        <p>Read-only local evidence for save-time protection and its next attention item.</p>
+        <div className="data-state-row">
+          <Badge variant="outline">
+            {overview.data_state === 'complete' ? 'Full data' : 'Partial data'}
+          </Badge>
+          {offline ? <Badge variant="outline">Offline · last-known evidence</Badge> : null}
+        </div>
       </header>
-
       <ProtectionSummary
-        onInspectAttention={() => {
-          void navigate({
-            search: (previous) => ({ ...previous, evidence: nextAttention.id, view: 'warnings' }),
-          });
-          focusInspector();
-        }}
+        overview={overview}
+        onInspectAttention={() => selected && select(selected.id)}
+        warning={selected}
       />
-
       <div className="protection-grid">
-        <Tabs
-          className="protection-tabs"
-          onValueChange={(view) =>
-            void navigate({
-              search: (previous) => ({
-                ...previous,
-                view: view === 'warnings' ? 'warnings' : 'runs',
-              }),
-            })
-          }
-          value={search.view}
-        >
+        <Tabs className="protection-tabs" defaultValue="runs">
           <TabsList
             aria-label="Protection activity"
             className="protection-tabs-list"
             variant="line"
           >
             <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="warnings">Warnings (12)</TabsTrigger>
+            <TabsTrigger value="warnings">Warnings ({overview.warnings.length})</TabsTrigger>
           </TabsList>
-
           <TabsContent className="panel activity-panel" forceMount value="runs">
             <header className="panel-header">
               <div>
                 <h2>Latest runs</h2>
                 <p>Most recent save-time scans</p>
               </div>
-              <span className="panel-count">5 runs</span>
+              <span className="panel-count">{overview.recent_runs.length} runs</span>
             </header>
-            <RunsTable onSelectRun={selectRun} selectedRunId={selectedRunId} />
+            <Table className="operations-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Started</TableHead>
+                  <TableHead>Result</TableHead>
+                  <TableHead>Warnings</TableHead>
+                  <TableHead>Changed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {overview.recent_runs.map((run) => (
+                  <TableRow key={run.id}>
+                    <TableCell>{run.started_at}</TableCell>
+                    <TableCell>{run.label}</TableCell>
+                    <TableCell>{run.warning_count}</TableCell>
+                    <TableCell>{run.changed_file_count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </TabsContent>
-
           <TabsContent className="panel activity-panel" forceMount value="warnings">
             <header className="panel-header">
               <div>
-                <h2>Active warnings (12)</h2>
+                <h2>Active warnings ({overview.warnings.length})</h2>
                 <p>Ordered by severity and recency</p>
               </div>
-              <span className="panel-count panel-count-warning">12 open</span>
             </header>
-            <WarningsTable
-              onSelectWarning={(warning) => selectWarning(warning)}
-              selectedWarningId={selectedWarningId}
-              warnings={filteredWarnings}
-            />
+            <Table className="operations-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Severity</TableHead>
+                  <TableHead>Rule</TableHead>
+                  <TableHead>File</TableHead>
+                  <TableHead>Age</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {overview.warnings.map((warning) => (
+                  <TableRow
+                    data-selected={warning.id === selected?.id || undefined}
+                    key={warning.id}
+                  >
+                    <TableCell>{warning.severity.toUpperCase()}</TableCell>
+                    <TableCell>
+                      <button
+                        className="table-select-button table-rule"
+                        onClick={() => select(warning.id)}
+                        type="button"
+                      >
+                        {warning.rule}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <code>
+                        {warning.file_path ?? 'Workspace'}:{warning.line ?? '—'}
+                      </code>
+                    </TableCell>
+                    <TableCell>{warning.age_label}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </TabsContent>
         </Tabs>
-
-        <EvidenceInspector warning={selectedWarning} />
+        <EvidenceInspector warning={selected} />
       </div>
-
       <section aria-labelledby="affected-files-title" className="panel affected-files-panel">
         <header className="panel-header">
           <div>
-            <h2 id="affected-files-title">Affected files (6)</h2>
-            <p>Files with active warnings in the latest run</p>
+            <h2 id="affected-files-title">Affected files ({overview.affected_files.length})</h2>
+            <p>Files with active warnings in the latest evidence</p>
           </div>
-          <span className="panel-count">6 files</span>
         </header>
-        <AffectedFilesTable
-          onSelectWarning={(warning) => selectWarning(warning, true)}
-          selectedWarningId={selectedWarningId}
-          warnings={filteredWarnings}
-        />
+        <Table className="operations-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>File path</TableHead>
+              <TableHead>Warnings</TableHead>
+              <TableHead>Highest severity</TableHead>
+              <TableHead>Last seen</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {overview.affected_files.map((file) => (
+              <TableRow key={file.path}>
+                <TableCell>
+                  <button
+                    className="table-select-button"
+                    onClick={() => select(file.warning_id)}
+                    type="button"
+                  >
+                    {file.path}
+                  </button>
+                </TableCell>
+                <TableCell>{file.warning_count}</TableCell>
+                <TableCell>{file.highest_severity.toUpperCase()}</TableCell>
+                <TableCell>{file.last_seen}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </section>
-
-      <p className="mobile-connection-note">
-        <span>Local only</span>
-        <span>Read-only</span>
-        <span>No network calls</span>
-      </p>
     </div>
   );
 }
 
 export function ProtectionOverview() {
   const query = useProtectionOverview();
+  const search = useSearch({ from: '/' });
+  const navigate = useNavigate({ from: '/' });
   return (
     <QueryBoundary loadingLabel="Loading protection overview" query={query}>
       {(overview) => (
         <ProtectionOverviewContent
-          sourceMessage={overview.source_message}
-          state={overview.data_state}
+          initialEvidence={search.evidence}
+          onEvidenceChange={(evidence) =>
+            void navigate({ search: (previous) => ({ ...previous, evidence, view: 'warnings' }) })
+          }
+          overview={overview}
         />
       )}
     </QueryBoundary>
