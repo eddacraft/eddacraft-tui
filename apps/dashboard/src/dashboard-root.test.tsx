@@ -107,6 +107,15 @@ describe('dashboard app host', () => {
     expect(container.querySelector('[data-desktop-sidebar]')).not.toBeNull();
     expect(container.querySelector('[data-mobile-header]')).not.toBeNull();
     expect(container.querySelector('[data-mobile-bottom-nav]')).not.toBeNull();
+    expect(container.querySelector('[data-desktop-sidebar]')?.textContent).toContain(
+      'Current workspace'
+    );
+    expect(container.querySelector('[data-desktop-sidebar]')?.textContent).toContain(
+      'Local loopback API'
+    );
+    expect(container.querySelector('[data-desktop-sidebar]')?.textContent).not.toContain(
+      'No network calls'
+    );
     expect(container.querySelector('button[aria-label="Search dashboard"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Open navigation"]')).not.toBeNull();
     expect(container.querySelector('[role="tablist"]')?.textContent).toContain('Runs');

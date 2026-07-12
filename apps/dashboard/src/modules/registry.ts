@@ -61,11 +61,6 @@ export const dashboardModuleRegistry = createModuleRegistry([
     resources: [
       { id: 'runs', label: 'Latest runs', search: { view: 'runs' } },
       { id: 'warnings', label: 'Active warnings', search: { view: 'warnings' } },
-      {
-        id: 'evidence',
-        label: 'Evidence inspector',
-        search: { view: 'warnings', evidence: 'warning-api-key' },
-      },
     ],
   },
   {

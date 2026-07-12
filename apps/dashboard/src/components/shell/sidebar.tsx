@@ -19,7 +19,7 @@ export function DashboardSidebar() {
 
       <div className="dashboard-workspace">
         <span>Workspace</span>
-        <strong>anvil-001</strong>
+        <strong>Current workspace</strong>
       </div>
 
       <nav className="dashboard-nav" aria-label="Primary">
@@ -52,7 +52,7 @@ export function DashboardSidebar() {
             <span aria-hidden="true" className="status-dot" /> Read-only
           </li>
           <li>
-            <span aria-hidden="true" className="status-dot" /> No network calls
+            <span aria-hidden="true" className="status-dot" /> Local loopback API
           </li>
         </ul>
         <p className="dashboard-version">v0.1.0 · Wave 1</p>
