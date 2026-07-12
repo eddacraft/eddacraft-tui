@@ -13,5 +13,10 @@
     },
     "types": ["node", "vite/client", "vitest/globals"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  "references": [
+    {
+      "path": "../../packages/libs/render"
+    }
+  ]
 }

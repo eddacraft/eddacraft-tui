@@ -681,3 +681,28 @@ never with feature work.
   operator's ESC-002 approval.
 - Next: run the release skill for v0.9.0-beta; flip JOURNEY-006 Merged on
   the tag; module then rides Released/Shipped → Complete per lifecycle.
+
+## Cycle — 2026-07-13 (DASH Wave 1 implementation candidate)
+
+- Items: DASH-002..008, DASH-010, and DASH-011; DASH-001 was already Merged
+  via PR #3261 and DASH-009 was already Done on main.
+- Outcome: implemented — dedicated module host and visual system, loopback-only
+  read-only Rust server, deterministic OpenAPI/TypeScript client, TanStack Query
+  and command/search state, Protection Overview, and Plan Driver now form one
+  review candidate on `feat/dash-wave-1`.
+- Validation: dashboard test/typecheck/lint/build green (23 tests); dashboard
+  server and plan-read-model tests green; CLI plan-dashboard gates green;
+  Rust clippy and formatting green; browser proof green at desktop and 390 px;
+  docs, APS, formatting, Nx sync, and diff checks green. `pnpm
+  validate:changed` reaches the repo-wide Rust tests but the host cannot allocate
+  an inotify instance for the existing `anvil-bench` watcher-saturation tests
+  (`MaxFilesWatch`); the two affected tests are outside the DASH diff.
+- Review: independent verification and Council are pending on the clean
+  candidate; no merge authority is inferred.
+- Plan changes: DASH-002..008 and DASH-010/011 remain In Progress until branch
+  integration; module and index status are reconciled without changing the
+  feature-branch aggregate counter.
+- Checkpoints raised: none — the inotify limit is recorded as an environment
+  advisory rather than a DASH product or implementation blocker.
+- Next: run independent verification and Council, repair any blocking findings,
+  then publish the candidate for PR review and CI.

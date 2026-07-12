@@ -95,34 +95,36 @@ shared contracts / config / kernel-types
 Selected crates below — the Cargo workspace has ~35 members; the authoritative
 list is the `members` array in the root `Cargo.toml`.
 
-| Crate                         | Purpose                                                                                 |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| `crates/anvil-cli/`           | Primary `anvil` binary, command dispatch, TUI runner, MCP shim, activation, release UX. |
-| `crates/anvil-kernel/`        | Watch, parse, graph, embedded scan, and Rust policy invariants.                         |
-| `crates/anvil-kernel-types/`  | Shared Rust wire types for events, diagnostics, graph nodes, feature flags, hooks.      |
-| `crates/anvil-tui/`           | Ratatui surfaces for watch, gate, tutorial, welcome, doctor, audit, init, and wizard.   |
-| `crates/anvil-checks/`        | Check registry for secrets, anti-patterns, command safety, and related diagnostics.     |
-| `crates/anvil-checks-ast/`    | AST-backed check implementations over tree-sitter parses.                               |
-| `crates/anvil-policy/`        | Rust policy evaluation surface (`anvil policy` commands, eval, regression).             |
-| `crates/anvil-policy-engine/` | Core policy engine primitives backing `anvil-policy`.                                   |
-| `crates/anvil-architecture/`  | Architecture boundary and drift enforcement.                                            |
-| `crates/anvil-capsule/`       | Capsule packaging for portable check/policy bundles.                                    |
-| `crates/anvil-sarif/`         | SARIF output formatting for findings.                                                   |
-| `crates/anvil-run/`           | Run/context orchestration primitives.                                                   |
-| `crates/anvil-graph-cache/`   | Persistent graph cache for the semantic graph.                                          |
-| `crates/anvil-gctx-types/`    | Graph-context (GCTX) wire types, graph-free.                                            |
-| `crates/anvil-gctx-egress/`   | Daemon-side GCTX egress/projection surface.                                             |
-| `crates/anvil-attribution/`   | Code provenance and attribution tracking.                                               |
-| `crates/anvil-intercept/`     | Local pre-write validation daemon, session registry, IPC, enforcement, and fences.      |
-| `crates/anvil-intercept-*`    | Protocol, rule, macOS, and Windows named-pipe support for the intercept daemon.         |
-| `crates/anvil-config/`        | Shared configuration loading and enforcement-mode inputs.                               |
-| `crates/anvil-rules/`         | Rule distribution and evaluation support.                                               |
-| `crates/anvil-baseline/`      | Baseline persistence for known findings and drift.                                      |
-| `crates/anvil-hook/`          | Git hook coexistence and managed-command detection.                                     |
-| `crates/anvil-l4/`            | L4 policy and protection claims.                                                        |
-| `crates/anvil-observability/` | Local tracing and correlation primitives.                                               |
-| `crates/anvil-witness/`       | Witness-chain support for protection evidence.                                          |
-| `crates/eddacraft-tui/`       | Shared Ratatui component library (workspace path crate, ADR-047).                       |
+| Crate                            | Purpose                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/`              | Primary `anvil` binary, command dispatch, TUI runner, MCP shim, activation, release UX. |
+| `crates/anvil-kernel/`           | Watch, parse, graph, embedded scan, and Rust policy invariants.                         |
+| `crates/anvil-kernel-types/`     | Shared Rust wire types for events, diagnostics, graph nodes, feature flags, hooks.      |
+| `crates/anvil-tui/`              | Ratatui surfaces for watch, gate, tutorial, welcome, doctor, audit, init, and wizard.   |
+| `crates/anvil-checks/`           | Check registry for secrets, anti-patterns, command safety, and related diagnostics.     |
+| `crates/anvil-checks-ast/`       | AST-backed check implementations over tree-sitter parses.                               |
+| `crates/anvil-policy/`           | Rust policy evaluation surface (`anvil policy` commands, eval, regression).             |
+| `crates/anvil-policy-engine/`    | Core policy engine primitives backing `anvil-policy`.                                   |
+| `crates/anvil-architecture/`     | Architecture boundary and drift enforcement.                                            |
+| `crates/anvil-capsule/`          | Capsule packaging for portable check/policy bundles.                                    |
+| `crates/anvil-sarif/`            | SARIF output formatting for findings.                                                   |
+| `crates/anvil-run/`              | Run/context orchestration primitives.                                                   |
+| `crates/anvil-graph-cache/`      | Persistent graph cache for the semantic graph.                                          |
+| `crates/anvil-gctx-types/`       | Graph-context (GCTX) wire types, graph-free.                                            |
+| `crates/anvil-gctx-egress/`      | Daemon-side GCTX egress/projection surface.                                             |
+| `crates/anvil-attribution/`      | Code provenance and attribution tracking.                                               |
+| `crates/anvil-intercept/`        | Local pre-write validation daemon, session registry, IPC, enforcement, and fences.      |
+| `crates/anvil-intercept-*`       | Protocol, rule, macOS, and Windows named-pipe support for the intercept daemon.         |
+| `crates/anvil-config/`           | Shared configuration loading and enforcement-mode inputs.                               |
+| `crates/anvil-rules/`            | Rule distribution and evaluation support.                                               |
+| `crates/anvil-baseline/`         | Baseline persistence for known findings and drift.                                      |
+| `crates/anvil-hook/`             | Git hook coexistence and managed-command detection.                                     |
+| `crates/anvil-l4/`               | L4 policy and protection claims.                                                        |
+| `crates/anvil-observability/`    | Local tracing and correlation primitives.                                               |
+| `crates/anvil-witness/`          | Witness-chain support for protection evidence.                                          |
+| `crates/anvil-dashboard-server/` | Loopback-only, read-only API over bounded local dashboard capabilities (ADR-104).       |
+| `crates/anvil-plan-read-model/`  | Pure APS read model shared by CLI and dashboard presentation adapters.                  |
+| `crates/eddacraft-tui/`          | Shared Ratatui component library (workspace path crate, ADR-047).                       |
 
 ### Apps
 
@@ -131,7 +133,8 @@ list is the `members` array in the root `Cargo.toml`.
 | `crates/anvil-cli/`        | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
 | `apps/anvil-api/`          | REST API (Hono + Vercel + Neon Postgres).               |
 | `apps/admin-cli/`          | Operator CLI for admin/audit flows against the API.     |
-| `apps/website/`            | Marketing site + dashboard (Next.js).                   |
+| `apps/dashboard/`          | Local dashboard host (React + Vite, ADR-104).           |
+| `apps/website/`            | Marketing and product website (Next.js).                |
 | `apps/docs-public/`        | Public Docusaurus docs for APS, Kindling, edda-stack.   |
 | `apps/docs-shell/`         | Next.js docs entrypoint and auth proxy.                 |
 | `apps/anvil-docs-private/` | Gated internal Docusaurus docs.                         |
@@ -317,8 +320,9 @@ contains domain logic.
 | **TUI surfaces**         | Ratatui + crossterm          | Interactive watch, gate, tutorial, welcome, doctor, audit, init, and wizard flows.                 |
 | **MCP shim**             | Rust stdio JSON-RPC          | Editor pre-write validation through `anvil_validate_write`; daemon-backed when available.          |
 | **Intercept daemon**     | Rust local IPC               | Per-user pre-write validation, session registry, enforcement pipeline, and fence persistence.      |
+| **Local dashboard**      | React + Vite / Rust + Axum   | Read-only local protection and APS evidence through a loopback-bound generated-client seam.        |
 | **REST API**             | Hono + Vercel                | Dashboard and admin consumption.                                                                   |
-| **Website / docs apps**  | Next.js + Docusaurus         | Marketing, dashboard, public docs, and gated docs entrypoints.                                     |
+| **Website / docs apps**  | Next.js + Docusaurus         | Marketing, public docs, and gated docs entrypoints.                                                |
 | **CI/CD**                | GitHub Actions + `anvil` CLI | PR and release checks through the shipped binary.                                                  |
 | **Legacy MCP / VS Code** | Node MCP SDK / VS Code API   | Archived surfaces; live MCP is the Rust shim and live editor protection routes through activation. |
 
@@ -334,7 +338,9 @@ graph LR
     tui["TUI surfaces<br/>Ratatui"]
     mcp["MCP shim<br/>anvil mcp serve --stdio"]
     api["REST API<br/>Hono + Vercel"]
+    dashboard_server["Local dashboard API<br/>Rust + Axum"]
     cicd["CI/CD<br/>GitHub Actions"]
+    dashboard["Web Dashboard<br/>React + Vite"]
     website["Website + docs<br/>Next.js / Docusaurus"]
     legacy["Archived Node MCP + VS Code"]
 
@@ -344,6 +350,9 @@ graph LR
     cli --> intercept
     mcp --> intercept
     mcp --> kernel
+    dashboard --> dashboard_server
+    dashboard_server --> kernel
+    dashboard_server --> checks
     api --> runtime
     website --> api
     cicd --> cli
@@ -351,7 +360,6 @@ graph LR
 
     runtime["TS runtime<br/>API/archive consumers"]
 
-    dashboard["Web Dashboard"]
     ai["AI Assistants<br/>Claude Code / Cursor"]
     editor["Editor MCP client"]
     developer["Developer"]
@@ -362,7 +370,6 @@ graph LR
     developer --> editor
     editor --> mcp
     ai --> mcp
-    dashboard --> website
     pipeline --> cicd
 
     classDef surface fill:#e3f2fd,stroke:#1565c0
@@ -370,8 +377,8 @@ graph LR
     classDef consumer fill:#f3e5f5,stroke:#6a1b9a
     classDef archive fill:#eeeeee,stroke:#777,stroke-dasharray: 5 5
 
-    class cli,tui,mcp,api,cicd,website surface
-    class kernel,checks,intercept,runtime runtime
+    class cli,tui,mcp,api,cicd,dashboard,website surface
+    class kernel,checks,intercept,dashboard_server,runtime runtime
     class dashboard,ai,editor,developer,pipeline consumer
     class legacy archive
 ```

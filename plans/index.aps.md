@@ -114,7 +114,7 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | JOURNEY-001/-002 — first-win and just-works activation gates | Ready | [release-user-journeys](./modules/release-user-journeys.aps.md) | The operator made repository-specific first-run advocacy and daily `anvil start` confidence the release outcome. These gates coordinate the existing WOW/ACTTUI/CIB cut before candidate rehearsal; browser expansion is explicitly post-cut. | Start ACTTUI-009, then close WOW-005 and the activation contract chain. |
-| 2 | DASH-001..011 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). Unblocks **DASHCORE**, **DASHARCH**, **DASHOPS** after the DSV Sub-phase C usefulness gate landed via PR #3205. Built as `apps/dashboard/` (Vite 8 + React + TanStack Router/Query/Table + shadcn/ui + Tailwind v4) backed by `crates/anvil-dashboard-server/`; json-render first with Recharts as chart primitives; 1/11 done. | Continue from DASH-001 after the JOURNEY release-cut chain. |
+| 2 | DASH-001..011 — dashboard foundation (Wave 1) | In Progress | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). Unblocks **DASHCORE**, **DASHARCH**, **DASHOPS** after the DSV Sub-phase C usefulness gate landed via PR #3205. Built as `apps/dashboard/` (Vite 8 + React + TanStack Router/Query/Table + shadcn/ui + Tailwind v4) backed by `crates/anvil-dashboard-server/`; json-render first with Recharts as chart primitives; 1/11 done. | Complete independent verification, Council review, and PR/CI for the Wave-1 candidate. |
 
 NBI review note (2026-07-11, release journey outcome accepted): **JOURNEY**
 promoted to rank 1. DASH remains the highest-value post-cut expansion and moves
@@ -685,7 +685,7 @@ tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary
 
 | Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
 | ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | Ready  | 1/11     | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 1/11     | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | Ready  | 0/9      | 2    | dashboard-foundation                                                     |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |

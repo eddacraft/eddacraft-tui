@@ -2,9 +2,9 @@
 
 | ID   | Owner      | Status | Progress |
 | ---- | ---------- | ------ | -------- |
-| DASH | @eddacraft | Ready  | 1/11     |
+| DASH | @eddacraft | In Progress | 1/11     |
 
-**Last reviewed:** 2026-07-09
+**Last reviewed:** 2026-07-13
 
 ## Purpose
 
@@ -146,8 +146,9 @@ Change status to **Ready** when:
 
 ### DASH-001: Vite dashboard app scaffold
 
-- **Status:** In Progress 2026-07-10 — scaffold started on
-  `feat/dash-001-dashboard-scaffold`.
+- **Status:** Merged 2026-07-10 via PR #3261 — the dedicated Vite dashboard
+  scaffold is present on `main`; later Wave 1 work continues on
+  `feat/dash-wave-1`.
 - **Intent:** Create the dedicated dashboard app host.
 - **Expected Outcome:** `apps/dashboard/` builds and serves a React 19 +
   Vite 8 app with TanStack Router, Tailwind v4, shadcn/ui configuration, and
@@ -170,8 +171,9 @@ Change status to **Ready** when:
 
 ### DASH-002: Dashboard module host and navigation
 
-- **Status:** Done 2026-07-13 — manifests, fail-closed registry, and
-  registry-driven desktop/mobile navigation verified on `feat/dash-wave-1`.
+- **Status:** In Progress 2026-07-13 — manifests, fail-closed registry, explicit
+  route entries, and registry-driven desktop/mobile navigation are verified on
+  `feat/dash-wave-1`, pending branch integration.
 - **Intent:** Define the dashboard module adapter shape and navigation registry.
 - **Expected Outcome:** Dashboard modules register manifests with route entries,
   nav metadata, query bindings, renderers, and optional action-request
@@ -195,9 +197,9 @@ Change status to **Ready** when:
 
 ### DASH-003: Theme and component catalogue
 
-- **Status:** Done 2026-07-13 — shared primitives and a thin dashboard adapter
-  over the authoritative `@eddacraft/render` catalogue verified on
-  `feat/dash-wave-1`.
+- **Status:** In Progress 2026-07-13 — shared primitives and a thin dashboard
+  adapter over the authoritative `@eddacraft/render` catalogue are verified on
+  `feat/dash-wave-1`, pending branch integration.
 - **Intent:** Build the shared UI primitives and json-render catalogue used by
   dashboard modules.
 - **Expected Outcome:** Dashboard theme tokens cover severity, status, and chart
@@ -229,9 +231,9 @@ Change status to **Ready** when:
 
 ### DASH-004: Local dashboard server crate
 
-- **Status:** Done 2026-07-13 — loopback listener enforcement, Host-header
-  guard, read-only routing, health, and OpenAPI behaviour verified on
-  `feat/dash-wave-1`.
+- **Status:** In Progress 2026-07-13 — loopback listener enforcement,
+  Host-header guard, read-only routing, health, and OpenAPI behaviour are
+  verified on `feat/dash-wave-1`, pending branch integration.
 - **Intent:** Create the Rust server boundary for local dashboard data.
 - **Expected Outcome:** `crates/anvil-dashboard-server/` exposes a loopback-only
   read-only HTTP server with health and OpenAPI endpoints. It does not implement
@@ -253,9 +255,9 @@ Change status to **Ready** when:
 
 ### DASH-005: Workspace artefact read boundary
 
-- **Status:** Done 2026-07-13 — held-root containment, traversal and symlink
-  rejection, size limits, and structured read-error codes verified on
-  `feat/dash-wave-1`.
+- **Status:** In Progress 2026-07-13 — held-root containment, traversal and
+  symlink rejection, size limits, and structured read-error codes are verified
+  on `feat/dash-wave-1`, pending branch integration.
 - **Intent:** Make local `.anvil/` and tracked `anvil/` reads safe and explicit.
 - **Expected Outcome:** Dashboard server resolves a configured workspace root,
   canonicalises requested paths, rejects traversal/symlink escapes, applies size
@@ -384,9 +386,12 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-dashboard-server/src/capabilities/protection.rs`
   - `crates/anvil-dashboard-server/tests/protection_overview.rs`
-  - `apps/dashboard/src/modules/protection/manifest.ts`
+  - `apps/dashboard/src/modules/protection/protection-overview.test.tsx`
   - `apps/dashboard/src/modules/protection/protection-overview.tsx`
-  - `apps/dashboard/src/routes/protection.index.tsx`
+  - `apps/dashboard/src/modules/protection/protection-summary.tsx`
+  - `apps/dashboard/src/modules/protection/protection-tables.tsx`
+  - `apps/dashboard/src/modules/protection/evidence-inspector.tsx`
+  - `apps/dashboard/src/routes/index.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-007
 - **Validation:** API fixture renders the Protection Overview module with real
   typed data; empty state explains missing local artefacts without implying
@@ -408,12 +413,13 @@ Change status to **Ready** when:
 - **Files:**
   - `crates/anvil-dashboard-server/src/capabilities/plans.rs`
   - `crates/anvil-dashboard-server/tests/plan_driver.rs`
-  - `apps/dashboard/src/modules/plans/manifest.ts`
+  - `crates/anvil-plan-read-model/src/lib.rs`
+  - `apps/dashboard/src/modules/plans/plan-driver.test.tsx`
   - `apps/dashboard/src/modules/plans/plan-list.tsx`
   - `apps/dashboard/src/modules/plans/plan-detail.tsx`
   - `apps/dashboard/src/modules/plans/evidence-timeline.tsx`
-  - `apps/dashboard/src/routes/plans.index.tsx`
-  - `apps/dashboard/src/routes/plans.$id.tsx`
+  - `apps/dashboard/src/routes/plans.tsx`
+  - `apps/dashboard/src/router.tsx`
 - **Dependencies:** DASH-003, DASH-006, DASH-007
 - **Validation:** API fixture renders plan list and plan detail; disabled action
   affordances cannot mutate state

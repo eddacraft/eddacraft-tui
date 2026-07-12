@@ -332,7 +332,7 @@ textual contract and captured at `/tmp/dash-protection-desktop.png` and
 - [x] Run `CARGO_TARGET_DIR=/tmp/anvil-dash-target cargo test -p
       eddacraft-anvil-dashboard-server` (15 passed), dashboard tests (23 passed),
       dashboard typecheck, and the Playwright Protection/Plan flow (1 passed).
-- [ ] Commit: `feat(dash): add protection overview module`
+- [x] Commit in `feat(dash): complete proof modules`.
 
 ### Task 11: Ship Plan Driver proof module
 
@@ -360,7 +360,7 @@ timeline, canonical read-model reuse, and inert actions are green on
 - [x] Run dashboard server tests (15 passed), dashboard tests (23 passed),
       dashboard typecheck, and Playwright Cmd+K/list/detail/action proof (1
       passed).
-- [ ] Commit: `feat(dash): add plan driver module`
+- [x] Commit in `feat(dash): complete proof modules`.
 
 ### Task 12: Reconcile APS and validation
 
@@ -369,8 +369,11 @@ timeline, canonical read-model reuse, and inert actions are green on
 - Modify: `plans/modules/dashboard-foundation.aps.md`
 - Modify: `plans/index.aps.md`
 
-- [ ] Mark completed DASH work items with validation evidence.
-- [ ] Run `pnpm aps:active-lint`.
-- [ ] Run `pnpm aps:index:check`.
-- [ ] Run `pnpm validate:changed`.
-- [ ] Commit: `docs(dash): record dashboard wave 1 evidence`
+- [x] Reconcile implemented DASH work items with validation evidence while the
+      unmerged items remain In Progress.
+- [x] Run `pnpm aps:active-lint` (117 active plans clean).
+- [x] Run `pnpm aps:index:check` (green with existing stale-count advisories).
+- [ ] Run `pnpm validate:changed` — DASH-relevant checks passed, but the
+      repo-wide Rust test phase cannot allocate an inotify instance for the
+      existing `anvil-bench` watcher-saturation tests (`MaxFilesWatch`).
+- [x] Commit: `docs(dash): record dashboard wave 1 evidence`
