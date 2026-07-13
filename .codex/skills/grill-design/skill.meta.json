@@ -1,0 +1,22 @@
+{
+  "name": "grill-design",
+  "origin": {
+    "type": "local",
+    "repo": "eddacraft-skills",
+    "path": "skills/in-progress/dev-loop-core/grill-design",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "in-progress",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Pack skill for dev-loop core. Promote to skills/eddacraft/ when accepted."
+  },
+  "localChanges": []
+}

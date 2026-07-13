@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eddacraft.dev/schemas/dev-loop/run-checkpoint.schema.json",
+  "title": "Development Loop Run Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "runId",
+    "target",
+    "mode",
+    "phase",
+    "baseRevision",
+    "updatedAt",
+    "nextAction"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "target": { "type": "string", "minLength": 1 },
+    "parentTarget": { "type": ["string", "null"] },
+    "mode": { "enum": ["interactive", "autonomous"] },
+    "phase": {
+      "enum": [
+        "resolving",
+        "claimed",
+        "designing",
+        "implementing",
+        "implemented",
+        "verifying",
+        "verified",
+        "repairing",
+        "review-ready",
+        "landing",
+        "integrated",
+        "blocked"
+      ]
+    },
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "review-ready",
+        "integrated",
+        "blocked",
+        "repair-budget-exhausted",
+        "needs-plan-update",
+        "claim-conflict",
+        "awaiting-merge-authority"
+      ]
+    },
+    "operator": { "type": ["string", "null"] },
+    "orchestrator": { "type": ["string", "null"] },
+    "executors": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "baseRevision": { "type": "string", "minLength": 1 },
+    "headRevision": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "workspace": { "type": ["string", "null"] },
+    "claimRevision": { "type": ["string", "null"] },
+    "pr": { "type": ["string", "null"] },
+    "repairCyclesUsed": { "type": "integer", "minimum": 0 },
+    "repairBudget": { "type": ["integer", "null"], "minimum": 0 },
+    "outstandingFindings": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "overrides": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "nextAction": { "type": "string", "minLength": 1 }
+  }
+}

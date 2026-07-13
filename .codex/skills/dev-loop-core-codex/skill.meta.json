@@ -1,0 +1,22 @@
+{
+  "name": "dev-loop-core-codex",
+  "origin": {
+    "type": "local",
+    "repo": "eddacraft-skills",
+    "path": "skills/in-progress/dev-loop-core/dev-loop-core-codex",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "in-progress",
+  "targets": {
+    "claude": false,
+    "opencode": false,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Codex binding for the dev-loop-core pack. Codex is not yet a first-class catalogue target flag; install via project .codex/skills."
+  },
+  "localChanges": []
+}

@@ -1,0 +1,22 @@
+{
+  "name": "verify-loop",
+  "origin": {
+    "type": "local",
+    "repo": "eddacraft-skills",
+    "path": "skills/eddacraft/verify-loop",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Independent read-only verification loop for Claude, OpenCode, Codex, and Grok. Codex and Grok support is represented in notes until the catalogue target schema supports them. Complements the smaller verification-before-completion assertion gate."
+  },
+  "localChanges": []
+}

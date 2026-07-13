@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eddacraft.dev/schemas/dev-loop/evidence-bundle.schema.json",
+  "title": "Development Loop Evidence Bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "target", "baseRevision", "headRevision", "risk", "commands", "findings", "decision", "createdAt"],
+  "properties": {
+    "version": { "const": 1 },
+    "target": { "type": "string", "minLength": 1 },
+    "baseRevision": { "type": "string", "minLength": 1 },
+    "headRevision": { "type": "string", "minLength": 1 },
+    "risk": { "enum": ["low", "standard", "high", "critical"] },
+    "contractSources": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "exitCode", "runAt"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "exitCode": { "type": "integer" },
+          "summary": { "type": ["string", "null"] },
+          "runAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "requirement", "evidence", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["critical", "major", "minor", "advisory"] },
+          "requirement": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "string", "minLength": 1 },
+          "reproduction": { "type": ["string", "null"] },
+          "status": { "enum": ["open", "resolved", "accepted", "disputed"] }
+        }
+      }
+    },
+    "overrides": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "decision": { "enum": ["pass", "pass-with-advisories", "repair-required", "blocked", "under-specified"] },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

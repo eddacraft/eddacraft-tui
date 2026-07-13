@@ -1,0 +1,22 @@
+{
+  "name": "dev-loop-core",
+  "origin": {
+    "type": "local",
+    "repo": "eddacraft-skills",
+    "path": "skills/in-progress/dev-loop-core/dev-loop-core",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "in-progress",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Wired clone of dev-loop for the core stage pack. Claude binding notes are inline for project installs."
+  },
+  "localChanges": []
+}

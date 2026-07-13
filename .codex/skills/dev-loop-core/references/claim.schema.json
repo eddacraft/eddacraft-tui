@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eddacraft.dev/schemas/dev-loop/claim.schema.json",
+  "title": "Hierarchical Development Claim",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "repository",
+    "target",
+    "operator",
+    "orchestratorSession",
+    "status",
+    "acquiredAt",
+    "expiresAt",
+    "revision"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "repository": { "type": "string", "minLength": 1 },
+    "target": { "type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[0-9]+)?$" },
+    "parentTarget": { "type": ["string", "null"] },
+    "operator": { "type": "string", "minLength": 1 },
+    "orchestratorSession": { "type": "string", "minLength": 1 },
+    "executor": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "workspace": { "type": ["string", "null"] },
+    "pullRequest": { "type": ["string", "null"] },
+    "status": { "enum": ["active", "delegated", "stale", "released", "integrated", "recovered"] },
+    "acquiredAt": { "type": "string", "format": "date-time" },
+    "heartbeatAt": { "type": ["string", "null"], "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "revision": { "type": "string", "minLength": 1 },
+    "previousRevision": { "type": ["string", "null"] },
+    "resultRevision": { "type": ["string", "null"] }
+  }
+}
