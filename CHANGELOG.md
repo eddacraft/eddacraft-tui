@@ -14,8 +14,8 @@ minor version bump indicates a breaking change.
 - **Pretext public demos** (collapsed from `joshuaboys/pretext-tui`):
   - `examples/pretext_demos` — streaming, exclusion, and masonry tabs
   - `examples/pretext_agent_dashboard` — agent-style multi-panel showcase
-  These ship with the crate subtree so the public `eddacraft/eddacraft-tui`
-  mirror carries the interesting demos next to the engine.
+    These ship with the crate subtree so the public `eddacraft/eddacraft-tui`
+    mirror carries the interesting demos next to the engine.
 
 ### Changed
 

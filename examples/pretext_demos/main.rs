@@ -33,11 +33,11 @@ mod masonry;
 mod streaming;
 
 use app::{App, DemoTab};
+use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use crossterm::ExecutableCommand;
 use ratatui::prelude::*;
 use std::io::{self, stdout};
 use std::time::Duration;

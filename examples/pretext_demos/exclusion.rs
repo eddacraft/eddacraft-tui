@@ -1,11 +1,11 @@
-use eddacraft_tui::widgets::pretext::{PretextState, PretextWidget};
 use eddacraft_tui::pretext::ExclusionZone;
+use eddacraft_tui::widgets::pretext::{PretextState, PretextWidget};
+use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 use std::time::Instant;
 
 const FILLER_TEXT: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. \

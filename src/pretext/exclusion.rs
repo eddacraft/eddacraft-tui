@@ -38,7 +38,7 @@ impl ExclusionZone {
     /// and where. Returns (`occupied_start`, `occupied_end`) in column space,
     /// or None if this zone doesn't affect the row.
     pub fn occupied_cols_at_row(&self, row: u16) -> Option<(u16, u16)> {
-        match &self.shape {
+        let range = match &self.shape {
             ExclusionShape::Rect(rect) => {
                 if rect.contains_row(row) {
                     Some((rect.x, rect.right()))
@@ -47,6 +47,9 @@ impl ExclusionZone {
                 }
             }
             ExclusionShape::Circle { center, radius } => {
+                if *radius == 0 {
+                    return None;
+                }
                 let r = *radius as f64;
                 let dy = (row as f64 - center.row as f64).abs();
                 if dy > r {
@@ -58,6 +61,14 @@ impl ExclusionZone {
                 let right = (center.col as f64 + dx).ceil() as u16;
                 Some((left, right))
             }
+        }?;
+        // Zero-width ranges are no-ops for layout; treating them as a right
+        // boundary would incorrectly shrink available width.
+        let (left, right) = range;
+        if left >= right {
+            None
+        } else {
+            Some((left, right))
         }
     }
 }
@@ -290,5 +301,16 @@ mod tests {
         assert_eq!(widths[2], 70);
         // Rows 3+: full width
         assert_eq!(widths[3], 100);
+    }
+    #[test]
+    fn test_circle_radius_zero() {
+        let zone = ExclusionZone::circle(40, 10, 0);
+        assert_eq!(zone.occupied_cols_at_row(10), None);
+    }
+
+    #[test]
+    fn test_zero_width_rect_filtered() {
+        let zone = ExclusionZone::rect(40, 0, 0, 2);
+        assert_eq!(zone.occupied_cols_at_row(0), None);
     }
 }

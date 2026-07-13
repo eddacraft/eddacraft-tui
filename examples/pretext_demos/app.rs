@@ -1,11 +1,11 @@
 use crate::exclusion::ExclusionDemo;
 use crate::masonry::MasonryDemo;
 use crate::streaming::StreamingDemo;
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Tabs};
-use ratatui::Frame;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DemoTab {

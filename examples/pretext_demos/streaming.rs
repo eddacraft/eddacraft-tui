@@ -1,9 +1,9 @@
 use eddacraft_tui::widgets::pretext::{PretextState, PretextWidget};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 use std::time::{Duration, Instant};
 
 /// A token with its text and style — simulates styled streaming output

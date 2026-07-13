@@ -5,6 +5,7 @@ use unicode_width::UnicodeWidthStr;
 /// Cached preparation of text content.
 /// The prepare phase: expensive unicode-width measurement happens once here.
 /// Subsequent layout calls use only the cached width values.
+#[derive(Debug, Clone)]
 pub struct PreparedText {
     /// All measured words from the text.
     words: Vec<MeasuredWord>,
