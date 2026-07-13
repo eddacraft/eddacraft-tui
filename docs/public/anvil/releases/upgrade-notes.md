@@ -54,7 +54,7 @@ scoop update anvil
   `anvil start` / `anvil watch` (Linux and macOS). Details below.
 
 Full customer-facing notes live in the
-[changelog](changelog.md#090-beta--2026-07-12--first-run-wins-and-the-assistant-graph).
+[changelog](changelog.md#090-beta-2026-07-12-first-run-wins-and-the-assistant-graph).
 
 ### Action required
 
