@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                 |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Turned over 2026-07-12 at the `v0.9.0-beta` closeout: the shipped window is pruned (record: [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md)) and the next window is scoped provisionally from the Ready DASH wave; the theme awaits the operator's scope confirmation. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                        |
+| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Turned over 2026-07-12 at the `v0.9.0-beta` closeout (record: [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md)); the `v0.10.0-beta` window scope was **confirmed by the operator 2026-07-13**. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -43,20 +43,19 @@ nothing else.
   [`plans/releases/v0.8.1-beta.md`](./plans/releases/v0.8.1-beta.md).)
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** `v0.10.0-beta` (below, **provisional — awaiting the
-  operator's scope confirmation**). Scoped from what is `Ready` today: the DASH
-  dashboard-foundation wave (the team-lead browser surface, Horizon 2) plus the
-  `v0.9.x` follow-through patch lane and the v0.9 closeout hygiene. Records for
-  `v0.6.x`–`v0.9.x` are in [`plans/releases/`](./plans/releases/).
+- **Active window:** `v0.10.0-beta` (below, **confirmed by the operator
+  2026-07-13**): the DASH dashboard-foundation wave (the team-lead browser
+  surface, Horizon 2) plus the `v0.9.x` follow-through patch lane and the
+  residual v0.9 closeout hygiene. Records for `v0.6.x`–`v0.9.x` are in
+  [`plans/releases/`](./plans/releases/).
 
 ---
 
-## Active window — `v0.10.0-beta` "Team-Lead Surface Foundations" (provisional)
+## Active window — `v0.10.0-beta` "Team-Lead Surface Foundations"
 
-**This window is provisional.** It is derived from the modules that are `Ready`
-at turnover — the operator has not yet confirmed the theme or scope for the next
-cut. Confirm or redirect before implementation planning treats this window as
-approved.
+**Scope confirmed by the operator 2026-07-13** — the team-lead browser surface
+theme and the DASH wave's place in it, as scoped at the `v0.9.0-beta` turnover.
+Implementation planning may treat this window as approved.
 
 The JOURNEY release accepted the browser surface as explicitly **post-cut**
 expansion; this window picks that thread up. The
@@ -68,19 +67,18 @@ TanStack Router/Query/Table + shadcn/ui + Tailwind v4) backed by
 celebration/diagnostics, always-on confidence indicator, browser continuity)
 remain coordinated, non-blocking expansion.
 
-### Phase plan (provisional)
+### Phase plan
 
 | Phase                           | Scope                                                                                                                                                                | State                                                                                                                      |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Scope confirmation** (gate)   | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                  | **pending** — this window is provisional until confirmed                                                                   |
+| **Scope confirmation** (gate)   | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                  | **done 2026-07-13** — confirmed by the operator                                                                            |
 | **v0.9 closeout hygiene**       | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.            | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR |
 | **Dashboard foundation** (DASH) | DASH-001..011: scaffold, server crate, auth posture, core routing/data layer, first role views.                                                                      | Ready (1/11) — continue from DASH-001                                                                                      |
 | **JOURNEY post-cut expansion**  | JOURNEY-007..010 as coordinated, non-blocking enhancements alongside the DASH wave.                                                                                  | Proposed — non-blocking                                                                                                    |
 | **v0.9 follow-through** (lane)  | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309). | open — `v0.9.x` patches remain the vehicle for anything urgent                                                             |
 
-### Cut criteria (provisional)
+### Cut criteria
 
-- Operator scope confirmation recorded here (replacing the provisional marker).
 - The standing base bar: full `Cross` matrix green (incl. Windows),
   `release-readiness.yml` pass on the source SHA, `ACKNOWLEDGEMENTS` fresh.
 - ADR-031 latency gate (GV2-025 CI job) stays green — the dashboard server must
@@ -109,7 +107,6 @@ Authoritative source:
 
 | Risk                                                                                                                     | Mitigation                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The provisional window is treated as approved scope before the operator confirms it.                                     | The scope-confirmation gate is the first phase; the window header carries the provisional marker until it is recorded.                            |
 | Default-on graph persistence and the first-run surfaces reach every upgrader — field defects surface now.                | The `v0.9.x` 48h-P0 patch lane; `ANVIL_PERSIST_GRAPH=0` and `ANVIL_WATCH_DAEMON=0` documented opt-outs; CIB intake from beta signal.              |
 | Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`) — the v0.9 cut stalled ~6h on its expiry. | Publication-recovery hardening intake (#3309); rotation is called out in the release runbook; the failure mode is pre-publish (no partial state). |
 | The window accretes (this document rots back into a historical record).                                                  | "How this document works" + the closeout prune step keep it to one active window.                                                                 |
