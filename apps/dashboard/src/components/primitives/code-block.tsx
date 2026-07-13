@@ -6,7 +6,7 @@ export interface CodeBlockProps {
 
 export function CodeBlock({ code, language = 'text', label = 'Code sample' }: CodeBlockProps) {
   return (
-    <figure className="overflow-hidden rounded border bg-muted">
+    <figure className="overflow-hidden rounded-none border bg-muted">
       <figcaption className="border-b px-3 py-2 text-xs text-muted-foreground">
         {label} · {language}
       </figcaption>

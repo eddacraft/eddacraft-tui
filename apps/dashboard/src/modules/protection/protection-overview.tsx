@@ -123,7 +123,7 @@ export function ProtectionOverviewContent({
     return (
       <section className="protection-overview">
         <header className="protection-heading">
-          <p className="eyebrow">Workspace protection</p>
+          <p className="eyebrow">WORKSPACE_PROTECTION</p>
           <h1>Protection overview</h1>
         </header>
         <EmptyState
@@ -137,7 +137,7 @@ export function ProtectionOverviewContent({
   return (
     <div className="protection-overview" data-dashboard-state={overview.data_state}>
       <header className="protection-heading">
-        <p className="eyebrow">Workspace protection</p>
+        <p className="eyebrow">WORKSPACE_PROTECTION</p>
         <h1 id="protection-title" tabIndex={-1}>
           Protection overview
         </h1>
@@ -145,12 +145,12 @@ export function ProtectionOverviewContent({
         <div className="data-state-row">
           <Badge variant="outline">
             {overview.data_state === 'complete'
-              ? 'Full data'
+              ? '[ OK ] Full data'
               : overview.data_state === 'partial'
-                ? 'Partial data'
-                : 'Data unavailable'}
+                ? '[ WARN ] Partial data'
+                : '[ N/A ] Data unavailable'}
           </Badge>
-          {offline ? <Badge variant="outline">Offline · last-known evidence</Badge> : null}
+          {offline ? <Badge variant="outline">[ WARN ] Offline · last-known evidence</Badge> : null}
         </div>
       </header>
       <ProtectionSummary

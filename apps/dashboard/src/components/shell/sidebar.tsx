@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { CircleHelp, ShieldCheck } from 'lucide-react';
 
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import { Separator } from '@/components/ui/separator';
 import { dashboardModuleRegistry } from '@/modules/registry';
 
@@ -8,12 +8,16 @@ export function DashboardSidebar() {
   return (
     <aside aria-label="Dashboard modules" className="dashboard-sidebar" data-desktop-sidebar>
       <Link className="dashboard-brand" search={{ severity: 'all', view: 'runs' }} to="/">
-        <span aria-hidden="true" className="dashboard-brand-mark">
-          A
-        </span>
+        <img
+          alt=""
+          className="anvil-brandmark"
+          height="28"
+          src="/anvil-brandmark-ember.svg"
+          width="28"
+        />
         <span>
           <strong>ANVIL</strong>
-          <small>Anvil Dashboard</small>
+          <small>ANVIL // DASHBOARD</small>
         </span>
       </Link>
 
@@ -24,7 +28,6 @@ export function DashboardSidebar() {
 
       <nav className="dashboard-nav" aria-label="Primary">
         {dashboardModuleRegistry.manifests.map((manifest) => {
-          const Icon = manifest.navigation.icon ?? ShieldCheck;
           return (
             <Link
               activeOptions={{
@@ -35,7 +38,7 @@ export function DashboardSidebar() {
               search={{ severity: 'all', view: 'runs' }}
               to={manifest.navigation.path}
             >
-              <Icon aria-hidden="true" />
+              <SyntaxGlyph kind={manifest.navigation.glyph ?? 'context'} />
               {manifest.navigation.label}
             </Link>
           );
@@ -46,13 +49,22 @@ export function DashboardSidebar() {
         <Separator />
         <ul aria-label="Dashboard connection properties" className="connection-properties">
           <li>
-            <span aria-hidden="true" className="status-dot status-dot-green" /> Local only
+            <span aria-hidden="true" className="connection-status connection-status-ok">
+              [ OK ]
+            </span>{' '}
+            Local only
           </li>
           <li>
-            <span aria-hidden="true" className="status-dot" /> Read-only
+            <span aria-hidden="true" className="connection-status">
+              [ ]
+            </span>{' '}
+            Read-only
           </li>
           <li>
-            <span aria-hidden="true" className="status-dot" /> Local loopback API
+            <span aria-hidden="true" className="connection-status">
+              [ ]
+            </span>{' '}
+            Local loopback API
           </li>
         </ul>
         <p className="dashboard-version">v0.1.0 · Wave 1</p>
@@ -62,7 +74,7 @@ export function DashboardSidebar() {
           disabled
           type="button"
         >
-          <CircleHelp aria-hidden="true" />
+          <SyntaxGlyph kind="unavailable" />
           <span>
             Help
             <small id="dashboard-help-explanation">Help unavailable in Wave 1</small>

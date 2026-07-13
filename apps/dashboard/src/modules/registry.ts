@@ -1,5 +1,3 @@
-import { FileText, ShieldCheck } from 'lucide-react';
-
 import type { DashboardModuleManifest } from './manifest';
 
 export class DuplicateDashboardModuleError extends Error {
@@ -53,7 +51,7 @@ export const dashboardModuleRegistry = createModuleRegistry([
     navigation: {
       label: 'Protection',
       path: '/',
-      icon: ShieldCheck,
+      glyph: 'action',
     },
     routes: [{ id: 'overview', path: '/', resource: 'protection-overview' }],
     queryBindings: ['protection-overview'],
@@ -65,7 +63,7 @@ export const dashboardModuleRegistry = createModuleRegistry([
   },
   {
     id: 'plans',
-    navigation: { label: 'Plans', path: '/plans', icon: FileText },
+    navigation: { label: 'Plans', path: '/plans', glyph: 'history' },
     routes: [
       { id: 'index', path: '/plans', resource: 'plans' },
       { id: 'detail', path: '/plans/$id', resource: 'plan-detail' },

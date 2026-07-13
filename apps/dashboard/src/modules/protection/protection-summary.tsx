@@ -1,6 +1,5 @@
-import { ArrowRight, Check, ShieldCheck, ShieldOff, TriangleAlert } from 'lucide-react';
-
 import type { components } from '@/api/generated/openapi';
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import { Button } from '@/components/ui/button';
 
 type Overview = components['schemas']['ProtectionOverview'];
@@ -31,15 +30,17 @@ export function ProtectionSummary({
           Protection summary
         </h2>
         <div className="summary-primary">
-          <span aria-hidden="true" className={`summary-icon ${active ? 'summary-icon-green' : ''}`}>
-            {active ? <ShieldCheck /> : <ShieldOff />}
+          <span
+            aria-hidden="true"
+            className={`summary-icon ${active ? 'summary-icon-green' : 'summary-icon-muted'}`}
+          >
+            {active ? '[ OK ]' : '[ N/A ]'}
           </span>
           <div>
             <strong>
               {active ? 'Save-time protection active' : 'Save-time protection not observed'}
             </strong>
-            <span>
-              {active ? <Check aria-hidden="true" /> : null}
+            <span className={active ? 'summary-state summary-state-ok' : 'summary-state'}>
               {overview.save_time?.state ?? 'No live state'}
             </span>
           </div>
@@ -69,15 +70,17 @@ export function ProtectionSummary({
 
       {warning ? (
         <section aria-labelledby="next-attention-title" className="next-attention">
-          <span aria-hidden="true" className="summary-icon summary-icon-red">
-            <TriangleAlert />
+          <span aria-hidden="true" className="summary-icon summary-icon-warning">
+            [ WARN ]
           </span>
           <div className="attention-copy">
             <p className="eyebrow" id="next-attention-title">
               Next attention
             </p>
             <strong>
-              <span className="severity severity-high">{warning.severity.toUpperCase()}</span>
+              <span className={`severity severity-${warning.severity.toLowerCase()}`}>
+                {warning.severity.toUpperCase()}
+              </span>
               {warning.rule}
             </strong>
             <code>
@@ -102,7 +105,8 @@ export function ProtectionSummary({
             type="button"
             variant="ghost"
           >
-            Inspect evidence <ArrowRight aria-hidden="true" data-icon="inline-end" />
+            <span>Inspect evidence</span>
+            <SyntaxGlyph kind="action" />
           </Button>
         </section>
       ) : null}

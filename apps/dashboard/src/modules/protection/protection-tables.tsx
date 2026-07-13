@@ -1,5 +1,4 @@
-import { Check, ChevronRight, CircleMinus, ShieldAlert } from 'lucide-react';
-
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -35,7 +34,7 @@ function Result({ run }: { run: ProtectionRun }) {
     <span
       className={clean ? 'table-result table-result-clean' : 'table-result table-result-issues'}
     >
-      {clean ? <Check aria-hidden="true" /> : <ShieldAlert aria-hidden="true" />}
+      <span aria-hidden="true">{clean ? '[ OK ]' : '[ WARN ]'}</span>
       {run.result}
     </span>
   );
@@ -45,6 +44,7 @@ function SeverityBadge({ warning }: { warning: ProtectionWarning }) {
   return (
     <Badge
       className={`severity-badge severity-badge-${warning.severity.toLowerCase()}`}
+      data-severity={warning.severity.toLowerCase()}
       variant="outline"
     >
       {warning.severity}
@@ -92,12 +92,12 @@ export function RunsTable({ selectedRunId, onSelectRun }: RunsTableProps) {
               </TableCell>
               <TableCell className="numeric-cell">{run.violations}</TableCell>
               <TableCell className="numeric-cell table-new-value">
-                {run.newViolations || <CircleMinus aria-label="None" />}
+                {run.newViolations || <span aria-label="None">[ - ]</span>}
               </TableCell>
               <TableCell className="numeric-cell">{run.changedFiles}</TableCell>
               <TableCell className="hide-mobile muted-cell">anvil-001</TableCell>
               <TableCell className="mobile-row-action">
-                <ChevronRight aria-hidden="true" />
+                <SyntaxGlyph kind="action" />
               </TableCell>
             </TableRow>
           );
@@ -150,9 +150,13 @@ export function WarningsTable({
             <TableCell className="numeric-cell hide-mobile muted-cell">{warning.age}</TableCell>
             <TableCell className="numeric-cell hide-mobile">
               {warning.evidence ? (
-                <Check aria-label="Evidence captured" className="evidence-yes" />
+                <span aria-label="Evidence captured" className="evidence-yes">
+                  [ OK ]
+                </span>
               ) : (
-                <CircleMinus aria-label="No evidence" className="muted-cell" />
+                <span aria-label="No evidence" className="muted-cell">
+                  [ N/A ]
+                </span>
               )}
             </TableCell>
           </TableRow>
@@ -202,7 +206,7 @@ export function AffectedFilesTable({
             <TableCell className="hide-mobile muted-cell">{warning.age} ago</TableCell>
             <TableCell className="muted-cell">{warning.age} ago</TableCell>
             <TableCell className="mobile-row-action">
-              <ChevronRight aria-hidden="true" />
+              <SyntaxGlyph kind="action" />
             </TableCell>
           </TableRow>
         ))}

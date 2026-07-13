@@ -38,7 +38,7 @@ describe('dashboard app host', () => {
     const dashboardRoot = container.querySelector('[data-dashboard-root]');
 
     expect(dashboardRoot).not.toBeNull();
-    expect(dashboardRoot?.textContent).toContain('Anvil Dashboard');
+    expect(dashboardRoot?.textContent).toContain('ANVIL // DASHBOARD');
     expect(dashboardRoot?.textContent).toContain('Protection overview');
   });
 
@@ -129,6 +129,32 @@ describe('dashboard app host', () => {
     expect(container.textContent).not.toContain('2025-05-28');
     expect(container.querySelector('button.dashboard-help')?.hasAttribute('disabled')).toBe(true);
     expect(container.textContent).toContain('Help unavailable in Wave 1');
+  });
+
+  it('uses the canonical anvil brandmark and bracket navigation grammar', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<DashboardApp />);
+    });
+
+    const brandmarks = container.querySelectorAll<HTMLImageElement>(
+      'img[src="/anvil-brandmark-ember.svg"]'
+    );
+    expect(brandmarks).toHaveLength(2);
+    expect(container.querySelector('.dashboard-brand-mark')).toBeNull();
+
+    const desktopNavigation = container.querySelector('[data-desktop-sidebar] nav');
+    expect(desktopNavigation?.querySelector('[data-glyph="[ = ]"]')).not.toBeNull();
+    expect(desktopNavigation?.querySelector('[data-glyph="[ ≡ ]"]')).not.toBeNull();
+    expect(desktopNavigation?.querySelector('svg')).toBeNull();
+
+    const connectionStatuses = [...container.querySelectorAll('.connection-properties li > span')]
+      .map((status) => status.textContent?.trim())
+      .filter(Boolean);
+    expect(connectionStatuses).toEqual(['[ OK ]', '[ ]', '[ ]']);
   });
 
   it('opens Cmd+K over registered module resources', async () => {

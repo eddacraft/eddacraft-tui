@@ -1,6 +1,5 @@
-import { Clipboard, ExternalLink } from 'lucide-react';
-
 import type { components } from '@/api/generated/openapi';
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -94,10 +93,10 @@ export function EvidenceInspector({ warning }: { warning?: Warning }) {
       </div>
       <footer className="evidence-actions">
         <Button disabled size="sm" type="button" variant="outline">
-          <ExternalLink aria-hidden="true" data-icon="inline-start" /> View evidence
+          <SyntaxGlyph kind="context" /> View evidence
         </Button>
         <Button disabled size="sm" type="button" variant="ghost">
-          <Clipboard aria-hidden="true" data-icon="inline-start" /> Copy evidence ID
+          <SyntaxGlyph kind="action" /> Copy evidence ID
         </Button>
       </footer>
     </aside>

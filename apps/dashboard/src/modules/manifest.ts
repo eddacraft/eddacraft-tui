@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import type { SyntaxGlyphKind } from '@/components/brand/syntax-glyph';
 
 export interface DashboardActionRequestDescriptor {
   readonly id: string;
@@ -9,7 +9,7 @@ export interface DashboardActionRequestDescriptor {
 export interface DashboardModuleNavigation {
   readonly label: string;
   readonly path: '/' | '/plans';
-  readonly icon?: LucideIcon;
+  readonly glyph?: SyntaxGlyphKind;
 }
 
 export interface DashboardModuleRoute {

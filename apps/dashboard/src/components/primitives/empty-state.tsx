@@ -1,5 +1,4 @@
-import { Inbox } from 'lucide-react';
-
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import {
   Empty,
   EmptyDescription,
@@ -18,7 +17,7 @@ export function EmptyState({ title, description }: EmptyStateProps) {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <Inbox aria-hidden="true" />
+          <SyntaxGlyph kind="context" />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>

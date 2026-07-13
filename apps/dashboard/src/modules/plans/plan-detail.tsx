@@ -8,7 +8,7 @@ export function PlanDetailView({ detail }: { detail: PlanDetail }) {
   return (
     <article className="plan-detail">
       <header className="protection-heading">
-        <p className="eyebrow">{detail.summary.scope} · APS dogfood</p>
+        <p className="eyebrow">{detail.summary.scope} :: APS_DOGFOOD</p>
         <h1>{detail.summary.title}</h1>
         <p>{detail.purpose}</p>
       </header>

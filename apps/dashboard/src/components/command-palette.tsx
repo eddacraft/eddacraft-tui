@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
-import { ShieldCheck } from 'lucide-react';
 
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import {
   CommandDialog,
   CommandEmpty,
@@ -49,7 +49,7 @@ export function CommandPalette({
                   onSelect={() => select(entry)}
                   value={`${entry.group} ${entry.label}`}
                 >
-                  <ShieldCheck aria-hidden="true" /> {entry.label}
+                  <SyntaxGlyph kind="action" /> {entry.label}
                 </CommandItem>
               ))}
           </CommandGroup>

@@ -1,5 +1,4 @@
-import { Search } from 'lucide-react';
-
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import { Button } from '@/components/ui/button';
 
 interface TopBarProps {
@@ -16,8 +15,8 @@ export function TopBar({ onSearch }: TopBarProps) {
         type="button"
         variant="outline"
       >
-        <Search aria-hidden="true" />
-        <span>Search</span>
+        <SyntaxGlyph kind="context" />
+        <span>SEARCH</span>
         <kbd>⌘ K</kbd>
       </Button>
     </header>

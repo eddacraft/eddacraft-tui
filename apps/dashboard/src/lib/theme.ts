@@ -1,19 +1,25 @@
 export const dashboardTheme = Object.freeze({
   severity: {
-    critical: 'var(--red)',
-    high: 'var(--red)',
-    medium: 'var(--orange)',
-    low: 'var(--yellow)',
-    info: 'var(--blue)',
+    critical: 'var(--brick-red)',
+    high: 'var(--brick-red)',
+    medium: 'var(--dull-amber)',
+    low: 'var(--dull-amber)',
+    info: 'var(--ghost-grey)',
   },
   status: {
-    pass: 'var(--green)',
-    fail: 'var(--red)',
-    warn: 'var(--orange)',
-    info: 'var(--blue)',
-    unavailable: 'var(--muted)',
+    pass: 'var(--edda)',
+    fail: 'var(--brick-red)',
+    warn: 'var(--dull-amber)',
+    info: 'var(--ghost-grey)',
+    unavailable: 'var(--ghost-grey)',
   },
-  chart: ['var(--blue)', 'var(--green)', 'var(--orange)', 'var(--yellow)', 'var(--red)'],
+  chart: [
+    'var(--anvil)',
+    'var(--edda)',
+    'var(--dull-amber)',
+    'var(--brick-red)',
+    'var(--ghost-grey)',
+  ],
 });
 
 export type DashboardSeverity = keyof typeof dashboardTheme.severity;

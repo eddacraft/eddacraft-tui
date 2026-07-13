@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { CircleHelp, Menu, Search, ShieldCheck } from 'lucide-react';
 
+import { SyntaxGlyph } from '@/components/brand/syntax-glyph';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -22,14 +22,18 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
     <>
       <header className="dashboard-mobile-header" data-mobile-header>
         <Link
-          aria-label="Anvil Dashboard home"
+          aria-label="anvil dashboard home"
           className="mobile-brand"
           search={{ severity: 'all', view: 'runs' }}
           to="/"
         >
-          <span aria-hidden="true" className="dashboard-brand-mark">
-            A
-          </span>
+          <img
+            alt=""
+            className="anvil-brandmark"
+            height="26"
+            src="/anvil-brandmark-ember.svg"
+            width="26"
+          />
           <strong>ANVIL</strong>
         </Link>
         <span className="mobile-workspace">Current workspace</span>
@@ -41,22 +45,21 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
             type="button"
             variant="ghost"
           >
-            <Search aria-hidden="true" />
+            <SyntaxGlyph kind="context" />
           </Button>
           <Sheet>
             <SheetTrigger asChild>
               <Button aria-label="Open navigation" size="icon-sm" type="button" variant="ghost">
-                <Menu aria-hidden="true" />
+                <SyntaxGlyph kind="history" />
               </Button>
             </SheetTrigger>
             <SheetContent className="mobile-sheet" side="right">
               <SheetHeader>
-                <SheetTitle>ANVIL</SheetTitle>
+                <SheetTitle>ANVIL // DASHBOARD</SheetTitle>
                 <SheetDescription>Local workspace dashboard</SheetDescription>
               </SheetHeader>
               <nav aria-label="Mobile menu" className="mobile-sheet-nav">
                 {dashboardModuleRegistry.manifests.map((manifest) => {
-                  const Icon = manifest.navigation.icon ?? ShieldCheck;
                   return (
                     <SheetClose asChild key={manifest.id}>
                       <Link
@@ -67,13 +70,14 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
                         search={{ severity: 'all', view: 'runs' }}
                         to={manifest.navigation.path}
                       >
-                        <Icon aria-hidden="true" /> {manifest.navigation.label}
+                        <SyntaxGlyph kind={manifest.navigation.glyph ?? 'context'} />{' '}
+                        {manifest.navigation.label}
                       </Link>
                     </SheetClose>
                   );
                 })}
                 <button disabled title="Help is unavailable in Wave 1" type="button">
-                  <CircleHelp aria-hidden="true" /> Help unavailable in Wave 1
+                  <SyntaxGlyph kind="unavailable" /> Help unavailable in Wave 1
                 </button>
               </nav>
             </SheetContent>
@@ -87,7 +91,6 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
         data-mobile-bottom-nav
       >
         {dashboardModuleRegistry.manifests.map((manifest) => {
-          const Icon = manifest.navigation.icon ?? ShieldCheck;
           return (
             <Link
               activeOptions={{
@@ -98,13 +101,13 @@ export function MobileNavigation({ onSearch }: MobileNavigationProps) {
               search={{ severity: 'all', view: 'runs' }}
               to={manifest.navigation.path}
             >
-              <Icon aria-hidden="true" />
+              <SyntaxGlyph kind={manifest.navigation.glyph ?? 'context'} />
               {manifest.navigation.label}
             </Link>
           );
         })}
         <button disabled title="Help is unavailable in Wave 1" type="button">
-          <CircleHelp aria-hidden="true" />
+          <SyntaxGlyph kind="unavailable" />
           Help unavailable
         </button>
       </nav>

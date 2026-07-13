@@ -1,15 +1,13 @@
-import { CircleCheck, CircleHelp, CircleX, TriangleAlert } from 'lucide-react';
-
 import { Badge } from '@/components/ui/badge';
 import type { DashboardStatus } from '@/lib/theme';
 
-const statusIcon = {
-  pass: CircleCheck,
-  fail: CircleX,
-  warn: TriangleAlert,
-  info: CircleHelp,
-  unavailable: CircleHelp,
-} satisfies Record<DashboardStatus, typeof CircleCheck>;
+const statusGrammar = {
+  pass: '[ OK ]',
+  fail: '[ ERR ]',
+  warn: '[ WARN ]',
+  info: '[ ]',
+  unavailable: '[ N/A ]',
+} satisfies Record<DashboardStatus, string>;
 
 export interface StatusBadgeProps {
   status: DashboardStatus;
@@ -17,12 +15,11 @@ export interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, label }: StatusBadgeProps) {
-  const Icon = statusIcon[status];
   const variant = status === 'fail' ? 'destructive' : status === 'pass' ? 'default' : 'outline';
 
   return (
     <Badge data-status={status} variant={variant}>
-      <Icon aria-hidden="true" data-icon="inline-start" />
+      <span aria-hidden="true">{statusGrammar[status]}</span>
       {label}
     </Badge>
   );

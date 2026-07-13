@@ -8,7 +8,7 @@ export function DashboardPlansRoute() {
   return (
     <div className="plan-driver">
       <header className="protection-heading">
-        <p className="eyebrow">APS dogfood</p>
+        <p className="eyebrow">APS_DOGFOOD</p>
         <h1 id="plan-driver-title">Plan Driver</h1>
         <p>Read-only plan status, readiness and validation contracts.</p>
       </header>
