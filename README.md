@@ -325,6 +325,24 @@ invalidated by a width change, by any text mutation (`set_text`,
 `set_styled_text`, `append`, `append_styled`), by `set_exclusions`, or by an
 explicit `invalidate_layout()` call.
 
+### Interactive demos (public showcase)
+
+The interesting demos that used to live in the prototype
+[`pretext-tui`](https://github.com/joshuaboys/pretext-tui) repo now ship **in
+this crate** so they appear on the public mirror and stay in lock-step with the
+engine:
+
+```bash
+# Streaming / exclusion / masonry tabs
+cargo run -p eddacraft-tui --example pretext_demos
+
+# Agent-style dashboard (streaming + spinning exclusion + sidebar reflow)
+cargo run -p eddacraft-tui --example pretext_agent_dashboard
+```
+
+Keys for `pretext_demos`: `Tab` / `1`–`3` switch tabs · `Space` pause ·
+`r` reset streaming · `+`/`-` token speed · arrows move the exclusion · `q` quit.
+
 ## Documentation
 
 Extended guides live in [`docs/`](docs/). Contributor docs remain at the repo
@@ -335,7 +353,7 @@ root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
 
 - Public crate: <https://crates.io/crates/eddacraft-tui>
 - Canonical source (Anvil monorepo): <https://github.com/eddacraft/anvil>
-- pretext-tui origin: <https://github.com/joshuaboys/pretext-tui>
+- Pretext demos: `cargo run -p eddacraft-tui --example pretext_demos`
 
 ## Acknowledgements
 
@@ -343,9 +361,9 @@ Smooth progress/spinner animations are powered by
 [`vyfor/animate`](https://github.com/vyfor/animate).
 
 The `pretext` two-phase layout engine and widget were originally prototyped in
-[`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui), a
-terminal port of ideas from Cheng Lou's browser
-[Pretext](https://github.com/chenglou/pretext) library.
+[`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui) (now
+archived; the engine and demos live here), a terminal port of ideas from Cheng
+Lou's browser [Pretext](https://github.com/chenglou/pretext) library.
 
 The layered overlay model (`OverlayStack` / `Layer` / `Placement`) draws
 inspiration from Cursive's `StackView`.

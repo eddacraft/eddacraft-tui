@@ -4,6 +4,9 @@
 //! Lou's [Pretext](https://github.com/chenglou/pretext) library for the
 //! browser.
 //!
+//! Integrated from [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui)
+//! (`pretext-core` at `da405fbb`).
+//!
 //! ## Concept
 //!
 //! Measure text segments once using `unicode-width` and cache the results,

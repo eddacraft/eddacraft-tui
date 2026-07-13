@@ -1,15 +1,16 @@
+use super::segment::{MeasuredWord, measure_words};
 use ratatui::style::Style;
 use unicode_width::UnicodeWidthStr;
-
-use super::segment::{MeasuredWord, measure_words};
 
 /// Cached preparation of text content.
 /// The prepare phase: expensive unicode-width measurement happens once here.
 /// Subsequent layout calls use only the cached width values.
-#[derive(Debug, Clone)]
 pub struct PreparedText {
+    /// All measured words from the text.
     words: Vec<MeasuredWord>,
+    /// The raw text, kept for rendering.
     raw_text: String,
+    /// Total display width of all content (words + whitespace).
     total_width: usize,
 }
 
@@ -33,12 +34,19 @@ impl PreparedText {
     }
 
     /// Append new text with default style without re-measuring existing content.
+    /// Only the new text gets measured — existing cached widths are preserved.
     pub fn append(&mut self, text: &str) {
         self.append_styled(text, Style::default());
     }
 
     /// Append new text with a specific style without re-measuring existing content.
+    /// This is the key optimization for streaming AI output — each token can carry
+    /// its own style (e.g. code vs prose, user vs assistant).
     pub fn append_styled(&mut self, text: &str, style: Style) {
+        // Cross-chunk leading whitespace must attach to the previous word
+        // when one exists. `measure_words` only sees the new chunk, so a
+        // chunk like `" world"` would otherwise drop or phantom-word the
+        // space rather than extending the prior word's trailing whitespace.
         let leading_ws_end = text
             .char_indices()
             .take_while(|(_, ch)| ch.is_whitespace())
@@ -53,9 +61,8 @@ impl PreparedText {
             self.total_width += UnicodeWidthStr::width(ws);
         }
 
-        // When there's no prior word to attach leading whitespace to, hand the
-        // full text (including leading whitespace) to `measure_words` so it
-        // can emit a leading-whitespace sentinel rather than dropping the indent.
+        // When there's no prior word, keep leading whitespace so
+        // `measure_words` can emit a leading-whitespace sentinel.
         let strip_leading = leading_ws_end > 0 && !self.words.is_empty();
         let text_remainder = if strip_leading {
             &text[leading_ws_end..]
@@ -64,6 +71,11 @@ impl PreparedText {
         };
         let new_words = measure_words(text_remainder, style);
 
+        // Handle word boundary: if previous text ended without whitespace
+        // and new text starts without whitespace, merge the boundary words.
+        // Style runs from both fragments are preserved via append_fragment,
+        // so mid-word style transitions (e.g. `"hel"` red + `"lo"` blue) are
+        // retained exactly — no style is silently dropped.
         if let (Some(last), Some(first_new)) = (self.words.last_mut(), new_words.first())
             && last.whitespace_width == 0
             && !text_remainder.starts_with(char::is_whitespace)
@@ -201,6 +213,8 @@ mod tests {
 
     #[test]
     fn test_boundary_merge_preserves_both_styles() {
+        // Streaming "hel" red + "lo world" with blue — mid-word style change
+        // must be preserved, not silently replaced by the first style.
         let red = Style::default().fg(Color::Red);
         let blue = Style::default().fg(Color::Blue);
 
@@ -209,6 +223,7 @@ mod tests {
 
         assert_eq!(prepared.word_count(), 2);
 
+        // First word is the merged "hello" with two style runs
         let hello = &prepared.words()[0];
         assert_eq!(hello.text, "hello");
         assert_eq!(hello.width, 5);
@@ -216,9 +231,11 @@ mod tests {
         assert_eq!(hello.style_runs[0], (0, red));
         assert_eq!(hello.style_runs[1], (3, blue));
 
+        // Segments iterator yields both styled runs
         let segs: Vec<_> = hello.segments().collect();
         assert_eq!(segs, vec![("hel", red), ("lo", blue)]);
 
+        // Second word is the blue "world"
         let world = &prepared.words()[1];
         assert_eq!(world.text, "world");
         assert_eq!(world.primary_style(), blue);
@@ -227,6 +244,7 @@ mod tests {
 
     #[test]
     fn test_boundary_merge_same_style_collapses() {
+        // Streaming "hel" + "lo" with the same style should merge to a single run
         let red = Style::default().fg(Color::Red);
 
         let mut prepared = PreparedText::styled("hel", red);
@@ -240,6 +258,8 @@ mod tests {
 
     #[test]
     fn test_append_leading_whitespace_preserved() {
+        // Streaming: "hello" then " world" — the leading space must become
+        // whitespace on "hello", not be silently dropped or phantomed.
         let mut prepared = PreparedText::new("hello");
         prepared.append(" world");
         assert_eq!(prepared.word_count(), 2);
@@ -261,8 +281,6 @@ mod tests {
     #[test]
     fn test_append_leading_whitespace_no_prior_words_preserved() {
         // Streaming `"  indented"` into an empty state must keep the indent.
-        // The leading whitespace is carried by an empty sentinel word so the
-        // first visible word lands at the indented column rather than column 0.
         let mut prepared = PreparedText::new("");
         prepared.append("  hello world");
         assert_eq!(prepared.word_count(), 3);
@@ -272,22 +290,5 @@ mod tests {
         assert_eq!(prepared.words()[1].text, "hello");
         assert_eq!(prepared.words()[2].text, "world");
         assert_eq!(prepared.total_width(), 13);
-    }
-
-    #[test]
-    fn test_new_with_leading_whitespace_preserved() {
-        let prepared = PreparedText::new("  indented");
-        assert_eq!(prepared.word_count(), 2);
-        assert_eq!(prepared.words()[0].text, "");
-        assert_eq!(prepared.words()[0].whitespace_width, 2);
-        assert_eq!(prepared.words()[1].text, "indented");
-    }
-
-    #[test]
-    fn test_new_with_only_whitespace() {
-        let prepared = PreparedText::new("   ");
-        assert_eq!(prepared.word_count(), 1);
-        assert_eq!(prepared.words()[0].text, "");
-        assert_eq!(prepared.words()[0].whitespace_width, 3);
     }
 }

@@ -9,6 +9,29 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+### Added
+
+- **Pretext public demos** (collapsed from `joshuaboys/pretext-tui`):
+  - `examples/pretext_demos` — streaming, exclusion, and masonry tabs
+  - `examples/pretext_agent_dashboard` — agent-style multi-panel showcase
+  These ship with the crate subtree so the public `eddacraft/eddacraft-tui`
+  mirror carries the interesting demos next to the engine.
+
+### Changed
+
+- Synced the integrated `pretext` layout engine with the final
+  [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui)
+  snapshot (`pretext-core` @ `da405fbb`, 2026-07-13), then collapsed that
+  prototype (repo archived). Includes:
+  - `CellRect::contains_row` half-open bounds that remain correct at `u16::MAX`
+  - `layout_with_cap` / huge-word width clamping in layout
+  - `ExclusionZone::occupied_cols_at_row` no longer takes `container_width`
+    (clamping is left to the band/layout stage)
+  - leading-whitespace sentinel words from `measure_words`
+- Retained the streaming `append_styled` leading-whitespace attach behaviour
+  (and regression tests) so cross-chunk `"hello"` + `" world"` keeps a single
+  space on the prior word rather than introducing a phantom word.
+
 ## [0.4.1] - 2026-06-22
 
 ### Added
