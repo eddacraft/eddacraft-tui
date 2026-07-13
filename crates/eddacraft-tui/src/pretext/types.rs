@@ -1,12 +1,12 @@
 /// A cell position in terminal space.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellPos {
     pub col: u16,
     pub row: u16,
 }
 
 /// A rectangular region in cell coordinates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellRect {
     pub x: u16,
     pub y: u16,

@@ -1,9 +1,9 @@
 use eddacraft_tui::widgets::pretext::{PretextState, PretextWidget};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 use std::time::Instant;
 
 const PANEL_TEXTS: &[(&str, &str)] = &[
