@@ -87,7 +87,7 @@ Proposed with the same lens.
 ## Part 2 — Archive mechanics (existing conventions, atomic per module)
 
 Per repo discipline: `git mv` to `plans/archive/modules/`, update the index
-row/path, and freeze a `completed-index.aps.md` row **in the same commit**.
+row/path, and freeze a `plans/completed-index.aps.md` row **in the same commit**.
 Anything closed as "shipped" needs its release-record evidence line first
 (status dialect: `Merged → Released/Shipped → Complete/Archived`).
 
