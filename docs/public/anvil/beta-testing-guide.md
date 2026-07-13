@@ -195,8 +195,8 @@ You will need:
   against.
 - Git installed, ideally with a clean working tree or a disposable branch.
 - Beta access tied to the email or GitHub account we invited.
-- Node.js and your project package manager if you want gate checks to run your
-  existing lint or test commands. anvil itself does not require Node.js.
+- Your project's normal toolchain and package manager if you want gate checks to
+  run its existing lint or test commands. Anvil itself is self-contained.
 
 :::tip Use a disposable branch
 
@@ -692,8 +692,9 @@ connection. Local scans continue to work after setup.
 **Is source code sent to EddaCraft?** No. anvil runs analysis locally. Issue
 reports should only include code snippets you are allowed to share.
 
-**Do I need Node.js?** Not for anvil itself. Your project may still need Node.js
-and a package manager when gate checks run your existing lint or test commands.
+**Do I need another runtime?** No. Anvil is a self-contained Rust binary. Your
+project still needs its normal toolchain when gate checks run existing lint or
+test commands.
 
 **How do I reset project configuration?** Run `anvil init --force` to regenerate
 configuration from scratch.

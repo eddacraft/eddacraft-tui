@@ -13,10 +13,9 @@ blocked, and start giving feedback -- all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (`v0.9.0-beta`). The CLI is a single native
-binary -- no Node.js required for anvil itself. APIs and behaviour may change
-between releases. Your feedback directly shapes the product before public
-launch.
+This is **pre-release software** (`v0.9.0-beta`). The CLI is a self-contained
+Rust binary. APIs and behaviour may change between releases. Your feedback
+directly shapes the product before public launch.
 
 :::
 

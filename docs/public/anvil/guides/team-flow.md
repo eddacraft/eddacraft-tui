@@ -180,11 +180,16 @@ Require PR review for new suppressions:
 Attach evidence to PRs:
 
 ```yaml
+- name: Create Review Capsule
+  env:
+    BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    HEAD_SHA: ${{ github.sha }}
+  run: anvil capsule create --range "$BASE_SHA..$HEAD_SHA" --out review-capsule
 - name: Upload Evidence
   uses: actions/upload-artifact@v4
   with:
-    name: anvil-evidence
-    path: .anvil/evidence/
+    name: anvil-review-capsule
+    path: review-capsule/
 ```
 
 ### 3. Audit Export
@@ -205,13 +210,12 @@ jobs:
       - name: Install anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
-      # Evidence export is planned for a future release.
-      # For now, copy the evidence directory directly.
-      - run: cp -r .anvil/evidence/ audit/
+      - name: Audit witness coverage
+        run: anvil audit-chain --json > audit-chain.json
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-audit
-          path: audit/
+          path: audit-chain.json
 ```
 
 ## Rollout Strategy

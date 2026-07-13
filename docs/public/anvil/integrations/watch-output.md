@@ -12,8 +12,8 @@ docgov:
     ([`plans/archive/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/watch-output-contract.aps.md))'
   status: 'Live'
   freshness:
-    'Last reviewed 2026-06-25 against `main` for the v0.8.1-beta consumer
-    surface'
+    'Last reviewed 2026-07-13 against the Rust `anvil.watch.event.v1` producer
+    at `v0.9.0-beta`'
   upstream:
     '[`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md),
     `anvil --json watch`'
@@ -46,7 +46,7 @@ The stream is identical whether `anvil watch` runs its own scoped `check` per
 save or routes save-time validation through the resident daemon (the default
 when the daemon is live; `ANVIL_WATCH_DAEMON=0` opts out). The backing changes;
 the event contract does not — so consumers never need to branch on it. The
-`v0.8.1-beta` daemon lifecycle offer (an interactive `anvil watch` offering to
+`v0.8.2-beta` daemon lifecycle offer (an interactive `anvil watch` offering to
 start a daemon) never appears under `--json`: the lifecycle line is suppressed
 and no prompt is shown, so the stdout stream stays pure NDJSON.
 
@@ -179,30 +179,41 @@ anvil --json watch | while IFS= read -r line; do
 done
 ```
 
-### A small long-running reader (Node.js)
+### A small long-running Rust reader
 
-```javascript
-import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
+This example uses `serde_json` to decode one NDJSON event per line and leaves
+stderr attached so diagnostics cannot fill an unread pipe.
 
-const child = spawn('anvil', ['--json', 'watch'], {
-  stdio: ['ignore', 'pipe', 'inherit'],
-});
-const rl = createInterface({ input: child.stdout });
+```rust
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 
-rl.on('line', (line) => {
-  const event = JSON.parse(line);
-  if (!event.schema_version?.startsWith('anvil.watch.event.v1')) return;
-  if (event.event_type === 'violation') {
-    console.log(
-      `[${event.seq}] ${event.payload.policy_id} on ${event.payload.file}`
-    );
-  }
-});
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut child = Command::new("anvil")
+        .args(["--json", "watch"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()?;
 
-child.on('exit', (code) => {
-  process.exit(code ?? 0);
-});
+    let stdout = child.stdout.take().expect("watch stdout is piped");
+    for line in BufReader::new(stdout).lines() {
+        let event: serde_json::Value = serde_json::from_str(&line?)?;
+        let schema = event["schema_version"].as_str().unwrap_or_default();
+        if !schema.starts_with("anvil.watch.event.v1") {
+            continue;
+        }
+        if event["event_type"] == "violation" {
+            println!(
+                "[{}] {} on {}",
+                event["seq"],
+                event["payload"]["policy_id"],
+                event["payload"]["file"]
+            );
+        }
+    }
+
+    std::process::exit(child.wait()?.code().unwrap_or(1));
+}
 ```
 
 ### A Python reader

@@ -373,7 +373,7 @@ Current operator caveats (see the
 [save-time validation guide](save-time-validation.md) for daemon lifecycle and
 fallback behaviour):
 
-- **Daemon lifecycle is managed on interactive Unix.** In `v0.8.1-beta`, an
+- **Daemon lifecycle is managed on interactive Unix.** In `v0.8.2-beta`, an
   interactive `anvil start` auto-starts the per-user daemon, and an interactive
   `anvil watch` offers to start one. Headless, `--json`, CI, hook, and piped
   runs never prompt or start a daemon unattended.

@@ -617,10 +617,10 @@ call out the few places where operator action or expectation needs to shift.
   the data directory" recovery is still available for corrupted on-disk state,
   but is no longer required for normal fence clearing.
 - **`anvil edda list` ported to Rust.** The Edda memory-listing CLI is now part
-  of the Rust `anvil` binary with identical behaviour to the legacy Node.js
-  command — `--type`, `--status`, `--confidence`, `--since`, `--limit`, and the
-  same `storage_found` / `storage_path` / `total` / `has_more` JSON envelope.
-  Sort order, table headers, and exit codes match the previous surface.
+  of the Rust `anvil` binary with identical behaviour to the previous command —
+  `--type`, `--status`, `--confidence`, `--since`, `--limit`, and the same
+  `storage_found` / `storage_path` / `total` / `has_more` JSON envelope. Sort
+  order, table headers, and exit codes match the previous surface.
 - **`anvil insights` weekly summary.** New CLI surface and `anvil.insights.v1`
   JSON schema for editor and CI consumers, derived from the witness chain with
   no separate event store. This release populates `witness_events_observed`;
@@ -1149,8 +1149,8 @@ breaking changes; the upgrade is drop-in for existing installs.
 ### Changed
 
 - **Native Rust binary** — anvil is now distributed as a single static binary
-  with no Node.js runtime required. The Node.js package (`@eddacraft/anvil-cli`)
-  is deprecated and will not receive further updates. See
+  with no companion runtime. The previous package (`@eddacraft/anvil-cli`) is
+  deprecated and will not receive further updates. See
   [The Switch to Rust](./rust-rewrite.md) for background on the Rust cutover and
   the small amount of path-cleanup guidance needed if you still have the old npm
   CLI installed.
@@ -1196,7 +1196,7 @@ breaking changes; the upgrade is drop-in for existing installs.
 
 - 5–10x faster scanning on typical projects.
 - 80% less memory in watch mode (~30–50MB vs ~400MB for a 5,000-file monorepo).
-- Cold start under 10ms (vs 200–400ms with Node.js).
+- Cold start under 10ms (previously 200–400ms).
 - Tree-sitter parse throughput ~15,000 files/second.
 - Parallel file walks via rayon; watch mode excludes ignored directories at the
   OS level.

@@ -53,8 +53,7 @@ scoop update anvil
 - **Warm-graph persistence default-on** and **daemon lifecycle** for interactive
   `anvil start` / `anvil watch` (Linux and macOS). Details below.
 
-Full customer-facing notes live in the
-[changelog](changelog.md#090-beta-2026-07-12-first-run-wins-and-the-assistant-graph).
+Full customer-facing notes live in the [changelog](changelog.md).
 
 ### Action required
 
@@ -936,7 +935,7 @@ continue to work without modification.
 
 `0.3.0-beta` was the release where anvil became a native Rust binary. Current
 docs assume a fresh install on the Rust CLI rather than a staged migration from
-the legacy Node.js package.
+the previous package distribution.
 
 ```bash
 # Install the native binary
@@ -953,8 +952,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 ### What's New
 
-- **Native binary** — 5–10x faster scanning, 80% less memory in watch mode, no
-  Node.js dependency.
+- **Native binary** — 5–10x faster scanning, 80% less memory in watch mode, and
+  no companion runtime.
 - **Kernel engine** — foreground watch mode, incremental parsing, and real-time
   semantic graph updates in the native Rust runtime.
 - **Ratatui TUI** — rebuilt interactive surfaces with the eddacraft Terminal
@@ -971,8 +970,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 - **Installation method** — install anvil as a native binary via the installer,
   Homebrew, WinGet, or Scoop.
-- **CI workflows** — replace `pnpm anvil` / `npx anvil` with direct `anvil`
-  calls. Remove Node.js setup steps if anvil was the only reason they existed.
+- **CI workflows** — replace package-manager-wrapped invocations with direct
+  `anvil` calls. Remove any runtime setup that existed only for the old CLI.
 - **Docs access** — the `/anvil` documentation is now gated behind GitHub OAuth
   for beta users. Sign in with the GitHub account tied to your beta invite.
   Public eddacraft docs (APS, Kindling, edda-stack) remain open.

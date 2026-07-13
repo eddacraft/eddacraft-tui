@@ -56,9 +56,8 @@ scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
 scoop install anvil
 ```
 
-anvil is a single native binary available for macOS, Linux, and Windows. Your
-project still needs Node.js and a package manager for lint and test gate checks,
-but anvil itself has no runtime dependencies.
+Anvil is a self-contained Rust binary available for macOS, Linux, and Windows.
+Your project still needs its normal toolchain for lint and test gate checks.
 
 If Anvil is already installed through Homebrew, the macOS/Linux curl installer
 will not replace that install. It exits successfully and tells you to run:

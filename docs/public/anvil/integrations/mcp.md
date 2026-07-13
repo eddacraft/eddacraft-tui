@@ -1,435 +1,230 @@
 ---
 id: mcp
 title: MCP Integration
-description: Using anvil with Model Context Protocol servers.
+description: Connect the Rust Anvil MCP server to an AI editor or coding agent.
 sidebar_position: 3
 ---
 
 # MCP Integration
 
-anvil provides an MCP (Model Context Protocol) server for AI agent integration.
+The Anvil binary includes a native Rust MCP server. It gives an AI assistant
+pre-write validation, local governance tools, and privacy-bounded graph context
+without installing a separate runtime or package.
 
-:::info Rust shim is the primary surface
-
-The Rust CLI's `anvil mcp serve --stdio` shim is the primary MCP surface, backed
-by the local Anvil daemon over owner-only IPC for validation. It exposes
-`anvil_validate_write` for pre-write validation, `anvil_status` for read-only
-workspace health, and (as of `v0.9.0-beta`) the full assistant graph-context
-tool and resource surface — see [Available Tools](#available-tools) below. The
-daemon-backed validation path uses Unix sockets on Linux/macOS and owner-only
-named pipes on Windows as of `v0.7.1-beta`; the embedded scanner is the
-correctness-equivalent fallback when the daemon is not reachable. As of
-`v0.8.0-beta`, `anvil watch` routes its save-time checks through the same daemon
-validation path by default when the daemon is live (`ANVIL_WATCH_DAEMON=0` opts
-out; see the [save-time validation guide](../guides/save-time-validation.md) for
-the full routing story), so editor/agent MCP writes and terminal watch converge
-on one warm verdict path instead of two separate scanners. On Linux and macOS an
-interactive `anvil start` auto-starts that daemon and `anvil watch` can offer to
-start one, so the daemon-backed path is the normal one rather than something you
-launch by hand. Windows still uses foreground daemon launch for now — see the
-[daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
-
-The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
-`0.4.0-beta`) is no longer the recommended runtime path. Its mutation-oriented
-tool and prompt catalogue is frozen historical compatibility material; the
-active Rust surface now carries validation, status, and graph context.
-
-:::
-
-## What is MCP?
-
-MCP is a protocol for providing context to AI models. anvil's MCP server
-exposes:
-
-- Pre-write validation via `anvil_validate_write` (Rust shim, daemon-backed on
-  every supported OS when the daemon is reachable; embedded fallback otherwise)
-- Workspace health summaries via `anvil_status` (Rust shim, local read-only
-  status with explicit no-daemon provenance)
-- Assistant graph context via identity-only tools and `graph://` resources for
-  symbols, dependency/caller traversal, impact reports, affected-test hints, and
-  bounded symbol context
-
-## What `anvil start` Does to Your MCP Config
-
-For Cursor or Claude Code, the easiest path is `anvil start`. The activator
-calls into the same `mcp install` machinery internally for supported clients it
-detects on the host, writing the matching editor config (`~/.cursor/mcp.json`
-for Cursor or `~/.claude.json` for Claude Code), then probes whether the
-editor's MCP transport can reach the shim. Pass `--all-mcp-clients` or set
-`ANVIL_ALL_MCP_CLIENTS=1` to opt into configuring every supported client even if
-it was not detected. Pass `--verify` for a read-only probe that prints the
-diagnostic without writing anything:
+The server runs over stdio:
 
 ```bash
-anvil start            # activate detected Cursor / Claude Code installs
-anvil start --verify   # probe state, no writes
+anvil mcp serve --stdio
 ```
 
-If you only need to re-run the install in isolation, use `anvil mcp install`
-directly (next section). For workspace-scoped paths against Cursor or Claude
-Code, use `anvil mcp-config` further down. Windsurf and VS Code are not
-currently `mcp-config` targets in the current Rust CLI — see the manual
-configuration section.
+Cursor and Claude Code are the supported automatic-install targets. Other
+stdio-capable MCP clients can use the manual configuration below.
 
-## One-Step Install with `anvil mcp install`
+## Recommended setup
 
-For Cursor or Claude Code, the simplest path is the built-in installer in the
-Rust binary. It writes the editor config and points it at the bundled
-`anvil mcp serve --stdio` shim:
+Run activation from the repository you want to protect:
 
 ```bash
-# Configure Cursor
+anvil start
+```
+
+In an interactive run, Anvil shows the detected MCP clients and starts every
+candidate unticked. Select the clients you want before applying; pressing Enter
+with nothing selected writes no editor configuration. Restart a configured
+editor so it launches the new MCP server.
+
+Probe the resulting protection state without writing anything:
+
+```bash
+anvil start --verify
+```
+
+A `protecting` result means Anvil has observed the pre-write path. A written
+config alone is not enough to claim protection.
+
+### Install one client directly
+
+Use the focused installer when you do not need the rest of activation:
+
+```bash
 anvil mcp install --client cursor
-
-# Configure Claude Code
 anvil mcp install --client claude-code
-
-# Verify an existing entry instead of writing
 anvil mcp install --client cursor --verify
 ```
 
-The installer is restricted to Cursor and Claude Code. `anvil mcp-config` below
-covers the same two clients with workspace-scoped path overrides. For Windsurf
-or VS Code, hand-write the configuration using the
-[Manual Configuration](#manual-configuration) section — the previous
-`mcp-config` Windsurf and VS Code targets were removed in LAUNCH-009.5 (Windsurf
-was never protocol-verified; the VS Code emitter wrote to the pre-1.99 file
-shape and silently no-op'd on current builds).
+### Generate or verify configuration
 
-## Generate Configuration with `anvil mcp-config`
-
-`anvil mcp-config` generates the right stdio configuration shape for each
-editor, and can write or verify the on-disk file directly.
+`mcp-config` prints the configuration by default and writes only when asked:
 
 ```bash
-# Print the generated config for inspection
-anvil mcp-config --target claude-code
-
-# Write it to the client's expected path (with a path-safety prompt)
-anvil mcp-config --target claude-code --write
-
-# Verify the on-disk config matches what anvil expects
-anvil mcp-config --target claude-code --verify
+anvil mcp-config --target cursor
+anvil mcp-config --target cursor --write
+anvil mcp-config --target cursor --verify
 ```
 
-Supported targets:
+The accepted targets are `cursor` and `claude-code`. Use `--workspace <path>`
+when generating config for a repository other than the current directory.
 
-| Client      | `--target`    | Default transport |
-| ----------- | ------------- | ----------------- |
-| Claude Code | `claude-code` | stdio             |
-| Cursor      | `cursor`      | stdio             |
+## Manual configuration
 
-Use `--workspace <path>` to override the project root that anvil records in the
-generated config. If `--write` would overwrite an existing config, anvil prompts
-before performing an atomic write so you can review the change. Use `--verify`
-in CI or pre-commit to fail when a checked-in config has drifted from what
-`anvil mcp-config` would generate today.
-
-## Manual Configuration
-
-If you'd rather wire anvil up by hand, the configuration shapes below match the
-current Rust stdio path that `anvil mcp-config` writes for each client.
-
-Add anvil to your MCP configuration:
+For another MCP client, add the equivalent server entry and make the repository
+the process working directory:
 
 ```json
 {
   "mcpServers": {
     "anvil": {
       "command": "anvil",
-      "args": ["mcp", "serve", "--stdio"],
-      "env": {}
+      "args": ["mcp", "serve", "--stdio"]
     }
   }
 }
 ```
 
-HTTP transport for the Rust MCP server is not shipped in this release. RMCPF-021
-owns the decision on whether Streamable HTTP returns with the Rust full port. If
-you maintain a private legacy Node MCP deployment, configure your client to
-connect to that service directly; this is frozen compatibility, not the active
-Anvil setup path.
+The public Rust server is stdio-only. Do not configure an HTTP URL for it.
 
-```json
-{
-  "mcpServers": {
-    "anvil": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
+## Tool catalogue
 
-## Available Tools
+The current Rust registry exposes 14 tools. The server advertises their schemas
+to the MCP client, so callers should use discovery instead of hard-coding
+parameters from an older example.
 
-The Rust MCP server has two active halves:
+### Write validation
 
-- **Validation** — `anvil_validate_write` is the launch gate for proposed
-  writes. It can allow or block a change before an assistant writes to disk.
-- **Graph context** — the graph tools and resources below are read-only planning
-  aids. They return context, never an enforcement decision.
+| Tool                   | Purpose                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `anvil_validate_write` | Validate the complete proposed file state before a create, update, delete, or rename.                             |
+| `anvil_apply_patch`    | Validate a unified diff before it is applied, scanning the added lines and preserving a compact approval payload. |
 
-### anvil_validate_write
+Call one of these before every write and honour its decision:
 
-Served by the Rust `anvil mcp serve --stdio` shim. Validates a proposed file
-write before the agent applies it; the response carries a `decision` (`allow` or
-`block`) and the same `anvil.diagnostic.v1` envelope used by the gate output.
+- `allow` — the proposed content passed;
+- `warn` — findings exist, but the workspace mode permits the write;
+- `block` — authoritative refusal; do not write through another path;
+- `gateUnavailable` — the gate could not run, commonly because credentials or
+  the backend are unavailable; surface the warning and follow the response's
+  `safeDefault`.
 
-```json
-{
-  "tool": "anvil_validate_write",
-  "arguments": {
-    "workspaceRoot": "/absolute/path/to/project",
-    "path": "src/auth/login.ts",
-    "operation": "create",
-    "proposedContent": "export const login = …"
-  }
-}
-```
+`anvil_validate_write` accepts full proposed content, a patch, or a slim preview
+plus SHA-256 digest. `anvil_apply_patch` accepts a file path and unified diff.
+Both are validation tools: neither writes the file.
 
-The response includes a `correlation` envelope. The `correlation.daemonStatus`
-field reports whether the daemon-backed validation path is live:
+### Local governance
 
-| Value         | Meaning                                                          |
-| ------------- | ---------------------------------------------------------------- |
-| `available`   | Daemon reachable; tool ran via the daemon-backed path            |
-| `unavailable` | Daemon-backed client probed but not reachable; embedded fallback |
-| `not-wired`   | Daemon validation client not compiled in for this runtime        |
+| Tool                   | Behaviour                                                                           | Authentication |
+| ---------------------- | ----------------------------------------------------------------------------------- | -------------- |
+| `anvil_status`         | Read project config, baseline presence, available checks, and local backend status. | Not required   |
+| `anvil_check`          | Run the focused file anti-pattern scan.                                             | Not required   |
+| `anvil_query_boundary` | Ask whether one file may import another under the architecture baseline.            | Not required   |
+| `anvil_gate`           | Run a planless target-file scan or the full configured gate.                        | Required       |
+| `anvil_fix`            | Apply one of the supported deterministic anti-pattern fixes.                        | Required       |
+| `anvil_suppress`       | Insert a reasoned, time-boxed suppression comment.                                  | Required       |
 
-:::info Windows daemon-backed path
+The mutating tools enforce workspace containment and authenticate before
+changing a file. `anvil_gate` also authenticates because it can execute the
+repository's configured toolchain.
 
-In `v0.7.1-beta`, Windows MCP validation reaches the daemon through owner-only
-named pipes and can return the same `protection_claim` as Unix. If
-`correlation.daemonStatus` is `unavailable`, the embedded fallback still runs
-the same checks; use `anvil intercept status` to inspect daemon health directly.
+### Assistant graph context
 
-:::
-
-### anvil_status
-
-Read-only workspace health summary. Its response keeps the legacy fields
-(`status`, `workspaceRoot`, `availableChecks`, `config`, `hasBaseline`, and
-`version`) but redacts path values to workspace-relative forms and includes
-local backend/daemon provenance.
-
-### Assistant graph-context tools
-
-These tools query the daemon's resident graph so an assistant can understand the
-codebase before it edits. They are identity-only by default: names, kinds,
-workspace-relative paths, visibility, and edges can cross the boundary; source
-text, absolute paths, secrets, operator identity, and raw trust levels do not.
-
-| Tool                     | Use                                                                          |
+| Tool                     | Purpose                                                                      |
 | ------------------------ | ---------------------------------------------------------------------------- |
 | `anvil_search_symbols`   | Find symbols by name, kind, file, language, or visibility.                   |
-| `anvil_find_dependents`  | List files that import a file, with bounded hop distance.                    |
-| `anvil_find_callers`     | List symbols that call a target symbol, marked heuristic when approximate.   |
+| `anvil_find_dependents`  | Traverse files that depend on a target file.                                 |
+| `anvil_find_callers`     | Find static callers of a symbol, with heuristic and partial-result markers.  |
 | `anvil_impact_of_change` | Report affected symbols, dependent files, and known tests for changed paths. |
-| `anvil_affected_tests`   | Suggest test files importing changed files and call out coverage gaps.       |
-| `anvil_symbol_context`   | Return bounded neighbourhood context around a symbol or file.                |
+| `anvil_affected_tests`   | Suggest likely tests and identify coverage gaps for changed files.           |
+| `anvil_symbol_context`   | Return a bounded neighbourhood around a symbol or file.                      |
 
-`anvil_symbol_context` is the only graph tool that can return source snippets.
-Snippets require both workspace/operator consent and `includeSource: true` on
-the request. Use `anvil gctx egress enable`, `status`, and `disable` to manage
-persisted workspace consent; `ANVIL_GCTX_EGRESS=0` disables the whole graph
-context surface for the process, while leaving it unset keeps the safe
-identity-only default unless consent has been recorded.
+These tools query the daemon's resident graph. If the graph is cold or the
+daemon is absent, they return a named `not_ready`, `unavailable`, or `disabled`
+outcome instead of inventing an empty result.
+
+Graph responses are identity-only by default: symbol names, kinds,
+workspace-relative paths, visibility, and edges. `anvil_symbol_context` can
+include source snippets only when both conditions are true:
+
+1. the operator enabled egress for the workspace; and
+2. the individual request sets `includeSource: true`.
+
+Manage consent with:
+
+```bash
+anvil gctx egress status
+anvil gctx egress enable
+anvil gctx egress disable
+```
+
+Set `ANVIL_GCTX_EGRESS=0` in the MCP server environment to disable the graph
+context surface completely.
+
+## Resource catalogue
+
+The Rust server also exposes read-only resources sourced from the same Rust
+readers as the CLI and tools.
+
+### Workspace resources
+
+| Resource               | Contents                                                        |
+| ---------------------- | --------------------------------------------------------------- |
+| `anvil://baseline`     | Architecture baseline and baseline violation snapshot.          |
+| `anvil://boundaries`   | Layer definitions and explicit boundary rules.                  |
+| `anvil://patterns`     | Built-in anti-pattern catalogue.                                |
+| `anvil://suppressions` | Active suppressions and active/expired totals.                  |
+| `anvil://config`       | Discovered Anvil config, source, and parse status.              |
+| `anvil://constraints`  | Aggregated boundaries, patterns, conventions, and suppressions. |
+| `anvil://drift`        | Latest drift snapshots and their comparison state.              |
 
 ### Graph resources
 
-For MCP clients that prefer resources, the same graph is exposed as:
+| Resource          | Contents                                               |
+| ----------------- | ------------------------------------------------------ |
+| `graph://stats`   | Counts of symbols, edges, files, and dependency edges. |
+| `graph://symbols` | Paged identity-only symbol summaries.                  |
+| `graph://edges`   | Paged identity-only graph edges.                       |
 
-| Resource          | Use                                                         |
-| ----------------- | ----------------------------------------------------------- |
-| `graph://stats`   | Symbol, edge, and file counts.                              |
-| `graph://symbols` | Paged symbol identity summaries; optionally scoped by file. |
-| `graph://edges`   | Paged graph edges with bounded-result signalling.           |
+`graph://symbols` and `graph://edges` accept paging and file filters in the URI
+query. The graph resource and tool paths share a per-server-session egress
+budget; reconnecting starts a new session after the client has exhausted it.
 
-Graph tools and resources can return named outcomes instead of data: `ready`,
-`not_ready`, `unavailable`, `disabled`, or `invalid_query`. A `not_ready` result
-means the daemon is warming the graph and a retry is usually enough;
-`unavailable` means the daemon is not reachable.
+## Daemon and fallback behaviour
 
-## Frozen legacy Node MCP catalogue
+The MCP server uses the resident Anvil daemon when it is reachable. On Unix it
+connects over an owner-only Unix socket; on Windows it uses an owner-only named
+pipe. The pre-write tool reports daemon provenance in its `correlation`
+envelope.
 
-The archived Node MCP server (`@eddacraft/anvil-mcp-server`) carried the broader
-legacy tool surface below. Treat this section as a compatibility inventory for
-RMCPF and existing private deployments, not as active setup guidance. Except for
-the Rust `anvil_status` port noted above, the Rust shim does not expose these
-tools today.
+If the daemon is unavailable, write validation uses the embedded
+correctness-equivalent fallback. Graph tools cannot fall back because the
+resident graph belongs to the daemon, so they return an explicit unavailable or
+not-ready outcome.
 
-### Legacy Node MCP Tools
+On Linux and macOS, an interactive `anvil start` can start or reuse the daemon.
+In headless automation, or on Windows, start the foreground daemon explicitly
+when you need daemon-backed validation:
 
-#### anvil_check
-
-Validate files against architecture rules and anti-patterns:
-
-```json
-{
-  "tool": "anvil_check",
-  "arguments": {
-    "files": ["src/auth/login.ts"],
-    "workspaceRoot": "/absolute/path/to/project"
-  }
-}
+```bash
+anvil intercept start --foreground
 ```
 
-Optional `checks` parameter limits which checks run (default: all). These are
-legacy tool parameters, not the canonical Rust CLI check names:
+Inspect it from another terminal:
 
-```json
-{
-  "tool": "anvil_check",
-  "arguments": {
-    "files": ["src/auth/login.ts"],
-    "checks": ["architecture", "antipattern"],
-    "workspaceRoot": "/absolute/path/to/project"
-  }
-}
+```bash
+anvil intercept status
 ```
 
-#### anvil_gate
+## Troubleshooting
 
-Run the full gate pipeline (lint, test, coverage, architecture, policy):
+1. Run `anvil mcp install --client cursor --verify` (or `claude-code`), or use
+   `anvil mcp-config --target cursor --verify` for the matching config target.
+2. Restart the editor after changing its MCP configuration.
+3. Run `anvil start --verify` and trust the literal protection state.
+4. Run `anvil intercept status` if daemon assurance is unavailable.
+5. Confirm the editor launches `anvil mcp serve --stdio` with the repository as
+   its working directory.
 
-```json
-{
-  "tool": "anvil_gate",
-  "arguments": {
-    "workspaceRoot": "/absolute/path/to/project"
-  }
-}
-```
+The MCP process pins its workspace at startup. Paths outside that workspace are
+rejected, and graph resources never accept a client-supplied workspace root.
 
-Optional parameters: `targetFiles` (specific files), `skipChecks` (checks to
-skip), `failFast` (stop on first failure).
-
-#### anvil_fix
-
-Auto-fix a specific violation:
-
-```json
-{
-  "tool": "anvil_fix",
-  "arguments": {
-    "filePath": "src/auth/login.ts",
-    "warningId": "AP-003",
-    "line": 42
-  }
-}
-```
-
-#### anvil_suppress
-
-Suppress a warning with an explanation:
-
-```json
-{
-  "tool": "anvil_suppress",
-  "arguments": {
-    "filePath": "src/auth/login.ts",
-    "warningId": "AP-003",
-    "line": 42,
-    "reason": "Third-party API returns untyped data"
-  }
-}
-```
-
-Optional `expiryDays` parameter sets when the suppression expires (default: 30).
-
-#### anvil_status
-
-Get the current workspace validation status:
-
-```json
-{
-  "tool": "anvil_status",
-  "arguments": {
-    "workspaceRoot": "/absolute/path/to/project"
-  }
-}
-```
-
-#### anvil_query_boundary
-
-Check whether an import between two files is allowed by architecture rules:
-
-```json
-{
-  "tool": "anvil_query_boundary",
-  "arguments": {
-    "sourceFile": "src/api/handlers/user.ts",
-    "targetFile": "src/repositories/user.repo.ts",
-    "workspaceRoot": "/absolute/path/to/project"
-  }
-}
-```
-
-### Legacy Node MCP Resources
-
-The legacy Node MCP server exposes read-only resources:
-
-| Resource                       | Description                                   |
-| ------------------------------ | --------------------------------------------- |
-| `anvil://config`               | Current gate configuration and enabled checks |
-| `anvil://baseline`             | Architecture baseline snapshot                |
-| `anvil://boundaries`           | Architecture boundary rules                   |
-| `anvil://constraints`          | Aggregated constraints for AI consumption     |
-| `anvil://drift`                | Current architecture drift status             |
-| `anvil://file/{path}/warnings` | Warnings for a specific file (template)       |
-| `anvil://patterns`             | Anti-pattern catalogue                        |
-| `anvil://suppressions`         | Active suppressions with expiry dates         |
-
-These resource names describe the legacy Node surface. Where old resources are
-ported, their data source is the active Rust surface: constraints from
-`anvil export --format mcp-resource`, drift from `anvil drift`, and suppressions
-from the Rust `.anvil/suppressions.json` readers. The archived TypeScript
-`runtime/export` pipeline is historical fixture material only.
-
-### Legacy Node MCP Agent Loop
-
-An AI agent using the legacy Node MCP server:
-
-```python
-# Pseudocode — adapt to your agent framework
-from mcp import Client
-
-anvil = Client("anvil")
-root = "/absolute/path/to/project"
-
-# 1. Read boundary rules before generating code
-boundaries = anvil.read("anvil://boundaries")
-
-# 2. Generate code respecting boundaries
-code = generate_code(boundaries)
-
-# 3. Write to file
-write_file("src/auth/login.ts", code)
-
-# 4. Validate against architecture and anti-patterns
-result = anvil.call("anvil_check", {
-    "files": ["src/auth/login.ts"],
-    "workspaceRoot": root
-})
-
-if result["status"] != "pass":
-    # Retry with feedback from validation warnings
-    warnings = result["warnings"]
-    code = regenerate_code(warnings)
-    # ...
-```
-
-### Legacy Node MCP Prompts
-
-The legacy Node MCP server provides helpful prompts:
-
-| Prompt                | Description                                   |
-| --------------------- | --------------------------------------------- |
-| `architecture-review` | Review a file's architecture boundary context |
-| `fix-violation`       | Explain a violation and suggest a fix         |
-| `pre-generation`      | Provide constraints before generating code    |
-| `suppress-violation`  | Guide suppression with a proper explanation   |
-
----
-
-**Next:** [Configuration reference →](/anvil/operations/config)
+For the daemon routing and fallback model, see
+[Save-time Validation](../guides/save-time-validation.md). For agent-side
+composition patterns, see [Agent Harness Patterns](../guides/agent-harness.md).

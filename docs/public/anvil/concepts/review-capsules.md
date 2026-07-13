@@ -126,20 +126,14 @@ refused: deleting every capsule is a manual `git rm` call, not a prune. See
 [ADR-078](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/078-capsule-retention-and-prune.md)
 for the retention decision.
 
-:::caution v0 scope
-
-`anvil capsule create`, `verify`, `explain`, and `prune` ship today —
-`verify`/`explain` with `--json` for CI consumption. The remaining subcommand —
-`anvil capsule inspect` — and applied policy-exception collection are planned
-for follow-up work. See
+`anvil capsule create`, `verify`, `explain`, and `prune` are the current Rust
+surface. Both `verify` and `explain` support `--json` for CI consumers. See
 [ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
 for the capsule format.
-
-:::
 
 ## Related
 
 - [Audit Trail](./audit-trail.md) — the provenance and evidence model capsules
   draw from.
-- [Gates](./gates.md) — the checks whose results a capsule's verification record
-  will eventually carry.
+- [Gates](./gates.md) — the checks represented in a capsule's verification
+  record.

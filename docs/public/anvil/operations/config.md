@@ -485,10 +485,11 @@ background-scan trigger while keeping the daemon serving — reads still answer
 from whatever warm state exists, but a cold key is no longer auto-warmed by a
 probe. This is the scoped lever for operators who want the daemon's read surface
 without the first-contact scan cost; `ANVIL_WATCH_DAEMON=0` remains the
-full-bypass lever (no daemon routing at all). An **explicit** `anvil scan` /
-`request_full_scan` is never suppressed by `ANVIL_WATCH_DAEMON_SCAN=0` — only
-the opportunistic auto-warm. The value is trimmed before matching, so `" 0"` /
-`"0\n"` also disable; any other value (or unset) leaves the auto-warm on.
+full-bypass lever (no daemon routing at all). An explicit daemon
+`request_full_scan` RPC is never suppressed by `ANVIL_WATCH_DAEMON_SCAN=0` —
+only the opportunistic auto-warm. The value is trimmed before matching, so
+`" 0"` / `"0\n"` also disable; any other value (or unset) leaves the auto-warm
+on.
 
 ## Workspace confinement
 
@@ -689,9 +690,6 @@ configuration, including:
   `ANVIL_TRACK_SURFACE_DOCK`, `ANVIL_TRACK_SURFACE_SH` — set `0` to opt out of
   the matching default-on infrastructure-hygiene surface for the session, or `1`
   to force it on.
-
-Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
-not supported.
 
 :::
 

@@ -10,18 +10,13 @@ sidebar_position: 2
 anvil is a security-conscious tool. This page covers its security model and best
 practices.
 
-:::info Trust boundary in v0.6.0-beta
+:::info Local trust boundary
 
-The Anvil daemon and driver framework run a **same-UID, local-IPC trust model**
-in `v0.6.0-beta`. Owner-only Unix domain sockets (`0700` parent directory,
-`0600` socket file) and an owner-only Windows named pipe with remote clients
-rejected enforce that boundary at the transport layer. There is no remote /
-cross-UID surface, no TLS, and no signed manifests in v1. For the four HIGH
-trade-offs the release council surfaced inside that boundary — allowlist
-file-mode verification, unsalted SHA-256 redaction hash, spec-only §4.4
-redaction filter for non-`validate_write` MCP tools, and the Linux PID-reuse
-TOCTOU window / macOS fence-on-uncertainty interrupt ladder — were documented in
-the historical `v0.6.0-beta` release security note.
+The Rust daemon and MCP server use a **same-UID, local-IPC trust model**.
+Owner-only Unix domain sockets (`0700` parent directory, `0600` socket file) and
+an owner-only Windows named pipe with remote clients rejected enforce the
+transport boundary. There is no public network listener. Workspace confinement
+can narrow a daemon further to explicitly admitted repository roots.
 
 :::
 
@@ -43,7 +38,7 @@ the historical `v0.6.0-beta` release security note.
 | ------------------------ | -------------------------------------- |
 | Malicious insiders       | anvil is a tool, not access control    |
 | Zero-day vulnerabilities | anvil validates patterns, not exploits |
-| Supply chain attacks     | Use npm audit, Snyk, etc.              |
+| Supply chain attacks     | Use a dedicated dependency scanner     |
 | Runtime attacks          | anvil is static analysis only          |
 
 ## Secret Detection
@@ -57,16 +52,10 @@ anvil uses two detection methods:
 
 ### Built-in Patterns
 
-```
-api[_-]?key
-secret[_-]?key
-password
-token
-credential
-private[_-]?key
-bearer
-auth
-```
+The current Rust registry has 21 built-in patterns. It recognises generic API
+keys, secrets, passwords, private keys, database URLs, and credit-card-shaped
+values, plus provider-specific AWS, GitHub, Slack, Stripe, Google, Heroku,
+SendGrid, Twilio, npm, Anthropic, and OpenAI key formats.
 
 ### Entropy Threshold
 
@@ -79,7 +68,8 @@ High-entropy strings (random-looking) trigger alerts:
 
 - **False positives** — test data, example configs
 - **False negatives** — low-entropy passwords, encoded secrets
-- **Git history** — optional scan, not default
+- **Git history** — source scanning covers the working tree, not every
+  historical blob
 
 ### Best Practices
 
@@ -88,27 +78,19 @@ High-entropy strings (random-looking) trigger alerts:
    are present
 2. **Use secret managers** — Vault, AWS Secrets, etc.
 3. **Review alerts** — don't just suppress
-4. **Check history** — enable `checkGitHistory` for initial audit
+4. **Check history separately** — use your established secret-history scanner;
+   `anvil audit-chain` checks witness coverage, not historical secret content
 
 ## Evidence Security
 
 ### Integrity
 
-Evidence is cryptographically signed:
+The witness chain binds governance events to commits. Review capsules package a
+bounded commit range with a manifest and collected digests;
+`anvil capsule verify` checks the closed-state package and re-collects
+repository digests when the source repository is present.
 
-```json
-{
-  "evidence_hash": "sha256:abc123...",
-  "signed_at": "2024-01-15T10:30:00Z"
-}
-```
-
-Tampering changes the hash, invalidating the evidence.
-
-### Planned Evidence Storage
-
-Dedicated evidence export commands and remote evidence storage are planned, not
-part of the current public CLI.
+Anvil does not silently create a remote evidence store.
 
 For compliance in the current beta:
 
@@ -221,10 +203,11 @@ CI output may be visible. anvil:
 
 For SOC 2, ISO 27001, etc.:
 
-- Enable evidence collection
-- Configure remote storage
-- Set retention to required period
-- Export evidence on demand
+- Run `anvil audit-chain` on the commit range your control covers
+- Create and verify a review capsule for the reviewed range
+- Store the resulting JSON or capsule in your existing controlled artefact
+  system
+- Apply the retention and access policy required by your organisation
 
 ### Multi-Tenant
 
@@ -250,12 +233,19 @@ will serve. See [Workspace confinement](./config.md#workspace-confinement).
 
 ### Compliance Reporting
 
-:::caution Planned
+Audit witness coverage and create a portable review package with the shipped
+Rust commands:
 
-Evidence export commands are planned for a future release. For now, copy the
-`.anvil/evidence/` directory directly for compliance archival.
+```bash
+anvil audit-chain --json
+anvil capsule create --range <base>..<head> --out ../review-capsule
+anvil capsule verify --json ../review-capsule
+```
 
-:::
+Store the audit output or capsule in your organisation's existing artefact
+system, with its normal access and retention policy. See
+[Audit Trail](../concepts/audit-trail.md) for the evidence boundaries and exit
+semantics.
 
 ---
 

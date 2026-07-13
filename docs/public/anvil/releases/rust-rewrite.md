@@ -1,240 +1,167 @@
 ---
 id: rust-rewrite
-title: The Switch to Rust
+title: The Native Rust CLI
 description:
-  Why we rewrote the anvil CLI in Rust and what changed in the Rust-first
-  product.
+  How the current Rust Anvil binary is packaged, configured, and operated.
 sidebar_position: 10
 ---
 
-# The Switch to Rust
+# The Native Rust CLI
 
-Starting with `0.3.0-beta`, anvil is a native binary written in Rust. This page
-explains why the product moved to Rust and what the current Rust-first shape of
-the tool looks like.
+Anvil has shipped as a native Rust product since `0.3.0-beta`. The current
+release is one `anvil` binary: CLI commands, terminal UI, MCP stdio server,
+policy engine, updater, and daemon operations all use the same versioned
+artefact.
 
-## Why Rust
+There is no companion runtime or package to install.
 
-anvil watches your codebase and validates changes at save-time. That means the
-CLI sits in a hot loop: parse files, walk dependency graphs, evaluate policies,
-and render results — all within the time it takes you to glance at the terminal
-after pressing save.
+## What ships in the binary
 
-The Node.js implementation was good enough for small projects, but it hit walls:
+| Surface                          | Entry point                         |
+| -------------------------------- | ----------------------------------- |
+| Guided discovery                 | `anvil welcome`                     |
+| Repository activation            | `anvil start`                       |
+| Focused source scan              | `anvil check`                       |
+| Workflow judgement               | `anvil gate`                        |
+| Save-time feedback               | `anvil watch`                       |
+| Native MCP server                | `anvil mcp serve --stdio`           |
+| Local daemon operations          | `anvil intercept`                   |
+| Rego policy engine               | `anvil policy`                      |
+| Terminal dashboards and insights | `anvil dashboard`, `anvil insights` |
+| Install-aware update guidance    | `anvil version`, `anvil update`     |
 
-- **Cold start** — Node.js takes 200-400ms just to load the runtime and parse
-  the dependency tree. The Rust binary starts in under 10ms.
-- **Memory** — A 5,000-file monorepo consumed 400MB+ of RSS in watch mode. The
-  Rust watcher sits at 30-50MB for the same project.
-- **Parse throughput** — Tree-sitter bindings in Rust parse TypeScript at
-  ~15,000 files/second. The Node.js equivalent managed ~2,000 files/second with
-  the same grammar.
-- **Concurrency** — File watching, parsing, graph updates, and policy evaluation
-  now run on separate threads with zero-copy message passing. Node.js required
-  worker threads with serialisation overhead.
-- **Distribution** — A single static binary with no runtime dependencies. No
-  more "which Node.js version?", no more `node_modules`, no more npm registry
-  authentication for private packages.
+The MCP server and daemon use the same Rust checks, types, and protection-claim
+contracts as the terminal commands. That keeps editor, watch, status, and CI
+behaviour on one implementation.
 
-The result: anvil is 5-10x faster on typical projects and uses around 80% less
-memory in watch mode.
-
-## What Changed
-
-### Installation
-
-**Before (Node.js):**
-
-```bash
-pnpm add -D @eddacraft/anvil-cli
-# or: npm install -D @eddacraft/anvil-cli
-```
-
-**Now (native binary):**
+## Install
 
 ```bash
 # macOS / Linux
 curl -fsSL https://install.eddacraft.ai | sh
 
-# Windows
+# Homebrew (macOS / Linux)
+brew install eddacraft/tap/anvil
+```
+
+```powershell
+# Windows installer
 irm https://install.eddacraft.ai/windows | iex
 
-# Or via Homebrew (macOS/Linux)
-brew install eddacraft/tap/anvil
-
-# Or via WinGet (Windows)
+# WinGet
 winget install eddacraft.anvil
 
-# Or via Scoop (Windows)
+# Scoop
 scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
 scoop install anvil
 ```
 
-The install script detects your platform and architecture (x86_64, aarch64) and
-drops the binary into `~/.eddacraft/bin/` (macOS/Linux) or
-`%USERPROFILE%\.eddacraft\bin\` (Windows). Add it to your PATH if the installer
-doesn't do so automatically.
+Supported release targets are macOS, Linux, and Windows on x86_64 and ARM64. The
+standalone installer places the binary under the per-user EddaCraft bin
+directory and updates PATH when the platform permits it.
 
-**Supported platforms:**
-
-| OS      | Architecture          | Binary      |
-| ------- | --------------------- | ----------- |
-| macOS   | x86_64, Apple Silicon | `anvil`     |
-| Linux   | x86_64, aarch64       | `anvil`     |
-| Windows | x86_64, aarch64       | `anvil.exe` |
-
-### Commands
-
-Most commands remain the same. `anvil watch`, `anvil init`, and `anvil tutorial`
-still work as before from a user's perspective.
-
-:::note Command changes
-
-Both the legacy Node.js CLI and the Rust CLI expose separate `anvil check` and
-`anvil gate` commands:
-
-- **`anvil check`** — static analysis: scans files for anti-patterns and
-  architecture violations. Use for quick file-level scanning.
-- **`anvil gate`** — quality gate: runs all check categories (lint, test,
-  coverage, dependency, secret, architecture, policy) with configurable profiles
-  (`dev`, `ci`, `production`).
-
-CI workflows that used `anvil check --all --ci` should migrate to
-`anvil gate --profile ci`.
-
-:::
-
-### Configuration
-
-`.anvilrc` files are fully compatible. No configuration changes are needed.
-
-### CI Integration
-
-**Before:**
-
-```yaml
-- run: pnpm install
-- run: pnpm anvil check --all --ci
-```
-
-**Now (Linux/macOS):**
-
-```yaml
-- name: Install anvil
-  run: curl -fsSL https://install.eddacraft.ai | sh
-
-- name: Run anvil
-  run: anvil gate --profile ci
-```
-
-**Now (Windows):**
-
-```yaml
-- name: Install anvil
-  shell: pwsh
-  run: irm https://install.eddacraft.ai/windows | iex
-
-- name: Run anvil
-  run: anvil gate --profile ci
-```
-
-The anvil binary itself requires no Node.js runtime. However, some gate checks
-(lint, test) shell out to your project's package manager, so your CI workflow
-should still install project dependencies if those checks are enabled.
-
-### Terminal UI
-
-The interactive surfaces (tutorial, watch, wizard, and status) have been rebuilt
-using Ratatui with the eddacraft Terminal Standard design system. The experience
-is smoother, more responsive, and more consistent across terminal emulators.
-
-### What's New in Rust
-
-Features that were difficult or impractical in the Node.js version:
-
-- **Kernel engine** — foreground watch mode with incremental parsing and a
-  semantic dependency graph that updates in real time as files change
-- **Policy evaluation** — policy configuration and rule loading are handled
-  natively; OPA is still required for Rego evaluation
-- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate failure), `3`
-  (auth required), `4` (config error) for precise CI integration
-- **Cross-platform auth** — device-flow authentication with secure credential
-  storage via the OS keychain
-
-## Fresh Start Guide
-
-This guide assumes a fresh start on the Rust CLI. If you still have the old
-`@eddacraft/anvil-cli` package installed and earlier on your `PATH`, remove it
-first so `anvil --version` resolves to the native binary.
-
-### Step 1: Install the native binary
-
-**macOS / Linux:**
-
-```bash
-curl -fsSL https://install.eddacraft.ai | sh
-```
-
-**Windows (PowerShell):**
-
-```powershell
-irm https://install.eddacraft.ai/windows | iex
-```
-
-### Step 2: Verify
+Use one install method per machine. `anvil version` identifies the active method
+and prints the matching upgrade command:
 
 ```bash
 anvil --version
-# anvil 0.3.0-beta
+anvil version
 ```
 
-If that still resolves to the deprecated npm-distributed CLI, uninstall
-`@eddacraft/anvil-cli` and verify again.
+## Command model
 
-### Step 3: Authenticate
+`check` and `gate` answer different questions:
+
+- **`anvil check`** runs the focused source-analysis surface for anti-patterns
+  and hardcoded secrets. Use it for quick file or repository scans.
+- **`anvil gate`** combines configured analysis, architecture, policy, command,
+  build, test, coverage, and dependency checks into a workflow verdict.
+
+For CI, use a gate profile:
 
 ```bash
-anvil auth login
+anvil gate --profile ci
 ```
 
-`anvil login` still works as an alias, but `anvil auth login` is the canonical
-form. Add `--otp` if you need the email OTP flow instead of device code.
+For active development, activate the repository once and use the daemon-backed
+path:
 
-### Step 4: Upgrade path
+```bash
+anvil start
+anvil status --verify
+```
 
-Once installed, use the native updater:
+## Configuration
+
+Anvil discovers `.anvilrc` and the multi-format `.anvil.yaml`, `.anvil.yml`,
+`.anvil.json`, or `.anvil.toml` forms. Architecture definitions, drift
+snapshots, suppressions, dashboards, and other project-owned state live under
+`.anvil/`.
+
+Preview schema reconciliation before writing it:
+
+```bash
+anvil migrate schema
+anvil migrate schema --apply
+```
+
+The Rust policy engine evaluates Rego in process. A standalone OPA binary is
+optional for authoring workflows that deliberately run `opa test`; it is not a
+runtime requirement for Anvil gate evaluation.
+
+## CI examples
+
+Linux or macOS:
+
+```yaml
+- name: Install Anvil
+  run: curl -fsSL https://install.eddacraft.ai | sh
+
+- name: Run Anvil gate
+  run: anvil gate --profile ci
+```
+
+Windows:
+
+```yaml
+- name: Install Anvil
+  shell: pwsh
+  run: irm https://install.eddacraft.ai/windows | iex
+
+- name: Run Anvil gate
+  run: anvil gate --profile ci
+```
+
+Gate checks may invoke the lint, test, coverage, or policy toolchain already
+owned by the repository. Install those project dependencies when the enabled
+checks need them; they are not dependencies of the Anvil binary itself.
+
+## Update or reinstall
+
+Use the owner of the current installation:
 
 ```bash
 anvil update
+# or: brew upgrade eddacraft/tap/anvil
 ```
 
-If you want a clean reinstall, re-run the installer instead.
-
-### Step 5: Update CI
-
-Replace any `pnpm anvil` or `npx anvil` invocations with direct `anvil` calls.
-Remove the Node.js install step if anvil was the only reason it was there.
-
-### Step 6: Test
-
-```bash
-anvil gate
+```powershell
+winget upgrade --id eddacraft.anvil
+# or: scoop update anvil
 ```
 
-Your `.anvilrc` and `.anvil/` directory work without changes.
+On Windows, an editor can keep the running MCP binary open. Quit the editor or
+stop its `anvil mcp serve` process before replacing the executable.
 
-## Reporting Issues
+## Verify a report against the current binary
 
-The Rust CLI is in beta. If you hit a bug or unclear behaviour, please
-[open an issue](https://github.com/eddacraft/anvil/issues) and include the
-details below.
+When reporting a problem, include:
 
-### What to include
+- `anvil --version` and `anvil version` output;
+- operating system and architecture;
+- install method;
+- the exact command and exit code; and
+- the smallest output excerpt that explains the failure.
 
-- anvil version (`anvil --version`)
-- Operating system and architecture:
-  - macOS / Linux: `uname -a`
-  - Windows (PowerShell): `[System.Environment]::OSVersion` and
-    `$env:PROCESSOR_ARCHITECTURE`
-- Steps to reproduce
-- Expected behaviour vs actual behaviour
+Open product issues at
+[github.com/eddacraft/anvil/issues](https://github.com/eddacraft/anvil/issues).

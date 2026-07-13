@@ -1,235 +1,116 @@
 ---
 id: audit-trail
 title: Audit Trail
-description: Understanding anvil's provenance and trust model.
+description:
+  Verify Anvil witness records and portable review capsules with the current
+  Rust CLI.
 sidebar_position: 3
 ---
 
 # Audit Trail
 
-:::caution Planned feature
+Anvil's current audit trail has two concrete layers:
 
-The `anvil evidence` CLI commands described on this page are planned for a
-future release. Evidence is currently generated internally during validation
-runs but is not yet exposed via dedicated CLI commands.
+1. a **witness chain** records governance events alongside the repository; and
+2. a **review capsule** packages the evidence for one commit range so another
+   machine can inspect and verify it.
 
-:::
+The Rust CLI uses purpose-built witness and capsule commands rather than a
+generic evidence command. The commands below are the public, shipped surfaces.
 
-Anvil's validation pipeline is designed around auditable records. Dedicated
-evidence commands are not yet public, so this page explains the model and shows
-the planned operator surface.
+## Witness chain
 
-## Why Audit Trails?
+Anvil-managed Git hooks append witness records under `anvil/witness/`. The
+records bind governance activity to commits so an operator can detect commits
+that bypassed the normal path.
 
-When AI generates code, you need to answer:
-
-- **What was validated?** — which checks ran on which files
-- **When was it validated?** — timestamps for compliance
-- **What was the result?** — pass, fail, warnings
-- **Can I reproduce it?** — same inputs, same outputs
-
-anvil's audit trail answers all of these.
-
-## Provenance Model
-
-Provenance tracks the origin and lineage of every artefact:
-
-```
-┌─────────────────────────────────────────────────────┐
-│                     Evidence                         │
-├─────────────────────────────────────────────────────┤
-│ What: run_abc123 validated src/auth/login.ts        │
-│ When: 2024-01-15T10:30:00Z                          │
-│ Who: developer@example.com                          │
-│ How: anvil check (watch mode)                       │
-│ Config: sha256:config123                            │
-│ Result: PASS (all 4 checks)                         │
-│ Signature: sha256:evidence789                       │
-└─────────────────────────────────────────────────────┘
-```
-
-### Provenance Fields
-
-| Field           | Description                         |
-| --------------- | ----------------------------------- |
-| `subject`       | What was validated (files, commits) |
-| `timestamp`     | When validation occurred            |
-| `actor`         | Who triggered validation            |
-| `method`        | How validation was triggered        |
-| `configuration` | Config hash at time of validation   |
-| `result`        | Validation outcome                  |
-| `signature`     | Cryptographic integrity hash        |
-
-## Trust Model
-
-anvil's trust model is based on **verifiable claims**:
-
-### 1. Configuration is Versioned
-
-Every run records the configuration hash:
-
-```json
-{
-  "config_version": "1.0",
-  "config_hash": "sha256:abc123",
-  "gates_enabled": ["architecture", "anti-patterns", "secrets"]
-}
-```
-
-If configuration changes, the hash changes. You can prove what rules were
-active.
-
-### 2. Inputs are Recorded
-
-Every run records input file hashes:
-
-```json
-{
-  "inputs": [
-    { "path": "src/auth/login.ts", "hash": "sha256:file123" },
-    { "path": "src/auth/types.ts", "hash": "sha256:file456" }
-  ]
-}
-```
-
-### 3. Results are Signed
-
-Evidence is cryptographically signed:
-
-```json
-{
-  "evidence_hash": "sha256:evidence789",
-  "signature_algorithm": "sha256",
-  "signed_at": "2024-01-15T10:30:00Z"
-}
-```
-
-Tampering with evidence changes the hash, invalidating the signature.
-
-### 4. Chain of Custody
-
-Sessions link runs together:
-
-```
-Session: session_abc123
-├── Run 1: run_001 (10:30:00) → PASS
-├── Run 2: run_002 (10:35:00) → FAIL (fixed)
-├── Run 3: run_003 (10:36:00) → PASS
-└── Commit: abc123def456
-```
-
-## Planned Evidence Commands
-
-The examples below show the intended command shape. They are not available in
-the current public CLI.
-
-### List Recent Evidence
+Audit the branch ending at `HEAD`:
 
 ```bash
-anvil evidence list --since 7d
+anvil audit-chain
 ```
 
-Output:
-
-```
-ID              RUN         TIMESTAMP              STATUS  FILES
-evidence_001    run_abc123  2024-01-15T10:30:00Z   PASS    3
-evidence_002    run_def456  2024-01-15T11:00:00Z   FAIL    1
-evidence_003    run_ghi789  2024-01-15T11:05:00Z   PASS    1
-```
-
-### View Evidence Details
+Bound the walk when you only need a release or pull-request range:
 
 ```bash
-anvil evidence show evidence_001
+anvil audit-chain --since v0.9.0-beta --branch HEAD
 ```
 
-### Verify Evidence Integrity
+Use `--json` for automation. A nightly audit can also set `--threshold` and
+`--max-runtime`; `--rescan` is the more expensive opt-in that re-evaluates the
+walk with today's rules.
+
+The witness audit answers a narrow question: _do the commits in this range have
+the expected witness coverage?_ It does not claim that every historical result
+would pass today's policy.
+
+## Review capsules
+
+A review capsule is a directory containing the commit-range manifest, policy and
+rule identity, baseline and witness material, collected digests, diagnostics,
+exceptions, and the recorded closed-state verdict.
+
+Create one outside the repository by default:
 
 ```bash
-anvil evidence verify evidence_001
+anvil capsule create --range v0.9.0-beta..HEAD --out ../review-capsule
 ```
 
-Output:
-
-```
-Verifying evidence_001...
-  ✓ Hash matches content
-  ✓ Inputs recorded
-  ✓ Configuration referenced
-  ✓ Signature valid
-
-Evidence is valid.
-```
-
-### Export for Compliance
+Then use the two read paths for different jobs:
 
 ```bash
-anvil evidence export --session session_abc123 --format json > audit.json
+anvil capsule explain ../review-capsule
+anvil capsule verify ../review-capsule
 ```
 
-## Integration with Git
+- `explain` is descriptive. It reports what the capsule contains and always
+  exits zero when the capsule can be read, regardless of its recorded verdict.
+- `verify` adjudicates the capsule. It exits `0` for pass/warn, `1` for block,
+  `2` for degraded, and `3` for an invalid or unreadable capsule.
 
-Today, use a normal Git trailer if your team wants to record a CI artefact or
-validation report ID manually:
+For CI, request the canonical verification document and still gate on the exit
+status:
 
 ```bash
-# Include evidence reference in commit
-git commit -m "feat: add login endpoint" \
-  --trailer "anvil-evidence: evidence_001"
+anvil capsule verify --json ../review-capsule
 ```
 
-Anvil's own commit helper (`anvil commit`) is planned for a future release.
+Verification is closed-state and offline-capable. When the source repository is
+available, Anvil also re-collects repository digests instead of trusting the
+capsule's copies alone.
 
-The evidence ID in the commit trailer links to the full audit record.
+## What the trail can prove
 
-## Retention and Storage
+| Question                                                            | Surface                       |
+| ------------------------------------------------------------------- | ----------------------------- |
+| Did reachable commits bypass the witness path?                      | `anvil audit-chain`           |
+| What range and governance inputs does this package claim?           | `anvil capsule explain`       |
+| Are the capsule structure, digests, and closed-state verdict valid? | `anvil capsule verify`        |
+| What local value signal has accumulated?                            | `anvil insights --cumulative` |
+| How has architecture changed between snapshots?                     | `anvil drift compare`         |
 
-### Planned Default Storage
+These are deterministic local checks. They do not upload repository content or
+silently create a remote compliance store.
 
-The planned local evidence store is `.anvil/evidence/`:
+## Retention is explicit
 
-```
-.anvil/
-└── evidence/
-    ├── 2024-01/
-    │   ├── evidence_001.json
-    │   └── evidence_002.json
-    └── 2024-02/
-        └── evidence_003.json
-```
+Anvil never deletes review capsules automatically. If your team deliberately
+stages capsules inside the repository, preview retention candidates first:
 
-### Retention Policy
-
-Planned retention configuration:
-
-```json
-{
-  "evidence": {
-    "retention": {
-      "duration": "90d",
-      "keep_failures": true,
-      "compress_after": "7d"
-    }
-  }
-}
+```bash
+anvil capsule prune --keep-last 10
 ```
 
-### Remote Storage
+Apply only after reviewing the list:
 
-For compliance, a future release is expected to support remote evidence storage:
-
-```json
-{
-  "evidence": {
-    "remote": {
-      "type": "s3",
-      "bucket": "company-anvil-evidence"
-    }
-  }
-}
+```bash
+anvil capsule prune --keep-last 10 --apply
 ```
 
----
+`--apply` stages tracked deletions through Git; it does not commit them. A
+capsule the repository cannot order is kept, and deleting every capsule remains
+a manual decision.
 
-**Next:** [Solo dev workflow →](/anvil/guides/solo-dev-flow)
+For the capsule format and workflow in more detail, see
+[Review Capsules](./review-capsules.md). For everyday protection state versus
+daemon session state, see [Runs and Daemon Sessions](./sessions.md).

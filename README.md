@@ -108,7 +108,10 @@ For `anvil admin`, prefer `anvil admin auth set 1password op://…` or
 `anvil admin auth set key -` over long-lived plaintext `.env` exports. Use
 agent-vault when a file-backed env or agent-editable config is required.
 
-### Setup
+### Contributor setup
+
+The shipped Anvil CLI is Rust-only. The JavaScript tooling below is for building
+and testing this monorepo, not for installing Anvil.
 
 Prerequisites (root `package.json` engines): **Node >= 24**, **pnpm >= 11**,
 **Git >= 2.54**, plus a Rust toolchain via [rustup](https://rustup.rs/).
@@ -217,7 +220,7 @@ After `cargo build -p eddacraft-anvil` (and usually `export ANVIL_DEV=1`):
 anvil=./target/debug/anvil   # or target/release/anvil
 
 $anvil welcome                 # discovery scan; no login
-$anvil start                   # daemon + hooks + (by default) MCP config
+$anvil start                   # daemon + hooks + consent-first MCP picker
 $anvil start --no-mcp          # activation without writing editor MCP config
 ANVIL_NO_MCP=1 $anvil start    # same via env
 
@@ -232,11 +235,11 @@ $anvil hooks status
 $anvil hooks install           # file-mode hooks (default)
 $anvil hooks install --config  # Git 2.54 native hook.<event>.command
 
-$anvil mcp-config --verify     # drift-check editor MCP config
+$anvil mcp-config --target cursor --verify  # drift-check editor MCP config
 $anvil mcp serve --stdio       # MCP server (what editors launch)
 
 $anvil auth login              # real beta device-flow (needs network + API)
-$anvil auth status
+$anvil auth whoami
 $anvil auth logout
 ```
 
@@ -259,10 +262,9 @@ without MCP:
 
 ### Admin CLI (`anvil admin`)
 
-`anvil admin` is the **Rust** operator surface on the same binary (legacy Node
-`anvil-admin` is archived). It talks to `/admin/*` on the API — waitlist,
-invites, revoke, audit, migration mail. **Does not use `ANVIL_DEV`**; it uses
-the admin key.
+`anvil admin` is the operator surface in the same Rust binary. It talks to
+`/admin/*` on the API — waitlist, invites, revoke, audit, migration mail. **Does
+not use `ANVIL_DEV`**; it uses the admin key.
 
 ```bash
 # One-time credential setup (preferred: 1Password; key never in shell history)
@@ -418,7 +420,7 @@ brew install eddacraft/tap/anvil
 ```powershell
 # Windows
 winget install eddacraft.anvil
-# or: irm .../eddacraft-anvil-installer.ps1 | iex
+# or: irm https://install.eddacraft.ai/windows | iex
 ```
 
 First value after install: `anvil welcome` (no login) or `anvil start` (daemon,

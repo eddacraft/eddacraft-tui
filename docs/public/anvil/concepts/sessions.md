@@ -1,202 +1,124 @@
 ---
 id: sessions
-title: Sessions and Runs
-description: Understanding anvil's execution model and artefact management.
+title: Runs and Daemon Sessions
+description:
+  Understand validation runs, daemon sessions, and the state anvil records
+  today.
 sidebar_position: 2
 ---
 
-# Sessions and Runs
+# Runs and Daemon Sessions
 
-:::caution Planned feature
+anvil uses the word _session_ for a live connection to its save-time daemon. A
+session is not a task tracker or a manually managed development period; the
+current Rust CLI does not expose a manual task-session command group.
 
-Session and run tracking commands (`anvil session start`, `anvil session end`,
-etc.) are planned for a future release. The conceptual model described here
-reflects the intended design. Currently, anvil tracks runs internally but does
-not expose session management via the CLI.
+Keeping that distinction clear makes the operational surfaces much easier to
+reason about:
 
-:::
+- a **validation run** is one execution of `check`, `gate`, `audit`, or a
+  save-time validation;
+- a **daemon session** is a registered client/worktree connection served by the
+  resident daemon;
+- a **protection state** says whether the current repository is actually
+  protected;
+- a **review capsule** packages commit-range evidence for offline verification.
 
-anvil organises work into **sessions** (bounded development periods) and
-**runs** (individual validation executions).
+## Protection state
 
-## Sessions
-
-A session is a bounded period of development work with a specific goal.
-
-### What Defines a Session?
-
-- **Start** — `anvil session start` or first change in watch mode
-- **End** — `anvil session end` or explicit commit
-- **Scope** — typically one feature, bug fix, or task
-
-### Session Lifecycle
-
-```
-┌──────────────────────────────────────────────────┐
-│                    Session                        │
-│                                                   │
-│  Start ──▶ Run ──▶ Run ──▶ Run ──▶ End          │
-│              │       │       │                   │
-│              ▼       ▼       ▼                   │
-│           Evidence Evidence Evidence             │
-│                                                   │
-└──────────────────────────────────────────────────┘
-```
-
-### Session Context
-
-Sessions track:
-
-- **Files modified** — what changed during the session
-- **Runs executed** — all validation runs
-- **Evidence generated** — audit trail
-- **Active task** — if working within a plan
-
-### Planned Commands
-
-These commands describe the intended session-management surface and are not yet
-available in the public CLI.
+Use the activation probe for the answer most developers need:
 
 ```bash
-# Start a new session
-anvil session start --task AUTH-001
-
-# View current session
-anvil session status
-
-# End session (generates summary)
-anvil session end
+anvil status --verify
 ```
 
-## Runs
+It is read-only and returns the same protection-state vocabulary as
+`anvil start --verify`: `protecting`, `ready_restart_required`, `watching`,
+`needs_action`, `unsupported`, or `error`.
 
-A run is a single execution of anvil validation.
-
-### When Runs Happen
-
-- **Watch mode** — automatic on file save
-- **Manual** — `anvil check --all`
-- **CI** — as part of pipeline
-
-### Run Output
-
-Each run produces:
-
-```
-Run ID: run_abc123
-Timestamp: 2024-01-15T10:30:00Z
-Files checked: 3
-Duration: 245ms
-
-Results:
-  ✓ import-boundaries (23ms)
-  ✓ antipattern-scan (12ms)
-  ✓ secret-detection (8ms)
-
-Status: PASS
-```
-
-The run output uses the canonical check names accepted by
-`anvil gate --only-checks` and `.anvilrc#checks`. Legacy aliases such as
-`architecture` and `secret` may still parse, but public examples use
-`import-boundaries` and `secret-detection`.
-
-### Run Modes
-
-| Mode        | Trigger                   | Output                |
-| ----------- | ------------------------- | --------------------- |
-| Watch       | File save                 | Inline terminal       |
-| Interactive | `anvil check --all`       | Full terminal UI      |
-| CI          | `anvil gate --profile ci` | Structured exit codes |
-
-## Artefacts
-
-Runs produce artefacts—files and data for later reference.
-
-### Types of Artefacts
-
-| Artefact  | Purpose                         |
-| --------- | ------------------------------- |
-| Evidence  | Immutable validation record     |
-| Reports   | Human-readable summaries        |
-| Coverage  | Code coverage data              |
-| Snapshots | Pre-change state (for rollback) |
-
-### Planned Artefact Storage
-
-The intended session artefact layout is:
-
-```
-.anvil/
-├── sessions/
-│   └── session_abc123/
-│       ├── evidence/
-│       │   ├── run_001.json
-│       │   └── run_002.json
-│       └── summary.json
-└── cache/
-    └── file_hashes.json
-```
-
-### Planned Access Commands
-
-These commands are part of the intended evidence/session surface and are not yet
-available in the public CLI.
+Use JSON when a script needs the typed claim:
 
 ```bash
-# List sessions
-anvil session list
-
-# View session details
-anvil session show session_abc123
-
-# Export evidence
-anvil evidence export session_abc123 --format json
+anvil status --json
 ```
 
-## Evidence
+Protection state is deliberately separate from daemon process health. A daemon
+can be running without serving the current worktree, and a scoped embedded
+fallback can validate a write while daemon assurance is unavailable.
 
-Evidence is the immutable record of what was validated.
+## Validation runs
 
-### Evidence Structure
+Choose the run that matches the question you are asking:
 
-```json
-{
-  "id": "evidence_xyz789",
-  "run_id": "run_abc123",
-  "session_id": "session_abc123",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "inputs": {
-    "files": ["src/auth/login.ts"],
-    "config_hash": "sha256:config123"
-  },
-  "checks": [
-    {
-      "name": "import-boundaries",
-      "status": "pass",
-      "duration_ms": 23
-    }
-  ],
-  "signature": "sha256:result456"
-}
+| Command                    | What it proves                                                            |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `anvil check --all`        | Source files were scanned by the planless anti-pattern and secret checks. |
+| `anvil gate --profile dev` | The configured development gate reached a workflow verdict.               |
+| `anvil gate --profile ci`  | The configured CI gate reached a workflow verdict.                        |
+| `anvil watch --source`     | Later source saves are checked after the initial readiness scan.          |
+| `anvil audit-chain`        | Reachable commits have the expected witness records.                      |
+
+Each command owns its output and exit semantics. A passing `check` is not a
+substitute for a passing `gate`: `check` is targeted analysis, while `gate`
+combines configured checks into the decision used by a workflow.
+
+For machine consumers, use the command's JSON or SARIF surface rather than
+scraping terminal copy. For long-running watch output, follow the
+[NDJSON contract](../integrations/watch-output.md).
+
+## Daemon sessions
+
+The intercept daemon keeps live session records for attached worktrees and
+clients. Inspect them with:
+
+```bash
+anvil intercept status
 ```
 
-### Evidence Properties
+The human view summarises daemon uptime, active sessions, fences, and validation
+latency. The JSON form exposes the same `DaemonStatusV1` shape on Unix and
+Windows:
 
-- **Immutable** — cannot be modified after creation
-- **Signed** — cryptographic hash prevents tampering
-- **Linked** — references inputs and configuration
-- **Timestamped** — precise creation time
+```bash
+anvil intercept status --json
+```
 
-### Using Evidence
+Use this surface when activation says the daemon is unreachable, a worktree is
+fenced, or an editor appears not to be reaching the MCP shim. Do not treat the
+session count as a task count: it describes daemon attachments, not developer
+work items.
 
-Evidence enables:
+## Recorded local state
 
-- **Audit** — prove what was checked and when
-- **Compliance** — demonstrate validation occurred
-- **Debugging** — understand why something passed/failed
-- **Reproducibility** — re-run with same inputs
+anvil records only the state needed by the feature that owns it. Important
+examples include:
 
----
+| State                    | Purpose                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `.anvil/`                | Project configuration, architecture state, drift snapshots, suppressions, dashboards, and local caches.      |
+| `anvil/witness/`         | Git-tracked witness records used by the chain audit.                                                         |
+| User-level Anvil state   | Credentials, daemon state, graph cache, and local usage evidence under the platform config/data directories. |
+| Review capsule directory | An explicit, portable package created for a commit range.                                                    |
 
-**Next:** [Audit trail and trust model →](/anvil/concepts/audit-trail)
+There is no general-purpose `.anvil/sessions/` archive and no public session
+management database. Use the owning command instead of editing these files by
+hand.
+
+## Reviewing activity over time
+
+The shipped Rust CLI provides focused views instead of a generic session log:
+
+```bash
+anvil insights
+anvil insights --cumulative
+anvil drift list
+anvil audit-chain
+```
+
+- `insights` summarises retained local activity without sending telemetry;
+- `drift` snapshots show architecture change over time;
+- `audit-chain` checks commit-to-witness coverage;
+- review capsules package the evidence for a bounded commit range.
+
+For portable evidence and its verification model, continue to
+[Audit Trail](./audit-trail.md).

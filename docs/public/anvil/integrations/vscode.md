@@ -23,16 +23,16 @@ access. If you don't have the file, contact us at
 
 :::caution VS Code MCP install is not a v1 surface
 
-In `v0.6.0-beta`, `anvil mcp install` ships for **Cursor and Claude Code only**.
-VS Code MCP install, Windsurf MCP install, Copilot CLI, Codex CLI, and process
-auto-attach are not v1 surfaces. The VS Code extension below is independent of
-the MCP launch shim — it provides in-editor diagnostics by running the CLI, not
-through MCP. `anvil mcp-config` does **not** support a `vscode` target either
-(LAUNCH-009.5 removed the previous `vscode` and `windsurf` emitters); the
-`Target` enum is `claude-code | cursor` only. For VS Code with manual MCP
-wiring, hand-write the configuration in your VS Code MCP config file (VS Code
-1.99+ uses `.vscode/mcp.json` with the `servers` key) using the
-`command: "anvil"` + `args: ["mcp", "serve", "--stdio"]` shape from the
+The current Rust CLI supports automatic MCP install for **Cursor and Claude Code
+only**. VS Code MCP install, Windsurf MCP install, Copilot CLI, Codex CLI, and
+process auto-attach are not v1 surfaces. The VS Code extension below is
+independent of the MCP launch shim — it provides in-editor diagnostics by
+running the CLI, not through MCP. `anvil mcp-config` does **not** support a
+`vscode` target either (LAUNCH-009.5 removed the previous `vscode` and
+`windsurf` emitters); the `Target` enum is `claude-code | cursor` only. For VS
+Code with manual MCP wiring, hand-write the configuration in your VS Code MCP
+config file (VS Code 1.99+ uses `.vscode/mcp.json` with the `servers` key) using
+the `command: "anvil"` + `args: ["mcp", "serve", "--stdio"]` shape from the
 [MCP Integration](/anvil/integrations/mcp#manual-configuration) page.
 
 :::

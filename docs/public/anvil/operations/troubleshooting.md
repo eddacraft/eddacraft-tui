@@ -246,17 +246,19 @@ than silently skipping checks.
 - If you only need the legacy gate behaviour for now, run
   `anvil gate --profile ci` instead while you fix the AI config.
 
-### `anvil mcp-config --write` Prompts Before Overwriting
+### `anvil mcp-config --target <client> --write` Prompts Before Overwriting
 
-`anvil mcp-config --write` prompts before overwriting an existing client
-configuration. This is the path-safety layer; it is not a bug.
+`anvil mcp-config --target cursor --write` (or `--target claude-code`) prompts
+before overwriting an existing client configuration. This is the path-safety
+layer; it is not a bug.
 
 **Solutions:**
 
 - Review the diff against your existing config, then confirm the prompt to apply
   the atomic write.
-- In CI or non-interactive environments, run `anvil mcp-config --verify` instead
-  so the command exits non-zero on drift without trying to write.
+- In CI or non-interactive environments, run
+  `anvil mcp-config --target cursor --verify` (or the Claude Code target) so the
+  command exits non-zero on drift without trying to write.
 - Use `--workspace <path>` if the auto-detected workspace root is not the
   project you want recorded in the generated config.
 

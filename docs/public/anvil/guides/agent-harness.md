@@ -123,11 +123,14 @@ validation:
 
 The agent can then:
 
-- Validate proposed writes before applying them via `anvil_validate_write`
+- Validate complete proposed files with `anvil_validate_write` and unified diffs
+  with `anvil_apply_patch`
 - Use `anvil mcp-config` when you need editor-specific config generation or
   verification
-- Use the legacy Node.js MCP server only if you need the broader legacy tool and
-  resource surface today
+- Query the shipped Rust governance tools (`anvil_check`, `anvil_gate`,
+  `anvil_query_boundary`, `anvil_fix`, and `anvil_suppress`)
+- Read identity-only symbol, dependency, caller, impact, and affected-test
+  context from the resident graph
 
 When you run both patterns together (a background `anvil watch` plus the MCP
 server), daemon-backed save-time routing is used automatically when the resident
@@ -140,12 +143,12 @@ story, assurance states, and fallback behaviour.
 
 In an agent or headless harness, bring the daemon up explicitly with
 `anvil intercept start --foreground`, or start it beforehand with an interactive
-`anvil start` in a human terminal. The `v0.8.2-beta` auto-start in `anvil start`
-and the `anvil watch` offer are both deliberately suppressed in headless,
-`--json`, CI, hook, and piped contexts, so neither starts a daemon unattended —
-only an interactive (at-the-keyboard) run manages daemon lifecycle. Either way
-an unattended harness never blocks on a prompt and falls back deterministically
-to the scoped check until a daemon is running.
+`anvil start` in a human terminal. Automatic daemon start and the interactive
+`anvil watch` offer are both deliberately suppressed in headless, `--json`, CI,
+hook, and piped contexts, so neither starts a daemon unattended — only an
+interactive (at-the-keyboard) run manages daemon lifecycle. Either way an
+unattended harness never blocks on a prompt and falls back deterministically to
+the scoped check until a daemon is running.
 
 See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
 reference.
@@ -182,19 +185,19 @@ Track agent behaviour over time by reviewing validation results:
 
 Use `anvil --json check --all` to capture structured results for analysis.
 
-## Coming Soon
+## Use the Shipped Evidence Surfaces
 
-The following features are planned to make agent harnesses more powerful:
+For longer-running harnesses, keep task scope in your existing plan or issue
+system and use Anvil's focused evidence commands:
 
-- **Plan-first workflow** — guided APS creation and `anvil session start/end`
-  commands for structured agent task scoping
-- **`@eddacraft/anvil-client` SDK** — TypeScript client for programmatic session
-  management, constraint queries, and validation
-- **Evidence querying** — `anvil evidence list` for analysing agent behaviour
-  patterns over time
+- `anvil status --verify` for the current protection claim;
+- `anvil intercept status --json` for daemon sessions and fences;
+- `anvil insights --cumulative` for retained local activity signal;
+- `anvil audit-chain` for commit-to-witness coverage; and
+- `anvil capsule create` / `verify` for portable commit-range evidence.
 
-`anvil mcp serve --stdio` shipped in 0.5.0-beta — see
-[MCP Integration](/anvil/integrations/mcp) for the current tool surface.
+See [MCP Integration](/anvil/integrations/mcp) for the complete current Rust
+tool and resource catalogue.
 
 ---
 

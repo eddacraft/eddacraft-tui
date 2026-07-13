@@ -74,7 +74,7 @@ hints for a verdict.
 
 ## Daemon lifecycle
 
-As of `v0.8.1-beta`, daemon-backed protection is the normal path rather than an
+As of `v0.8.2-beta`, daemon-backed protection is the normal path rather than an
 operator-only foreground ceremony. `anvil start` and `anvil watch` manage the
 per-user daemon for you on Linux and macOS:
 

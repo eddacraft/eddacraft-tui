@@ -153,15 +153,17 @@ handle it manually. Remove or resolve the symlink, then rerun.
 ### Daemon did not stop
 
 If the daemon was not running or the PID file is stale, the daemon step exits
-cleanly with a `NotPresent` outcome. If the daemon is running but unresponsive,
-send SIGKILL directly:
+cleanly with a `NotPresent` outcome. If it is still reachable, stop it through
+the owning command:
 
 ```bash
-kill -9 "$(cat ~/.anvil/daemon.pid)"
+anvil intercept stop
 ```
 
-Then rerun `anvil uninstall --global --keep-daemon` to clean up the remaining
-state.
+If the process is unresponsive, follow the platform-specific daemon recovery in
+[Troubleshooting](./troubleshooting.md), then rerun
+`anvil uninstall --global --keep-daemon` to clean up the remaining state without
+repeating the stop step.
 
 ## Further reading
 

@@ -100,6 +100,8 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 - DOCSYNC-024: Full refresh of `docs/public/aps/` against `anvil-plan-spec` v0.4.0
 - DOCSYNC-025: Refresh Anvil public docs for current daemon and MCP surfaces
 - DOCSYNC-026: Cross-platform tutorial command examples
+- DOCSYNC-027: Audit all Anvil public docs against the current Rust CLI and
+  remove obsolete runtime and command guidance
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -117,9 +119,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |     9 |    6 |           0 |     3 |
+| Future                          |    10 |    7 |           1 |     2 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    20 |   15 |           0 |     5 |
+| **Total**                       |    21 |   16 |           1 |     4 |
 
 ### Item Detail
 
@@ -145,6 +147,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-024 | Done   | `docs/public/aps/**` aligned to `anvil-plan-spec` v0.4.0: terminology, CLI, file layout, examples. Follow-up accuracy pass clarified native-vs-bash CLI surface, `--plans` support, and terminal status semantics. |
 | DOCSYNC-025 | Done   | Anvil public docs refreshed for current daemon lifecycle, MCP targets, watch NDJSON lifecycle wording, and safer daemon reset guidance |
 | DOCSYNC-026 | Done   | Public tutorials and terminal tutorial policy-directory step now include macOS/Linux and Windows PowerShell/native-shell variants |
+| DOCSYNC-027 | Done   | README + `docs/public/anvil/**` + beta quickstart audited against `v0.9.0-beta`; obsolete runtime and roadmap guidance removed; 205 fenced command examples parse against the shipped Rust CLI; docs and site validation pass |
 
 ### Reassigned items (out of DOCSYNC totals)
 
