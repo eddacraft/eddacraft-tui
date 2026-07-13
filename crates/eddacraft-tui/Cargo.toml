@@ -77,3 +77,13 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+
+# Public pretext showcases (mirrored with the crate; run without extra features).
+[[example]]
+name = "pretext_demos"
+path = "examples/pretext_demos/main.rs"
+
+[[example]]
+name = "pretext_agent_dashboard"
+path = "examples/pretext_agent_dashboard.rs"
+
