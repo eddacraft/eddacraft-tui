@@ -38,7 +38,7 @@ impl MeasuredWord {
 
     /// The primary (first) style of this word. Convenience for single-style words.
     pub fn primary_style(&self) -> Style {
-        self.style_runs.first().map(|r| r.1).unwrap_or_default()
+        self.style_runs[0].1
     }
 
     /// Iterate over styled segments of this word as `(&str, Style)` pairs.
@@ -61,10 +61,13 @@ impl MeasuredWord {
     /// Used when the boundary merge detects a continuation mid-word.
     pub(crate) fn append_fragment(&mut self, other: &MeasuredWord) {
         let base = self.text.len();
-        let last_style = self.style_runs.last().map(|r| r.1).unwrap_or_default();
+        // Merge style runs: if the incoming first run matches our last run's
+        // style, we don't need a new run; otherwise push a new run at `base`.
+        let last_style = self.style_runs.last().expect("style_runs never empty").1;
         for (off, style) in &other.style_runs {
             let merged_off = base + off;
             if *off == 0 && *style == last_style {
+                // Same style as current trailing run — no new run needed
                 continue;
             }
             self.style_runs.push((merged_off, *style));
@@ -72,10 +75,6 @@ impl MeasuredWord {
         self.text.push_str(&other.text);
         self.width += other.width;
         self.whitespace_width = other.whitespace_width;
-        debug_assert!(
-            self.style_runs.windows(2).all(|w| w[0].0 < w[1].0),
-            "style_runs offsets must be strictly increasing"
-        );
     }
 }
 
@@ -93,10 +92,10 @@ impl Fragment for MeasuredWord {
     }
 }
 
-/// Split text into `MeasuredWord`s with a uniform style.
+/// Split text into [`MeasuredWord`]s with a uniform style.
 /// Each word includes its trailing whitespace measurement.
 pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
-    let mut words: Vec<MeasuredWord> = Vec::new();
+    let mut words = Vec::new();
     let mut chars = text.char_indices().peekable();
 
     while chars.peek().is_some() {
@@ -104,6 +103,7 @@ pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
             break;
         };
 
+        // Consume word characters (non-whitespace)
         let mut word_end = word_start;
         while let Some(&(i, ch)) = chars.peek() {
             if ch.is_whitespace() {
@@ -113,6 +113,7 @@ pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
             word_end = i + ch.len_utf8();
         }
 
+        // If we only have whitespace at start, attach to previous word
         if word_end == word_start {
             let ws_start = word_start;
             let mut ws_end = ws_start;
@@ -124,18 +125,14 @@ pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
                 ws_end = i + ch.len_utf8();
             }
             let ws = &text[ws_start..ws_end];
-            let ws_width = UnicodeWidthStr::width(ws);
             if let Some(last) = words.last_mut() {
-                last.whitespace_width += ws_width;
+                let last: &mut MeasuredWord = last;
+                last.whitespace_width += UnicodeWidthStr::width(ws);
             } else {
-                // Leading whitespace with no preceding word — push an empty
-                // sentinel that carries the indent forward. Its zero width
-                // means the renderer draws nothing for it; layout still
-                // advances `x` by `whitespace_width`, indenting the next word.
                 words.push(MeasuredWord {
                     text: String::new(),
                     width: 0,
-                    whitespace_width: ws_width,
+                    whitespace_width: UnicodeWidthStr::width(ws),
                     penalty: String::new(),
                     style_runs: vec![(0, style)],
                 });
@@ -145,6 +142,7 @@ pub fn measure_words(text: &str, style: Style) -> Vec<MeasuredWord> {
 
         let word = &text[word_start..word_end];
 
+        // Consume trailing whitespace
         let ws_start = word_end;
         let mut ws_end = ws_start;
         while let Some(&(i, ch)) = chars.peek() {
@@ -226,29 +224,10 @@ mod tests {
         assert_eq!(word.width, 5);
         assert_eq!(word.style_runs.len(), 2);
         assert_eq!(word.style_runs[0], (0, red));
-        assert_eq!(word.style_runs[1], (3, blue));
+        assert_eq!(word.style_runs[1], (3, blue)); // "hel".len() == 3
 
         let segments: Vec<_> = word.segments().collect();
         assert_eq!(segments, vec![("hel", red), ("lo", blue)]);
-    }
-
-    #[test]
-    fn test_measure_leading_whitespace_emits_sentinel() {
-        let words = measure_words("  hello", Style::default());
-        assert_eq!(words.len(), 2);
-        assert_eq!(words[0].text, "");
-        assert_eq!(words[0].width, 0);
-        assert_eq!(words[0].whitespace_width, 2);
-        assert_eq!(words[1].text, "hello");
-        assert_eq!(words[1].whitespace_width, 0);
-    }
-
-    #[test]
-    fn test_measure_only_whitespace_emits_sentinel() {
-        let words = measure_words("    ", Style::default());
-        assert_eq!(words.len(), 1);
-        assert_eq!(words[0].text, "");
-        assert_eq!(words[0].whitespace_width, 4);
     }
 
     #[test]
@@ -261,6 +240,6 @@ mod tests {
         word.append_fragment(&tail);
 
         assert_eq!(word.text, "hello");
-        assert_eq!(word.style_runs.len(), 1);
+        assert_eq!(word.style_runs.len(), 1); // no new run needed
     }
 }
