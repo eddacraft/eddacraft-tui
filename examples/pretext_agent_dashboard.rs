@@ -24,11 +24,11 @@
     clippy::unnested_or_patterns
 )]
 
+use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use crossterm::ExecutableCommand;
 use eddacraft_tui::pretext::ExclusionZone;
 use eddacraft_tui::widgets::pretext::{PretextState, PretextWidget};
 use ratatui::buffer::Buffer;

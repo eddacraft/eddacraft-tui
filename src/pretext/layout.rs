@@ -25,7 +25,7 @@ pub struct PositionedWord {
 impl PositionedWord {
     /// The primary (first) style of this word.
     pub fn primary_style(&self) -> Style {
-        self.style_runs[0].1
+        self.style_runs.first().map_or_else(Style::default, |r| r.1)
     }
 
     /// Iterate over styled segments of this word as `(&str, Style)` pairs.
