@@ -3,17 +3,18 @@ id: determinism
 title: Validation Rules
 description: How APS lint enforces structure, references, and consistency.
 sidebar_position: 3
+docgov:
+  type: 'Public docs'
+  authority: 'Derived'
+  owner: 'DOCSYNC'
+  status: 'Live'
+  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
+  upstream:
+    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
+  downstream: 'APS docs-site section'
 ---
 
 # Validation Rules
-
-| Type        | Authority | Owner   | Status | Freshness                                               |
-| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
-| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
-
-| Upstream                                                                  | Downstream            |
-| ------------------------------------------------------------------------- | --------------------- |
-| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 APS enforces consistent, machine-checkable plan structure through `aps lint` and
 `aps audit`. This page describes what the tooling validates and why.

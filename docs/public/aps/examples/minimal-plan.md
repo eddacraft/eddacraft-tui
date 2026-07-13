@@ -3,17 +3,18 @@ id: minimal-plan
 title: Minimal Plan
 description: The simplest possible APS plan.
 sidebar_position: 1
+docgov:
+  type: 'Public docs'
+  authority: 'Derived'
+  owner: 'DOCSYNC'
+  status: 'Live'
+  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
+  upstream:
+    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
+  downstream: 'APS docs-site section'
 ---
 
 # Minimal Plan
-
-| Type        | Authority | Owner   | Status | Freshness                                               |
-| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
-| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
-
-| Upstream                                                                  | Downstream            |
-| ------------------------------------------------------------------------- | --------------------- |
-| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 This example shows the smallest useful APS plan.
 

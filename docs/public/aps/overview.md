@@ -5,17 +5,18 @@ description:
   The Anvil Plan Specification — a portable, markdown-native format for
   deterministic development plans that work with any AI tool.
 sidebar_position: 1
+docgov:
+  type: 'Public docs'
+  authority: 'Derived'
+  owner: 'DOCSYNC'
+  status: 'Live'
+  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
+  upstream:
+    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
+  downstream: '`apps/docs-site`, `apps/docs-public` APS section'
 ---
 
 # Anvil Plan Specification (APS)
-
-| Type        | Authority | Owner   | Status | Freshness                                               |
-| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
-| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
-
-| Upstream                                                                  | Downstream                                       |
-| ------------------------------------------------------------------------- | ------------------------------------------------ |
-| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | `apps/docs-site`, `apps/docs-public` APS section |
 
 APS is an open-source, markdown-native specification for defining development
 plans that travel with your code and work with every AI tool you use — Claude

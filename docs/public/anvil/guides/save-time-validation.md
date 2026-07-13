@@ -6,17 +6,21 @@ description:
   states, workspace confinement, fallback behaviour, and the ANVIL_WATCH_DAEMON
   routing control.
 sidebar_position: 6
+docgov:
+  type: 'Public docs'
+  authority: 'Authoritative'
+  owner:
+    'UJ
+    ([`plans/archive/modules/user-journey.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/user-journey.aps.md))'
+  status: 'Live'
+  freshness: 'Last reviewed 2026-07-06 for DSV-051 headless driver closeout'
+  upstream:
+    '`anvil watch`, `anvil start`, the intercept daemon, `ANVIL_WATCH_DAEMON`'
+  downstream:
+    'Operators and beta testers running daemon-backed save-time validation'
 ---
 
 # Save-Time Validation
-
-| Type        | Authority     | Owner                                                                                                                                          | Status | Freshness                                                     |
-| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------- |
-| Public docs | Authoritative | UJ ([`plans/archive/modules/user-journey.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/user-journey.aps.md)) | Live   | Last reviewed 2026-07-06 for DSV-051 headless driver closeout |
-
-| Upstream                                                                 | Downstream                                                            |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `anvil watch`, `anvil start`, the intercept daemon, `ANVIL_WATCH_DAEMON` | Operators and beta testers running daemon-backed save-time validation |
 
 Save-time validation is anvil's daily-driver protection layer: every time you
 (or your AI agent) save a file, the change is validated within milliseconds.

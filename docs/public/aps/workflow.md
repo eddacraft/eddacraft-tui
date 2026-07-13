@@ -3,17 +3,18 @@ id: workflow
 title: Workflow
 description: The APS planning lifecycle — Plan, Execute, Validate, Learn.
 sidebar_position: 4
+docgov:
+  type: 'Public docs'
+  authority: 'Derived'
+  owner: 'DOCSYNC'
+  status: 'Live'
+  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
+  upstream:
+    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
+  downstream: 'APS docs-site section'
 ---
 
 # APS Workflow
-
-| Type        | Authority | Owner   | Status | Freshness                                               |
-| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
-| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
-
-| Upstream                                                                  | Downstream            |
-| ------------------------------------------------------------------------- | --------------------- |
-| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 APS follows compound engineering: each unit of work should make future work
 easier. The workflow has four phases that loop back to planning:

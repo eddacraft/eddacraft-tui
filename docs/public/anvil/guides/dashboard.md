@@ -5,17 +5,24 @@ description:
   Read-only TUI dashboards over your project's persisted anvil state —
   architecture health, drift snapshots, suppressions, and the gate summary.
 sidebar_position: 4
+docgov:
+  type: 'Public docs'
+  authority: 'Authoritative'
+  owner:
+    'TDASH
+    ([`plans/archive/modules/native-tui-dashboards.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/native-tui-dashboards.aps.md))'
+  status: 'Live'
+  freshness:
+    'Last reviewed 2026-06-08 against `main` for the v0.8.0-beta gate-summary
+    dashboard'
+  upstream:
+    '`anvil dashboard`, persisted `.anvil/` state (architecture, drift
+    snapshots, suppressions, `gates.json`)'
+  downstream:
+    'Operators and beta testers inspecting project health from the terminal'
 ---
 
 # Dashboards
-
-| Type        | Authority     | Owner                                                                                                                                                               | Status | Freshness                                                                          |
-| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
-| Public docs | Authoritative | TDASH ([`plans/archive/modules/native-tui-dashboards.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/native-tui-dashboards.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta gate-summary dashboard |
-
-| Upstream                                                                                                 | Downstream                                                             |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `anvil dashboard`, persisted `.anvil/` state (architecture, drift snapshots, suppressions, `gates.json`) | Operators and beta testers inspecting project health from the terminal |
 
 `anvil dashboard` opens native, read-only terminal dashboards over the state
 anvil has already persisted under `.anvil/`. Nothing is recomputed and nothing

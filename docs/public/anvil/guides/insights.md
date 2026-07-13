@@ -5,17 +5,25 @@ description:
   Surface anvil's accumulated signal — weekly activity, suppression health, and
   drift trend — from the command line, with JSON output for tooling.
 sidebar_position: 5
+docgov:
+  type: 'Public docs'
+  authority: 'Authoritative'
+  owner:
+    'INSIGHTS
+    ([`plans/archive/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/usage-insights.aps.md))'
+  status: 'Live'
+  freshness:
+    'Last reviewed 2026-07-13 against `v0.9.0-beta` (`--cumulative`, `--share`,
+    `kindling usage`)'
+  upstream:
+    '`anvil insights`, the witness chain, and `anvil drift` snapshots under
+    `.anvil/`'
+  downstream:
+    'Operators tracking value signal; `--json` consumers (CI, dashboards,
+    scripts)'
 ---
 
 # Insights
-
-| Type        | Authority     | Owner                                                                                                                                                    | Status | Freshness                                                                                    |
-| ----------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------- |
-| Public docs | Authoritative | INSIGHTS ([`plans/archive/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-07-13 against `v0.9.0-beta` (`--cumulative`, `--share`, `kindling usage`) |
-
-| Upstream                                                                         | Downstream                                                                    |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `anvil insights`, the witness chain, and `anvil drift` snapshots under `.anvil/` | Operators tracking value signal; `--json` consumers (CI, dashboards, scripts) |
 
 `anvil insights` summarises the signal anvil has already collected for your
 project. It has four project-health views: a default weekly activity summary

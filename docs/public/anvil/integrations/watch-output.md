@@ -4,17 +4,25 @@ title: Watch JSON Output
 description:
   Parse anvil --json watch as a versioned NDJSON stream from your own tools.
 sidebar_position: 4
+docgov:
+  type: 'Public docs'
+  authority: 'Authoritative'
+  owner:
+    'WOUT
+    ([`plans/archive/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/watch-output-contract.aps.md))'
+  status: 'Live'
+  freshness:
+    'Last reviewed 2026-06-25 against `main` for the v0.8.1-beta consumer
+    surface'
+  upstream:
+    '[`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md),
+    `anvil --json watch`'
+  downstream:
+    'Editor sidecars, CI shell pipelines, `jq` scripts, language-specific
+    consumer libraries'
 ---
 
 # Watch JSON Output
-
-| Type        | Authority     | Owner                                                                                                                                                              | Status | Freshness                                                                    |
-| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------- |
-| Public docs | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-06-25 against `main` for the v0.8.1-beta consumer surface |
-
-| Upstream                                                                                                                                            | Downstream                                                                              |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md), `anvil --json watch` | Editor sidecars, CI shell pipelines, `jq` scripts, language-specific consumer libraries |
 
 `anvil --json watch` emits a versioned newline-delimited JSON (NDJSON) stream on
 stdout. You can pipe it into `jq`, a shell loop, or a small reader process

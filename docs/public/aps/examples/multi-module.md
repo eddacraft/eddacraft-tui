@@ -3,17 +3,19 @@ id: multi-module
 title: Multi-Module Plan
 description: A realistic multi-module APS plan based on the user-auth example.
 sidebar_position: 2
+docgov:
+  type: 'Public docs'
+  authority: 'Derived'
+  owner: 'DOCSYNC'
+  status: 'Live'
+  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
+  upstream:
+    '[anvil-plan-spec
+    `examples/user-auth`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth)'
+  downstream: 'APS docs-site section'
 ---
 
 # Multi-Module Plan
-
-| Type        | Authority | Owner   | Status | Freshness                                               |
-| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
-| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
-
-| Upstream                                                                                                          | Downstream            |
-| ----------------------------------------------------------------------------------------------------------------- | --------------------- |
-| [anvil-plan-spec `examples/user-auth`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth) | APS docs-site section |
 
 A realistic example showing a multi-module APS structure for adding user
 authentication to an existing application. Based on the

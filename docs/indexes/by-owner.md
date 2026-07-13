@@ -148,26 +148,6 @@
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                   | `docs/guides/release-doc-checklist.md`         | Guide  | Advisory      | DOCGOV | Live   |
 | [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                                                 | `docs/architecture/oss-surface.md`             | Guide  | Derived       | DOCGOV | Live   |
 
-## DOCSYNC
-
-| Document                                                             | Path                                       | Type        | Authority | Owner   | Status |
-| -------------------------------------------------------------------- | ------------------------------------------ | ----------- | --------- | ------- | ------ |
-| [AI Agent Guide](../../docs/public/aps/guides/ai-agents.md)          | `docs/public/aps/guides/ai-agents.md`      | Public docs | Derived   | DOCSYNC | Live   |
-| [APS Taxonomy](../../docs/public/aps/spec/taxonomy.md)               | `docs/public/aps/spec/taxonomy.md`         | Public docs | Derived   | DOCSYNC | Live   |
-| [APS Terminology](../../docs/public/aps/terminology.md)              | `docs/public/aps/terminology.md`           | Public docs | Derived   | DOCSYNC | Live   |
-| [APS Workflow](../../docs/public/aps/workflow.md)                    | `docs/public/aps/workflow.md`              | Public docs | Derived   | DOCSYNC | Live   |
-| [APS in Monorepos](../../docs/public/aps/guides/monorepo.md)         | `docs/public/aps/guides/monorepo.md`       | Public docs | Derived   | DOCSYNC | Live   |
-| [Anvil Plan Specification (APS)](../../docs/public/aps/overview.md)  | `docs/public/aps/overview.md`              | Public docs | Derived   | DOCSYNC | Live   |
-| [CLI Reference](../../docs/public/aps/tooling/validation.md)         | `docs/public/aps/tooling/validation.md`    | Public docs | Derived   | DOCSYNC | Live   |
-| [Document Structure](../../docs/public/aps/schemas/json-schema.md)   | `docs/public/aps/schemas/json-schema.md`   | Public docs | Derived   | DOCSYNC | Live   |
-| [File Layout](../../docs/public/aps/spec/file-layout.md)             | `docs/public/aps/spec/file-layout.md`      | Public docs | Derived   | DOCSYNC | Live   |
-| [Getting Started with APS](../../docs/public/aps/getting-started.md) | `docs/public/aps/getting-started.md`       | Public docs | Derived   | DOCSYNC | Live   |
-| [Installation](../../docs/public/aps/installation.md)                | `docs/public/aps/installation.md`          | Public docs | Derived   | DOCSYNC | Live   |
-| [Minimal Plan](../../docs/public/aps/examples/minimal-plan.md)       | `docs/public/aps/examples/minimal-plan.md` | Public docs | Derived   | DOCSYNC | Live   |
-| [Multi-Module Plan](../../docs/public/aps/examples/multi-module.md)  | `docs/public/aps/examples/multi-module.md` | Public docs | Derived   | DOCSYNC | Live   |
-| [Schema Examples](../../docs/public/aps/schemas/examples.md)         | `docs/public/aps/schemas/examples.md`      | Public docs | Derived   | DOCSYNC | Live   |
-| [Validation Rules](../../docs/public/aps/spec/determinism.md)        | `docs/public/aps/spec/determinism.md`      | Public docs | Derived   | DOCSYNC | Live   |
-
 ## DRVR
 
 | Document                                                                                              | Path                                             | Type     | Authority | Owner | Status |
@@ -248,12 +228,6 @@
 | Document                                                                                     | Path                                             | Type  | Authority     | Owner   | Status |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- | ------------- | ------- | ------ |
 | [eddacraft Autonomy Constitution (v0)](../../docs/guides/eddacraft-autonomy-constitution.md) | `docs/guides/eddacraft-autonomy-constitution.md` | Guide | Authoritative | HARNESS | Draft  |
-
-## INSIGHTS (plans/archive/modules/usage-insights.aps.md)
-
-| Document                                               | Path                                   | Type        | Authority     | Owner                                                  | Status |
-| ------------------------------------------------------ | -------------------------------------- | ----------- | ------------- | ------------------------------------------------------ | ------ |
-| [Insights](../../docs/public/anvil/guides/insights.md) | `docs/public/anvil/guides/insights.md` | Public docs | Authoritative | INSIGHTS (plans/archive/modules/usage-insights.aps.md) | Live   |
 
 ## INTD
 
@@ -451,12 +425,6 @@
 | [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)        | `docs/strategy/borrow-adopt-candidates.md`   | Guide | Advisory  | STRATEGY | Live   |
 | [Competitor Tier 2 Tracking](../../docs/strategy/competitor-tier2-tracking.md)     | `docs/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
 
-## TDASH (plans/archive/modules/native-tui-dashboards.aps.md)
-
-| Document                                                  | Path                                    | Type        | Authority     | Owner                                                      | Status |
-| --------------------------------------------------------- | --------------------------------------- | ----------- | ------------- | ---------------------------------------------------------- | ------ |
-| [Dashboards](../../docs/public/anvil/guides/dashboard.md) | `docs/public/anvil/guides/dashboard.md` | Public docs | Authoritative | TDASH (plans/archive/modules/native-tui-dashboards.aps.md) | Live   |
-
 ## TEST
 
 | Document                                               | Path                     | Type  | Authority     | Owner | Status |
@@ -476,12 +444,6 @@
 | Document                                                                                           | Path                                    | Type  | Authority     | Owner                                                                       | Status |
 | -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | --------------------------------------------------------------------------- | ------ |
 | [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/archive/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
-
-## UJ (plans/archive/modules/user-journey.aps.md)
-
-| Document                                                                       | Path                                               | Type        | Authority     | Owner                                          | Status |
-| ------------------------------------------------------------------------------ | -------------------------------------------------- | ----------- | ------------- | ---------------------------------------------- | ------ |
-| [Save-Time Validation](../../docs/public/anvil/guides/save-time-validation.md) | `docs/public/anvil/guides/save-time-validation.md` | Public docs | Authoritative | UJ (plans/archive/modules/user-journey.aps.md) | Live   |
 
 ## USAGE
 
@@ -506,7 +468,6 @@
 
 ## WOUT (plans/archive/modules/watch-output-contract.aps.md)
 
-| Document                                                                                  | Path                                             | Type        | Authority     | Owner                                                     | Status |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------- | ------------- | --------------------------------------------------------- | ------ |
-| [Watch JSON Output](../../docs/public/anvil/integrations/watch-output.md)                 | `docs/public/anvil/integrations/watch-output.md` | Public docs | Authoritative | WOUT (plans/archive/modules/watch-output-contract.aps.md) | Live   |
-| [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md) | `docs/specs/watch-output-contract.md`            | Spec        | Authoritative | WOUT (plans/archive/modules/watch-output-contract.aps.md) | Live   |
+| Document                                                                                  | Path                                  | Type | Authority     | Owner                                                     | Status |
+| ----------------------------------------------------------------------------------------- | ------------------------------------- | ---- | ------------- | --------------------------------------------------------- | ------ |
+| [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md) | `docs/specs/watch-output-contract.md` | Spec | Authoritative | WOUT (plans/archive/modules/watch-output-contract.aps.md) | Live   |
