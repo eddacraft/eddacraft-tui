@@ -5,9 +5,12 @@
 
 | ID    | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLEET | —     | Medium   | Draft  |
+| FLEET | —     | High     | Draft  |
 
-**Last reviewed:** 2026-07-14
+**Last reviewed:** 2026-07-15 — OQ3 resolved by the operator (investor
+evidence is the trigger); consent-posture design gate drafted as
+[ADR-106](../decisions/106-fleet-telemetry-consent-posture.md) (Proposed,
+awaiting the operator's Accepted).
 
 > **Provenance:** Filed 2026-07-14 from an operator observability review.
 > Today Anvil ships **zero** remote telemetry by deliberate privacy posture:
@@ -70,8 +73,9 @@ inline `flag_set`; its remote half was never wired and lands here.
 
 **Depends on:**
 
-- A consent-posture ADR (the module's design gate; nothing ships before it
-  is Accepted).
+- [ADR-106](../decisions/106-fleet-telemetry-consent-posture.md) — the
+  module's design gate (Proposed 2026-07-15); nothing ships before it is
+  Accepted.
 - LAUNCH-013 `InstallMethod` detection
   (`crates/anvil-cli/src/commands/version.rs`).
 - CIB-197 (local envelope enrichment) — the beacon should reuse the same
@@ -99,22 +103,26 @@ inline `flag_set`; its remote half was never wired and lands here.
 
 ## Open Questions
 
-- **OQ1 (consent):** opt-in (weaker data, cleaner posture) vs
-  opt-out-with-first-run-disclosure (better coverage, needs a careful
-  first-run UX)? `DO_NOT_TRACK` is already honoured for local collection
-  and must remain a hard off.
-- **OQ2 (identity):** is the salted per-deployment principal hash reused,
-  or does fleet telemetry deliberately drop identity entirely and count
-  anonymously?
-- **OQ3 (trigger):** does the Draft→Ready flip wait on the same trigger as
-  EXPORT (first paying customer / production incident), or does beta
-  distribution itself justify it earlier?
+- **OQ1 (consent):** proposed answer in
+  [ADR-106](../decisions/106-fleet-telemetry-consent-posture.md) —
+  disclosed opt-out (notice strictly before the first beacon; `anvil
+  telemetry off` / `ANVIL_TELEMETRY=off` / `DO_NOT_TRACK=1` all hard
+  offs). Pending the operator's Accepted.
+- **OQ2 (identity):** proposed answer in ADR-106 — anonymous random
+  per-install UUID, rotatable via `anvil telemetry reset-id`; the salted
+  principal is deliberately NOT reused on the wire. Pending the
+  operator's Accepted.
+- **OQ3 (trigger):** **Resolved 2026-07-15 (operator):** fleet telemetry
+  is needed as evidence for investors — the Draft→Ready flip does NOT
+  wait on an EXPORT-style paying-customer/incident gate; it is gated only
+  on ADR-106 acceptance and the Ready checklist below.
 
 ## Ready Checklist
 
 Change status to **Ready** when:
 
-- [ ] Consent-posture ADR drafted and Accepted (design gate)
+- [ ] [ADR-106](../decisions/106-fleet-telemetry-consent-posture.md)
+      Accepted by the operator (design gate; drafted Proposed 2026-07-15)
 - [ ] Dimension allowlist enumerated and reviewed against the privacy
       contract
 - [ ] Ingest ownership confirmed (`apps/anvil-api` route + retention)
