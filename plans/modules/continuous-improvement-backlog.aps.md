@@ -5036,3 +5036,34 @@ archive.
 - **Coordinates with:** the `release` skill (`scripts/release/prepare.sh`),
   #3309 publication-recovery hardening (same release-mechanics intake wave).
 - **Confidence:** high
+
+### CIB-197: Stamp version and install method onto the command.invoked envelope
+
+- **Status:** Ready
+- **Intent:** Every usage observation should be self-describing about the
+  binary that produced it, so rows collected now stay analysable once any
+  export or fleet surface exists.
+- **Expected Outcome:** The `command.invoked` envelope
+  (`anvil_intercept::kindling_observation::CommandInvokedObservation`) carries
+  the producing binary's `version` and `install_method`. Version comes from
+  the crate version the binary was built as; install method reuses the
+  LAUNCH-013 `InstallMethod` detection already behind `anvil version`
+  (`crates/anvil-cli/src/commands/version.rs`) rather than a second detector.
+  Both fields are `serde(default)`-tolerant so existing daemon/sidecar rows
+  and the TS-side validator keep parsing, and the privacy contract at
+  `docs/observability/usage-analytics.md` documents them as low-risk
+  dimensions (no path, no PII). The `anvil kindling usage` views keep working
+  against mixed old/new rows.
+- **Non-scope:** No data leaves the machine — this enriches the existing
+  local Kindling pipe only. The consent posture, ingest endpoint, and any
+  remote emission belong to the fleet-telemetry module (FLEET).
+- **Validation:** `cargo test -p eddacraft-anvil` (full, unfiltered) plus
+  `rg -n "install_method" crates/anvil-intercept/src/kindling_observation.rs docs/observability/usage-analytics.md`
+  showing the field on the envelope and in the privacy contract.
+- **Identified From:** 2026-07-14 operator observability review — fleet
+  version/install-method visibility requested; local envelope enrichment
+  split out as the no-consent-needed half.
+- **Coordinates with:** [fleet-telemetry](./fleet-telemetry.aps.md) (FLEET —
+  the remote half), USAGE privacy contract, KDS daemon store (mixed-schema
+  rows in one SQLite store).
+- **Confidence:** high
