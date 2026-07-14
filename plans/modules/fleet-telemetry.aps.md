@@ -15,7 +15,7 @@
 > sinks, and EXPORT covers only a production sink for the *tracing* pipe.
 > The operator has no way to see what version anyone runs, how they installed
 > it, or which features are used in the field. This module owns the decision
-> and the machinery to change that — deliberately, consentfully, and within
+> and the machinery to change that — deliberately, with explicit user consent, and within
 > a tightly controlled dimension set.
 
 ## Purpose
