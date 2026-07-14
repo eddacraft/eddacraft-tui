@@ -948,7 +948,7 @@ binary is the command being executed.
 
 Your `.anvilrc` and `.anvil/` directory work without changes.
 
-For full details, see [The Switch to Rust](./rust-rewrite.md).
+For full details, see [The Native Rust CLI](./rust-rewrite.md).
 
 ### What's New
 
@@ -1040,4 +1040,4 @@ If you encounter upgrade issues:
 ---
 
 **See also:** [Changelog](/anvil/releases/changelog),
-[The Switch to Rust](/anvil/releases/rust-rewrite)
+[The Native Rust CLI](/anvil/releases/rust-rewrite)

@@ -1151,9 +1151,9 @@ breaking changes; the upgrade is drop-in for existing installs.
 - **Native Rust binary** — anvil is now distributed as a single static binary
   with no companion runtime. The previous package (`@eddacraft/anvil-cli`) is
   deprecated and will not receive further updates. See
-  [The Switch to Rust](./rust-rewrite.md) for background on the Rust cutover and
-  the small amount of path-cleanup guidance needed if you still have the old npm
-  CLI installed.
+  [The Native Rust CLI](./rust-rewrite.md) for background on the Rust cutover
+  and the small amount of path-cleanup guidance needed if you still have the old
+  npm CLI installed.
 - **Installation** — `curl -fsSL https://install.eddacraft.ai | sh` (macOS /
   Linux) or `irm https://install.eddacraft.ai/windows | iex` (Windows). Also
   available via Homebrew: `brew install eddacraft/tap/anvil`. Built-in
@@ -1331,7 +1331,7 @@ See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.
 ---
 
 **See also:** [Upgrade notes](/anvil/releases/upgrade-notes),
-[The Switch to Rust](/anvil/releases/rust-rewrite)
+[The Native Rust CLI](/anvil/releases/rust-rewrite)
 
 ## v0.7.3-beta
 

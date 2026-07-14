@@ -81,7 +81,11 @@ the process working directory:
 }
 ```
 
-The public Rust server is stdio-only. Do not configure an HTTP URL for it.
+The recommended editor integration is stdio: spawn `anvil mcp serve --stdio` as
+a child process. `anvil mcp-config` also accepts `--transport http` to emit a
+`url` entry pointing at a running daemon HTTP endpoint
+(`http://127.0.0.1:<port>/mcp`); use that only when you already run the daemon
+and want the editor to connect over HTTP rather than spawning a stdio server.
 
 ## Tool catalogue
 

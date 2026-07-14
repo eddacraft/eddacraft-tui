@@ -182,7 +182,13 @@ done
 ### A small long-running Rust reader
 
 This example uses `serde_json` to decode one NDJSON event per line and leaves
-stderr attached so diagnostics cannot fill an unread pipe.
+stderr attached so diagnostics cannot fill an unread pipe. Add the dependency to
+your consumer crate first:
+
+```toml
+[dependencies]
+serde_json = "1"
+```
 
 ```rust
 use std::io::{BufRead, BufReader};
