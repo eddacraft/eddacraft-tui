@@ -46,6 +46,7 @@ These define how Anvil behaves by default. All features must align.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
+| [106](106-agent-integration-registry-and-managed-installers.md) | One typed agent registry with independent skill/MCP capabilities, managed embedded skill installation, and evidence-constrained MCP adapters | Accepted |
 | [018](018-product-ip-architecture.md) | Free base tier, source-proprietary model; three foundational repos as OSS | Accepted |
 | [020](020-versioning-strategy.md) | Lockstep versioning for Anvil core; independent versioning for separate products, OSS, and peripherals | Accepted |
 | [025](025-package-manager-distribution.md) | Package manager distribution strategy across npm / crates.io / GitHub Releases | Accepted |

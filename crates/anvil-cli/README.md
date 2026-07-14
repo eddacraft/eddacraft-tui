@@ -24,10 +24,13 @@ covering TUI surfaces, governance gates, policy management, and authentication.
 
 ### 0.5.0-beta Surface Additions
 
-- **`anvil mcp-config`** — generates, verifies, and writes Claude Code, Cursor,
-  Windsurf, and VS Code MCP server configuration. Supports stdio and HTTP
-  transports, `--write` (with path-safety prompts and atomic writes), `--verify`
-  for CI drift checks, and `--workspace <path>` for workspace overrides.
+- **`anvil skill install`** — installs the embedded `anvil-developer-functions`
+  Agent Skill into detected or explicitly selected clients, globally by default
+  or at project scope, with managed provenance and drift-safe updates.
+- **`anvil mcp install` / `anvil mcp-config`** — install, preview, and verify
+  stdio configuration for the shared first-wave client registry. Claude Code and
+  Cursor retain the HTTP compatibility preview; constrained clients report their
+  supported scope rather than guessing a path.
 - **`anvil hooks install --config` / `anvil hooks uninstall --config`** — manage
   Git 2.54 native `hook.<event>.command` entries; file-mode hooks remain the
   default. `anvil hooks status` and `anvil doctor` detect config-mode hooks,

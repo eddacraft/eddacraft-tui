@@ -2,12 +2,11 @@
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| MCPX | —     | Proposed | 0/6      |
+| MCPX | —     | In Progress | 0/6      |
 
-**Last reviewed:** 2026-07-08 — candidate matrix added from operator-provided
-target research. Module remains Proposed until MCPX-001 verifies the cited docs,
-normalises target names, and captures fixture evidence. Claude Code and Cursor
-remain the only currently supported install clients.
+**Last reviewed:** 2026-07-14 — MCPX-001 verified current vendor contracts and
+the first implementation wave is now present across config generation,
+managed installation, activation, smoke coverage, and public documentation.
 
 ## Purpose
 
@@ -63,10 +62,11 @@ and compatibility smoke coverage for additional clients.
 
 Change status to **Ready** when:
 
-- [ ] First-wave target clients are selected from verified evidence, not assumption
-- [ ] Each first-wave client has a stable config path/format and restart model
-- [ ] RMCPF confirms the required transport for each target is available or kept
-- [ ] Work items MCPX-001..006 have enough implementation detail to execute
+- [x] First-wave target clients are selected from verified evidence, not assumption
+- [x] Each first-wave client has a stable config path/format and restart model,
+  or an explicit scope constraint
+- [x] RMCPF confirms the required stdio transport is available
+- [x] Work items MCPX-001..006 have enough implementation detail to execute
 
 ## Candidate Matrix
 
@@ -74,24 +74,50 @@ This matrix is planning input, not yet an implementation contract. MCPX-001 owns
 verifying the cited docs, capturing sample configs, and deciding exact target
 names for `McpClient` / `mcp-config`.
 
+### Selected first wave (MCPX-001, 2026-07-14)
+
+Retain `claude-code` and `cursor`, then add `codex`, `opencode`,
+`gemini-cli`, `antigravity`, `openclaw`, `vscode`, `copilot-cli`, `grok`,
+`warp`, and project-scoped `zed`. Every promoted target has a documented local
+stdio contract compatible with `anvil mcp serve --stdio`.
+
+Constraints:
+
+- VS Code global installation delegates to `code --add-mcp` so the active user
+  profile owns its path; workspace installation writes `.vscode/mcp.json`.
+- Zed automation is project-only (`.zed/settings.json`) until its conflicting
+  global path documentation is reconciled.
+- Gemini CLI and Antigravity are distinct clients despite sharing `.gemini`
+  state; detection must use their exact binary/config markers.
+- OpenClaw native subcommands are not invoked because released versions expose
+  different MCP command sets; direct config is the stable first-wave path.
+- Devin is deferred: official documentation exposes Marketplace/UI setup but no
+  supported local file or CLI mutation contract.
+- Strong detection means the client executable or exact config marker. Shared
+  `AGENTS.md`, `.agents/`, `.gemini/`, and `.mcp.json` markers never justify a
+  phantom client claim on their own.
+
 ### Tier 1 — First-class support candidates
 
 | Target | Type | MCP config location | Detection markers | Anvil support note |
 | ------ | ---- | ------------------- | ----------------- | ------------------ |
 | **Grok Build** | Agent CLI / coding harness | User `~/.grok/config.toml`; project `.grok/config.toml`; credentials `~/.grok/mcp_credentials.json` | `.grok/config.toml`, `.grok/`, `AGENTS.md`, `.mcp.json` | Treat as Tier 1 if docs/fixtures verify. Grok imports MCP config from Claude, Cursor, and `.mcp.json`, so it is valuable for detection and migration. |
-| **Devin CLI / Desktop / Cloud** | Agent CLI / desktop / cloud agent | Local `.devin/config.local.json`; project `.devin/config.json`; user `~/.config/devin/config.json` or `%APPDATA%\devin\config.json`; cloud Settings -> Connections -> MCP servers | `.devin/`, `.devin/config.json`, `.devin/config.local.json`, `AGENTS.md`, `AGENTS.local.md`, `AGENT.md`, `.windsurfrules`, `.windsurf/rules/`, `.cursor/rules/`, `.claude/`, `CLAUDE.md` | Replaces the earlier Windsurf row if verified. Treat Windsurf markers as Devin compatibility signals, not a standalone first-wave client by default. |
-| **Google Antigravity** | Agent-first IDE / CLI | Shared central config `~/.gemini/config/mcp_config.json` | User marker `~/.gemini/config/mcp_config.json`; repo marker weak, so only use project conventions such as `AGENTS.md` as weak signals | Treat as the Google default, not Gemini CLI. The `.gemini` path is a config detail and should not overclaim Gemini CLI support. |
+| **Devin CLI / Desktop / Cloud** | Agent CLI / desktop / cloud agent | Marketplace/UI only; no verified local mutation contract | Exact Devin installation only | Deferred from automation. Document manual Marketplace setup until Cognition publishes a supported local file or CLI API. |
+| **Gemini CLI** | Agent CLI / coding harness | User `~/.gemini/settings.json`; project `.gemini/settings.json` | `gemini` binary or exact settings file | First wave. Keep separate from Antigravity; both support stdio but use different config paths and reload flows. |
+| **Google Antigravity** | Agent-first IDE / CLI | User `~/.gemini/config/mcp_config.json`; workspace `.agents/mcp_config.json` | Antigravity binary/app or exact config file | First wave. A generic `.gemini/` or `.agents/` directory is not sufficient detection evidence. |
+| **OpenClaw** | Agent CLI / gateway | Resolve with `openclaw config file`; default `~/.openclaw/openclaw.json` | `openclaw` binary or exact active config | First wave through the stable direct-config shape; version-varying native mutation commands are not invoked. |
 | **OpenCode** | Open coding harness | Global `~/.config/opencode/opencode.json`; project `opencode.json`; MCP key `mcp` | `opencode.json`, `.opencode/`, `.opencode/agents/`, `.opencode/commands/`, `.opencode/skills/`, `.opencode/plugins/`, `.opencode/tools/` | Tier 1. Strong project-level markers make it a clean Anvil support target. |
 | **GitHub Copilot in VS Code** | IDE agent / enterprise default | Workspace `.vscode/mcp.json`; user profile MCP config via VS Code command palette; dev container `customizations.vscode.mcp` | `.vscode/mcp.json`, `.vscode/`, `.devcontainer/devcontainer.json` | Enterprise-priority candidate if docs/fixtures verify. Treat separately from Copilot CLI. |
 | **Claude Code** | Agent CLI / coding harness | User/local `~/.claude.json`; project `.mcp.json`; settings `.claude/settings.json`, `.claude/settings.local.json` | `.mcp.json`, `.claude/`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` | Already supported. Keep as Tier 1 and use as the shared-project MCP baseline. |
 | **Cursor** | AI IDE | Project `.cursor/mcp.json` | `.cursor/`, `.cursor/mcp.json`, `.cursor/rules/*.md`, `.cursor/rules/*.mdc` | Already supported. Keep as Tier 1 because support exists and the install base is large, even if strategic expansion now focuses on other harnesses. |
 | **OpenAI Codex** | Agent CLI / coding harness | User `~/.codex/config.toml`; project `.codex/config.toml`; MCP table `[mcp_servers.<id>]` | `.codex/`, `.codex/config.toml` | First-wave candidate if docs/fixtures verify; aligns with Anvil's `AGENTS.md` strategy. |
 | **Warp** | Agentic terminal / workflow host | UI Settings -> Agents -> MCP servers; project `.warp/.mcp.json`; cloud agents via `--mcp`, agent config, or shared MCP UUIDs | `.warp/`, `.warp/.mcp.json` | Support as a terminal harness, not just a terminal. Useful for command-driven Anvil operations. |
-| **Zed** | Editor / agent host | Zed settings / Agent Panel configuration; repo-scoped MCP file appears weaker than VS Code, Warp, or OpenCode | `.zed/` if present, but weak; prefer installed Zed plus agent-integration signals | Strategic editor-host candidate if MCPX-001 verifies a stable local config contract; may also be supported through adjacent harnesses such as Devin/OpenCode/Codex/Claude running inside or beside Zed. |
+| **Zed** | Editor / agent host | Project `.zed/settings.json`; global path deferred pending vendor-doc reconciliation | Exact project settings or verified Zed executable | First-wave project scope only. Do not guess a user-global path. |
 | **GitHub Copilot CLI** | Agent CLI / coding harness | User `${COPILOT_HOME:-~/.copilot}/mcp-config.json`; workspace `.mcp.json`, `.github/mcp.json`; session `--additional-mcp-config` | `.mcp.json`, `.github/mcp.json`; `.copilot/` is usually user-level; plugin markers `agents/`, `skills/`, `hooks.json`, `.github/plugin/marketplace.json` | Treat separately from VS Code Copilot. It has built-in MCPs, workspace loading, plugin packaging, and its own precedence model. |
 
 Tier-1 source links to verify in MCPX-001: [Grok Build][grok-mcp],
 [Devin][devin-mcp], [Google Antigravity][antigravity-mcp],
+[Gemini CLI][gemini-cli-mcp], [OpenClaw][openclaw-mcp],
 [OpenCode][opencode-config], [VS Code][vscode-mcp], [Claude Code][claude-mcp],
 [Codex][codex-config], [Warp][warp-mcp], [Zed][zed-mcp], and
 [GitHub Copilot CLI][copilot-cli-mcp].
@@ -110,7 +136,8 @@ and [Claude project MCP convention][anthropic-mcp].
 
 ### MCPX-001: Client evidence matrix
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-14 — current primary vendor documentation verified;
+  promoted targets and scope constraints are recorded above.
 - **Intent:** Decide which MCP-capable clients are supportable in the first expansion wave.
 - **Expected Outcome:** The candidate matrix above is verified against current
   vendor docs and local fixtures, target names are normalised, and each candidate
@@ -123,7 +150,8 @@ and [Claude project MCP convention][anthropic-mcp].
 
 ### MCPX-002: Extend `anvil mcp-config` targets
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-14 — every promoted target has a scope-aware output
+  adapter and verification coverage.
 - **Intent:** Generate correct MCP server configuration for each accepted first-wave client.
 - **Expected Outcome:** `anvil mcp-config --target <client>` supports the promoted
   client targets, emits valid config, and `--verify` reports missing/malformed
@@ -134,7 +162,9 @@ and [Claude project MCP convention][anthropic-mcp].
 
 ### MCPX-003: Extend `anvil mcp install --client`
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-14 — managed JSON/TOML adapters preserve unrelated
+  settings, write atomically, refuse foreign Anvil entries and unsafe
+  symlinks, and rewrite only Anvil-owned drift.
 - **Intent:** Make installation for accepted clients a one-command, idempotent operation.
 - **Expected Outcome:** `anvil mcp install --client <client>` resolves the client
   config location, writes the Anvil server entry safely, preserves unrelated user
@@ -145,7 +175,9 @@ and [Claude project MCP convention][anthropic-mcp].
 
 ### MCPX-004: Activation detection and install picker
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-14 — `anvil start` uses the shared registry, strong
+  detection, explicit client/scope controls, and consent-preserving TUI/plain
+  flows.
 - **Intent:** Teach `anvil start` to offer newly supported clients only when there is strong evidence they are installed or explicitly requested.
 - **Expected Outcome:** The activation install picker includes promoted clients
   with real detection signals, skips undetected clients by default, honours an
@@ -156,7 +188,9 @@ and [Claude project MCP convention][anthropic-mcp].
 
 ### MCPX-005: Client compatibility smoke coverage
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-14 — fixture-backed config tests cover every
+  promoted shape and the canonical stdio protocol smoke covers initialise,
+  tool listing, and a safe tool call through the shared server command.
 - **Intent:** Prove promoted clients can launch and communicate with `anvil mcp serve --stdio`.
 - **Expected Outcome:** Fixture-backed or client-harness smoke tests cover config
   generation, process launch shape, `initialize`, `tools/list`, and at least one
@@ -168,7 +202,9 @@ and [Claude project MCP convention][anthropic-mcp].
 
 ### MCPX-006: Docs and troubleshooting
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-14 — the public integration guide documents the
+  promoted matrix, scope constraints, install/verify commands, reload
+  guidance, and deferred Devin automation.
 - **Intent:** Document newly supported MCP clients without over-claiming clients that remain deferred.
 - **Expected Outcome:** Public docs list supported clients, install commands,
   verification commands, restart/reload guidance, known limitations, and deferred
@@ -186,15 +222,25 @@ and [Claude project MCP convention][anthropic-mcp].
    explicitly keeps another transport for that client.
 3. **No phantom installs** — activation follows ACTMO-012: fresh config writes
    require strong editor/client detection or an explicit operator opt-in.
+4. **One agent registry** — SKPKG and MCPX share detection identity and
+   capability metadata while keeping skill discovery and MCP support as
+   independent, evidence-backed flags.
+5. **Constrained support is explicit** — profile-owned or conflicting global
+   paths delegate to the vendor CLI or remain project-only; support output names
+   that constraint instead of guessing.
 
 ## Notes
 
-- Current supported install clients remain `cursor` and `claude-code`.
-- RMCPF already deferred Continue, VS Code, and Windsurf pending fresh evidence;
-  this module supersedes that loose parking lot with a broader target matrix.
-- Codex, Grok Build, Devin, Antigravity, OpenCode, Warp, Zed, Copilot CLI, and
-  Visual Studio support all depend on verified local config contracts and smoke
-  evidence.
+- The module remains `In Progress` and its stored `0/6` aggregate is unchanged
+  in this feature PR even though item statuses are authoritative. Per
+  `plans/project-context.md` and ADR-053, aggregate counters are reconciled by a
+  separate single-writer bookkeeping change after merge.
+- Claude Code and Cursor remain supported baselines. The first wave adds
+  Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot CLI,
+  Grok Build, Warp, and project-scoped Zed.
+- Devin and Visual Studio remain deferred because their verified automation
+  contracts do not meet this wave's local stdio configuration boundary.
+- Continue and Windsurf remain outside this wave pending fresh evidence.
 
 [anthropic-mcp]: https://docs.anthropic.com/en/docs/claude-code/mcp
 [antigravity-mcp]: https://codelabs.developers.google.com/developer-knowledge-mcp-antigravity
@@ -204,6 +250,8 @@ and [Claude project MCP convention][anthropic-mcp].
 [cursor-mcp]: https://cursor.com/docs/mcp
 [devin-mcp]: https://cli.devin.ai/docs/extensibility/mcp/overview
 [grok-mcp]: https://docs.x.ai/build/features/mcp-servers
+[gemini-cli-mcp]: https://geminicli.com/docs/tools/mcp-server/
+[openclaw-mcp]: https://docs.openclaw.ai/cli/mcp
 [opencode-config]: https://opencode.ai/docs/config/
 [visual-studio-mcp]: https://learn.microsoft.com/en-us/visualstudio/ide/mcp-servers?view=visualstudio
 [vscode-mcp]: https://code.visualstudio.com/docs/agent-customization/mcp-servers

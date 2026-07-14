@@ -5,7 +5,7 @@
 
 | ID    | Owner | Priority | Status  |
 | ----- | ----- | -------- | ------- |
-| SKPKG | —     | Medium   | Blocked |
+| SKPKG | —     | High     | In Progress |
 
 ## Purpose
 
@@ -15,11 +15,10 @@ added via PR [#3064](https://github.com/eddacraft/anvil-001/pull/3064)) —
 becomes a packageable, versioned artefact that customers can install and run
 across more than one agent harness, not just Claude Code.
 
-Today skills live as loose files under `.claude/skills/<name>/` with no
-packaging manifest, no version pin, no install/update path outside this repo,
-and no defined behaviour for harnesses whose skill/tool-definition format
-differs from Claude Code's (`SKILL.md` + frontmatter). This module produces
-the design before any implementation work is scoped.
+The approved beta embeds a pinned, proprietary-but-customer-readable skill
+snapshot in the Anvil binary and installs it through a managed, cross-agent
+CLI flow. This module owns that distribution design and its first shipped
+implementation.
 
 ## In Scope
 
@@ -46,8 +45,6 @@ the design before any implementation work is scoped.
 
 ## Out of Scope
 
-- Implementation of any packaging tooling (this module produces a design;
-  implementation is follow-on work items once the design is reviewed)
 - A general-purpose skill marketplace or registry (explicitly out of scope
   for SKOBS too; revisit only if this design calls for it)
 - Runtime governance/enforcement of installed skills (AGOV territory)
@@ -72,15 +69,8 @@ the design before any implementation work is scoped.
 
 ### SKPKG-001: Cross-agent skill packaging design
 
-- **Status:** Blocked — parked 2026-07-02 (owner: new work landing in the
-  `eddacraft-skills` catalogue repo changes the ground this design stands on;
-  see `## Notes`). Design doc drafted; self-review + a Copilot PR review on
-  #3072 found three defects (broken OQ-3/OQ-4 cross-reference; an overstated
-  `anvil mcp install` target-overlap claim; a wrong claim that `anvil mcp
-  install` defaults to writing into the customer's project — it defaults to
-  the user's home directory, `--workspace` is the override), all fixed in the
-  spec, plus two new Open Questions filed as SKPKG-006/007 as a result. Not
-  yet sent for owner sign-off.
+- **Status:** Done 2026-07-14 — live catalogue/code-env state re-verified and
+  owner approved the revised beta design.
 - **Intent:** Produce a design document that answers how
   `anvil-developer-functions` (and future customer-facing skills) get
   packaged, versioned, and distributed so they work across multiple agent
@@ -108,7 +98,8 @@ the design before any implementation work is scoped.
 
 ### SKPKG-002: Ratify the ADR-018 IP-boundary call for distributed skills
 
-- **Status:** Draft
+- **Status:** Done 2026-07-14 — ADR-018 now records the owner-approved beta
+  boundary and ADR-106 defines the managed distribution contract.
 - **Intent:** Get an owner (or Council/ADR) decision on whether customer-
   distributed skills as closed-product artefacts (embedded in the `anvil`
   binary, installed via `anvil skill install`, never via direct
@@ -126,7 +117,9 @@ the design before any implementation work is scoped.
 
 ### SKPKG-003: Decide the skill-update cadence trade-off
 
-- **Status:** Draft
+- **Status:** Done 2026-07-14 — beta skill updates follow the Anvil binary
+  release cadence; an independent channel is deferred until the skills become
+  OSS or evidence justifies a second trust surface.
 - **Intent:** Decide whether bundling skill content with `anvil` binary
   releases (default per the design) is acceptable, or whether skill content
   needs a faster-moving update channel independent of CLI release cadence.
@@ -139,7 +132,9 @@ the design before any implementation work is scoped.
 
 ### SKPKG-004: Reconcile target-harness sets between skill install and MCP install
 
-- **Status:** Draft
+- **Status:** Done 2026-07-14 — one typed agent registry owns detection and
+  capability metadata; skill discovery and MCP configuration remain separate
+  capabilities because their verified client sets differ.
 - **Intent:** Decide which harness targets a first-cut `anvil skill install`
   supports, given the catalogue declares 4 (`claude`, `opencode`, `openclaw`,
   `codex`) but `anvil mcp install`'s `McpClient` enum only has 2 (`cursor`,
@@ -154,7 +149,9 @@ the design before any implementation work is scoped.
 
 ### SKPKG-005: Land `SourceInfo.type: "anvil-bundled"` in the SKOBS manifest schema
 
-- **Status:** Draft
+- **Status:** Done 2026-07-14 — the shared SKOBS schema defines
+  `anvil-bundled`, including the provenance and drift semantics approved for
+  the managed installer.
 - **Intent:** Add a fourth `SourceInfo.type` value (naming TBD) to
   `plans/specs/skill-manifest-schema.md` so `/skill-inventory` can
   distinguish skills materialised by `anvil skill install` from
@@ -170,7 +167,9 @@ the design before any implementation work is scoped.
 
 ### SKPKG-006: Decide install scope — home directory vs project
 
-- **Status:** Draft
+- **Status:** Done 2026-07-14 — interactive setup offers both scopes and
+  defaults to user-global for the beta; scriptable callers can select
+  project-local installation explicitly.
 - **Intent:** Decide whether `anvil skill install` defaults to the user's
   home directory (mirroring `anvil mcp install`'s default) or defaults to
   project-scoped, given a skill file is more naturally something a team
@@ -186,7 +185,9 @@ the design before any implementation work is scoped.
 
 ### SKPKG-007: Decide the build-time content-embedding mechanism
 
-- **Status:** Draft
+- **Status:** Done 2026-07-14 — vendor the pinned portable snapshot under
+  `crates/anvil-cli/assets/skills/` and embed it with `include_str!`; builds
+  never fetch the private catalogue or depend on code-env.
 - **Intent:** Decide whether `anvil skill install`'s embedded content comes
   from a new build-time step that pulls `code-env`'s already-emitted
   per-harness output into the `anvil` build, or embeds the canonical
@@ -196,6 +197,25 @@ the design before any implementation work is scoped.
 - **Dependencies:** SKPKG-001
 - **Validation:** Decision recorded in `## Decisions`
 - **Confidence:** low
+
+### SKPKG-008: Ship the managed beta skill installer
+
+- **Status:** Done 2026-07-14 — the CLI embeds the pinned bundle and provides
+  detected/scripted client selection, global/project scope, verification,
+  provenance, idempotence, and managed-drift protection.
+- **Intent:** Make `anvil-developer-functions` customer-installable from the
+  shipped Anvil binary across verified Agent Skills harnesses.
+- **Expected Outcome:** `anvil skill install` detects installed harnesses,
+  supports interactive multi-select and scriptable client selection, offers
+  global/project scope with global default, installs the embedded snapshot
+  transactionally, records content provenance, no-ops when current, and
+  refuses unmanaged or user-modified drift.
+- **Files:** `crates/anvil-cli/assets/skills/`,
+  `crates/anvil-cli/src/commands/skill.rs`, shared agent registry and CLI tests
+- **Dependencies:** SKPKG-001..007, coordinates with MCPX-001..006
+- **Validation:** targeted skill-install tests, repeated-install/drift fixtures,
+  `cargo test -p eddacraft-anvil`, `pnpm docs:check`
+- **Confidence:** medium
 
 ## Risks & Mitigations
 
@@ -207,13 +227,22 @@ the design before any implementation work is scoped.
 
 ## Decisions
 
-_(none ratified yet — SKPKG-002/003/004 above are the pending decisions the
-design spec surfaced; this section fills in as each is resolved)_
+1. **Beta distribution:** skill content ships inside the proprietary Anvil
+   binary as a pinned, customer-readable snapshot; eventual OSS publication is
+   a later transition, not a beta prerequisite.
+2. **Update cadence:** the beta snapshot updates with Anvil releases.
+3. **Install scope:** interactive setup offers both and defaults to user-global.
+4. **Client model:** one typed agent registry records independent skill and MCP
+   capabilities; surfaces must not infer one from the other.
+5. **Safety:** managed provenance and content hashes gate updates; unmanaged or
+   user-modified destinations are never silently overwritten.
+6. **Embedding:** `include_str!` over vendored assets; no build-time network or
+   private-repository dependency.
 
 ## Designs
 
 - [Skill packaging & distribution across agent harnesses](../specs/2026-07-02-skill-packaging-distribution.md)
-  (Draft, 2026-07-02) — SKPKG-001. Finds that the packaging manifest
+  (Accepted, 2026-07-14) — SKPKG-001. Finds that the packaging manifest
   (`skill.meta.json`), the cross-agent catalogue, and the emission pipeline
   (`code-env`) already exist; the actual gap is a customer-reachable
   distribution channel. Proposes a new `anvil skill install --client <target>`
@@ -229,13 +258,8 @@ Spawned 2026-07-02 from the `anvil-developer-functions` skill upload (PR
 [#3064](https://github.com/eddacraft/anvil-001/pull/3064)) once the need to
 package it for customers, across agent harnesses, was raised.
 
-### Parked 2026-07-02
+### Resolved 2026-07-14
 
-Owner call: new work is landing in the `eddacraft-skills` catalogue repo
-that the design's "What already exists" section leans on (the manifest
-schema, the `code-env` emission pipeline, `install.sh`'s target detection).
-Continuing design work now risks grounding decisions in a snapshot of that
-repo that's about to change. Parked rather than continued or abandoned —
-resume by re-reading `eddacraft-skills` state fresh (don't trust this
-design's "What already exists" findings without re-verifying them) before
-picking SKPKG-001 back up.
+The owner approved shipping the beta skill inside Anvil. The catalogue and
+`code-env` were re-verified as design inputs, but neither is a build-time or
+customer-install dependency.

@@ -57,8 +57,10 @@ allowed vocabulary.
 ## Prerequisites
 
 - A current anvil install (see [Install](../quickstart.md#1-install)).
-- **Cursor** or **Claude Code** installed — one is enough. v1 ships MCP install
-  for Cursor and Claude Code only; nothing else is wired.
+- A supported MCP client installed. Cursor and Claude Code still receive the
+  full layered activation diagnostic; first-wave clients can be selected for
+  configuration during `anvil start` or installed directly with
+  `anvil mcp install`.
 - A real TypeScript, JavaScript, Python, or Rust project. SQL and Markdown get
   partial coverage; languages outside the supported or partial tiers land on
   `unsupported` honestly.
@@ -355,12 +357,13 @@ can't back:
 
 What `anvil start` does **not** do today:
 
-- **No Windsurf or VS Code MCP install.** v1 supports Cursor and Claude Code
-  only. The 2026-05-03 activation council banned the others until the
-  editor-config writers can be proven correct end-to-end (the existing VS Code
-  writer points at the wrong file under VS Code 1.99+; shipping it today would
-  claim success while doing nothing).
-- **No Copilot CLI / Codex CLI integration.** Out of scope for v1.
+- **No Windsurf or Devin automatic install.** Devin remains Marketplace/UI
+  managed, and Windsurf has no first-wave writer.
+- **VS Code global configuration uses the vendor CLI.** Project scope writes
+  `.vscode/mcp.json`; Anvil does not guess a global profile file.
+- **The full activation diagnostic remains Cursor/Claude-specific.** Other
+  first-wave clients receive safe configuration install and verification, not an
+  inflated claim that a live handshake was observed.
 - **No process auto-attach.** anvil does not "find the AI session running in
   this repo". It writes MCP entries; the editor decides when to attach.
 - **No rule-file injection.** `.cursorrules`, `.clauderules`, and global AI rule

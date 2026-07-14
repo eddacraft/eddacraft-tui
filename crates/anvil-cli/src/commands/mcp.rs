@@ -3,15 +3,17 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, bail};
-use clap::{Args, Subcommand, ValueEnum};
+use anyhow::{Context, Result, bail};
+use clap::{Args, Subcommand};
 use serde_json::{Value, json};
 
 use crate::GlobalArgs;
+use crate::activation::agent_registry::{AgentClientId, InstallScope};
 use crate::auth::credentials;
-use crate::commands::mcp_config::{self, Target};
+use crate::commands::{mcp_config, mcp_installer};
 use crate::feature_flags;
 use crate::mcp::tools::{registry, validate_write};
+use crate::output::AlreadyReported;
 
 const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
 const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` is authoritative — do not write, do not bypass via alternate tools (the response carries either a `diagnostics` array of findings or an `error` describing why the gate refused). `warn` means findings were detected but the workspace enforcement mode lets the write proceed — surface the diagnostics and continue. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing or backend offline); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
@@ -41,7 +43,11 @@ enum McpCommand {
 struct McpInstallArgs {
     /// Client to configure.
     #[arg(long, value_enum)]
-    client: McpClient,
+    client: AgentClientId,
+
+    /// Installation scope. Global is the beta default; project is explicit.
+    #[arg(long, value_enum, default_value_t = InstallScope::Global)]
+    scope: InstallScope,
 
     /// Verify the existing client config instead of writing it.
     #[arg(long)]
@@ -54,14 +60,10 @@ struct McpInstallArgs {
     /// Override the client config root. Defaults to the user's home directory.
     #[arg(long)]
     workspace: Option<PathBuf>,
-}
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum McpClient {
-    /// Cursor (`.cursor/mcp.json`).
-    Cursor,
-    /// Anthropic Claude Code (`.claude.json`).
-    ClaudeCode,
+    /// Preview the resolved path and entry without writing.
+    #[arg(long, conflicts_with = "verify")]
+    dry_run: bool,
 }
 
 #[derive(Debug, Args)]
@@ -86,11 +88,14 @@ pub fn auth_gate_name(args: &McpArgs) -> &'static str {
 }
 
 fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
+    if args.client == AgentClientId::VsCode && args.scope == InstallScope::Global {
+        return run_vscode_profile_install(args, global);
+    }
     let config_root = match &args.workspace {
         Some(path) => path.clone(),
-        None => mcp_config::default_client_config_root()?,
+        None if args.scope == InstallScope::Global => mcp_config::default_client_config_root()?,
+        None => std::env::current_dir()?,
     };
-    let target = args.client.target();
     if args
         .command
         .as_deref()
@@ -99,41 +104,38 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
         bail!("--command must not be empty");
     }
 
-    if args.verify {
-        let (path, entry) = mcp_config::verify_rust_stdio_target(
-            target,
-            &config_root,
-            args.command.as_deref(),
-            global,
-        )?;
-        if global.json {
-            println!(
+    let command = args.command.as_deref().map_or("anvil", str::trim);
+    let install = match mcp_installer::install(
+        args.client,
+        args.scope,
+        &config_root,
+        command,
+        args.verify,
+        args.dry_run,
+    ) {
+        Ok(report) => report,
+        Err(error) if global.json && args.verify => {
+            eprintln!(
                 "{}",
                 json!({
                     "client": args.client.label(),
-                    "path": path.display().to_string(),
-                    "entry": entry,
-                    "ok": true,
+                    "error": "malformed-entry",
+                    "message": error.to_string(),
+                    "expected": {
+                        "command": command,
+                        "args": ["mcp", "serve", "--stdio"],
+                        "type": "stdio",
+                        "typeRequired": matches!(
+                            args.client,
+                            AgentClientId::ClaudeCode | AgentClientId::CopilotCli
+                        ),
+                    },
                 })
             );
-        } else {
-            println!(
-                "Detected client: {} (config: {})",
-                args.client.label(),
-                path.display()
-            );
-            println!("Status: ok");
+            return Err(AlreadyReported.into());
         }
-        return Ok(());
-    }
-
-    let command = args.command.as_deref().unwrap_or("anvil");
-    let install = mcp_config::install_rust_stdio_target(
-        target,
-        &config_root,
-        args.command.as_deref(),
-        global,
-    )?;
+        Err(error) => return Err(error),
+    };
     if global.json {
         println!(
             "{}",
@@ -141,45 +143,91 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
                 "client": args.client.label(),
                 "path": install.path.display().to_string(),
                 "wrote": install.wrote,
+                "changed": install.changed,
                 "drifted": install.drifted,
+                "scope": args.scope.label(),
+                "dryRun": args.dry_run,
                 "command": command,
                 "args": ["mcp", "serve", "--stdio"],
+                "entry": install.entry,
+                "ok": true,
             })
         );
     } else {
         println!(
-            "Detected client: {} (config: {})",
+            "Client: {} ({} config: {})",
             args.client.label(),
+            args.scope.label(),
             install.path.display()
         );
         if install.drifted {
-            println!("Existing entry drifted; rewrote anvil MCP server entry.");
+            println!("Existing entry drifted; rewrote the anvil MCP server entry.");
         }
-        let status = if install.wrote {
+        let status = if args.verify {
+            "verified"
+        } else if args.dry_run && install.changed {
+            "would update"
+        } else if args.dry_run {
+            "already configured"
+        } else if install.wrote {
             "ok"
         } else {
             "already configured"
         };
         println!("Installing anvil MCP server entry ... {status}");
-        println!("Restart {} to pick up the new server.", args.client.label());
+        if !args.verify && !args.dry_run {
+            println!("{}", install.reload_hint);
+        }
     }
     Ok(())
 }
 
-impl McpClient {
-    fn target(self) -> Target {
-        match self {
-            McpClient::Cursor => Target::Cursor,
-            McpClient::ClaudeCode => Target::ClaudeCode,
+fn run_vscode_profile_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
+    let command = args.command.as_deref().map_or("anvil", str::trim);
+    if command.is_empty() {
+        bail!("--command must not be empty");
+    }
+    if args.verify {
+        bail!(
+            "VS Code global MCP configuration is profile-owned; verify the `anvil` server in VS Code's MCP UI, or use --scope project for file verification"
+        );
+    }
+    let payload = json!({
+        "name": "anvil",
+        "command": command,
+        "args": ["mcp", "serve", "--stdio"],
+    })
+    .to_string();
+    if !args.dry_run {
+        let status = std::process::Command::new("code")
+            .arg("--add-mcp")
+            .arg(&payload)
+            .status()
+            .context("running `code --add-mcp`; install the VS Code CLI or use --scope project")?;
+        if !status.success() {
+            bail!("`code --add-mcp` exited with {status}");
         }
     }
 
-    fn label(self) -> &'static str {
-        match self {
-            McpClient::Cursor => "cursor",
-            McpClient::ClaudeCode => "claude-code",
-        }
+    if global.json {
+        println!(
+            "{}",
+            json!({
+                "client": "vscode",
+                "scope": "global",
+                "delegatedTo": "code --add-mcp",
+                "dryRun": args.dry_run,
+                "payload": serde_json::from_str::<Value>(&payload)?,
+                "ok": true,
+            })
+        );
+    } else if args.dry_run {
+        println!("Would delegate VS Code profile installation to `code --add-mcp {payload}`");
+    } else {
+        println!("Delegated VS Code profile installation to `code --add-mcp`.");
+        println!("Trust and start the anvil server in VS Code's MCP UI.");
     }
+    Ok(())
 }
 
 fn run_serve(args: &McpServeArgs) -> Result<()> {

@@ -819,25 +819,27 @@ $ anvil licenses --json
 ## anvil mcp-config
 
 **Class:** Setup / Admin **Purpose:** Generate MCP server configuration for AI
-editors. **When to use:** To write or verify the MCP config entry for Cursor or
-Claude Code so the editor can connect to the Anvil daemon.
+clients. **When to use:** To preview, write, or verify the Anvil MCP entry for a
+specific supported client and scope, including compatibility scripts that still
+use this older command surface.
 
 Planned: `anvil mcp-config` will eventually consolidate into `anvil mcp config`
 (subsystem rename per the CLI surface coherence spec).
 
 **Synopsis:**
-`anvil mcp-config --target <editor> [--transport <t>] [--port <n>] [--write] [--verify] [--workspace <path>] [--yes]`
+`anvil mcp-config --target <client> [--scope <global|project>] [--transport <t>] [--port <n>] [--write] [--verify] [--workspace <path>] [--yes]`
 
 **Flags:**
 
 | Flag                 | Description                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------ |
-| `--target <editor>`  | Editor target: `cursor` or `claude-code`. Required.                                                    |
-| `--transport <t>`    | Transport: `stdio` (default) or `http`.                                                                |
+| `--target <client>`  | Registered client target. Use `anvil mcp-config --help` for the current values.                        |
+| `--scope <scope>`    | Resolve `global` (default) or `project` configuration. Zed is project-only.                            |
+| `--transport <t>`    | Transport: `stdio` (default), or legacy `http` for Claude Code and Cursor.                             |
 | `--port <n>`         | Port for `--transport http`. Default: `7616`.                                                          |
 | `--write`            | Write the generated config to the target's well-known path.                                            |
 | `--verify`           | Inspect the existing config entry without writing.                                                     |
-| `--workspace <path>` | Override the workspace root for resolving config paths.                                                |
+| `--workspace <path>` | Override the selected scope root for resolving config paths.                                           |
 | `--yes`              | Skip the "outside workspace root" confirmation (required for non-interactive writes to a custom path). |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
@@ -846,8 +848,8 @@ Planned: `anvil mcp-config` will eventually consolidate into `anvil mcp config`
 
 ```
 $ anvil mcp-config --target cursor
-$ anvil mcp-config --target claude-code --write
-$ anvil mcp-config --target cursor --verify
+$ anvil mcp-config --target codex --write
+$ anvil mcp-config --target zed --scope project --verify
 $ anvil mcp-config --target cursor --transport http --port 7616 --write
 ```
 
@@ -863,29 +865,75 @@ automatically. `install` is used to wire the MCP config for a supported client.
 
 **Subcommands:**
 
-| Subcommand                  | Description                                    |
-| --------------------------- | ---------------------------------------------- |
-| `install --client <client>` | Install Anvil MCP configuration for an editor. |
-| `serve --stdio`             | Start an MCP server over stdin/stdout.         |
+| Subcommand                  | Description                                   |
+| --------------------------- | --------------------------------------------- |
+| `install --client <client>` | Install Anvil MCP configuration for a client. |
+| `serve --stdio`             | Start an MCP server over stdin/stdout.        |
 
 **`install` flags:**
 
-| Flag                 | Description                                               |
-| -------------------- | --------------------------------------------------------- |
-| `--client <client>`  | Client to configure: `cursor` or `claude-code`. Required. |
-| `--verify`           | Verify the existing client config instead of writing it.  |
-| `--command <path>`   | Override the command path written into stdio configs.     |
-| `--workspace <path>` | Override the client config root.                          |
+| Flag                 | Description                                                                      |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `--client <client>`  | Registered client target. Use `anvil mcp install --help` for the current values. |
+| `--scope <scope>`    | Install globally (default) or into the project. Zed is project-only.             |
+| `--verify`           | Verify the existing client config instead of writing it.                         |
+| `--dry-run`          | Preview the resolved destination and entry without writing.                      |
+| `--command <path>`   | Override the command path written into stdio configs.                            |
+| `--workspace <path>` | Override the selected scope root.                                                |
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required for `install`)
 
 **Examples:**
 
 ```
-$ anvil mcp install --client cursor
-$ anvil mcp install --client claude-code --verify
+$ anvil mcp install --client codex
+$ anvil mcp install --client zed --scope project
+$ anvil mcp install --client copilot-cli --verify
 $ anvil mcp serve --stdio
 ```
+
+---
+
+## anvil skill
+
+**Class:** Setup / Admin **Purpose:** Install and verify the beta Anvil Agent
+Skill bundle. **When to use:** To make Anvil's developer-function guidance
+available to one or more detected agent harnesses without fetching the private
+skill catalogue.
+
+**Synopsis:**
+`anvil skill install [--client <client>]... [--scope <global|project>]`
+
+With an interactive terminal and no `--client`, Anvil detects supported
+harnesses and asks which ones to install into. Scope remains a choice and
+defaults to global. Non-interactive callers must select clients explicitly.
+
+**`install` flags:**
+
+| Flag                 | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `--client <client>`  | Client to install into. Repeat to select more than one. |
+| `--scope <scope>`    | Install globally (default) or into the current project. |
+| `--workspace <path>` | Override the selected scope root.                       |
+| `--verify`           | Verify the installed managed bundle without writing.    |
+| `--dry-run`          | Preview resolved destinations without writing.          |
+
+**Safety:** Anvil records per-file hashes and bundle provenance. Repeat
+installation is idempotent; unmanaged, modified, or symlinked destinations are
+refused rather than overwritten.
+
+**Exit codes:** 0 (success), 1 (error), 3 (auth required)
+
+**Examples:**
+
+```
+$ anvil skill install --client codex
+$ anvil skill install --client claude-code --client opencode --scope project
+$ anvil skill install --client codex --verify
+```
+
+See
+[`docs/public/anvil/integrations/skills.md`](../public/anvil/integrations/skills.md).
 
 ---
 

@@ -9,9 +9,10 @@
 //! activation flow that ends in one literal `ProtectionState`. `anvil
 //! welcome` is unchanged and remains the documented menu surface.
 //!
-//! `anvil start` writes MCP config entries for Cursor and Claude Code to
-//! the user's home directory (`~/.cursor/mcp.json`, `~/.claude.json`).
-//! Pass `--verify` to skip writes and run a read-only probe instead.
+//! `anvil start` retains full activation diagnostics for Cursor and Claude Code
+//! and can install strongly detected or explicitly selected first-wave clients
+//! through the ADR-106 registry. Pass `--verify` to skip writes and run a
+//! read-only probe instead.
 //!
 //! ## Watch fallback (LAUNCH-011)
 //!
@@ -60,9 +61,12 @@ use clap::Args;
 
 use crate::GlobalArgs;
 use crate::activation;
+use crate::activation::agent_registry::{AgentClientId, InstallScope};
+use crate::activation::detect_agents::RealDetectionEnv;
 use crate::activation::orchestrator::{
     ActivationStep, ActivationStepEvent, ActivationStepLifecycle, InstallOutcome, StartRenderMode,
 };
+use crate::commands::mcp_installer;
 use crate::commands::watch as watch_cmd;
 use crate::config_summary::render_rule_mode_summary;
 use crate::warmup_cache::write_watch_warmup_cache;
@@ -130,17 +134,25 @@ pub struct StartArgs {
     /// leaving it unset or empty keeps MCP install on.
     #[arg(long = "no-mcp")]
     pub no_mcp: bool,
-    /// Wire the anvil MCP entry for every supported editor client (Cursor
-    /// and Claude Code), even ones not detected on this host. By default
+    /// Wire the anvil MCP entry for every supported client, even ones not
+    /// detected on this host. By default
     /// `anvil start` only writes an MCP config for editors it actually
     /// detects (binary on PATH or pre-existing editor state), so it never
-    /// creates `~/.cursor/mcp.json` for an editor you do not use. Use this
-    /// to pre-wire both editors anyway. Equivalent to setting
+    /// creates config for a client you do not use. Use this to pre-wire all
+    /// clients supported at the selected scope. Equivalent to setting
     /// `ANVIL_ALL_MCP_CLIENTS` to any non-empty value (presence-based,
     /// like `--no-mcp`). Existing anvil entries are always managed
     /// regardless of this flag.
     #[arg(long = "all-mcp-clients")]
     pub all_mcp_clients: bool,
+    /// Explicitly configure one or more first-wave MCP clients. Repeat the
+    /// option to select multiple clients.
+    #[arg(long = "mcp-client", value_enum)]
+    pub mcp_client: Vec<AgentClientId>,
+    /// Scope for first-wave clients selected with --mcp-client. Global is the
+    /// default; project scope uses each client's documented repository path.
+    #[arg(long = "mcp-scope", value_enum, default_value_t = InstallScope::Global)]
+    pub mcp_scope: InstallScope,
 }
 
 /// MLP2-039 — the format set chosen at adoption time. Maps onto
@@ -310,6 +322,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
 
     let mcp_policy = mcp_install_policy(args);
+    let force_all_mcp_clients = force_all_mcp_clients(args);
     let mut activation_run = None;
     let (mut diagnostic, mut install_report) = if read_only {
         (
@@ -322,8 +335,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let outcome = activation::orchestrator::run_with_mcp_policy_and_mode(
             root,
             global,
-            mcp_policy,
-            args.all_mcp_clients,
+            legacy_mcp_install_policy(args),
+            force_all_mcp_clients,
+            &args.mcp_client,
             render_mode,
             args.new_identity,
         )?;
@@ -347,6 +361,19 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         root,
         read_only || project_writes_gated || matches!(render_mode, StartRenderMode::Tui),
     );
+    if !read_only && !start_mcp_opt_out(args) {
+        let first_wave_lines = install_first_wave_mcp_clients(args, render_mode)?;
+        for line in &first_wave_lines {
+            eprintln!("{line}");
+        }
+        reconcile_plain_mcp_diagnostic(
+            root,
+            render_mode,
+            args.mcp_scope,
+            !first_wave_lines.is_empty(),
+            &mut diagnostic,
+        );
+    }
 
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
     // diagnostic's `WatchTier::Offered` gate (config valid + no
@@ -428,10 +455,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             let consent_plan = activation::orchestrator::build_tui_consent_plan(
                 root,
                 mcp_policy,
-                args.all_mcp_clients,
                 project_writes_gated,
                 args.format.map(StartFormat::config_format),
                 args.new_identity,
+                activation::orchestrator::RegistryMcpSelection {
+                    force_all: force_all_mcp_clients,
+                    scope: args.mcp_scope,
+                    explicit_clients: &args.mcp_client,
+                },
             );
             let mut progress_steps = Vec::new();
             if let Some(run) = &activation_run {
@@ -484,6 +515,12 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         "anvil: installed GitHub Actions workflow {}",
                         path.strip_prefix(root).unwrap_or(path).display(),
                     );
+                }
+                for line in &applied.first_wave_mcp_lines {
+                    eprintln!("anvil: {line}");
+                }
+                for error in &applied.first_wave_mcp_errors {
+                    eprintln!("anvil: {error}");
                 }
                 if let Some(error) = &applied.workflow_error {
                     tracing::warn!(
@@ -802,6 +839,9 @@ fn ensure_tui_load_bearing_actions_succeeded(
 ) -> anyhow::Result<()> {
     if let Some(error) = applied.project_errors.get(&ActivationStep::InitConfig) {
         anyhow::bail!("init step of `anvil start` failed: {error}");
+    }
+    if let Some(error) = applied.first_wave_mcp_errors.first() {
+        anyhow::bail!("{error}");
     }
     Ok(())
 }
@@ -1931,6 +1971,130 @@ fn mcp_install_policy(args: &StartArgs) -> activation::orchestrator::McpInstallP
     } else {
         activation::orchestrator::McpInstallPolicy::Install
     }
+}
+
+/// The pre-registry Claude/Cursor installer always chooses an existing config
+/// or its global fallback. Project-scoped activation therefore routes every
+/// client through the shared scope-aware installer instead.
+fn legacy_mcp_install_policy(args: &StartArgs) -> activation::orchestrator::McpInstallPolicy {
+    if args.mcp_scope == InstallScope::Project {
+        activation::orchestrator::McpInstallPolicy::Skip
+    } else {
+        mcp_install_policy(args)
+    }
+}
+
+fn reconcile_plain_mcp_diagnostic(
+    root: &Path,
+    render_mode: StartRenderMode,
+    scope: InstallScope,
+    install_attempted: bool,
+    diagnostic: &mut activation::ActivationDiagnostic,
+) {
+    if matches!(render_mode, StartRenderMode::Plain)
+        && scope == InstallScope::Project
+        && install_attempted
+    {
+        *diagnostic = activation::verify(root);
+    }
+}
+
+fn install_first_wave_mcp_clients(
+    args: &StartArgs,
+    render_mode: StartRenderMode,
+) -> anyhow::Result<Vec<String>> {
+    let home = crate::util::user_home_dir();
+    let project = std::env::current_dir().context("resolving project directory")?;
+    let command = std::env::current_exe().context("resolving anvil executable")?;
+    install_first_wave_mcp_clients_at(args, render_mode, home.as_deref(), &project, &command)
+}
+
+fn install_first_wave_mcp_clients_at(
+    args: &StartArgs,
+    render_mode: StartRenderMode,
+    home: Option<&Path>,
+    project: &Path,
+    command: &Path,
+) -> anyhow::Result<Vec<String>> {
+    if matches!(render_mode, StartRenderMode::Tui) {
+        return Ok(Vec::new());
+    }
+    let explicit = !args.mcp_client.is_empty();
+    let force_all = force_all_mcp_clients(args);
+    let env = RealDetectionEnv;
+    let clients = if explicit {
+        args.mcp_client.clone()
+    } else if force_all {
+        AgentClientId::all()
+            .iter()
+            .filter(|entry| entry.supports_mcp(args.mcp_scope))
+            .map(|entry| entry.id)
+            .collect()
+    } else {
+        AgentClientId::all()
+            .iter()
+            .filter(|entry| {
+                entry.supports_mcp(args.mcp_scope)
+                    && entry.detected_for_mcp(&env, args.mcp_scope, project)
+                    && !(args.mcp_scope == InstallScope::Global
+                        && matches!(entry.id, AgentClientId::ClaudeCode | AgentClientId::Cursor))
+            })
+            .map(|entry| entry.id)
+            .collect()
+    };
+
+    if clients.is_empty() {
+        return Ok(Vec::new());
+    }
+    let root = match args.mcp_scope {
+        InstallScope::Global => home.context("could not determine home directory")?,
+        InstallScope::Project => project,
+    };
+    let command = command
+        .to_str()
+        .context("anvil executable path is not valid UTF-8")?;
+    let mut lines = Vec::new();
+    for client in clients {
+        if args.mcp_scope == InstallScope::Global
+            && matches!(client, AgentClientId::ClaudeCode | AgentClientId::Cursor)
+        {
+            continue;
+        }
+        if !client.entry().supports_mcp(args.mcp_scope) {
+            if explicit {
+                bail!(
+                    "{} does not support {}-scope MCP installation",
+                    client.entry().display_name,
+                    args.mcp_scope.label()
+                );
+            }
+            continue;
+        }
+        match mcp_installer::install(client, args.mcp_scope, root, command, false, false) {
+            Ok(report) => lines.push(format!(
+                "anvil: {} MCP config {} at {}; restart guidance: {}",
+                client.entry().display_name,
+                if report.wrote {
+                    "installed"
+                } else {
+                    "already configured"
+                },
+                report.path.display(),
+                report.reload_hint
+            )),
+            Err(error) if !explicit => lines.push(format!(
+                "anvil: skipped {} MCP config: {error:#}",
+                client.entry().display_name
+            )),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(lines)
+}
+
+fn force_all_mcp_clients(args: &StartArgs) -> bool {
+    args.all_mcp_clients
+        || std::env::var_os("ANVIL_ALL_MCP_CLIENTS").is_some_and(|value| !value.is_empty())
 }
 
 /// Whether `anvil start` has an interactive consent surface for
@@ -4279,7 +4443,84 @@ mod tests {
             no_daemon: false,
             no_mcp: false,
             all_mcp_clients: false,
+            mcp_client: Vec::new(),
+            mcp_scope: InstallScope::Global,
         }
+    }
+
+    #[test]
+    fn tui_mode_never_runs_the_supplemental_plain_mcp_installer() {
+        let mut args = start_args_default();
+        args.all_mcp_clients = true;
+        args.mcp_client = vec![AgentClientId::Codex];
+
+        let lines = install_first_wave_mcp_clients(&args, StartRenderMode::Tui).unwrap();
+
+        assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn plain_project_scope_installs_legacy_clients_only_under_project_root() {
+        let project = tempfile::TempDir::new().unwrap();
+        let home = tempfile::TempDir::new().unwrap();
+        std::fs::write(project.path().join(".anvilrc"), r#"{"checks":[]}"#).unwrap();
+        let mut diagnostic =
+            activation::diagnostic::verify_with_home(project.path(), Some(home.path()));
+        assert_eq!(
+            diagnostic.protection_state(),
+            activation::state::ProtectionState::NeedsAction,
+        );
+        let mut args = start_args_default();
+        args.mcp_scope = InstallScope::Project;
+        args.mcp_client = vec![AgentClientId::ClaudeCode, AgentClientId::Cursor];
+
+        let command = std::env::current_exe().unwrap();
+        let lines = install_first_wave_mcp_clients_at(
+            &args,
+            StartRenderMode::Plain,
+            Some(home.path()),
+            project.path(),
+            &command,
+        )
+        .unwrap();
+
+        assert_eq!(lines.len(), 2);
+        assert!(project.path().join(".mcp.json").exists());
+        assert!(project.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+
+        reconcile_plain_mcp_diagnostic(
+            project.path(),
+            StartRenderMode::Plain,
+            InstallScope::Project,
+            !lines.is_empty(),
+            &mut diagnostic,
+        );
+        assert_eq!(
+            diagnostic.protection_state(),
+            activation::state::ProtectionState::ReadyRestartRequired,
+        );
+    }
+
+    #[test]
+    fn global_first_wave_reconciliation_preserves_a_legacy_install_error() {
+        let project = tempfile::TempDir::new().unwrap();
+        let mut diagnostic = activation::verify(project.path());
+        diagnostic.last_error = Some("legacy MCP install failed".to_string());
+
+        reconcile_plain_mcp_diagnostic(
+            project.path(),
+            StartRenderMode::Plain,
+            InstallScope::Global,
+            true,
+            &mut diagnostic,
+        );
+
+        assert_eq!(
+            diagnostic.last_error.as_deref(),
+            Some("legacy MCP install failed")
+        );
     }
 
     /// `--verify` and `--json` are read-only probes: they must never
@@ -4371,6 +4612,31 @@ mod tests {
             mcp_install_policy(&opted_out),
             activation::orchestrator::McpInstallPolicy::Skip,
         );
+    }
+
+    #[test]
+    fn project_scope_disables_the_global_fallback_legacy_installer() {
+        let args = StartArgs {
+            mcp_scope: InstallScope::Project,
+            ..start_args_default()
+        };
+
+        assert_eq!(
+            legacy_mcp_install_policy(&args),
+            activation::orchestrator::McpInstallPolicy::Skip,
+        );
+        assert_eq!(
+            mcp_install_policy(&args),
+            activation::orchestrator::McpInstallPolicy::Install,
+        );
+    }
+
+    #[test]
+    fn environment_all_clients_opt_in_matches_the_flag() {
+        let args = start_args_default();
+        temp_env::with_var("ANVIL_ALL_MCP_CLIENTS", Some("1"), || {
+            assert!(force_all_mcp_clients(&args));
+        });
     }
 
     /// Daemon absent → started. The line reports the action and never

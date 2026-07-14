@@ -15,10 +15,10 @@ Rust follow the same activation path; only the example tree below is TypeScript.
 
 If you just want the install-to-protection flow, run `anvil start` from the
 project root — it handles `anvil init`, MCP wiring for the MCP-capable editors
-it supports today (currently Cursor and Claude Code), and ends in one literal
-protection state. See the [Quickstart](/anvil/quickstart) for that path. This
-guide goes deeper into defining and enforcing architecture boundaries on top of
-that foundation.
+it strongly detects, keeps the full activation evidence path for Cursor and
+Claude Code, and ends in one literal protection state. See the
+[Quickstart](/anvil/quickstart) for that path. This guide goes deeper into
+defining and enforcing architecture boundaries on top of that foundation.
 
 :::
 

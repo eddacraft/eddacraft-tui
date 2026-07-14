@@ -1,21 +1,8 @@
 //! `anvil mcp-config` — generate MCP server configuration for AI editors.
 //!
-//! RCLI3-016 / LAUNCH-009.5. Produces editor-specific JSON for `claude-code`
-//! and `cursor` so the RTAI launch demo runbook
-//! (`plans/specs/2026-04-26-rtai-demo-runbook.md`) has a one-command install
-//! step before each editor can consume the daemon.
-//!
-//! ## Removed in LAUNCH-009.5: `windsurf` and `vscode`
-//!
-//! - **Windsurf** was banned in the 2026-05-03 activation council and never
-//!   reached protocol-compliance verification in the repo.
-//! - **`vscode`** wrote to the wrong file shape (`.vscode/settings.json` with
-//!   the `mcp.servers` key); VS Code 1.99+ moved MCP to `.vscode/mcp.json`
-//!   with the `servers` key. The old emitter was a no-op for current VS Code
-//!   builds, which over-claimed coverage. Re-add via a fresh, verified impl.
-//!
-//! Both removals close the LAUNCH-009 v1-scope cleanup the original task
-//! body deferred to part-2 because the diff was already large.
+//! RCLI3-016 / MCPX compatibility surface. Produces scope-aware configuration
+//! for clients in the shared agent registry. Stdio uses the managed first-wave
+//! adapters; legacy HTTP remains limited to Claude Code and Cursor.
 
 use std::fs;
 use std::io::{BufRead, IsTerminal, Write};
@@ -26,6 +13,8 @@ use clap::{Args, ValueEnum};
 use serde_json::{Map, Value, json};
 
 use crate::GlobalArgs;
+use crate::activation::agent_registry::{AgentClientId, InstallScope};
+use crate::commands::mcp_installer;
 use crate::output::AlreadyReported;
 use crate::util::atomic_write;
 
@@ -41,7 +30,11 @@ const SERVER_NAME: &str = "anvil";
 pub struct McpConfigArgs {
     /// Editor / agent target whose config format we emit.
     #[arg(long, value_enum)]
-    target: Target,
+    target: AgentClientId,
+
+    /// Resolve a global (default) or project-local target path.
+    #[arg(long, value_enum, default_value_t = InstallScope::Global)]
+    scope: InstallScope,
 
     /// Transport to advertise. `stdio` spawns the daemon as a child process;
     /// `http` points the editor at a running daemon's HTTP endpoint.
@@ -63,9 +56,9 @@ pub struct McpConfigArgs {
     #[arg(long, conflicts_with = "write")]
     verify: bool,
 
-    /// Override the workspace root used to resolve target-local config
-    /// paths (`.claude.json`, `.cursor/mcp.json`). Defaults to the current
-    /// working directory.
+    /// Override the selected scope root used to resolve the client config.
+    /// Global scope defaults to the user home; project scope defaults to the
+    /// current working directory.
     #[arg(long)]
     workspace: Option<PathBuf>,
 
@@ -98,38 +91,55 @@ pub enum Transport {
 pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
     let workspace = match &args.workspace {
         Some(p) => p.clone(),
+        None if args.scope == InstallScope::Global => default_client_config_root()?,
         None => std::env::current_dir().context("resolving current directory")?,
     };
     let command_override = validate_command_override(args.command.as_deref())?;
+
+    if args.transport == Transport::Stdio {
+        return run_registry_stdio(
+            args,
+            global,
+            &workspace,
+            command_override.unwrap_or("anvil"),
+        );
+    }
+
+    let target = legacy_target(args.target).with_context(|| {
+        format!(
+            "{} supports stdio configuration only; --transport http remains limited to claude-code and cursor",
+            args.target.label()
+        )
+    })?;
 
     if args.verify {
         return run_verify(args, global, &workspace);
     }
 
-    let value = build_config(args.target, args.transport, args.port, command_override);
+    let value = build_config(target, args.transport, args.port, command_override);
     let entry_json = serde_json::to_string_pretty(&value)?;
 
-    let config_path = workspace.join(relative_path_for(args.target));
+    let config_path = workspace.join(relative_path_for(target));
 
     if !args.write {
         if global.json {
             println!("{entry_json}");
         } else {
             println!("# Preview — pass --write to install at the target path.");
-            println!("# Target: {}", target_label(args.target));
+            println!("# Target: {}", target_label(target));
             println!("# Path  : {}", config_path.display());
             println!("{entry_json}");
         }
         return Ok(());
     }
 
-    write_target_config(args.target, &workspace, &value, args.yes, global)?;
+    write_target_config(target, &workspace, &value, args.yes, global)?;
 
     if global.json {
         println!(
             "{}",
             json!({
-                "target": target_label(args.target),
+                "target": target_label(target),
                 "path": config_path.display().to_string(),
                 "wrote": true,
             })
@@ -137,12 +147,79 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
     } else {
         println!(
             "Wrote {} config for {} to {}",
-            target_label(args.target),
+            target_label(target),
             SERVER_NAME,
             config_path.display()
         );
     }
     Ok(())
+}
+
+fn run_registry_stdio(
+    args: &McpConfigArgs,
+    global: &GlobalArgs,
+    workspace: &Path,
+    command: &str,
+) -> Result<()> {
+    let adapter = args.target.entry();
+    let path = adapter.mcp_path(args.scope, workspace).with_context(|| {
+        format!(
+            "{} does not support {}-scope MCP configuration",
+            adapter.display_name,
+            args.scope.label()
+        )
+    })?;
+
+    if !args.write && !args.verify {
+        let rendered = mcp_installer::preview(args.target, command)?;
+        if !global.json {
+            println!("# Preview — pass --write to install at the target path.");
+            println!("# Target: {}", args.target.label());
+            println!("# Path  : {}", path.display());
+        }
+        print!("{rendered}");
+        return Ok(());
+    }
+
+    let report = mcp_installer::install(
+        args.target,
+        args.scope,
+        workspace,
+        command,
+        args.verify,
+        false,
+    )?;
+    if global.json {
+        println!(
+            "{}",
+            json!({
+                "target": args.target.label(),
+                "path": report.path.display().to_string(),
+                "entry": report.entry,
+                "wrote": report.wrote,
+                "ok": true,
+            })
+        );
+    } else if args.verify {
+        println!("Resolved : {}", report.path.display());
+        println!("Status   : ok");
+    } else {
+        println!(
+            "Wrote {} config for {} to {}",
+            args.target.label(),
+            SERVER_NAME,
+            report.path.display()
+        );
+    }
+    Ok(())
+}
+
+fn legacy_target(client: AgentClientId) -> Option<Target> {
+    match client {
+        AgentClientId::ClaudeCode => Some(Target::ClaudeCode),
+        AgentClientId::Cursor => Some(Target::Cursor),
+        _ => None,
+    }
 }
 
 fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Result<()> {
@@ -153,7 +230,7 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
         None
     };
     let (config_path, entry) = verify_target_config(
-        args.target,
+        legacy_target(args.target).context("unsupported legacy MCP target")?,
         global,
         workspace,
         require_rust_stdio,
@@ -164,7 +241,7 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
         println!(
             "{}",
             json!({
-                "target": target_label(args.target),
+                "target": args.target.label(),
                 "path": config_path.display().to_string(),
                 "entry": entry,
                 "ok": true,
@@ -179,53 +256,8 @@ fn run_verify(args: &McpConfigArgs, global: &GlobalArgs, workspace: &Path) -> Re
     Ok(())
 }
 
-pub(crate) fn install_rust_stdio_target(
-    target: Target,
-    config_root: &Path,
-    command: Option<&str>,
-    global: &GlobalArgs,
-) -> Result<RustStdioInstall> {
-    let command = validate_command_override(command)?.unwrap_or("anvil");
-    let value = build_config(target, Transport::Stdio, DEFAULT_HTTP_PORT, Some(command));
-    let config_path = config_root.join(relative_path_for(target));
-    let expected_entry = extract_entry(target, &value).unwrap_or(Value::Null);
-    let existing_entry = read_existing_entry(target, &config_path)?;
-
-    if existing_entry.as_ref() == Some(&expected_entry) {
-        return Ok(RustStdioInstall {
-            path: config_path,
-            wrote: false,
-            drifted: false,
-        });
-    }
-
-    let drifted = existing_entry.is_some();
-    let path = write_target_config(target, config_root, &value, false, global)?;
-    Ok(RustStdioInstall {
-        path,
-        wrote: true,
-        drifted,
-    })
-}
-
-pub(crate) struct RustStdioInstall {
-    pub(crate) path: PathBuf,
-    pub(crate) wrote: bool,
-    pub(crate) drifted: bool,
-}
-
 pub(crate) fn default_client_config_root() -> Result<PathBuf> {
     crate::util::user_home_dir().context("could not determine home directory")
-}
-
-pub(crate) fn verify_rust_stdio_target(
-    target: Target,
-    workspace: &Path,
-    expected_command: Option<&str>,
-    global: &GlobalArgs,
-) -> Result<(PathBuf, Value)> {
-    let expected_command = validate_command_override(expected_command)?;
-    verify_target_config(target, global, workspace, true, expected_command)
 }
 
 fn validate_command_override(command: Option<&str>) -> Result<Option<&str>> {
@@ -396,26 +428,6 @@ fn command_matches_expected(command: &str, expected_command: Option<&str>) -> bo
     }
 
     command == "anvil"
-}
-
-fn read_existing_entry(target: Target, config_path: &Path) -> Result<Option<Value>> {
-    let raw = match fs::read_to_string(config_path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => {
-            return Err(anyhow::Error::from(e))
-                .with_context(|| format!("reading existing config at {}", config_path.display()));
-        }
-        Ok(raw) if raw.trim().is_empty() => return Ok(None),
-        Ok(raw) => raw,
-    };
-
-    let parsed: Value = serde_json::from_str(&raw).with_context(|| {
-        format!(
-            "existing config at {} is not valid JSON; refusing to overwrite (resolve or remove the file and re-run)",
-            config_path.display()
-        )
-    })?;
-    Ok(extract_entry(target, &parsed))
 }
 
 /// Build the editor-specific JSON value that goes on disk.

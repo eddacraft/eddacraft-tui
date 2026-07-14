@@ -226,7 +226,7 @@ We are especially interested in feedback on these areas in `v0.9.0-beta`:
 | **`anvil welcome` first win**              | Real local finding (or honest clean), consent-gated apply, no write on decline                              |
 | **Wow-start activation (`anvil start`)**   | Does the first minute land? Does the printed protection state match what is actually wired?                 |
 | **Quiet repeat start**                     | Second `anvil start` on a healthy repo collapses rather than replaying onboarding                           |
-| **MCP catch via Cursor / Claude Code**     | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?    |
+| **MCP catch via a configured client**      | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?    |
 | **Assistant graph context**                | Do graph tools / `graph://` resources answer identity-only without unintended source snippets?              |
 | **Python + infrastructure hygiene**        | Are Python files analysed? Do Dockerfile / GHA / shell / SQL checks fire usefully?                          |
 | **Activation states copy (no over-claim)** | If activation reports `needs_action` or `unsupported`, is the explanation specific and the next step real?  |
@@ -236,9 +236,10 @@ We are especially interested in feedback on these areas in `v0.9.0-beta`:
 
 ## Known Limitations
 
-- **MCP install is Cursor and Claude Code only.** Windsurf, VS Code MCP install,
-  and Copilot / Codex CLI integration are explicitly out of scope for automated
-  install; hand-write config if needed (see the MCP guide).
+- **MCP protection evidence remains client-specific.** The first-wave installer
+  writes supported client configurations, but a config write does not prove a
+  live handshake. VS Code global setup delegates to its vendor CLI, Zed is
+  project-only, and Devin remains manual (see the MCP guide).
 - **Daemon auto-start is Linux and macOS.** Interactive `anvil start` /
   `anvil watch` manage the per-user daemon on Unix; Windows still uses
   foreground daemon launch for operator/debug, while MCP can reach the daemon

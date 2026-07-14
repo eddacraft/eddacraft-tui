@@ -29,12 +29,12 @@
 //! v1 ships only `Stdio`; impls may panic on other variants until the
 //! hosted-server workstream extends them.
 //!
-//! ## V1 scope
+//! ## Legacy activation adapters
 //!
-//! Cursor and Claude Code only, per the 2026-05-03 activation council.
-//! `VsCode`, `Zed`, `OpenCode` are deferred; see LAUNCH-009 task body in
-//! `plans/modules/launch-flow-readiness.aps.md` for the per-editor
-//! rationale.
+//! This trait remains the richer probe/install adapter for Cursor and Claude
+//! Code. MCPX first-wave clients, including VS Code, project-scoped Zed, and
+//! `OpenCode`, use the typed agent registry and managed installer; their absence
+//! from this trait is not a statement that support is deferred.
 //!
 //! ## Future install paths (out of v1 scope, but verified)
 //!

@@ -39,13 +39,14 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 
 use crate::GlobalArgs;
+use crate::activation::agent_registry::{AgentClientId, InstallScope};
 use crate::activation::baseline;
 use crate::activation::detect_agents::{self, AgentKind, DetectionEnv, RealDetectionEnv};
 use crate::activation::diagnostic::{
     ActivationDiagnostic, ConfigStatus, McpClientId, verify_with_home,
 };
 use crate::activation::identity;
-use crate::commands::{hooks, init};
+use crate::commands::{hooks, init, mcp_installer};
 use crate::registration::{self, WorktreeRegistration};
 use crate::services::sample_analyser;
 
@@ -336,10 +337,24 @@ pub(crate) struct TuiConsentPlan {
     project_actions: Vec<(String, TuiProjectAction)>,
     workflows: std::collections::BTreeMap<String, WorkflowTemplate>,
     mcp_candidates: std::collections::BTreeMap<String, install::Candidate>,
+    registry_mcp_candidates: std::collections::BTreeMap<String, RegistryMcpCandidate>,
     home: Option<PathBuf>,
     fresh: Option<crate::activation::mcp_client::AnvilEntry>,
     enabled: BTreeSet<McpClientId>,
     project_writes_gated: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RegistryMcpCandidate {
+    client: AgentClientId,
+    scope: InstallScope,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RegistryMcpSelection<'a> {
+    pub force_all: bool,
+    pub scope: InstallScope,
+    pub explicit_clients: &'a [AgentClientId],
 }
 
 #[derive(Debug, Clone, Default)]
@@ -351,6 +366,8 @@ pub(crate) struct TuiConsentApplyOutcome {
     pub project_applied: BTreeSet<ActivationStep>,
     pub project_skipped: std::collections::BTreeMap<ActivationStep, String>,
     pub project_errors: std::collections::BTreeMap<ActivationStep, String>,
+    pub first_wave_mcp_lines: Vec<String>,
+    pub first_wave_mcp_errors: Vec<String>,
 }
 
 impl TuiConsentPlan {
@@ -430,6 +447,9 @@ impl TuiConsentPlan {
         install_report.hooks_active = project_applied.contains(&ActivationStep::GitHooks)
             && hooks::activation_hooks_active(root).unwrap_or(false);
 
+        let (first_wave_mcp_lines, first_wave_mcp_errors) =
+            self.apply_registry_mcp_candidates(&selected);
+
         TuiConsentApplyOutcome {
             install_report,
             written_workflows,
@@ -438,7 +458,81 @@ impl TuiConsentPlan {
             project_applied,
             project_skipped,
             project_errors,
+            first_wave_mcp_lines,
+            first_wave_mcp_errors,
         }
+    }
+
+    fn apply_registry_mcp_candidates(
+        &self,
+        selected: &BTreeSet<&str>,
+    ) -> (Vec<String>, Vec<String>) {
+        let mut lines = Vec::new();
+        let mut errors = Vec::new();
+        let command = match std::env::current_exe() {
+            Ok(command) => command,
+            Err(error) => {
+                if selected
+                    .iter()
+                    .any(|id| self.registry_mcp_candidates.contains_key(*id))
+                {
+                    errors.push(format!(
+                        "MCP install failed: resolving anvil executable: {error}"
+                    ));
+                }
+                return (lines, errors);
+            }
+        };
+        let command = command.to_string_lossy();
+        for (id, candidate) in &self.registry_mcp_candidates {
+            if !selected.contains(id.as_str()) {
+                continue;
+            }
+            if self.project_writes_gated && candidate.scope == InstallScope::Project {
+                errors.push(format!(
+                    "{} MCP install skipped: project writes are gated for this ANVIL_HOME",
+                    candidate.client.entry().display_name
+                ));
+                continue;
+            }
+            let root = match candidate.scope {
+                InstallScope::Global => {
+                    let Some(home) = self.home.as_deref() else {
+                        errors.push(format!(
+                            "{} MCP install failed: could not determine home directory",
+                            candidate.client.entry().display_name
+                        ));
+                        continue;
+                    };
+                    home
+                }
+                InstallScope::Project => self.root.as_path(),
+            };
+            match mcp_installer::install(
+                candidate.client,
+                candidate.scope,
+                root,
+                &command,
+                false,
+                false,
+            ) {
+                Ok(report) => lines.push(format!(
+                    "{} MCP {} at {}",
+                    candidate.client.entry().display_name,
+                    if report.wrote {
+                        "installed"
+                    } else {
+                        "already configured"
+                    },
+                    report.path.display()
+                )),
+                Err(error) => errors.push(format!(
+                    "{} MCP install failed: {error:#}",
+                    candidate.client.entry().display_name
+                )),
+            }
+        }
+        (lines, errors)
     }
 }
 
@@ -502,13 +596,14 @@ fn apply_tui_project_action(
 pub(crate) fn build_tui_consent_plan(
     root: &Path,
     mcp_install_policy: McpInstallPolicy,
-    force_all_mcp_clients: bool,
     project_writes_gated: bool,
     config_format: Option<anvil_config::ConfigFormat>,
     rotate_identity: bool,
+    registry_selection: RegistryMcpSelection<'_>,
 ) -> TuiConsentPlan {
     let home = crate::util::user_home_dir();
-    let enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    let mut enabled = resolve_enabled_clients(&RealDetectionEnv, registry_selection.force_all);
+    extend_enabled_with_explicit_clients(&mut enabled, registry_selection.explicit_clients);
     let fresh = if matches!(mcp_install_policy, McpInstallPolicy::Install) {
         std::env::current_exe()
             .ok()
@@ -516,7 +611,7 @@ pub(crate) fn build_tui_consent_plan(
     } else {
         None
     };
-    build_tui_consent_plan_with_project_options(
+    let mut plan = build_tui_consent_plan_with_project_options(
         root,
         home.as_deref(),
         mcp_install_policy,
@@ -525,7 +620,15 @@ pub(crate) fn build_tui_consent_plan(
         project_writes_gated,
         config_format,
         rotate_identity,
-    )
+    );
+    if matches!(mcp_install_policy, McpInstallPolicy::Install) {
+        plan.add_registry_mcp_offers(
+            registry_selection.force_all,
+            registry_selection.scope,
+            registry_selection.explicit_clients,
+        );
+    }
+    plan
 }
 
 #[cfg(test)]
@@ -635,10 +738,68 @@ fn build_tui_consent_plan_with_project_options(
         project_actions,
         workflows,
         mcp_candidates,
+        registry_mcp_candidates: std::collections::BTreeMap::new(),
         home: home.map(Path::to_path_buf),
         fresh,
         enabled: enabled.clone(),
         project_writes_gated,
+    }
+}
+
+impl TuiConsentPlan {
+    fn add_registry_mcp_offers(
+        &mut self,
+        force_all: bool,
+        scope: InstallScope,
+        explicit_clients: &[AgentClientId],
+    ) {
+        if self.project_writes_gated && scope == InstallScope::Project {
+            return;
+        }
+        let root = match scope {
+            InstallScope::Global => {
+                let Some(home) = self.home.as_deref() else {
+                    return;
+                };
+                home
+            }
+            InstallScope::Project => self.root.as_path(),
+        };
+        let env = RealDetectionEnv;
+        if scope == InstallScope::Project {
+            self.offers
+                .retain(|offer| offer.id != "mcp:claude-code" && offer.id != "mcp:cursor");
+            self.mcp_candidates
+                .retain(|id, _| id != "mcp:claude-code" && id != "mcp:cursor");
+        }
+        for entry in AgentClientId::all().iter().filter(|entry| {
+            !(scope == InstallScope::Global
+                && matches!(entry.id, AgentClientId::ClaudeCode | AgentClientId::Cursor))
+                && entry.supports_mcp(scope)
+                && (explicit_clients.contains(&entry.id)
+                    || force_all
+                    || entry.detected_for_mcp(&env, scope, root))
+        }) {
+            let Some(path) = entry.mcp_path(scope, root) else {
+                continue;
+            };
+            let id = format!("mcp:{}", entry.id.label());
+            self.offers.push(TuiConsentOffer {
+                id: id.clone(),
+                label: format!("{} MCP", entry.display_name),
+                description: format!("Write {}", path.display()),
+                kind: TuiConsentOfferKind::Mcp,
+                repo_scoped: scope == InstallScope::Project,
+                unsafe_drift: None,
+            });
+            self.registry_mcp_candidates.insert(
+                id,
+                RegistryMcpCandidate {
+                    client: entry.id,
+                    scope,
+                },
+            );
+        }
     }
 }
 
@@ -761,11 +922,13 @@ pub(crate) fn run_with_mcp_policy_and_mode(
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,
     force_all_mcp_clients: bool,
+    explicit_clients: &[AgentClientId],
     render_mode: StartRenderMode,
     rotate_identity: bool,
 ) -> anyhow::Result<ActivationOutcome> {
     let home = crate::util::user_home_dir();
-    let enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    let mut enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    extend_enabled_with_explicit_clients(&mut enabled, explicit_clients);
     run_with_home_and_policy(
         root,
         home.as_deref(),
@@ -804,8 +967,9 @@ fn agent_to_mcp_client(kind: AgentKind) -> Option<McpClientId> {
     match kind {
         AgentKind::ClaudeCode => Some(McpClientId::ClaudeCode),
         AgentKind::Cursor => Some(McpClientId::Cursor),
-        // Aider / Windsurf / Codex are detected for the "AI tools
-        // detected" summary but have no v1 MCP client impl.
+        // Aider / Windsurf / Codex are not part of the legacy layered
+        // diagnostic adapters. Codex configuration is handled by the
+        // first-wave registry instead.
         AgentKind::Aider | AgentKind::Windsurf | AgentKind::Codex => None,
     }
 }
@@ -838,6 +1002,23 @@ fn resolve_enabled_clients(env: &dyn DetectionEnv, force_all: bool) -> BTreeSet<
         .iter()
         .filter_map(|a| agent_to_mcp_client(a.kind))
         .collect()
+}
+
+fn extend_enabled_with_explicit_clients(
+    enabled: &mut BTreeSet<McpClientId>,
+    explicit_clients: &[AgentClientId],
+) {
+    for client in explicit_clients {
+        match client {
+            AgentClientId::ClaudeCode => {
+                enabled.insert(McpClientId::ClaudeCode);
+            }
+            AgentClientId::Cursor => {
+                enabled.insert(McpClientId::Cursor);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1982,6 +2163,140 @@ verdict: completed"
     }
 
     #[test]
+    fn tui_consent_plan_offers_and_applies_first_wave_registry_clients() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let mut plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+
+        plan.add_registry_mcp_offers(true, InstallScope::Global, &[]);
+
+        let offer_ids = plan
+            .offers()
+            .iter()
+            .map(|offer| offer.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(offer_ids.contains("mcp:codex"));
+        assert!(offer_ids.contains("mcp:opencode"));
+        assert!(!offer_ids.contains("mcp:zed"));
+
+        let applied = plan.apply(&["mcp:codex".to_string()]);
+
+        assert!(applied.first_wave_mcp_errors.is_empty());
+        assert_eq!(applied.first_wave_mcp_lines.len(), 1);
+        assert!(home.path().join(".codex/config.toml").exists());
+        assert!(!home.path().join(".config/opencode/opencode.json").exists());
+    }
+
+    #[test]
+    fn tui_consent_plan_honours_explicit_project_scope() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let mut plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+
+        plan.add_registry_mcp_offers(false, InstallScope::Project, &[AgentClientId::Zed]);
+
+        let offer = plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "mcp:zed")
+            .expect("explicit project-scoped Zed offer");
+        assert!(offer.repo_scoped);
+        assert!(offer.description.contains(".zed/settings.json"));
+
+        let applied = plan.apply(&["mcp:zed".to_string()]);
+
+        assert!(applied.first_wave_mcp_errors.is_empty());
+        assert!(dir.path().join(".zed/settings.json").exists());
+        assert!(!home.path().join(".zed/settings.json").exists());
+    }
+
+    #[test]
+    fn tui_project_scope_routes_legacy_clients_to_project_registry_paths() {
+        let project = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(PathBuf::from(
+            "/usr/local/bin/anvil",
+        ));
+        let enabled = crate::activation::mcp_client::all_client_ids();
+        let mut plan = build_tui_consent_plan_with_home(
+            project.path(),
+            Some(home.path()),
+            McpInstallPolicy::Install,
+            &enabled,
+            Some(fresh),
+            false,
+        );
+
+        plan.add_registry_mcp_offers(
+            false,
+            InstallScope::Project,
+            &[AgentClientId::ClaudeCode, AgentClientId::Cursor],
+        );
+
+        let claude = plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "mcp:claude-code")
+            .expect("project-scoped Claude offer");
+        let cursor = plan
+            .offers()
+            .iter()
+            .find(|offer| offer.id == "mcp:cursor")
+            .expect("project-scoped Cursor offer");
+        assert!(
+            claude
+                .description
+                .contains(project.path().to_str().unwrap())
+        );
+        assert!(
+            cursor
+                .description
+                .contains(project.path().to_str().unwrap())
+        );
+
+        let applied = plan.apply(&["mcp:claude-code".to_string(), "mcp:cursor".to_string()]);
+
+        assert!(applied.first_wave_mcp_errors.is_empty());
+        assert!(project.path().join(".mcp.json").exists());
+        assert!(project.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+    }
+
+    #[test]
+    fn tui_project_registry_install_does_not_require_a_home_directory() {
+        let project = TempDir::new().unwrap();
+        let mut plan = build_tui_consent_plan_with_home(
+            project.path(),
+            None,
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+        plan.add_registry_mcp_offers(false, InstallScope::Project, &[AgentClientId::Codex]);
+
+        let applied = plan.apply(&["mcp:codex".to_string()]);
+
+        assert!(applied.first_wave_mcp_errors.is_empty());
+        assert!(project.path().join(".codex/config.toml").exists());
+    }
+
+    #[test]
     fn config_consent_discloses_the_write_set_for_each_init_path() {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
@@ -2277,6 +2592,38 @@ verdict: completed"
         assert!(
             !enabled.contains(&McpClientId::Cursor),
             "undetected Cursor must not be enabled"
+        );
+    }
+
+    #[test]
+    fn explicit_legacy_client_is_enabled_without_detection() {
+        let mut enabled = BTreeSet::new();
+
+        extend_enabled_with_explicit_clients(&mut enabled, &[AgentClientId::Cursor]);
+
+        assert_eq!(enabled, BTreeSet::from([McpClientId::Cursor]));
+    }
+
+    #[test]
+    fn skipped_tui_policy_does_not_offer_first_wave_mcp_writes() {
+        let dir = TempDir::new().unwrap();
+        let plan = build_tui_consent_plan(
+            dir.path(),
+            McpInstallPolicy::Skip,
+            false,
+            None,
+            false,
+            RegistryMcpSelection {
+                force_all: true,
+                scope: InstallScope::Global,
+                explicit_clients: &[],
+            },
+        );
+
+        assert!(
+            plan.offers()
+                .iter()
+                .all(|offer| offer.kind != TuiConsentOfferKind::Mcp)
         );
     }
 

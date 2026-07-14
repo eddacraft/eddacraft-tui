@@ -11,4 +11,4 @@ ACTIVATION
   next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.
   rule modes: public-api-expansion=warn, new-dependency-introduction=warn, cross-layer-violation=warn, privilege-expansion=warn
   config: .anvilrc
-  AI tools detected: claude-code, cursor (not cached)
+  AI tools detected: claude-code, cursor, codex (not cached)

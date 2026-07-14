@@ -7,7 +7,7 @@
 use std::fs;
 use std::process::Command;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
@@ -34,8 +34,56 @@ fn run_mcp_json(workspace: &std::path::Path, extra: &[&str]) -> std::process::Ou
     cmd.arg("--no-tui").arg("--json").arg("mcp");
     cmd.args(extra);
     cmd.arg("--workspace").arg(workspace);
-    cmd.env("ANVIL_DEV", "1");
+    cmd.env("ANVIL_DEV", "1")
+        .env("XDG_CONFIG_HOME", workspace.join(".xdg"));
     cmd.output().expect("failed to invoke anvil binary")
+}
+
+#[test]
+fn mcp_config_global_scope_defaults_to_user_home() {
+    let home = tempfile::tempdir().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    let output = Command::new(ANVIL_BIN)
+        .arg("--no-tui")
+        .arg("mcp-config")
+        .args(["--target", "codex", "--write"])
+        .current_dir(project.path())
+        .env("ANVIL_DEV", "1")
+        .env("HOME", home.path())
+        .env("XDG_CONFIG_HOME", home.path().join(".config"))
+        .output()
+        .expect("invoke mcp-config");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(home.path().join(".codex/config.toml").exists());
+    assert!(!project.path().join(".codex/config.toml").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn mcp_verify_refuses_a_config_symlinked_outside_the_selected_root() {
+    use std::os::unix::fs::symlink;
+
+    let outside = tempfile::tempdir().unwrap();
+    fs::create_dir_all(outside.path().join(".codex")).unwrap();
+    fs::write(
+        outside.path().join(".codex/config.toml"),
+        "[mcp_servers.anvil]\ncommand = \"anvil\"\nargs = [\"mcp\", \"serve\", \"--stdio\"]\n",
+    )
+    .unwrap();
+
+    let root = tempfile::tempdir().unwrap();
+    symlink(outside.path().join(".codex"), root.path().join(".codex")).unwrap();
+
+    let output = run_mcp(root.path(), &["install", "--client", "codex", "--verify"]);
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("symlink outside selected root"));
 }
 
 #[cfg(unix)]
@@ -100,17 +148,30 @@ fn write_creates_cursor_config_at_dot_cursor_mcp_json() {
 }
 
 #[test]
-fn vscode_target_is_rejected_by_clap() {
-    // LAUNCH-009.5: dropped Target::Vscode (wrote the wrong file shape;
-    // VS Code 1.99+ uses .vscode/mcp.json with `servers`, not
-    // .vscode/settings.json with `mcp.servers`). Re-add via a fresh,
-    // verified impl. clap should now reject the value.
+fn mcp_install_vscode_project_uses_servers_shape() {
     let dir = tempfile::tempdir().unwrap();
-    let out = run(dir.path(), &["--target", "vscode", "--write"]);
-    assert!(
-        !out.status.success(),
-        "vscode target removed in LAUNCH-009.5; clap must reject it"
+    let out = run_mcp(
+        dir.path(),
+        &["install", "--client", "vscode", "--scope", "project"],
     );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let value: Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join(".vscode/mcp.json")).unwrap())
+            .unwrap();
+    assert_eq!(value["servers"]["anvil"]["command"], "anvil");
+}
+
+#[test]
+fn mcp_install_vscode_global_dry_run_delegates_to_vendor_cli() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = run_mcp(dir.path(), &["install", "--client", "vscode", "--dry-run"]);
+    assert!(out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("code --add-mcp"));
+    assert!(!dir.path().join(".vscode/mcp.json").exists());
 }
 
 #[test]
@@ -123,6 +184,148 @@ fn windsurf_target_is_rejected_by_clap() {
         !out.status.success(),
         "windsurf target removed in LAUNCH-009.5; clap must reject it"
     );
+}
+
+#[test]
+fn mcp_first_wave_writes_documented_project_shapes() {
+    let cases = [
+        ("codex", ".codex/config.toml", "mcp_servers.anvil"),
+        ("opencode", "opencode.json", "mcp.anvil"),
+        ("gemini-cli", ".gemini/settings.json", "mcpServers.anvil"),
+        ("antigravity", ".agents/mcp_config.json", "mcpServers.anvil"),
+        ("openclaw", ".openclaw/openclaw.json", "mcp.servers.anvil"),
+        ("copilot-cli", ".github/mcp.json", "mcpServers.anvil"),
+        ("grok", ".grok/config.toml", "mcp_servers.anvil"),
+        ("warp", ".warp/.mcp.json", "mcpServers.anvil"),
+        ("zed", ".zed/settings.json", "context_servers.anvil"),
+    ];
+
+    for (client, relative, expected_path) in cases {
+        let dir = tempfile::tempdir().unwrap();
+        let out = run_mcp(
+            dir.path(),
+            &["install", "--client", client, "--scope", "project"],
+        );
+        assert!(
+            out.status.success(),
+            "{client} failed\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        );
+        let raw = fs::read_to_string(dir.path().join(relative)).unwrap();
+        assert!(
+            raw.contains("anvil") && raw.contains("mcp") && raw.contains("serve"),
+            "{client} did not contain the stdio entry at {expected_path}: {raw}"
+        );
+        if client == "copilot-cli" {
+            let parsed: Value = serde_json::from_str(&raw).unwrap();
+            assert_eq!(parsed["mcpServers"]["anvil"]["tools"], json!(["*"]));
+        }
+        let verify = run_mcp(
+            dir.path(),
+            &[
+                "install", "--client", client, "--scope", "project", "--verify",
+            ],
+        );
+        assert!(verify.status.success(), "{client} verify failed");
+    }
+}
+
+#[test]
+fn copilot_cli_global_shape_includes_required_tools() {
+    let dir = tempfile::tempdir().unwrap();
+    let install = run_mcp(dir.path(), &["install", "--client", "copilot-cli"]);
+    assert!(install.status.success());
+
+    let parsed: Value = serde_json::from_str(
+        &fs::read_to_string(dir.path().join(".copilot/mcp-config.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(parsed["mcpServers"]["anvil"]["tools"], json!(["*"]));
+    assert!(
+        run_mcp(
+            dir.path(),
+            &["install", "--client", "copilot-cli", "--verify"]
+        )
+        .status
+        .success()
+    );
+}
+
+#[test]
+fn zed_global_scope_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = run_mcp(dir.path(), &["install", "--client", "zed"]);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("project"));
+}
+
+#[test]
+fn mcp_dry_run_does_not_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = run_mcp(dir.path(), &["install", "--client", "codex", "--dry-run"]);
+    assert!(out.status.success());
+    assert!(!dir.path().join(".codex/config.toml").exists());
+}
+
+#[test]
+fn mcp_config_first_wave_preview_write_and_verify_codex_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let preview = run(dir.path(), &["--target", "codex"]);
+    assert!(preview.status.success());
+    let stdout = String::from_utf8_lossy(&preview.stdout);
+    assert!(stdout.contains("[mcp_servers.anvil]"));
+
+    let write = run(dir.path(), &["--target", "codex", "--write"]);
+    assert!(write.status.success());
+    assert!(dir.path().join(".codex/config.toml").exists());
+
+    let verify = run(dir.path(), &["--target", "codex", "--verify"]);
+    assert!(verify.status.success());
+}
+
+#[test]
+fn first_wave_merges_preserve_unrelated_json_and_toml_settings() {
+    let json_root = tempfile::tempdir().unwrap();
+    fs::write(
+        json_root.path().join("opencode.json"),
+        r#"{"theme":"dark","mcp":{"other":{"type":"local","command":["other"]}}}"#,
+    )
+    .unwrap();
+    assert!(
+        run_mcp(
+            json_root.path(),
+            &["install", "--client", "opencode", "--scope", "project"],
+        )
+        .status
+        .success()
+    );
+    let json: Value =
+        serde_json::from_str(&fs::read_to_string(json_root.path().join("opencode.json")).unwrap())
+            .unwrap();
+    assert_eq!(json["theme"], "dark");
+    assert!(json["mcp"]["other"].is_object());
+    assert!(json["mcp"]["anvil"].is_object());
+
+    let toml_root = tempfile::tempdir().unwrap();
+    fs::create_dir_all(toml_root.path().join(".codex")).unwrap();
+    fs::write(
+        toml_root.path().join(".codex/config.toml"),
+        "model = \"gpt-5\"\n[features]\nweb_search = true\n",
+    )
+    .unwrap();
+    assert!(
+        run_mcp(
+            toml_root.path(),
+            &["install", "--client", "codex", "--scope", "project"],
+        )
+        .status
+        .success()
+    );
+    let raw = fs::read_to_string(toml_root.path().join(".codex/config.toml")).unwrap();
+    assert!(raw.contains("model = \"gpt-5\""));
+    assert!(raw.contains("web_search = true"));
+    assert!(raw.contains("[mcp_servers.anvil]"));
 }
 
 #[test]
@@ -380,7 +583,7 @@ fn mcp_install_is_idempotent() {
 }
 
 #[test]
-fn mcp_install_warns_when_rewriting_drifted_entry() {
+fn mcp_install_refuses_foreign_anvil_entry_without_overwriting() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".cursor").join("mcp.json");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -395,17 +598,53 @@ fn mcp_install_warns_when_rewriting_drifted_entry() {
     )
     .unwrap();
 
+    let before = fs::read_to_string(&path).unwrap();
+    let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(!install.status.success());
+    assert!(String::from_utf8_lossy(&install.stderr).contains("user-owned"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
+}
+
+#[test]
+fn mcp_install_rewrites_anvil_owned_command_drift() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".cursor").join("mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": {
+                    "command": "/old/bin/anvil",
+                    "args": ["mcp", "serve", "--stdio"]
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
     let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
     assert!(install.status.success());
-    let stdout = String::from_utf8_lossy(&install.stdout);
-    assert!(
-        stdout.contains("drifted") || stdout.contains("rewrote"),
-        "stdout should warn about drifted entry: {stdout}"
-    );
 
     let raw = fs::read_to_string(&path).unwrap();
     let parsed: Value = serde_json::from_str(&raw).unwrap();
     assert_rust_stdio_entry(&parsed, "anvil");
+}
+
+#[test]
+fn mcp_install_refuses_foreign_toml_anvil_entry_without_overwriting() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".codex/config.toml");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let before = "[mcp_servers.anvil]\ncommand = \"python\"\nargs = [\"foreign.py\"]\n";
+    fs::write(&path, before).unwrap();
+
+    let install = run_mcp(dir.path(), &["install", "--client", "codex"]);
+
+    assert!(!install.status.success());
+    assert!(String::from_utf8_lossy(&install.stderr).contains("user-owned"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
 }
 
 #[test]
@@ -761,7 +1000,8 @@ fn mcp_install_verify_json_uses_machine_readable_expected_type() {
 
     assert!(!verify.status.success());
     let stderr = String::from_utf8_lossy(&verify.stderr);
-    let parsed: Value = serde_json::from_str(stderr.trim()).expect("stderr is JSON");
+    let parsed: Value = serde_json::from_str(stderr.trim())
+        .unwrap_or_else(|error| panic!("stderr is JSON ({error}): {stderr}"));
     assert_eq!(parsed["expected"]["type"], "stdio");
     assert_eq!(parsed["expected"]["typeRequired"], true);
 }

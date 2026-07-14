@@ -17,8 +17,10 @@ The server runs over stdio:
 anvil mcp serve --stdio
 ```
 
-Cursor and Claude Code are the supported automatic-install targets. Other
-stdio-capable MCP clients can use the manual configuration below.
+The focused installer supports the first-wave clients listed below.
+`anvil start` retains its layered protection diagnostic for Cursor and Claude
+Code and can additionally install a strongly detected or explicitly selected
+first-wave client; a config write is still not proof of a live handshake.
 
 ## Recommended setup
 
@@ -49,26 +51,53 @@ Use the focused installer when you do not need the rest of activation:
 ```bash
 anvil mcp install --client cursor
 anvil mcp install --client claude-code
+anvil mcp install --client codex
+anvil mcp install --client zed --scope project
 anvil mcp install --client cursor --verify
+anvil mcp install --client opencode --dry-run
 ```
+
+Global scope is the default. Pass `--scope project` for a repository-local file.
+Use `anvil start --mcp-client <client>` to include an explicit first-wave client
+during activation; repeat the option for multiple clients.
+
+| Client             | Global config                      | Project config            | Reload / constraint                                       |
+| ------------------ | ---------------------------------- | ------------------------- | --------------------------------------------------------- |
+| Claude Code        | `~/.claude.json`                   | `.mcp.json`               | Restart Claude Code                                       |
+| Cursor             | `~/.cursor/mcp.json`               | `.cursor/mcp.json`        | Restart Cursor                                            |
+| Codex              | `~/.codex/config.toml`             | `.codex/config.toml`      | Start a new session; run `codex mcp list`                 |
+| OpenCode           | `~/.config/opencode/opencode.json` | `opencode.json`           | Restart; run `opencode mcp list`                          |
+| Gemini CLI         | `~/.gemini/settings.json`          | `.gemini/settings.json`   | Run `/mcp reload` or restart                              |
+| Antigravity        | `~/.gemini/config/mcp_config.json` | `.agents/mcp_config.json` | Restart Antigravity                                       |
+| OpenClaw           | `~/.openclaw/openclaw.json`        | `.openclaw/openclaw.json` | Restart OpenClaw                                          |
+| VS Code / Copilot  | Vendor-profile CLI only            | `.vscode/mcp.json`        | Project install is supported; global file mutation is not |
+| GitHub Copilot CLI | `~/.copilot/mcp-config.json`       | `.github/mcp.json`        | Restart Copilot CLI                                       |
+| Grok Build         | `~/.grok/config.toml`              | `.grok/config.toml`       | Restart Grok Build                                        |
+| Warp               | `~/.warp/.mcp.json`                | `.warp/.mcp.json`         | Project server needs session approval                     |
+| Zed                | Not supported                      | `.zed/settings.json`      | Project scope only                                        |
+
+Devin remains manual because its supported integration is Marketplace/UI managed
+and has no documented local file or CLI mutation contract.
 
 ### Generate or verify configuration
 
-`mcp-config` prints the configuration by default and writes only when asked:
+`mcp-config` uses the same first-wave registry for stdio configuration and
+prints the configuration by default:
 
 ```bash
 anvil mcp-config --target cursor
-anvil mcp-config --target cursor --write
-anvil mcp-config --target cursor --verify
+anvil mcp-config --target codex --write
+anvil mcp-config --target opencode --scope project --verify
 ```
 
-The accepted targets are `cursor` and `claude-code`. Use `--workspace <path>`
-when generating config for a repository other than the current directory.
+Use `--workspace <path>` to override the selected scope root. HTTP preview
+remains a compatibility surface for `cursor` and `claude-code` only; every new
+first-wave target uses the native stdio server.
 
 ## Manual configuration
 
-For another MCP client, add the equivalent server entry and make the repository
-the process working directory:
+For an unlisted MCP client, add the equivalent server entry and make the
+repository the process working directory:
 
 ```json
 {
@@ -218,8 +247,8 @@ anvil intercept status
 
 ## Troubleshooting
 
-1. Run `anvil mcp install --client cursor --verify` (or `claude-code`), or use
-   `anvil mcp-config --target cursor --verify` for the matching config target.
+1. Run `anvil mcp install --client <client> --verify`, or use
+   `anvil mcp-config --target <client> --verify` for the matching target.
 2. Restart the editor after changing its MCP configuration.
 3. Run `anvil start --verify` and trust the literal protection state.
 4. Run `anvil intercept status` if daemon assurance is unavailable.

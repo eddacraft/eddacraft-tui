@@ -15,6 +15,7 @@
 //! mapping in [`ActivationDiagnostic::protection_state`] derives the
 //! single literal vocabulary word users see.
 
+pub mod agent_registry;
 pub mod baseline;
 pub(crate) mod daemon_evidence;
 pub mod detect_agents;

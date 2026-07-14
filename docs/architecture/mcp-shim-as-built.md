@@ -1,12 +1,12 @@
 # anvil MCP Shim — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-07-04 (ADR-098 AD-3: enforcement vocabulary unified on shared `EnforcementMode`; decision vocabulary gains `fence`/`interrupt`/`unknown`; `isError`/safe-default gate on `is_veto()`; MCP default posture `Interrupt`); prior sweep 2026-07-02 (tool registry now 14 tools incl. 6 GCTX graph-context tools) against main `d1fded280`; delta review 2026-06-10 (RMCPF-010..-012 tool registry, validate_write schema additions) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                       |
+| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-07-14 against ADR-106, `crates/anvil-cli/src/activation/agent_registry.rs`, and `crates/anvil-cli/src/commands/mcp*.rs`; prior enforcement review 2026-07-04 against ADR-098 |
 
-| Upstream                                                                              | Downstream                                                                  |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033 | Cursor MCP client, Claude Code MCP client, activation orchestrator (LAUNCH) |
+| Upstream                                                                                       | Downstream                                                                |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033, ADR-106 | First-wave MCP registry, activation orchestrator, public integration docs |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-07-04 (ADR-098 AD-3:
 > enforcement vocabulary unified on the shared `EnforcementMode`; decision
@@ -19,9 +19,9 @@
 > `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate / location:**
 > `crates/anvil-cli/src/mcp/` (+ `commands/mcp*.rs`) **Module owner (APS):**
 > RMCP (`plans/archive/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete)
-> **Used by:** Cursor + Claude Code MCP clients (call the shim's 14 registry
-> tools over stdio; `anvil_validate_write` is the load-bearing pre-write gate);
-> the activation orchestrator
+> **Used by:** first-wave MCP clients (call the shim's 14 registry tools over
+> stdio; `anvil_validate_write` is the load-bearing pre-write gate); the
+> activation orchestrator
 > (`crates/anvil-cli/src/activation/orchestrator/mod.rs:112`) writes the MCP
 > entries during `anvil start`
 
@@ -492,17 +492,18 @@ lives in the same file as the serve loop:
 
 ```bash
 anvil mcp install --client cursor          # writes ~/.cursor/mcp.json
-anvil mcp install --client claude-code     # writes ~/.claude.json
-anvil mcp install --client cursor --verify # read-only verify
+anvil mcp install --client codex
+anvil mcp install --client zed --scope project
+anvil mcp install --client opencode --verify
 ```
 
-`McpClient` (`commands/mcp.rs:59-65`) has exactly two variants — `Cursor` and
-`ClaudeCode`. The install delegates to `mcp_config::install_rust_stdio_target`
-(`commands/mcp.rs:131-136`, implementation at `commands/mcp_config.rs:182-...`),
-which is shared with the `anvil mcp-config` advanced surface (§11) and with the
-activation orchestrator
-(`crates/anvil-cli/src/activation/orchestrator/mod.rs:112`, where `anvil start`
-calls `install::install_for_clients` → same machinery).
+`AgentClientId` in `crates/anvil-cli/src/activation/agent_registry.rs` is the
+canonical identity registry. Skill discovery and MCP configuration remain
+independent capability fields. `crates/anvil-cli/src/commands/mcp_installer.rs`
+owns first-wave path, config-shape, semantic-merge, atomic-write, verification,
+and restart-guidance adapters. Cursor and Claude Code retain the full activation
+diagnostic ladder; `anvil start --mcp-client <client>` installs additional
+first-wave config without promoting a live-protection claim.
 
 The written entry is the canonical Rust stdio shape:
 
@@ -518,10 +519,9 @@ The written entry is the canonical Rust stdio shape:
 }
 ```
 
-The `--command` override (`commands/mcp.rs:51-52, 130`) lets tests and unusual
-deployments substitute a non-PATH binary. The `--workspace` override
-(`commands/mcp.rs:55-56`) overrides the client config root (default: home
-directory).
+The `--command` override lets tests and unusual deployments substitute a
+non-PATH binary. The `--workspace` override overrides the selected scope root
+(default: home directory for global scope).
 
 For the drift policy (`UpToDate` / `SafeDrift` / `UnsafeDrift` / `NotPresent`),
 atomic-write contract, and symlink-parent guard, see
@@ -540,13 +540,10 @@ anvil mcp-config --target claude-code --verify     # parse + report
 anvil mcp-config --target cursor --transport http --port 7616 --write
 ```
 
-Targets in v1 are `claude-code` and `cursor` (`commands/mcp_config.rs:84-90`).
-The `windsurf` and `vscode` targets were **removed** in LAUNCH-009.5 —
-`mcp_config.rs:8-18` records the rationale: Windsurf was banned in the
-2026-05-03 activation council and the old `vscode` emitter wrote to a path VS
-Code 1.99+ no longer reads. The public docs at
-`docs/public/anvil/integrations/mcp.md:96-104` still list Windsurf and VS Code
-as advertised targets — see §13 G-04 for the drift.
+Stdio targets come from the shared first-wave registry: Claude Code, Cursor,
+Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code project config,
+Copilot CLI, Grok Build, Warp, and project-only Zed. Windsurf remains removed.
+HTTP preview remains limited to Claude Code and Cursor.
 
 `mcp-config` does **not** install the shim binary. It emits, writes, or verifies
 the editor config that points at the shim. The shim itself is already part of
@@ -714,20 +711,13 @@ the Rust shim (`registry.rs:30-148`; §4 registry table). **Residual:**
 `anvil_check` architecture-check parity is deferred (`check.rs:21`); the INTR
 MCP-path content cap remains deferred (not shipped).
 
-### G-05: Install surface narrower than config surface
+### G-05: Install surface narrower than config surface (resolved)
 
-`anvil mcp install` v1 supports Cursor + Claude Code only
-(`commands/mcp.rs:59-65`). Windsurf, VS Code, and HTTP transport are only
-available via `anvil mcp-config` (`commands/mcp_config.rs`), and even there:
-
-- The `windsurf` and `vscode` targets were **removed** from `mcp-config` in
-  LAUNCH-009.5 (`mcp_config.rs:8-18`).
-- The public docs at `docs/public/anvil/integrations/mcp.md:96-104` still list
-  both as advertised targets — drift between docs and the code-as-shipped.
-
-**Risk:** Low — the public-doc table over-claims; the install command fails
-cleanly if a removed target is requested. **Fix:** Public-doc update planned
-alongside the next-tag MCP integrations refresh.
+**Resolved (MCPX / ADR-106):** `anvil mcp install` and stdio `anvil mcp-config`
+now share the first-wave typed registry and config adapters. VS Code remains
+project-file or vendor-profile managed, Zed remains project-only, and Windsurf
+remains unsupported. Those constraints are machine-visible errors and are
+documented in `docs/public/anvil/integrations/mcp.md`.
 
 ### G-06: HTTP transport mentioned but not served by the Rust shim
 

@@ -1,18 +1,17 @@
 # Activation Orchestrator — As-Built
 
-| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                                   |
-| -------- | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-07-02 (targeted delta review: ACTMO-002/-004/-005/-007 activation-spine steps, ACTMO-016 / ADR-094 worktree-registration gating, DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture) against main `d1fded280`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                       |
+| -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-07-14 (targeted delta review: MCPX first-wave registry and optional client configuration); prior activation-spine review 2026-07-02 against main `d1fded280` |
 
 | Upstream                                                                           | Downstream                                                                                   |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001, ADR-092 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (targeted delta review:
-> ACTMO-002/-004/-005/-007 activation-spine steps, ACTMO-016 / ADR-094
-> worktree-registration gating, DSV-021 daemon routing, UJ-001/-005/-006
-> threading, ADR-080 gate posture) against main `d1fded280`; full review
-> 2026-05-07 against `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Module:**
+> **Status:** Live (beta) **Last reviewed:** 2026-07-14 (targeted delta review:
+> MCPX first-wave registry and optional client configuration); prior targeted
+> review 2026-07-02 against main `d1fded280`; full review 2026-05-07 against
+> `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Module:**
 > `crates/anvil-cli/src/activation/` **Module owner (APS):** LAUNCH
 > (`launch-flow-readiness.aps.md`, 18/18 complete) **Used by:** `anvil start`,
 > `anvil status --verify`, `anvil tutorial` (ProtectionLoop default),
@@ -39,6 +38,12 @@ gate. The same `ProtectionState` enum
 (`crates/anvil-cli/src/activation/state.rs:15`) is consumed by
 `anvil status --verify`, `anvil doctor`, the protection-loop tutorial path, and
 JSON consumers — there is one renderer, surfaces cannot drift.
+
+The first-wave agent registry supplements this diagnostic. `anvil start` may
+offer strongly detected MCP clients, and explicit `--mcp-client` selections can
+install their documented config shapes. Those writes are reported separately;
+they do not promote the Cursor/Claude-specific diagnostic to `protecting` or
+claim that another client completed a live handshake.
 
 DSV-051 adds the operator runbook for the headless save-time driver:
 [`docs/runbooks/save-time-background-driver.md`](../runbooks/save-time-background-driver.md).

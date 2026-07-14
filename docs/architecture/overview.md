@@ -2,13 +2,14 @@
 
 | Type  | Authority | Owner  | Status | Freshness                                                                                                                            |
 | ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Derived   | DOCGOV | Live   | Last reviewed 2026-07-02 against `crates/*/Cargo.toml`, `packages/**/package.json`, and `docs/architecture/*-as-built.md` references |
+| Guide | Derived   | DOCGOV | Live   | Last reviewed 2026-07-14 against `crates/*/Cargo.toml`, `packages/**/package.json`, and `docs/architecture/*-as-built.md` references |
 
 | Upstream                                                                                                                    | Downstream                                        |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `docs/architecture/kernel-as-built.md`, `docs/architecture/intercept-as-built.md`, `docs/architecture/mcp-shim-as-built.md` | `docs/guides/architecture-diagrams.md`, README.md |
 
-**Version**: 3.0.0 | **Last Updated**: 2 July 2026 | **Status**: Living Document
+**Version**: 3.1.0 | **Last Updated**: 14 July 2026 | **Status**: Living
+Document
 
 ---
 
@@ -360,7 +361,7 @@ graph LR
 
     runtime["TS runtime<br/>API/archive consumers"]
 
-    ai["AI Assistants<br/>Claude Code / Cursor"]
+    ai["AI Assistants<br/>first-wave registry clients"]
     editor["Editor MCP client"]
     developer["Developer"]
     pipeline["GitHub Actions"]

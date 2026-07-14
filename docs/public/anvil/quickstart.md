@@ -158,16 +158,16 @@ When trustworthy local evidence exists it may add a single value line (for
 example risky writes flagged at save time); missing or zero evidence is omitted.
 
 `anvil start` is the activation entrypoint. It runs `anvil init` if needed,
-baselines the repo, wires MCP entries for the MCP-capable editors it detects
-(currently Cursor and Claude Code, writing the matching `~/.cursor/mcp.json` or
-`~/.claude.json` config), and ends in one literal protection state. Pass
-`--all-mcp-clients` or set `ANVIL_ALL_MCP_CLIENTS=1` to configure every
-supported client even if it was not detected. In the current release window, an
-interactive terminal also auto-starts the per-user save-time daemon (Linux and
-macOS) and reports the result on a `daemon:` line; pass `--no-daemon` (or set
-`ANVIL_NO_DAEMON=1`) to suppress that auto-start — a daemon already running is
-still reused — and note `--verify` never starts a daemon. The protection state
-is one of:
+baselines the repo, retains its full layered MCP diagnostic for Cursor and
+Claude Code, and can configure strongly detected first-wave clients. A config
+write is not proof of a live handshake, so only observed evidence promotes the
+literal protection state. Pass `--all-mcp-clients` or set
+`ANVIL_ALL_MCP_CLIENTS=1` to configure every supported client even if it was not
+detected. In the current release window, an interactive terminal also
+auto-starts the per-user save-time daemon (Linux and macOS) and reports the
+result on a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to
+suppress that auto-start — a daemon already running is still reused — and note
+`--verify` never starts a daemon. The protection state is one of:
 
 - `protecting` — MCP pre-write validation is live
 - `ready_restart_required` — config is wired, restart your editor to pick it up,
@@ -229,8 +229,9 @@ the finding anvil raises in your own repo — follow
 
 ## 5. Connect Your AI Editor (MCP)
 
-`anvil start` already wires MCP entries for the MCP-capable editors it detects
-(currently Cursor and Claude Code). To finish the connection:
+`anvil start` can wire MCP entries for strongly detected or explicitly selected
+first-wave clients; its full layered activation diagnostic remains available for
+Cursor and Claude Code. To finish the connection:
 
 1. Restart your editor so it picks up the new MCP entry.
 2. Check that `anvil` appears in the editor's MCP server list.
@@ -240,7 +241,9 @@ the finding anvil raises in your own repo — follow
 To generate the editor config manually (or to re-emit it for one editor), use:
 
 ```bash
-anvil mcp-config --target claude-code   # or: --target cursor
+anvil mcp-config --target claude-code
+anvil mcp-config --target codex
+anvil mcp install --client zed --scope project
 ```
 
 See the [MCP integration guide](integrations/mcp.md) for the full setup and

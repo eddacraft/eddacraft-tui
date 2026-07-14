@@ -9,6 +9,13 @@ Accepted
 > Apache-2.0 OSS surface, but its canonical source moves back into Anvil and the
 > public repository becomes a read-only mirror. This amends the contribution
 > assumption for that repo without changing the three-piece OSS surface.
+>
+> **Amendment (2026-07-14, SKPKG):** proprietary distribution may include
+> customer-readable operational assets such as agent-skill Markdown embedded
+> in the binary and materialised by the CLI. "Binary-only" means product
+> source is not published; it does not require every installed support asset
+> to be opaque. Skills remain part of the closed product during beta, with an
+> eventual OSS transition explicitly left open.
 
 ## Date
 
@@ -122,6 +129,22 @@ Because the product is closed-source:
   alongside DIST-008. Current status and any future crates.io-related work
   should be tracked via `plans/modules/distribution-pipeline.aps.md`. No
   crates.io publish is currently planned.
+
+### Customer-readable operational assets
+
+The closed product may embed and install bounded, human-readable operational
+assets needed to connect customers' tools to Anvil, including Agent Skills,
+configuration templates, shell completions, and help text. These assets:
+
+- ship only through a signed Anvil release during beta;
+- may be inspected after installation so operators can audit instructions
+  given to their agents;
+- do not expose the Anvil engines, catalogue, emission tooling, or private
+  monorepo source; and
+- do not create a fourth OSS repository or an open-source commitment.
+
+If the skills catalogue becomes OSS later, that is a distribution/source
+transition for the assets, not an implicit opening of the Anvil product.
 
 ### Activation / licensing / telemetry
 

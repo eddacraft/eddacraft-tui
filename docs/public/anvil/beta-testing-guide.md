@@ -300,16 +300,18 @@ cd your-project
 anvil start
 ```
 
-This runs init + first-scan + MCP install for Cursor and Claude Code in one go.
-The activation summary ends with a literal protection state. Record:
+This runs init + first-scan + detected MCP client setup in one go. Global
+installation is the default; use `--mcp-scope project` when you want supported
+project-local configuration instead. The activation summary ends with a literal
+protection state. Record:
 
 - Which state was reported (`protecting`, `ready_restart_required`, `watching`,
   `needs_action`, `unsupported`, or `error`).
 - Whether the language profile in the summary matched your repo.
 - Whether the explanation of what is and isn't protected matched what you
   expected.
-- Whether the MCP entries (`~/.cursor/mcp.json`, `~/.claude.json`) were written
-  and whether your editor picked them up after restart.
+- Which MCP entries were offered or written, whether their global/project scope
+  matched your choice, and whether the client picked them up after restart.
 
 If you only want a read-only check (no init, no scan, no MCP write):
 
@@ -564,8 +566,9 @@ output and rule catalogue details until the Rust explain command lands.
 Try the integrations that match your workflow:
 
 - [GitHub Actions](./integrations/github.md)
-- [MCP / AI editor configuration](./integrations/mcp.md) -- Cursor and Claude
-  Code only in v1
+- [MCP / AI editor configuration](./integrations/mcp.md) -- first-wave client
+  configuration, with full activation evidence still focused on Cursor and
+  Claude Code
 
 Useful feedback includes setup friction, unclear permissions, and whether the
 same findings appear consistently across CLI, editor, and CI surfaces.
@@ -638,9 +641,9 @@ One sentence describing what happened.
 
 ## Known Limitations
 
-- **MCP install is Cursor and Claude Code only in v1.** Windsurf, VS Code MCP
-  install, and Copilot / Codex CLI integration are explicitly out of scope. No
-  process auto-attach.
+- **MCP protection evidence remains client-specific.** The first-wave installer
+  can write supported client configurations, but it does not treat a config
+  write as proof of a live handshake. There is no process auto-attach.
 - **`anvil intercept status` is available on every supported target.** The Unix
   path speaks the UDS IPC; the Windows path drives the same wire shape over the
   named pipe via `connect_owner_only_pipe_client`. `--json` returns the same
