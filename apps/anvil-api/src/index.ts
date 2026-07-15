@@ -10,6 +10,7 @@ import { authGithubDevice } from './routes/auth-github-device.js';
 import { admin } from './routes/admin.js';
 import { waitlist } from './routes/waitlist.js';
 import { cron } from './routes/cron.js';
+import { telemetry } from './routes/telemetry.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { traceContext } from './middleware/trace-context.js';
 import { getClient } from './db/client.js';
@@ -175,5 +176,10 @@ app.route('/auth/github-device', authGithubDevice);
 app.route('/admin', admin);
 app.route('/waitlist', waitlist);
 app.route('/cron', cron);
+// FLEET-005 (ADR-107): fleet telemetry ingest. Unauthenticated by design
+// (beacons come from arbitrary installs); covered by the shared '*'
+// rateLimiter above and versioned by the /api/v1 base path plus the
+// schema_version field in the body.
+app.route('/telemetry', telemetry);
 
 export default app;

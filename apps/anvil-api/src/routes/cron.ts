@@ -7,8 +7,10 @@ import {
   cleanupExpiredGithubDeviceSessions,
   cleanupExpiredOtpCodes,
   cleanupExpiredRefreshTokens,
+  rollupAndPurgeExpiredTelemetryBeacons,
 } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
+import { getTelemetryRetentionDays } from '../lib/telemetry-retention.js';
 
 const debug = createDebugger('api');
 
@@ -48,6 +50,13 @@ cron.get('/cleanup', async (c) => {
   const otpCount = await cleanupExpiredOtpCodes(sql);
   const refreshCount = await cleanupExpiredRefreshTokens(sql);
   const broadcastSnapshotCount = await cleanupExpiredBroadcastSnapshots(sql);
+  // FLEET-005 (ADR-107 §6): raw beacons older than the retention window are
+  // rolled up into the daily aggregate tables, then purged. The window is
+  // configuration (default 90 days; TELEMETRY_RETENTION_DAYS overrides).
+  const telemetryBeaconCount = await rollupAndPurgeExpiredTelemetryBeacons(
+    sql,
+    getTelemetryRetentionDays()
+  );
 
   debug('cleanup complete', {
     deviceCodes: deviceCount,
@@ -55,6 +64,7 @@ cron.get('/cleanup', async (c) => {
     otpCodes: otpCount,
     refreshTokens: refreshCount,
     broadcastSnapshots: broadcastSnapshotCount,
+    telemetryBeacons: telemetryBeaconCount,
   });
 
   return c.json({
@@ -64,6 +74,7 @@ cron.get('/cleanup', async (c) => {
       otpCodes: otpCount,
       refreshTokens: refreshCount,
       broadcastSnapshots: broadcastSnapshotCount,
+      telemetryBeacons: telemetryBeaconCount,
     },
   });
 });

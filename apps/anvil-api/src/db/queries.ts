@@ -1445,6 +1445,114 @@ export async function cleanupExpiredBroadcastSnapshots(sql: NeonClient): Promise
 }
 
 // ---------------------------------------------------------------------------
+// Fleet telemetry (FLEET-005, ADR-107)
+// ---------------------------------------------------------------------------
+
+/**
+ * A validated schema-version-1 beacon, exactly the ADR-107 §3 allowlist.
+ * Defined here (not imported from the route schema) so the storage layer
+ * carries its own contract: nothing outside these fields can ever reach an
+ * insert. Structurally satisfied by `TelemetryBeacon` from
+ * `routes/telemetry-schemas.ts`.
+ */
+export interface TelemetryBeaconRecord {
+  schema_version: number;
+  install_id: string;
+  version: string;
+  install_method: string;
+  platform: string;
+  channel: string;
+  flag_snapshot_version: string;
+  features: ReadonlyArray<{ key: string; count: number }>;
+}
+
+/**
+ * Store one beacon. Privacy invariants (ADR-107 §3), by construction:
+ *
+ *   - The caller passes ONLY the validated allowlist record — this function
+ *     never sees the request, so no IP (or any header) can reach a row; the
+ *     table has no ip column to receive one anyway.
+ *   - No timestamp is supplied: `received_on` is a DATE column defaulting to
+ *     `current_date`, so arrival time coarsens to a date at the row.
+ *
+ * The beacon row and its feature-usage rows land in ONE statement (a
+ * data-modifying CTE), so a partial write cannot strand usage counts
+ * without their beacon or vice versa.
+ */
+export async function insertTelemetryBeacon(
+  sql: NeonClient,
+  beacon: TelemetryBeaconRecord
+): Promise<void> {
+  await sql`
+    WITH beacon AS (
+      INSERT INTO telemetry_beacons
+        (schema_version, install_id, version, install_method, platform, channel, flag_snapshot_version)
+      VALUES
+        (${beacon.schema_version}, ${beacon.install_id}, ${beacon.version},
+         ${beacon.install_method}, ${beacon.platform}, ${beacon.channel},
+         ${beacon.flag_snapshot_version})
+      RETURNING id
+    )
+    INSERT INTO telemetry_beacon_features (beacon_id, feature_key, usage_count)
+    SELECT beacon.id, f.key, f.count
+    FROM beacon,
+         jsonb_to_recordset(${JSON.stringify(beacon.features)}::jsonb)
+           AS f(key text, count int)
+  `;
+}
+
+/**
+ * Retention sweep (ADR-107 §6): roll raw beacon rows older than the
+ * retention window up into the kept-indefinitely daily aggregate tables,
+ * then delete them. Runs from the hourly cron cleanup.
+ *
+ * All three statements share one transaction, so a failed rollup never
+ * loses raw rows. The rollup recomputes each expired day's groups from the
+ * still-present raw rows and overwrites on conflict, which makes a re-run
+ * after a failed delete idempotent (no double counting).
+ *
+ * `retentionDays` is configuration (see lib/telemetry-retention.ts) and is
+ * bound as a parameter — the window is never a literal in the SQL.
+ */
+export async function rollupAndPurgeExpiredTelemetryBeacons(
+  sql: NeonClient,
+  retentionDays: number
+): Promise<number> {
+  if (!Number.isInteger(retentionDays) || retentionDays < 1) {
+    throw new Error(
+      `telemetry retention window must be a positive integer number of days, got ${retentionDays}`
+    );
+  }
+  const txResult = await sql.transaction([
+    sql`INSERT INTO telemetry_daily_installs
+          (day, version, install_method, platform, channel, install_count)
+        SELECT received_on, version, install_method, platform, channel,
+               COUNT(DISTINCT install_id)
+        FROM telemetry_beacons
+        WHERE received_on < current_date - ${retentionDays}::int
+        GROUP BY received_on, version, install_method, platform, channel
+        ON CONFLICT (day, version, install_method, platform, channel)
+        DO UPDATE SET install_count = EXCLUDED.install_count`,
+    sql`INSERT INTO telemetry_daily_feature_usage
+          (day, feature_key, usage_count, install_count)
+        SELECT b.received_on, f.feature_key, SUM(f.usage_count),
+               COUNT(DISTINCT b.install_id)
+        FROM telemetry_beacon_features f
+        JOIN telemetry_beacons b ON b.id = f.beacon_id
+        WHERE b.received_on < current_date - ${retentionDays}::int
+        GROUP BY b.received_on, f.feature_key
+        ON CONFLICT (day, feature_key)
+        DO UPDATE SET usage_count = EXCLUDED.usage_count,
+                      install_count = EXCLUDED.install_count`,
+    sql`DELETE FROM telemetry_beacons
+        WHERE received_on < current_date - ${retentionDays}::int
+        RETURNING id`,
+  ]);
+  const purged = (txResult as unknown[][])[2] ?? [];
+  return purged.length;
+}
+
+// ---------------------------------------------------------------------------
 // Admin keys (ADMINCLIH-002)
 // ---------------------------------------------------------------------------
 

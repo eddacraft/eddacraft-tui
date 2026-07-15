@@ -137,6 +137,53 @@ CREATE TABLE send_broadcast_snapshots (
   consumed_at       timestamptz
 );
 
+-- Fleet telemetry beacon storage (FLEET-005, ADR-107 §3/§6). Mirrors
+-- migration 017-telemetry-beacons.sql so fresh-install environments have
+-- the tables from row zero. Privacy by construction: the raw row carries
+-- ONLY the ADR-107 dimension allowlist — deliberately NO ip column and NO
+-- timestamptz column (arrival time coarsens to received_on, a DATE). Raw
+-- rows live for the configured retention window (default 90 days,
+-- lib/telemetry-retention.ts); the cron sweep rolls them up into the
+-- telemetry_daily_* aggregates (kept indefinitely) and deletes them.
+CREATE TABLE telemetry_beacons (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  schema_version        int  NOT NULL,
+  install_id            uuid NOT NULL,
+  version               text NOT NULL CHECK (char_length(version) <= 64),
+  install_method        text NOT NULL CHECK (install_method IN
+                          ('homebrew', 'scoop', 'winget', 'cargo_dist',
+                           'cargo_install', 'dev_build', 'unknown')),
+  platform              text NOT NULL CHECK (char_length(platform) <= 64),
+  channel               text NOT NULL CHECK (char_length(channel) <= 32),
+  flag_snapshot_version text NOT NULL CHECK (char_length(flag_snapshot_version) <= 64),
+  received_on           date NOT NULL DEFAULT current_date
+);
+
+CREATE TABLE telemetry_beacon_features (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  beacon_id   uuid NOT NULL REFERENCES telemetry_beacons(id) ON DELETE CASCADE,
+  feature_key text NOT NULL CHECK (char_length(feature_key) <= 128),
+  usage_count int  NOT NULL CHECK (usage_count >= 0)
+);
+
+CREATE TABLE telemetry_daily_installs (
+  day            date NOT NULL,
+  version        text NOT NULL,
+  install_method text NOT NULL,
+  platform       text NOT NULL,
+  channel        text NOT NULL,
+  install_count  int  NOT NULL,
+  PRIMARY KEY (day, version, install_method, platform, channel)
+);
+
+CREATE TABLE telemetry_daily_feature_usage (
+  day           date   NOT NULL,
+  feature_key   text   NOT NULL,
+  usage_count   bigint NOT NULL,
+  install_count int    NOT NULL,
+  PRIMARY KEY (day, feature_key)
+);
+
 -- Indexes
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
@@ -167,6 +214,13 @@ CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 CREATE INDEX idx_send_broadcast_snapshots_expires_at
   ON send_broadcast_snapshots(expires_at);
+-- Mirrors migration 017-telemetry-beacons.sql.
+CREATE INDEX idx_telemetry_beacons_received_on
+  ON telemetry_beacons(received_on);
+CREATE INDEX idx_telemetry_beacons_install_id
+  ON telemetry_beacons(install_id, received_on);
+CREATE INDEX idx_telemetry_beacon_features_beacon_id
+  ON telemetry_beacon_features(beacon_id);
 
 -- Auto-update updated_at trigger
 CREATE OR REPLACE FUNCTION update_updated_at()
