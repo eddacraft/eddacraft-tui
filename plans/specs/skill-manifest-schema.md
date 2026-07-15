@@ -53,10 +53,13 @@ files, the scanner cannot determine the original source — `type` is `"local"`
 unless the file is a symlink.
 
 An `anvil-bundled` source is installed from an asset embedded in the Anvil
-binary. Its adjacent `.anvil-managed.json` manifest is authoritative for
-`sourceCommit`, `anvilVersion`, `bundleDigest`, and the managed file hashes. A scanner must
-verify those hashes before reporting the source as managed; a missing or
-mismatched manifest is local or modified content, not `anvil-bundled`.
+binary. Its adjacent `.anvil-managed.json` installer manifest records
+`sourceCommit`, `anvilVersion`, `bundleDigest`, and the managed file hashes. A
+scanner must verify the manifest digest and file hashes before reporting
+`type: "anvil-bundled"`; it then maps only `sourceCommit` and `anvilVersion`
+into `SourceInfo`. The digest and file hashes remain installer-manifest fields,
+not SKOBS `SourceInfo` fields. A missing or mismatched manifest is local or
+modified content, not `anvil-bundled`.
 
 ## Flag
 

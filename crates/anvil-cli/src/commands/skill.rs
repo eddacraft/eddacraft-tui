@@ -340,7 +340,72 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
             manifest_path.display()
         );
     }
+    validate_no_unmanaged_entries(destination, &manifest.files)?;
     Ok(manifest)
+}
+
+fn validate_no_unmanaged_entries(
+    destination: &Path,
+    managed_files: &BTreeMap<String, String>,
+) -> Result<()> {
+    let mut allowed_files = managed_files
+        .keys()
+        .map(PathBuf::from)
+        .collect::<BTreeSet<_>>();
+    allowed_files.insert(PathBuf::from(MANIFEST_NAME));
+
+    let mut allowed_directories = BTreeSet::new();
+    for file in &allowed_files {
+        let mut parent = file.parent();
+        while let Some(path) = parent {
+            if path.as_os_str().is_empty() {
+                break;
+            }
+            allowed_directories.insert(path.to_path_buf());
+            parent = path.parent();
+        }
+    }
+
+    let mut directories = vec![destination.to_path_buf()];
+    while let Some(directory) = directories.pop() {
+        let entries = fs::read_dir(&directory).with_context(|| {
+            format!("inspecting managed skill directory {}", directory.display())
+        })?;
+        for entry in entries {
+            let entry = entry.with_context(|| {
+                format!("inspecting managed skill directory {}", directory.display())
+            })?;
+            let path = entry.path();
+            let relative = path
+                .strip_prefix(destination)
+                .with_context(|| format!("checking managed skill entry {}", path.display()))?;
+            let metadata = fs::symlink_metadata(&path)
+                .with_context(|| format!("inspecting managed skill entry {}", path.display()))?;
+
+            let allowed = if metadata.file_type().is_symlink() {
+                false
+            } else if metadata.is_dir() {
+                if allowed_directories.contains(relative) {
+                    directories.push(path.clone());
+                    true
+                } else {
+                    false
+                }
+            } else if metadata.is_file() {
+                allowed_files.contains(relative)
+            } else {
+                false
+            };
+
+            if !allowed {
+                bail!(
+                    "managed skill directory contains unmanaged entry {}; refusing to overwrite user content",
+                    path.display()
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn expected_manifest() -> ManagedManifest {

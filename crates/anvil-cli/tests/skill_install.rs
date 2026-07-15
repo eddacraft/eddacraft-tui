@@ -116,6 +116,23 @@ fn refuses_unmanaged_or_modified_skill_files() {
 }
 
 #[test]
+fn refuses_extra_user_owned_files_in_a_managed_directory() {
+    let root = tempfile::tempdir().unwrap();
+    assert!(run(root.path(), &["--client", "codex"]).status.success());
+    let skill = root.path().join(".agents/skills/anvil-developer-functions");
+    let extra = skill.join("notes/private.md");
+    fs::create_dir_all(extra.parent().unwrap()).unwrap();
+    fs::write(&extra, "user-owned notes").unwrap();
+
+    let output = run(root.path(), &["--client", "codex"]);
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unmanaged entry"));
+    assert_eq!(fs::read_to_string(extra).unwrap(), "user-owned notes");
+    assert!(skill.join("SKILL.md").exists());
+}
+
+#[test]
 fn refuses_a_managed_manifest_with_an_unknown_identity() {
     let root = tempfile::tempdir().unwrap();
     assert!(run(root.path(), &["--client", "codex"]).status.success());
