@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 153/190  |
+| CIB | —     | In Progress | 153/194  |
 
 ## Purpose
 
@@ -5067,3 +5067,58 @@ archive.
   the remote half), USAGE privacy contract, KDS daemon store (mixed-schema
   rows in one SQLite store).
 - **Confidence:** high
+
+### CIB-198: Invisible-content trap antipattern rule (fragile-presentation family)
+
+- **Status:** Ready
+- **Intent:** Flag content authored invisible (`opacity: 0`) whose visibility
+  depends on an entrance animation firing, so a reduced-motion preference,
+  backgrounded tab, or hydration miss can leave the section permanently blank.
+- **Expected Outcome:** A new `patterns/fragile-presentation/` family
+  (definition.anvil with the required six H2 sections) ships its first rule
+  flagging the single-line motion entrance idiom
+  `initial={{ opacity: 0, ... }}` in JS/TS/JSX/TSX source (RE2-safe pattern,
+  no lookahead — pinned by the `registry_compile_diagnostics()` guard so a
+  silently dropped rule fails tests, per the SPG precedent). Severity
+  `warning`, confidence `medium`, on by default; allowlists cover
+  tests/`__tests__`/`explain` fixtures. The remediation text routes to
+  visible-by-default content (animate decoration, not existence; or animate
+  from a visible initial state), noting suppression is appropriate where a
+  visible no-JS/reduced-motion fallback provably exists — the ADR-087
+  construction-smell posture: flag the sink, a human confirms the contract.
+  The new category is registered end to end (`AntiPatternCategory` variant in
+  `types.rs`, `map_category` arm in `registry_loader.rs`, TS
+  `KNOWN_CATEGORIES` value) so it does not fall back to `code-quality`. Rule
+  id prefix chosen at pickup (avoid `FP`, which reads as false-positive in
+  dogfood reports; `FRAG-001` suggested).
+- **Non-scope:** The other nine rules shortlisted from the same source.
+  Render-time concerns (contrast ratios, clipped text, column alignment, dead
+  controls, image seams) are out of scope for the static antipattern scanner
+  entirely — they would need a render-time check category, which is its own
+  ADR-sized decision. Multi-line reveal idioms (IntersectionObserver +
+  classList opacity toggles) exceed the line-regex engine and are deferred
+  until a JS/TS AST detection path exists.
+- **Validation:** `cd packages/anvil/core && npx tsx
+  scripts/compile-patterns.ts` then `oxfmt --write
+  patterns/compiled/registry.json` leaves a clean committed registry;
+  `cargo test -p eddacraft-anvil` (full, unfiltered) with fixtures showing the
+  motion idiom fires the rule and a visible-by-default component does not;
+  the compile-diagnostics guard reports no dropped `fragile-presentation`
+  rules.
+- **Identified From:** 2026-07-16 triage of the third-party pols.dev
+  "anti-slop" design-law skill (~150 rules): seven correctness-grade
+  candidates were assessed against the compiled registry (46 rules, ten
+  families — no presentation coverage; a deliberately stacked probe file
+  returned zero findings). This is the only shortlisted rule that is both
+  statically detectable under the RE2 line-regex engine and a genuine
+  correctness trap rather than a taste judgement.
+- **Coordinates with:**
+  [insecure-construction-catalogue](./insecure-construction-catalogue.aps.md)
+  (INSEC — family authoring precedent),
+  [anvil-scanner-parity-gaps](../archive/modules/anvil-scanner-parity-gaps.aps.md)
+  (SPG — compile-diagnostics guard),
+  [lang-ts-audit](../archive/modules/lang-ts-audit.aps.md) (LANGTS — AP idiom
+  precedent).
+- **Confidence:** medium — the regex idiom is clean and the family authoring
+  mechanics are well-worn, but this is the first presentation-category family;
+  category naming deserves a quick operator nod at pickup.
