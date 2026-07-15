@@ -8,8 +8,7 @@
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `docs/architecture/kernel-as-built.md`, `docs/architecture/intercept-as-built.md`, `docs/architecture/mcp-shim-as-built.md` | `docs/guides/architecture-diagrams.md`, README.md |
 
-**Version**: 3.1.0 | **Last Updated**: 14 July 2026 | **Status**: Living
-Document
+**Version**: 3.1.0 | **Last Updated**: 14 July 2026 | **Status**: Living Document
 
 ---
 
