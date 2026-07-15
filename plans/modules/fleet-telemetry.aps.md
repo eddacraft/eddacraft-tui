@@ -5,12 +5,13 @@
 
 | ID    | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLEET | —     | High     | Draft  |
+| FLEET | —     | High     | Ready  |
 
 **Last reviewed:** 2026-07-15 — OQ3 resolved by the operator (investor
-evidence is the trigger); consent-posture design gate drafted as
-[ADR-106](../decisions/106-fleet-telemetry-consent-posture.md) (Proposed,
-awaiting the operator's Accepted).
+evidence is the trigger); design gate
+[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) **Accepted
+2026-07-15 (operator)**; module flipped to Ready with FLEET-001..007
+drafted against the accepted ADR.
 
 > **Provenance:** Filed 2026-07-14 from an operator observability review.
 > Today Anvil ships **zero** remote telemetry by deliberate privacy posture:
@@ -30,8 +31,11 @@ explicitly consented, phone-home telemetry channel.
 This is a **posture change**, not an increment: the existing privacy contract
 (`docs/observability/usage-analytics.md`) promises observations never leave
 the machine, and the INSIGHTS module was shipped with an explicit "No
-telemetry" annotation. Nothing in this module is buildable until a consent
-ADR reverses that promise for a narrow, enumerated payload.
+telemetry" annotation. That reversal is decided:
+[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) (Accepted
+2026-07-15) narrows it to an enumerated payload behind a disclosed opt-out;
+FLEET-006 owns rewriting the contract surfaces in the same release as the
+beacon.
 
 The dimension contract already exists on paper: the feature-flagging design
 (`plans/specs/2026-04-09-feature-flagging-design.md`, restated in
@@ -73,9 +77,9 @@ inline `flag_set`; its remote half was never wired and lands here.
 
 **Depends on:**
 
-- [ADR-106](../decisions/106-fleet-telemetry-consent-posture.md) — the
-  module's design gate (Proposed 2026-07-15); nothing ships before it is
-  Accepted.
+- [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) — the
+  module's design gate, **Accepted 2026-07-15**; its dimension allowlist
+  and consent requirements bind every item below.
 - LAUNCH-013 `InstallMethod` detection
   (`crates/anvil-cli/src/commands/version.rs`).
 - CIB-197 (local envelope enrichment) — the beacon should reuse the same
@@ -103,32 +107,142 @@ inline `flag_set`; its remote half was never wired and lands here.
 
 ## Open Questions
 
-- **OQ1 (consent):** proposed answer in
-  [ADR-106](../decisions/106-fleet-telemetry-consent-posture.md) —
-  disclosed opt-out (notice strictly before the first beacon; `anvil
-  telemetry off` / `ANVIL_TELEMETRY=off` / `DO_NOT_TRACK=1` all hard
-  offs). Pending the operator's Accepted.
-- **OQ2 (identity):** proposed answer in ADR-106 — anonymous random
-  per-install UUID, rotatable via `anvil telemetry reset-id`; the salted
-  principal is deliberately NOT reused on the wire. Pending the
-  operator's Accepted.
+- **OQ1 (consent):** **Resolved 2026-07-15** via
+  [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md)
+  (Accepted) — disclosed opt-out (notice strictly before the first
+  beacon; `anvil telemetry off` / `ANVIL_TELEMETRY=off` /
+  `DO_NOT_TRACK=1` all hard offs).
+- **OQ2 (identity):** **Resolved 2026-07-15** via ADR-107 (Accepted) —
+  anonymous random per-install UUID, rotatable via `anvil telemetry
+  reset-id`; the salted principal is deliberately NOT reused on the
+  wire.
 - **OQ3 (trigger):** **Resolved 2026-07-15 (operator):** fleet telemetry
   is needed as evidence for investors — the Draft→Ready flip does NOT
   wait on an EXPORT-style paying-customer/incident gate; it is gated only
-  on ADR-106 acceptance and the Ready checklist below.
+  on ADR-107 acceptance and the Ready checklist below.
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+All satisfied 2026-07-15 — module flipped to **Ready**:
 
-- [ ] [ADR-106](../decisions/106-fleet-telemetry-consent-posture.md)
-      Accepted by the operator (design gate; drafted Proposed 2026-07-15)
-- [ ] Dimension allowlist enumerated and reviewed against the privacy
-      contract
-- [ ] Ingest ownership confirmed (`apps/anvil-api` route + retention)
-- [ ] Work items drafted against the accepted ADR
+- [x] [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md)
+      Accepted by the operator (design gate; Accepted 2026-07-15)
+- [x] Dimension allowlist enumerated and reviewed against the privacy
+      contract (ADR-107 Decision §3; amendments require a dated ADR note)
+- [x] Ingest ownership confirmed (`apps/anvil-api` versioned route; raw
+      90d / aggregates kept — ADR-107 Decision §6)
+- [x] Work items drafted against the accepted ADR (below)
 
 ## Work Items
 
-None yet — per APS rules, work items are drafted when the module goes Ready
-(after the consent ADR is Accepted).
+Sequencing: FLEET-001/-002 are independent leads; FLEET-003 needs both (and
+prefers CIB-197's envelope fields); FLEET-004 needs -003's payload builder;
+FLEET-005 can proceed in parallel on the API side; FLEET-006 ships in the
+same release as -003 (the disclosure/docs and the beacon may not separate);
+FLEET-007 follows once ingest has data.
+
+### FLEET-001: Consent state and disclosure surface
+
+- **Status:** Ready
+- **Intent:** No beacon can ever fire before the user has seen an honest
+  disclosure, and turning telemetry off is one obvious action.
+- **Expected Outcome:** A persisted telemetry consent state (on/off +
+  notice-shown) in the user-scoped state dir; `anvil telemetry on|off`
+  flips it; the first-run surface (activation/welcome) shows the ADR-107
+  disclosure naming the exact dimensions and the off switch, and the
+  notice strictly precedes any first send. `ANVIL_TELEMETRY=off` and
+  `DO_NOT_TRACK=1` override everything; gated `ANVIL_HOME` and non-TTY
+  first runs that never showed the notice do not beacon.
+- **Validation:** Tests prove no send path is reachable while
+  notice-shown is false or any hard off is set.
+- **Dependencies:** ADR-107 (Accepted).
+- **Confidence:** high
+
+### FLEET-002: Anonymous install identity
+
+- **Status:** Ready
+- **Intent:** Unique-install and retention counts without touching user
+  identity.
+- **Expected Outcome:** A random UUID v4 `install_id` minted on first use,
+  stored beside the per-deployment salt in the credentials dir (0600),
+  derived from nothing; `anvil telemetry reset-id` rotates it. The salted
+  principal never appears in any telemetry payload.
+- **Validation:** Tests cover mint-once, rotation, and permissions;
+  payload-shape test asserts no principal field.
+- **Dependencies:** ADR-107 (Accepted).
+- **Confidence:** high
+
+### FLEET-003: Telemetry beacon producer
+
+- **Status:** Ready
+- **Intent:** Ship the ADR-107 allowlist payload — and nothing else — at
+  most once per install per 24h, without ever getting in the user's way.
+- **Expected Outcome:** A session-start beacon carrying exactly the
+  ADR-107 Decision §3 dimensions (schema_version, install_id, version,
+  install_method, platform triple, channel, flag snapshot version,
+  feature-key usage counts since last beacon), sent asynchronously with a
+  short timeout; failure is silent and unspooled; zero blocking latency
+  added to any command (ADR-031 discipline). Reuses CIB-197's
+  `version`/`install_method` fields rather than a second detector.
+- **Validation:** Payload golden test pins the allowlist (a new field
+  fails the test); latency assertion on the command path; 24h-cap and
+  hard-off tests.
+- **Dependencies:** FLEET-001, FLEET-002, CIB-197.
+- **Confidence:** medium — the emission point in the session-start path
+  needs care around the activation flow.
+
+### FLEET-004: `anvil telemetry` transparency command
+
+- **Status:** Ready
+- **Intent:** The allowlist is auditable from the binary itself, not just
+  the docs.
+- **Expected Outcome:** `anvil telemetry` prints the consent state, the
+  install id, and the exact payload the next beacon would send (or that
+  none will, and why); `on|off|reset-id` subverbs round out the surface.
+- **Validation:** Snapshot test of the rendered payload matches the
+  FLEET-003 golden.
+- **Dependencies:** FLEET-003 (payload builder).
+- **Confidence:** high
+
+### FLEET-005: anvil-api ingest route
+
+- **Status:** Ready
+- **Intent:** A place for beacons to land that honours the retention and
+  privacy commitments.
+- **Expected Outcome:** A versioned `apps/anvil-api` ingest route
+  validating the schema_version'd payload; IPs not retained on the stored
+  row; raw rows retained 90 days, aggregates kept; operator-only access.
+- **Validation:** Route tests cover schema rejection, IP absence in
+  storage, and retention configuration.
+- **Dependencies:** ADR-107 (Accepted); payload schema from FLEET-003
+  (coordinate on the shape early, don't block).
+- **Confidence:** medium — retention mechanics depend on the Neon/storage
+  setup.
+
+### FLEET-006: Privacy contract and docs update
+
+- **Status:** Ready
+- **Intent:** Every surface that says "nothing leaves the machine" is
+  rewritten honestly in the same release that ships the beacon.
+- **Expected Outcome:** `docs/observability/usage-analytics.md` (and any
+  welcome/docs copy repeating the local-only promise) distinguishes the
+  local Kindling pipe (unchanged) from the ADR-107 beacon (dimensions
+  enumerated, offs documented); a public docs page lists the allowlist.
+- **Validation:** `rg -n "never leaves|local-only" docs/` finds no stale
+  absolute claims; docs:check passes.
+- **Dependencies:** FLEET-003 (must ship together).
+- **Confidence:** high
+
+### FLEET-007: Operator fleet view
+
+- **Status:** Ready
+- **Intent:** The investor-evidence read surface — the reason this module
+  exists.
+- **Expected Outcome:** An operator-only view over the ingested aggregates
+  answering: active installs (daily/weekly/monthly), version distribution,
+  install-method mix, feature adoption, and retention cohorts.
+- **Validation:** View renders correct aggregates against a seeded
+  fixture set.
+- **Dependencies:** FLEET-005 (ingested data).
+- **Confidence:** medium — surface choice (api route + dashboard vs
+  ad-hoc queries) can be decided at execution time.

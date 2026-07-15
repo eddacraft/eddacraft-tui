@@ -1,8 +1,10 @@
-# ADR-106: Fleet Telemetry Consent Posture and Dimension Allowlist
+# ADR-107: Fleet Telemetry Consent Posture and Dimension Allowlist
 
 ## Status
 
-Proposed
+Accepted 2026-07-15 (operator) — accepted as written; the disclosed
+opt-out posture, dimension allowlist, and transparency requirements are in
+effect as the FLEET design gate.
 
 ## Date
 
