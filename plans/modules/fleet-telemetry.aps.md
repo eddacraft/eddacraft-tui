@@ -112,7 +112,9 @@ inline `flag_set`; its remote half was never wired and lands here.
   (Accepted) — disclosed opt-out (notice strictly before the first
   beacon; `anvil telemetry off` / `ANVIL_TELEMETRY=off` /
   `DO_NOT_TRACK=1` all hard offs).
-- **OQ2 (identity):** **Resolved 2026-07-15** via ADR-107 (Accepted) —
+- **OQ2 (identity):** **Resolved 2026-07-15** via
+  [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md)
+  (Accepted) —
   anonymous random per-install UUID, rotatable via `anvil telemetry
   reset-id`; the salted principal is deliberately NOT reused on the
   wire.
