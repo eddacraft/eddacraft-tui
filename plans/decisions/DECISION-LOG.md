@@ -107,7 +107,7 @@ These define how Anvil behaves by default. All features must align.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
-| [108](108-policy-authoring-lint-and-agent-guidance.md) | Customer agents may cognitively author Rego through a small shipped skill, while Anvil owns deterministic target-aware lint, validation, tests, evaluation, and enforcement; comprehensive agent guidance is generated, embedded, routed on demand through CLI/MCP, and excluded from ambient context and the public docs build | Proposed |
+| [108](108-policy-authoring-lint-and-agent-guidance.md) | Customer agents may cognitively author Rego through a small shipped skill, while Anvil owns deterministic target-aware lint, validation, tests, evaluation, and enforcement; comprehensive agent guidance is generated, embedded, routed on demand through CLI/MCP, and excluded from ambient context and the public docs build | Accepted 2026-07-16 (owner) |
 | [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
 | [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
 | [035](035-three-pipe-observability-rule.md) | Three-pipe observability rule: Kindling = governance facts, Notification = user-visible state, tracing/OTEL = ephemeral debugging (never source-of-truth); `traceparent` is the cross-pipe correlation key | Accepted |

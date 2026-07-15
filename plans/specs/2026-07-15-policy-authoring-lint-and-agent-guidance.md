@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | --- | --- | --- | --- | --- |
-| Spec | Authoritative | OPAE | Proposed — owner design approved; ADR-108 review pending | Created 2026-07-15 against Anvil v0.9.0-beta and `main` |
+| Spec | Authoritative | OPAE | Accepted — ADR-108 approved by owner 2026-07-16 | Reviewed 2026-07-16 against Anvil v0.9.0-beta and `main` |
 
 | Upstream | Downstream |
 | --- | --- |

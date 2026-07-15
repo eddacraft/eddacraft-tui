@@ -4,8 +4,8 @@
 | ---- | ----- | -------- | ------ | -------- |
 | OPAE | —     | high     | In Progress | 8/20      |
 
-**Last reviewed:** 2026-07-15 (owner-approved policy-authoring lint and routed
-agent-guidance pilot recorded in proposed ADR-108 and OPAE-012..020).
+**Last reviewed:** 2026-07-16 (owner accepted ADR-108 for the policy-authoring
+lint and routed agent-guidance pilot; readiness still begins at OPAE-012).
 
 > **Reset note:** the old OPAE plan mixed a broad "delightful OPA" wishlist,
 > retired TypeScript paths, natural-language generation, policy debugging,
@@ -402,8 +402,8 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-012: Policy target and input authoring contract
 
-- **Status:** Proposed — design approved by owner 2026-07-15; implementation
-  waits for ADR-108 acceptance.
+- **Status:** Proposed — ADR-108 accepted by owner 2026-07-16; advance through
+  the normal readiness gate before implementation.
 - **Intent:** Version policy-pack manifests for new authoring and make intended
   admission targets, accepted `PolicyInput` availability, and executable cases
   explicit without implying automatic activation.
@@ -417,7 +417,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   `crates/anvil-policy-engine/src/authoring.rs`, pack fixtures and starter pack
   manifests.
 - **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_authoring_contract`
-- **Dependencies:** OPAE-001, ADR-108 acceptance
+- **Dependencies:** OPAE-001, ADR-108 (Accepted 2026-07-16)
 - **Confidence:** high
 
 ### OPAE-013: Deterministic Anvil Rego linter
@@ -468,7 +468,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   `scripts/guidance/generate.mjs`, generated CLI guidance assets, generator
   tests and package scripts.
 - **Validation:** `pnpm guidance:check` and `pnpm docs:check`
-- **Dependencies:** OPAE-012, OPAE-013, ADR-108 acceptance
+- **Dependencies:** OPAE-012, OPAE-013, ADR-108 (Accepted 2026-07-16)
 - **Confidence:** medium
 
 ### OPAE-016: On-demand guidance CLI
@@ -533,7 +533,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Files:** `crates/anvil-cli/src/mcp/resources/guidance.rs`, MCP protocol and
   real-client context tests.
 - **Validation:** `cargo test -p eddacraft-anvil --test mcp_guidance_resources`
-- **Dependencies:** OPAE-016, ADR-108 acceptance
+- **Dependencies:** OPAE-016, ADR-108 (Accepted 2026-07-16)
 - **Confidence:** medium
 
 ### OPAE-020: Secure leased guidance materialisation
@@ -549,13 +549,13 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Files:** `crates/anvil-cli/src/guidance/materialise.rs`, CLI materialisation
   integration and adversarial filesystem tests.
 - **Validation:** `cargo test -p eddacraft-anvil --test guidance_cli materialise`
-- **Dependencies:** OPAE-016, ADR-108 acceptance
+- **Dependencies:** OPAE-016, ADR-108 (Accepted 2026-07-16)
 - **Confidence:** low
 
 ## Designs
 
 - [Policy Authoring Lint and Agent Guidance Pilot](../specs/2026-07-15-policy-authoring-lint-and-agent-guidance.md)
-  — owner-approved design; implementation gated on proposed ADR-108.
+  — accepted design under ADR-108; implementation readiness begins at OPAE-012.
 - [ADR-108](../decisions/108-policy-authoring-lint-and-agent-guidance.md) —
   deterministic authoring boundary and on-demand guidance delivery decision.
 

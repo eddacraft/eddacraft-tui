@@ -1,7 +1,7 @@
 # ADR-108: Deterministic policy authoring lint and routed agent guidance
 
-- **Status:** Proposed
-- **Date:** 2026-07-15
+- **Status:** Accepted
+- **Date:** 2026-07-16
 - **Owners:** Policy, CLI, and Agent Integrations
 - **Related:** OPAE, SKPKG, OPAG, ADR-040, ADR-098, ADR-106
 

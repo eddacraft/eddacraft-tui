@@ -8,7 +8,8 @@
 
 **APS:** OPAE-012, OPAE-013, OPAE-014
 **Design:** `plans/specs/2026-07-15-policy-authoring-lint-and-agent-guidance.md`
-**Gate:** ADR-108 must be Accepted before Task 1 implementation begins.
+**Gate:** ADR-108 was Accepted by the owner on 2026-07-16; OPAE-012 must still
+pass the normal APS readiness gate before Task 1 implementation begins.
 
 ## File map
 
