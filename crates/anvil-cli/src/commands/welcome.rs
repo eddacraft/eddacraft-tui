@@ -255,6 +255,11 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         print_plain_welcome(start_prompts_sign_in());
         // INSIGHTS-005: the nudge rides the plain closing output too.
         print_welcome_insights_hint(project_writes_gated);
+        // Telemetry disclosure rides the plain closing output too. On this
+        // branch stdout may be piped: the notice prints, but notice-shown is
+        // persisted only when a human could actually see it (stdout is a
+        // TTY), so a non-TTY first run can never unlock the beacon.
+        crate::telemetry::print_first_run_disclosure(std::io::stdout().is_terminal());
         if !project_writes_gated {
             create_first_run_marker(&marker_path)?;
         }
@@ -325,6 +330,10 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     println!("{}", welcome_next_step(start_prompts_sign_in()));
     // INSIGHTS-005: the first-week nudge rides the closing output too.
     print_welcome_insights_hint(project_writes_gated);
+    // The telemetry disclosure must strictly precede any first beacon; the
+    // TUI path just ran on a real terminal, so the notice both prints and
+    // is recorded as shown.
+    crate::telemetry::print_first_run_disclosure(true);
 
     Ok(())
 }

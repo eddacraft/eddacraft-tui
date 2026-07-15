@@ -564,6 +564,42 @@ $ anvil kindling usage flags --json
 
 ---
 
+## anvil telemetry
+
+**Class:** User-explicit **Purpose:** Show or change anonymous usage telemetry
+consent. **When to use:** To audit exactly what the fleet beacon would send,
+turn telemetry on or off, or rotate the anonymous install id.
+
+**Synopsis:** `anvil telemetry [on|off|reset-id]`
+
+**Subcommands:**
+
+| Subcommand | Description                                                         |
+| ---------- | ------------------------------------------------------------------- |
+| _(none)_   | Print the on/off state, the send gate, and the dimension allowlist. |
+| `on`       | Turn anonymous usage telemetry on for this user.                    |
+| `off`      | Turn anonymous usage telemetry off for this user (persisted).       |
+| `reset-id` | Rotate the anonymous install id to a fresh random one.              |
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil telemetry
+$ anvil telemetry off
+$ anvil telemetry reset-id
+$ anvil telemetry --json
+```
+
+> `ANVIL_TELEMETRY=off` and `DO_NOT_TRACK=1` always override persisted consent,
+> and gated (`ANVIL_HOME`) or non-interactive first runs that never showed the
+> disclosure notice do not beacon. The consent posture and the exact dimension
+> allowlist are decided in
+> [ADR-107](../../plans/decisions/107-fleet-telemetry-consent-posture.md).
+
+---
+
 ## anvil report-fp
 
 **Class:** User-explicit **Purpose:** Record or inspect a local false-positive

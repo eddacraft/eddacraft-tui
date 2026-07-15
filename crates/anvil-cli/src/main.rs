@@ -20,6 +20,7 @@ mod plan_dashboard;
 mod policy_vocab;
 mod registration;
 mod services;
+mod telemetry;
 #[cfg(test)]
 mod test_support;
 mod tui;
@@ -256,6 +257,14 @@ enum Commands {
     /// invoked, flag-dependent paths, principals by activity. Local-only;
     /// no authentication required. The views are signal, not evidence.
     Kindling(commands::kindling::KindlingArgs),
+    /// Show or change anonymous usage telemetry consent.
+    ///
+    /// Bare `anvil telemetry` prints the on/off state, whether the next
+    /// beacon may send, the anonymous install id, and the exact
+    /// dimensions that are ever sent. `on` / `off` persist consent;
+    /// `reset-id` rotates the anonymous install id. `ANVIL_TELEMETRY=off`
+    /// and `DO_NOT_TRACK=1` always win over persisted consent.
+    Telemetry(commands::telemetry::TelemetryArgs),
     /// Migrate anvil config to a new format or schema version.
     ///
     /// `format` converts a legacy `.anvilrc` to the multi-format
@@ -373,6 +382,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Init(_) => "init",
         Commands::Insights(_) => "insights",
         Commands::Kindling(_) => "kindling",
+        Commands::Telemetry(_) => "telemetry",
         Commands::Migrate(_) => "migrate",
         Commands::Intercept(_) => "intercept",
         Commands::Workspace(_) => "workspace",
@@ -1319,6 +1329,7 @@ fn main() -> ExitCode {
         Commands::Init(args) => commands::init::run(args, &cli.global),
         Commands::Insights(args) => commands::insights::run(args, &cli.global),
         Commands::Kindling(args) => commands::kindling::run(args, &cli.global),
+        Commands::Telemetry(args) => commands::telemetry::run(args, &cli.global),
         Commands::Migrate(args) => commands::migrate::run(args, &cli.global),
         Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
         Commands::Workspace(args) => commands::workspace::run(args, &cli.global),
@@ -1600,6 +1611,7 @@ mod tests {
             "exception" => vec!["exception", "list"],
             "start" => vec!["start"],
             "status" => vec!["status"],
+            "telemetry" => vec!["telemetry"],
             "tutorial" => vec!["tutorial"],
             "welcome" => vec!["welcome"],
             "init" => vec!["init"],

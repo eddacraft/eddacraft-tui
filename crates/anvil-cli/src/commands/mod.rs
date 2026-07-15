@@ -42,6 +42,7 @@ pub mod report_fp;
 pub mod skill;
 pub mod start;
 pub mod status;
+pub mod telemetry;
 pub mod tutorial;
 pub mod uninstall;
 pub mod update;
