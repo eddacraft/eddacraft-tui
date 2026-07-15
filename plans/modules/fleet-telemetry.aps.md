@@ -5,7 +5,7 @@
 
 | ID    | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLEET | —     | High     | Ready  |
+| FLEET | —     | High     | In Progress |
 
 **Last reviewed:** 2026-07-15 — OQ3 resolved by the operator (investor
 evidence is the trigger); design gate
@@ -145,7 +145,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-001: Consent state and disclosure surface
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** No beacon can ever fire before the user has seen an honest
   disclosure, and turning telemetry off is one obvious action.
 - **Expected Outcome:** A persisted telemetry consent state (on/off +
@@ -162,7 +162,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-002: Anonymous install identity
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Unique-install and retention counts without touching user
   identity.
 - **Expected Outcome:** A random UUID v4 `install_id` minted on first use,
@@ -208,7 +208,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-005: anvil-api ingest route
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** A place for beacons to land that honours the retention and
   privacy commitments.
 - **Expected Outcome:** A versioned `apps/anvil-api` ingest route

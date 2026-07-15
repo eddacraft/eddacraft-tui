@@ -5039,7 +5039,7 @@ archive.
 
 ### CIB-197: Stamp version and install method onto the command.invoked envelope
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Every usage observation should be self-describing about the
   binary that produced it, so rows collected now stay analysable once any
   export or fleet surface exists.
