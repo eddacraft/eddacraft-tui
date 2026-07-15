@@ -159,6 +159,12 @@ FLEET-007 follows once ingest has data.
   notice-shown is false or any hard off is set.
 - **Dependencies:** ADR-107 (Accepted).
 - **Confidence:** high
+- **Scope note (recorded narrowing, 2026-07-16):** the disclosure shipped
+  on the `welcome` closing surface only; the `anvil start` activation-path
+  disclosure is deferred to FLEET-003 as a ship condition (the send gate is
+  fail-closed on notice-shown, so the deferral is privacy-safe but leaves
+  start-only installs unnoticed — FLEET-003 must close that or the fleet
+  under-beacons).
 
 ### FLEET-002: Anonymous install identity
 
@@ -192,6 +198,13 @@ FLEET-007 follows once ingest has data.
 - **Dependencies:** FLEET-001, FLEET-002, CIB-197.
 - **Confidence:** medium — the emission point in the session-start path
   needs care around the activation flow.
+- **Coordination notes (from the 2026-07-16 FLEET-001/002/005 verification):**
+  (a) ship the `anvil start` activation-path disclosure with the beacon
+  (see FLEET-001 scope note); (b) the FLEET-005 ingest schema requires
+  non-empty `channel` and `flag_snapshot_version` tokens — define concrete
+  client values (e.g. `none` / `0`) or beacons will 400; (c) the
+  transparency surface (FLEET-004) should list `schema_version` alongside
+  the dimensions so the "exactly what is sent" promise is literal.
 
 ### FLEET-004: `anvil telemetry` transparency command
 
