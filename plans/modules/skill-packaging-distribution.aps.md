@@ -5,7 +5,7 @@
 
 | ID    | Owner | Priority | Status  |
 | ----- | ----- | -------- | ------- |
-| SKPKG | —     | High     | Done |
+| SKPKG | —     | High     | In Progress |
 
 ## Purpose
 
@@ -15,10 +15,11 @@ added via PR [#3064](https://github.com/eddacraft/anvil-001/pull/3064)) —
 becomes a packageable, versioned artefact that customers can install and run
 across more than one agent harness, not just Claude Code.
 
-The approved beta embeds a pinned, proprietary-but-customer-readable skill
-snapshot in the Anvil binary and installs it through a managed, cross-agent
-CLI flow. This module owns that distribution design and its first shipped
-implementation.
+The approved beta embeds pinned, proprietary-but-customer-readable skill
+snapshots in the Anvil binary and installs them through a managed, cross-agent
+CLI flow. SKPKG-001..008 completed the first single-skill implementation via PR
+#3328; SKPKG-009 reopens the module to validate the model with a second named
+skill.
 
 ## In Scope
 
@@ -48,8 +49,9 @@ implementation.
 - A general-purpose skill marketplace or registry (explicitly out of scope
   for SKOBS too; revisit only if this design calls for it)
 - Runtime governance/enforcement of installed skills (AGOV territory)
-- Packaging skills other than `anvil-developer-functions` (this module scopes
-  the *model*, generalising it is a validation step, not new scope)
+- Authoring the domain content of skills other than
+  `anvil-developer-functions`; validating the packaging model with a second
+  skill remains in scope, while its domain owner supplies the reviewed content
 
 ## Interfaces
 
@@ -215,6 +217,28 @@ implementation.
 - **Dependencies:** SKPKG-001..007, coordinates with MCPX-001..006
 - **Validation:** targeted skill-install tests, repeated-install/drift fixtures,
   `cargo test -p eddacraft-anvil`, `pnpm docs:check`
+- **Confidence:** medium
+
+### SKPKG-009: Extend the managed bundle to multiple named skills
+
+- **Status:** Proposed
+- **Intent:** Validate the approved packaging model with
+  `authoring-anvil-policy` without moving policy content ownership into SKPKG or
+  creating a second client registry.
+- **Expected Outcome:** A typed content/provenance registry selects among the
+  existing `anvil-developer-functions` bundle and the OPAE-owned
+  `authoring-anvil-policy` snapshot. Non-interactive installs require an
+  explicit client and preserve the legacy no-name default; detection,
+  destinations, and capabilities continue to come only from ADR-106's typed
+  agent-client registry. Managed-drift, symlink, transactional install,
+  verification, and provenance guarantees remain unchanged.
+- **Files:** `crates/anvil-cli/src/commands/skill_catalogue.rs`,
+  `crates/anvil-cli/src/commands/skill.rs`, embedded skill assets and installer
+  tests.
+- **Dependencies:** SKPKG-008, OPAE-017 content review
+- **Validation:** `cargo test -p eddacraft-anvil --test skill_install` plus
+  legacy/no-name, named-selection, explicit-client, provenance, drift, and
+  symlink fixtures
 - **Confidence:** medium
 
 ## Risks & Mitigations

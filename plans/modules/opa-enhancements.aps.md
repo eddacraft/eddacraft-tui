@@ -2,10 +2,10 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| OPAE | —     | high     | In Progress | 8/11      |
+| OPAE | —     | high     | In Progress | 8/20      |
 
-**Last reviewed:** 2026-07-04 (POLRESET-003: contracts reconciled with
-ADR-098, the accepted POLRESET-001 design gate).
+**Last reviewed:** 2026-07-15 (owner-approved policy-authoring lint and routed
+agent-guidance pilot recorded in proposed ADR-108 and OPAE-012..020).
 
 > **Reset note:** the old OPAE plan mixed a broad "delightful OPA" wishlist,
 > retired TypeScript paths, natural-language generation, policy debugging,
@@ -42,10 +42,19 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   `warn`, `fence`, and `interrupt` vocabulary while preserving warnings-first
   defaults.
 - User-facing docs and one starter example path.
+- Deterministic, target-aware policy lint and validation composition.
+- A generated agent-guidance pilot for policy authoring, routed on demand with
+  no ambient context load.
+- A standard MCP resource-template route and securely leased compatibility
+  files, each behind its own proof gate.
+- A customer-facing `authoring-anvil-policy` skill distributed through the
+  existing managed skill installer.
 
 ## Out of Scope
 
-- Natural-language policy generation.
+- An Anvil-hosted natural-language policy generator or runtime AI inference.
+  External customer agents using the shipped authoring skill are an in-scope
+  authoring client; their output still crosses deterministic Anvil admission.
 - Interactive TUI policy debugger.
 - Historical impact simulator.
 - Remote bundle marketplace, federation, signing, or SSO.
@@ -83,6 +92,8 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - Remediation-first policy guidance contract.
 - Save-time/pre-write policy input adapter contract.
 - Enforcement-routing contract for `warn`, `fence`, and `interrupt`.
+- Policy-pack target/input declaration and deterministic lint contract.
+- Version-matched agent-guidance routing for policy authoring.
 
 ## Acceptance Criteria
 
@@ -99,6 +110,14 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
       opts into stronger enforcement.
 - [ ] Exceptions are checked for scope, expiry, attribution, and revocation before
       a policy result is suppressed.
+- [ ] New policy packs declare their enforcement targets and required input
+      fields; unavailable target inputs fail lint before evaluation.
+- [ ] `anvil policy lint --json` emits stable, actionable diagnostics and
+      `anvil policy validate` composes lint, compilation, and executable tests.
+- [ ] The `authoring-anvil-policy` skill retrieves only the requested embedded
+      guidance topic and completes an end-to-end authoring journey offline.
+- [ ] Normal Anvil commands and MCP tool listings carry no policy-authoring
+      reference payload; guidance retrieval and temporary files are opt-in.
 
 ## Work Items
 
@@ -370,10 +389,178 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 ### OPAE-009: Policy authoring user docs
 
 - **Status:** Proposed
-- **Intent:** Explain the supported first-slice policy authoring path without
-  promising deferred enterprise or AI-generation features.
-- **Expected Outcome:** Public docs show how to author, validate, install, run,
-  and exception a policy pack.
+- **Intent:** Keep the public policy tutorial accurate and intentionally small
+  while the comprehensive, version-matched agent reference ships through the
+  routed guidance bundle.
+- **Expected Outcome:** Public docs show the human quick path and skill install
+  command without mirroring or linking the private-distribution agent reference;
+  commands use the exact pack directory and distinguish `policy validate` from
+  the discovery-only `policy test` surface.
 - **Validation:** `pnpm docs:check`
-- **Dependencies:** OPAE-008
+- **Dependencies:** OPAE-008, OPAE-014, OPAE-017
 - **Confidence:** high
+
+### OPAE-012: Policy target and input authoring contract
+
+- **Status:** Proposed — design approved by owner 2026-07-15; implementation
+  waits for ADR-108 acceptance.
+- **Intent:** Version policy-pack manifests for new authoring and make intended
+  admission targets, accepted `PolicyInput` availability, and executable cases
+  explicit without implying automatic activation.
+- **Expected Outcome:** Manifest v2 declares `explicit-eval`, `gate`, and/or
+  `pre-write` targets, a v1 input contract, and typed positive/negative cases;
+  one Rust registry classifies each field as available, partial,
+  caller-supplied, or unavailable and is parity-tested beside the real
+  gate/pre-write producers. Legacy packs remain readable in new binaries with a
+  migration warning; old binaries are explicitly not v2-compatible.
+- **Files:** `crates/anvil-policy-engine/src/pack/manifest.rs`,
+  `crates/anvil-policy-engine/src/authoring.rs`, pack fixtures and starter pack
+  manifests.
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_authoring_contract`
+- **Dependencies:** OPAE-001, ADR-108 acceptance
+- **Confidence:** high
+
+### OPAE-013: Deterministic Anvil Rego linter
+
+- **Status:** Proposed
+- **Intent:** Check that a policy belongs to the supported Anvil/regorus family
+  before deployment while separating static facts from executable evidence.
+- **Expected Outcome:** A Rust lint engine emits stable `POL001`..`POL014`
+  diagnostics for target/input availability, parser/compiler-proven namespace,
+  identity and capabilities, declared cases, executable result shapes,
+  metadata, and bounded semantic hazards. Unprovable rules are deferred or
+  advisory rather than approximated lexically.
+- **Files:** `crates/anvil-policy-engine/src/lint/`, engine lint fixtures and
+  diagnostic snapshots.
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- policy_lint`
+- **Dependencies:** OPAE-012
+- **Confidence:** medium
+
+### OPAE-014: Policy lint CLI and validation composition
+
+- **Status:** Proposed
+- **Intent:** Make deterministic authoring checks directly usable by customers
+  and agents without creating a second admission path.
+- **Expected Outcome:** `anvil policy lint <pack> [--target] [--json]` emits
+  remediation-first reports with stable ordering; `anvil policy validate`
+  composes structural admission, static lint, one regorus compile, and
+  single-execution conformance cases without duplicate diagnostics.
+- **Files:** `crates/anvil-cli/src/commands/policy/lint.rs`,
+  `crates/anvil-cli/src/commands/policy/validate.rs`, policy CLI integration
+  tests.
+- **Validation:** `cargo test -p eddacraft-anvil --test policy_lint` and
+  `cargo test -p eddacraft-anvil -- policy_validate`
+- **Dependencies:** OPAE-013
+- **Confidence:** high
+
+### OPAE-015: Generated policy-authoring guidance bundle
+
+- **Status:** Proposed
+- **Intent:** Compile exact product contracts and governed narrative into
+  version-matched agent topics rather than maintaining a parallel manual
+  reference.
+- **Expected Outcome:** A deterministic generator combines Rust registries,
+  governed extracts, and `docs/agent-guidance/policy-authoring/` narratives into
+  bounded Markdown/JSON assets with stable IDs, provenance hashes, lint-code
+  coverage, and a compact route index. `guidance:check` fails on drift, broken
+  routes, forbidden links, or context-budget breaches.
+- **Files:** `docs/agent-guidance/policy-authoring/`,
+  `scripts/guidance/generate.mjs`, generated CLI guidance assets, generator
+  tests and package scripts.
+- **Validation:** `pnpm guidance:check` and `pnpm docs:check`
+- **Dependencies:** OPAE-012, OPAE-013, ADR-108 acceptance
+- **Confidence:** medium
+
+### OPAE-016: On-demand guidance CLI
+
+- **Status:** Proposed
+- **Intent:** Route agents to one relevant topic without charging every Anvil
+  session for comprehensive reference material.
+- **Expected Outcome:** One resolver powers `anvil guidance list/show/explain`,
+  version-matched content through `anvil guidance list/show/explain`. Normal
+  commands do not load guidance or initialise repository/daemon state.
+- **Files:** `crates/anvil-cli/src/guidance/`,
+  `crates/anvil-cli/src/commands/guidance.rs`, CLI guidance tests.
+- **Validation:** `cargo test -p eddacraft-anvil --test guidance_cli`
+- **Dependencies:** OPAE-015
+- **Confidence:** medium
+
+### OPAE-017: Ship `authoring-anvil-policy`
+
+- **Status:** Proposed
+- **Intent:** Give customer agents a small, version-matched workflow that uses
+  deterministic Anvil authoring tools and progressive reference retrieval.
+- **Expected Outcome:** The canonical catalogue skill stays distinct from
+  `using-anvil`, routes by target/topic/lint code, never invents unavailable
+  commands, inputs, or scaffold surfaces. OPAE owns and reviews the canonical
+  content and its topic routes; SKPKG-009 separately owns vendoring and managed
+  distribution without duplicating ADR-106's client registry.
+- **Files:** canonical `eddacraft-skills/skills/eddacraft/authoring-anvil-policy/`
+  (external), skill/topic route contract tests.
+- **Validation:** the catalogue skill validation command recorded by
+  `eddacraft-skills` plus route resolution against the Anvil guidance bundle.
+- **Dependencies:** OPAE-014, OPAE-016
+- **Confidence:** medium
+
+### OPAE-018: Industry-scenario conformance and beta rollout
+
+- **Status:** Proposed
+- **Intent:** Prove policy authoring with realistic organisational invariants,
+  not only engine unit fixtures.
+- **Expected Outcome:** Payments, clinical-rule, and platform/SRE scenario packs
+  each carry v2 manifests, Rego, complete tests, explicit inputs, passing and
+  failing repositories, and expected diagnostics. Held-out prompts exercise
+  distinct companion, same-stem, and multi-evidence behaviours. Built-binary
+  journeys plus a downloaded-release smoke test run skill route → lint →
+  validate → eval → policy gate. A governed primary-client evidence matrix
+  records interventions, false results, context size, cleanup, and latency.
+- **Files:** `policies/scenarios/`, policy-authoring journey tests, release/beta
+  evidence and known-gap notes.
+- **Validation:** `cargo test -p eddacraft-anvil --test policy_authoring_journey`,
+  `pnpm guidance:check`, and `pnpm docs:check`
+- **Dependencies:** OPAE-014, OPAE-016, OPAE-017, OPAE-019, OPAE-020, SKPKG-009
+- **Confidence:** medium
+
+### OPAE-019: Standard MCP guidance routing
+
+- **Status:** Proposed
+- **Intent:** Offer on-demand agent routing over MCP without turning guidance
+  into an always-injected tool-schema tax.
+- **Expected Outcome:** MCP exposes one sub-500-byte `anvil://guidance` index
+  descriptor and one sub-700-byte resource template. CLI/MCP documents are
+  byte-equivalent, aggregate discovery stays within 1,200 bytes in Claude Code,
+  Codex, and OpenCode, and routed content is never eagerly injected.
+- **Files:** `crates/anvil-cli/src/mcp/resources/guidance.rs`, MCP protocol and
+  real-client context tests.
+- **Validation:** `cargo test -p eddacraft-anvil --test mcp_guidance_resources`
+- **Dependencies:** OPAE-016, ADR-108 acceptance
+- **Confidence:** medium
+
+### OPAE-020: Secure leased guidance materialisation
+
+- **Status:** Proposed
+- **Intent:** Give clients that require a file an opt-in compatibility surface
+  without workspace writes or ordinary-command cleanup cost.
+- **Expected Outcome:** Files live under the resolved install user root and use
+  owner-only no-follow atomic creation, a cross-process lock, reference-counted
+  leases, explicit release, guidance-command-only expiry sweep, and crash
+  recovery. Filesystem race, symlink, ownership, and malformed-state tests gate
+  shipment.
+- **Files:** `crates/anvil-cli/src/guidance/materialise.rs`, CLI materialisation
+  integration and adversarial filesystem tests.
+- **Validation:** `cargo test -p eddacraft-anvil --test guidance_cli materialise`
+- **Dependencies:** OPAE-016, ADR-108 acceptance
+- **Confidence:** low
+
+## Designs
+
+- [Policy Authoring Lint and Agent Guidance Pilot](../specs/2026-07-15-policy-authoring-lint-and-agent-guidance.md)
+  — owner-approved design; implementation gated on proposed ADR-108.
+- [ADR-108](../decisions/108-policy-authoring-lint-and-agent-guidance.md) —
+  deterministic authoring boundary and on-demand guidance delivery decision.
+
+## Execution
+
+- [OPAE-012..014 policy lint actions](../execution/OPAE-012-014-policy-lint.actions.md)
+- [OPAE-015/016/019/020 agent guidance pilot actions](../execution/OPAE-015-016-agent-guidance-pilot.actions.md)
+- [OPAE-017..018 authoring rollout actions](../execution/OPAE-017-018-authoring-rollout.actions.md)
