@@ -9,6 +9,15 @@ delivery target) and the [context-egress privacy review (PV-9)](../reviews/2026-
 `anvil mcp serve` (RMCPF) surface; the egress conditions CE-1..CE-12 from the PV-9
 review fold into GCTX-001.
 
+> **Amended (2026-07-16) by [ADR-108](./108-lsp-agent-integration-reconsidered.md).**
+> The Alternatives Considered table's "no capability negotiation or
+> resource model" line, as applied to a rejected non-MCP channel, is
+> narrowed: LSP specifically does have a capability-negotiation handshake,
+> so that clause doesn't hold for LSP on its own. The other two stated
+> objections (a second agent-integration transport; no shared tool story
+> across Claude Code/Cursor/Continue/Zed) are untouched. GCTX-002's MCP
+> delivery-target decision itself is unaffected.
+
 ## Date
 
 2026-06-15
