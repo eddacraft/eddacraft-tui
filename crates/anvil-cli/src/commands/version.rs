@@ -479,6 +479,18 @@ pub fn detect_install_method() -> InstallMethod {
     classify_exe_path(&exe)
 }
 
+/// CIB-197: process-cached [`detect_install_method`], for callers that
+/// run on every command (the usage producer stamps the install method
+/// onto each `command.invoked` row). Detection is one `current_exe`
+/// read, a few path checks, and at most one receipt-file existence
+/// probe — cheap, but the `OnceLock` keeps it one-shot per process. The
+/// answer cannot change while the same binary is running, so caching is
+/// lossless.
+pub fn detect_install_method_cached() -> InstallMethod {
+    static CACHE: std::sync::OnceLock<InstallMethod> = std::sync::OnceLock::new();
+    *CACHE.get_or_init(detect_install_method)
+}
+
 /// Pure helper exposed for unit testing — `detect_install_method`'s
 /// only side-effect is reading `current_exe()`. By taking a path
 /// the helper is deterministic, so fixture tests do not need to
@@ -1133,6 +1145,16 @@ mod tests {
                 "label `{l}` is not snake_case"
             );
         }
+    }
+
+    #[test]
+    fn detect_install_method_cached_is_stable_across_calls() {
+        // CIB-197: the OnceLock cache must hand back the same variant on
+        // every call within a process (the usage producer may race the
+        // `anvil version` surface for first detection).
+        let first = detect_install_method_cached();
+        let second = detect_install_method_cached();
+        assert_eq!(first, second);
     }
 
     #[test]

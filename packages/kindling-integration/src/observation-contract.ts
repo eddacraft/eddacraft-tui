@@ -428,6 +428,21 @@ export const CommandInvokedObservationSchema = z
       .array(FlagSetEntrySchema)
       .describe('Inline resolved flag context (ADR-041); empty for USAGE-001, always present'),
     traceparent: z.string().optional().describe('W3C traceparent for cross-pipe correlation'),
+    // CIB-197: producer identity. Optional so pre-CIB-197 rows (written
+    // before the fields existed) keep validating; new producers always
+    // serialise both.
+    version: z
+      .string()
+      .optional()
+      .describe(
+        'Version the producing binary was built as (CARGO_PKG_VERSION); absent on pre-CIB-197 rows'
+      ),
+    install_method: z
+      .string()
+      .optional()
+      .describe(
+        'LAUNCH-013 snake_case install-method label of the producing binary (e.g. "homebrew", "cargo_dist"); absent on pre-CIB-197 rows'
+      ),
   })
   // Reject unknown keys so a future producer that accidentally adds a
   // raw argv/value field fails validation instead of silently passing.

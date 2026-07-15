@@ -324,6 +324,9 @@ mod mapper_tests {
             traceparent: Some(
                 "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
             ),
+            // CIB-197: producer identity stamped on every new row.
+            version: "0.9.0-beta".to_string(),
+            install_method: "cargo_dist".to_string(),
         }
     }
 

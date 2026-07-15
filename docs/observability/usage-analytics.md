@@ -1,8 +1,8 @@
 # Usage Analytics Privacy Contract
 
-| Type  | Authority     | Owner | Status | Freshness                         |
-| ----- | ------------- | ----- | ------ | --------------------------------- |
-| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-18 (USAGE-004) |
+| Type  | Authority     | Owner | Status | Freshness                       |
+| ----- | ------------- | ----- | ------ | ------------------------------- |
+| Guide | Authoritative | USAGE | Live   | Live as of 2026-07-16 (CIB-197) |
 
 | Upstream                                | Downstream                              |
 | --------------------------------------- | --------------------------------------- |
@@ -62,6 +62,15 @@ Per invocation, the `command.invoked` row carries:
   scope note below.
 - **`traceparent`** — the W3C cross-pipe correlation context (ADR-035) when one
   is bound on the invocation; omitted otherwise.
+- **Producing binary version** (`version`, CIB-197) — the crate version the
+  binary was built as (`CARGO_PKG_VERSION`). A low-risk dimension: a version
+  string only — no path, no PII. Absent on rows written by pre-CIB-197 binaries;
+  readers treat absence as "older producer".
+- **Install method** (`install_method`, CIB-197) — the LAUNCH-013 detection
+  already behind `anvil version`, as its closed snake_case vocabulary
+  (`homebrew` / `scoop` / `winget` / `cargo_dist` / `cargo_install` /
+  `dev_build` / `unknown`). A low-risk dimension: the label only — never the
+  binary's filesystem path. Absent on rows written by pre-CIB-197 binaries.
 
 ## What is NOT captured
 

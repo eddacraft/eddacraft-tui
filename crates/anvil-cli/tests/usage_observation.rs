@@ -121,6 +121,28 @@ fn version_invocation_writes_one_command_invoked_row() {
     // Principal is anonymised: an unauthenticated run records `anonymous`,
     // never a raw identity.
     assert_eq!(row["principal"], "anonymous");
+    // CIB-197: the row self-describes the producing binary. The version
+    // is the binary's compile-time crate version (this test crate builds
+    // in the same package, so the env! values match); the install method
+    // is environment-dependent (dev target dirs vary) but must be one of
+    // the LAUNCH-013 snake_case labels — never empty on a new row.
+    assert_eq!(row["version"], env!("CARGO_PKG_VERSION"));
+    let install_method = row["install_method"]
+        .as_str()
+        .expect("install_method must be a string");
+    assert!(
+        [
+            "homebrew",
+            "scoop",
+            "winget",
+            "cargo_dist",
+            "cargo_install",
+            "dev_build",
+            "unknown",
+        ]
+        .contains(&install_method),
+        "install_method must be a LAUNCH-013 label, got {install_method:?}"
+    );
 }
 
 // Note: redaction of raw/sensitive argument *values* is proven

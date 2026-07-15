@@ -505,6 +505,34 @@ mod tests {
     }
 
     #[test]
+    fn load_rows_accepts_mixed_pre_and_post_cib197_rows() {
+        // CIB-197: the views must keep working over a sidecar holding a
+        // mix of old rows (no `version` / `install_method`) and new rows
+        // carrying both — `UsageRow` models only what the views read, so
+        // the extra fields are ignored, not fatal.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("usage.ndjson");
+        let mut f = std::fs::File::create(&path).unwrap();
+        // Old-producer row: no producer-identity fields.
+        writeln!(f, r#"{{"kind":"command.invoked","session_id":"s","command":"check","principal":"p","timestamp":"2026-06-14T10:00:00Z","args":[],"flag_set":[]}}"#).unwrap();
+        // New-producer row: carries version + install_method.
+        writeln!(f, r#"{{"kind":"command.invoked","session_id":"s","command":"check","principal":"p","timestamp":"2026-06-14T10:01:00Z","args":[],"flag_set":[],"version":"0.9.0-beta","install_method":"homebrew"}}"#).unwrap();
+        drop(f);
+
+        let rows = load_rows(&path).unwrap();
+        assert_eq!(rows.len(), 2, "old and new schema rows both load");
+        let top = top_commands(&rows, Period::All, now(), 10);
+        assert_eq!(
+            top[0],
+            CommandCount {
+                command: "check".into(),
+                count: 2
+            },
+            "views aggregate across mixed-schema rows"
+        );
+    }
+
+    #[test]
     fn load_rows_missing_file_is_empty() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("does-not-exist.ndjson");

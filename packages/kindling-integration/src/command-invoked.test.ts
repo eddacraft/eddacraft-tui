@@ -59,6 +59,28 @@ describe('CommandInvokedObservationSchema', () => {
     expect(CommandInvokedObservationSchema.safeParse(withoutFlagSet).success).toBe(false);
   });
 
+  it('accepts a CIB-197 row carrying version and install_method', () => {
+    const row = { ...sampleRow(), version: '0.9.0-beta', install_method: 'cargo_dist' };
+    expect(CommandInvokedObservationSchema.safeParse(row).success).toBe(true);
+  });
+
+  it('accepts mixed old and new rows (pre-CIB-197 rows lack the producer identity)', () => {
+    // A sidecar/daemon store holds rows from several binary versions at
+    // once: rows written before CIB-197 carry no version/install_method,
+    // newer rows carry both. The validator must accept every row.
+    const oldRow = sampleRow(); // no version / install_method
+    const newRow = { ...sampleRow(), version: '0.10.0-beta', install_method: 'homebrew' };
+    for (const row of [oldRow, newRow]) {
+      expect(CommandInvokedObservationSchema.safeParse(row).success).toBe(true);
+    }
+    const parsedOld = CommandInvokedObservationSchema.parse(oldRow);
+    expect(parsedOld.version).toBeUndefined();
+    expect(parsedOld.install_method).toBeUndefined();
+    const parsedNew = CommandInvokedObservationSchema.parse(newRow);
+    expect(parsedNew.version).toBe('0.10.0-beta');
+    expect(parsedNew.install_method).toBe('homebrew');
+  });
+
   it('round-trips a redacted argument without any raw value', () => {
     const parsed = CommandInvokedObservationSchema.parse(sampleRow());
     const token = parsed.args.find((a) => a.name === 'token');

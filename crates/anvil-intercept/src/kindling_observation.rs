@@ -303,6 +303,16 @@ pub struct CommandInvocationContext<'a> {
     /// W3C `traceparent` for cross-pipe correlation when one was bound
     /// on the invocation; `None` otherwise (ADR-035).
     pub traceparent: Option<&'a str>,
+    /// CIB-197: version the producing binary was built as
+    /// (`CARGO_PKG_VERSION` at the binary constructing the row —
+    /// supplied by the caller so this crate stays free of any CLI
+    /// dependency).
+    pub version: &'a str,
+    /// CIB-197: install method of the producing binary — the
+    /// LAUNCH-013 `snake_case` label the CLI's `anvil version` detection
+    /// produces (`homebrew` / `scoop` / `winget` / `cargo_dist` /
+    /// `cargo_install` / `dev_build` / `unknown`).
+    pub install_method: &'a str,
 }
 
 /// Kindling `command.invoked` observation payload (USAGE-001). Records
@@ -327,6 +337,22 @@ pub struct CommandInvokedObservation {
     pub flag_set: Vec<FlagSetEntry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
+    /// CIB-197: version the producing binary was built as
+    /// (`CARGO_PKG_VERSION` at the producing binary). `serde(default)`
+    /// so pre-CIB-197 rows (sidecar, daemon store, spool) still parse —
+    /// a missing field reads back as the empty string, meaning "written
+    /// by an older producer". Like `flag_set`, deliberately NO
+    /// `skip_serializing_if`: new producers always serialise the field,
+    /// so absence on the wire unambiguously means "old row".
+    #[serde(default)]
+    pub version: String,
+    /// CIB-197: install method of the producing binary — the LAUNCH-013
+    /// `snake_case` label behind `anvil version` (`homebrew` / `scoop` /
+    /// `winget` / `cargo_dist` / `cargo_install` / `dev_build` /
+    /// `unknown`). Same serde contract as `version` above:
+    /// `serde(default)` for read tolerance, always serialised.
+    #[serde(default)]
+    pub install_method: String,
 }
 
 /// Build a [`CommandInvokedObservation`] from per-invocation context,
@@ -351,6 +377,8 @@ pub fn from_command_invocation(
         args,
         flag_set,
         traceparent: ctx.traceparent.map(ToString::to_string),
+        version: ctx.version.to_string(),
+        install_method: ctx.install_method.to_string(),
     }
 }
 
@@ -2242,6 +2270,15 @@ pub struct CommandInvokedEmissionRequest<'a> {
 pub struct CommandInvokedEmitter {
     sink: Arc<dyn KindlingObservationSink>,
     daemon_session_id: String,
+    /// CIB-197: version the producing binary was built as, stamped onto
+    /// every row this emitter builds. Supplied at construction by the
+    /// host binary (the CLI passes its own `CARGO_PKG_VERSION`) so this
+    /// crate stays free of any CLI dependency.
+    version: String,
+    /// CIB-197: LAUNCH-013 install-method label of the producing
+    /// binary, stamped onto every row. Supplied at construction for the
+    /// same reason as `version`.
+    install_method: String,
     /// USAGE-004: `true` while the sink is in a failing run. Suppresses
     /// the per-call `warn!` after the first failure so a persistently
     /// unwritable sidecar (disk full, permission drift) cannot flood the
@@ -2251,28 +2288,53 @@ pub struct CommandInvokedEmitter {
 }
 
 impl CommandInvokedEmitter {
+    /// CIB-197: producer-identity placeholders stamped by the test /
+    /// no-op constructors ([`Self::noop`], [`Self::with_recorder`]).
+    /// Production callers pass the real binary version + install
+    /// method to [`Self::new`].
+    pub const TEST_PRODUCER_VERSION: &'static str = "0.0.0-test";
+    /// See [`Self::TEST_PRODUCER_VERSION`]. Uses the LAUNCH-013
+    /// `unknown` label so a placeholder still speaks the wire
+    /// vocabulary.
+    pub const TEST_PRODUCER_INSTALL_METHOD: &'static str = "unknown";
+
     /// Construct an emitter with an explicit sink. Production callers
-    /// wire a real sink; tests use [`Self::with_recorder`].
+    /// wire a real sink and pass the producing binary's version
+    /// (`CARGO_PKG_VERSION`) and LAUNCH-013 install-method label
+    /// (CIB-197); tests use [`Self::with_recorder`].
     #[must_use]
-    pub fn new(sink: Arc<dyn KindlingObservationSink>, daemon_session_id: String) -> Self {
+    pub fn new(
+        sink: Arc<dyn KindlingObservationSink>,
+        daemon_session_id: String,
+        version: String,
+        install_method: String,
+    ) -> Self {
         Self {
             sink,
             daemon_session_id,
+            version,
+            install_method,
             sink_failing: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
     /// Construct a noop emitter — a handle that discards every row.
+    /// Rows never persist, so the producer identity is the
+    /// [`Self::TEST_PRODUCER_VERSION`] placeholder pair.
     #[must_use]
     pub fn noop(daemon_session_id: impl Into<String>) -> Self {
         Self::new(
             Arc::new(NoopKindlingObservationSink) as Arc<dyn KindlingObservationSink>,
             daemon_session_id.into(),
+            Self::TEST_PRODUCER_VERSION.to_string(),
+            Self::TEST_PRODUCER_INSTALL_METHOD.to_string(),
         )
     }
 
     /// Construct a recording-sink emitter for tests. Returns
     /// `(emitter, recorder)` so the test can assert against a clone.
+    /// Stamps the [`Self::TEST_PRODUCER_VERSION`] placeholder pair;
+    /// tests pinning the real identity construct via [`Self::new`].
     #[must_use]
     pub fn with_recorder(
         daemon_session_id: impl Into<String>,
@@ -2281,6 +2343,8 @@ impl CommandInvokedEmitter {
         let emitter = Self::new(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             daemon_session_id.into(),
+            Self::TEST_PRODUCER_VERSION.to_string(),
+            Self::TEST_PRODUCER_INSTALL_METHOD.to_string(),
         );
         (emitter, recorder)
     }
@@ -2306,6 +2370,8 @@ impl CommandInvokedEmitter {
             command: request.method,
             principal: request.principal.unwrap_or("anonymous"),
             traceparent: request.traceparent,
+            version: &self.version,
+            install_method: &self.install_method,
         };
         let observation = from_command_invocation(&ctx, args, Vec::new());
         match self.sink.try_emit_command_invoked(observation) {
@@ -2554,6 +2620,8 @@ mod tests {
             command: "check",
             principal: "deadbeef0123",
             traceparent: Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+            version: "9.9.9",
+            install_method: "homebrew",
         };
         let args = vec![
             redact_arg("path", Some("/home/me/repo")),
@@ -2586,8 +2654,96 @@ mod tests {
             "flag_set must be present: {json}"
         );
 
+        // CIB-197: producer identity is always serialised (no
+        // skip_serializing_if), mirroring the flag_set invariant.
+        assert!(
+            json.contains("\"version\":\"9.9.9\""),
+            "version must be serialised: {json}"
+        );
+        assert!(
+            json.contains("\"install_method\":\"homebrew\""),
+            "install_method must be serialised: {json}"
+        );
+
         let back: CommandInvokedObservation = serde_json::from_str(&json).expect("round-trip");
         assert_eq!(back, obs);
+    }
+
+    /// CIB-197: a pre-CIB-197 row (no `version` / `install_method`)
+    /// still deserialises — the fields are `serde(default)`-tolerant so
+    /// existing daemon/sidecar rows keep parsing. A missing field reads
+    /// back as the empty string ("written by an older producer").
+    #[test]
+    fn command_invoked_old_row_without_producer_identity_still_parses() {
+        let old_row = r#"{
+            "kind": "command.invoked",
+            "session_id": "33333333-3333-4333-8333-333333333333",
+            "timestamp": "2026-06-14T10:00:00.000Z",
+            "command": "check",
+            "principal": "anonymous",
+            "args": [],
+            "flag_set": []
+        }"#;
+        let row: CommandInvokedObservation =
+            serde_json::from_str(old_row).expect("old row must keep parsing");
+        assert_eq!(row.command, "check");
+        assert_eq!(row.version, "", "missing version defaults to empty");
+        assert_eq!(
+            row.install_method, "",
+            "missing install_method defaults to empty"
+        );
+    }
+
+    /// CIB-197: a new row carrying the producer identity round-trips
+    /// with both fields intact — the mixed-schema counterpart to the
+    /// old-row test above.
+    #[test]
+    fn command_invoked_new_row_round_trips_producer_identity() {
+        let new_row = r#"{
+            "kind": "command.invoked",
+            "session_id": "33333333-3333-4333-8333-333333333333",
+            "timestamp": "2026-06-14T10:00:00.000Z",
+            "command": "check",
+            "principal": "anonymous",
+            "args": [],
+            "flag_set": [],
+            "version": "0.9.0-beta",
+            "install_method": "cargo_dist"
+        }"#;
+        let row: CommandInvokedObservation =
+            serde_json::from_str(new_row).expect("new row must parse");
+        assert_eq!(row.version, "0.9.0-beta");
+        assert_eq!(row.install_method, "cargo_dist");
+        let json = serde_json::to_string(&row).expect("serialise");
+        let back: CommandInvokedObservation = serde_json::from_str(&json).expect("round-trip");
+        assert_eq!(back, row);
+    }
+
+    /// CIB-197: an emitter constructed with an explicit producer
+    /// identity stamps it onto every row it builds (the daemon path —
+    /// the CLI hands its `CARGO_PKG_VERSION` + LAUNCH-013 label in at
+    /// construction).
+    #[test]
+    fn command_invoked_emitter_stamps_producer_identity() {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = CommandInvokedEmitter::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            "daemon-session-9".to_string(),
+            "1.2.3".to_string(),
+            "cargo_install".to_string(),
+        );
+        let params = serde_json::Value::Null;
+        emitter.try_emit(&CommandInvokedEmissionRequest {
+            method: "anvil/gctx/search_symbols",
+            principal: None,
+            params: &params,
+            timestamp: "2026-07-16T10:00:00Z",
+            traceparent: None,
+        });
+        let rows = recorder.recorded_command_invocations();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].version, "1.2.3");
+        assert_eq!(rows[0].install_method, "cargo_install");
     }
 
     fn make_diag(rule_id: &str, severity: Severity) -> Diagnostic {
@@ -3364,6 +3520,8 @@ mod tests {
                 command: "check",
                 principal: "anonymous",
                 traceparent: None,
+                version: "0.0.0-test",
+                install_method: "unknown",
             },
             Vec::new(),
             Vec::new(),

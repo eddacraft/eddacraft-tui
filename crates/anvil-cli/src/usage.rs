@@ -877,6 +877,13 @@ pub fn record_invocation(command_name: &str) -> Result<()> {
         command: command_name,
         principal: &principal,
         traceparent: traceparent.as_deref(),
+        // CIB-197: stamp the producing binary's identity so every row
+        // self-describes once any export or fleet surface exists. The
+        // version is THIS binary's compile-time crate version; the
+        // install method reuses the LAUNCH-013 detection behind
+        // `anvil version` (process-cached — it now runs per command).
+        version: env!("CARGO_PKG_VERSION"),
+        install_method: crate::commands::version::detect_install_method_cached().label(),
     };
     // USAGE-002: populate `flag_set` from the flags resolved during the
     // auth/routing phase (the capture window opened by `main` before the
@@ -1258,6 +1265,12 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
     Some(Arc::new(CommandInvokedEmitter::new(
         sink,
         Uuid::new_v4().to_string(),
+        // CIB-197: the daemon runs inside this same `anvil` binary, so
+        // its rows carry this binary's version + install method too.
+        env!("CARGO_PKG_VERSION").to_string(),
+        crate::commands::version::detect_install_method_cached()
+            .label()
+            .to_string(),
     )))
 }
 
@@ -1623,6 +1636,8 @@ mod tests {
             command: "check",
             principal: &principal,
             traceparent: None,
+            version: "0.9.0-beta",
+            install_method: "dev_build",
         };
         let obs = from_command_invocation(&ctx, args, Vec::new());
 
@@ -1637,6 +1652,9 @@ mod tests {
                 serde_json::from_str(line).expect("valid NDJSON row");
             assert_eq!(parsed.kind, "command.invoked");
             assert_eq!(parsed.command, "check");
+            // CIB-197: every written row self-describes its producer.
+            assert_eq!(parsed.version, "0.9.0-beta");
+            assert_eq!(parsed.install_method, "dev_build");
         }
         assert!(!contents.contains("user@example.com"), "raw email leaked");
         assert!(!contents.contains("/secret/place"), "raw value leaked");
@@ -1652,6 +1670,8 @@ mod tests {
             command: "check",
             principal: ANONYMOUS_PRINCIPAL,
             traceparent: None,
+            version: "0.9.0-beta",
+            install_method: "dev_build",
         };
         from_command_invocation(&ctx, Vec::new(), Vec::new())
     }
