@@ -1,4 +1,4 @@
-# ADR-108: LSP as an agent-integration surface, reconsidered
+# ADR-110: LSP as an agent-integration surface, reconsidered
 
 ## Status
 

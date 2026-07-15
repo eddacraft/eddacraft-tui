@@ -449,14 +449,14 @@ convention" section). Concretely:
   connection-lifecycle question cheaply, *then* the full build. **Un-park
   trigger is a concrete demand signal** (an editor/user asking, or a demo) —
   not surface completeness.
-- **Demand signal recorded 2026-07-16 — see [ADR-108](../decisions/108-lsp-agent-integration-reconsidered.md):**
+- **Demand signal recorded 2026-07-16 — see [ADR-110](../decisions/110-lsp-agent-integration-reconsidered.md):**
   a live prospect conversation was specifically about LSP integration, with
   the prospect independently drawing a ReSharper-capability comparison in
-  the same conversation — satisfies the un-park trigger above. ADR-108 also
+  the same conversation — satisfies the un-park trigger above. ADR-110 also
   corrects ADR-083's alternatives-table rationale as it applies to LSP
   (narrowly: the capability-negotiation clause only) but does not itself
   authorize a build — the build/no-build call is owned directly by the
-  operator, not scheduled by ADR-108 alone. Note the ReSharper comparison's
+  operator, not scheduled by ADR-110 alone. Note the ReSharper comparison's
   broader capability set (find-usages, impact analysis) belongs to the
   separate, larger, not-yet-scoped graph-backed-navigation idea
   (`plans/brainstorms/2026-06-03-anvil-lsp-graph-backed-navigation.md`),
