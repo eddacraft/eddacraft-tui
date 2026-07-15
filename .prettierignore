@@ -56,3 +56,5 @@ docs/archive/experiments/html-vs-markdown-tokens/source.minimal.html
 docs/archive/experiments/html-vs-markdown-tokens/source.structured.html
 # Golden render fixture must stay byte-identical to the scorecard renderer output
 crates/anvil-cli/src/insights/testdata/
+# dev-loop orchestration state (run checkpoints); not product content
+.dev-loop/
