@@ -2,11 +2,13 @@
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| MCPX | —     | In Progress | 0/6      |
+| MCPX | —     | Done | 6/6      |
 
 **Last reviewed:** 2026-07-14 — MCPX-001 verified current vendor contracts and
 the first implementation wave is now present across config generation,
 managed installation, activation, smoke coverage, and public documentation.
+All 6 first-wave items are Done; Tier 2 clients (Visual Studio + Copilot,
+generic project MCP) remain unscheduled follow-on work.
 
 ## Purpose
 
