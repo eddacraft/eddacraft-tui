@@ -24,8 +24,9 @@ ask about plan status.
 ### Step 1: Read the index
 
 Read `plans/index.aps.md`. Extract the Modules table. Identify active modules
--- those whose status is NOT `Done`, `Complete`, or `Archived`. Note the plan
-title and any current-window notes.
+-- those whose status is NOT `Done`, `Complete`, `Merged`, `Released`, `Shipped`,
+`Released/Shipped`, or `Archived`. Note the plan title and any current-window
+notes.
 
 ### Step 2: Read active modules
 
@@ -35,15 +36,16 @@ all work items with their fields:
 - **ID** (e.g., `AUTH-001`)
 - **Title**
 - **Status** (canonical module statuses are `Proposed`, `Ready`, `In Progress`,
-  `Done`, `Blocked`; recognise legacy `Draft` -> `Proposed` and `Complete` ->
-  `Done`)
+  `Merged`, `Released/Shipped`, `Complete`, `Blocked`; recognise legacy `Draft`
+  -> `Proposed`, `Done` -> `Complete`, and `Released` / `Shipped` ->
+  `Released/Shipped`)
 - **Files** (from the `Files:` field, if present)
 - **Validation** (from the `Validation:` field)
 - **Priority** (if specified)
 - **Dependencies** (if specified)
 
-Skip work items with canonical status `Done` or archived/narrative status
-`Complete`.
+Skip work items with inactive/completed statuses: `Done`, `Complete`, `Merged`,
+`Released`, `Shipped`, `Released/Shipped`, or `Archived`.
 
 ### Step 3: Build the file-to-item map
 
@@ -260,7 +262,9 @@ Perform reconciliation inline (foreground). This means:
    and Validation are now satisfied.
 2. For work items that appear complete, verify by running the Validation
    command if one exists.
-3. Draft status updates -- do NOT write them until the user approves.
+3. Draft status updates -- do NOT write them until the user approves, unless a
+   currently active loop skill (`dev-loop-core`, `land-branch`, or `aps-loop`)
+   has already granted explicit authority to reconcile the current work item.
 4. Identify any new files that should be added to existing work items' Files fields.
 5. Identify any unplanned work that warrants new Draft work items.
 6. Check for dependency changes -- are any Blocked items now unblocked?
@@ -293,6 +297,11 @@ After presenting the report, ask if the user wants to apply the proposed changes
 
 > APS reconciliation found: 2 items potentially complete (AUTH-001, AUTH-003),
 > 1 new file to track. Want me to apply the updates?
+
+Exception: when called by `dev-loop-core` / `land-branch` for the current
+ReadyItem after verified PR/merge evidence, apply only that item's status,
+`Files:`, and evidence updates under the loop's authority. Broader plan, module,
+ADR, dependency, or new-work changes still require a user checkpoint.
 
 ### Background Reconciliation (Optional)
 
@@ -328,7 +337,8 @@ When the user asks to create or modify a plan:
 ## What This Skill Does NOT Do
 
 - **Interrupt mid-flow** -- never break the user's concentration with APS info
-- **Auto-edit plan files** -- always ask before writing status changes
+- **Auto-edit plan files** -- always ask before writing status changes, except
+  current-item reconciliation explicitly delegated by an active loop skill
 - **Run validation during active work** -- validation runs only at session
   boundaries or on explicit request
 - **Slow down the commit/PR workflow** -- reconciliation never gates commits or pushes

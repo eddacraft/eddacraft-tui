@@ -136,6 +136,15 @@ git push -u origin <feature-branch>
 gh pr create --base <base-branch> --title "<title>" --body "..."
 ```
 
+After creating a PR, give GitHub checks a short settle window before watching.
+Immediate `gh pr checks --watch` can race check discovery and return “no checks
+reported”.
+
+```bash
+sleep 10
+gh pr checks <n> --watch
+```
+
 PR body: Summary, Test plan (checked only after real runs), APS Work Items,
 Stack section if needed, post-merge notes, reconcile disclosure if included.
 

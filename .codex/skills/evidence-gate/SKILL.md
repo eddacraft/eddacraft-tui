@@ -27,6 +27,10 @@ This is the **executor** self-check. Independent adversarial verification is
 3. Partial checks are not full gates.
 4. Inherited baseline failures must be named; they are not silent passes.
 5. Never treat "should work" / "probably" / "looks good" as evidence.
+6. Classify environment/tooling failures separately from product failures. A
+   missing compiler, unwritable cache, full temp filesystem, package-manager
+   registration write, or sandbox `EROFS` is `blocked: tooling-environment` until
+   rerun in a hermetic writable setup.
 
 ## Steps
 
@@ -46,6 +50,23 @@ Common full gates (examples only — use the project's real commands):
 ### 2. Run fresh
 
 Execute each command completely. Do not skip on confidence.
+
+For full-suite verification in sandboxed or worktree contexts, start from a
+hermetic command environment unless the project policy provides one:
+
+```bash
+export HOME="${PWD}/.home"
+export XDG_CONFIG_HOME="${PWD}/.xdg/config"
+export XDG_CACHE_HOME="${PWD}/.xdg/cache"
+export XDG_RUNTIME_DIR="${PWD}/.xdg/runtime"
+export TMPDIR="${PWD}/.tmp"
+export CARGO_TARGET_DIR="${PWD}/.target"
+export PNPM_HOME="${PWD}/.pnpm-home"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR" "$TMPDIR" "$CARGO_TARGET_DIR" "$PNPM_HOME"
+```
+
+Do not use a shared Cargo target or global package-manager home if it is outside
+the writable root or may become read-only during verification.
 
 ### 3. Read
 
@@ -71,6 +92,7 @@ Use the shape in `references/contracts.md`:
 - Claim:
 - Commands:
   - `...` → exit N — summary
+- Classification: product-failure | tooling-environment | inherited-baseline | pass
 - Base..head:
 - Result: supported | not-supported
 - Notes:

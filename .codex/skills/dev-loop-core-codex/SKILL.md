@@ -44,7 +44,27 @@ Same as `dev-loop-core`:
 ## High-risk verification
 
 Prefer a fresh verifier on a different available model, or delegate
-`verify-loop` to another harness when policy requires cross-model checks.
+`verify-loop` to another harness when policy requires cross-model checks. If the
+agent-spawn API exposes no model selector, record `crossModel: unavailable` in
+the checkpoint and proceed with a fresh same-model verifier rather than blocking.
+
+## Advisor handoff
+
+Use this handoff shape for advisor subagents:
+
+```markdown
+## Advisor Task
+
+- Role: design-advisor | risk-advisor | repo-truth-advisor | critique-advisor
+- Question:
+- Governing sources: <ADR/module/ReadyItem/docs paths>
+- Repo truth to inspect: <files/commands; read-only unless explicitly stated>
+- Non-goals:
+- Output: recommendation, evidence paths, risks, open questions
+```
+
+Do not include executor reasoning or preferred answers. Advisors must cite disk
+truth and distinguish confirmed facts from judgement.
 
 ## Invocation
 

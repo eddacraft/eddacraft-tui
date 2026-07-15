@@ -13,8 +13,13 @@ description: >-
 Clone of `dev-loop` with stage skills pinned to the **dev-loop-core** pack.
 Scope comes from the target; mode controls checkpoints and authority.
 
-Shared contracts: [references/contracts.md](references/contracts.md).  
+Shared contracts: [references/contracts.md](references/contracts.md).
 Policy / claims / evidence schemas: [references/](references/).
+
+Run checkpoint path: `.dev-loop/checkpoints/<runId>.json`. The orchestrator owns
+this file: create it after Resolve, update it after every phase transition,
+evidence gate, verifier decision, repair, PR state change, and final outcome.
+If `.dev-loop/` is missing, create it on the feature branch, not on integration.
 
 ## Invocation
 
@@ -70,6 +75,10 @@ Do **not** route through `planning-workflow`, `brainstorming`, `writing-plans`,
 6. Fresh adversarial verification via `verify-loop`. Verifier is read-only. Prefer a different model/harness for high-risk or disputed findings when available.
 7. Evidence gates every transition. No advance from confidence or another agent's success claim.
 8. Repository policy and branch protection outrank the mode flag. Session-scoped human overrides must name scope, authority, expiry, and be recorded in evidence.
+9. During `land-branch`, APS status/Files/evidence reconciliation is explicit
+   loop authority for the current ReadyItem. This overrides passive
+   `aps-planning` advice to always ask before edits; broader scope changes still
+   require a checkpoint.
 
 ## Roles
 
@@ -115,7 +124,7 @@ For each relevant **open** PR:
 
 For each relevant **merged** PR (deps, prior cycle, same module):
 
-5. Run **integration-ancestor check** (`land-branch` step 4e).  
+5. Run **integration-ancestor check** (`land-branch` step 4e).
    `MERGED` into a deleted or non-integration base is **not** integrated.
 6. If not an ancestor of integration: do **not** treat APS as `Merged`; repair
    stack / re-merge / escalate before building dependents on that work.
@@ -132,6 +141,11 @@ and explicitly said to ignore other PRs.
   (`.claude/skills/aps-planning/SKILL.md` or `.codex/skills/aps-planning/SKILL.md`)
   to avoid global shadowing; run truth validation; on failure route to `plan-ready`.
 - Do not implement stale, ambiguous, blocked, or unauthorised work.
+- Resolve specification precedence before build. Binding order is: accepted ADRs
+  and repository policy, then module specification, then action plan / ReadyItem.
+  An action plan may narrow parent scope only when it records the narrowing and
+  rationale explicitly. If the action plan is narrower but silent, implement the
+  ReadyItem scope conservatively and ask `verify-loop` to flag parent-spec drift.
 - Map dependencies: if required upstream items are only on unmerged PRs, decide
   **stack / wait / escalate** before isolate (default: stack when CI green and
   single parent; wait when dep is red or contested; escalate when multi-parent).
@@ -150,6 +164,10 @@ dependency tip** (not from stale integration). Reuse current worktree only when
 clean, already on the owned feature branch, and no parallel writer. Otherwise
 Worktrunk / worktree + fresh PR branch. Green baseline or documented inherited
 failures. Always run Setup after create/switch.
+
+Checkpoint: write `.dev-loop/checkpoints/<runId>.json` with `phase: claimed`,
+branch, workspace, base revision, mode, target, and next action. Update the same
+file after each later phase; do not create multiple checkpoint locations.
 
 ### 3. Design when required
 
@@ -187,6 +205,10 @@ Before any success claim, invoke **`evidence-gate`**. Result must be `supported`
 Invoke **`verify-loop`** with governing contract and bounded change set. Objective
 gate failures and high-confidence critical/major findings are binding. Subjective
 findings → orchestrator judgement; material disputes → differential or Council.
+
+Do not skip blind verification for “easy” modules. Cheap work still gets a fresh
+read-only verifier because the common findings are small but real: documentation
+drift, missing guard tests, stale plan wording, and baseline gaps.
 
 ### 7. Repair
 

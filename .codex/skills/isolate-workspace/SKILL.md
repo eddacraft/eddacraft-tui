@@ -28,9 +28,17 @@ Establish a safe write surface. Never implement on the protected/default branch.
    Native tools do **not** install dependencies unless a project hook does.
 6. Establish a **baseline** (tests or documented inherited failures) before build.
 7. Do not skip Setup because "the main tree already has node_modules".
-8. If the harness or MCP write gate trusts only the main checkout, record
-   `write-gate: degraded` and use content-mode validation. Do not pretend
-   patch-mode edits are available from an untrusted worktree.
+8. If the harness or MCP write gate trusts only the main checkout, treat that as
+   expected trust-boundary behaviour: record `write-gate: degraded` and use
+   content-mode validation. Do not pretend patch-mode edits are available from an
+   untrusted worktree.
+9. Before invoking native workspace tools, prove the target path is under an
+   allowed writable root and that read-only/orientation commands do not mutate
+   the filesystem. If a tool writes during orientation, mark it unsafe and use a
+   non-mutating Git/content fallback.
+10. Large monorepos require capacity-aware setup: check free space before copy,
+    install, and compile; avoid shared read-only targets; keep caches and temp
+    dirs inside writable roots.
 
 ## Steps
 
@@ -63,6 +71,16 @@ base** (unmerged dependency branch). When stacking, create/branch from
 
 Directory priority: `.worktrees/` → `worktrees/` → project docs preference → ask.
 
+Before creating or accepting a workspace, verify:
+
+- the path is inside a permitted writable root for the harness sandbox;
+- the parent filesystem has enough free space for expected dependency install,
+  build artefacts, and copy strategy;
+- native tooling will not copy the full repository without warning on large trees.
+
+If the tool would copy a large tree, report estimated file count/bytes and ask or
+choose a linked worktree strategy. Do not start a 10+ GiB copy silently.
+
 ```bash
 git check-ignore -q .worktrees || git check-ignore -q worktrees
 # If not ignored: add to .gitignore and commit that bookkeeping first
@@ -91,7 +109,10 @@ if [ -f package.json ]; then
 fi
 
 # Rust
-[ -f Cargo.toml ] && cargo fetch
+if [ -f Cargo.toml ]; then
+  export CARGO_TARGET_DIR="${PWD}/.target"
+  cargo fetch
+fi
 
 # Python
 [ -f requirements.txt ] && pip install -r requirements.txt
@@ -100,6 +121,24 @@ fi
 # Go
 [ -f go.mod ] && go mod download
 ```
+
+Hermetic defaults for sandboxed runs:
+
+```bash
+export HOME="${PWD}/.home"
+export XDG_CONFIG_HOME="${PWD}/.xdg/config"
+export XDG_CACHE_HOME="${PWD}/.xdg/cache"
+export XDG_RUNTIME_DIR="${PWD}/.xdg/runtime"
+export TMPDIR="${PWD}/.tmp"
+export CARGO_TARGET_DIR="${PWD}/.target"
+export PNPM_HOME="${PWD}/.pnpm-home"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR" "$TMPDIR" "$CARGO_TARGET_DIR" "$PNPM_HOME"
+```
+
+Do not inherit a shared `CARGO_TARGET_DIR`, package-manager home, or `/tmp` when
+the sandbox makes those paths read-only or capacity-constrained. If native deps
+select a missing compiler (for example `g++-11`), classify as environment setup,
+not product failure, and stop with the missing toolchain named.
 
 **Verification:** for JS worktrees, `test -d node_modules` (or project equivalent)
 must pass before baseline. If typecheck/tests fail with "cannot find module",
@@ -127,6 +166,14 @@ before relying on patch-mode validation.
 Do not abandon isolation just to satisfy a main-checkout-only write gate. The
 degradation belongs in the report and checkpoint.
 
+### 4c. Read-only tool probe
+
+Run read-only/orientation commands only after checking whether they create temp
+merge trees, fixture updates, caches, registrations, or lockfiles. If a supposed
+read-only command mutates or fails with `EROFS` / `permission denied`, classify it
+as `tooling-sandbox-failure`, record the attempted path, and switch to a safer
+content/Git inspection path.
+
 ### 5. Report
 
 ```text
@@ -136,6 +183,7 @@ Base: <integration-branch @ sha>
 Setup: ran | skipped-reuse-with-deps
 Baseline: green | inherited-failures (<summary>)
 Write gate: patch-mode | content-mode | blocked
+Environment: hermetic | inherited (<exceptions>)
 ReadyItem: <id>
 ```
 
@@ -146,7 +194,6 @@ ReadyItem: <id>
 
 - Decision: isolated | reused | blocked
 - Next: build-tdd | stop
-- Notes: <path, branch, setup, baseline>
 - Notes: <path, branch, setup, baseline, write-gate>
 ```
 

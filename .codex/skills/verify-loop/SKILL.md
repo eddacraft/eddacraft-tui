@@ -26,9 +26,17 @@ Use an adversarial verifier role. For high-risk work and disputed findings, use 
 ## Loop
 
 1. **Map requirements.** Convert every acceptance criterion and binding policy into a checkable requirement.
+   Apply specification precedence when sources conflict: accepted ADRs and
+   repository policy outrank module specs, which outrank action plans / ReadyItems.
+   If an action plan narrows parent scope without recording that narrowing, flag
+   the parent-spec discrepancy even when the immediate ReadyItem passes.
 2. **Inspect the change.** Review the bounded diff for omissions, unintended behaviour, unsafe assumptions, and policy violations.
 3. **Inspect context.** Follow relevant integration surfaces beyond the diff without expanding into an unbounded repository review.
-4. **Run fresh evidence.** Execute plan validation, focused tests, repo gates, and risk-specific checks. Read complete output and exit codes.
+4. **Run fresh evidence.** Execute plan validation, focused tests, repo gates,
+   and risk-specific checks. Read complete output and exit codes. If a read-only
+   external-repository test mutates fixtures, writes caches outside the sandbox,
+   or fails with `EROFS`, classify it as a tooling/sandbox failure unless product
+   evidence remains after rerun in a hermetic writable environment.
 5. **Create findings.** Each finding names severity, violated requirement, concrete evidence, reproduction where useful, and blocking status.
 6. **Decide.** Apply risk-tiered authority:
    - objective gate failures block;
@@ -45,4 +53,11 @@ Use an adversarial verifier role. For high-risk work and disputed findings, use 
 - `blocked` — verification cannot run because of access, environment, dependency, or authority.
 - `under-specified` — no adequate governing contract or bounded change set exists.
 
-Emit an evidence bundle matching `dev-loop/references/evidence-bundle.schema.json`. Never collapse absence of evidence into evidence of absence.
+Emit an evidence bundle matching the installed pack schema. Prefer
+`dev-loop-core/references/evidence-bundle.schema.json` when verifying
+`dev-loop-core`; otherwise use `dev-loop/references/evidence-bundle.schema.json`.
+Never collapse absence of evidence into evidence of absence.
+
+Treat missing negative tests as first-class verification output. When the change
+touches parsing, rendering, escaping, auth, or trust boundaries, invent at least
+one adversarial probe before accepting the executor's happy-path test set.
