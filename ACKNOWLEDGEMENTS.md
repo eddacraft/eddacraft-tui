@@ -1235,7 +1235,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `zerocopy-derive` | 0.8.53 | MIT License | https://github.com/google/zerocopy |
 | `zerocopy` | 0.8.53 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
-| `lru` | 0.18.0 | MIT License | https://github.com/jeromefroe/lru-rs.git |
+| `lru` | 0.18.1 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
 | `smawk` | 0.3.2 | MIT License | https://github.com/mgeisler/smawk |
 | `static_assertions` | 1.1.0 | MIT License | https://github.com/nvzqz/static-assertions-rs |
