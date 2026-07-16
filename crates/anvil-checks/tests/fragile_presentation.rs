@@ -81,6 +81,17 @@ fn frag001_compact_solo_opacity_fires() {
 }
 
 #[test]
+fn frag001_spaced_assignment_fires() {
+    // JSX permits whitespace around `=` and before the colon; the trap is
+    // the same construction.
+    assert!(fires(
+        "src/components/Hero.tsx",
+        "<motion.section initial = {{ opacity : 0 }} animate={{ opacity: 1 }}>\n",
+        "FRAG-001"
+    ));
+}
+
+#[test]
 fn frag001_visible_initial_stays_quiet() {
     assert!(!fires(
         "src/components/Hero.tsx",

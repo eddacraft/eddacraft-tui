@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-07-16T04:32:46.310Z",
+  "compiled_at": "2026-07-16T04:57:30.830Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -484,7 +484,7 @@
       "targets": ["source"],
       "detection": {
         "type": "regex",
-        "pattern": "initial=\\{\\{[^}]*\\bopacity:\\s*0\\s*[,}]"
+        "pattern": "initial\\s*=\\s*\\{\\{[^}]*\\bopacity\\s*:\\s*0\\s*[,}]"
       },
       "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
       "allowlist": [

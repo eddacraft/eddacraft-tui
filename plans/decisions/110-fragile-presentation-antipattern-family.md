@@ -37,7 +37,7 @@ detection reserved and kept off the daemon hot path (ADR-071). AI agents
 apply entrance animations by default, so this trap ships at scale precisely
 in AI-assisted development — Anvil's charter. A decision is needed on whether
 any UI-facing rule belongs in the scanner, and where the line sits, before
-the family ships (CIB-198 is Ready).
+the family ships (tracked in CIB-198).
 
 ## Decision
 

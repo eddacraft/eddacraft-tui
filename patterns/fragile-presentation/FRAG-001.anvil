@@ -28,7 +28,7 @@ allowlist:
 
 detection:
   type: regex
-  pattern: 'initial=\{\{[^}]*\bopacity:\s*0\s*[,}]'
+  pattern: 'initial\s*=\s*\{\{[^}]*\bopacity\s*:\s*0\s*[,}]'
 
 related: []
 enabled: true
