@@ -182,7 +182,10 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-003: Telemetry beacon producer
 
-- **Status:** Ready
+- **Status:** In Progress
+- **Files:** `crates/anvil-cli/src/telemetry.rs`,
+  `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/main.rs`,
+  and start-activation fixtures.
 - **Intent:** Ship the ADR-107 allowlist payload — and nothing else — at
   most once per install per 24h, without ever getting in the user's way.
 - **Expected Outcome:** A session-start beacon carrying exactly the
@@ -198,6 +201,10 @@ FLEET-007 follows once ingest has data.
 - **Dependencies:** FLEET-001, FLEET-002, CIB-197.
 - **Confidence:** medium — the emission point in the session-start path
   needs care around the activation flow.
+- **Implementation evidence (2026-07-16):** commit `e91707f2f` adds the
+  canonical eight-field payload, detached bounded worker, feature counts,
+  hard-off recheck, and reservation-backed 24-hour success cap. Focused
+  telemetry tests passed 39/39 and start integration tests passed 29/29.
 - **Coordination notes (from the 2026-07-16 FLEET-001/002/005 verification):**
   (a) ship the `anvil start` activation-path disclosure with the beacon
   (see FLEET-001 scope note); (b) the FLEET-005 ingest schema requires
@@ -208,7 +215,9 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-004: `anvil telemetry` transparency command
 
-- **Status:** Ready
+- **Status:** In Progress
+- **Files:** `crates/anvil-cli/src/commands/telemetry.rs` and
+  `crates/anvil-cli/src/telemetry.rs`.
 - **Intent:** The allowlist is auditable from the binary itself, not just
   the docs.
 - **Expected Outcome:** `anvil telemetry` prints the consent state, the
@@ -218,6 +227,9 @@ FLEET-007 follows once ingest has data.
   FLEET-003 golden.
 - **Dependencies:** FLEET-003 (payload builder).
 - **Confidence:** high
+- **Implementation evidence (2026-07-16):** commit `e91707f2f` makes the
+  human and JSON status surfaces serialise the sender's canonical payload
+  without reshaping it; blocked inspection stays read-only.
 
 ### FLEET-005: anvil-api ingest route
 
@@ -236,7 +248,10 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-006: Privacy contract and docs update
 
-- **Status:** Ready
+- **Status:** In Progress
+- **Files:** `docs/public/anvil/operations/telemetry.md`,
+  `docs/observability/usage-analytics.md`, affected public guides and
+  tutorials, `docs/runbooks/anvil-adoption.md`, and generated docs indexes.
 - **Intent:** Every surface that says "nothing leaves the machine" is
   rewritten honestly in the same release that ships the beacon.
 - **Expected Outcome:** `docs/observability/usage-analytics.md` (and any
@@ -247,10 +262,16 @@ FLEET-007 follows once ingest has data.
   absolute claims; docs:check passes.
 - **Dependencies:** FLEET-003 (must ship together).
 - **Confidence:** high
+- **Implementation evidence (2026-07-16):** commit `429a6685f` publishes the
+  allowlist, identity, frequency, hard-off, storage, and retention contract;
+  focused formatting, docs index validation, and `pnpm docs:check` passed.
 
 ### FLEET-007: Operator fleet view
 
-- **Status:** Ready
+- **Status:** In Progress
+- **Files:** `apps/anvil-api/src/lib/fleet-overview.ts`, the protected admin
+  route and tests, `crates/anvil-cli/src/commands/admin.rs`, the admin client,
+  and `docs/runbooks/admin-cli.md`.
 - **Intent:** The investor-evidence read surface — the reason this module
   exists.
 - **Expected Outcome:** An operator-only view over the ingested aggregates
@@ -261,3 +282,8 @@ FLEET-007 follows once ingest has data.
 - **Dependencies:** FLEET-005 (ingested data).
 - **Confidence:** medium — surface choice (api route + dashboard vs
   ad-hoc queries) can be decided at execution time.
+- **Implementation evidence (2026-07-16):** commit `dcaacbed6` exposes the
+  stable `anvil.fleet-overview.v1` contract at authenticated
+  `GET /api/v1/admin/fleet` and through `anvil admin fleet`. Focused API tests
+  passed 126/126 with typecheck green; Rust admin tests passed 54 unit and two
+  auth-stream cases.
