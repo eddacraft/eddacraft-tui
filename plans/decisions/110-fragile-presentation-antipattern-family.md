@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed
+**Accepted** — 2026-07-16, operator (Josh). The implementing PR (#3357,
+FRAG-001 + category wiring) merged the same day with the ADR still
+Proposed; this acceptance ratifies the scope decision — presentation
+correctness in, design taste and render-time checks out.
 
 ## Date
 
