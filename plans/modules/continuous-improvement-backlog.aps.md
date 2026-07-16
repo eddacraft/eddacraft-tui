@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 153/194  |
+| CIB | —     | In Progress | 154/194  |
 
 ## Purpose
 
@@ -5039,7 +5039,7 @@ archive.
 
 ### CIB-197: Stamp version and install method onto the command.invoked envelope
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-16 via PR #3351
 - **Intent:** Every usage observation should be self-describing about the
   binary that produced it, so rows collected now stay analysable once any
   export or fleet surface exists.
