@@ -8,6 +8,7 @@ ACTIVATION
   Anonymous usage telemetry
   anvil sends at most one anonymous beacon per day so active installs
   and feature adoption can be counted. It only ever contains:
+    - schema version
     - anvil version
     - install method
     - platform

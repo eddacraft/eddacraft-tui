@@ -1292,6 +1292,7 @@ dependencies = [
  "eddacraft-anvil-tui",
  "eddacraft-anvil-witness",
  "eddacraft-tui",
+ "fs2",
  "futures-util",
  "hex",
  "ignore",

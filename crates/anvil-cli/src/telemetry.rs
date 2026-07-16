@@ -36,6 +36,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use fs2::FileExt as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -152,6 +153,7 @@ pub fn feature_usage_since(
 
 const BEACON_STATE_FILE: &str = "telemetry.beacon-state.json";
 const BEACON_RESERVATION_FILE: &str = "telemetry.beacon-reservation.json";
+const BEACON_LOCK_FILE: &str = "telemetry.beacon.lock";
 const BEACON_INTERVAL: chrono::Duration = chrono::Duration::hours(24);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -167,6 +169,12 @@ pub struct BeaconReservation {
     reserved_at: String,
 }
 
+#[derive(Debug)]
+pub struct BeaconLease {
+    reservation: BeaconReservation,
+    _lock: fs::File,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReserveError {
     TooRecent,
@@ -180,6 +188,32 @@ fn beacon_state_path(state_dir: &Path) -> PathBuf {
 
 fn beacon_reservation_path(state_dir: &Path) -> PathBuf {
     state_dir.join(BEACON_RESERVATION_FILE)
+}
+
+fn beacon_lock_path(state_dir: &Path) -> PathBuf {
+    state_dir.join(BEACON_LOCK_FILE)
+}
+
+fn open_beacon_lock(state_dir: &Path) -> io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.create(true).read(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    options.open(beacon_lock_path(state_dir))
+}
+
+fn acquire_beacon_lock(state_dir: &Path, blocking: bool) -> io::Result<fs::File> {
+    crate::usage::create_private_dir(state_dir)?;
+    let lock = open_beacon_lock(state_dir)?;
+    if blocking {
+        lock.lock_exclusive()?;
+    } else {
+        lock.try_lock_exclusive()?;
+    }
+    Ok(lock)
 }
 
 fn load_beacon_state_in(state_dir: &Path) -> Result<BeaconState> {
@@ -263,7 +297,14 @@ pub fn reserve_beacon_in(
     state_dir: &Path,
     install_id: Uuid,
     now: chrono::DateTime<chrono::Utc>,
-) -> std::result::Result<BeaconReservation, ReserveError> {
+) -> std::result::Result<BeaconLease, ReserveError> {
+    let lock = acquire_beacon_lock(state_dir, false).map_err(|err| {
+        if err.kind() == io::ErrorKind::WouldBlock {
+            ReserveError::Busy
+        } else {
+            ReserveError::StateUnreadable
+        }
+    })?;
     let state = load_beacon_state_in(state_dir).map_err(|_| ReserveError::StateUnreadable)?;
     if state.last_success_install_id.as_deref() == Some(&install_id.to_string())
         && state
@@ -275,7 +316,6 @@ pub fn reserve_beacon_in(
         return Err(ReserveError::TooRecent);
     }
 
-    crate::usage::create_private_dir(state_dir).map_err(|_| ReserveError::StateUnreadable)?;
     let path = beacon_reservation_path(state_dir);
     let reservation = BeaconReservation {
         token: Uuid::new_v4().to_string(),
@@ -284,7 +324,10 @@ pub fn reserve_beacon_in(
     };
     let bytes = serde_json::to_vec(&reservation).map_err(|_| ReserveError::StateUnreadable)?;
     match write_reservation_exclusive(&path, &bytes) {
-        Ok(()) => Ok(reservation),
+        Ok(()) => Ok(BeaconLease {
+            reservation,
+            _lock: lock,
+        }),
         Err(err)
             if err.kind() == io::ErrorKind::AlreadyExists
                 && remove_stale_reservation(&path, now)
@@ -298,7 +341,10 @@ pub fn reserve_beacon_in(
                         ReserveError::StateUnreadable
                     }
                 })
-                .map(|()| reservation)
+                .map(|()| BeaconLease {
+                    reservation,
+                    _lock: lock,
+                })
         }
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Err(ReserveError::Busy),
         Err(_) => Err(ReserveError::StateUnreadable),
@@ -314,7 +360,7 @@ fn reservation_is_current_in(state_dir: &Path, reservation: &BeaconReservation) 
             == Some(reservation)
 }
 
-fn invalidate_beacon_reservation_in(state_dir: &Path) -> Result<()> {
+fn invalidate_beacon_reservation_while_locked(state_dir: &Path) -> Result<()> {
     match fs::remove_file(beacon_reservation_path(state_dir)) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -322,15 +368,13 @@ fn invalidate_beacon_reservation_in(state_dir: &Path) -> Result<()> {
     }
 }
 
-pub fn release_beacon_reservation_in(
-    state_dir: &Path,
-    reservation: &BeaconReservation,
-) -> Result<()> {
+pub fn release_beacon_reservation_in(state_dir: &Path, lease: BeaconLease) -> Result<()> {
+    let BeaconLease { reservation, _lock } = lease;
     let path = beacon_reservation_path(state_dir);
     let current = fs::read_to_string(&path)
         .ok()
         .and_then(|raw| serde_json::from_str::<BeaconReservation>(&raw).ok());
-    if current.as_ref() == Some(reservation) {
+    if current.as_ref() == Some(&reservation) {
         match fs::remove_file(path) {
             Ok(()) => {}
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
@@ -342,16 +386,17 @@ pub fn release_beacon_reservation_in(
 
 pub fn commit_beacon_in(
     state_dir: &Path,
-    reservation: &BeaconReservation,
+    lease: BeaconLease,
     successful_at: chrono::DateTime<chrono::Utc>,
 ) -> Result<()> {
+    let BeaconLease { reservation, _lock } = lease;
     let path = beacon_reservation_path(state_dir);
     let current: BeaconReservation = serde_json::from_str(
         &fs::read_to_string(&path).context("read beacon reservation before commit")?,
     )
     .context("parse beacon reservation before commit")?;
     anyhow::ensure!(
-        current == *reservation,
+        current == reservation,
         "beacon reservation changed before commit"
     );
     let state = BeaconState {
@@ -363,7 +408,12 @@ pub fn commit_beacon_in(
         &serde_json::to_vec(&state).context("serialise beacon delivery state")?,
     )
     .context("write beacon delivery state")?;
-    release_beacon_reservation_in(state_dir, reservation)
+    let path = beacon_reservation_path(state_dir);
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err).context("release committed beacon reservation"),
+    }
 }
 
 fn release_channel(version: &str) -> &'static str {
@@ -499,7 +549,7 @@ fn try_run_beacon_worker() -> Result<()> {
     let state_dir = credentials::credentials_dir().context("resolve telemetry state directory")?;
     let install_id = load_or_create_install_id_in(&state_dir)?;
     let now = chrono::Utc::now();
-    let Ok(reservation) = reserve_beacon_in(&state_dir, install_id, now) else {
+    let Ok(lease) = reserve_beacon_in(&state_dir, install_id, now) else {
         return Ok(());
     };
     let outcome = (|| -> Result<bool> {
@@ -517,7 +567,8 @@ fn try_run_beacon_worker() -> Result<()> {
             .build()
             .context("build telemetry client")?;
         // Re-check every hard off immediately before the network request.
-        if send_gate() != SendGate::Allowed || !reservation_is_current_in(&state_dir, &reservation)
+        if send_gate() != SendGate::Allowed
+            || !reservation_is_current_in(&state_dir, &lease.reservation)
         {
             return Ok(false);
         }
@@ -533,9 +584,9 @@ fn try_run_beacon_worker() -> Result<()> {
     })();
 
     if outcome.unwrap_or(false) {
-        commit_beacon_in(&state_dir, &reservation, chrono::Utc::now())?;
+        commit_beacon_in(&state_dir, lease, chrono::Utc::now())?;
     } else {
-        release_beacon_reservation_in(&state_dir, &reservation)?;
+        release_beacon_reservation_in(&state_dir, lease)?;
     }
     Ok(())
 }
@@ -703,6 +754,10 @@ pub fn save_consent_in(state_dir: &Path, state: &ConsentState) -> Result<()> {
 /// the user is explicitly setting the state, so repair is honest; the
 /// returned `repaired` flag lets the caller surface that it happened.
 pub fn set_enabled_in(state_dir: &Path, enabled: bool) -> Result<ConsentUpdate> {
+    let _egress_lock = (!enabled)
+        .then(|| acquire_beacon_lock(state_dir, true))
+        .transpose()
+        .context("wait for in-flight telemetry before disabling")?;
     let (mut state, repaired) = match load_consent_in(state_dir) {
         Ok(state) => (state, false),
         Err(_) => (ConsentState::default(), true),
@@ -713,6 +768,9 @@ pub fn set_enabled_in(state_dir: &Path, enabled: bool) -> Result<ConsentUpdate> 
         state.notice_shown = true;
     }
     save_consent_in(state_dir, &state)?;
+    if !enabled {
+        invalidate_beacon_reservation_while_locked(state_dir)?;
+    }
     Ok(ConsentUpdate { state, repaired })
 }
 
@@ -974,7 +1032,9 @@ pub fn rotate_install_id_in(state_dir: &Path) -> Result<Uuid> {
         .with_context(|| format!("create state dir {}", state_dir.display()))?;
     let path = install_id_path(state_dir);
     let id = Uuid::new_v4();
-    invalidate_beacon_reservation_in(state_dir)?;
+    let _egress_lock = acquire_beacon_lock(state_dir, true)
+        .context("wait for in-flight telemetry before rotating identity")?;
+    invalidate_beacon_reservation_while_locked(state_dir)?;
     write_private_atomic(&path, id.as_hyphenated().to_string().as_bytes())
         .with_context(|| format!("write install id {}", path.display()))?;
     Ok(id)
@@ -1124,9 +1184,9 @@ mod tests {
             .with_timezone(&chrono::Utc);
 
         let failed = reserve_beacon_in(dir.path(), install_id, now).unwrap();
-        release_beacon_reservation_in(dir.path(), &failed).unwrap();
+        release_beacon_reservation_in(dir.path(), failed).unwrap();
         let reservation = reserve_beacon_in(dir.path(), install_id, now).unwrap();
-        commit_beacon_in(dir.path(), &reservation, now).unwrap();
+        commit_beacon_in(dir.path(), reservation, now).unwrap();
 
         assert!(matches!(
             reserve_beacon_in(
@@ -1149,7 +1209,8 @@ mod tests {
             .unwrap()
             .with_timezone(&chrono::Utc);
 
-        reserve_beacon_in(dir.path(), install_id, now).unwrap();
+        let abandoned = reserve_beacon_in(dir.path(), install_id, now).unwrap();
+        drop(abandoned);
         assert!(matches!(
             reserve_beacon_in(dir.path(), install_id, now + chrono::Duration::minutes(1)),
             Err(ReserveError::Busy)
@@ -1166,6 +1227,91 @@ mod tests {
         assert!(
             reserve_beacon_in(dir.path(), install_id, now + chrono::Duration::minutes(5)).is_ok()
         );
+    }
+
+    #[test]
+    fn stale_reservation_takeover_has_only_one_winner() {
+        let dir = temp_dir();
+        let state_dir = std::sync::Arc::new(dir.path().to_path_buf());
+        let install_id = Uuid::new_v4();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-16T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let abandoned = reserve_beacon_in(&state_dir, install_id, now).unwrap();
+        drop(abandoned);
+
+        let contender_time = now + chrono::Duration::minutes(5);
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let contenders = (0..2)
+            .map(|_| {
+                let state_dir = std::sync::Arc::clone(&state_dir);
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    reserve_beacon_in(&state_dir, install_id, contender_time).is_ok()
+                })
+            })
+            .collect::<Vec<_>>();
+        barrier.wait();
+
+        let winners = contenders
+            .into_iter()
+            .map(|contender| contender.join().unwrap())
+            .filter(|won| *won)
+            .count();
+        assert_eq!(winners, 1);
+    }
+
+    #[test]
+    fn persisted_off_waits_for_an_in_flight_beacon_lease() {
+        let dir = temp_dir();
+        save_consent_in(dir.path(), &on_and_noticed()).unwrap();
+        let install_id = load_or_create_install_id_in(dir.path()).unwrap();
+        let lease = reserve_beacon_in(dir.path(), install_id, chrono::Utc::now()).unwrap();
+        let state_dir = dir.path().to_path_buf();
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            result_tx.send(set_enabled_in(&state_dir, false)).unwrap();
+        });
+
+        assert!(
+            result_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+            "off returned while egress still held the lease"
+        );
+        release_beacon_reservation_in(dir.path(), lease).unwrap();
+        assert!(
+            !result_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap()
+                .unwrap()
+                .state
+                .enabled
+        );
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn reset_id_waits_for_an_in_flight_beacon_lease() {
+        let dir = temp_dir();
+        let original = load_or_create_install_id_in(dir.path()).unwrap();
+        let lease = reserve_beacon_in(dir.path(), original, chrono::Utc::now()).unwrap();
+        let state_dir = dir.path().to_path_buf();
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            result_tx.send(rotate_install_id_in(&state_dir)).unwrap();
+        });
+
+        assert!(
+            result_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+            "reset-id returned while egress still held the lease"
+        );
+        release_beacon_reservation_in(dir.path(), lease).unwrap();
+        let rotated = result_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .unwrap();
+        assert_ne!(rotated, original);
+        worker.join().unwrap();
     }
 
     #[test]
@@ -1199,7 +1345,7 @@ mod tests {
             .unwrap()
             .with_timezone(&chrono::Utc);
         let reservation = reserve_beacon_in(dir.path(), install_id, now).unwrap();
-        commit_beacon_in(dir.path(), &reservation, now).unwrap();
+        commit_beacon_in(dir.path(), reservation, now).unwrap();
 
         assert_eq!(
             next_delivery_block_reason_in(dir.path(), install_id, now + chrono::Duration::hours(1))
@@ -1596,11 +1742,13 @@ mod tests {
         let dir = temp_dir();
         let original = load_or_create_install_id_in(dir.path()).unwrap();
         let reservation = reserve_beacon_in(dir.path(), original, chrono::Utc::now()).unwrap();
+        let old_reservation = reservation.reservation.clone();
+        drop(reservation);
 
         let rotated = rotate_install_id_in(dir.path()).unwrap();
 
         assert_ne!(original, rotated);
-        assert!(!reservation_is_current_in(dir.path(), &reservation));
+        assert!(!reservation_is_current_in(dir.path(), &old_reservation));
         assert!(!beacon_reservation_path(dir.path()).exists());
     }
 

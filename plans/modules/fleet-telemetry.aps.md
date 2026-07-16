@@ -209,7 +209,11 @@ FLEET-007 follows once ingest has data.
   now intersects feature keys with the compiled shipped catalogue, blocks
   pre-beta builds, expires abandoned five-minute reservations, revalidates an
   in-flight identity immediately before egress, and pins detached-spawn
-  latency. Focused telemetry tests passed 43/43 after the repair cycle.
+  latency. The final concurrency repair holds an inter-process lease through
+  stale takeover, HTTP completion, and success commit; persisted off and
+  identity reset acquire the same lease before returning. Focused telemetry
+  tests passed 46/46 after the repair cycle, including two-contender takeover
+  and in-flight off/reset interleavings.
 - **Coordination notes (from the 2026-07-16 FLEET-001/002/005 verification):**
   (a) ship the `anvil start` activation-path disclosure with the beacon
   (see FLEET-001 scope note); (b) the FLEET-005 ingest schema requires

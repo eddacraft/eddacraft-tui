@@ -66,6 +66,7 @@ toml = { workspace = true }
 crossterm = { workspace = true }
 ratatui = { workspace = true }
 anyhow = { workspace = true }
+fs2 = "0.4"
 miette = { workspace = true }
 dirs = { workspace = true }
 tempfile.workspace = true
