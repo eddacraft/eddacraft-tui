@@ -78,7 +78,8 @@ use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
     FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
     GraphStatsOutcome, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
-    SnippetOutcome, SnippetQuery, SymbolContextOutcome, SymbolContextQuery,
+    SnippetOutcome, SnippetQuery, SymbolAtOutcome, SymbolAtQuery, SymbolContextOutcome,
+    SymbolContextQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -200,6 +201,17 @@ pub const ANVIL_GCTX_FIND_DEPENDENTS: &str = "anvil/gctx/find_dependents";
 /// the same read-only `GctxDispatch` surface; never the save-time path.
 pub const ANVIL_GCTX_FIND_CALLERS: &str = "anvil/gctx/find_callers";
 
+/// Client → server: a read-only, identity-only GCTX position lookup
+/// (`symbol_at`, ADR-084). Given a workspace-relative file and a byte offset
+/// into it, the daemon resolves the innermost resident symbol whose defining
+/// span contains that offset and returns a sealed
+/// [`GctxSymbolAtResponse`]. Backs the `anvil lsp` `textDocument/references`
+/// provider's position → [`anvil_gctx_types::SymbolIdentity`] step (the
+/// caller traversal itself then rides [`ANVIL_GCTX_FIND_CALLERS`]).
+/// Dispatched on the same read-only `GctxDispatch` surface; never the
+/// save-time path.
+pub const ANVIL_GCTX_SYMBOL_AT: &str = "anvil/gctx/symbol_at";
+
 /// Client → server: a read-only GCTX source-snippet request (GCTX-021, ADR-084 /
 /// PV-9). Given a `SymbolIdentity`, the daemon resolves its GV2-032 span and
 /// returns a sealed [`GctxGetSnippetResponse`]. Source **text** rides only when
@@ -308,6 +320,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_GCTX_SEARCH_SYMBOLS,
     ANVIL_GCTX_FIND_DEPENDENTS,
     ANVIL_GCTX_FIND_CALLERS,
+    ANVIL_GCTX_SYMBOL_AT,
     ANVIL_GCTX_IMPACT_OF_CHANGE,
     ANVIL_GCTX_AFFECTED_TESTS,
     ANVIL_GCTX_GRAPH_STATS,
@@ -784,6 +797,33 @@ pub struct GctxFindCallersResponse {
     pub workspace_assurance: WorkspaceAssurance,
     /// The status-tagged callers outcome (sealed, identity-only).
     pub outcome: FindCallersOutcome,
+}
+
+/// Request body for [`ANVIL_GCTX_SYMBOL_AT`] (ADR-084).
+///
+/// The query is the sealed, graph-free [`SymbolAtQuery`]; the `workspace_root`
+/// is validated daemon-side against the connection's admitted-root set
+/// (ADR-084 C3 / CE-8) before any projection runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxSymbolAtRequest {
+    /// Canonical, admitted workspace root to project from.
+    pub workspace_root: String,
+    /// The position (as a byte offset into a file) to resolve.
+    #[serde(default)]
+    pub query: SymbolAtQuery,
+}
+
+/// Response to [`ANVIL_GCTX_SYMBOL_AT`]: the daemon-projected sealed egress
+/// DTO (identity-only). The daemon performs the CE-5 projection itself, so
+/// this response **is** the sealed DTO; `workspace_assurance` always rides
+/// along (CE-7), and `outcome` is `ready` (with `symbol: Some`/`None`) when
+/// the symbol graph is readable, a named non-`ready` variant otherwise.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxSymbolAtResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged symbol-at outcome (sealed, identity-only).
+    pub outcome: SymbolAtOutcome,
 }
 
 /// Request body for [`ANVIL_GCTX_GET_SNIPPET`] (GCTX-021, ADR-084 / PV-9).
@@ -1373,6 +1413,7 @@ mod tests {
             ANVIL_GCTX_SEARCH_SYMBOLS,
             ANVIL_GCTX_FIND_DEPENDENTS,
             ANVIL_GCTX_FIND_CALLERS,
+            ANVIL_GCTX_SYMBOL_AT,
             ANVIL_GCTX_IMPACT_OF_CHANGE,
             ANVIL_GCTX_AFFECTED_TESTS,
             ANVIL_GCTX_GRAPH_STATS,
@@ -1388,7 +1429,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            19,
+            20,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.

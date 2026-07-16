@@ -65,8 +65,8 @@ use anvil_gctx_types::{
     FindCallersQuery, FindDependentsOutcome, FindDependentsQuery, GCTX_EGRESS_ENV,
     GraphEdgesOutcome, GraphEdgesQuery, GraphStatsOutcome, ImpactOutcome, ImpactQuery, OmitReason,
     SearchSymbolsOutcome, SearchSymbolsQuery, SnippetEgress, SnippetOutcome, SnippetQuery,
-    SymbolContextOutcome, SymbolContextProjection, SymbolContextQuery, gctx_egress_disabled_from,
-    resolve_snippet_egress,
+    SymbolAtOutcome, SymbolAtQuery, SymbolContextOutcome, SymbolContextProjection,
+    SymbolContextQuery, gctx_egress_disabled_from, resolve_snippet_egress,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
@@ -75,10 +75,10 @@ use anvil_intercept_proto::protocol::{
     GctxGetSnippetRequest, GctxGetSnippetResponse, GctxGraphEdgesRequest, GctxGraphEdgesResponse,
     GctxGraphStatsRequest, GctxGraphStatsResponse, GctxImpactOfChangeRequest,
     GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
-    GctxSymbolContextRequest, GctxSymbolContextResponse, RequestFullScanRequest,
-    RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
-    WitnessAppendRequest, WitnessAppendResponse, WitnessEntry, WitnessOutcomeKind,
-    WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
+    GctxSymbolAtRequest, GctxSymbolAtResponse, GctxSymbolContextRequest, GctxSymbolContextResponse,
+    RequestFullScanRequest, RequestFullScanResponse, StaleReason, ValidatePathsRequest,
+    ValidatePathsResponse, WitnessAppendRequest, WitnessAppendResponse, WitnessEntry,
+    WitnessOutcomeKind, WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
 
@@ -2003,6 +2003,70 @@ impl GctxDispatch for SaveTimeConn<'_> {
         })
     }
 
+    fn symbol_at(
+        &mut self,
+        request: &GctxSymbolAtRequest,
+    ) -> Result<GctxSymbolAtResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxSymbolAtResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: SymbolAtOutcome::InvalidQuery { reason },
+            });
+        }
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(
+            &mut self.admitted,
+            &state.confinement,
+            state.root_budget(),
+            &root,
+        )?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // N8 (CIB-095): same first-contact warm-start trigger every other
+        // graph-reading GCTX verb uses.
+        state.spawn_route_restore(&key, key.as_path());
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_symbol_at_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: enum-only telemetry + response-aggregate counts — never the
+        // resolved symbol identity or query text.
+        let (matched, returned) = match &outcome {
+            SymbolAtOutcome::Ready(projection) => (
+                projection.redaction_summary.matched,
+                projection.redaction_summary.returned,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx symbol_at served",
+        );
+
+        Ok(GctxSymbolAtResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+
     fn graph_stats(
         &mut self,
         request: &GctxGraphStatsRequest,
@@ -2687,6 +2751,59 @@ fn gctx_find_callers_outcome(
     }
 }
 
+/// Compute the GCTX `symbol_at` outcome. Mirrors [`gctx_find_callers_outcome`]'s
+/// kill-switch / query-validation / CE-7-degradation shape, but a point
+/// lookup rather than a bounded traversal: no depth clamp, no pagination, and
+/// no `partial` marker — a resident-symbol span lookup is either a clean hit
+/// or a clean miss, never an incomplete walk.
+fn gctx_symbol_at_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &SymbolAtQuery,
+    egress_disabled: bool,
+) -> SymbolAtOutcome {
+    // CE-11 kill-switch.
+    if egress_disabled {
+        return SymbolAtOutcome::Disabled;
+    }
+
+    // CE-6: reject a malformed / absent file or offset before touching the graph.
+    if let Some(reason) = invalid_symbol_at_query_reason(query) {
+        return SymbolAtOutcome::InvalidQuery { reason };
+    }
+    let (Some(file), Some(byte_offset)) = (query.file.clone(), query.byte_offset) else {
+        return SymbolAtOutcome::InvalidQuery {
+            reason: "file and byte_offset are required".to_string(),
+        };
+    };
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => SymbolAtOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => SymbolAtOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the lookup shortly".to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // C2: collect under the lock (symbol graph), project after release.
+            let collected = state.cache.with_graphs(key, |sym, _dep| {
+                GctxProjector::collect_symbol_at(sym, &file, byte_offset)
+            });
+            match collected {
+                Some((symbol, omitted_sensitive)) => SymbolAtOutcome::Ready(
+                    GctxProjector::project_symbol_at(symbol, omitted_sensitive),
+                ),
+                None => SymbolAtOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
 /// Compute the GCTX `graph_stats` outcome (GCTX-030). Kill-switch, CE-7
 /// degradation, then read the counts under the lock. No query, so no
 /// `InvalidQuery` arm; a readable graph (even an empty one) is always `Ready`.
@@ -2802,6 +2919,22 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
         return Some("target.file must not be empty".to_string());
     }
     invalid_relative_path_reason("target.file", &target.file)
+}
+
+fn invalid_symbol_at_query_reason(query: &SymbolAtQuery) -> Option<String> {
+    let Some(file) = query.file.as_ref() else {
+        return Some("file is required".to_string());
+    };
+    if file.is_empty() {
+        return Some("file must not be empty".to_string());
+    }
+    if let Some(reason) = invalid_relative_path_reason("file", file) {
+        return Some(reason);
+    }
+    if query.byte_offset.is_none() {
+        return Some("byte_offset is required".to_string());
+    }
+    None
 }
 
 /// Resolve the witness flock-acquire timeout from `ANVIL_WITNESS_LOCK_TIMEOUT`
