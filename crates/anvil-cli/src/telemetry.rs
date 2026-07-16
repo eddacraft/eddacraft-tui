@@ -1,8 +1,7 @@
 //! Fleet telemetry consent state, first-run disclosure, and anonymous
-//! install identity — everything that must be true *before* any fleet
-//! beacon can fire. The beacon itself is a separate work item and
-//! consumes [`send_gate`] / [`send_allowed`]; no send path exists in
-//! this module.
+//! install identity, canonical payload, and detached fleet-beacon worker.
+//! Every send path consumes [`send_gate`] / [`send_allowed`] immediately
+//! before network egress.
 //!
 //! The consent posture is **disclosed opt-out** (decided in
 //! `plans/decisions/107-fleet-telemetry-consent-posture.md`):
@@ -63,6 +62,8 @@ pub const BEACON_WORKER_ENV: &str = "ANVIL_INTERNAL_TELEMETRY_BEACON";
 
 const BEACON_HTTP_TIMEOUT: Duration = Duration::from_secs(2);
 const BEACON_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+const BEACON_RESERVATION_LEASE: chrono::Duration = chrono::Duration::minutes(5);
+const MAX_FEATURES_PER_BEACON: usize = 128;
 
 /// Current consent-state schema version.
 pub const CONSENT_SCHEMA_VERSION: u32 = 1;
@@ -134,12 +135,17 @@ pub fn feature_usage_since(
             }
         }
         for flag in &row.flag_set {
+            if !anvil_kernel_types::feature_flags_catalogue::all::KEYS.contains(&flag.key.as_str())
+            {
+                continue;
+            }
             let count = counts.entry(flag.key.clone()).or_default();
             *count = count.saturating_add(1);
         }
     }
     counts
         .into_iter()
+        .take(MAX_FEATURES_PER_BEACON)
         .map(|(key, count)| FeatureUsage { key, count })
         .collect()
 }
@@ -190,6 +196,69 @@ fn parse_utc(value: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         .map(|time| time.with_timezone(&chrono::Utc))
 }
 
+fn write_reservation_exclusive(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut options = fs::OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(bytes)
+}
+
+fn remove_stale_reservation(path: &Path, now: chrono::DateTime<chrono::Utc>) -> io::Result<bool> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(true),
+        Err(err) => return Err(err),
+    };
+    let reserved_at = serde_json::from_str::<BeaconReservation>(&raw)
+        .ok()
+        .and_then(|reservation| parse_utc(&reservation.reserved_at))
+        .or_else(|| {
+            fs::metadata(path)
+                .ok()?
+                .modified()
+                .ok()
+                .map(chrono::DateTime::<chrono::Utc>::from)
+        });
+    if reserved_at
+        .is_none_or(|reserved| now.signed_duration_since(reserved) < BEACON_RESERVATION_LEASE)
+    {
+        return Ok(false);
+    }
+    if !fs::read_to_string(path).is_ok_and(|current| current == raw) {
+        return Ok(false);
+    }
+    match fs::remove_file(path) {
+        Ok(()) => Ok(true),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(err) => Err(err),
+    }
+}
+
+fn reservation_is_fresh(path: &Path, now: chrono::DateTime<chrono::Utc>) -> io::Result<bool> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
+    let reserved_at = serde_json::from_str::<BeaconReservation>(&raw)
+        .ok()
+        .and_then(|reservation| parse_utc(&reservation.reserved_at))
+        .or_else(|| {
+            fs::metadata(path)
+                .ok()?
+                .modified()
+                .ok()
+                .map(chrono::DateTime::<chrono::Utc>::from)
+        });
+    Ok(reserved_at
+        .is_none_or(|reserved| now.signed_duration_since(reserved) < BEACON_RESERVATION_LEASE))
+}
+
 pub fn reserve_beacon_in(
     state_dir: &Path,
     install_id: Uuid,
@@ -214,21 +283,42 @@ pub fn reserve_beacon_in(
         reserved_at: now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
     };
     let bytes = serde_json::to_vec(&reservation).map_err(|_| ReserveError::StateUnreadable)?;
-    let mut options = fs::OpenOptions::new();
-    options.create_new(true).write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt as _;
-        options.mode(0o600);
-    }
-    match options.open(&path) {
-        Ok(mut file) => {
-            file.write_all(&bytes)
-                .map_err(|_| ReserveError::StateUnreadable)?;
-            Ok(reservation)
+    match write_reservation_exclusive(&path, &bytes) {
+        Ok(()) => Ok(reservation),
+        Err(err)
+            if err.kind() == io::ErrorKind::AlreadyExists
+                && remove_stale_reservation(&path, now)
+                    .map_err(|_| ReserveError::StateUnreadable)? =>
+        {
+            write_reservation_exclusive(&path, &bytes)
+                .map_err(|err| {
+                    if err.kind() == io::ErrorKind::AlreadyExists {
+                        ReserveError::Busy
+                    } else {
+                        ReserveError::StateUnreadable
+                    }
+                })
+                .map(|()| reservation)
         }
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Err(ReserveError::Busy),
         Err(_) => Err(ReserveError::StateUnreadable),
+    }
+}
+
+fn reservation_is_current_in(state_dir: &Path, reservation: &BeaconReservation) -> bool {
+    existing_install_id_in(state_dir).is_some_and(|id| id.to_string() == reservation.install_id)
+        && fs::read_to_string(beacon_reservation_path(state_dir))
+            .ok()
+            .and_then(|raw| serde_json::from_str::<BeaconReservation>(&raw).ok())
+            .as_ref()
+            == Some(reservation)
+}
+
+fn invalidate_beacon_reservation_in(state_dir: &Path) -> Result<()> {
+    match fs::remove_file(beacon_reservation_path(state_dir)) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err).context("invalidate beacon reservation"),
     }
 }
 
@@ -286,6 +376,10 @@ fn release_channel(version: &str) -> &'static str {
         Some(_) => "prerelease",
         None => "stable",
     }
+}
+
+fn release_is_eligible(version: &str) -> bool {
+    matches!(release_channel(version), "beta" | "rc" | "stable")
 }
 
 fn platform_triple() -> String {
@@ -348,8 +442,7 @@ pub fn next_delivery_block_reason_in(
             "the last successful beacon was less than 24 hours ago",
         ));
     }
-    if beacon_reservation_path(state_dir)
-        .try_exists()
+    if reservation_is_fresh(&beacon_reservation_path(state_dir), now)
         .context("inspect beacon reservation")?
     {
         return Ok(Some("another beacon is already in progress"));
@@ -380,12 +473,17 @@ pub fn spawn_start_beacon() {
     let Ok(executable) = env::current_exe() else {
         return;
     };
-    let _ = std::process::Command::new(executable)
+    let _ = spawn_beacon_process(&executable);
+}
+
+fn spawn_beacon_process(executable: &Path) -> io::Result<()> {
+    std::process::Command::new(executable)
         .env(BEACON_WORKER_ENV, "1")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .spawn();
+        .spawn()
+        .map(drop)
 }
 
 /// Run the detached worker. All failures are deliberately silent and leave no
@@ -419,7 +517,8 @@ fn try_run_beacon_worker() -> Result<()> {
             .build()
             .context("build telemetry client")?;
         // Re-check every hard off immediately before the network request.
-        if send_gate() != SendGate::Allowed {
+        if send_gate() != SendGate::Allowed || !reservation_is_current_in(&state_dir, &reservation)
+        {
             return Ok(false);
         }
         let response = runtime.block_on(async {
@@ -444,7 +543,8 @@ fn try_run_beacon_worker() -> Result<()> {
 /// The exact dimension allowlist the disclosure names. Nothing outside
 /// this list is ever sent; adding a dimension requires a dated amendment
 /// to the governing decision record.
-pub const DISCLOSED_DIMENSIONS: [&str; 7] = [
+pub const DISCLOSED_DIMENSIONS: [&str; 8] = [
+    "schema version",
     "anvil version",
     "install method",
     "platform",
@@ -522,6 +622,9 @@ pub enum BlockReason {
     /// The first-run disclosure notice has not been shown yet; the
     /// notice must strictly precede the first beacon.
     NoticeNotShown,
+    /// ADR-107 permits beacons only from beta, release-candidate, and
+    /// stable builds.
+    IneligibleRelease,
 }
 
 impl BlockReason {
@@ -540,6 +643,9 @@ impl BlockReason {
             }
             Self::PersistedOff => "telemetry is turned off (`anvil telemetry off`)",
             Self::NoticeNotShown => "the disclosure notice has not been shown yet",
+            Self::IneligibleRelease => {
+                "this build is earlier than beta (only beta, release-candidate, and stable builds beacon)"
+            }
         }
     }
 }
@@ -690,7 +796,7 @@ pub fn send_gate() -> SendGate {
     let anvil_telemetry = env::var(TELEMETRY_ENV).ok();
     let do_not_track = env::var(DO_NOT_TRACK_ENV).ok();
     let consent = credentials::credentials_dir().and_then(|dir| load_consent_in(&dir));
-    match consent {
+    let gate = match consent {
         Ok(state) => evaluate_send_gate(
             Some(&state),
             anvil_telemetry.as_deref(),
@@ -717,7 +823,11 @@ pub fn send_gate() -> SendGate {
             }
             gate
         }
+    };
+    if gate == SendGate::Allowed && !release_is_eligible(env!("CARGO_PKG_VERSION")) {
+        return SendGate::Blocked(BlockReason::IneligibleRelease);
     }
+    gate
 }
 
 /// Convenience predicate over [`send_gate`] for the beacon producer.
@@ -864,6 +974,7 @@ pub fn rotate_install_id_in(state_dir: &Path) -> Result<Uuid> {
         .with_context(|| format!("create state dir {}", state_dir.display()))?;
     let path = install_id_path(state_dir);
     let id = Uuid::new_v4();
+    invalidate_beacon_reservation_in(state_dir)?;
     write_private_atomic(&path, id.as_hyphenated().to_string().as_bytes())
         .with_context(|| format!("write install id {}", path.display()))?;
     Ok(id)
@@ -978,9 +1089,12 @@ mod tests {
                 .collect(),
         };
         let rows = vec![
-            row("2026-07-15T23:59:59Z", &["old.flag"]),
-            row("2026-07-16T00:00:01Z", &["feature.b", "feature.a"]),
-            row("2026-07-16T01:00:00Z", &["feature.a"]),
+            row("2026-07-15T23:59:59Z", &["cli.licence-gate"]),
+            row(
+                "2026-07-16T00:00:01Z",
+                &["daemon.persist-graph", "cli.licence-gate", "planted.secret"],
+            ),
+            row("2026-07-16T01:00:00Z", &["cli.licence-gate"]),
         ];
         let cutoff = chrono::DateTime::parse_from_rfc3339("2026-07-16T00:00:00Z")
             .unwrap()
@@ -990,11 +1104,11 @@ mod tests {
             feature_usage_since(&rows, Some(cutoff)),
             vec![
                 FeatureUsage {
-                    key: "feature.a".to_string(),
+                    key: "cli.licence-gate".to_string(),
                     count: 2,
                 },
                 FeatureUsage {
-                    key: "feature.b".to_string(),
+                    key: "daemon.persist-graph".to_string(),
                     count: 1,
                 },
             ]
@@ -1024,6 +1138,33 @@ mod tests {
         ));
         assert!(
             reserve_beacon_in(dir.path(), install_id, now + chrono::Duration::hours(24)).is_ok()
+        );
+    }
+
+    #[test]
+    fn stale_reservation_is_recovered_for_a_later_start() {
+        let dir = temp_dir();
+        let install_id = Uuid::new_v4();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-16T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        reserve_beacon_in(dir.path(), install_id, now).unwrap();
+        assert!(matches!(
+            reserve_beacon_in(dir.path(), install_id, now + chrono::Duration::minutes(1)),
+            Err(ReserveError::Busy)
+        ));
+        assert_eq!(
+            next_delivery_block_reason_in(
+                dir.path(),
+                install_id,
+                now + chrono::Duration::minutes(5)
+            )
+            .unwrap(),
+            None
+        );
+        assert!(
+            reserve_beacon_in(dir.path(), install_id, now + chrono::Duration::minutes(5)).is_ok()
         );
     }
 
@@ -1280,6 +1421,35 @@ mod tests {
     }
 
     #[test]
+    fn only_beta_release_candidates_and_stable_builds_are_eligible() {
+        for version in ["0.9.0-beta.1", "0.9.0-rc.1", "0.9.0"] {
+            assert!(release_is_eligible(version), "{version} should be eligible");
+        }
+        for version in ["0.9.0-nightly.1", "0.9.0-alpha.1", "0.9.0-dev"] {
+            assert!(!release_is_eligible(version), "{version} should be blocked");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detached_beacon_spawn_adds_no_child_runtime_latency() {
+        use std::os::unix::fs::PermissionsExt as _;
+        use std::time::Instant;
+
+        let dir = temp_dir();
+        let executable = dir.path().join("slow-worker");
+        fs::write(&executable, "#!/bin/sh\nsleep 2\n").unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let started = Instant::now();
+        spawn_beacon_process(&executable).unwrap();
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "detached spawn waited for worker runtime"
+        );
+    }
+
+    #[test]
     fn send_gate_end_to_end_with_temp_state_dir() {
         // Wrapper-level check against the real env readers, isolated to a
         // temp XDG_CONFIG_HOME so the real user state is never touched.
@@ -1325,6 +1495,8 @@ mod tests {
     #[test]
     fn disclosure_names_every_allowlisted_dimension_and_the_off_switches() {
         let text = disclosure_text();
+        assert_eq!(DISCLOSED_DIMENSIONS.len(), 8);
+        assert!(text.contains("schema version"));
         for dimension in DISCLOSED_DIMENSIONS {
             assert!(
                 text.contains(dimension),
@@ -1417,6 +1589,19 @@ mod tests {
         // The rotated id is what subsequent loads see.
         assert_eq!(load_or_create_install_id_in(dir.path()).unwrap(), rotated);
         assert_eq!(rotated.get_version_num(), 4);
+    }
+
+    #[test]
+    fn reset_invalidates_an_in_flight_old_identity_reservation() {
+        let dir = temp_dir();
+        let original = load_or_create_install_id_in(dir.path()).unwrap();
+        let reservation = reserve_beacon_in(dir.path(), original, chrono::Utc::now()).unwrap();
+
+        let rotated = rotate_install_id_in(dir.path()).unwrap();
+
+        assert_ne!(original, rotated);
+        assert!(!reservation_is_current_in(dir.path(), &reservation));
+        assert!(!beacon_reservation_path(dir.path()).exists());
     }
 
     #[cfg(unix)]

@@ -37,9 +37,12 @@ decision away from the original "scheduled CI workflow → weekly snapshot PR":
    "code drifted" with "the rule set / org-policy ref changed" — not a
    controlled measurement.
 
-Anvil is local-only (no telemetry); `main` is trunk-protected (PR + checks); the
-metric is team/sprint-level, so the canonical series must be shared and
-comparable, not divergent per-developer-machine.
+At the time of this decision Anvil was local-only, with no remote telemetry.
+ADR-107 later introduced a narrow anonymous fleet beacon; the drift-snapshot
+data governed here remains local-only and never enters that allowlisted body.
+`main` is trunk-protected (PR + checks); the metric is team/sprint-level, so the
+canonical series must be shared and comparable, not divergent per-developer
+machine.
 
 ## Decision
 

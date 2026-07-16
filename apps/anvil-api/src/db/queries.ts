@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { NeonClient } from './client.js';
 import { hashToken } from '../lib/token.js';
 import type { GitHubIdentity } from '../lib/github-user.js';
+import { validateTelemetryRetentionDays } from '../lib/telemetry-retention.js';
 
 const IdSchema = z.union([z.string(), z.number(), z.bigint()]).transform((v) => String(v));
 
@@ -1518,18 +1519,14 @@ export async function rollupAndPurgeExpiredTelemetryBeacons(
   sql: NeonClient,
   retentionDays: number
 ): Promise<number> {
-  if (!Number.isInteger(retentionDays) || retentionDays < 1) {
-    throw new Error(
-      `telemetry retention window must be a positive integer number of days, got ${retentionDays}`
-    );
-  }
+  validateTelemetryRetentionDays(retentionDays);
   const txResult = await sql.transaction([
     sql`INSERT INTO telemetry_daily_installs
           (day, version, install_method, platform, channel, install_count)
         SELECT received_on, version, install_method, platform, channel,
                COUNT(DISTINCT install_id)
         FROM telemetry_beacons
-        WHERE received_on < current_date - ${retentionDays}::int
+        WHERE received_on < current_date - (${retentionDays}::int - 1)
         GROUP BY received_on, version, install_method, platform, channel
         ON CONFLICT (day, version, install_method, platform, channel)
         DO UPDATE SET install_count = EXCLUDED.install_count`,
@@ -1539,13 +1536,13 @@ export async function rollupAndPurgeExpiredTelemetryBeacons(
                COUNT(DISTINCT b.install_id)
         FROM telemetry_beacon_features f
         JOIN telemetry_beacons b ON b.id = f.beacon_id
-        WHERE b.received_on < current_date - ${retentionDays}::int
+        WHERE b.received_on < current_date - (${retentionDays}::int - 1)
         GROUP BY b.received_on, f.feature_key
         ON CONFLICT (day, feature_key)
         DO UPDATE SET usage_count = EXCLUDED.usage_count,
                       install_count = EXCLUDED.install_count`,
     sql`DELETE FROM telemetry_beacons
-        WHERE received_on < current_date - ${retentionDays}::int
+        WHERE received_on < current_date - (${retentionDays}::int - 1)
         RETURNING id`,
   ]);
   const purged = (txResult as unknown[][])[2] ?? [];

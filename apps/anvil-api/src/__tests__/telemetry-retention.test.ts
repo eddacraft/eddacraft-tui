@@ -59,7 +59,7 @@ describe('telemetry retention configuration', () => {
   });
 
   it('rejects invalid explicit configuration rather than silently defaulting', () => {
-    for (const bad of ['abc', '0', '-5', '1.5', 'Infinity']) {
+    for (const bad of ['abc', '0', '-5', '1.5', '91', 'Infinity']) {
       process.env['TELEMETRY_RETENTION_DAYS'] = bad;
       expect(() => getTelemetryRetentionDays()).toThrow(/TELEMETRY_RETENTION_DAYS/);
     }
@@ -79,7 +79,7 @@ describe('rollupAndPurgeExpiredTelemetryBeacons', () => {
 
     const purge = queries[2]!;
     expect(purge.text).toContain('DELETE FROM telemetry_beacons');
-    expect(purge.text).toMatch(/received_on\s*<\s*current_date\s*-/);
+    expect(purge.text).toMatch(/received_on\s*<\s*current_date\s*-\s*\(\s*\?\s*::int\s*-\s*1\s*\)/);
     // The 90-day value arrives as a parameter (configuration), never baked
     // into the SQL text as a magic literal.
     expect(purge.params).toContain(90);
@@ -115,6 +115,7 @@ describe('rollupAndPurgeExpiredTelemetryBeacons', () => {
 
     await expect(rollupAndPurgeExpiredTelemetryBeacons(sql, 0)).rejects.toThrow(/retention/i);
     await expect(rollupAndPurgeExpiredTelemetryBeacons(sql, 1.5)).rejects.toThrow(/retention/i);
+    await expect(rollupAndPurgeExpiredTelemetryBeacons(sql, 91)).rejects.toThrow(/retention/i);
     expect(sql.transaction).not.toHaveBeenCalled();
   });
 });

@@ -46,19 +46,22 @@ describe('GET /admin/fleet', () => {
   });
 
   it('returns the stable empty contract through admin auth and rate limiting', async () => {
-    mockSql.mockResolvedValue([
-      {
-        as_of: '2026-07-16',
-        beacon_id: null,
-        install_id: null,
-        received_on: null,
-        version: null,
-        install_method: null,
-        feature_id: null,
-        feature_key: null,
-        usage_count: null,
-      },
-    ]);
+    mockSql
+      .mockResolvedValueOnce([
+        {
+          as_of: '2026-07-16',
+          beacon_id: null,
+          install_id: null,
+          received_on: null,
+          version: null,
+          install_method: null,
+          feature_id: null,
+          feature_key: null,
+          usage_count: null,
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
 
     const response = await request(ADMIN_KEY);
 
@@ -71,12 +74,25 @@ describe('GET /admin/fleet', () => {
       distributions: { versions: [], installMethods: [] },
       featureAdoption: [],
       retentionCohorts: [],
-      notes: { activityDefinition: 'beacon observed', rawRetentionDays: 90 },
+      historicalAggregates: { dailyInstallDimensions: [], dailyFeatureUsage: [] },
+      notes: {
+        activityDefinition: 'beacon observed',
+        rawRetentionDays: 90,
+        currentMetricsSource: 'retained raw beacons',
+        historicalMetricsSource: 'indefinite daily aggregates',
+        dataQuality: 'anonymous, unverified beacons; directional evidence only, not audit-grade',
+      },
     });
-    const [query, retentionDays] = mockSql.mock.calls[0]!;
-    expect((query as TemplateStringsArray).join(' ')).toMatch(
+    const [rawQuery, retentionDays] = mockSql.mock.calls[0]!;
+    expect((rawQuery as TemplateStringsArray).join(' ')).toMatch(
       /current_date[\s\S]+telemetry_beacons[\s\S]+telemetry_beacon_features/
     );
     expect(retentionDays).toBe(90);
+    expect((mockSql.mock.calls[1]![0] as TemplateStringsArray).join(' ')).toContain(
+      'telemetry_daily_installs'
+    );
+    expect((mockSql.mock.calls[2]![0] as TemplateStringsArray).join(' ')).toContain(
+      'telemetry_daily_feature_usage'
+    );
   });
 });

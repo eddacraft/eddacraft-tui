@@ -428,10 +428,26 @@ Feature adoption counts MAU installs with positive usage, while `usageCount`
 sums positive observations.
 
 Retention is labelled **observed-beacon retention**: absence means no retained
-beacon was observed, not proven product abandonment. Cohorts come from the
-retained 90-day raw window; the boundary cohort is excluded because its earlier
-history may already have been purged. Indefinite daily aggregates cannot
-reconstruct install identities and are not used for this view.
+beacon was observed, not proven product abandonment. Cohorts and current
+identity-based metrics come from the retained raw window, which is capped at 90
+calendar dates and may be configured lower; the response's `rawRetentionDays`
+states the effective value. The boundary cohort is excluded because its earlier
+history may already have been purged.
+
+`historicalAggregates` exposes kept-indefinitely daily dimension cells and
+feature totals after their raw rows expire. Each `dailyInstallDimensions` row is
+a distinct-install count only within its exact day/version/install-method/
+platform/channel cell. An install that changed dimensions can appear in more
+than one cell, so **do not sum cells or derive a share denominator from them**.
+These aggregates preserve directional history but cannot reconstruct install
+identities, so they are never used to manufacture historical MAU or retention
+cohorts.
+
+> **Data-quality caveat:** beacons carry anonymous random install IDs and are
+> not authenticated or independently verified. Installs can reset or fabricate
+> IDs and payloads. Treat every fleet metric as directional product evidence,
+> not audit-grade evidence or a verified customer count. The API and human CLI
+> repeat this caveat in `notes.dataQuality` / the `Data quality` line.
 
 ### `show <email>` — full profile for one email
 

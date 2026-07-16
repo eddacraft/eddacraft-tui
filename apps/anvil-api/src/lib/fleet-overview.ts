@@ -1,7 +1,12 @@
 import type { NeonClient } from '../db/client.js';
+import {
+  DEFAULT_TELEMETRY_RETENTION_DAYS,
+  getTelemetryRetentionDays,
+  validateTelemetryRetentionDays,
+} from './telemetry-retention.js';
 
 export const FLEET_OVERVIEW_SCHEMA_VERSION = 'anvil.fleet-overview.v1';
-export const FLEET_RAW_RETENTION_DAYS = 90;
+export const FLEET_RAW_RETENTION_DAYS = DEFAULT_TELEMETRY_RETENTION_DAYS;
 
 export interface FleetBeaconRow {
   as_of: string;
@@ -19,6 +24,28 @@ export interface FleetDistributionEntry {
   value: string;
   installs: number;
   share: number;
+}
+
+export interface FleetDailyInstallRow {
+  day: string;
+  version: string;
+  install_method: string;
+  platform: string;
+  channel: string;
+  install_count: number | string;
+}
+
+export interface FleetDailyFeatureUsageRow {
+  day: string;
+  feature_key: string;
+  install_count: number | string;
+  usage_count: number | string;
+}
+
+export interface FleetOverviewSources {
+  dailyInstalls: FleetDailyInstallRow[];
+  dailyFeatureUsage: FleetDailyFeatureUsageRow[];
+  rawRetentionDays: number;
 }
 
 export interface FleetFeatureAdoptionEntry {
@@ -54,9 +81,28 @@ export interface FleetOverview {
   };
   featureAdoption: FleetFeatureAdoptionEntry[];
   retentionCohorts: FleetRetentionCohort[];
+  historicalAggregates: {
+    dailyInstallDimensions: Array<{
+      day: string;
+      version: string;
+      installMethod: string;
+      platform: string;
+      channel: string;
+      distinctInstalls: number;
+    }>;
+    dailyFeatureUsage: Array<{
+      day: string;
+      featureKey: string;
+      installs: number;
+      usageCount: number;
+    }>;
+  };
   notes: {
     activityDefinition: 'beacon observed';
-    rawRetentionDays: typeof FLEET_RAW_RETENTION_DAYS;
+    rawRetentionDays: number;
+    currentMetricsSource: 'retained raw beacons';
+    historicalMetricsSource: 'indefinite daily aggregates';
+    dataQuality: 'anonymous, unverified beacons; directional evidence only, not audit-grade';
   };
 }
 
@@ -115,6 +161,14 @@ function share(numerator: number, denominator: number): number {
   return numerator / denominator;
 }
 
+function count(value: number | string, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`invalid fleet aggregate ${field}: ${value}`);
+  }
+  return parsed;
+}
+
 function lastCompletedAgeWeek(
   members: Set<string>,
   firstSeen: Map<string, number>,
@@ -142,17 +196,69 @@ function distribution(
     .sort((left, right) => right.installs - left.installs || compareText(left.value, right.value));
 }
 
+function historicalAggregates(
+  sources: FleetOverviewSources
+): FleetOverview['historicalAggregates'] {
+  const dailyInstallDimensions = sources.dailyInstalls
+    .map((row) => {
+      parseDay(row.day);
+      return {
+        day: row.day,
+        version: row.version,
+        installMethod: row.install_method,
+        platform: row.platform,
+        channel: row.channel,
+        distinctInstalls: count(row.install_count, 'install_count'),
+      };
+    })
+    .sort(
+      (left, right) =>
+        compareText(left.day, right.day) ||
+        compareText(left.version, right.version) ||
+        compareText(left.installMethod, right.installMethod) ||
+        compareText(left.platform, right.platform) ||
+        compareText(left.channel, right.channel)
+    );
+
+  const dailyFeatureUsage = sources.dailyFeatureUsage
+    .map((row) => {
+      parseDay(row.day);
+      return {
+        day: row.day,
+        featureKey: row.feature_key,
+        installs: count(row.install_count, 'feature install_count'),
+        usageCount: count(row.usage_count, 'feature usage_count'),
+      };
+    })
+    .sort(
+      (left, right) =>
+        compareText(left.day, right.day) ||
+        right.installs - left.installs ||
+        compareText(left.featureKey, right.featureKey)
+    );
+
+  return { dailyInstallDimensions, dailyFeatureUsage };
+}
+
 /**
  * Build the stable v1 fleet contract from retained, date-coarsened raw rows.
  *
  * The query supplies Postgres `current_date` as `as_of`; this function has no
  * wall-clock dependency, which keeps boundary behaviour deterministic in tests.
  */
-export function buildFleetOverview(rows: FleetBeaconRow[]): FleetOverview {
+export function buildFleetOverview(
+  rows: FleetBeaconRow[],
+  sources: FleetOverviewSources = {
+    dailyInstalls: [],
+    dailyFeatureUsage: [],
+    rawRetentionDays: FLEET_RAW_RETENTION_DAYS,
+  }
+): FleetOverview {
   const asOf = rows[0]?.as_of;
   if (!asOf) throw new Error('fleet overview query did not return as_of');
   const asOfDay = parseDay(asOf);
-  const rawBoundaryDay = asOfDay - (FLEET_RAW_RETENTION_DAYS - 1);
+  const rawRetentionDays = validateTelemetryRetentionDays(sources.rawRetentionDays);
+  const rawBoundaryDay = asOfDay - (rawRetentionDays - 1);
 
   const beacons = new Map<string, Beacon>();
   for (const row of rows) {
@@ -310,15 +416,20 @@ export function buildFleetOverview(rows: FleetBeaconRow[]): FleetOverview {
     },
     featureAdoption,
     retentionCohorts,
+    historicalAggregates: historicalAggregates(sources),
     notes: {
       activityDefinition: 'beacon observed',
-      rawRetentionDays: FLEET_RAW_RETENTION_DAYS,
+      rawRetentionDays,
+      currentMetricsSource: 'retained raw beacons',
+      historicalMetricsSource: 'indefinite daily aggregates',
+      dataQuality: 'anonymous, unverified beacons; directional evidence only, not audit-grade',
     },
   };
 }
 
 /** Query the retained raw identity-bearing rows required by the v1 snapshot. */
 export async function findFleetOverview(sql: NeonClient): Promise<FleetOverview> {
+  const rawRetentionDays = getTelemetryRetentionDays();
   const rows = await sql`
     SELECT
       current_date::text AS as_of,
@@ -333,10 +444,24 @@ export async function findFleetOverview(sql: NeonClient): Promise<FleetOverview>
     FROM (SELECT current_date AS as_of) AS clock
     LEFT JOIN telemetry_beacons AS b
       ON b.received_on BETWEEN
-        clock.as_of - (${FLEET_RAW_RETENTION_DAYS}::int - 1)
+        clock.as_of - (${rawRetentionDays}::int - 1)
         AND clock.as_of
     LEFT JOIN telemetry_beacon_features AS f ON f.beacon_id = b.id
     ORDER BY b.received_on ASC, b.id ASC, f.feature_key ASC, f.id ASC
   `;
-  return buildFleetOverview(rows as unknown as FleetBeaconRow[]);
+  const dailyInstalls = await sql`
+    SELECT day::text, version, install_method, platform, channel, install_count
+    FROM telemetry_daily_installs
+    ORDER BY day ASC, version ASC, install_method ASC
+  `;
+  const dailyFeatureUsage = await sql`
+    SELECT day::text, feature_key, install_count, usage_count
+    FROM telemetry_daily_feature_usage
+    ORDER BY day ASC, feature_key ASC
+  `;
+  return buildFleetOverview(rows as unknown as FleetBeaconRow[], {
+    dailyInstalls: dailyInstalls as unknown as FleetDailyInstallRow[],
+    dailyFeatureUsage: dailyFeatureUsage as unknown as FleetDailyFeatureUsageRow[],
+    rawRetentionDays,
+  });
 }

@@ -1025,10 +1025,50 @@ fn fleet_overview_text(result: &FleetOverviewResponse) -> String {
         }
     }
 
+    let _ = writeln!(out, "\nHISTORICAL DAILY AGGREGATES");
+    if result
+        .historical_aggregates
+        .daily_install_dimensions
+        .is_empty()
+    {
+        let _ = writeln!(out, "  (none)");
+    } else {
+        let _ = writeln!(
+            out,
+            "DAY\tVERSION\tINSTALL METHOD\tPLATFORM\tCHANNEL\tDISTINCT INSTALLS IN CELL"
+        );
+        for cell in &result.historical_aggregates.daily_install_dimensions {
+            let _ = writeln!(
+                out,
+                "{}\t{}\t{}\t{}\t{}\t{}",
+                cell.day,
+                cell.version,
+                cell.install_method,
+                cell.platform,
+                cell.channel,
+                cell.distinct_installs
+            );
+        }
+    }
+    if !result.historical_aggregates.daily_feature_usage.is_empty() {
+        let _ = writeln!(out, "DAY\tFEATURE\tINSTALLS\tUSAGE");
+        for feature in &result.historical_aggregates.daily_feature_usage {
+            let _ = writeln!(
+                out,
+                "{}\t{}\t{}\t{}",
+                feature.day, feature.feature_key, feature.installs, feature.usage_count
+            );
+        }
+    }
+
     let _ = writeln!(
         out,
-        "\nActivity: {}; raw retention: {} days",
-        result.notes.activity_definition, result.notes.raw_retention_days
+        "\nActivity: {}; raw retention: {} days\nCurrent source: {}; historical source: {}\nData quality: {}",
+        result.notes.activity_definition,
+        result.notes.raw_retention_days,
+        result.notes.current_metrics_source,
+        result.notes.historical_metrics_source,
+        result.notes.data_quality
     );
     out
 }
@@ -1268,9 +1308,32 @@ mod tests {
                     share: 1.0,
                 }],
             }],
+            historical_aggregates: crate::auth::client::FleetHistoricalAggregates {
+                daily_install_dimensions: vec![
+                    crate::auth::client::FleetHistoricalInstallDimension {
+                        day: "2026-01-01".to_string(),
+                        version: "1.0.0".to_string(),
+                        install_method: "homebrew".to_string(),
+                        platform: "aarch64-apple-darwin".to_string(),
+                        channel: "stable".to_string(),
+                        distinct_installs: 3,
+                    },
+                ],
+                daily_feature_usage: vec![crate::auth::client::FleetHistoricalFeatureUsage {
+                    day: "2026-01-01".to_string(),
+                    feature_key: "alpha".to_string(),
+                    installs: 2,
+                    usage_count: 7,
+                }],
+            },
             notes: crate::auth::client::FleetNotes {
                 activity_definition: "beacon observed".to_string(),
                 raw_retention_days: 90,
+                current_metrics_source: "retained raw beacons".to_string(),
+                historical_metrics_source: "indefinite daily aggregates".to_string(),
+                data_quality:
+                    "anonymous, unverified beacons; directional evidence only, not audit-grade"
+                        .to_string(),
             },
         }
     }
@@ -1409,7 +1472,11 @@ mod tests {
         assert!(rendered.contains("alpha\t1\t33.3%\t4"));
         assert!(rendered.contains("RETENTION COHORTS (observed beacons)"));
         assert!(rendered.contains("w0: 2/2 (100.0%)"));
+        assert!(rendered.contains("2026-01-01\t1.0.0\thomebrew\taarch64-apple-darwin\tstable\t3"));
+        assert!(rendered.contains("2026-01-01\talpha\t2\t7"));
         assert!(rendered.contains("Activity: beacon observed; raw retention: 90 days"));
+        assert!(rendered.contains("historical source: indefinite daily aggregates"));
+        assert!(rendered.contains("directional evidence only, not audit-grade"));
     }
 
     #[test]
@@ -1424,11 +1491,16 @@ mod tests {
         response.distributions.install_methods.clear();
         response.feature_adoption.clear();
         response.retention_cohorts.clear();
+        response
+            .historical_aggregates
+            .daily_install_dimensions
+            .clear();
+        response.historical_aggregates.daily_feature_usage.clear();
 
         let rendered = fleet_overview_text(&response);
 
         assert!(rendered.contains("No fleet activity observed in retained raw telemetry."));
-        assert_eq!(rendered.matches("  (none)").count(), 4);
+        assert_eq!(rendered.matches("  (none)").count(), 5);
     }
 
     #[test]
@@ -1442,7 +1514,15 @@ mod tests {
         );
         assert_eq!(value["featureAdoption"][0]["usageCount"], 4);
         assert_eq!(value["retentionCohorts"][0]["cohortStart"], "2026-06-01");
+        assert_eq!(
+            value["historicalAggregates"]["dailyInstallDimensions"][0]["distinctInstalls"],
+            3
+        );
         assert_eq!(value["notes"]["activityDefinition"], "beacon observed");
+        assert_eq!(
+            value["notes"]["dataQuality"],
+            "anonymous, unverified beacons; directional evidence only, not audit-grade"
+        );
     }
 
     #[test]

@@ -112,10 +112,12 @@ operation.
 
 ## Remote fleet beacon (ADR-107)
 
-An eligible interactive `anvil start` session sends at most one anonymous beacon
-per install per 24 hours. The first eligible start shows the disclosure before
-any send. Network work runs in a detached worker with a short timeout; failures
-are silent, are not queued, and do not delay the command path.
+An eligible interactive `anvil start` session on a beta, release-candidate, or
+stable build sends at most one anonymous beacon per install per 24 hours. Alpha,
+nightly, and other pre-beta builds never beacon. The first eligible start shows
+the disclosure before any send. Network work runs in a detached worker with a
+short timeout; failures are silent, are not queued, and do not delay the command
+path.
 
 The canonical body contains exactly:
 

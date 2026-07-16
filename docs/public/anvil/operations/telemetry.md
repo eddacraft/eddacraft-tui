@@ -11,21 +11,25 @@ docgov:
   owner: 'FLEET'
   status: 'Live'
   freshness:
-    'Last reviewed 2026-07-16 against `v0.9.0-beta`, ADR-107, and
-    `crates/anvil-cli/src/telemetry.rs`'
+    'Last reviewed 2026-07-16 against `v0.9.0-beta`, ADR-107,
+    `crates/anvil-cli/src/telemetry.rs`, and
+    `apps/anvil-api/src/lib/fleet-overview.ts`'
   upstream:
     '`plans/decisions/107-fleet-telemetry-consent-posture.md`,
-    `crates/anvil-cli/src/telemetry.rs`, and the `/api/v1/telemetry` schema'
+    `crates/anvil-cli/src/telemetry.rs`,
+    `apps/anvil-api/src/lib/fleet-overview.ts`, and the `/api/v1/telemetry`
+    schema'
   downstream: 'anvil users, privacy reviews, and fleet telemetry operators'
 ---
 
 # Anonymous usage telemetry
 
-Anvil sends a narrow anonymous usage beacon from eligible `anvil start`
-sessions. It is disclosed opt-out: the first eligible interactive start shows
-the notice before any beacon can be sent. The network request runs separately
-with a short timeout, so it does not delay the command; failures are silent and
-are not queued for retry.
+Anvil sends a narrow anonymous usage beacon from eligible `anvil start` sessions
+on beta, release-candidate, and stable builds. Alpha, nightly, and other
+pre-beta builds never beacon. It is disclosed opt-out: the first eligible
+interactive start shows the notice before any beacon can be sent. The network
+request runs separately with a short timeout, so it does not delay the command;
+failures are silent and are not queued for retry.
 
 ## See the exact next payload
 
@@ -48,7 +52,7 @@ The body has exactly these top-level fields:
 | `version`               | Version of the running anvil binary.                                                                           |
 | `install_method`        | One closed-set label: `homebrew`, `scoop`, `winget`, `cargo_dist`, `cargo_install`, `dev_build`, or `unknown`. |
 | `platform`              | Platform target triple.                                                                                        |
-| `channel`               | Release channel such as `stable`, `beta`, or `nightly`.                                                        |
+| `channel`               | Eligible release channel: `stable`, `beta`, or `rc`.                                                           |
 | `flag_snapshot_version` | Active flag snapshot version; `0` means no remote snapshot is installed.                                       |
 | `features`              | Sorted `{key, count}` pairs for feature flags exercised since the last successful beacon.                      |
 
@@ -89,10 +93,22 @@ with `anvil telemetry on`; environment hard offs still take precedence.
 
 ## Storage and retention
 
-The API does not retain source IP addresses. Raw beacon rows are retained for 90
-days. Daily aggregates are retained indefinitely for active-install, retention,
-version, install-method, platform, channel, and feature-adoption views. Access
-to those views is operator-only.
+The API does not retain source IP addresses. Raw beacon rows are retained for at
+most 90 calendar dates. Daily install, version, install-method, platform,
+channel, and feature aggregates are retained indefinitely. Identity-based
+active-install and observed-retention cohorts remain bounded by the raw window;
+daily aggregates cannot reconstruct install identities. Access to all fleet
+views is operator-only.
+
+Historical install aggregates remain exact dimension cells. Their distinct count
+applies only inside one day/version/install-method/platform/channel cell; cells
+are not additive because one anonymous install can change dimensions within a
+day.
+
+The anonymous random install ID is not authenticated or independently verified.
+An install can rotate it, and a caller can fabricate an ID or payload. Fleet
+metrics are therefore directional product evidence, not audit-grade evidence or
+a verified customer count.
 
 ## Local Kindling data is separate
 

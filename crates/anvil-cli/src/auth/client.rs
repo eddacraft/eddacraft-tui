@@ -74,6 +74,7 @@ pub struct FleetOverviewResponse {
     pub distributions: FleetDistributions,
     pub feature_adoption: Vec<FleetFeatureAdoption>,
     pub retention_cohorts: Vec<FleetRetentionCohort>,
+    pub historical_aggregates: FleetHistoricalAggregates,
     pub notes: FleetNotes,
 }
 
@@ -122,11 +123,41 @@ pub struct FleetRetentionPeriod {
     pub share: f64,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetHistoricalAggregates {
+    pub daily_install_dimensions: Vec<FleetHistoricalInstallDimension>,
+    pub daily_feature_usage: Vec<FleetHistoricalFeatureUsage>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetHistoricalInstallDimension {
+    pub day: String,
+    pub version: String,
+    pub install_method: String,
+    pub platform: String,
+    pub channel: String,
+    pub distinct_installs: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetHistoricalFeatureUsage {
+    pub day: String,
+    pub feature_key: String,
+    pub installs: u64,
+    pub usage_count: u64,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct FleetNotes {
     pub activity_definition: String,
     pub raw_retention_days: u16,
+    pub current_metrics_source: String,
+    pub historical_metrics_source: String,
+    pub data_quality: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -1078,7 +1109,29 @@ mod tests {
                 "cohortSize": 2,
                 "periods": [{ "week": 0, "retained": 2, "share": 1.0 }]
             }],
-            "notes": { "activityDefinition": "beacon observed", "rawRetentionDays": 90 }
+            "historicalAggregates": {
+                "dailyInstallDimensions": [{
+                    "day": "2026-01-01",
+                    "version": "1.0.0",
+                    "installMethod": "homebrew",
+                    "platform": "aarch64-apple-darwin",
+                    "channel": "stable",
+                    "distinctInstalls": 3
+                }],
+                "dailyFeatureUsage": [{
+                    "day": "2026-01-01",
+                    "featureKey": "alpha",
+                    "installs": 2,
+                    "usageCount": 7
+                }]
+            },
+            "notes": {
+                "activityDefinition": "beacon observed",
+                "rawRetentionDays": 90,
+                "currentMetricsSource": "retained raw beacons",
+                "historicalMetricsSource": "indefinite daily aggregates",
+                "dataQuality": "anonymous, unverified beacons; directional evidence only, not audit-grade"
+            }
         });
 
         Mock::given(method("GET"))

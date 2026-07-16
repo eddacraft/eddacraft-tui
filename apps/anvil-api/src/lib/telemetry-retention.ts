@@ -5,6 +5,20 @@
 
 /** ADR-107 §6 raw-row retention window. */
 export const DEFAULT_TELEMETRY_RETENTION_DAYS = 90;
+export const MAX_TELEMETRY_RETENTION_DAYS = 90;
+
+/** Validate the privacy ceiling shared by cleanup and read-side queries. */
+export function validateTelemetryRetentionDays(
+  value: number,
+  source = 'telemetry retention window'
+): number {
+  if (!Number.isInteger(value) || value < 1 || value > MAX_TELEMETRY_RETENTION_DAYS) {
+    throw new Error(
+      `${source} must be an integer from 1 to ${MAX_TELEMETRY_RETENTION_DAYS} days, got "${value}"`
+    );
+  }
+  return value;
+}
 
 /**
  * Resolve the raw-beacon retention window in days.
@@ -20,10 +34,5 @@ export function getTelemetryRetentionDays(): number {
     return DEFAULT_TELEMETRY_RETENTION_DAYS;
   }
   const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(
-      `TELEMETRY_RETENTION_DAYS must be a positive integer number of days, got "${raw}"`
-    );
-  }
-  return parsed;
+  return validateTelemetryRetentionDays(parsed, 'TELEMETRY_RETENTION_DAYS');
 }

@@ -205,6 +205,11 @@ FLEET-007 follows once ingest has data.
   canonical eight-field payload, detached bounded worker, feature counts,
   hard-off recheck, and reservation-backed 24-hour success cap. Focused
   telemetry tests passed 39/39 and start integration tests passed 29/29.
+- **Repair evidence (2026-07-16, Council `council-44f44534`):** the sender
+  now intersects feature keys with the compiled shipped catalogue, blocks
+  pre-beta builds, expires abandoned five-minute reservations, revalidates an
+  in-flight identity immediately before egress, and pins detached-spawn
+  latency. Focused telemetry tests passed 43/43 after the repair cycle.
 - **Coordination notes (from the 2026-07-16 FLEET-001/002/005 verification):**
   (a) ship the `anvil start` activation-path disclosure with the beacon
   (see FLEET-001 scope note); (b) the FLEET-005 ingest schema requires
@@ -230,6 +235,9 @@ FLEET-007 follows once ingest has data.
 - **Implementation evidence (2026-07-16):** commit `e91707f2f` makes the
   human and JSON status surfaces serialise the sender's canonical payload
   without reshaping it; blocked inspection stays read-only.
+- **Repair evidence (2026-07-16, Council `council-44f44534`):** the disclosure
+  now names all eight canonical fields, and `reset-id` invalidates an old
+  in-flight reservation before rotating the identity.
 
 ### FLEET-005: anvil-api ingest route
 
@@ -265,6 +273,9 @@ FLEET-007 follows once ingest has data.
 - **Implementation evidence (2026-07-16):** commit `429a6685f` publishes the
   allowlist, identity, frequency, hard-off, storage, and retention contract;
   focused formatting, docs index validation, and `pnpm docs:check` passed.
+- **Repair evidence (2026-07-16, Council `council-44f44534`):** the public
+  contract now states the beta-or-later build gate and ADR-052 distinguishes
+  its historical no-telemetry posture from ADR-107's narrow fleet beacon.
 
 ### FLEET-007: Operator fleet view
 
@@ -272,8 +283,9 @@ FLEET-007 follows once ingest has data.
 - **Files:** `apps/anvil-api/src/lib/fleet-overview.ts`, the protected admin
   route and tests, `crates/anvil-cli/src/commands/admin.rs`, the admin client,
   and `docs/runbooks/admin-cli.md`.
-- **Intent:** The investor-evidence read surface — the reason this module
-  exists.
+- **Intent:** The directional investor-evidence read surface — the reason this
+  module exists. Anonymous beacons are not authenticated evidence or verified
+  customer counts.
 - **Expected Outcome:** An operator-only view over the ingested aggregates
   answering: active installs (daily/weekly/monthly), version distribution,
   install-method mix, feature adoption, and retention cohorts.
@@ -287,3 +299,7 @@ FLEET-007 follows once ingest has data.
   `GET /api/v1/admin/fleet` and through `anvil admin fleet`. Focused API tests
   passed 126/126 with typecheck green; Rust admin tests passed 54 unit and two
   auth-stream cases.
+- **Repair evidence (2026-07-16, Council `council-44f44534`):** the contract
+  reads the kept-indefinitely daily aggregates alongside raw-window current
+  metrics, caps effective raw retention at 90 calendar dates, and exposes the
+  anonymous/unverified data-quality limitation to API and CLI operators.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildFleetOverview, type FleetBeaconRow } from '../lib/fleet-overview.js';
+import {
+  buildFleetOverview,
+  type FleetBeaconRow,
+  type FleetDailyFeatureUsageRow,
+  type FleetDailyInstallRow,
+} from '../lib/fleet-overview.js';
 
 const AS_OF = '2026-07-16';
 
@@ -134,6 +139,9 @@ describe('fleet overview aggregation', () => {
       notes: {
         activityDefinition: 'beacon observed',
         rawRetentionDays: 90,
+        currentMetricsSource: 'retained raw beacons',
+        historicalMetricsSource: 'indefinite daily aggregates',
+        dataQuality: 'anonymous, unverified beacons; directional evidence only, not audit-grade',
       },
     });
 
@@ -178,7 +186,14 @@ describe('fleet overview aggregation', () => {
       distributions: { versions: [], installMethods: [] },
       featureAdoption: [],
       retentionCohorts: [],
-      notes: { activityDefinition: 'beacon observed', rawRetentionDays: 90 },
+      historicalAggregates: { dailyInstallDimensions: [], dailyFeatureUsage: [] },
+      notes: {
+        activityDefinition: 'beacon observed',
+        rawRetentionDays: 90,
+        currentMetricsSource: 'retained raw beacons',
+        historicalMetricsSource: 'indefinite daily aggregates',
+        dataQuality: 'anonymous, unverified beacons; directional evidence only, not audit-grade',
+      },
     });
     expect(JSON.stringify(overview)).not.toMatch(/NaN|Infinity/);
   });
@@ -197,5 +212,98 @@ describe('fleet overview aggregation', () => {
     );
 
     expect(overview.retentionCohorts).toEqual([]);
+  });
+
+  it('preserves expired install and feature history from indefinite daily aggregates', () => {
+    const dailyInstalls: FleetDailyInstallRow[] = [
+      {
+        day: '2026-01-01',
+        version: '1.0.0',
+        install_method: 'homebrew',
+        platform: 'aarch64-apple-darwin',
+        channel: 'stable',
+        install_count: 3,
+      },
+      {
+        day: '2026-01-01',
+        version: '1.1.0',
+        install_method: 'scoop',
+        platform: 'x86_64-pc-windows-msvc',
+        channel: 'stable',
+        install_count: '2',
+      },
+      {
+        day: '2026-01-01',
+        version: '1.0.0',
+        install_method: 'scoop',
+        platform: 'x86_64-pc-windows-msvc',
+        channel: 'beta',
+        install_count: 1,
+      },
+    ];
+    const dailyFeatureUsage: FleetDailyFeatureUsageRow[] = [
+      {
+        day: '2026-01-01',
+        feature_key: 'alpha',
+        install_count: 2,
+        usage_count: '7',
+      },
+      {
+        day: '2026-01-01',
+        feature_key: 'beta',
+        install_count: 1,
+        usage_count: 4,
+      },
+    ];
+
+    const overview = buildFleetOverview(
+      [
+        {
+          as_of: AS_OF,
+          beacon_id: null,
+          install_id: null,
+          received_on: null,
+          version: null,
+          install_method: null,
+          feature_id: null,
+          feature_key: null,
+          usage_count: null,
+        },
+      ],
+      { dailyInstalls, dailyFeatureUsage, rawRetentionDays: 90 }
+    );
+
+    expect(overview.historicalAggregates).toEqual({
+      dailyInstallDimensions: [
+        {
+          day: '2026-01-01',
+          version: '1.0.0',
+          installMethod: 'homebrew',
+          platform: 'aarch64-apple-darwin',
+          channel: 'stable',
+          distinctInstalls: 3,
+        },
+        {
+          day: '2026-01-01',
+          version: '1.0.0',
+          installMethod: 'scoop',
+          platform: 'x86_64-pc-windows-msvc',
+          channel: 'beta',
+          distinctInstalls: 1,
+        },
+        {
+          day: '2026-01-01',
+          version: '1.1.0',
+          installMethod: 'scoop',
+          platform: 'x86_64-pc-windows-msvc',
+          channel: 'stable',
+          distinctInstalls: 2,
+        },
+      ],
+      dailyFeatureUsage: [
+        { day: '2026-01-01', featureKey: 'alpha', installs: 2, usageCount: 7 },
+        { day: '2026-01-01', featureKey: 'beta', installs: 1, usageCount: 4 },
+      ],
+    });
   });
 });
