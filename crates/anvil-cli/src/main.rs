@@ -294,6 +294,9 @@ enum Commands {
     McpConfig(commands::mcp_config::McpConfigArgs),
     /// Manage and serve MCP integrations.
     Mcp(commands::mcp::McpArgs),
+    /// Serve a minimal Language Server Protocol surface for mid-edit
+    /// diagnostics. Experimental spike, not production-hardened.
+    Lsp(commands::lsp::LspArgs),
     /// Install and verify bundled Agent Skills.
     Skill(commands::skill::SkillArgs),
     /// Inspect APS planning state.
@@ -390,6 +393,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Licenses(_) => "licenses",
         Commands::McpConfig(_) => "mcp-config",
         Commands::Mcp(args) => commands::mcp::auth_gate_name(args),
+        Commands::Lsp(_) => "lsp-serve",
         Commands::Skill(_) => "skill-install",
         Commands::Plan(_) => "plan",
         Commands::Dashboard(_) => "dashboard",
@@ -1337,6 +1341,7 @@ fn main() -> ExitCode {
         Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
         Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
         Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
+        Commands::Lsp(args) => commands::lsp::run(args),
         Commands::Skill(args) => commands::skill::run(args, &cli.global),
         Commands::Plan(args) => commands::plan::run(args, &cli.global),
         Commands::Dashboard(args) => commands::dashboard::run(args, &cli.global),
@@ -1624,6 +1629,7 @@ mod tests {
             "licenses" => vec!["licenses"],
             "mcp-config" => vec!["mcp-config", "--target", "claude-code"],
             "mcp" => vec!["mcp", "serve"],
+            "lsp" => vec!["lsp", "--stdio"],
             "skill" => vec!["skill", "install", "--client", "codex", "--dry-run"],
             "plan" => vec!["plan", "dashboard"],
             "dashboard" => vec!["dashboard"],

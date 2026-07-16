@@ -30,6 +30,7 @@ pub mod intercept;
 pub mod kindling;
 pub mod l4_validate;
 pub mod licenses;
+pub mod lsp;
 pub mod mcp;
 pub mod mcp_config;
 pub(crate) mod mcp_installer;

@@ -930,6 +930,31 @@ $ anvil mcp serve --stdio
 
 ---
 
+## anvil lsp
+
+**Class:** Background (serve), experimental **Purpose:** Serve a minimal
+Language Server Protocol surface for mid-edit diagnostics. **When to use:**
+invoked by an LSP-speaking editor or agent client, not run manually in normal
+use. Experimental — not production-hardened.
+
+**Synopsis:** `anvil lsp --stdio`
+
+**Flags:**
+
+| Flag      | Description                  |
+| --------- | ---------------------------- |
+| `--stdio` | Serve LSP over stdin/stdout. |
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil lsp --stdio
+```
+
+---
+
 ## anvil skill
 
 **Class:** Setup / Admin **Purpose:** Install and verify the beta Anvil Agent

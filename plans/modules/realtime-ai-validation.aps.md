@@ -465,9 +465,29 @@ convention" section). Concretely:
   graph-backed-navigation idea
   (`plans/brainstorms/2026-06-03-anvil-lsp-graph-backed-navigation.md`),
   not to this item's diagnostics-only scope.
+- **Spike closed 2026-07-16 — see
+  [`2026-07-16-rtai-005-lsp-vs-mcp-spike-report.md`](../specs/2026-07-16-rtai-005-lsp-vs-mcp-spike-report.md)
+  (`crates/spike/src/rtai_005_lsp_vs_mcp.rs`, `spike-rtai-005-lsp-vs-mcp`;
+  companion `anvil lsp --stdio` at `crates/anvil-cli/src/commands/lsp.rs`,
+  branch `feat/rtai-005-lsp-spike`):** the connection-lifecycle question
+  above is settled — fresh-connect-per-call meets the ADR-031 mid-edit
+  budget comfortably (LSP p95 32.91ms, MCP p95 34.26ms, both against an
+  80ms warm budget) — no persistent connection needed at this scope. Also
+  answers ADR-109's open speed/token-perf question: latency is at parity
+  between LSP and MCP (same daemon, same RPC — protocol framing is
+  negligible next to connect+roundtrip cost), but payload/token cost is
+  **not** — LSP measured ~2.6-2.8x smaller for this diagnostics case.
+  Decomposed: only 23% of that gap is protocol-structural (MCP's
+  double-JSON-encoding + tool-call wrapper, which *does* generalize to any
+  future LSP method); 65% is `validate_write`'s write-gate-specific
+  governance fields (`decision`/`protection_claim`/`tier`), which a
+  read-only query tool wouldn't carry on either protocol. **For a future
+  full LSP suite at MCP tool-call parity (find-usages, impact-of-change,
+  affected-tests), budget ~15-20% lower payload/token cost, not 2.6-2.8x**
+  — see the report's Decision (c) before citing a bigger number.
 - **Confidence:** medium
-- **Status:** Ready — un-park trigger satisfied per ADR-109; next step is
-  the RTAI-001-style throwaway spike above, sizing/scheduling TBD
+- **Status:** Ready — spike closed (report above); full build scheduling
+  and sizing against current active work remain open, operator-owned
 
 ---
 

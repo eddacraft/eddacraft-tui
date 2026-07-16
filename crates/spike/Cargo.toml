@@ -25,6 +25,10 @@ path = "src/petgraph.rs"
 name = "spike-rtai-mid-edit"
 path = "src/rtai_mid_edit.rs"
 
+[[bin]]
+name = "spike-rtai-005-lsp-vs-mcp"
+path = "src/rtai_005_lsp_vs_mcp.rs"
+
 [dependencies]
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
@@ -34,6 +38,7 @@ petgraph = { workspace = true }
 rustix = { version = "1", features = ["param"] }
 anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+serde_json = { workspace = true }
 workspace-hack.workspace = true
 
 [lints]
