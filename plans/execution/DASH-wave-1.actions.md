@@ -293,7 +293,7 @@ must not accidentally decide those through a development-server shortcut.
 **Files:**
 
 - Delete: `apps/anvil-ui/`
-- Modify: `.claude/rules/aps-project.md`
+- Modify: `apps/README.md`
 
 - [x] Search for `apps/anvil-ui`.
 - [x] Delete the placeholder and update the local agent file map.
@@ -302,10 +302,10 @@ must not accidentally decide those through a development-server shortcut.
 
 ### Task 10: Ship Protection Overview proof module
 
-**Status:** In Progress 2026-07-13 — implementation, Council truth-state repairs,
-and focused browser proof are green on `feat/dash-wave-1`; the accepted visual
-contract is captured at `/tmp/dash-wave1-desktop.png` and
-`/tmp/dash-wave1-mobile-390.png`, pending branch integration.
+**Status:** Merged 2026-07-13 via PR #3321 — implementation, Council truth-state
+repairs, and focused browser proof landed on `main`; the accepted visual
+contract was captured at `/tmp/dash-wave1-desktop.png` and
+`/tmp/dash-wave1-mobile-390.png` during implementation.
 
 **Files:**
 
@@ -327,17 +327,17 @@ contract is captured at `/tmp/dash-wave1-desktop.png` and
 - [x] Match the accepted visual contract at desktop and 390 px mobile portrait,
       including no page overflow, truthful complete/partial/unavailable states,
       keyboard navigation, and console health.
-- [x] Run dashboard-server/read-model tests (27 passed), dashboard tests (36
+- [x] Run dashboard-server/read-model tests (27 passed), dashboard tests (38
       passed), dashboard typecheck/lint/build, and the Playwright
       Protection/Plan desktop and mobile flows.
 - [x] Commit in `feat(dash): complete proof modules`.
 
 ### Task 11: Ship Plan Driver proof module
 
-**Status:** In Progress 2026-07-13 — typed list/detail routes, selected module
-validation contract, bounded canonical read-model reuse, and inert actions are
-green on `feat/dash-wave-1`; browser proof is captured at
-`/tmp/dash-wave1-desktop-navigation.png`, pending branch integration.
+**Status:** Merged 2026-07-13 via PR #3321 — typed list/detail routes, selected
+module validation contract, bounded canonical read-model reuse, and inert
+actions landed on `main`; browser proof was captured at
+`/tmp/dash-wave1-desktop-navigation.png` during implementation.
 
 **Files:**
 
@@ -355,25 +355,32 @@ green on `feat/dash-wave-1`; browser proof is captured at
 - [x] Run tests and verify they fail for the missing detail route and view.
 - [x] Implement read-only Plan Driver list, detail, validation contract, and
       disabled/deferred action affordances.
-- [x] Run dashboard-server/read-model tests (27 passed), dashboard tests (36
+- [x] Run dashboard-server/read-model tests (27 passed), dashboard tests (38
       passed), dashboard typecheck/lint/build, and Playwright
       Cmd+K/list/detail/action proof at desktop and mobile sizes.
 - [x] Commit in `feat(dash): complete proof modules`.
 
 ### Task 12: Reconcile APS and validation
 
+**Status:** Merged 2026-07-13 via PR #3321; post-merge APS reconciliation
+completed 2026-07-16.
+
 **Files:**
 
 - Modify: `plans/modules/dashboard-foundation.aps.md`
 - Modify: `plans/index.aps.md`
+- Modify: `plans/execution/DASH-wave-1.actions.md`
 
 - [x] Reconcile implemented DASH work items with validation evidence while the
       unmerged items remain In Progress.
-- [x] Run `pnpm aps:active-lint` (117 active plans clean).
+- [x] Run `pnpm aps:active-lint` (108 active APS files clean on 2026-07-16).
 - [x] Run `pnpm aps:index:check` (green with existing stale-count advisories).
 - [x] Independent verification passed on the final implementation candidate;
       architecture, frontend, and security Council lanes all approved.
-- [ ] Run `pnpm validate:changed` — DASH-relevant checks passed, but the
+- [x] Run `pnpm validate:changed` — DASH-relevant checks passed, but the
       repo-wide Rust test phase cannot allocate an inotify instance for the
-      existing `anvil-bench` watcher-saturation tests (`MaxFilesWatch`).
+      existing `anvil-bench` watcher-saturation tests (`MaxFilesWatch`); PR
+      #3321's required Test and dashboard-relevant CI checks passed before
+      merge.
 - [x] Commit: `docs(dash): record dashboard wave 1 evidence`
+- [x] Merge PR #3321 and reconcile DASH-002..008/-010/-011 to Merged on `main`.
