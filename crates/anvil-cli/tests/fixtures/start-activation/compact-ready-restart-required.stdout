@@ -4,3 +4,17 @@ ACTIVATION
   daemon: not started (--no-daemon); save-time validation uses the scoped fallback.
   save-time driver: not attached
   next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.
+
+  Anonymous usage telemetry
+  anvil sends at most one anonymous beacon per day so active installs
+  and feature adoption can be counted. It only ever contains:
+    - anvil version
+    - install method
+    - platform
+    - release channel
+    - flag snapshot version
+    - feature usage counts
+    - anonymous install id (random; derived from nothing)
+  Never: paths, repository names, arguments, hostnames, or emails.
+  Turn it off any time: `anvil telemetry off`
+  (or set ANVIL_TELEMETRY=off or DO_NOT_TRACK=1). Audit it: `anvil telemetry`.

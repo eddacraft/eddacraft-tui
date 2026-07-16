@@ -602,6 +602,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         global.verbose,
     );
 
+    // FLEET-003: `start` is the sole remote-beacon emission point. The
+    // disclosure is resolved first and only a real terminal can persist
+    // `notice_shown`; the detached worker then rechecks every hard off before
+    // its bounded request. Read-only/JSON probes never disclose or emit.
+    if !read_only {
+        crate::telemetry::print_first_run_disclosure(start_is_interactive());
+        crate::telemetry::spawn_start_beacon();
+    }
+
     // LAUNCH-011: hand off to the kernel watcher OR print the
     // appropriate skip reason. Each non-spawn variant carries its
     // own copy so the user sees a state-specific explanation, not

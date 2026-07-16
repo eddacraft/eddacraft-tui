@@ -19,6 +19,10 @@ use crate::GlobalArgs;
 use crate::auth::credentials;
 use crate::telemetry::{self, SendGate};
 
+fn status_next_payload_value(payload: &telemetry::BeaconPayload) -> serde_json::Value {
+    serde_json::to_value(payload).expect("canonical telemetry payload serialises")
+}
+
 #[derive(Debug, Args)]
 pub struct TelemetryArgs {
     #[command(subcommand)]
@@ -81,18 +85,33 @@ fn reset_id(state_dir: &Path) -> Result<()> {
 fn status(state_dir: &Path, global: &GlobalArgs) -> Result<()> {
     let consent = telemetry::load_consent_in(state_dir);
     let gate = telemetry::send_gate();
+    let next_payload = telemetry::next_payload_for_gate_in(state_dir, gate);
+    let payload_error = next_payload
+        .as_ref()
+        .err()
+        .map(|error| format!("{error:#}"));
+    let next_payload = next_payload.ok().flatten();
     let install_id = telemetry::existing_install_id_in(state_dir);
+    let delivery_reason = if gate == SendGate::Allowed && next_payload.is_none() {
+        install_id.and_then(|id| {
+            telemetry::next_delivery_block_reason_in(state_dir, id, chrono::Utc::now())
+                .ok()
+                .flatten()
+        })
+    } else {
+        None
+    };
     let env_telemetry = std::env::var(telemetry::TELEMETRY_ENV).ok();
     let do_not_track = std::env::var(telemetry::DO_NOT_TRACK_ENV).ok();
     let install_root_gated = crate::install_root::install_root().is_overridden();
 
     if global.json {
-        // `send_allowed` is the exact predicate the beacon producer will
-        // consult, so the JSON surface reports the same answer it gets.
-        let send_allowed = telemetry::send_allowed();
-        let blocked_reason = match gate {
-            SendGate::Allowed => None,
-            SendGate::Blocked(reason) => Some(reason.describe()),
+        let send_allowed = gate == SendGate::Allowed && next_payload.is_some();
+        let blocked_reason = match (gate, payload_error.as_deref(), delivery_reason) {
+            (SendGate::Allowed, None, None) => None,
+            (SendGate::Allowed, Some(error), _) => Some(error),
+            (SendGate::Allowed, None, Some(reason)) => Some(reason),
+            (SendGate::Blocked(reason), _, _) => Some(reason.describe()),
         };
         let payload = json!({
             "enabled": consent.as_ref().map(|c| c.enabled).ok(),
@@ -104,7 +123,7 @@ fn status(state_dir: &Path, global: &GlobalArgs) -> Result<()> {
             "installId": install_id.map(|id| id.to_string()),
             "sendAllowed": send_allowed,
             "blockedReason": blocked_reason,
-            "dimensions": telemetry::DISCLOSED_DIMENSIONS,
+            "nextPayload": next_payload.as_ref().map(status_next_payload_value),
         });
         println!("{}", serde_json::to_string_pretty(&payload)?);
         return Ok(());
@@ -136,15 +155,53 @@ fn status(state_dir: &Path, global: &GlobalArgs) -> Result<()> {
         Some(id) => println!("Anonymous install id: {id}"),
         None => println!("Anonymous install id: not yet created"),
     }
-    match gate {
-        SendGate::Allowed => println!("Next beacon: allowed"),
-        SendGate::Blocked(reason) => println!("Next beacon: blocked — {}", reason.describe()),
+    match (
+        gate,
+        next_payload.as_ref(),
+        payload_error.as_deref(),
+        delivery_reason,
+    ) {
+        (SendGate::Allowed, Some(payload), _, _) => {
+            println!("Next beacon: allowed");
+            println!("Exact next payload:");
+            println!("{}", serde_json::to_string_pretty(payload)?);
+        }
+        (SendGate::Allowed, None, Some(error), _) => {
+            println!("Next beacon: blocked — payload unavailable: {error}");
+        }
+        (SendGate::Allowed, None, None, Some(reason)) => {
+            println!("Next beacon: blocked — {reason}");
+        }
+        (SendGate::Allowed, None, None, None) => {
+            println!("Next beacon: blocked — canonical payload unavailable");
+        }
+        (SendGate::Blocked(reason), _, _, _) => {
+            println!("Next beacon: blocked — {}", reason.describe());
+        }
     }
     println!();
-    println!("Only these dimensions are ever sent:");
-    for dimension in telemetry::DISCLOSED_DIMENSIONS {
-        println!("  - {dimension}");
-    }
     println!("Never: paths, repository names, arguments, hostnames, or emails.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_embeds_the_canonical_payload_without_reshaping_it() {
+        let payload = telemetry::BeaconPayload::new(
+            uuid::Uuid::parse_str("018f78e4-49b5-7f23-a33f-7db9ad9a2f45").unwrap(),
+            "0.9.0-beta",
+            "cargo_dist",
+            "x86_64-unknown-linux-gnu",
+            "beta",
+            "0",
+            vec![],
+        );
+        assert_eq!(
+            status_next_payload_value(&payload),
+            serde_json::to_value(&payload).unwrap()
+        );
+    }
 }

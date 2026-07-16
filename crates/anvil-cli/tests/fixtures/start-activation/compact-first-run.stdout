@@ -42,3 +42,17 @@ verify:
     2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding
     3. rm .anvil-smoke-test.ts when done
   AI tools detected: claude-code, cursor
+
+  Anonymous usage telemetry
+  anvil sends at most one anonymous beacon per day so active installs
+  and feature adoption can be counted. It only ever contains:
+    - anvil version
+    - install method
+    - platform
+    - release channel
+    - flag snapshot version
+    - feature usage counts
+    - anonymous install id (random; derived from nothing)
+  Never: paths, repository names, arguments, hostnames, or emails.
+  Turn it off any time: `anvil telemetry off`
+  (or set ANVIL_TELEMETRY=off or DO_NOT_TRACK=1). Audit it: `anvil telemetry`.

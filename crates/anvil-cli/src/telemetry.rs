@@ -33,6 +33,8 @@ use std::env;
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -55,8 +57,389 @@ pub const TELEMETRY_ENV: &str = "ANVIL_TELEMETRY";
 /// surface, honoured before any send.
 pub const DO_NOT_TRACK_ENV: &str = "DO_NOT_TRACK";
 
+/// Internal marker for the detached beacon worker process. It is intercepted
+/// before CLI parsing, so it never records a telemetry-management invocation.
+pub const BEACON_WORKER_ENV: &str = "ANVIL_INTERNAL_TELEMETRY_BEACON";
+
+const BEACON_HTTP_TIMEOUT: Duration = Duration::from_secs(2);
+const BEACON_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+
 /// Current consent-state schema version.
 pub const CONSENT_SCHEMA_VERSION: u32 = 1;
+
+/// Wire-format version accepted by the `/api/v1/telemetry` ingest route.
+pub const BEACON_SCHEMA_VERSION: u32 = 1;
+
+/// One allowlisted feature-key usage count since the last successful beacon.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FeatureUsage {
+    pub key: String,
+    pub count: u64,
+}
+
+/// Canonical ADR-107 beacon body. Both the sender and transparency command
+/// serialise this type so the audited payload cannot drift from the wire body.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BeaconPayload {
+    pub schema_version: u32,
+    pub install_id: String,
+    pub version: String,
+    pub install_method: String,
+    pub platform: String,
+    pub channel: String,
+    pub flag_snapshot_version: String,
+    pub features: Vec<FeatureUsage>,
+}
+
+impl BeaconPayload {
+    #[must_use]
+    pub fn new(
+        install_id: Uuid,
+        version: &str,
+        install_method: &str,
+        platform: &str,
+        channel: &str,
+        flag_snapshot_version: &str,
+        features: Vec<FeatureUsage>,
+    ) -> Self {
+        Self {
+            schema_version: BEACON_SCHEMA_VERSION,
+            install_id: install_id.to_string(),
+            version: version.to_owned(),
+            install_method: install_method.to_owned(),
+            platform: platform.to_owned(),
+            channel: channel.to_owned(),
+            flag_snapshot_version: flag_snapshot_version.to_owned(),
+            features,
+        }
+    }
+}
+
+/// Aggregate feature resolutions recorded by the local Kindling usage pipe
+/// after the last successful beacon. The sorted output makes the wire body and
+/// transparency rendering deterministic.
+#[must_use]
+pub fn feature_usage_since(
+    rows: &[crate::usage_views::UsageRow],
+    last_success: Option<chrono::DateTime<chrono::Utc>>,
+) -> Vec<FeatureUsage> {
+    let mut counts = std::collections::BTreeMap::<String, u64>::new();
+    for row in rows {
+        if let Some(cutoff) = last_success {
+            let Ok(timestamp) = chrono::DateTime::parse_from_rfc3339(&row.timestamp) else {
+                continue;
+            };
+            if timestamp.with_timezone(&chrono::Utc) <= cutoff {
+                continue;
+            }
+        }
+        for flag in &row.flag_set {
+            let count = counts.entry(flag.key.clone()).or_default();
+            *count = count.saturating_add(1);
+        }
+    }
+    counts
+        .into_iter()
+        .map(|(key, count)| FeatureUsage { key, count })
+        .collect()
+}
+
+const BEACON_STATE_FILE: &str = "telemetry.beacon-state.json";
+const BEACON_RESERVATION_FILE: &str = "telemetry.beacon-reservation.json";
+const BEACON_INTERVAL: chrono::Duration = chrono::Duration::hours(24);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+struct BeaconState {
+    last_success_install_id: Option<String>,
+    last_success_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeaconReservation {
+    token: String,
+    install_id: String,
+    reserved_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReserveError {
+    TooRecent,
+    Busy,
+    StateUnreadable,
+}
+
+fn beacon_state_path(state_dir: &Path) -> PathBuf {
+    state_dir.join(BEACON_STATE_FILE)
+}
+
+fn beacon_reservation_path(state_dir: &Path) -> PathBuf {
+    state_dir.join(BEACON_RESERVATION_FILE)
+}
+
+fn load_beacon_state_in(state_dir: &Path) -> Result<BeaconState> {
+    match fs::read_to_string(beacon_state_path(state_dir)) {
+        Ok(raw) => serde_json::from_str(&raw).context("parse beacon delivery state"),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(BeaconState::default()),
+        Err(err) => Err(err).context("read beacon delivery state"),
+    }
+}
+
+fn parse_utc(value: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|time| time.with_timezone(&chrono::Utc))
+}
+
+pub fn reserve_beacon_in(
+    state_dir: &Path,
+    install_id: Uuid,
+    now: chrono::DateTime<chrono::Utc>,
+) -> std::result::Result<BeaconReservation, ReserveError> {
+    let state = load_beacon_state_in(state_dir).map_err(|_| ReserveError::StateUnreadable)?;
+    if state.last_success_install_id.as_deref() == Some(&install_id.to_string())
+        && state
+            .last_success_at
+            .as_deref()
+            .and_then(parse_utc)
+            .is_some_and(|last| now.signed_duration_since(last) < BEACON_INTERVAL)
+    {
+        return Err(ReserveError::TooRecent);
+    }
+
+    crate::usage::create_private_dir(state_dir).map_err(|_| ReserveError::StateUnreadable)?;
+    let path = beacon_reservation_path(state_dir);
+    let reservation = BeaconReservation {
+        token: Uuid::new_v4().to_string(),
+        install_id: install_id.to_string(),
+        reserved_at: now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    };
+    let bytes = serde_json::to_vec(&reservation).map_err(|_| ReserveError::StateUnreadable)?;
+    let mut options = fs::OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    match options.open(&path) {
+        Ok(mut file) => {
+            file.write_all(&bytes)
+                .map_err(|_| ReserveError::StateUnreadable)?;
+            Ok(reservation)
+        }
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Err(ReserveError::Busy),
+        Err(_) => Err(ReserveError::StateUnreadable),
+    }
+}
+
+pub fn release_beacon_reservation_in(
+    state_dir: &Path,
+    reservation: &BeaconReservation,
+) -> Result<()> {
+    let path = beacon_reservation_path(state_dir);
+    let current = fs::read_to_string(&path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<BeaconReservation>(&raw).ok());
+    if current.as_ref() == Some(reservation) {
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err).context("release beacon reservation"),
+        }
+    }
+    Ok(())
+}
+
+pub fn commit_beacon_in(
+    state_dir: &Path,
+    reservation: &BeaconReservation,
+    successful_at: chrono::DateTime<chrono::Utc>,
+) -> Result<()> {
+    let path = beacon_reservation_path(state_dir);
+    let current: BeaconReservation = serde_json::from_str(
+        &fs::read_to_string(&path).context("read beacon reservation before commit")?,
+    )
+    .context("parse beacon reservation before commit")?;
+    anyhow::ensure!(
+        current == *reservation,
+        "beacon reservation changed before commit"
+    );
+    let state = BeaconState {
+        last_success_install_id: Some(reservation.install_id.clone()),
+        last_success_at: Some(successful_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
+    };
+    write_private_atomic(
+        &beacon_state_path(state_dir),
+        &serde_json::to_vec(&state).context("serialise beacon delivery state")?,
+    )
+    .context("write beacon delivery state")?;
+    release_beacon_reservation_in(state_dir, reservation)
+}
+
+fn release_channel(version: &str) -> &'static str {
+    let prerelease = version.split_once('-').map(|(_, suffix)| suffix);
+    match prerelease {
+        Some(value) if value.starts_with("nightly") => "nightly",
+        Some(value) if value.starts_with("alpha") => "alpha",
+        Some(value) if value.starts_with("beta") => "beta",
+        Some(value) if value.starts_with("rc") => "rc",
+        Some(_) => "prerelease",
+        None => "stable",
+    }
+}
+
+fn platform_triple() -> String {
+    let arch = std::env::consts::ARCH;
+    if cfg!(target_os = "macos") {
+        return format!("{arch}-apple-darwin");
+    }
+    if cfg!(target_os = "windows") {
+        let environment = if cfg!(target_env = "gnu") {
+            "gnu"
+        } else {
+            "msvc"
+        };
+        return format!("{arch}-pc-windows-{environment}");
+    }
+    let environment = if cfg!(target_env = "musl") {
+        "musl"
+    } else if cfg!(target_env = "gnu") {
+        "gnu"
+    } else {
+        "unknown"
+    };
+    format!("{arch}-unknown-{}-{environment}", std::env::consts::OS)
+}
+
+fn build_payload_in(state_dir: &Path, install_id: Uuid) -> Result<BeaconPayload> {
+    let delivery = load_beacon_state_in(state_dir)?;
+    let last_success = delivery.last_success_at.as_deref().and_then(parse_utc);
+    let usage_path = state_dir.join("kindling").join("usage.ndjson");
+    let rows = crate::usage_views::load_rows(&usage_path).context("read local feature usage")?;
+    Ok(BeaconPayload::new(
+        install_id,
+        env!("CARGO_PKG_VERSION"),
+        crate::commands::version::detect_install_method_cached().label(),
+        &platform_triple(),
+        release_channel(env!("CARGO_PKG_VERSION")),
+        // No remote snapshot is installed today. `0` is an explicit,
+        // ingest-valid fallback rather than an empty token the API rejects.
+        "0",
+        feature_usage_since(&rows, last_success),
+    ))
+}
+
+/// Explain a delivery-state block that is separate from consent: either the
+/// 24-hour success cap or an in-flight reservation.
+pub fn next_delivery_block_reason_in(
+    state_dir: &Path,
+    install_id: Uuid,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<Option<&'static str>> {
+    let state = load_beacon_state_in(state_dir)?;
+    if state.last_success_install_id.as_deref() == Some(&install_id.to_string())
+        && state
+            .last_success_at
+            .as_deref()
+            .and_then(parse_utc)
+            .is_some_and(|last| now.signed_duration_since(last) < BEACON_INTERVAL)
+    {
+        return Ok(Some(
+            "the last successful beacon was less than 24 hours ago",
+        ));
+    }
+    if beacon_reservation_path(state_dir)
+        .try_exists()
+        .context("inspect beacon reservation")?
+    {
+        return Ok(Some("another beacon is already in progress"));
+    }
+    Ok(None)
+}
+
+/// Build the exact next body for an already-evaluated send gate. Blocked
+/// status is read-only; an allowed first use mints the anonymous random id so
+/// the transparency surface and eventual sender can serialise the same value.
+pub fn next_payload_for_gate_in(state_dir: &Path, gate: SendGate) -> Result<Option<BeaconPayload>> {
+    if gate != SendGate::Allowed {
+        return Ok(None);
+    }
+    let install_id = load_or_create_install_id_in(state_dir)?;
+    if next_delivery_block_reason_in(state_dir, install_id, chrono::Utc::now())?.is_some() {
+        return Ok(None);
+    }
+    build_payload_in(state_dir, install_id).map(Some)
+}
+
+/// Start the session beacon in an independent process and return immediately.
+/// No network work or child wait occurs on the `anvil start` command path.
+pub fn spawn_start_beacon() {
+    if !send_allowed() {
+        return;
+    }
+    let Ok(executable) = env::current_exe() else {
+        return;
+    };
+    let _ = std::process::Command::new(executable)
+        .env(BEACON_WORKER_ENV, "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+}
+
+/// Run the detached worker. All failures are deliberately silent and leave no
+/// payload spool; a failed reservation is released for a later start.
+pub fn run_beacon_worker() {
+    let _ = try_run_beacon_worker();
+}
+
+fn try_run_beacon_worker() -> Result<()> {
+    if send_gate() != SendGate::Allowed {
+        return Ok(());
+    }
+    let state_dir = credentials::credentials_dir().context("resolve telemetry state directory")?;
+    let install_id = load_or_create_install_id_in(&state_dir)?;
+    let now = chrono::Utc::now();
+    let Ok(reservation) = reserve_beacon_in(&state_dir, install_id, now) else {
+        return Ok(());
+    };
+    let outcome = (|| -> Result<bool> {
+        let payload = build_payload_in(&state_dir, install_id)?;
+        let body = serde_json::to_vec(&payload).context("serialise telemetry beacon")?;
+
+        let endpoint = format!("{}/api/v1/telemetry", crate::auth::api_url()?);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .context("build telemetry runtime")?;
+        let client = reqwest::Client::builder()
+            .timeout(BEACON_HTTP_TIMEOUT)
+            .connect_timeout(BEACON_CONNECT_TIMEOUT)
+            .build()
+            .context("build telemetry client")?;
+        // Re-check every hard off immediately before the network request.
+        if send_gate() != SendGate::Allowed {
+            return Ok(false);
+        }
+        let response = runtime.block_on(async {
+            client
+                .post(endpoint)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(body)
+                .send()
+                .await
+        });
+        Ok(response.is_ok_and(|response| response.status().is_success()))
+    })();
+
+    if outcome.unwrap_or(false) {
+        commit_beacon_in(&state_dir, &reservation, chrono::Utc::now())?;
+    } else {
+        release_beacon_reservation_in(&state_dir, &reservation)?;
+    }
+    Ok(())
+}
 
 /// The exact dimension allowlist the disclosure names. Nothing outside
 /// this list is ever sent; adding a dimension requires a dated amendment
@@ -546,6 +929,143 @@ fn write_private_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn beacon_payload_serialises_to_the_exact_ingest_allowlist() {
+        let payload = BeaconPayload::new(
+            Uuid::parse_str("018f78e4-49b5-7f23-a33f-7db9ad9a2f45").unwrap(),
+            "0.9.0-beta",
+            "cargo_dist",
+            "x86_64-unknown-linux-gnu",
+            "beta",
+            "1",
+            vec![FeatureUsage {
+                key: "cli.licence-gate".to_string(),
+                count: 3,
+            }],
+        );
+
+        assert_eq!(
+            serde_json::to_value(payload).unwrap(),
+            serde_json::json!({
+                "schema_version": 1,
+                "install_id": "018f78e4-49b5-7f23-a33f-7db9ad9a2f45",
+                "version": "0.9.0-beta",
+                "install_method": "cargo_dist",
+                "platform": "x86_64-unknown-linux-gnu",
+                "channel": "beta",
+                "flag_snapshot_version": "1",
+                "features": [{"key": "cli.licence-gate", "count": 3}],
+            })
+        );
+    }
+
+    #[test]
+    fn feature_counts_include_only_usage_after_the_last_success() {
+        use crate::usage_views::{FlagEntry, UsageRow};
+
+        let row = |timestamp: &str, keys: &[&str]| UsageRow {
+            command: "start".to_string(),
+            principal: "must-not-enter-payload".to_string(),
+            timestamp: timestamp.to_string(),
+            flag_set: keys
+                .iter()
+                .map(|key| FlagEntry {
+                    key: (*key).to_string(),
+                    variant: "enabled".to_string(),
+                    gate_affecting: true,
+                })
+                .collect(),
+        };
+        let rows = vec![
+            row("2026-07-15T23:59:59Z", &["old.flag"]),
+            row("2026-07-16T00:00:01Z", &["feature.b", "feature.a"]),
+            row("2026-07-16T01:00:00Z", &["feature.a"]),
+        ];
+        let cutoff = chrono::DateTime::parse_from_rfc3339("2026-07-16T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        assert_eq!(
+            feature_usage_since(&rows, Some(cutoff)),
+            vec![
+                FeatureUsage {
+                    key: "feature.a".to_string(),
+                    count: 2,
+                },
+                FeatureUsage {
+                    key: "feature.b".to_string(),
+                    count: 1,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn reservation_commit_enforces_one_success_per_install_per_day() {
+        let dir = temp_dir();
+        let install_id = Uuid::new_v4();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-16T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        let failed = reserve_beacon_in(dir.path(), install_id, now).unwrap();
+        release_beacon_reservation_in(dir.path(), &failed).unwrap();
+        let reservation = reserve_beacon_in(dir.path(), install_id, now).unwrap();
+        commit_beacon_in(dir.path(), &reservation, now).unwrap();
+
+        assert!(matches!(
+            reserve_beacon_in(
+                dir.path(),
+                install_id,
+                now + chrono::Duration::hours(23) + chrono::Duration::minutes(59)
+            ),
+            Err(ReserveError::TooRecent)
+        ));
+        assert!(
+            reserve_beacon_in(dir.path(), install_id, now + chrono::Duration::hours(24)).is_ok()
+        );
+    }
+
+    #[test]
+    fn payload_preview_mints_only_when_the_send_gate_is_allowed() {
+        let blocked_dir = temp_dir();
+        let blocked = next_payload_for_gate_in(
+            blocked_dir.path(),
+            SendGate::Blocked(BlockReason::NoticeNotShown),
+        )
+        .unwrap();
+        assert!(blocked.is_none());
+        assert!(!install_id_path(blocked_dir.path()).exists());
+
+        let allowed_dir = temp_dir();
+        let payload = next_payload_for_gate_in(allowed_dir.path(), SendGate::Allowed)
+            .unwrap()
+            .expect("allowed preview has a canonical payload");
+        assert_eq!(
+            existing_install_id_in(allowed_dir.path())
+                .unwrap()
+                .to_string(),
+            payload.install_id
+        );
+    }
+
+    #[test]
+    fn payload_preview_names_the_daily_cap_after_success() {
+        let dir = temp_dir();
+        let install_id = load_or_create_install_id_in(dir.path()).unwrap();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-16T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let reservation = reserve_beacon_in(dir.path(), install_id, now).unwrap();
+        commit_beacon_in(dir.path(), &reservation, now).unwrap();
+
+        assert_eq!(
+            next_delivery_block_reason_in(dir.path(), install_id, now + chrono::Duration::hours(1))
+                .unwrap(),
+            Some("the last successful beacon was less than 24 hours ago")
+        );
+    }
 
     fn temp_dir() -> tempfile::TempDir {
         tempfile::tempdir().unwrap()

@@ -1155,6 +1155,14 @@ fn exit_status_to_code(status: std::process::ExitStatus) -> u8 {
 
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
+    // FLEET-003: the detached beacon worker bypasses CLI parsing and usage
+    // recording entirely. It rechecks consent immediately before its bounded
+    // network request and never writes to stdout/stderr.
+    if std::env::var_os(telemetry::BEACON_WORKER_ENV).is_some_and(|value| value == "1") {
+        telemetry::run_beacon_worker();
+        return ExitCode::from(EXIT_OK);
+    }
+
     let cli = match try_parse_cli() {
         Ok(cli) => cli,
         Err(err) => {
