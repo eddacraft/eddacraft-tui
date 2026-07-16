@@ -1,15 +1,16 @@
-# ADR-110: LSP as an agent-integration surface, reconsidered
+# ADR-109: LSP as an agent-integration surface, reconsidered
 
 ## Status
 
-Draft — **Owner: operator (Josh).** Follow-up build/no-build discussion on
-RTAI-005 is owned directly by the operator; no separate venue or council is
-required to close it out of Draft.
+**Accepted** — 2026-07-16, operator (Josh). Resolves RTAI-005's un-park
+question in principle: anvil supports LSP alongside MCP as a matter of
+strategy, not a build/no-build toss-up. Scheduling remains open — see
+Decision.
 
 > Amends [ADR-083](./083-gctx-mcp-delivery-target.md) §"Alternatives
 > Considered" only — narrows its "no capability negotiation" clause as
 > applied to LSP. Does **not** reopen GCTX-002: the graph-context MCP
-> delivery target stands unchanged. Separately, re-examines RTAI-005's
+> delivery target stands unchanged. Separately, resolves RTAI-005's
 > parking rationale under ADR-033.
 
 ## Date
@@ -89,42 +90,71 @@ and when it's taken up.
 
 ## Decision
 
-**What this ADR settles:** ADR-083's "no capability negotiation" clause
-does not generalize to LSP specifically — the two other stated objections
-to non-MCP channels are unaffected and untested here. GCTX-002's MCP
-delivery target is unaffected.
+**1. The ADR-083 correction stands.** Its "no capability negotiation"
+clause does not generalize to LSP specifically — the two other stated
+objections to non-MCP channels are unaffected and untested here. GCTX-002's
+MCP delivery target is unaffected.
 
-**What remains open:** RTAI-005's un-park question. This ADR reopens it
-given the LSP-specific demand signal above, but does not itself decide to
-build `anvil lsp`. The operator owns that call directly — no scheduling
-implication follows from this ADR alone; sizing and sequencing against
-current active work (see Consequences) is a separate step.
+**2. Protocol plurality, not a single consistent agent story.** MCP and
+LSP are both industry standards. anvil's integration strategy is to meet
+people and agents where they already work, not to consolidate on one
+protocol for architectural tidiness. RTAI-005 is un-parked **in
+principle**: anvil supports LSP alongside MCP as a parallel,
+standards-based integration surface for the mid-edit diagnostics use
+case — this is not framed as MCP-vs-LSP, and it does not reopen GCTX-002's
+choice of MCP for graph-context delivery, which is a separate surface with
+a separate rationale (resource model, tool composition).
+
+**What remains open:** scheduling and scope, not direction. This ADR
+authorizes building LSP support alongside MCP; it does not itself order a
+build. Sizing the RTAI-001-style throwaway spike, sequencing it against
+current active work, and re-confirming RTAI-005's thin-frontend/advisory-
+only scope before work starts are separate steps the operator still owns
+(see Consequences).
 
 ## Rationale
 
 The capability-negotiation correction stands on its own regardless of the
 demand-signal question: ADR-083's own text supports it directly (see
-Context). The RTAI-005 reopening is not itself a decision, so it has no
-independent rationale beyond the two demand-signal categories above —
-that discussion, and its own alternatives, belong to the operator's
-build/no-build call, not to this record.
+Context). The protocol-plurality decision follows from reading the two
+signal categories together: the ecosystem trend (opencode, Claude Code,
+Copilot app all treating LSP as an agent-facing surface, not just an
+editor one) and the specific product signal (a prospect asking about LSP
+directly) don't argue for picking MCP over LSP or vice versa — they argue
+against needing to pick at all. MCP and LSP serve different, non-competing
+audiences: MCP for agents that call tools directly (GCTX, RMCPF), LSP for
+the much larger set of editors and agent-in-editor sessions that already
+speak it natively. The cost of supporting both is one additional thin
+protocol surface — RTAI-005 is explicitly scoped as a thin frontend over
+the already-shipped `scan_buffer` RPC, not a second validation engine —
+which is why "support both" is affordable rather than a maintenance
+doubling.
 
 ### Alternatives Considered
 
-Deferred to the RTAI-005 build/no-build call. Note for that discussion: a
-zero-build alternative exists for the presentation-layer gap named in the
-Scope note — demonstrating the existing MCP-based GCTX tools running
-inside an agent-in-editor session — and should be weighed against building
-a second protocol surface before committing to `anvil lsp` work.
+| Option | Pros | Cons |
+|--------|------|------|
+| **Support both MCP and LSP (chosen)** | Meets people/agents where they already work; each protocol serves an audience the other doesn't reach natively; RTAI-005 is a thin add-on, not a second engine | One more protocol surface to maintain, however thin |
+| Consolidate on MCP only | One integration story, less surface area | Leaves the much larger LSP-native editor/agent audience (opencode, Claude Code plugin, Copilot app, any `lspconfig`/`eglot` client) unreached without a bespoke per-editor extension |
+| Consolidate on LSP only | Would unify around the operator's original direction | Abandons the shipped GCTX/RMCPF MCP investment and the tool-composition/resource-model capabilities LSP doesn't have — not on the table |
+| Zero-build: demo existing MCP tools in an agent-in-editor session | No new surface | Doesn't reach non-agent, non-MCP-wired editors at all; answers "can it," not "does it show up where people work" |
+
+Scheduling (when the spike happens, how it's sized) is still deferred to a
+separate step — see Consequences.
 
 ## Consequences
 
-- **Positive:** Corrects the record narrowly — future references to
-  ADR-083 as having evaluated and rejected LSP on its own merits should
-  cite this ADR's correction to the capability-negotiation clause
-  specifically, not treat the whole non-MCP dismissal as settled either
-  way.
-- **Negative:** None yet; no implementation decision made.
+- **Positive:**
+  - Corrects the record narrowly — future references to ADR-083 as having
+    evaluated and rejected LSP on its own merits should cite this ADR's
+    correction to the capability-negotiation clause specifically, not
+    treat the whole non-MCP dismissal as settled either way.
+  - Settles the MCP-vs-LSP framing question: anvil is not choosing one
+    integration story. Future work (this RTAI-005 diagnostics surface, and
+    potentially the graph-backed-navigation idea later) can build LSP
+    surfaces without re-litigating whether that contradicts the GCTX/MCP
+    investment.
+- **Negative:** None yet; scheduling/spike sizing not yet decided.
 - **Risks:**
   - If RTAI-005 is un-parked without re-litigating scope, it could
     re-absorb the DRVR-002/DRVR-003 editor-driver dependencies it was

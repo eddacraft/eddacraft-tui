@@ -449,20 +449,25 @@ convention" section). Concretely:
   connection-lifecycle question cheaply, *then* the full build. **Un-park
   trigger is a concrete demand signal** (an editor/user asking, or a demo) —
   not surface completeness.
-- **Demand signal recorded 2026-07-16 — see [ADR-110](../decisions/110-lsp-agent-integration-reconsidered.md):**
-  a live prospect conversation was specifically about LSP integration, with
-  the prospect independently drawing a ReSharper-capability comparison in
-  the same conversation — satisfies the un-park trigger above. ADR-110 also
-  corrects ADR-083's alternatives-table rationale as it applies to LSP
-  (narrowly: the capability-negotiation clause only) but does not itself
-  authorize a build — the build/no-build call is owned directly by the
-  operator, not scheduled by ADR-110 alone. Note the ReSharper comparison's
-  broader capability set (find-usages, impact analysis) belongs to the
-  separate, larger, not-yet-scoped graph-backed-navigation idea
+- **Un-parked in principle 2026-07-16 — see [ADR-109](../decisions/109-lsp-agent-integration-reconsidered.md)
+  (Accepted, operator):** a live prospect conversation was specifically
+  about LSP integration, with the prospect independently drawing a
+  ReSharper-capability comparison in the same conversation — satisfies the
+  un-park trigger above. ADR-109 also records a broader **protocol-plurality**
+  decision (MCP and LSP are both industry standards; anvil supports both
+  rather than consolidating on one), and corrects ADR-083's
+  alternatives-table rationale as it applies to LSP (narrowly: the
+  capability-negotiation clause only). ADR-109 authorizes the *direction*,
+  not a build order — scheduling the RTAI-001-style spike below against
+  current active work is still a separate, operator-owned step. Note the
+  ReSharper comparison's broader capability set (find-usages, impact
+  analysis) belongs to the separate, larger, not-yet-scoped
+  graph-backed-navigation idea
   (`plans/brainstorms/2026-06-03-anvil-lsp-graph-backed-navigation.md`),
   not to this item's diagnostics-only scope.
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** Ready — un-park trigger satisfied per ADR-109; next step is
+  the RTAI-001-style throwaway spike above, sizing/scheduling TBD
 
 ---
 
