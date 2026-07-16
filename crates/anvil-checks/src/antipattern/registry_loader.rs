@@ -399,6 +399,7 @@ fn map_category(anvil_category: &str) -> AntiPatternCategory {
         "accountability" => AntiPatternCategory::Accountability,
         "deferred-debt" => AntiPatternCategory::DeferredDebt,
         "insecure-construction" => AntiPatternCategory::InsecureConstruction,
+        "fragile-presentation" => AntiPatternCategory::FragilePresentation,
         _ => AntiPatternCategory::CodeQuality,
     }
 }

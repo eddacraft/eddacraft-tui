@@ -285,6 +285,11 @@ pub enum AntiPatternCategory {
     /// `insecure-construction` families per ADR-087. Distinct from the SEC
     /// CI-pipeline module and deliberately *not* a taint-based SAST category.
     InsecureConstruction,
+    /// Presentation-correctness anti-patterns: content authored invisible
+    /// whose visibility depends on a runtime animation firing. Populated by
+    /// the `fragile-presentation` family per ADR-110. A correctness class —
+    /// the failure mode is a silently blank section — not design taste.
+    FragilePresentation,
     Html,
     Css,
 }

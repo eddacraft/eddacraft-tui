@@ -1,0 +1,109 @@
+---
+id: fragile-presentation
+type: definition
+name: Fragile Presentation
+category: fragile-presentation
+targets: [source]
+related: [unsafe-rendering]
+tensions: []
+rules: [FRAG-001]
+---
+
+## What It Is
+
+Authoring content invisible and depending on a runtime animation to make
+it visible. The construction is an element whose initial style is
+`opacity: 0` paired with an entrance animation that is supposed to bring
+it to `opacity: 1` — in JSX, the motion/framer-motion idiom
+`initial={{ opacity: 0 }}` with `animate` or `whileInView`. The content's
+presence on screen is gated on JavaScript executing and the animation
+trigger firing.
+
+## Why It's Harmful
+
+- **The failure is silent and total.** If the trigger never fires, the
+  section renders permanently blank — no error, no console noise, no
+  fallback. The page looks finished and is missing its content.
+- **Triggers fail in real environments.** A `prefers-reduced-motion`
+  setting can skip the animation while the initial style stays applied; a
+  backgrounded tab may never deliver the viewport/scroll trigger for a
+  below-fold reveal; a hydration error strands server-rendered markup at
+  its initial style; blocked or failed JavaScript leaves the element at
+  `opacity: 0` forever.
+- **It survives review.** On the author's machine the animation always
+  fires, so the trap is invisible in development and code review alike.
+- **Agents apply entrance animations by default.** AI-generated marketing
+  and dashboard code reaches for a scroll-reveal on every section, so the
+  construction ships at scale precisely in the code Anvil governs.
+
+## The Spectrum
+
+- **Warn (severity warning, on by default):** a single-line
+  `initial={{ ... opacity: 0 ... }}` (FRAG-001). It warns rather than
+  blocks because a mount-triggered `animate` on above-the-fold content
+  with a reduced-motion fallback usually reaches its end state; the
+  scroll-gated `whileInView` variant on body content is the harmful end,
+  and a line regex cannot tell the two apart — the rule surfaces the
+  construction so a human confirms the fallback contract (the ADR-087
+  construction-smell posture).
+- **Benign (intentionally not flagged):** entrances that start visible —
+  transform-only initials (`initial={{ y: 20 }}`), partial opacity
+  (`opacity: 0.4`), `initial={false}`, exit fades
+  (`exit={{ opacity: 0 }}`), and CSS hover/focus transitions. Losing the
+  motion must cost the polish, never the content.
+- **Known false-positive surface:** the scanner is line-regex based and
+  does not strip comments or string bodies; a purely decorative element
+  animated from `opacity: 0` is also a judgement call. Suppress with a
+  reason naming the fallback (or the decorative role).
+
+## The Right Response
+
+1. **Content visible by default** — never gate presence on an animation
+   completing.
+2. **Animate decoration, not existence** — enter from a visible state
+   (`initial={{ y: 20 }}` → `whileInView={{ y: 0 }}`); a missed trigger
+   then costs the motion, not the content.
+3. **A deliberate fade-in must guarantee its end state** — respect
+   `prefers-reduced-motion` (`useReducedMotion` /
+   `<MotionConfig reducedMotion="user">`), and give a scroll-gated reveal
+   a mount-time or timeout fallback so `opacity: 1` is reached even when
+   the viewport trigger never fires.
+4. If a visible reduced-motion/no-JS fallback provably exists — or the
+   element is pure decoration — suppress FRAG-001 with a reason naming
+   it.
+
+## Detection Signals
+
+- **Lexical:** the single-line JSX prop
+  `initial={{ ... opacity: 0 ... }}` (FRAG-001). The zero must terminate
+  (`,` or `}` follows, whitespace allowed) so `opacity: 0.4` does not
+  trip.
+- **Allowlisted contexts:** test files (`*.test.*`, `*.spec.*`,
+  `__tests__/`, `tests/`) and `explain/` fixtures opt out — they
+  demonstrate the construction intentionally.
+- **Scope:** JavaScript/TypeScript extensions only (`.ts`, `.tsx`, `.js`,
+  `.jsx`, `.mjs`, `.cjs`) — the idiom is a JSX prop; `.html`/`.css` are
+  retired from the scan set.
+- **Negative signals (do not fire):** `initial={{ opacity: 1 }}`,
+  transform-only initials, `exit={{ opacity: 0 }}`, partial opacity
+  values.
+- **Out of detection (known gaps):** multi-line `initial` objects,
+  `variants` objects (`hidden: { opacity: 0 }`), IntersectionObserver +
+  class-toggle reveals, and utility-class idioms (`opacity-0`). These
+  exceed the line-regex engine and wait on a JS/TS AST detection path
+  (ADR-071 precedent) rather than a stretched regex.
+
+## Example
+
+```tsx
+// FRAG-001 trips — content exists only if the reveal fires:
+<motion.section
+  initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}>
+  <PricingTable />
+</motion.section>
+
+// Fine — visible by default; the animation is decoration:
+<motion.section initial={{ y: 20 }} whileInView={{ y: 0 }}>
+  <PricingTable />
+</motion.section>
+```

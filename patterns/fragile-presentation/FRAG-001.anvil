@@ -1,0 +1,56 @@
+---
+id: FRAG-001
+type: rule
+family: fragile-presentation
+title: Content authored invisible pending an entrance animation
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.test.js',
+    '**/*.test.jsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/*.spec.js',
+    '**/*.spec.jsx',
+    '**/__tests__/**',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: 'initial=\{\{[^}]*\bopacity:\s*0\s*[,}]'
+
+related: []
+enabled: true
+opt_in: false
+---
+
+You're authoring this element invisible (`opacity: 0`) and relying on an
+entrance animation to make it visible. If the animation never fires — a
+`prefers-reduced-motion` setting, a backgrounded tab that never delivers
+the scroll/viewport trigger, a hydration error that strands the initial
+style, or JavaScript failing to load — the content stays invisible
+permanently. The failure is silent: nothing errors, the section is
+simply blank.
+
+Keep content visible by default and animate decoration instead of
+existence: enter from a visible state (`initial={{ y: 20 }}` →
+`whileInView={{ y: 0 }}`) so a missed trigger costs the motion, not the
+content. If a fade-in is deliberate, guarantee the end state — respect
+`prefers-reduced-motion` and give a scroll-gated reveal a mount-time
+fallback so `opacity: 1` is reached even when the viewport trigger never
+fires.
+
+If this element is pure decoration, or a visible reduced-motion/no-JS
+fallback provably exists, suppress FRAG-001 with a reason naming the
+fallback.

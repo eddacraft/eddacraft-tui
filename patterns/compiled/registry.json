@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-07-01T12:28:42.111Z",
+  "compiled_at": "2026-07-16T04:32:46.310Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -472,6 +472,45 @@
       "definition_ref": "patterns/deferred-debt/definition.anvil",
       "tensions": [],
       "related_families": ["responsibility-laundering"]
+    },
+    {
+      "id": "FRAG-001",
+      "family": "fragile-presentation",
+      "title": "Content authored invisible pending an entrance animation",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "medium",
+      "spectrum_position": 3,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "initial=\\{\\{[^}]*\\bopacity:\\s*0\\s*[,}]"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
+        "**/__tests__/**",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're authoring this element invisible (`opacity: 0`) and relying on an\nentrance animation to make it visible. If the animation never fires — a\n`prefers-reduced-motion` setting, a backgrounded tab that never delivers\nthe scroll/viewport trigger, a hydration error that strands the initial\nstyle, or JavaScript failing to load — the content stays invisible\npermanently. The failure is silent: nothing errors, the section is\nsimply blank.\n\nKeep content visible by default and animate decoration instead of\nexistence: enter from a visible state (`initial={{ y: 20 }}` →\n`whileInView={{ y: 0 }}`) so a missed trigger costs the motion, not the\ncontent. If a fade-in is deliberate, guarantee the end state — respect\n`prefers-reduced-motion` and give a scroll-gated reveal a mount-time\nfallback so `opacity: 1` is reached even when the viewport trigger never\nfires.\n\nIf this element is pure decoration, or a visible reduced-motion/no-JS\nfallback provably exists, suppress FRAG-001 with a reason naming the\nfallback.",
+      "related": [],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Fragile Presentation",
+      "category": "fragile-presentation",
+      "explanation": "- **The failure is silent and total.** If the trigger never fires, the\n  section renders permanently blank — no error, no console noise, no\n  fallback. The page looks finished and is missing its content.\n- **Triggers fail in real environments.** A `prefers-reduced-motion`\n  setting can skip the animation while the initial style stays applied; a\n  backgrounded tab may never deliver the viewport/scroll trigger for a\n  below-fold reveal; a hydration error strands server-rendered markup at\n  its initial style; blocked or failed JavaScript leaves the element at\n  `opacity: 0` forever.\n- **It survives review.** On the author's machine the animation always\n  fires, so the trap is invisible in development and code review alike.\n- **Agents apply entrance animations by default.** AI-generated marketing\n  and dashboard code reaches for a scroll-reveal on every section, so the\n  construction ships at scale precisely in the code Anvil governs.",
+      "suggestion": "1. **Content visible by default** — never gate presence on an animation\n   completing.\n2. **Animate decoration, not existence** — enter from a visible state\n   (`initial={{ y: 20 }}` → `whileInView={{ y: 0 }}`); a missed trigger\n   then costs the motion, not the content.\n3. **A deliberate fade-in must guarantee its end state** — respect\n   `prefers-reduced-motion` (`useReducedMotion` /\n   `<MotionConfig reducedMotion=\"user\">`), and give a scroll-gated reveal\n   a mount-time or timeout fallback so `opacity: 1` is reached even when\n   the viewport trigger never fires.\n4. If a visible reduced-motion/no-JS fallback provably exists — or the\n   element is pure decoration — suppress FRAG-001 with a reason naming\n   it.",
+      "definition_ref": "patterns/fragile-presentation/definition.anvil",
+      "tensions": [],
+      "related_families": ["unsafe-rendering"]
     },
     {
       "id": "GS-001",
@@ -1356,6 +1395,7 @@
   ],
   "prefixes": {
     "DD": "deferred-debt",
+    "FRAG": "fragile-presentation",
     "GS": "guardrail-suppression",
     "PY": "python-reliability",
     "RL": "responsibility-laundering",
@@ -1390,6 +1430,15 @@
       "rules": ["AP-006", "AP-007"],
       "related": ["guardrail-suppression"],
       "tensions": ["guardrail-suppression"]
+    },
+    {
+      "id": "fragile-presentation",
+      "name": "Fragile Presentation",
+      "category": "fragile-presentation",
+      "definition_ref": "patterns/fragile-presentation/definition.anvil",
+      "rules": ["FRAG-001"],
+      "related": ["unsafe-rendering"],
+      "tensions": []
     },
     {
       "id": "guardrail-suppression",

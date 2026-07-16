@@ -36,7 +36,8 @@ export type KnownCategory =
   | 'error-handling'
   | 'accountability'
   | 'deferred-debt'
-  | 'insecure-construction';
+  | 'insecure-construction'
+  | 'fragile-presentation';
 
 export const KNOWN_CATEGORIES: readonly KnownCategory[] = [
   'escape-hatch',
@@ -48,6 +49,10 @@ export const KNOWN_CATEGORIES: readonly KnownCategory[] = [
   // unsafe-rendering). Kept as a *known* category so the Rust scanner maps
   // it to a first-class variant instead of the `code-quality` fallback.
   'insecure-construction',
+  // ADR-110 / CIB-198: presentation-correctness family
+  // (fragile-presentation). Known so the Rust scanner maps it to a
+  // first-class variant instead of the `code-quality` fallback.
+  'fragile-presentation',
 ];
 
 const CategorySchema = z

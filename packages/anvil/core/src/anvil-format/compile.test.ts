@@ -46,6 +46,7 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
       'deferred-debt',
       'dynamic-execution',
       'error-visibility',
+      'fragile-presentation',
       'guardrail-suppression',
       'python-reliability',
       'responsibility-laundering',
@@ -72,6 +73,7 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     expect(ruleIds).toContain('WC-003'); // weak-cryptography: JWT alg:none — INSEC-002
     expect(ruleIds).toContain('UR-001'); // unsafe-rendering: innerHTML sink — INSEC-003
     expect(ruleIds).toContain('UR-003'); // unsafe-rendering: dangerouslySetInnerHTML — INSEC-003
+    expect(ruleIds).toContain('FRAG-001'); // fragile-presentation: invisible-content trap — ADR-110 / CIB-198
 
     // Rules must be alphabetically sorted for stable registry diffs.
     const sorted = [...ruleIds].sort();
