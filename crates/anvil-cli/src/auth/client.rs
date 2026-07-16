@@ -67,6 +67,70 @@ pub struct AuditItem {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct FleetOverviewResponse {
+    pub schema_version: String,
+    pub as_of: String,
+    pub active_installs: FleetActiveInstalls,
+    pub distributions: FleetDistributions,
+    pub feature_adoption: Vec<FleetFeatureAdoption>,
+    pub retention_cohorts: Vec<FleetRetentionCohort>,
+    pub notes: FleetNotes,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct FleetActiveInstalls {
+    pub daily: u64,
+    pub weekly: u64,
+    pub monthly: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetDistributions {
+    pub versions: Vec<FleetDistributionEntry>,
+    pub install_methods: Vec<FleetDistributionEntry>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct FleetDistributionEntry {
+    pub value: String,
+    pub installs: u64,
+    pub share: f64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetFeatureAdoption {
+    pub feature_key: String,
+    pub installs: u64,
+    pub share: f64,
+    pub usage_count: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetRetentionCohort {
+    pub cohort_start: String,
+    pub cohort_size: u64,
+    pub periods: Vec<FleetRetentionPeriod>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct FleetRetentionPeriod {
+    pub week: u8,
+    pub retained: u64,
+    pub share: f64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FleetNotes {
+    pub activity_definition: String,
+    pub raw_retention_days: u16,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ShowUserResponse {
     pub user: ShowUser,
     pub tokens: Vec<ShowToken>,
@@ -317,6 +381,10 @@ impl AnvilClient {
     pub async fn get_user(&self, email: &str) -> Result<ShowUserResponse> {
         self.get(&format!("/admin/user/{}", encode_path_segment(email)))
             .await
+    }
+
+    pub async fn get_fleet_overview(&self) -> Result<FleetOverviewResponse> {
+        self.get("/admin/fleet").await
     }
 
     pub async fn revoke_email(&self, email: &str) -> Result<RevokeResponse> {
@@ -986,6 +1054,59 @@ mod tests {
         let client = mock_client(&server.uri(), Some("admin-key"));
         let result = client.get_user("a+b@example.com").await.unwrap();
         assert_eq!(result.user.email, "a+b@example.com");
+    }
+
+    #[tokio::test]
+    async fn get_fleet_overview_uses_admin_path_and_preserves_json_contract() {
+        let server = MockServer::start().await;
+        let body = serde_json::json!({
+            "schemaVersion": "anvil.fleet-overview.v1",
+            "asOf": "2026-07-16",
+            "activeInstalls": { "daily": 1, "weekly": 2, "monthly": 3 },
+            "distributions": {
+                "versions": [{ "value": "1.0.0", "installs": 3, "share": 1.0 }],
+                "installMethods": [{ "value": "homebrew", "installs": 2, "share": 2.0 / 3.0 }]
+            },
+            "featureAdoption": [{
+                "featureKey": "alpha",
+                "installs": 1,
+                "share": 1.0 / 3.0,
+                "usageCount": 4
+            }],
+            "retentionCohorts": [{
+                "cohortStart": "2026-06-01",
+                "cohortSize": 2,
+                "periods": [{ "week": 0, "retained": 2, "share": 1.0 }]
+            }],
+            "notes": { "activityDefinition": "beacon observed", "rawRetentionDays": 90 }
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/fleet"))
+            .and(header("authorization", "Bearer admin-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&body))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client.get_fleet_overview().await.unwrap();
+
+        assert_eq!(result.schema_version, "anvil.fleet-overview.v1");
+        assert_eq!(serde_json::to_value(result).unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn get_fleet_overview_maps_forbidden_to_auth_required() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/fleet"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("bad-key"));
+        let err = client.get_fleet_overview().await.unwrap_err();
+        assert!(err.is::<crate::output::AuthRequired>());
     }
 
     #[tokio::test]

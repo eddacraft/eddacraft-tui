@@ -2,11 +2,11 @@
 
 | Type    | Authority     | Owner | Status | Freshness                                                                                                            |
 | ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CIB   | Live   | Last reviewed 2026-06-13 against `crates/anvil-cli/src/commands/admin.rs` (CIB-070 stored-key source) and issue #952 |
+| Runbook | Authoritative | CIB, FLEET-007 | Live   | Last reviewed 2026-07-16 against `crates/anvil-cli/src/commands/admin.rs` and `apps/anvil-api/src/lib/fleet-overview.ts` |
 
 | Upstream                                                                                                                                                                                                                                                                                 | Downstream                                                                |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling |
+| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `apps/anvil-api/src/lib/fleet-overview.ts`, `plans/modules/fleet-telemetry.aps.md#fleet-007-operator-fleet-view`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling and fleet evidence |
 
 `anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP API
 (`/admin/*`). It is the supported way to approve waitlist signups, invite beta
@@ -408,6 +408,30 @@ Flags:
 - `--source <manual|website|import|all>` (default `all`)
 - `--limit <1-200>` (default `50`)
 - `--offset <n>` (default `0`)
+
+### `fleet` — show the current fleet overview
+
+```bash
+anvil admin fleet
+anvil --json admin fleet
+```
+
+The human view shows active installs, version and install-method distributions,
+feature adoption, and recent retention cohorts. The JSON form passes through
+the stable `anvil.fleet-overview.v1` API contract for evidence tooling.
+
+This is a current snapshot; v1 accepts no date argument. Postgres
+`current_date` is authoritative. DAU, WAU, and MAU mean distinct installs with
+a beacon observed today, in the inclusive trailing 7 days, and in the inclusive
+trailing 30 days respectively. Distributions use each MAU install's latest
+beacon. Feature adoption counts MAU installs with positive usage, while
+`usageCount` sums positive observations.
+
+Retention is labelled **observed-beacon retention**: absence means no retained
+beacon was observed, not proven product abandonment. Cohorts come from the
+retained 90-day raw window; the boundary cohort is excluded because its earlier
+history may already have been purged. Indefinite daily aggregates cannot
+reconstruct install identities and are not used for this view.
 
 ### `show <email>` — full profile for one email
 

@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
 use crate::auth::client::{
-    ApiError, AuditResponse, EmailUpdateResponse, MigrationPreviewResponse, MigrationSendResponse,
-    RevokeResponse, ShowUserResponse, WaitlistResponse,
+    ApiError, AuditResponse, EmailUpdateResponse, FleetOverviewResponse, MigrationPreviewResponse,
+    MigrationSendResponse, RevokeResponse, ShowUserResponse, WaitlistResponse,
 };
 use crate::output::AuthRequired;
 
@@ -47,6 +47,9 @@ enum AdminCommand {
         /// Email address to inspect
         email: String,
     },
+
+    /// Show active installs, distributions, adoption, and retention cohorts
+    Fleet,
 
     /// Revoke all tokens for an email or one raw token
     Revoke {
@@ -661,6 +664,12 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                 print_user(&result);
             }
         }
+        AdminCommand::Fleet => {
+            let result = rt.block_on(client.get_fleet_overview())?;
+            if !render_json(&result, global.json)? {
+                print_fleet_overview(&result);
+            }
+        }
         AdminCommand::Revoke { email, token, yes } => {
             let target = email.as_ref().map_or_else(
                 || "the supplied token".to_string(),
@@ -953,6 +962,102 @@ fn print_user(result: &ShowUserResponse) {
     }
 }
 
+fn print_fleet_overview(result: &FleetOverviewResponse) {
+    print!("{}", fleet_overview_text(result));
+}
+
+fn fleet_overview_text(result: &FleetOverviewResponse) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "FLEET OVERVIEW (as of {})", result.as_of);
+    let _ = writeln!(out, "ACTIVE INSTALLS");
+    let _ = writeln!(out, "  daily:   {}", result.active_installs.daily);
+    let _ = writeln!(out, "  weekly:  {}", result.active_installs.weekly);
+    let _ = writeln!(out, "  monthly: {}", result.active_installs.monthly);
+
+    if result.active_installs.monthly == 0 {
+        let _ = writeln!(
+            out,
+            "\nNo fleet activity observed in retained raw telemetry."
+        );
+    }
+
+    append_distribution(&mut out, "VERSIONS", &result.distributions.versions);
+    append_distribution(
+        &mut out,
+        "INSTALL METHODS",
+        &result.distributions.install_methods,
+    );
+
+    let _ = writeln!(out, "\nFEATURE ADOPTION");
+    if result.feature_adoption.is_empty() {
+        let _ = writeln!(out, "  (none)");
+    } else {
+        let _ = writeln!(out, "FEATURE\tINSTALLS\tSHARE\tUSAGE");
+        for feature in &result.feature_adoption {
+            let _ = writeln!(
+                out,
+                "{}\t{}\t{:.1}%\t{}",
+                feature.feature_key,
+                feature.installs,
+                feature.share * 100.0,
+                feature.usage_count
+            );
+        }
+    }
+
+    let _ = writeln!(out, "\nRETENTION COHORTS (observed beacons)");
+    if result.retention_cohorts.is_empty() {
+        let _ = writeln!(out, "  (none)");
+    } else {
+        for cohort in &result.retention_cohorts {
+            let _ = write!(out, "{} (n={})", cohort.cohort_start, cohort.cohort_size);
+            for period in &cohort.periods {
+                let _ = write!(
+                    out,
+                    "\tw{}: {}/{} ({:.1}%)",
+                    period.week,
+                    period.retained,
+                    cohort.cohort_size,
+                    period.share * 100.0
+                );
+            }
+            out.push('\n');
+        }
+    }
+
+    let _ = writeln!(
+        out,
+        "\nActivity: {}; raw retention: {} days",
+        result.notes.activity_definition, result.notes.raw_retention_days
+    );
+    out
+}
+
+fn append_distribution(
+    out: &mut String,
+    heading: &str,
+    rows: &[crate::auth::client::FleetDistributionEntry],
+) {
+    let _ = writeln!(
+        out,
+        "\n{heading} (latest beacon per monthly-active install)"
+    );
+    if rows.is_empty() {
+        let _ = writeln!(out, "  (none)");
+        return;
+    }
+    let _ = writeln!(out, "VALUE\tINSTALLS\tSHARE");
+    for row in rows {
+        let _ = writeln!(
+            out,
+            "{}\t{}\t{:.1}%",
+            row.value,
+            row.installs,
+            row.share * 100.0
+        );
+    }
+}
+
 fn print_revoke(result: &RevokeResponse, subject: &str) {
     println!("✓ Revoked {} token(s) for {subject}", result.revoked);
     // SEC-007 / GH #1672: show the refresh-session and account-suspension
@@ -1127,6 +1232,49 @@ mod tests {
         inner: AdminArgs,
     }
 
+    fn fleet_response() -> FleetOverviewResponse {
+        FleetOverviewResponse {
+            schema_version: "anvil.fleet-overview.v1".to_string(),
+            as_of: "2026-07-16".to_string(),
+            active_installs: crate::auth::client::FleetActiveInstalls {
+                daily: 1,
+                weekly: 2,
+                monthly: 3,
+            },
+            distributions: crate::auth::client::FleetDistributions {
+                versions: vec![crate::auth::client::FleetDistributionEntry {
+                    value: "1.0.0".to_string(),
+                    installs: 3,
+                    share: 1.0,
+                }],
+                install_methods: vec![crate::auth::client::FleetDistributionEntry {
+                    value: "homebrew".to_string(),
+                    installs: 2,
+                    share: 2.0 / 3.0,
+                }],
+            },
+            feature_adoption: vec![crate::auth::client::FleetFeatureAdoption {
+                feature_key: "alpha".to_string(),
+                installs: 1,
+                share: 1.0 / 3.0,
+                usage_count: 4,
+            }],
+            retention_cohorts: vec![crate::auth::client::FleetRetentionCohort {
+                cohort_start: "2026-06-01".to_string(),
+                cohort_size: 2,
+                periods: vec![crate::auth::client::FleetRetentionPeriod {
+                    week: 0,
+                    retained: 2,
+                    share: 1.0,
+                }],
+            }],
+            notes: crate::auth::client::FleetNotes {
+                activity_definition: "beacon observed".to_string(),
+                raw_retention_days: 90,
+            },
+        }
+    }
+
     #[test]
     fn args_rejects_approve_without_email_or_batch() {
         let err = Wrapper::try_parse_from(["test", "approve"]).unwrap_err();
@@ -1243,6 +1391,58 @@ mod tests {
             AdminCommand::Show { email } => assert_eq!(email, "user@example.com"),
             other => panic!("unexpected command: {other:?}"),
         }
+    }
+
+    #[test]
+    fn args_parses_fleet() {
+        let w = Wrapper::try_parse_from(["test", "fleet"]).unwrap();
+        assert!(matches!(w.inner.command, AdminCommand::Fleet));
+    }
+
+    #[test]
+    fn fleet_human_output_labels_observed_activity_and_percentages() {
+        let rendered = fleet_overview_text(&fleet_response());
+
+        assert!(rendered.contains("FLEET OVERVIEW (as of 2026-07-16)"));
+        assert!(rendered.contains("monthly: 3"));
+        assert!(rendered.contains("homebrew\t2\t66.7%"));
+        assert!(rendered.contains("alpha\t1\t33.3%\t4"));
+        assert!(rendered.contains("RETENTION COHORTS (observed beacons)"));
+        assert!(rendered.contains("w0: 2/2 (100.0%)"));
+        assert!(rendered.contains("Activity: beacon observed; raw retention: 90 days"));
+    }
+
+    #[test]
+    fn fleet_human_output_handles_empty_snapshot() {
+        let mut response = fleet_response();
+        response.active_installs = crate::auth::client::FleetActiveInstalls {
+            daily: 0,
+            weekly: 0,
+            monthly: 0,
+        };
+        response.distributions.versions.clear();
+        response.distributions.install_methods.clear();
+        response.feature_adoption.clear();
+        response.retention_cohorts.clear();
+
+        let rendered = fleet_overview_text(&response);
+
+        assert!(rendered.contains("No fleet activity observed in retained raw telemetry."));
+        assert_eq!(rendered.matches("  (none)").count(), 4);
+    }
+
+    #[test]
+    fn fleet_response_serialises_stable_camel_case_contract() {
+        let value = serde_json::to_value(fleet_response()).unwrap();
+        assert_eq!(value["schemaVersion"], "anvil.fleet-overview.v1");
+        assert_eq!(value["activeInstalls"]["monthly"], 3);
+        assert_eq!(
+            value["distributions"]["installMethods"][0]["value"],
+            "homebrew"
+        );
+        assert_eq!(value["featureAdoption"][0]["usageCount"], 4);
+        assert_eq!(value["retentionCohorts"][0]["cohortStart"], "2026-06-01");
+        assert_eq!(value["notes"]["activityDefinition"], "beacon observed");
     }
 
     #[test]

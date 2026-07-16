@@ -46,6 +46,7 @@ import {
 } from '../lib/broadcast-audiences.js';
 import { EMAIL_REGISTRY, type TemplateKey } from '../lib/email-registry.js';
 import { isUniqueViolation } from '../lib/device-code.js';
+import { findFleetOverview } from '../lib/fleet-overview.js';
 
 const debug = createDebugger('api');
 
@@ -71,6 +72,19 @@ admin.use(
 // per-actor cap independent of the coarse one. Scope is on the endpoint
 // (not per template) so alternating templates can't dodge the budget.
 admin.use('/broadcast', adminRateLimit({ windowMs: 60 * 60 * 1000, max: 5, scope: 'broadcast' }));
+
+/**
+ * GET /admin/fleet
+ *
+ * Current operator snapshot over retained identity-bearing beacon rows. This
+ * deliberately lives on the authenticated, rate-limited admin router rather
+ * than the public telemetry ingest router, and never returns install IDs.
+ */
+admin.get('/fleet', async (c) => {
+  debug('GET /admin/fleet');
+  const result = await findFleetOverview(getClient());
+  return c.json(result);
+});
 
 /**
  * Resolve the admin actor identity for audit logging.
