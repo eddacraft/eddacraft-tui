@@ -10,7 +10,9 @@
 //! MCP validation client's fail-closed/security posture.
 
 use clap::Args;
+#[cfg(unix)]
 use serde_json::{Value, json};
+#[cfg(unix)]
 use std::io::{self, BufReader, Write};
 
 #[derive(Debug, Args)]
@@ -27,6 +29,7 @@ pub fn run(args: &LspArgs) -> anyhow::Result<()> {
     run_stdio_server()
 }
 
+#[cfg(unix)]
 const MAX_LSP_FRAME_BYTES: u64 = 4 * 1024 * 1024;
 
 #[cfg(not(unix))]
@@ -69,15 +72,19 @@ fn run_stdio_server() -> anyhow::Result<()> {
                     .and_then(Value::as_str);
                 if let (Some(uri), Some(text)) = (uri, text) {
                     let path = uri_to_path(uri);
-                    match daemon::scan_buffer_mid_edit(&path, text) {
-                        Ok(diagnostics) => {
-                            let notification = publish_diagnostics_notification(uri, &diagnostics);
-                            write_message(&mut stdout, &notification)?;
-                        }
-                        Err(err) => {
+                    // Always publish — `didChange` is a notification, so a
+                    // client (including the benchmark harness) waiting on
+                    // `publishDiagnostics` to clear/update state would hang
+                    // if a scan failure produced no reply. An empty
+                    // diagnostics set on failure degrades to "no in-flight
+                    // findings," matching RTAI-005's daemon-down posture.
+                    let diagnostics =
+                        daemon::scan_buffer_mid_edit(&path, text).unwrap_or_else(|err| {
                             eprintln!("anvil-lsp: mid-edit scan failed: {err}");
-                        }
-                    }
+                            Vec::new()
+                        });
+                    let notification = publish_diagnostics_notification(uri, &diagnostics);
+                    write_message(&mut stdout, &notification)?;
                 }
             }
             Some("shutdown") => {
@@ -135,6 +142,7 @@ fn read_lsp_frame(reader: &mut impl io::BufRead) -> io::Result<Option<Vec<u8>>> 
     Ok(Some(body))
 }
 
+#[cfg(unix)]
 fn write_message(stdout: &mut impl Write, message: &Value) -> anyhow::Result<()> {
     let body = serde_json::to_vec(message)?;
     write!(stdout, "Content-Length: {}\r\n\r\n", body.len())?;
@@ -143,14 +151,17 @@ fn write_message(stdout: &mut impl Write, message: &Value) -> anyhow::Result<()>
     Ok(())
 }
 
+#[cfg(unix)]
 fn success_response(id: &Value, result: &Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
+#[cfg(unix)]
 fn error_response(id: &Value, code: i64, message: &str) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
+#[cfg(unix)]
 fn initialize_response(id: &Value) -> Value {
     success_response(
         id,
@@ -169,10 +180,12 @@ fn initialize_response(id: &Value) -> Value {
     )
 }
 
+#[cfg(unix)]
 fn uri_to_path(uri: &str) -> String {
     uri.strip_prefix("file://").unwrap_or(uri).to_string()
 }
 
+#[cfg(unix)]
 fn publish_diagnostics_notification(
     uri: &str,
     diagnostics: &[anvil_kernel_types::Diagnostic],
@@ -187,6 +200,7 @@ fn publish_diagnostics_notification(
     })
 }
 
+#[cfg(unix)]
 fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic) -> Value {
     let start_line = diagnostic.location.line.unwrap_or(1).saturating_sub(1);
     let start_col = diagnostic.location.column.unwrap_or(1).saturating_sub(1);

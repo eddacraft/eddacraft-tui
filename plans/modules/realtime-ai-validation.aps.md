@@ -478,7 +478,7 @@ convention" section). Concretely:
   negligible next to connect+roundtrip cost), but payload/token cost is
   **not** — LSP measured ~2.6-2.8x smaller for this diagnostics case.
   Decomposed: only 23% of that gap is protocol-structural (MCP's
-  double-JSON-encoding + tool-call wrapper, which *does* generalize to any
+  double-JSON-encoding + tool-call wrapper, which *does* generalise to any
   future LSP method); 65% is `validate_write`'s write-gate-specific
   governance fields (`decision`/`protection_claim`/`tier`), which a
   read-only query tool wouldn't carry on either protocol. **For a future

@@ -7,7 +7,7 @@
 throwaway, not-production-hardened LSP surface proving the loop end to end.
 **Status:** Spike closed. Settles RTAI-005's connection-lifecycle question
 (per-call connect, matching the existing MCP client) and answers ADR-109's
-open speed/token-perf question. Does not itself authorize a full build —
+open speed/token-perf question. Does not itself authorise a full build —
 scheduling stays a separate, operator-owned step per ADR-109.
 
 ## What this is
@@ -89,7 +89,7 @@ number to trust.
 
 ## What the numbers mean
 
-**Speed: no meaningful difference, and this generalizes.** Both protocols
+**Speed: no meaningful difference, and this generalises.** Both protocols
 land at ~31-34ms p50/p95, both comfortably inside ADR-031's 80ms warm budget.
 The gap between them (~1ms) is noise. This is expected once you see where the
 time actually goes: both paths hit the identical `scan_buffer` RPC on the
@@ -99,7 +99,7 @@ connect-plus-daemon-roundtrip cost. **This conclusion is protocol-shape-
 independent** — it will hold for any future `scan_buffer`-backed LSP method,
 not just diagnostics.
 
-**Payload/tokens: real, but the headline 2.6-2.8x figure does not generalize
+**Payload/tokens: real, but the headline 2.6-2.8x figure does not generalise
 uniformly.** Decomposing where MCP's extra bytes go (measured on one sample
 response, byte-exact):
 
