@@ -336,7 +336,7 @@ Change status to **Ready** when:
 
 - **Status:** Merged 2026-07-13 via PR #3321 — Zod-validated search state,
   router-owned view/evidence filters, registered module/resource commands, and
-  Cmd+K navigation are present on `main`. This slice also repairs the prior
+  Cmd+K navigation is present on `main`. This slice also repairs the prior
   manifest's single-route shape with explicit resource-bound routes.
 - **Intent:** Make dashboard navigation and filters addressable without a Next
   route dependency.

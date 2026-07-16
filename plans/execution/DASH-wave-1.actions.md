@@ -371,8 +371,8 @@ completed 2026-07-16.
 - Modify: `plans/index.aps.md`
 - Modify: `plans/execution/DASH-wave-1.actions.md`
 
-- [x] Reconcile implemented DASH work items with validation evidence while the
-      unmerged items remain In Progress.
+- [x] Reconcile implemented DASH work items with post-merge validation evidence
+      and terminal Wave 1 statuses.
 - [x] Run `pnpm aps:active-lint` (108 active APS files clean on 2026-07-16).
 - [x] Run `pnpm aps:index:check` (green with existing stale-count advisories).
 - [x] Independent verification passed on the final implementation candidate;
