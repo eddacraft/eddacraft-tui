@@ -5070,7 +5070,7 @@ archive.
 
 ### CIB-198: Invisible-content trap antipattern rule (fragile-presentation family)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-16 via PR #3357
 - **Intent:** Flag content authored invisible (`opacity: 0`) whose visibility
   depends on an entrance animation firing, so a reduced-motion preference,
   backgrounded tab, or hydration miss can leave the section permanently blank.
