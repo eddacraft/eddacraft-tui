@@ -30,7 +30,9 @@ anvil watches your code for the patterns that turn into incidents — silent
 escape hatches, unexplained TODOs, `console.log` slipping into prod. The loop
 has three steps: scan the change, surface findings, and let your editor or watch
 process react. Findings are deterministic — the same input always produces the
-same output — and nothing leaves your machine to produce them.
+same output. Source, findings, and repository metadata stay on your machine; the
+separate [anonymous fleet beacon](../operations/telemetry.md) contains only its
+documented aggregate allowlist.
 
 In this tutorial the loop runs against a deliberate mistake you will make
 yourself, so you can see each step fire.

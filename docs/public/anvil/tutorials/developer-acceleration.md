@@ -45,8 +45,10 @@ Three things happen when anvil is in the loop with your agent:
   the agent) save them and surfaces findings in seconds — your inner loop, not a
   CI round-trip.
 
-Nothing leaves your machine to produce findings, and results are deterministic:
-the same input always produces the same output.
+Source, findings, and repository metadata stay on your machine, and results are
+deterministic: the same input always produces the same output. The separate
+[anonymous fleet beacon](../operations/telemetry.md) contains only its
+documented aggregate allowlist.
 
 ## 2. Wire your agent over MCP
 

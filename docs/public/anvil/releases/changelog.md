@@ -56,7 +56,9 @@ All notable changes to anvil are documented here.
   shell scripts, and SQL migrations.
 - **Local usage views.** `anvil kindling usage` exposes on-device command and
   feature-flag usage views. It records command names and flag names, not
-  argument values, and does not send telemetry.
+  argument values; those detailed rows are not uploaded. The separate
+  [anonymous fleet beacon](../operations/telemetry.md) sends only its documented
+  aggregate allowlist.
 - **Operational helper commands.** `anvil drift migrate` upgrades an old
   baseline in place, `anvil report-fp` records false-positive reports locally,
   unknown check IDs suggest the closest valid name, and `anvil ember list` is

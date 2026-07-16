@@ -1,16 +1,16 @@
 # Usage Analytics Privacy Contract
 
-| Type  | Authority     | Owner | Status | Freshness                       |
-| ----- | ------------- | ----- | ------ | ------------------------------- |
-| Guide | Authoritative | USAGE | Live   | Live as of 2026-07-16 (CIB-197) |
+| Type  | Authority     | Owner        | Status | Freshness                         |
+| ----- | ------------- | ------------ | ------ | --------------------------------- |
+| Guide | Authoritative | USAGE, FLEET | Live   | Live as of 2026-07-16 (FLEET-006) |
 
-| Upstream                                | Downstream                              |
-| --------------------------------------- | --------------------------------------- |
-| ADR-035, ADR-041, ADR-019, USAGE module | Usage-analytics producers and reviewers |
+| Upstream                                                    | Downstream                                                                    |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| ADR-035, ADR-041, ADR-019, ADR-107, USAGE and FLEET modules | Usage-analytics producers, fleet beacon, public telemetry docs, and reviewers |
 
-> **Status:** Live as of 2026-06-14 (USAGE-001 landed). This is the
-> founder-confirmed privacy contract for command-invocation usage observations.
-> Any change to the captured / not-captured lists requires founder review.
+> **Status:** Live as of 2026-07-16 (FLEET-006). This is the founder-confirmed
+> privacy contract for local command-invocation observations and the ADR-107
+> remote aggregate. Any change to either allowlist requires founder review.
 >
 > Normative references:
 > [ADR-035](../../plans/decisions/035-three-pipe-observability-rule.md)
@@ -19,6 +19,14 @@
 > (inline `flag_set` join contract), and
 > [ADR-019](../../plans/decisions/019-flags-observability-alignment.md)
 > (gate-affecting-only Kindling flag facts).
+
+This guide distinguishes two separate pipes:
+
+- **Local Kindling observations** retain detailed command and governance facts
+  on the device. They are not uploaded.
+- **The remote fleet beacon** is the narrow ADR-107 aggregate described below.
+  It does not upload Kindling rows and cannot contain command names, arguments,
+  paths, repository names, hostnames, emails, findings, or file contents.
 
 ## Purpose
 
@@ -80,7 +88,8 @@ Per invocation, the `command.invoked` row carries:
   `<redacted>` marker.
 - **Command results, output, stdout, stderr.**
 - **File contents** touched by the command.
-- **Network traffic.**
+- **Network traffic in the Kindling observation.** The separate ADR-107 fleet
+  beacon contains only the aggregate allowlist below.
 - **Stack traces or error messages** — those stay on the tracing pipe.
 
 ### Residual risk: secrets under non-sensitive flag names
@@ -100,6 +109,41 @@ held at `<credentials_dir>/usage.salt` (mode `0600` on Unix), generated once on
 first use from 256 bits of OS entropy. Rotating the salt is a deliberate privacy
 reset — every historical principal hash becomes unjoinable — not a routine
 operation.
+
+## Remote fleet beacon (ADR-107)
+
+An eligible interactive `anvil start` session sends at most one anonymous beacon
+per install per 24 hours. The first eligible start shows the disclosure before
+any send. Network work runs in a detached worker with a short timeout; failures
+are silent, are not queued, and do not delay the command path.
+
+The canonical body contains exactly:
+
+- `schema_version`;
+- random UUID v4 `install_id`, derived from nothing about the user or device;
+- anvil `version` and the existing closed-set `install_method` label;
+- the platform target triple and release `channel`;
+- `flag_snapshot_version` (`0` while no remote snapshot is installed); and
+- feature-key usage counts derived from local `flag_set` observations since the
+  last successful beacon.
+
+No local observation row, salted principal, command name, timestamp, argument,
+path, repository fact, hostname, email, finding, output, or file content enters
+the body. The ingest service coarsens arrival time to a date, retains raw rows
+for 90 days, retains aggregates indefinitely, and does not retain source IPs.
+
+All of these permanently suppress emission: `anvil telemetry off`,
+`ANVIL_TELEMETRY=off`, and `DO_NOT_TRACK=1`. A non-default `ANVIL_HOME`, a
+non-terminal first run that could not mark the disclosure as shown, and an
+unreadable consent file also fail closed. `anvil telemetry reset-id` rotates the
+random identifier, making previous and future beacons unjoinable.
+
+Run `anvil telemetry` to see the exact canonical next body, or the exact reason
+none can be sent. The JSON form is `anvil --json telemetry`. The public user
+contract is
+[Anonymous usage telemetry](../public/anvil/operations/telemetry.md); the
+dimension and consent decision is
+[ADR-107](../../plans/decisions/107-fleet-telemetry-consent-posture.md).
 
 ## Storage and retention
 

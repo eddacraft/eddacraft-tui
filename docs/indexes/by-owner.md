@@ -92,11 +92,16 @@
 
 ## CIB
 
-| Document                                                                                               | Path                                        | Type    | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------- | ------------- | ----- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                         | `docs/runbooks/admin-cli.md`                | Runbook | Authoritative | CIB   | Live   |
-| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                          | `docs/guides/continuous-improvement-log.md` | Guide   | Authoritative | CIB   | Live   |
-| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`       | Spec    | Authoritative | CIB   | Live   |
+| Document                                                                                               | Path                                        | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                          | `docs/guides/continuous-improvement-log.md` | Guide | Authoritative | CIB   | Live   |
+| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`       | Spec  | Authoritative | CIB   | Live   |
+
+## CIB, FLEET-007
+
+| Document                                                       | Path                         | Type    | Authority     | Owner          | Status |
+| -------------------------------------------------------------- | ---------------------------- | ------- | ------------- | -------------- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md) | `docs/runbooks/admin-cli.md` | Runbook | Authoritative | CIB, FLEET-007 | Live   |
 
 ## CLAR
 
@@ -451,11 +456,11 @@
 | -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | --------------------------------------------------------------------------- | ------ |
 | [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/archive/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
 
-## USAGE
+## USAGE, FLEET
 
-| Document                                                                        | Path                                    | Type  | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ----- | ------ |
-| [Usage Analytics Privacy Contract](../../docs/observability/usage-analytics.md) | `docs/observability/usage-analytics.md` | Guide | Authoritative | USAGE | Live   |
+| Document                                                                        | Path                                    | Type  | Authority     | Owner        | Status |
+| ------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------ | ------ |
+| [Usage Analytics Privacy Contract](../../docs/observability/usage-analytics.md) | `docs/observability/usage-analytics.md` | Guide | Authoritative | USAGE, FLEET | Live   |
 
 ## VISION
 

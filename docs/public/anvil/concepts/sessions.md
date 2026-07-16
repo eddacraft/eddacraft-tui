@@ -115,7 +115,9 @@ anvil drift list
 anvil audit-chain
 ```
 
-- `insights` summarises retained local activity without sending telemetry;
+- `insights` summarises retained local activity without uploading its detailed
+  rows; the separate [anonymous fleet beacon](../operations/telemetry.md) sends
+  only its documented aggregate allowlist;
 - `drift` snapshots show architecture change over time;
 - `audit-chain` checks commit-to-witness coverage;
 - review capsules package the evidence for a bounded commit range.

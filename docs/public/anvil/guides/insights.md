@@ -176,9 +176,11 @@ anvil kindling usage
 
 `anvil kindling usage` reads local command-invocation observations from the
 Kindling store. It is on-device only: command names and active feature-flag
-names are recorded, but argument values are not, and no telemetry is sent. Use
-it to answer questions like which anvil commands are being exercised and which
-feature flags were active during those runs.
+names are recorded, but argument values are not. Those detailed rows are not
+uploaded. The separate [anonymous fleet beacon](../operations/telemetry.md)
+contains only aggregate feature-key counts and its documented low-risk
+dimensions. Use this view to answer questions like which anvil commands are
+being exercised and which feature flags were active during those runs.
 
 Operator controls:
 

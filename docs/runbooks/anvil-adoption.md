@@ -201,7 +201,8 @@ commits is `anvil hook bootstrap --witness-recent`, documented in the
 
 ### `anvil insights` weekly summary
 
-Local-only, no telemetry:
+The insight rows stay local; a separate, narrow fleet beacon is documented in
+[`docs/public/anvil/operations/telemetry.md`](../public/anvil/operations/telemetry.md):
 
 ```bash
 anvil insights
