@@ -4,7 +4,8 @@
 | ----- | ------ | ------ | -------- |
 | ILGOV | @aneki | Draft  | 0/6      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down; the module remains
+Draft pending product timing and Rust-contract co-design with CONF).
 
 > **Audit note (2026-04-26):** Status demoted Ready → Draft pending rescope.
 > Retained — the thesis (intent-vs-effect provenance) was the **original
@@ -24,20 +25,26 @@
 > archived LAC module retains the attribution overlay concept and is
 > separately rescoped.
 >
-> **Rescope work pending** (tracked separately, see followup list):
-> 1. Retarget all ILGOV-00x validations from `pnpm nx test anvil-cli` to
->    `cargo test -p eddacraft-anvil-policy` (or a new `crates/anvil-intent-ledger`
->    if the schema warrants its own crate).
-> 2. Replace TS-shaped `IntentLedgerRecord` interface with a Rust
->    canonical (likely in `crates/anvil-kernel-types` per SCHEMA module).
-> 3. Update Interfaces section to add: graph-derived effect prediction
+> **Reset disposition:**
+> - Validation is now aligned with the owning Rust boundary:
+>    `anvil-kernel-types` for the canonical record, the Rust CLI for
+>    ingestion/correlation/explainability, and `anvil-policy-engine` for any
+>    Rego-backed intent predicate. The deletion-slated `anvil-policy` support
+>    crate is not an implementation home (ADR-098 AD-2).
+> - Dependencies now name the live Rust crates and adapter packages rather
+>   than completed planning modules.
+>
+> **Remaining rescope before Ready:**
+> 1. Replace the illustrative TS-shaped `IntentLedgerRecord` below with a Rust
+>    canonical in `crates/anvil-kernel-types`, co-designed with CONF-002 so the
+>    two modules do not fork the contract.
+> 2. Define graph-derived effect prediction
 >    (e.g. "the symbol graph indicates this change touches scopes outside
 >    the declared `scope_in`") as a first-class policy predicate.
-> 4. Rewire dependency block to live components, not archived modules.
 >
 > Tier C parking lot post-launch — not competing with RTAI for current
-> release attention. Promote to Ready only after a product decision on
-> whether intent-aware gating ships in the v0.5–v0.7 window.
+> release attention. Promote to Ready only after a product-timing decision and
+> the CONF contract boundary are settled.
 
 ## Purpose
 
@@ -67,9 +74,13 @@ apply policy to that intent so teams can prove alignment from:
 
 **Depends on:**
 
-- `edda-stack-integration` (shared contracts + provenance)
-- `lineage-authorship-confidence` (attribution overlays)
-- Kindling module `04-intent-capture-events` (export contract)
+- `crates/anvil-kernel-types` (canonical Rust record and reason-code contracts)
+- `crates/anvil-architecture` and `crates/anvil-kernel` (graph-derived effect
+  prediction)
+- `packages/edda-stack/` and `packages/kindling-integration/` (live provenance
+  and export adapters from the completed integration modules)
+- CONF-002 (co-design constraint: extend one canonical intent record rather
+  than fork it)
 
 **Exposes:**
 
@@ -84,7 +95,11 @@ apply policy to that intent so teams can prove alignment from:
 - [x] Dependencies identified
 - [x] At least one task defined
 
-## Canonical Record (v1)
+## Illustrative Record Shape (pre-rescope)
+
+This TypeScript-era sketch preserves the product fields under discussion; it
+is not the canonical implementation contract. ILGOV-001 must replace it with
+the Rust type co-designed with CONF-002 before the module can become Ready.
 
 ```ts
 interface IntentLedgerRecord {
@@ -132,38 +147,38 @@ interface IntentLedgerRecord {
 
 - **Intent:** Establish one canonical shape for all downstream policy and audit usage.
 - **Expected Outcome:** Shared schema package + migration/versioning guidance.
-- **Validation:** `pnpm nx test contracts --testNamePattern="intent ledger schema"`
-- **Status:** Ready
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- intent_ledger`
+- **Status:** Draft
 
 ### ILGOV-002: Build Kindling bundle ingestion adapter
 
 - **Intent:** Convert exported Kindling events into normalized ledger records.
 - **Expected Outcome:** Deterministic ingest pipeline with idempotency keys and replay support.
-- **Validation:** `pnpm nx test anvil-cli --testNamePattern="intent ingest"`
+- **Validation:** `cargo test -p eddacraft-anvil -- intent_ingest`
 - **Dependencies:** ILGOV-001
-- **Status:** Ready
+- **Status:** Draft
 
 ### ILGOV-003: Implement integrity verification pipeline
 
 - **Intent:** Reject or quarantine tampered/incomplete intent streams.
 - **Expected Outcome:** Hash-chain verification, sequence-gap detection, and reason-coded outcomes.
-- **Validation:** `pnpm nx test anvil-cli --testNamePattern="intent integrity"`
+- **Validation:** `cargo test -p eddacraft-anvil -- intent_integrity`
 - **Dependencies:** ILGOV-001, ILGOV-002
-- **Status:** Ready
+- **Status:** Draft
 
 ### ILGOV-004: Correlate intent to commits/PRs/gates
 
 - **Intent:** Make intent lineage queryable from engineering artifacts.
 - **Expected Outcome:** Bidirectional links between intent records and warnings/findings/gates.
-- **Validation:** `pnpm nx test anvil-cli --testNamePattern="intent correlation"`
+- **Validation:** `cargo test -p eddacraft-anvil -- intent_correlation`
 - **Dependencies:** ILGOV-002
-- **Status:** Ready
+- **Status:** Draft
 
 ### ILGOV-005: Add intent-aware policy predicates
 
 - **Intent:** Enable deterministic guardrails against scope drift and missing constraints.
 - **Expected Outcome:** Policy rules can assert required intent fields and detect out-of-scope changes.
-- **Validation:** `pnpm nx test anvil-cli --testNamePattern="intent policy"`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- intent_policy`
 - **Dependencies:** ILGOV-003, ILGOV-004
 - **Status:** Draft
 
@@ -171,6 +186,6 @@ interface IntentLedgerRecord {
 
 - **Intent:** Let reviewers/auditors see exactly why a gate passed/failed against intent.
 - **Expected Outcome:** `anvil intent explain` + intent section in gate evidence bundles.
-- **Validation:** `pnpm nx test anvil-cli --testNamePattern="intent explain"`
+- **Validation:** `cargo test -p eddacraft-anvil -- intent_explain`
 - **Dependencies:** ILGOV-003, ILGOV-004
 - **Status:** Draft

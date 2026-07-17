@@ -4,9 +4,9 @@
 |----|-------|--------|
 | EXCEPT | @josh | In Progress |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`; EXCEPT-012 filed
-per ADR-098 AD-2)
+**Last reviewed:** 2026-07-17 (post-POLRESET topology flow-down; EXCEPT-012 is
+kept narrowly responsible for `anvil-exceptions`, while EVALCI-009 owns the
+remaining support-crate disposition).
 
 > **Operator-authorised (2026-06-06).** The storage-path migration slice
 > (EXCEPT-001/002, now Done) was authorised for immediate execution as the
@@ -150,7 +150,9 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** `crates/anvil-exceptions` owns `ExceptionStore`,
   `PolicyException`, and verification; consumers (L4 gate, exception CLI,
   capsule) repoint; `crates/anvil-policy` retains no exceptions code, clearing
-  ADR-098 AD-2's path to that crate's eventual deletion.
+  ADR-098 AD-2's path to that crate's eventual deletion. EVALCI-009 owns the
+  remaining eval/adversarial/attack/config disposition; EXCEPT-012 must not
+  absorb those unrelated support surfaces.
 - **Validation:** `cargo test -p eddacraft-anvil-exceptions` and
   `cargo test -p eddacraft-anvil --bin anvil -- l4_engine`
 - **Dependencies:** EXCEPT-006, EXCEPT-010

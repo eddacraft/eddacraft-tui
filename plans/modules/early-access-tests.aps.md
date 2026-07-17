@@ -7,7 +7,8 @@
 | ------ | ----- | -------- | ----------- | -------- |
 | EATEST | —     | High     | In Progress | 6/38     |
 
-**Last reviewed:** 2026-05-13 (EATEST-019..023 merged; progress reconciled)
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down; obsolete Go OPA and
+bundle tests removed from the executable backlog).
 
 ## Purpose
 
@@ -155,9 +156,16 @@ that would have caught bugs found during council review.
 
 ### Phase 3 — Policy (slice 3)
 
+> **Reset disposition (ADR-098 / POLRESET, 2026-07-17):** this phase targeted
+> the deleted Go OPA subprocess, bundle loader, and legacy profile APIs. Those
+> tests must not be recreated against the new topology. Regorus runtime and
+> pack-admission coverage is owned by POLENG/OPAE/POLVAL; exception coverage is
+> owned by EXCEPT and moves with EXCEPT-012.
+
 #### EATEST-012 — OPA evaluate happy path integration test
 
-- **Status:** Ready
+- **Status:** Removed — the Go OPA subprocess evaluator was deleted; regorus
+  happy-path coverage is owned by `anvil-policy-engine`.
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Write a minimal Rego policy to a temp dir, call
@@ -168,7 +176,8 @@ that would have caught bugs found during council review.
 
 #### EATEST-013 — OPA timeout enforcement test
 
-- **Status:** Ready
+- **Status:** Removed — the deleted subprocess timeout contract does not apply
+  to in-process regorus; engine resource bounds have their own coverage.
 - **Priority:** High
 - **Confidence:** Medium
 - **Intent:** Pass a policy that hangs (or mock a slow process), verify
@@ -178,7 +187,8 @@ that would have caught bugs found during council review.
 
 #### EATEST-014 — Exception filtering with active suppressions
 
-- **Status:** Ready
+- **Status:** Removed — exception filtering and invalid-scope coverage shipped
+  under EXCEPT and moves with EXCEPT-012.
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Mock OPA result, add matching exceptions, assert violation count
@@ -187,7 +197,7 @@ that would have caught bugs found during council review.
 
 #### EATEST-015 — Empty OPA stdout handling
 
-- **Status:** Ready
+- **Status:** Removed — the deleted Go OPA stdout parser has no current target.
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Test `extract_violations()` with empty or minimal JSON
@@ -196,7 +206,8 @@ that would have caught bugs found during council review.
 
 #### EATEST-016 — Bundle symlink escape rejection
 
-- **Status:** Ready
+- **Status:** Removed — the old bundle loader was deleted; pack-admission
+  boundary tests are owned by POLVAL/OPAE in `anvil-policy-engine`.
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** Create a symlink within a bundle directory pointing outside it,
@@ -212,10 +223,12 @@ that would have caught bugs found during council review.
   `load_policies_with_warnings()`, assert warning is returned. Completed
   during council fix round.
 - **Files:** `crates/anvil-policy/src/loader.rs`
+- **Topology note:** Historical delivery evidence retained; the covered loader
+  was later deleted by ADR-098 PR-C and must not be recreated.
 
 #### EATEST-018 — Profile case-insensitive parsing
 
-- **Status:** Ready
+- **Status:** Removed — the legacy profile API was deleted during POLRESET.
 - **Priority:** Low
 - **Confidence:** High
 - **Intent:** Verify `"STANDARD".parse::<Profile>()` succeeds (FromStr already

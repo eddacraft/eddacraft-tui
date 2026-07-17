@@ -4,7 +4,8 @@
 | ---- | ------ | ------ | -------- |
 | GATE | @aneki | Draft  | 0/3      |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down: enforcement
+vocabulary and future Rust ownership reconciled with ADR-098).
 
 > **Audit note (2026-04-26):** Tier B (queued — Enterprise Readiness
 > constellation). Status demoted Ready → Draft pending an enterprise
@@ -14,7 +15,7 @@
 > "no code scope." That was partially wrong — GATE-001 is doc-only
 > (topology spec) but GATE-002 (enforcement contract) and GATE-003
 > (observability event model) have real Rust contract scopes in
-> `crates/anvil-kernel-types` and `crates/anvil-policy`. The 3-task
+> `crates/anvil-kernel-types` and `crates/anvil-observability`. The 3-task
 > structure is correct; only the Ready status was wrong (no consumer).
 >
 > **Strategic context:** Enterprise readiness is moving up the priority
@@ -39,6 +40,15 @@
 > 3. Confirm GATE-001 reference topologies match what `infra/` actually
 >    deploys (Vercel + Azure DNS today; future enterprise modes).
 
+> **Reset posture (POLRESET-010 / ADR-098, reviewed 2026-07-17):** GATE is a
+> later enterprise consumer of the shipped two-axis model: outcomes use
+> `ControlDecision`, posture uses the shared `EnforcementMode`, and action-time
+> projection preserves the true decision. A gateway contract may consume those
+> types, but it must not create a parallel policy evaluator, enforcement enum,
+> or tool-call interception layer. Any new interception boundary still requires
+> the separate ADR mandated by ADR-098 AD-4. The deletion-slated
+> `anvil-policy` support crate is not a home for future gateway events.
+
 ## Purpose
 
 Define deployable gateway control-plane patterns for central policy enforcement, routing visibility, and topology guidance in enterprise environments.
@@ -59,17 +69,19 @@ Define deployable gateway control-plane patterns for central policy enforcement,
 - **Validation:** Manual doc review in `docs/`
 
 ### GATE-002: Define control-plane enforcement contract
-- **Intent:** Specify policy interception and decision contracts at gateway boundaries.
-- **Expected Outcome:** Enforcement points have consistent request/decision schema.
+- **Intent:** Specify gateway request and decision contracts using the canonical
+  `ControlDecision` outcome and shared `EnforcementMode` posture vocabulary.
+- **Expected Outcome:** Enforcement points have a consistent request/decision
+  schema without a parallel evaluator, enforcement enum, or interception layer.
 - **Validation:** `cargo test -p eddacraft-anvil-kernel-types -- gateway_enforcement`
 - **Dependencies:** GATE-001
 
 ### GATE-003: Define observability event model
 - **Intent:** Provide standard events for routing, denials, and policy outcomes.
 - **Expected Outcome:** Gateways emit auditable event streams for operations.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- gateway_events`
+- **Validation:** `cargo test -p eddacraft-anvil-observability -- gateway_events`
 - **Dependencies:** GATE-002
 
 ## Execution
 
-Steps: [../execution/GATE.steps.md](../execution/GATE.steps.md)
+Action plan: [../execution/GATE.actions.md](../execution/GATE.actions.md)

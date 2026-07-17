@@ -3,8 +3,8 @@
 | Field  | Value                                                                                                 |
 | ------ | ----------------------------------------------------------------------------------------------------- |
 | Source | [../modules/prompt-attack-regression-packs.aps.md](../modules/prompt-attack-regression-packs.aps.md) |
-| Task   | PATT-001..003 — attack scenario schema, pack runner, fail-policy gate                                 |
-| Status | Done                                                                                                  |
+| Task   | PATT-001..004 — attack scenario schema, pack runner, fail-policy gate, live observer                  |
+| Status | In Progress (001..003 Done; 004 Proposed)                                                             |
 
 ## Actions
 
@@ -35,8 +35,19 @@
   decision (mirrors EVALCI report-only phase).
 - **Validate:** `cargo test -p eddacraft-anvil -- attack_regression_gate`
 
+### 4. PATT-004 live defence observer (after EVALCI-009)
+
+- Bind the existing `DefenceObserver` seam to the product-selected live defence
+  after EVALCI-009 moves the CLI-only runner out of `crates/anvil-policy`.
+- Keep `ConformanceObserver` for hermetic tests and do not introduce a second
+  policy evaluator or interception boundary.
+- **Validate:** `cargo test -p eddacraft-anvil -- attack_pack_runner`
+- **Status:** Proposed; also needs the product decision on which defence surface
+  to bind first.
+
 ## Completion
 
 - [x] PATT-001 Done — schema green
 - [x] PATT-002 Done — runner green
 - [x] PATT-003 Done — gate green
+- [ ] PATT-004 — live defence selected and wired on the post-EVALCI-009 home

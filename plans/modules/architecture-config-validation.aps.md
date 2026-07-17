@@ -44,7 +44,7 @@ undefined layers, and incomplete definitions before analysis runs.
 
 **Depends on:**
 
-<!-- Audit 2026-04-26: opa-architecture-integration and architecture-safety archived; their work landed in crates/anvil-architecture and crates/anvil-policy. -->
+<!-- Audit 2026-07-17: opa-architecture-integration and architecture-safety are archived; architecture contracts live in crates/anvil-architecture and crates/anvil-kernel-types, while product policy evaluation lives in crates/anvil-policy-engine per ADR-098. -->
 - `crates/anvil-architecture` — Architecture YAML schema, parser, layer definitions, and baseline
 - `crates/anvil-kernel` — kernel architecture config loading (KERN-030)
 - `crates/anvil-cli` — Rust CLI commands

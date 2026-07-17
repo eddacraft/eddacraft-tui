@@ -7,7 +7,9 @@
 | ----- | ----- | -------- | ------ |
 | EAMIG | —     | Medium   | In Progress |
 
-**Last reviewed:** 2026-05-26
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down; the obsolete OPA
+subprocess/bundle migration slice is closed rather than carried into the
+regorus topology).
 
 ## Purpose
 
@@ -145,9 +147,17 @@ but they represent genuine improvements that should be addressed before GA.
 
 ### Phase 3 — Policy (slice 3)
 
+> **Reset disposition (ADR-098 / POLRESET, 2026-07-17):** the Go OPA
+> subprocess evaluator and the old bundle/loader/profile surfaces were deleted
+> during the replace-then-delete sequence. EAMIG-010..012 and 014..016 are
+> therefore removed, not retargeted to the product regorus engine. EAMIG-013's
+> grant-time invalid-glob refusal shipped under EXCEPT-004 and remains owned by
+> EXCEPT through the EXCEPT-012 extraction.
+
 #### EAMIG-010 — Distinguish OPA error from empty evaluation result
 
-- **Status:** Ready
+- **Status:** Removed — the OPA subprocess result contract was deleted by
+  ADR-098 PR-C; regorus evaluation errors are owned by `anvil-policy-engine`.
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** `evaluate()` conflates OPA execution errors and empty results via
@@ -157,7 +167,8 @@ but they represent genuine improvements that should be addressed before GA.
 
 #### EAMIG-011 — Restrict load_bundle visibility
 
-- **Status:** Ready
+- **Status:** Removed — the old bundle loader was deleted by ADR-098 PR-C;
+  pack admission is owned by `anvil-policy-engine/src/pack/`.
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** `load_bundle()` is public with no workspace-root boundary
@@ -167,7 +178,8 @@ but they represent genuine improvements that should be addressed before GA.
 
 #### EAMIG-012 — Remove dead _find_opa_binary and which dependency
 
-- **Status:** Ready
+- **Status:** Removed — satisfied by deletion of the Go OPA executor and its
+  binary-discovery dependency under ADR-098 AD-1.
 - **Priority:** Low
 - **Confidence:** High
 - **Intent:** `_find_opa_binary()` is dead code. Remove it and the `which`
@@ -176,7 +188,8 @@ but they represent genuine improvements that should be addressed before GA.
 
 #### EAMIG-013 — Validate exception glob patterns on add
 
-- **Status:** Ready
+- **Status:** Removed — delivered under EXCEPT-004 (`anvil exception grant`
+  rejects invalid scope globs; PR #3153) and retained by EXCEPT-012.
 - **Priority:** Medium
 - **Confidence:** High
 - **Intent:** `glob_matches()` silently returns false for invalid patterns.
@@ -185,7 +198,8 @@ but they represent genuine improvements that should be addressed before GA.
 
 #### EAMIG-014 — Fix fingerprint hash collision
 
-- **Status:** Ready
+- **Status:** Removed — the old Go OPA fingerprint implementation was deleted;
+  current finding identity belongs to the regorus engine contracts.
 - **Priority:** Low
 - **Confidence:** High
 - **Intent:** `compute_fingerprint` concatenates field bytes without separators,
@@ -195,7 +209,8 @@ but they represent genuine improvements that should be addressed before GA.
 
 #### EAMIG-015 — Normalise bundle error handling in list_bundles
 
-- **Status:** Ready
+- **Status:** Removed — the old bundle loader was deleted by ADR-098 PR-C;
+  current pack error semantics are owned by `anvil-policy-engine/src/pack/`.
 - **Priority:** Low
 - **Confidence:** Medium
 - **Intent:** Parse errors are warned and skipped but I/O errors abort the
@@ -204,7 +219,8 @@ but they represent genuine improvements that should be addressed before GA.
 
 #### EAMIG-016 — Use OsStr for OPA paths instead of to_string_lossy
 
-- **Status:** Ready
+- **Status:** Removed — the old Go OPA test runner was deleted; current
+  reference/parity invocations are explicit development checks, not this API.
 - **Priority:** Low
 - **Confidence:** High
 - **Intent:** `run_tests()` converts policy_dir via `to_string_lossy()`,
@@ -224,7 +240,9 @@ but they represent genuine improvements that should be addressed before GA.
   vectors. Migrate to a maintained alternative (e.g., `serde_yml` community
   fork, or `figment` with YAML support).
 - **Files:** `crates/anvil-architecture/Cargo.toml`, all YAML parsing code
-- **Dependencies:** Evaluate impact on anvil-policy (also uses serde_yaml)
+- **Dependencies:** Evaluate impact on the live YAML consumers, including
+  `anvil-architecture`, `anvil-policy-engine`, the Rust CLI, and the temporary
+  CLI-support code covered by EVALCI-009.
 
 #### EAMIG-018 — Merge_with_template additive layer merge
 

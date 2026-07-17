@@ -4,7 +4,8 @@
 | ----- | ------ | ------- |
 | TRUST | @aneki | Blocked |
 
-**Last reviewed:** 2026-07-04 (status correction — see below)
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down; Blocked posture
+retained and future implementation homes reconciled with ADR-098 AD-2).
 
 > **Status correction (2026-07-04):** Demoted Ready → Blocked. TRUST's
 > Purpose depends on compliance outputs, sourced from
@@ -16,6 +17,11 @@
 > depends on. Promote back to Ready when COMPLY/CEWS land, or rescope
 > TRUST-001 to a policy+eval-only artifact (both already available via
 > EVAL, Done) if a compliance-free trust summary is viable sooner.
+
+> **Topology note (2026-07-17):** TRUST publishes derived evidence; it does not
+> own policy evaluation. Future publishing and freshness work belongs in the
+> Rust CLI over COMPLY/CEWS contracts, not in the deletion-slated
+> `anvil-policy` support crate. This correction does not unblock the module.
 
 ## Purpose
 
@@ -44,7 +50,7 @@ compliance outputs to reduce manual due-diligence overhead.
 - **Status:** Blocked (depends on TRUST-001)
 - **Intent:** Automate generation and update of trust summaries.
 - **Expected Outcome:** Publish pipeline emits dated, traceable trust outputs.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- trust_publishing`
+- **Validation:** `cargo test -p eddacraft-anvil -- trust_publishing`
 - **Dependencies:** TRUST-001
 
 ### TRUST-003: Add freshness and ownership controls
@@ -52,7 +58,7 @@ compliance outputs to reduce manual due-diligence overhead.
 - **Status:** Blocked (depends on TRUST-002)
 - **Intent:** Ensure stale evidence is flagged and routed to owners.
 - **Expected Outcome:** Trust artifacts include freshness state and escalation metadata.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- trust_freshness`
+- **Validation:** `cargo test -p eddacraft-anvil -- trust_freshness`
 - **Dependencies:** TRUST-002
 
 ## Execution

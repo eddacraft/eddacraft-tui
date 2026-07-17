@@ -4,7 +4,8 @@
 | ---- | ------ | ------ |
 | CEWS | @aneki | Draft  |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down: dependencies and
+future implementation homes reconciled with ADR-098 and current Rust truth).
 
 > **Status correction 2026-04-26:** Demoted Ready → Draft per Council C
 > finding. CEWS depends on COMPLY's evidence collector
@@ -13,11 +14,15 @@
 > COMPLY-001..004 land, or rescope CEWS to drop the compliance-framework
 > coupling.
 
-> NOTE(post-rust): Validation targets updated to Rust workspace.
-> Dependency `policy-lifecycle` is archived; the upstream
-> `compliance-reporting` (COMPLY) module remains Draft and still
-> references retired TS paths — re-validate the dependency once COMPLY
-> is rewritten against the Rust crates.
+> **Reset posture (POLRESET-010 / ADR-098, reviewed 2026-07-17):** CEWS is
+> post-first-slice enterprise expansion, not a prerequisite for policy value.
+> `policy-lifecycle` (POLLC) is a live Draft module, not archived, and
+> `compliance-reporting` (COMPLY) has been retargeted to the Rust/regorus
+> product path. CEWS remains Draft until COMPLY-001..004 and the required
+> POLLC lifecycle contracts land, or until a separate design deliberately
+> removes the compliance-framework coupling. New work must use
+> `anvil-policy-engine`, `anvil-kernel-types`, and the Rust CLI; the
+> deletion-slated `anvil-policy` support crate is not an implementation home.
 
 ## Purpose
 
@@ -38,9 +43,9 @@ Create an Anvil-native workspace for compliance evidence mapping that links cont
 ## Interfaces
 
 **Depends on:**
-- `compliance-reporting`
-- `policy-lifecycle`
-- `eval-harness-integration`
+- `compliance-reporting` (COMPLY-001..004, Draft)
+- `policy-lifecycle` (POLLC, Draft)
+- `eval-harness-integration` (EVAL, Complete)
 
 **Exposes:**
 - `ControlEvidenceMap`
@@ -63,7 +68,7 @@ Create an Anvil-native workspace for compliance evidence mapping that links cont
 ### CEWS-002: Build evidence ingestion and linking
 - **Intent:** Link policy and eval outcomes to evidence records.
 - **Expected Outcome:** Evidence records auto-link to relevant controls and runs.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- evidence_linking`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- evidence_linking`
 - **Dependencies:** CEWS-001
 
 ### CEWS-003: Add evidence workspace views/contracts
@@ -75,9 +80,9 @@ Create an Anvil-native workspace for compliance evidence mapping that links cont
 ### CEWS-004: Add export packs
 - **Intent:** Generate audit-friendly exports from workspace state.
 - **Expected Outcome:** Exports include control status, evidence links, and timestamps.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- compliance_export`
+- **Validation:** `cargo test -p eddacraft-anvil -- compliance_export`
 - **Dependencies:** CEWS-003
 
 ## Execution
 
-Steps: [../execution/CEWS.steps.md](../execution/CEWS.steps.md)
+Action plan: [../execution/CEWS.actions.md](../execution/CEWS.actions.md)

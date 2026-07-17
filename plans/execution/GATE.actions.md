@@ -1,4 +1,4 @@
-# Steps: GATE
+# Actions: GATE
 
 | Field  | Value                                                                                                         |
 | ------ | ------------------------------------------------------------------------------------------------------------- |
@@ -10,23 +10,26 @@
 
 - [ ] Gateway component boundaries identified
 - [ ] Core services and external dependencies that interact with the gateway are known
+- [ ] First enterprise consumer or approved internal reference topology exists
+- [ ] Any new interception boundary has the separate ADR required by ADR-098 AD-4
 
-## Steps
+## Actions
 
 ### 1. Define reference topologies
 
 - **Checkpoint:** Topology docs include trust boundaries and routing paths.
-- **Validate:** `pnpm nx build docs-site`
+- **Validate:** `pnpm docs:check`
 
 ### 2. Define enforcement contract
 
-- **Checkpoint:** Gateway policy decision schema is stable.
-- **Validate:** `pnpm nx test contracts --testNamePattern="gateway enforcement"`
+- **Checkpoint:** Gateway policy decision schema reuses `ControlDecision` and
+  shared `EnforcementMode` without introducing parallel vocabularies.
+- **Validate:** `cargo test -p eddacraft-anvil-kernel-types -- gateway_enforcement`
 
 ### 3. Define observability event model
 
 - **Checkpoint:** Events support auditable routing and denial traces.
-- **Validate:** `pnpm nx test core --testNamePattern="gateway events"`
+- **Validate:** `cargo test -p eddacraft-anvil-observability -- gateway_events`
 
 ## Completion
 

@@ -5,8 +5,9 @@
 | POLCAP | —     | Proposed |
 
 **Created:** 2026-05-24
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`)
+**Last reviewed:** 2026-07-17 (post-POLRESET topology flow-down; POLCAP-009's
+remaining validation now targets `anvil-policy-engine` and kernel types rather
+than the deletion-slated support crate).
 **Promotion gate:** Planning Council required before any task is marked
   Ready. Cross-boundary surface (policy + intercept daemon + witness chain
   + agent runtime + driver-client) — design needs multi-persona review.
@@ -279,10 +280,11 @@ audit binding. Detailed design lives in
   declared action references an `ActionId` known to ACTAX; IORISK risk
   rows referenced via `evidence` field in the capability row carry a
   typed `RiskRef`; documentation cross-link sweep.
-- **Validation:** `cargo test -p eddacraft-anvil-policy`; ACTAX-001's
-  taxonomy test extended to assert no POLCAP recipe references an
-  unknown action-id; AGOV-007 validator test extended to assert
-  cross-reference.
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -p eddacraft-anvil-kernel-types`;
+  ACTAX-001's taxonomy test extended to assert
+  no POLCAP recipe references an unknown action-id; AGOV-007 validator test
+  extended to assert the cross-reference. Do not add this reconciliation to
+  the deletion-slated `anvil-policy` support crate.
 - **Dependencies:** POLCAP-003; coordinates with ACTAX-001, AGOV-007,
   IORISK-001.
 - **changeType:** internal

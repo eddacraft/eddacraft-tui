@@ -1,4 +1,4 @@
-# Steps: CEWS
+# Actions: CEWS
 
 | Field  | Value                                                                                       |
 | ------ | ------------------------------------------------------------------------------------------- |
@@ -9,29 +9,32 @@
 ## Prerequisites
 
 - [ ] Control-evidence model requirements agreed
-- [ ] Policy and eval output schemas are stable
+- [ ] COMPLY-001..004 and the required POLLC lifecycle contracts are complete
+- [x] Eval output contract is stable (EVAL Complete)
+- [ ] Implementation homes are confirmed against ADR-098 AD-2; do not add new
+      work to `crates/anvil-policy`
 
-## Steps
+## Actions
 
 ### 1. Define control-evidence model
 
 - **Checkpoint:** Model supports control, evidence, owner, status.
-- **Validate:** `pnpm nx test contracts --testNamePattern="control evidence model"`
+- **Validate:** `cargo test -p eddacraft-anvil-kernel-types -- control_evidence_model`
 
 ### 2. Implement evidence linking
 
 - **Checkpoint:** Policy/eval outcomes attach to evidence records.
-- **Validate:** `pnpm nx test core --testNamePattern="evidence linking"`
+- **Validate:** `cargo test -p eddacraft-anvil-policy-engine -- evidence_linking`
 
 ### 3. Add workspace views/contracts
 
 - **Checkpoint:** Workspace surfaces gaps, ownership, and readiness.
-- **Validate:** `pnpm nx test cli --testNamePattern="evidence workspace"`
+- **Validate:** `cargo test -p eddacraft-anvil -- evidence_workspace`
 
 ### 4. Generate export packs
 
 - **Checkpoint:** Export includes auditable control-evidence trace.
-- **Validate:** `pnpm nx test core --testNamePattern="compliance export"`
+- **Validate:** `cargo test -p eddacraft-anvil -- compliance_export`
 
 ## Completion
 

@@ -1,4 +1,4 @@
-# Steps: EVALCI
+# Actions: EVALCI
 
 | Field  | Value                                                                          |
 | ------ | ------------------------------------------------------------------------------ |
@@ -12,7 +12,7 @@
 - [x] eval-harness-integration available (EVAL Done; items Merged via PR #3013)
 - [x] rust-tests.yml Test job has pinned OPA + Regal + rust-ci cache
 
-## Steps
+## Actions
 
 ### 1. Ratchet baseline updates to clean runs
 
@@ -50,15 +50,26 @@
 - **Validate:** `cargo test -p eddacraft-anvil -- eval_regression_command`
 - **Status:** Merged 2026-07-04 via PR #3170 (EVALCI-006)
 
-### 7. Promote to visible non-required failure
+### 7. EVALCI-009 — Complete ADR-098 policy-support crate disposition
+
+- **Checkpoint:** EXCEPT-012 has extracted exceptions; CLI-only eval,
+  adversarial, and attack support has moved into the Rust CLI; unused policy
+  config is deleted; `crates/anvil-policy` is no longer a workspace member.
+- **Validate:** `cargo test -p eddacraft-anvil -- eval_regression_command`,
+  `cargo test -p eddacraft-anvil -- attack_regression`,
+  `cargo test -p eddacraft-anvil -- starter_policy_pack`, and
+  `cargo check --workspace`
+- **Status:** Proposed (EVALCI-009; required before EVALCI-008)
+
+### 8. EVALCI-007 — Promote to visible non-required failure
 
 - **Checkpoint:** Regressions surface as a visible check failure.
 - **Validate:** workflow lint / dry-run of rust-tests.yml
 
-### 8. Promote to required hard-fail
+### 9. EVALCI-008 — Promote to required hard-fail
 
 - **Checkpoint:** A new trust regression blocks the PR.
-- **Validate:** `cargo test -p eddacraft-anvil-policy -- eval_regression_absorbs_new_violations_guard`
+- **Validate:** `cargo test -p eddacraft-anvil -- eval_regression_absorbs_new_violations_guard`
 
 ## Completion
 

@@ -4,8 +4,9 @@
 | ---- | ----- | -------- | ------ | -------- |
 | OPAE | —     | high     | In Progress | 8/20      |
 
-**Last reviewed:** 2026-07-16 (owner accepted ADR-108 for the policy-authoring
-lint and routed agent-guidance pilot; readiness still begins at OPAE-012).
+**Last reviewed:** 2026-07-17 (ADR-108 remains accepted; POLRESET topology
+flow-down confirmed OPAE-012..020 target only `anvil-policy-engine`, the Rust
+CLI, and bounded agent surfaces; readiness still begins at OPAE-012).
 
 > **Reset note:** the old OPAE plan mixed a broad "delightful OPA" wishlist,
 > retired TypeScript paths, natural-language generation, policy debugging,
@@ -82,8 +83,11 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   need IO/prompt-risk dimensions.
 - [EXCEPT](./git-native-exceptions.aps.md) — valid exception verification before
   fencing or interrupting.
-- `crates/anvil-policy`, `crates/anvil-policy-engine`, `crates/anvil-cli`,
+- `crates/anvil-policy-engine`, `crates/anvil-cli`,
   `crates/anvil-intercept-rules`, and `crates/anvil-intercept-protocol`.
+  Exception behaviour is consumed through EXCEPT and its future
+  `anvil-exceptions` home; new OPAE work does not target the deletion-slated
+  `anvil-policy` support crate.
 
 **Exposes:**
 

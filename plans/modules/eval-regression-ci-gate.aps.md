@@ -4,8 +4,9 @@
 | ------ | ------ | -------- |
 | EVALCI | @aneki | In Progress |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`)
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down; the report-only
+gate remains shipped, and EVALCI-009 now owns the remaining ADR-098 AD-2
+support-crate disposition).
 
 > First-wave hardening EVALCI-001..004 authorised **Ready** 2026-07-01 (owner)
 > and since delivered. **EVALCI-005/006 Merged 2026-07-04 via PR #3170**
@@ -15,7 +16,9 @@
 > Done, Merged 2026-07-05 via PR #3181), leaving the CI-blocking-posture ADR
 > (POLRESET design gate 3) as its **sole remaining decision gate** — no work
 > item anywhere tracks authoring that ADR; it is a deliberate operator
-> decision, not queued code work.
+> decision, not queued code work. EVALCI-009 is separate internal topology
+> closeout: it must land before EVALCI-008 so a future blocking gate does not
+> deepen the deletion-slated `anvil-policy` dependency.
 
 ## Purpose
 
@@ -31,8 +34,9 @@ negatives (baseline poisoning, absorbed violations, suppressed runner errors)
 and quietly stop catching regressions. The four code prerequisites
 (EVALCI-001..004) were authorised `Ready` (2026-07-01) and delivered; the
 first-wave suite and report-only CI wiring (EVALCI-005/006) merged 2026-07-04
-via PR #3170. Only the phased promotion (EVALCI-007/008) remains `Proposed`,
-pending a burn-in and the CI-blocking-posture ADR. See the post-merge note
+via PR #3170. Remaining Proposed work is the support-crate topology closeout
+(EVALCI-009) and phased promotion (EVALCI-007/008), pending EXCEPT-012, a
+burn-in, and the CI-blocking-posture ADR as applicable. See the post-merge note
 [`../reviews/post-merge/feat-eval-harness-integration.md`](../reviews/post-merge/feat-eval-harness-integration.md)
 for the deferred wiring step this module picks up.
 
@@ -43,6 +47,8 @@ for the deferred wiring step this module picks up.
   suppression
 - A first-wave committed eval suite plus manifest and a committed baseline
 - Report-only CI wiring, then phased promotion to a required blocking check
+- ADR-098 AD-2 closeout for the CLI-only eval, adversarial, attack, and policy
+  config support that still remains in `crates/anvil-policy`
 
 ## Out of Scope
 
@@ -184,9 +190,37 @@ for the deferred wiring step this module picks up.
   blocking findings even when the exit code stays 1 to 1).
 - **Expected Outcome:** A new trust regression blocks the PR.
 - **Validation:** workflow lint plus
-  `cargo test -p eddacraft-anvil-policy -- eval_regression_absorbs_new_violations_guard`
-- **Dependencies:** EVALCI-007; ATC-003 (satisfied — Merged 2026-07-05 via
-  PR #3181); CI-blocking-posture ADR (POLRESET design gate 3, not yet authored)
+  `cargo test -p eddacraft-anvil -- eval_regression_absorbs_new_violations_guard`
+- **Dependencies:** EVALCI-007, EVALCI-009; ATC-003 (satisfied — Merged
+  2026-07-05 via PR #3181); CI-blocking-posture ADR (POLRESET design gate 3,
+  not yet authored)
+
+### EVALCI-009: Complete the ADR-098 policy-support crate disposition
+
+- **Status:** Proposed
+- **Intent:** Finish ADR-098 AD-2 after EXCEPT-012 extracts the exception store.
+  The accepted topology says the eval-regression harness folds into the Rust
+  CLI and `crates/anvil-policy` is ultimately deleted, but post-reset ATC/PATT
+  delivery also left CLI-only `adversarial` and `attack` support there while
+  `config.rs` has no production callers. EVALCI owns this closeout because all
+  remaining live consumers are the Rust policy CLI and regression surfaces.
+- **Expected Outcome:** `eval`, `adversarial`, and `attack` move behind a
+  private Rust CLI policy-support boundary; the unused policy config module is
+  deleted; the CLI, L4, and capsule consumers use `anvil-policy-engine` or
+  `anvil-exceptions` as appropriate; `crates/anvil-policy` and its workspace
+  dependency are removed without changing report-only, attack-regression, or
+  starter-proof behaviour.
+- **Files:** `crates/anvil-policy/`, `crates/anvil-cli/src/commands/policy/`,
+  `crates/anvil-cli/Cargo.toml`, workspace `Cargo.toml`, and consumers repointed
+  by EXCEPT-012.
+- **Validation:** `cargo test -p eddacraft-anvil -- eval_regression_command`,
+  `cargo test -p eddacraft-anvil -- attack_regression`,
+  `cargo test -p eddacraft-anvil -- starter_policy_pack`, and
+  `cargo check --workspace`.
+- **Dependencies:** EXCEPT-012; EVALCI-006, ATC-004, and PATT-003 satisfied.
+- **Coordinates with:** PATT-004 (live `DefenceObserver` follows the new CLI
+  support boundary rather than adding fresh code to `anvil-policy`).
+- **Confidence:** medium
 
 ## Execution
 

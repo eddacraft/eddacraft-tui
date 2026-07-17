@@ -1,14 +1,13 @@
 # Prompt Attack Regression Packs
 
-| ID   | Owner  | Status      |
-| ---- | ------ | ----------- |
-| PATT | @aneki | Done        |
+| ID   | Owner  | Status      | Progress |
+| ---- | ------ | ----------- | -------- |
+| PATT | @aneki | In Progress | 3/4      |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review:
-PATT-001..003 all Done, merged 2026-07-04 via PR #3175, module closed
-alongside POLRESET-009; PATT-004 filed as a Proposed follow-up so the
-live-`DefenceObserver` wiring — previously tracked nowhere — does not
-evaporate; archive with ATC after release-tag inclusion)
+**Last reviewed:** 2026-07-17 (POLRESET topology flow-down: PATT-001..003 are
+Done and shipped; PATT-004 remains a Proposed follow-up on the post-EVALCI-009
+CLI support boundary, so the module stays In Progress at 3/4 rather than
+appearing terminal).
 
 ## Purpose
 
@@ -75,9 +74,12 @@ injection, exfiltration, and instruction-hijack scenarios before release.
   real defence surface instead of conformance-only baselines.
 - **Expected Outcome:** `run_pack` evaluates scenarios against a live defence;
   the baseline observer remains available for hermetic tests.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- attack_pack_runner`
-- **Dependencies:** PATT-002; a product decision on which defence surface to
-  bind first
+- **Validation:** `cargo test -p eddacraft-anvil -- attack_pack_runner`
+- **Dependencies:** PATT-002, EVALCI-009; a product decision on which defence
+  surface to bind first
+- **Topology note:** EVALCI-009 moves the CLI-only attack runner out of the
+  deletion-slated `anvil-policy` crate. PATT-004 must extend that new CLI
+  support boundary rather than recreate the old dependency.
 
 ## Execution
 

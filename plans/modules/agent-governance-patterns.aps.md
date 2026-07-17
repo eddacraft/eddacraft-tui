@@ -7,10 +7,9 @@
 | ----- | ----- | -------- | ------ |
 | AGOV  | —     | Medium   | Draft  |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: the module's own
-rescope list, pending since 2026-04-26, is now **executed** — see the struck
-items in the followup list below).
+**Last reviewed:** 2026-07-17 (post-POLRESET topology flow-down; the 2026-07-11
+rescope remains valid and the final stale `anvil-policy` producer reference is
+retargeted to checks, kernel types, and `anvil-policy-engine`).
 
 > **Reset posture (POLRESET-010 / ADR-098, 2026-07-04; gate restated
 > 2026-07-11):** post-first-slice expansion — not a prerequisite for first
@@ -22,8 +21,9 @@ items in the followup list below).
 > [`POLRESET`](../archive/modules/policy-value-enforcement-reset.aps.md).
 
 > **Policy-solution validation (2026-06-24):** AGOV remains Draft. Its signal
-> producers should feed `crates/anvil-policy` / `crates/anvil-checks` and Rego
-> packs evaluated by the POLENG regorus facade. AGOV-002's pack-stub overlap
+> producers should feed `crates/anvil-checks` and typed contracts in
+> `crates/anvil-kernel-types`; any Rego packs evaluate through
+> `crates/anvil-policy-engine`. AGOV-002's pack-stub overlap
 > with CPACKS is still the only policy-pack overlap; do not add OPA runtime work
 > here.
 >
