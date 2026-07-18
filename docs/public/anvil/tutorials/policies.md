@@ -1,154 +1,88 @@
 ---
 id: policies
-title: Custom Policies
-sidebar_position: 2
+title: Policy tutorial
+description: Inspect, install, validate, test, and gate a bundled policy pack.
 ---
 
-# Custom Policies
+# Policy tutorial
 
-anvil evaluates custom Rego policies through an in-process engine (regorus).
-This tutorial walks through installing a starter pack, validating it, and
-running it through the gate.
+**For:** teams ready to add project-specific policy
 
-For pack authoring detail see the repo guides
-[`policy-validation`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/policy-validation.md)
-and
-[`opa-policy-testing`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/opa-policy-testing.md).
+**Time:** 20–30 minutes
 
-## Prerequisites
+**Outcome:** a starter policy pack is reviewed and validated before enforcement
 
-- **anvil** initialised in your project (`anvil init` or `anvil start`)
-- No standalone OPA binary required for gate evaluation (optional for `opa test`
-  during local Rego authoring)
+A policy is a project rule evaluated by a gate. Begin with a bundled pack rather
+than copying an unknown policy from another repository.
 
-## 1. Install a Starter Pack
+## 1. Discover available packs
 
-List bundled packs, then install the baseline pack into `.anvil/policies/`:
-
-macOS / Linux:
-
-```bash
+```text
 anvil policy install --list
-anvil policy install anvil-baseline
 ```
 
-Windows PowerShell:
+Success lists `anvil-baseline`, the bundled starter pack used below.
 
-```powershell
-anvil policy install --list
-anvil policy install anvil-baseline
-```
+## 2. Preview before writing
 
-The install copies a `pack.yaml` manifest plus member `.rego` policies and their
-`*_test.rego` files. Preview without installing:
-
-```bash
+```text
 anvil policy show anvil-baseline
 ```
 
-## 2. Validate the Pack
+This previews the pack without writing files. Read its purpose, inputs, and
+included tests before continuing.
 
-Admission checks run before gate evaluation — manifest schema, metadata,
-structure, and pack tests:
+## 3. Install deliberately
 
-macOS / Linux:
+```text
+anvil policy install anvil-baseline
+```
+
+Success reports files created under `.anvil/policies/anvil-baseline/`. The
+installer refuses to overwrite that directory; this tutorial never uses
+`--force`.
+
+## 4. Validate and test
+
+```text
+anvil policy validate .anvil/policies/anvil-baseline
+anvil policy test .anvil/policies/anvil-baseline
+```
+
+Both commands must exit successfully. Validation checks the manifest and pack
+structure; the test command runs the pack's included examples.
+
+## 5. Run a focused gate
+
+```text
+anvil gate --only-checks policy --format plain
+```
+
+## Recovery
+
+If the pack is not appropriate, first review the exact tutorial-owned path:
+
+```text
+git status --short -- .anvil/policies/anvil-baseline
+```
+
+Only if the install step above created that directory, remove it.
+
+macOS or Linux:
 
 ```bash
-anvil policy validate .anvil/policies/
+rm -r .anvil/policies/anvil-baseline
 ```
 
 Windows PowerShell:
 
 ```powershell
-anvil policy validate .anvil/policies/
+Remove-Item -Recurse .\.anvil\policies\anvil-baseline
 ```
 
-Fix any reported errors before proceeding. `anvil policy validate` is the
-supported test path for packs; `anvil policy test` only discovers test files
-today (execution is not yet implemented).
+Do not delete the whole `.anvil` directory; it can contain unrelated project
+configuration and evidence.
 
-## 3. Inspect Policies
+## Next step
 
-macOS / Linux:
-
-```bash
-anvil policy list
-anvil policy explain <policy-id>
-```
-
-Windows PowerShell:
-
-```powershell
-anvil policy list
-anvil policy explain <policy-id>
-```
-
-## 4. Run Through the Gate
-
-macOS / Linux:
-
-```bash
-anvil gate --only-checks policy
-```
-
-Windows PowerShell:
-
-```powershell
-anvil gate --only-checks policy
-```
-
-Example output:
-
-```
-Checking policies...
-  [POLICY] change_scope
-    new import crosses architecture boundary: src/ui/panel.rs -> src/db/pool.rs
-
-1 policy warning found.
-```
-
-## 5. Authoring Your Own Pack
-
-Add a `pack.yaml` beside your `.rego` files under `.anvil/policies/` (or a
-subdirectory). Each member needs complete metadata (`id`, `title`, `severity`,
-`owner`, `rationale`, `scope`, `tags`) and a sibling `*_test.rego` with `test_*`
-rules. Validate after every change:
-
-```bash
-anvil policy validate .anvil/policies/
-```
-
-For Rego conventions and fixture layout, see
-[`opa-policy-testing`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/opa-policy-testing.md).
-
-## 6. Exceptions and Enforcement
-
-Scoped, expiring exceptions live in `anvil/exceptions/store.json` and are
-managed with `anvil exception grant|revoke|list|verify` — see
-[`policy-exceptions`](https://github.com/eddacraft/anvil-001/blob/main/docs/guides/policy-exceptions.md).
-
-**Grants count only when committed** (ADR-100). L4 gates read the store from the
-tree of the commit being validated, never from the working tree. Grant, commit
-`anvil/exceptions/store.json`, then push. The legacy `.anvil/exceptions.json`
-never influences gates — promote it with `anvil exception migrate` and commit
-the result.
-
-Opt-in save-time enforcement (`warn`, `fence`, `interrupt`) is controlled by
-`ANVIL_POLICY_ENFORCEMENT` (defaults to report-only). See
-[`save-time-validation`](../guides/save-time-validation.md).
-
-## Available Input
-
-Gate policy evaluation receives a compact project snapshot:
-
-- `input.workspace` — absolute workspace root
-- `input.files` — policy-relevant workspace-relative files
-- `input.changed_files` — files changed according to Git, when available
-- `input.profile` — active gate profile, such as `default`, `dev`, or `ci`
-
-Policies do not receive file contents by default. For ad-hoc single-file eval,
-use `anvil policy eval` with an explicit input document.
-
----
-
-**Next:** [Architecture Boundaries](/anvil/tutorials/architecture)
+Add the proven command to the [team workflow](../guides/team-flow.md).

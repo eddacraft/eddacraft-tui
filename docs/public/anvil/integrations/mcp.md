@@ -1,263 +1,65 @@
 ---
 id: mcp
-title: MCP Integration
-description: Connect the Rust Anvil MCP server to an AI editor or coding agent.
-sidebar_position: 3
+title: Model Context Protocol integration
+description:
+  Understand and verify anvil's local connection to supported AI clients.
 ---
 
-# MCP Integration
+# Model Context Protocol integration
 
-The Anvil binary includes a native Rust MCP server. It gives an AI assistant
-pre-write validation, local governance tools, and privacy-bounded graph context
-without installing a separate runtime or package.
+Model Context Protocol (MCP) lets a supported AI client call anvil locally
+before writing a proposed change.
 
-The server runs over stdio:
+## Supported guided clients
 
-```bash
-anvil mcp serve --stdio
-```
+The generated [support reference](../reference/support.md) is the current
+authority. The guided activation path can configure Cursor and Claude Code.
 
-The focused installer supports the first-wave clients listed below.
-`anvil start` retains its layered protection diagnostic for Cursor and Claude
-Code and can additionally install a strongly detected or explicitly selected
-first-wave client; a config write is still not proof of a live handshake.
+## Configure detected clients
 
-## Recommended setup
-
-Run activation from the repository you want to protect:
-
-```bash
+```text
 anvil start
 ```
 
-In an interactive run, Anvil shows the detected MCP clients and starts every
-candidate unticked. Select the clients you want before applying; pressing Enter
-with nothing selected writes no editor configuration. Restart a configured
-editor so it launches the new MCP server.
+To configure every guided client:
 
-Probe the resulting protection state without writing anything:
+```text
+anvil start --all-mcp-clients
+```
 
-```bash
+To avoid client configuration entirely:
+
+```text
+anvil start --no-mcp
+```
+
+## Verify protection
+
+Restart the client when activation asks, then run:
+
+```text
 anvil start --verify
 ```
 
-A `protecting` result means Anvil has observed the pre-write path. A written
-config alone is not enough to claim protection.
+Only `protecting` proves the current pre-write path. A configured file or
+running daemon alone is not enough.
 
-### Install one client directly
+## Inspect MCP commands
 
-Use the focused installer when you do not need the rest of activation:
-
-```bash
-anvil mcp install --client cursor
-anvil mcp install --client claude-code
-anvil mcp install --client codex
-anvil mcp install --client zed --scope project
-anvil mcp install --client cursor --verify
-anvil mcp install --client opencode --dry-run
+```text
+anvil mcp --help
 ```
 
-Global scope is the default. Pass `--scope project` for a repository-local file.
-Use `anvil start --mcp-client <client>` to include an explicit first-wave client
-during activation; repeat the option for multiple clients.
+Subcommands can evolve during beta. Use the installed help rather than copying
+configuration shapes by hand.
 
-| Client             | Global config                      | Project config            | Reload / constraint                                       |
-| ------------------ | ---------------------------------- | ------------------------- | --------------------------------------------------------- |
-| Claude Code        | `~/.claude.json`                   | `.mcp.json`               | Restart Claude Code                                       |
-| Cursor             | `~/.cursor/mcp.json`               | `.cursor/mcp.json`        | Restart Cursor                                            |
-| Codex              | `~/.codex/config.toml`             | `.codex/config.toml`      | Start a new session; run `codex mcp list`                 |
-| OpenCode           | `~/.config/opencode/opencode.json` | `opencode.json`           | Restart; run `opencode mcp list`                          |
-| Gemini CLI         | `~/.gemini/settings.json`          | `.gemini/settings.json`   | Run `/mcp reload` or restart                              |
-| Antigravity        | `~/.gemini/config/mcp_config.json` | `.agents/mcp_config.json` | Restart Antigravity                                       |
-| OpenClaw           | `~/.openclaw/openclaw.json`        | `.openclaw/openclaw.json` | Restart OpenClaw                                          |
-| VS Code / Copilot  | Vendor-profile CLI only            | `.vscode/mcp.json`        | Project install is supported; global file mutation is not |
-| GitHub Copilot CLI | `~/.copilot/mcp-config.json`       | `.github/mcp.json`        | Restart Copilot CLI                                       |
-| Grok Build         | `~/.grok/config.toml`              | `.grok/config.toml`       | Restart Grok Build                                        |
-| Warp               | `~/.warp/.mcp.json`                | `.warp/.mcp.json`         | Project server needs session approval                     |
-| Zed                | Not supported                      | `.zed/settings.json`      | Project scope only                                        |
+## Security boundary
 
-Devin remains manual because its supported integration is Marketplace/UI managed
-and has no documented local file or CLI mutation contract.
+The MCP server runs locally and validates requests against the current project
+and user boundary. Do not expose it as a network service or copy credentials
+into client configuration.
 
-### Generate or verify configuration
+## Next step
 
-`mcp-config` uses the same first-wave registry for stdio configuration and
-prints the configuration by default:
-
-```bash
-anvil mcp-config --target cursor
-anvil mcp-config --target codex --write
-anvil mcp-config --target opencode --scope project --verify
-```
-
-Use `--workspace <path>` to override the selected scope root. HTTP preview
-remains a compatibility surface for `cursor` and `claude-code` only; every new
-first-wave target uses the native stdio server.
-
-## Manual configuration
-
-For an unlisted MCP client, add the equivalent server entry and make the
-repository the process working directory:
-
-```json
-{
-  "mcpServers": {
-    "anvil": {
-      "command": "anvil",
-      "args": ["mcp", "serve", "--stdio"]
-    }
-  }
-}
-```
-
-The recommended editor integration is stdio: spawn `anvil mcp serve --stdio` as
-a child process. `anvil mcp-config` also accepts `--transport http` to emit a
-`url` entry pointing at a running daemon HTTP endpoint
-(`http://127.0.0.1:<port>/mcp`); use that only when you already run the daemon
-and want the editor to connect over HTTP rather than spawning a stdio server.
-
-## Tool catalogue
-
-The current Rust registry exposes 14 tools. The server advertises their schemas
-to the MCP client, so callers should use discovery instead of hard-coding
-parameters from an older example.
-
-### Write validation
-
-| Tool                   | Purpose                                                                                                           |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `anvil_validate_write` | Validate the complete proposed file state before a create, update, delete, or rename.                             |
-| `anvil_apply_patch`    | Validate a unified diff before it is applied, scanning the added lines and preserving a compact approval payload. |
-
-Call one of these before every write and honour its decision:
-
-- `allow` — the proposed content passed;
-- `warn` — findings exist, but the workspace mode permits the write;
-- `block` — authoritative refusal; do not write through another path;
-- `gateUnavailable` — the gate could not run, commonly because credentials or
-  the backend are unavailable; surface the warning and follow the response's
-  `safeDefault`.
-
-`anvil_validate_write` accepts full proposed content, a patch, or a slim preview
-plus SHA-256 digest. `anvil_apply_patch` accepts a file path and unified diff.
-Both are validation tools: neither writes the file.
-
-### Local governance
-
-| Tool                   | Behaviour                                                                           | Authentication |
-| ---------------------- | ----------------------------------------------------------------------------------- | -------------- |
-| `anvil_status`         | Read project config, baseline presence, available checks, and local backend status. | Not required   |
-| `anvil_check`          | Run the focused file anti-pattern scan.                                             | Not required   |
-| `anvil_query_boundary` | Ask whether one file may import another under the architecture baseline.            | Not required   |
-| `anvil_gate`           | Run a planless target-file scan or the full configured gate.                        | Required       |
-| `anvil_fix`            | Apply one of the supported deterministic anti-pattern fixes.                        | Required       |
-| `anvil_suppress`       | Insert a reasoned, time-boxed suppression comment.                                  | Required       |
-
-The mutating tools enforce workspace containment and authenticate before
-changing a file. `anvil_gate` also authenticates because it can execute the
-repository's configured toolchain.
-
-### Assistant graph context
-
-| Tool                     | Purpose                                                                      |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `anvil_search_symbols`   | Find symbols by name, kind, file, language, or visibility.                   |
-| `anvil_find_dependents`  | Traverse files that depend on a target file.                                 |
-| `anvil_find_callers`     | Find static callers of a symbol, with heuristic and partial-result markers.  |
-| `anvil_impact_of_change` | Report affected symbols, dependent files, and known tests for changed paths. |
-| `anvil_affected_tests`   | Suggest likely tests and identify coverage gaps for changed files.           |
-| `anvil_symbol_context`   | Return a bounded neighbourhood around a symbol or file.                      |
-
-These tools query the daemon's resident graph. If the graph is cold or the
-daemon is absent, they return a named `not_ready`, `unavailable`, or `disabled`
-outcome instead of inventing an empty result.
-
-Graph responses are identity-only by default: symbol names, kinds,
-workspace-relative paths, visibility, and edges. `anvil_symbol_context` can
-include source snippets only when both conditions are true:
-
-1. the operator enabled egress for the workspace; and
-2. the individual request sets `includeSource: true`.
-
-Manage consent with:
-
-```bash
-anvil gctx egress status
-anvil gctx egress enable
-anvil gctx egress disable
-```
-
-Set `ANVIL_GCTX_EGRESS=0` in the MCP server environment to disable the graph
-context surface completely.
-
-## Resource catalogue
-
-The Rust server also exposes read-only resources sourced from the same Rust
-readers as the CLI and tools.
-
-### Workspace resources
-
-| Resource               | Contents                                                        |
-| ---------------------- | --------------------------------------------------------------- |
-| `anvil://baseline`     | Architecture baseline and baseline violation snapshot.          |
-| `anvil://boundaries`   | Layer definitions and explicit boundary rules.                  |
-| `anvil://patterns`     | Built-in anti-pattern catalogue.                                |
-| `anvil://suppressions` | Active suppressions and active/expired totals.                  |
-| `anvil://config`       | Discovered Anvil config, source, and parse status.              |
-| `anvil://constraints`  | Aggregated boundaries, patterns, conventions, and suppressions. |
-| `anvil://drift`        | Latest drift snapshots and their comparison state.              |
-
-### Graph resources
-
-| Resource          | Contents                                               |
-| ----------------- | ------------------------------------------------------ |
-| `graph://stats`   | Counts of symbols, edges, files, and dependency edges. |
-| `graph://symbols` | Paged identity-only symbol summaries.                  |
-| `graph://edges`   | Paged identity-only graph edges.                       |
-
-`graph://symbols` and `graph://edges` accept paging and file filters in the URI
-query. The graph resource and tool paths share a per-server-session egress
-budget; reconnecting starts a new session after the client has exhausted it.
-
-## Daemon and fallback behaviour
-
-The MCP server uses the resident Anvil daemon when it is reachable. On Unix it
-connects over an owner-only Unix socket; on Windows it uses an owner-only named
-pipe. The pre-write tool reports daemon provenance in its `correlation`
-envelope.
-
-If the daemon is unavailable, write validation uses the embedded
-correctness-equivalent fallback. Graph tools cannot fall back because the
-resident graph belongs to the daemon, so they return an explicit unavailable or
-not-ready outcome.
-
-On Linux and macOS, an interactive `anvil start` can start or reuse the daemon.
-In headless automation, or on Windows, start the foreground daemon explicitly
-when you need daemon-backed validation:
-
-```bash
-anvil intercept start --foreground
-```
-
-Inspect it from another terminal:
-
-```bash
-anvil intercept status
-```
-
-## Troubleshooting
-
-1. Run `anvil mcp install --client <client> --verify`, or use
-   `anvil mcp-config --target <client> --verify` for the matching target.
-2. Restart the editor after changing its MCP configuration.
-3. Run `anvil start --verify` and trust the literal protection state.
-4. Run `anvil intercept status` if daemon assurance is unavailable.
-5. Confirm the editor launches `anvil mcp serve --stdio` with the repository as
-   its working directory.
-
-The MCP process pins its workspace at startup. Paths outside that workspace are
-rejected, and graph resources never accept a client-supplied workspace root.
-
-For the daemon routing and fallback model, see
-[Save-time Validation](../guides/save-time-validation.md). For agent-side
-composition patterns, see [Agent Harness Patterns](../guides/agent-harness.md).
+Use [save-time validation](../guides/save-time-validation.md) as fallback
+coverage.

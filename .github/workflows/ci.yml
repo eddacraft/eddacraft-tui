@@ -154,6 +154,8 @@ jobs:
           needs.detect-changes.outputs.source-changed == 'true' ||
           needs.detect-changes.outputs.script-fixtures-required == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Setup workspace
         if:
@@ -180,6 +182,23 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
+
+      - name: Install the public-doc command truth binary
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
+        env:
+          ANVIL_DOCS_VERSION: 0.9.0-beta
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/eddacraft/anvil/releases/download/v${ANVIL_DOCS_VERSION}/eddacraft-anvil-installer.sh" | sh
+          test "$(anvil --version)" = "anvil ${ANVIL_DOCS_VERSION}"
+
+      - name: Validate public anvil command examples
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
+        run: pnpm run docs:public:commands
 
       - name: Run docs:check (DOCGOV-005)
         if:

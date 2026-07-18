@@ -1,176 +1,55 @@
 ---
 id: plans
-title: Plans
+title: Plans and project checks
 description:
-  Understanding APS plans as the foundation for deterministic validation.
-sidebar_position: 4
+  Understand when anvil needs a plan and when it can check code without one.
 ---
 
-# Plans
+# Plans and project checks
 
-Plans define _what_ should be built. anvil validates _how_ it's being built
-against that definition.
+You do not need a plan to begin using anvil.
 
-## What is a Plan?
+## Planless checks
 
-A plan is an APS document that describes:
+`anvil check` can scan named, changed, staged, or all supported source files for
+checks that do not require project-specific policy.
 
-- **Modules** — cohesive units of functionality
-- **Tasks** — authorised work with validation criteria
-- **Steps** — observable checkpoints within tasks
-
-```
-┌─────────────────────────────────────────┐
-│                  Index                   │
-│  (Project-level, lists all modules)     │
-└───────────────────┬─────────────────────┘
-                    │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-    ┌───────┐   ┌───────┐   ┌───────┐
-    │Module │   │Module │   │Module │
-    │  A    │   │  B    │   │  C    │
-    └───┬───┘   └───┬───┘   └───┬───┘
-        │           │           │
-    ┌───▼───┐   ┌───▼───┐   ┌───▼───┐
-    │Tasks  │   │Tasks  │   │Tasks  │
-    └───────┘   └───────┘   └───────┘
+```text
+anvil check --changed --format plain
 ```
 
-## Why Plans Matter
+This is the simplest path for first use and ad-hoc scanning.
 
-### Determinism
+## Project configuration
 
-Plans are hash-stable. Given the same plan, anvil produces the same validation.
-This enables:
+Activation can create an anvil configuration file that selects checks and
+records project settings. Use:
 
-- **Reproducible builds** — same inputs, same outputs
-- **Audit trails** — prove what was validated
-- **Caching** — skip unchanged validations
-
-### Intent Declaration
-
-Plans capture _intent_ before execution. The AI (or developer) works within the
-plan's boundaries:
-
-```markdown
-## Task: AUTH-001 — Implement login endpoint
-
-Outcome: Users can authenticate with email/password
-
-Validation: `pnpm test src/auth/login.test.ts`
+```text
+anvil config show
 ```
 
-The plan doesn't say _how_ to implement login—that's up to the executor. It says
-_what_ success looks like.
+to inspect the effective configuration, and:
 
-### Bounded Context
-
-Each module is a bounded context. anvil can enforce that changes stay within
-their module's boundaries:
-
-```
-Module: auth
-Files: src/auth/**
-
-Module: payments
-Files: src/payments/**
+```text
+anvil config --help
 ```
 
-A task in `auth` modifying files in `payments` triggers a boundary warning.
+to see the configuration operations in your installed CLI. `anvil config show`
+reports a parsing error when the project configuration is invalid.
 
-## Plan Structure
+## Plan-aware gates
 
-### Index (`index.aps.md`)
+Some workflows evaluate a structured plan file or project policy. Pass a plan
+only when your team already uses one:
 
-The root document:
-
-```markdown
----
-format: aps
-version: 1.0
-hash: sha256:abc123...
----
-
-# Project Plan
-
-## Modules
-
-- [auth](modules/auth.aps.md)
-- [payments](modules/payments.aps.md)
-- [notifications](modules/notifications.aps.md)
+```text
+anvil gate path/to/work.aps.md --profile dev
 ```
 
-### Module (`modules/auth.aps.md`)
+If no plan is supplied, the gate runs against the configured project.
 
-A cohesive feature area:
+## Next step
 
-```markdown
----
-format: aps
-module: auth
----
-
-# Auth Module
-
-## Tasks
-
-### AUTH-001 — Login endpoint
-
-### AUTH-002 — Registration endpoint
-
-### AUTH-003 — Password reset
-```
-
-### Task
-
-A unit of authorised work:
-
-```markdown
-### AUTH-001 — Login endpoint
-
-**Outcome:** Users authenticate with email and password, receiving a JWT.
-
-**Validation:** `pnpm test src/auth/login.test.ts`
-
-**Steps:**
-
-1. [ ] Endpoint accepts POST /auth/login
-2. [ ] Invalid credentials return 401
-3. [ ] Valid credentials return JWT
-4. [ ] JWT contains user ID and expiry
-```
-
-## Plans in anvil
-
-### Validation Against Plans
-
-Use the CLI to validate APS document structure before sharing a plan:
-
-```bash
-anvil validate plans/index.aps.md
-```
-
-anvil checks the plan document itself:
-
-- Does the Markdown use the expected APS sections?
-- Are work item IDs and required fields well-formed?
-- Are optional integrity hashes valid when present?
-
-### Plan-less Mode
-
-anvil works without plans too. In this mode, it only runs gate checks
-(architecture, anti-patterns, etc.) without plan validation.
-
-### Creating Plans
-
-Plans can be created:
-
-- **Manually** — write APS markdown
-- **With agent/tooling support** — generate APS markdown, then validate it with
-  `anvil validate`
-- **From external formats** — anvil adapters convert SpecKit, BMAD, etc.
-
----
-
-**Learn more:** [APS Specification →](/aps/overview)
+Learn [how gates work](gates.md) or define
+[architecture boundaries](../first-project.md).

@@ -26,6 +26,8 @@ orchestrator="${script_dir}/docs-check.mjs"
 metadata_script="${script_dir}/check-metadata.mjs"
 tags_script="${script_dir}/check-tags.mjs"
 links_script="${script_dir}/check-links.mjs"
+public_script="${script_dir}/check-public-docs.mjs"
+public_command_script="${script_dir}/check-anvil-public-commands.mjs"
 index_script="${script_dir}/check-index-freshness.mjs"
 index_generator="${script_dir}/docs-index.mjs"
 
@@ -36,17 +38,17 @@ failures=0
 pass() { printf '  ok: %s\n' "$1"; }
 fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 
-# Case 1: orchestrator surfaces the eight expected labels in summary order.
-echo "case 1: orchestrator emits all eight surface labels"
+# Case 1: orchestrator surfaces the nine expected labels in summary order.
+echo "case 1: orchestrator emits all nine surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-for surface in metadata tags links aps adr index-freshness asbuilt-paths release-plan; do
+for surface in metadata tags links public-docs aps adr index-freshness asbuilt-paths release-plan; do
   if ! grep -qE "^  (pass|FAIL) ${surface}$" <<<"${out}"; then
     fail "summary missing surface: ${surface}"
     break
   fi
 done
 if grep -qE "^  (pass|FAIL) release-plan$" <<<"${out}"; then
-  pass "all eight surfaces present in summary"
+  pass "all nine surfaces present in summary"
 fi
 
 # Case 2: index-freshness and asbuilt-paths real surfaces both run cleanly.
@@ -76,10 +78,10 @@ fi
 # Case 3: baseline absorbs current errors so the live repo passes.
 echo "case 3: baseline file absorbs current errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-if echo "${out}" | grep -qE "^\[docs-check\] 8/8 surfaces passed"; then
-  pass "live repo passes all eight surfaces under baseline"
+if echo "${out}" | grep -qE "^\[docs-check\] 9/9 surfaces passed"; then
+  pass "live repo passes all nine surfaces under baseline"
 else
-  fail "live repo expected 8/8 passed; got tail: $(echo "${out}" | tail -3)"
+  fail "live repo expected 9/9 passed; got tail: $(echo "${out}" | tail -3)"
 fi
 
 # Case 4: --no-baseline reveals the baselined corpus errors. The metadata surface
@@ -284,6 +286,230 @@ elif echo "${out}" | grep -qE "^  (pass|FAIL) index-freshness$"; then
   pass "--no-baseline run reaches index-freshness without an unknown-option crash"
 else
   fail "index-freshness surface missing from --no-baseline summary; tail: $(echo "${out}" | tail -5)"
+fi
+
+# Case 13 (DOCSYNC-028): the public-doc boundary rejects internal leakage,
+# product-name casing drift, hidden pages, and duplicated canonical install
+# procedures while accepting a complete lowercase fixture.
+echo "case 13: public-doc boundary enforces the newcomer trust contract"
+public_root="${tmp_root}/public-docs-fixture"
+mkdir -p "${public_root}/docs/public/anvil/guides" "${public_root}/apps/docs-site/sidebars"
+cat >"${public_root}/docs/public/anvil/quickstart.md" <<'EOF'
+---
+id: quickstart
+title: Install anvil
+description: Install anvil and verify the binary.
+---
+
+# Install anvil
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+```
+EOF
+cat >"${public_root}/docs/public/anvil/guides/check-code.md" <<'EOF'
+---
+id: check-code
+title: Check code
+description: Run an anvil check.
+---
+
+# Check code
+
+Continue after the canonical install task.
+EOF
+cat >"${public_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
+export default {
+  anvilSidebar: [{
+    type: 'category',
+    label: 'internal',
+    items: ['quickstart', { type: 'doc', id: 'guides/check-code', label: 'Check code' }],
+  }],
+};
+EOF
+set +e
+out="$(node "${public_script}" --root "${public_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "^\[public-docs\] summary: 0 errors, 3 files checked$"; then
+  pass "complete lowercase public fixture passes"
+else
+  fail "valid public fixture should pass (status ${status}); got: ${out}"
+fi
+set +e
+out="$(node "${public_script}" --root "${public_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] && echo "${out}" | grep -q "generated public reference checker is missing"; then
+  pass "live-mode public boundary fails closed when the generator is missing"
+else
+  fail "public boundary should reject a missing generator (status ${status}); got: ${out}"
+fi
+cat >"${public_root}/docs/public/anvil/guides/internal.md" <<'EOF'
+---
+id: internal
+title: anvil internals
+description: Internal implementation notes.
+---
+
+# anvil internals
+
+Read `/plans/index.aps.md`, then reinstall:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+```
+EOF
+cat >>"${public_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
+export const productLabel = 'Anvil';
+export const editUrl = 'https://github.com/eddacraft/anvil-001';
+export const omittedPage = 'internal';
+EOF
+set +e
+out="$(node "${public_script}" --root "${public_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "internal repository reference" \
+  && echo "${out}" | grep -q "product name must be lowercase" \
+  && echo "${out}" | grep -q "not present in the anvil sidebar" \
+  && echo "${out}" | grep -q "duplicates the canonical install procedure"; then
+  pass "internal leakage, casing, navigation, and duplicated setup fail together"
+else
+  fail "public boundary missed one or more defects (status ${status}); got: ${out}"
+fi
+
+# Case 13b (DOCSYNC-028): command truth includes inline YAML run steps, not only
+# command lines that begin at the start of a fence.
+echo "case 13b: public command truth checks inline YAML run steps"
+command_root="${tmp_root}/public-command-fixture"
+mkdir -p "${command_root}/docs/public/anvil"
+cat >"${command_root}/docs/public/anvil/github.md" <<'EOF'
+```yaml
+run: anvil not-a-real-command
+```
+EOF
+fake_anvil="${command_root}/fake-anvil"
+cat >"${fake_anvil}" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "not-a-real-command" ]]; then
+  echo "unknown command" >&2
+  exit 2
+fi
+exit 0
+EOF
+chmod +x "${fake_anvil}"
+set +e
+out="$(node "${public_command_script}" --root "${command_root}" --anvil-bin "${fake_anvil}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] && echo "${out}" | grep -q "anvil not-a-real-command"; then
+  pass "inline YAML run command is extracted and rejected"
+else
+  fail "public command truth skipped an inline YAML run step (status ${status}); got: ${out}"
+fi
+
+# Case 14 (DOCSYNC-028): release-tag reference generation handles every Clap
+# variant shape, ignores post-release source, and rejects hand-edited output.
+echo "case 14: generated anvil references detect stale output"
+generator="${script_dir}/generate-anvil-public-reference.mjs"
+generated_root="${tmp_root}/generated-reference-fixture"
+mkdir -p \
+  "${generated_root}/patterns/compiled" \
+  "${generated_root}/crates/anvil-cli/src" \
+  "${generated_root}/crates/anvil-cli/src/activation" \
+  "${generated_root}/crates/anvil-kernel/src/parser"
+cat >"${generated_root}/patterns/compiled/registry.json" <<'EOF'
+{
+  "families": [{ "id": "rust-reliability" }],
+  "patterns": [{
+    "id": "RS-001",
+    "family": "rust-reliability",
+    "title": "Example rule",
+    "severity": "warning",
+    "file_extensions": [".rs"],
+    "enabled": true
+  }]
+}
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/main.rs" <<'EOF'
+enum Commands {
+    /// Check one file.
+    #[command(name = "run-check")]
+    Check(CheckArgs),
+    /// Show status.
+    Status,
+    /// Configure a path.
+    Configure {
+        path: String,
+    },
+    /// Hidden runtime command.
+    #[command(hide = true)]
+    Hidden,
+}
+
+/// Canonical stable name for a command.
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/activation/diagnostic.rs" <<'EOF'
+pub enum McpClientId {
+    Cursor,
+    ClaudeCode,
+}
+EOF
+cat >"${generated_root}/crates/anvil-kernel/src/parser/languages.rs" <<'EOF'
+pub fn from_path(path: &Path) -> Option<Self> {
+    match path.extension()?.to_str()? {
+        "rs" => Some(Self::Rust),
+        _ => None,
+    }
+}
+EOF
+cat >"${generated_root}/dist-workspace.toml" <<'EOF'
+targets = ["x86_64-unknown-linux-gnu"]
+EOF
+mkdir -p "${generated_root}/docs/public/anvil/releases"
+cat >"${generated_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
+# Current release notes
+
+## 1.2.3-beta
+EOF
+git -C "${generated_root}" init -q
+git -C "${generated_root}" config user.name "docs fixture"
+git -C "${generated_root}" config user.email "docs-fixture@example.invalid"
+git -C "${generated_root}" add .
+git -C "${generated_root}" commit -qm "fixture release"
+git -C "${generated_root}" tag v1.2.3-beta
+cat >"${generated_root}/crates/anvil-cli/src/main.rs" <<'EOF'
+enum Commands {
+    /// Not in the public release.
+    Unreleased,
+}
+
+/// Canonical stable name for a command.
+EOF
+node "${generator}" --root "${generated_root}" >/dev/null
+set +e
+node "${generator}" --root "${generated_root}" --check >/dev/null 2>&1
+fresh_status=$?
+generated_cli="${generated_root}/docs/public/anvil/reference/cli.md"
+if grep -q 'anvil run-check' "${generated_cli}" \
+  && grep -q 'anvil status' "${generated_cli}" \
+  && grep -q 'anvil configure' "${generated_cli}" \
+  && ! grep -qE 'anvil (hidden|unreleased)' "${generated_cli}"; then
+  shape_status=0
+else
+  shape_status=1
+fi
+printf '\nmanual edit\n' >>"${generated_root}/docs/public/anvil/reference/cli.md"
+node "${generator}" --root "${generated_root}" --check >/dev/null 2>&1
+stale_status=$?
+set -e
+if [[ "${fresh_status}" -eq 0 && "${shape_status}" -eq 0 && "${stale_status}" -ne 0 ]]; then
+  pass "release-tag generation covers Clap variants and rejects a hand edit"
+else
+  fail "generated reference contract failed (fresh ${fresh_status}, shapes ${shape_status}, stale ${stale_status})"
 fi
 
 # Case 11 (DOCGOV-012 defect 1): --update-baseline must NOT overwrite the

@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 15/20    |
+| DOCSYNC | —     | In Progress | 16/22    |
 
 ## Purpose
 
@@ -102,6 +102,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 - DOCSYNC-026: Cross-platform tutorial command examples
 - DOCSYNC-027: Audit all Anvil public docs against the current Rust CLI and
   remove obsolete runtime and command guidance
+- DOCSYNC-028: Rebuild the anvil public docs around a first-time-user journey,
+  public-only language, source-derived reference material, and enforceable
+  trust boundaries
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -119,9 +122,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |    10 |    7 |           1 |     2 |
+| Future                          |    11 |    7 |           2 |     2 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    21 |   16 |           1 |     4 |
+| **Total**                       |    22 |   16 |           2 |     4 |
 
 ### Item Detail
 
@@ -148,6 +151,38 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-025 | Done   | Anvil public docs refreshed for current daemon lifecycle, MCP targets, watch NDJSON lifecycle wording, and safer daemon reset guidance |
 | DOCSYNC-026 | Done   | Public tutorials and terminal tutorial policy-directory step now include macOS/Linux and Windows PowerShell/native-shell variants |
 | DOCSYNC-027 | Done   | README + `docs/public/anvil/**` + beta quickstart audited against `v0.9.0-beta`; obsolete runtime and roadmap guidance removed; 216 fenced command examples parse against the shipped Rust CLI; docs and site validation pass |
+| DOCSYNC-028 | In Progress | Structured new-user rebuild approved 2026-07-18; implementation plan: [`plans/execution/DOCSYNC-028.actions.md`](../execution/DOCSYNC-028.actions.md) |
+
+## Approved New-User Rebuild
+
+DOCSYNC-027 established Rust command truth. A clean-room review on 2026-07-18
+then found duplicated onboarding, internal implementation references, hidden
+pages, undefined terminology, and manually maintained product claims that had
+drifted from their sources.
+
+DOCSYNC-028 owns the corrective rebuild. DOCSYNC remains the content owner,
+DSITE owns shared Docusaurus wiring, and the existing DOCGOV `docs:check`
+surface is extended instead of duplicated.
+
+### DOCSYNC-028 delivery contract
+
+- **Status:** In Progress
+- **Intent:** Give a first-time user one complete path to verified value without
+  repository access or prior anvil knowledge.
+- **Expected Outcome:** Public docs use lowercase `anvil`, `eddacraft`, and
+  `kindling`; contain no internal plans, paths, symbols, or work-item language;
+  derive volatile reference facts from product sources; expose every public
+  page through intent-based navigation or an explicit unlisted contract; and
+  pass clean-room first-use acceptance.
+- **Scope:** `docs/public/anvil/**`, `docs/public/beta/quickstart.md`, anvil and
+  beta docs-site navigation and entrypoints, and the existing docs validation
+  pipeline.
+- **Non-scope:** Product behaviour, internal architecture or runbook content,
+  marketing-site redesign, and sibling product documentation beyond required
+  lowercase naming.
+- **Dependencies:** DOCSYNC-027 is Done. Coordinate host changes with DSITE-001
+  and validation changes with DOCGOV's existing `docs:check` authority.
+- **Validation:** See `plans/execution/DOCSYNC-028.actions.md`.
 
 ### Reassigned items (out of DOCSYNC totals)
 

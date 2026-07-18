@@ -1,126 +1,53 @@
 ---
 id: sessions
-title: Runs and Daemon Sessions
+title: Local runs and retained state
 description:
-  Understand validation runs, daemon sessions, and the state anvil records
-  today.
-sidebar_position: 2
+  Understand what a command run records and how long-lived protection differs.
 ---
 
-# Runs and Daemon Sessions
+# Local runs and retained state
 
-anvil uses the word _session_ for a live connection to its save-time daemon. A
-session is not a task tracker or a manually managed development period; the
-current Rust CLI does not expose a manual task-session command group.
+A terminal command is a **run**: it starts, reports evidence, and exits.
+Save-time protection is longer-lived and continues until you stop its foreground
+process or stop the local daemon.
 
-Keeping that distinction clear makes the operational surfaces much easier to
-reason about:
+## Short-lived runs
 
-- a **validation run** is one execution of `check`, `gate`, `audit`, or a
-  save-time validation;
-- a **daemon session** is a registered client/worktree connection served by the
-  resident daemon;
-- a **protection state** says whether the current repository is actually
-  protected;
-- a **review capsule** packages commit-range evidence for offline verification.
+Examples include:
 
-## Protection state
+- `anvil check`;
+- `anvil gate`;
+- `anvil audit`; and
+- `anvil doctor`.
 
-Use the activation probe for the answer most developers need:
+Use machine-readable output when another tool consumes a run.
 
-```bash
-anvil status --verify
-```
+## Long-lived protection
 
-It is read-only and returns the same protection-state vocabulary as
-`anvil start --verify`: `protecting`, `ready_restart_required`, `watching`,
-`needs_action`, `unsupported`, or `error`.
+`anvil watch` observes saves until Ctrl-C. The per-user daemon can serve
+validation across runs. Inspect its state with:
 
-Use JSON when a script needs the typed claim:
-
-```bash
-anvil status --json
-```
-
-Protection state is deliberately separate from daemon process health. A daemon
-can be running without serving the current worktree, and a scoped embedded
-fallback can validate a write while daemon assurance is unavailable.
-
-## Validation runs
-
-Choose the run that matches the question you are asking:
-
-| Command                    | What it proves                                                            |
-| -------------------------- | ------------------------------------------------------------------------- |
-| `anvil check --all`        | Source files were scanned by the planless anti-pattern and secret checks. |
-| `anvil gate --profile dev` | The configured development gate reached a workflow verdict.               |
-| `anvil gate --profile ci`  | The configured CI gate reached a workflow verdict.                        |
-| `anvil watch --source`     | Later source saves are checked after the initial readiness scan.          |
-| `anvil audit-chain`        | Reachable commits have the expected witness records.                      |
-
-Each command owns its output and exit semantics. A passing `check` is not a
-substitute for a passing `gate`: `check` is targeted analysis, while `gate`
-combines configured checks into the decision used by a workflow.
-
-For machine consumers, use the command's JSON or SARIF surface rather than
-scraping terminal copy. For long-running watch output, follow the
-[NDJSON contract](../integrations/watch-output.md).
-
-## Daemon sessions
-
-The intercept daemon keeps live session records for attached worktrees and
-clients. Inspect them with:
-
-```bash
+```text
 anvil intercept status
 ```
 
-The human view summarises daemon uptime, active sessions, fences, and validation
-latency. The JSON form exposes the same `DaemonStatusV1` shape on Unix and
-Windows:
+Do not assume that a running daemon means pre-write validation is active. Use:
 
-```bash
-anvil intercept status --json
+```text
+anvil start --verify
 ```
 
-Use this surface when activation says the daemon is unreachable, a worktree is
-fenced, or an editor appears not to be reaching the MCP shim. Do not treat the
-session count as a task count: it describes daemon attachments, not developer
-work items.
+for the end-to-end protection state.
 
-## Recorded local state
+## Project and user state
 
-anvil records only the state needed by the feature that owns it. Important
-examples include:
+Project configuration and baselines stay with the project. Credentials, daemon
+state, caches, and detailed activity live in the user-level anvil home. The
+current public beta does not upload those activity records.
 
-| State                    | Purpose                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `.anvil/`                | Project configuration, architecture state, drift snapshots, suppressions, dashboards, and local caches.      |
-| `anvil/witness/`         | Git-tracked witness records used by the chain audit.                                                         |
-| User-level Anvil state   | Credentials, daemon state, graph cache, and local usage evidence under the platform config/data directories. |
-| Review capsule directory | An explicit, portable package created for a commit range.                                                    |
+See [configuration](../operations/config.md) and
+[local data and security](../operations/security.md).
 
-There is no general-purpose `.anvil/sessions/` archive and no public session
-management database. Use the owning command instead of editing these files by
-hand.
+## Next step
 
-## Reviewing activity over time
-
-The shipped Rust CLI provides focused views instead of a generic session log:
-
-```bash
-anvil insights
-anvil insights --cumulative
-anvil drift list
-anvil audit-chain
-```
-
-- `insights` summarises retained local activity without uploading its detailed
-  rows; the separate [anonymous fleet beacon](../operations/telemetry.md) sends
-  only its documented aggregate allowlist;
-- `drift` snapshots show architecture change over time;
-- `audit-chain` checks commit-to-witness coverage;
-- review capsules package the evidence for a bounded commit range.
-
-For portable evidence and its verification model, continue to
-[Audit Trail](./audit-trail.md).
+Set up [save-time validation](../guides/save-time-validation.md).

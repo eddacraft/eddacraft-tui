@@ -72,8 +72,8 @@ export default async function handler(request: Request): Promise<Response> {
 </head>
 <body>
   <div class="card">
-    <h1>Anvil Docs</h1>
-    <p>Sign in with GitHub to access Anvil documentation.</p>
+    <h1>anvil docs</h1>
+    <p>Sign in with GitHub to access anvil documentation.</p>
     <a href="${authorizeUrl.toString()}">Sign in with GitHub</a>
   </div>
 </body>

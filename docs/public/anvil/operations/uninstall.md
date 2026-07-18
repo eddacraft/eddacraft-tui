@@ -1,173 +1,82 @@
 ---
 id: uninstall
-title: Uninstalling Anvil
+title: Uninstall and clean up
 description:
-  How to remove Anvil from a project or machine using anvil uninstall.
-sidebar_position: 5
+  Preview and remove project or user-level anvil state without deleting
+  unrelated files.
 ---
 
-# Uninstalling Anvil
+# Uninstall and clean up
 
-`anvil uninstall` removes Anvil's files and configuration from your project or
-machine in one step. It is useful when you want a clean slate before
-reinstalling, when removing Anvil from a project permanently, or when
-troubleshooting a stuck or half-installed state.
+**For:** users removing anvil from one project or from a machine
 
-The command is **project-scoped by default** — it only touches the current
-repository. Adding `--global` also removes your user-level state, credentials,
-and MCP entries.
+**Time:** 5–10 minutes
 
-## Project uninstall (default)
+**Outcome:** selected anvil-managed state is removed with a reviewable scope
 
-Running `anvil uninstall` in a repository removes:
+## Preview first
 
-- `.anvil/` — project state directory
-- `.anvilrc` — project configuration file
-- Anvil-managed Git hooks (`pre-commit`, `pre-push`) in both file mode
-  (`.git/hooks/`, `.husky/`) and config mode (`hook.<name>.command` entries
-  added by Anvil)
+From the project root:
 
-Non-Anvil hooks and your own project files are never touched.
-
-```bash
-# Preview what would be removed (no changes applied)
+```text
 anvil uninstall --dry-run
+```
 
-# Remove with interactive confirmation
+Read every path before continuing.
+
+## Remove project state
+
+```text
 anvil uninstall
-
-# Remove without prompting
-anvil uninstall --yes
 ```
 
-## Full uninstall (--global)
+The default scope covers the current project's anvil state and managed hooks. It
+does not remove the installed binary or global credentials.
 
-`--global` extends the project uninstall with user-level cleanup:
+## Remove user-level state too
 
-- `~/.anvil/` — user state directory (project caches, activation markers)
-- MCP server entries from `~/.claude.json` (Claude Code) and
-  `~/.cursor/mcp.json` (Cursor) — Anvil's own entry only; all other entries are
-  preserved
-- Stored authentication credentials
-- The running `anvil-intercept` daemon (SIGTERM, then SIGKILL after one second
-  if it does not exit cleanly)
+Preview:
 
-```bash
-# Preview full uninstall, including user state
+```text
 anvil uninstall --global --dry-run
+```
 
-# Full uninstall with confirmation
+Then, if the scope is correct:
+
+```text
 anvil uninstall --global
-
-# Full uninstall without touching MCP config files
-anvil uninstall --global --keep-mcp
 ```
 
-## Removing the binary
+Use `--keep-mcp` or `--keep-daemon` only when you understand why that state must
+remain.
 
-`anvil uninstall` does not remove the `anvil` binary itself — use the tool you
-installed with:
+## Remove the binary
 
-| Install method | How to remove the binary             |
-| -------------- | ------------------------------------ |
-| Homebrew       | `brew uninstall eddacraft/tap/anvil` |
-| Cargo          | `cargo uninstall anvil`              |
-| curl installer | `rm ~/.eddacraft/bin/anvil`          |
-| Winget         | `winget uninstall eddacraft.anvil`   |
-| Scoop          | `scoop uninstall anvil`              |
-
-As of `v0.7.1-beta`, uninstall recognises Scoop and WinGet install roots when it
-plans cleanup on Windows and keeps removal bounded to the detected install root.
-
-Run `anvil uninstall --global` first so any running daemon is stopped before you
-remove the binary.
-
-## Options reference
-
-| Option          | Short | Description                                                        |
-| --------------- | ----- | ------------------------------------------------------------------ |
-| `--dry-run`     | `-n`  | Show what would be removed; make no changes                        |
-| `--yes`         | `-y`  | Skip the interactive confirmation prompt                           |
-| `--global`      |       | Also remove user-level state, credentials, MCP entries, and daemon |
-| `--keep-mcp`    |       | Skip MCP config edits even when `--global` is set                  |
-| `--keep-daemon` |       | Do not attempt to stop the running daemon                          |
-| `--force`       |       | Continue past per-step errors instead of stopping                  |
-| `--json`        |       | Output results as JSON (requires `--yes` for non-dry-run)          |
-| `--verbose`     | `-v`  | Enable verbose logging                                             |
-| `--no-tui`      |       | Plain-text output; disables TUI rendering                          |
-
-## Automation and scripting
-
-Use `--json --yes` for non-interactive environments. `--json` requires `--yes`
-on non-dry-run invocations to prevent a confirmation prompt from blocking a
-script.
+After cleaning state, remove the binary with the method that installed it:
 
 ```bash
-# Dry run — no confirmation needed
-anvil uninstall --dry-run --json
-
-# Unattended project-scope removal
-anvil uninstall --yes --json
-
-# Unattended full removal
-anvil uninstall --global --yes --json
+brew uninstall eddacraft/tap/anvil
 ```
 
-The JSON envelope contains a `plan` array describing each action and an
-`outcomes` array with the result of each step (`Removed`, `NotPresent`, or
-`Failed`).
-
-## Reinstalling after uninstall
-
-After a project uninstall, run `anvil init` to re-initialise the project. After
-a full uninstall, re-run the installer first:
-
-```bash
-# macOS / Linux
-curl -fsSL https://install.eddacraft.ai | sh
-
-# Windows (PowerShell)
-irm https://install.eddacraft.ai/windows | iex
+```powershell
+winget uninstall eddacraft.anvil
 ```
 
-Then `anvil init` in each project you want to bring back.
-
-## Troubleshooting
-
-### Uninstall stopped mid-way through
-
-If an error stops uninstall before all steps complete, rerun with `--force` to
-continue past the failing step:
-
-```bash
-anvil uninstall --force
+```powershell
+scoop uninstall anvil
 ```
 
-Check `anvil doctor` afterwards to confirm the state is clean.
+For the standalone installer, use the path reported by `Get-Command anvil -All`
+on Windows or `command -v anvil` on macOS/Linux, then remove only that binary.
 
-### Symlink in .anvil/ or .anvilrc
+## Verify
 
-`anvil uninstall` refuses to remove symlinks and reports the path so you can
-handle it manually. Remove or resolve the symlink, then rerun.
+Open a new terminal and run:
 
-### Daemon did not stop
-
-If the daemon was not running or the PID file is stale, the daemon step exits
-cleanly with a `NotPresent` outcome. If it is still reachable, stop it through
-the owning command:
-
-```bash
-anvil intercept stop
+```text
+anvil --version
 ```
 
-If the process is unresponsive, follow the platform-specific daemon recovery in
-[Troubleshooting](./troubleshooting.md), then rerun
-`anvil uninstall --global --keep-daemon` to clean up the remaining state without
-repeating the stop step.
-
-## Further reading
-
-- [Git hook setup](./git-hooks.md) — file mode vs config mode hooks
-- [Troubleshooting](./troubleshooting.md) — stuck daemon and other runtime
-  issues
-- [Quickstart](../quickstart.md) — reinstalling from scratch
+A command-not-found result confirms the binary is no longer on PATH. Also run
+`anvil hooks status` before removing the binary if you need evidence that
+project hooks were cleaned up.

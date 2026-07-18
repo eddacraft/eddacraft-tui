@@ -89,7 +89,7 @@ function pendingPage(): Response {
 <body>
   <div class="card">
     <h1>Access Pending</h1>
-    <p>Your GitHub account has been registered, but access to Anvil documentation requires approval.</p>
+    <p>Your GitHub account has been registered, but access to anvil documentation requires approval.</p>
     <p>You'll receive an email once your access has been approved.</p>
     <p><a href="/">Return to docs home</a></p>
   </div>

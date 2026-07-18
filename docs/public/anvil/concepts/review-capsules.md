@@ -1,139 +1,51 @@
 ---
 id: review-capsules
-title: Review Capsules
-description:
-  Portable, file-first governance evidence for a commit range — verifiable
-  locally without trusting Anvil Cloud.
-sidebar_position: 5
+title: Review capsules
+description: Package and verify governance evidence for a commit range.
 ---
 
-# Review Capsules
+# Review capsules
 
-An **Anvil Review Capsule** is a portable, file-first package of the governance
-evidence for a commit range. It is an ordinary directory you can hand to a
-reviewer, auditor, or downstream supplier so they can verify what anvil saw —
-locally, offline, without trusting Anvil Cloud or re-running your pipeline.
+A review capsule is a portable directory containing governance evidence for a
+commit range. It is useful when a reviewer needs a closed, locally verifiable
+snapshot rather than access to the original working environment.
 
-## Why capsules?
+## Create a capsule
 
-Anvil already records governance evidence as it works. A capsule makes a slice
-of that evidence **transferable and self-verifying**:
+Check the exact arguments in your installed version:
 
-- **No service to trust.** A capsule is files plus a digest manifest. The
-  recipient verifies it on their own machine — there is no API call, no account,
-  and no network dependency.
-- **Pinned to a range.** A capsule is scoped to a `<base>..<head>` commit range,
-  so it answers "what governance held over exactly these changes?".
-- **Tamper-evident.** Every document in the capsule is recorded under a SHA-256
-  digest in the manifest, so a recipient can detect any post-hoc edit.
-
-## Creating a capsule
-
-```bash
-anvil capsule create --range <base>..<head> --out <dir>
+```text
+anvil capsule create --help
 ```
 
-For example, to capture everything that landed since the last release tag:
+Choose a deliberate commit range and output location. Capsule creation records
+evidence; it does not approve the changes.
 
-```bash
-anvil capsule create --range v0.7.4-beta..HEAD --out ../review-capsule
+## Verify a capsule
+
+```text
+anvil capsule verify path/to/capsule
 ```
 
-`--range` uses two-dot `<base>..<head>` semantics. `--out` is created if missing
-and refused if it already contains files; keep it **outside** the repository
-(writing inside `.git/` is refused outright). The capsule is on-demand and
-external by default — anvil does not stage capsules inside your repo.
+Verification checks the capsule's structure, digests, and recorded verdict. Use
+the exit code for automation.
 
-## Verifying a capsule
+## Explain a capsule
 
-```bash
-anvil capsule verify <dir>
+```text
+anvil capsule explain path/to/capsule
 ```
 
-Run from inside the repository the capsule was cut from: `verify` re-collects
-the policy, rules, and baseline digests from the current repo, checks them
-against the capsule's manifest, and writes the resulting verdict back into the
-capsule's `verification.json`. The exit code is the verdict — `0` pass/warn, `1`
-block, `2` degraded, `3` error — so it drops straight into a CI step or a
-reviewer's script. (`anvil capsule create` prints the exact `verify` command to
-run on completion.)
+Explain is read-only and human-oriented. It reports the verdict stored in the
+capsule; it does not replace verification.
 
-Add `--json` to emit the verdict as the `anvil.capsule-verification.v1` document
-on stdout — the exit code is unchanged, so a CI step can both gate on the exit
-status and parse the verdict from the same run:
+## Share safely
 
-```bash
-anvil capsule verify --json <dir>
-```
+Review the capsule for repository names, commit metadata, file paths, and
+diagnostics before sending it outside your team. A capsule is portable, not
+automatically public.
 
-To read a capsule without re-verifying it:
+## Next step
 
-```bash
-anvil capsule explain <dir>
-```
-
-`explain` prints a human-readable summary — range, commits,
-policy/rules/baseline, witness coverage, diagnostics and exception counts, and
-the recorded verdict. It is read-only and repo-independent: it reports the
-verdict the capsule already carries and does **not** re-check it, so it always
-exits `0` on a readable capsule. Gate on the verdict with
-`anvil capsule verify`, not `explain`. Add `--json` for an
-`anvil.capsule-explain.v1` summary in which each evidence field carries an
-explicit state (`present`/`absent`/`missing`/`unreadable`/`malformed`).
-
-## What's inside
-
-A capsule directory packages, under a digest-complete `manifest.json` using the
-`anvil.capsule.v1` digest scheme:
-
-- **Commit/range metadata** — the commits in the range and the range identity.
-- **Policy, rules, and baseline digests** — the governance configuration that
-  was in force, recorded by digest so the recipient can confirm which ruleset
-  and baseline the evidence corresponds to.
-- **The witness chain** — the verbatim witness lines for the range's sequence
-  window, carried as-is so chain identity is preserved.
-- **SARIF diagnostics** — a SARIF 2.1.0 diagnostics document, written empty when
-  no diagnostics are present.
-- **A verification record** — present from creation. A freshly created capsule
-  starts in a degraded "no checks run" state, so an unverified capsule never
-  claims `pass`.
-
-The producer's anvil version and rule identity are written from the same binding
-the witness-writing hook uses, so a capsule's rule identity matches its
-witnessed lines by construction.
-
-## Retention and pruning
-
-Retention is **keep-until-explicitly-pruned**: nothing in Anvil ever deletes a
-capsule automatically — no create-time rotation, no hooks, no age-based cleanup.
-External capsules (the default) are yours to manage. If your team opts into
-staging capsules in-repo under `anvil/evidence/capsules/`, they accumulate
-indefinitely by design; bounding the tree is an explicit act:
-
-```bash
-anvil capsule prune --keep-last 10          # dry run: prints the would-delete list
-anvil capsule prune --keep-last 10 --apply  # stages the deletions
-```
-
-Prune is **dry-run by default**. Only directories whose `manifest.json` is a
-valid `anvil.capsule.v1` document are ever candidates; anything else in the
-staging root is skipped with a warning. Capsules are ordered by their head
-commit's committer date (resolved from your repository), and a capsule whose
-head commit your clone does not know is always kept. With `--apply`, deletions
-go through the git index — the same as `git rm -r` — so the prune shows up as
-staged deletions and committing it remains your decision. `--keep-last 0` is
-refused: deleting every capsule is a manual `git rm` call, not a prune. See
-[ADR-078](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/078-capsule-retention-and-prune.md)
-for the retention decision.
-
-`anvil capsule create`, `verify`, `explain`, and `prune` are the current Rust
-surface. Both `verify` and `explain` support `--json` for CI consumers. See
-[ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
-for the capsule format.
-
-## Related
-
-- [Audit Trail](./audit-trail.md) — the provenance and evidence model capsules
-  draw from.
-- [Gates](./gates.md) — the checks represented in a capsule's verification
-  record.
+Read [evidence and audit trails](audit-trail.md) for the limits of retained
+evidence.

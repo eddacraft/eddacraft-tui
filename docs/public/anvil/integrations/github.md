@@ -1,323 +1,129 @@
 ---
 id: github
-title: GitHub Integration
-description: Using anvil with GitHub Actions and PR checks.
-sidebar_position: 1
+title: Add anvil to GitHub Actions
+description:
+  Run a version-pinned anvil pull-request gate and optionally upload SARIF
+  findings.
 ---
 
-# GitHub Integration
+# Add anvil to GitHub Actions
 
-anvil integrates with GitHub for CI/CD validation and PR feedback.
+**For:** repositories using GitHub Actions
 
-:::info Current integration shape
+**Time:** 15–30 minutes
 
-Use the CLI directly in GitHub Actions today. A packaged first-party GitHub
-Action and automatic hosted evidence links are not part of the current public
-surface.
+**Outcome:** pull requests run a shared anvil gate
 
-:::
+Pilot the same command locally before adding it to CI.
 
-## CI Setup
+## 1. Store beta credentials
 
-Install the anvil binary and run the gate check in your workflow:
+CI needs a dedicated beta licence supplied by your beta programme or team
+administrator. The personal credential created by `anvil auth login` has no
+public export command. If you have not been given a CI licence, stop here rather
+than copying local credential files.
+
+Add the supplied value as an encrypted repository or organisation secret named
+`ANVIL_LICENSE`. Never write the value into workflow YAML or logs.
+
+## 2. Add the workflow
 
 ```yaml
-name: anvil CI
+name: anvil
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  anvil:
+  gate:
     runs-on: ubuntu-latest
+    env:
+      ANVIL_VERSION: 0.9.0-beta
     steps:
       - uses: actions/checkout@v4
 
       - name: Install anvil
-        run: curl -fsSL https://install.eddacraft.ai | sh
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/eddacraft/anvil/releases/download/v${ANVIL_VERSION}/eddacraft-anvil-installer.sh" | sh
 
-      - name: Run anvil
+      - name: Verify the pinned version
+        run: test "$(anvil --version)" = "anvil ${ANVIL_VERSION}"
+
+      - name: Run the CI gate
         env:
           ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
-        run: anvil gate --profile ci
+        run: anvil gate --profile ci --format plain
 ```
 
-For Windows runners, use the PowerShell installer:
+The workflow pins anvil so its result cannot change without a reviewed workflow
+edit. Upgrade by changing `ANVIL_VERSION`, reviewing the release notes, and
+reproducing the gate locally before merging.
 
-```yaml
-- name: Install anvil
-  shell: pwsh
-  run: irm https://install.eddacraft.ai/windows | iex
+## 3. Reproduce locally
+
+```text
+anvil gate --profile ci --format plain
 ```
 
-To cover all three platforms in one job, use a matrix:
+Success means the command and the Actions job both complete with the expected
+gate verdict. Treat authentication, configuration, and tool failures separately
+from product findings.
+
+## Optional SARIF upload
+
+SARIF is a standard analysis-result format understood by GitHub code scanning.
+Add the following entries under `jobs.gate.steps`, immediately after the gate
+step in the complete workflow above, and add `security-events: write` beside
+`contents: read` under `permissions`.
 
 ```yaml
-jobs:
-  anvil:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            install: curl -fsSL https://install.eddacraft.ai | sh
-          - os: windows-latest
-            install: irm https://install.eddacraft.ai/windows | iex
-            shell: pwsh
-          - os: macos-latest
-            install: curl -fsSL https://install.eddacraft.ai | sh
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install anvil
-        shell: ${{ matrix.shell || 'bash' }}
-        run: ${{ matrix.install }}
-
-      - name: Run anvil
-        env:
-          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
-        run: anvil gate --profile ci
-```
-
-:::tip CI authentication
-
-If your gate checks require beta access, set `ANVIL_LICENSE` from your CI secret
-store before running anvil. Locally you use `anvil auth login`; CI should use a
-secret value, not an interactive login.
-
-:::
-
-The `ci` profile runs all check categories (no skips). Output mode and
-interactivity are controlled separately by TTY detection, `--json`, and
-`--progress` flags — the profile selects which checks to run and which
-thresholds to apply.
-
-### Where CI fits
-
-CI is the outermost of anvil's protection layers — the safety net behind
-save-time validation (`anvil watch` / MCP pre-write, see the
-[save-time guide](../guides/save-time-validation.md)) and commit-time git hooks
-(see [Git hook setup](../operations/git-hooks.md)). Issues caught at inner
-layers never reach CI; the goal is to catch everything at save-time.
-
-### Other CI systems
-
-The same install-and-gate pattern works on any runner with the exit codes below.
-GitLab CI, for example:
-
-```yaml
-# .gitlab-ci.yml
-anvil:
-  stage: test
-  variables:
-    ANVIL_LICENSE: $ANVIL_LICENSE
-  before_script:
-    - curl -fsSL https://install.eddacraft.ai | sh
-  script:
-    - anvil gate --profile ci
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-```
-
-### Exit Codes
-
-| Code | Meaning          | Action            |
-| ---- | ---------------- | ----------------- |
-| `0`  | All gates passed | Continue          |
-| `1`  | General error    | Investigate       |
-| `2`  | Gate failure     | Block merge       |
-| `3`  | Auth required    | Check credentials |
-| `4`  | Config error     | Fix configuration |
-
-## Code Scanning (SARIF)
-
-`anvil check`, `anvil gate`, and `anvil audit` can emit
-[SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
-with `--format sarif`, so their findings can be uploaded to GitHub Code Scanning
-and shown in the **Security** tab.
-
-```yaml
-- name: anvil check (SARIF)
+- name: Write SARIF
+  if: always()
+  id: write-sarif
+  continue-on-error: true
+  env:
+    ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
   run: anvil check --all --format sarif > anvil.sarif
 
-- name: Upload to Code Scanning
+- name: Validate SARIF
+  if: always() && hashFiles('anvil.sarif') != ''
+  id: validate-sarif
+  continue-on-error: true
+  run: jq -e '.version == "2.1.0" and (.runs | type == "array")' anvil.sarif
+
+- name: Upload SARIF
+  if: always() && steps.validate-sarif.outcome == 'success'
+  continue-on-error: true
   uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: anvil.sarif
 ```
 
-`--format` is the canonical output selector
-(`auto | tui | plain | json | sarif`) on these three commands. `--json` keeps
-working as an alias for `--format json`; `sarif` must be requested explicitly
-(it is never auto-selected) and is rejected on commands that do not emit
-findings. SARIF emission is **exit-code-neutral** — a failing `gate` still exits
-`2` — so capture stdout to a file rather than gating the upload on the exit
-code.
+`anvil check` returns non-zero when it finds a blocking problem, so every SARIF
+step is explicitly non-gating. The validation step prevents an empty or
+malformed report from reaching the upload action. Keep the gate as the merge
+decision; SARIF is only a reporting channel.
 
-### What is in the SARIF
+## Common problems
 
-Anvil emits the GitHub Code Scanning ingest subset of SARIF 2.1.0:
-`runs[].tool.driver` (named `anvil`) with the encountered `rules[]`, and
-`results[]` with `ruleId`, `level`, `message`, `locations[]`, and a stable
-`partialFingerprints` entry so Code Scanning dedupes findings across runs.
+- **Authentication fails:** confirm the secret exists in the event context;
+  secrets are normally unavailable to untrusted forked pull requests.
+- **No CI licence is available:** ask the beta programme or team administrator;
+  do not export a personal credential file.
+- **The command is not found:** start a new shell step only after the installer
+  has updated the runner path.
+- **Local and CI results differ:** compare version, profile, commit,
+  environment, and generated configuration.
+- **Annotations are missing:** confirm the SARIF upload step ran and has
+  `security-events: write`.
 
-- **`anvil check`** — one result per warning (anti-pattern or secret); `ruleId`
-  is the pattern id or a `SECRET-*` id; `locations[]` carry file + line.
-  `@anvil-ignore`-suppressed findings render under `suppressions[]`.
-- **`anvil audit`** — one result per audit issue; `ruleId` is the issue
-  category; `locations[]` carry file + line (omitted for whole-file findings).
-- **`anvil gate`** — one result per failed or config-needed check; `ruleId` is
-  the check name; results are repo-level with no location (gate findings are
-  per-check aggregates). Config-needed checks are reported at `note` level so
-  they do not inflate the failure set.
+## Next step
 
-Gate results have no file location, so some Code Scanning views may not surface
-them. Full SARIF 2.1.0 conformance (code flows, taxonomies, fixes, multi-run) is
-out of scope.
-
-## PR Comments
-
-Anvil does not post PR comments by itself. If you want a comment, run with JSON
-output and add a workflow step that formats the result.
-
-```markdown
-<!-- anvil-check-results -->
-
-## Anvil Gate Results
-
-✓ All gates passed
-
-| Check             | Status | Duration |
-| ----------------- | ------ | -------- |
-| Import boundaries | ✓ Pass | 23ms     |
-| Anti-pattern scan | ✓ Pass | 15ms     |
-| Secret detection  | ✓ Pass | 8ms      |
-
-Generated from `anvil --json gate --profile ci`.
-```
-
-### Comment on Failure
-
-```markdown
-<!-- anvil-check-results -->
-
-## Anvil Gate Results
-
-✗ 2 issues found
-
-### Errors
-
-| File               | Line | Issue                       |
-| ------------------ | ---- | --------------------------- |
-| `src/api/users.ts` | 42   | AP-003: Explicit 'any' type |
-
-### Warnings
-
-| File               | Line | Issue                         |
-| ------------------ | ---- | ----------------------------- |
-| `src/utils/log.ts` | 15   | AP-007: Console in production |
-
-<details>
-<summary>How to fix</summary>
-
-**AP-003**: Replace `any` with a specific type or generic...
-
-</details>
-```
-
-## Branch Protection
-
-Require anvil before merge:
-
-1. **Repository Settings** → **Branches**
-2. **Add branch protection rule** for `main`
-3. Enable **Require status checks to pass**
-4. Search for and select the workflow job name, usually **anvil**
-5. Save changes
-
-Now PRs cannot merge until anvil passes.
-
-## Check Runs
-
-Anvil does not create GitHub Check Runs by itself. You can create one from the
-JSON output if you want detailed inline feedback:
-
-- Annotations appear on specific lines in the PR diff
-- Expandable details for each issue
-- Links to documentation
-
-### Manual Check Run Creation
-
-The snippet below is a starting point. Adapt the field mapping to the JSON shape
-you get from `anvil --json gate --profile ci` in your version.
-
-```yaml
-- name: Create Check Run
-  uses: actions/github-script@v7
-  with:
-    script: |
-      const results = require('./anvil-results.json');
-
-      await github.rest.checks.create({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        name: 'Anvil Check',
-        head_sha: context.sha,
-        status: 'completed',
-        conclusion: results.status === 'pass' ? 'success' : 'failure',
-        output: {
-          title: 'Anvil Check Results',
-          summary: results.summary,
-          annotations: results.issues.map(i => ({
-            path: i.file,
-            start_line: i.line,
-            end_line: i.line,
-            annotation_level: i.severity === 'error' ? 'failure' : 'warning',
-            message: i.message
-          }))
-        }
-      });
-```
-
-## Monorepo Support
-
-For monorepos, run anvil per-package using a matrix:
-
-```yaml
-jobs:
-  anvil:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: [core, cli, api]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install anvil
-        run: curl -fsSL https://install.eddacraft.ai | sh
-
-      - name: Run anvil
-        env:
-          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
-        working-directory: packages/${{ matrix.package }}
-        run: anvil gate --profile ci
-```
-
-## Caching
-
-If your workflow persists Anvil caches, use a normal GitHub Actions cache step:
-
-```yaml
-- uses: actions/cache@v4
-  with:
-    path: .anvil/cache
-    key: anvil-${{ runner.os }}-${{ hashFiles('**/.anvilrc') }}
-```
-
----
-
-**Next:** [VS Code integration →](/anvil/integrations/vscode)
+Add branch protection only after the job is stable and the team agrees which
+findings block.

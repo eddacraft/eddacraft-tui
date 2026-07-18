@@ -1,439 +1,172 @@
 ---
 id: quickstart
-title: Quickstart
-description: Scan your project and see what anvil finds in under 5 minutes.
-sidebar_position: 3
+title: Install and get first value
+description:
+  Install anvil, verify it, and run a first local check in under ten minutes.
+sidebar_position: 2
 ---
 
-# Quickstart
+# Install and get first value
 
-Install anvil, then pick a path to first value — all in under 5 minutes:
+**For:** first-time users
 
-- **`anvil welcome`** — discovery: see what anvil finds in your own repo, guided
-  from the terminal. **No login needed** — the beta demo surface (ADR-080).
-- **`anvil start`** — daily value: daemon-backed save-time protection that
-  validates files as you (or your AI agent) save them. Requires beta
-  authentication.
+**Time:** 5–10 minutes
 
-If you do not have beta access yet — or want to see value before signing in —
-run `anvil welcome` straight after install. When you are ready for ongoing
-protection, authenticate and run `anvil start`.
+**Outcome:** a verified anvil installation and a real result from your project
 
-## Prerequisites
+## Before you begin
 
-- A TypeScript, JavaScript, Python, or Rust project
-- A terminal (macOS, Linux, or Windows)
+You need:
 
-## 1. Install
+- macOS, Linux, or Windows;
+- a terminal;
+- a project containing source code; and
+- internet access for installation.
 
-:::info Beta
+You do **not** need an account for the first discovery run. Ongoing protection
+uses beta authentication.
 
-anvil is currently in beta — the latest tagged release is `v0.9.0-beta`. If your
-team has gated beta access, use the GitHub account tied to that access when
-prompted by anvil or the docs site. See the
-[beta testing guide](/anvil/beta-testing-guide) for the current scope and known
-gaps. If you're upgrading, see the
-[0.9.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-090-beta) for
-the operator delta (auth exit codes, consent pickers, warm-graph persistence).
+## 1. Install anvil
 
-:::
+Choose one method. Do not combine package managers on the same machine.
+
+### macOS or Linux — standalone installer
 
 ```bash
-# macOS / Linux
-curl -fsSL https://install.eddacraft.ai | sh
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
+```
 
-# Windows (PowerShell)
-irm https://install.eddacraft.ai/windows | iex
+### macOS or Linux — Homebrew
 
-# Or via Homebrew (macOS / Linux)
+```bash
 brew install eddacraft/tap/anvil
+```
 
-# Or via WinGet (Windows)
+### Windows PowerShell — standalone installer
+
+```powershell
+irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
+```
+
+### Windows — WinGet
+
+```powershell
 winget install eddacraft.anvil
+```
 
-# Or via Scoop (Windows)
+### Windows — Scoop
+
+```powershell
 scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
 scoop install anvil
 ```
 
-Anvil is a self-contained Rust binary available for macOS, Linux, and Windows.
-Your project still needs its normal toolchain for lint and test gate checks.
+If the command reports that another installation method already owns anvil,
+upgrade or uninstall through that method instead of overwriting it.
 
-If Anvil is already installed through Homebrew, the macOS/Linux curl installer
-will not replace that install. It exits successfully and tells you to run:
+## 2. Verify the binary
 
-```bash
-brew upgrade eddacraft/tap/anvil
+Open a new terminal, then run:
+
+```text
+anvil --version
 ```
 
-Use one install method per machine. To move from Homebrew to the standalone
-installer, uninstall the Homebrew formula first.
+Success looks like:
 
-:::note `ANVIL_HOME`
-
-anvil keeps user-level state (credentials, daemon socket, caches) under
-platform-standard config paths (`~/.config/anvil` on Unix and macOS,
-`%APPDATA%\anvil` on Windows). Set `ANVIL_HOME=/some/dir` to re-root all of it —
-useful for running a candidate build beside a production install. Project state
-under `.anvil/` in your repo is unaffected by the override.
-
-On Unix, the prefix must be **mode `0700` and owned by you** (the daemon binds
-its socket and PID file directly under it). Prefer
-`install -d -m 700 "$ANVIL_HOME"`. If you already created the directory with
-plain `mkdir`, the daemon ensure/bind path tightens owner-matched modes
-automatically; client probes refuse until the prefix is `0700` (or you run
-`chmod 700 "$ANVIL_HOME"`). See the
-[side-by-side runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-home-side-by-side.md).
-
-:::
-
-:::tip Windows users
-
-If the installer doesn't add `anvil` to your PATH automatically, add
-`%USERPROFILE%\.eddacraft\bin` to your system PATH or run:
-
-```powershell
-$env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
+```text
+anvil 0.9.0-beta
 ```
 
-:::
+A newer beta version is also valid. If the command is not found, reopen the
+terminal once, then see
+[installation troubleshooting](operations/troubleshooting.md#anvil-is-not-found).
 
-## 2. Discover with `anvil welcome` (no login)
+## 3. Get first value without signing in
 
-From the root of your project, run:
+Change to the root of a source-code project and run:
 
-```bash
-cd path/to/your/repo
+```text
 anvil welcome
 ```
 
-`anvil welcome` is deliberately **ungated** — the discovery scan, interactive
-tutorial, and welcome hub all run without `anvil auth login`. This is the beta
-demo surface: see what anvil finds in your own repo before the licence wall. On
-a first run it lands on your repository's highest-severity actionable finding,
-explains why it matters, and shows the exact one-line diff before anything is
-written. Applying the fix takes an explicit, unticked consent — declining drops
-you on the familiar path picker, and a clean repository gets an honest clean
-result rather than a showcased example. Afterwards it lands on the welcome hub.
-When you are done exploring, it points you at `anvil start` for daily
-protection.
+The guided discovery scans a sample of the project and explains what it found. A
+clean result is still useful evidence; it means the scanned sample did not match
+an enabled rule.
 
-The licence wall begins at that handoff. Durable surfaces — `start`, `watch`,
-`check`, `status`, `gate`, and the rest — require beta authentication.
+Success means the command completes and shows either findings or an explicit
+clean result.
 
-## 3. Authenticate (for daily protection)
+## 4. Sign in for ongoing protection
 
-When you are ready for `anvil start` and ongoing protection, sign in with the
-default device-code login flow:
+Ongoing protection is invite-gated during beta. `anvil auth login` registers the
+chosen identity and provisions a local credential only after access is approved.
+If you are not yet invited, request beta access at
+[eddacraft.ai](https://eddacraft.ai) and continue using the account-free
+`anvil welcome` path meanwhile.
 
-```bash
+When access is approved and you are ready to activate save-time or pre-write
+protection, run:
+
+```text
 anvil auth login
 ```
 
-anvil prints a short code and a `github.com/login/device` URL. Open the URL on
-any device, enter the code to approve with GitHub, and the CLI finishes the
-login automatically — there is no email prompt and no website activation page.
+Follow the displayed device-login instructions. Then confirm the identity:
 
-If you need email OTP instead, run:
-
-```bash
-anvil auth login --otp
+```text
+anvil auth whoami
 ```
 
-Beta access is invite-gated. If you do not have access yet, request early access
-at [eddacraft.ai](https://eddacraft.ai).
+If you do not have a GitHub account, run `anvil auth login --otp`. This changes
+the identity method; it does not bypass beta approval. `anvil auth whoami`
+confirms that the approved credential is active without printing its secret.
 
-## 4. Activate daily protection with `anvil start`
+## 5. Activate the project
 
-From your repo root:
+From the project root, run:
 
-```bash
+```text
 anvil start
 ```
 
-On a healthy, already-activated repository a repeat `anvil start` collapses to
-the protection state, daemon and save-time-driver posture, and exactly one next
-step — the full first-run recipe only returns when something needs attention.
-When trustworthy local evidence exists it may add a single value line (for
-example risky writes flagged at save time); missing or zero evidence is omitted.
+This command may create project configuration, record the existing baseline, and
+configure detected supported AI clients. It reports one final protection state:
 
-`anvil start` is the activation entrypoint. It runs `anvil init` if needed,
-baselines the repo, retains its full layered MCP diagnostic for Cursor and
-Claude Code, and can configure strongly detected first-wave clients. A config
-write is not proof of a live handshake, so only observed evidence promotes the
-literal protection state. Pass `--all-mcp-clients` or set
-`ANVIL_ALL_MCP_CLIENTS=1` to configure every supported client even if it was not
-detected. In the current release window, an interactive terminal also
-auto-starts the per-user save-time daemon (Linux and macOS) and reports the
-result on a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to
-suppress that auto-start — a daemon already running is still reused — and note
-`--verify` never starts a daemon. The protection state is one of:
+| State                    | Meaning                                          | What to do                                                |
+| ------------------------ | ------------------------------------------------ | --------------------------------------------------------- |
+| `protecting`             | Pre-write validation is active                   | Continue working                                          |
+| `ready_restart_required` | Client configuration is ready                    | Restart the named client, then run `anvil start --verify` |
+| `watching`               | The local protection service is available        | Run `anvil watch` for a visible save-time loop            |
+| `needs_action`           | Setup needs a repair                             | Follow the command's suggested action                     |
+| `unsupported`            | The detected project is outside current coverage | Check the support reference                               |
+| `error`                  | Activation failed                                | Run `anvil doctor` and use troubleshooting                |
 
-- `protecting` — MCP pre-write validation is live
-- `ready_restart_required` — config is wired, restart your editor to pick it up,
-  or follow the daemon repair hint if the daemon is unreachable, unenforced,
-  stale, or all-quarantined
-- `watching` — save-time watch fallback active (MCP could not attach)
-- `needs_action` — repair hint provided
-- `unsupported` — repo language profile is out of scope for this release
-- `error` — see the diagnostic output
+For a read-only diagnosis that changes nothing, use:
 
-When the daemon is running and reachable over owner-only IPC, the
-`anvil_validate_write` MCP tool runs through the daemon-backed path; an embedded
-scanner is the correctness-equivalent fallback when the daemon is not available.
-The protection-claim contract is defined across `anvil status --json`,
-`anvil doctor --json`, the `anvil_validate_write` MCP-tool response, and the
-TypeScript driver-client. The MCP response only carries `protection_claim` when
-the daemon is reachable. As of `v0.7.1-beta`, Windows reaches the daemon through
-the named-pipe client too, so `correlation.daemonStatus` and `protection_claim`
-are no longer Unix-only.
-
-To probe state without writing config:
-
-```bash
+```text
 anvil start --verify
 ```
 
-To run activation and then enter the save-time watch fallback in the same
-process:
+## Common problems
 
-```bash
-anvil start --watch
-```
+- **Sign-in fails:** retry `anvil auth login` and check that the shown URL is
+  reachable.
+- **The project is unsupported:** compare its file types with the
+  [generated support matrix](reference/support.md).
+- **Protection needs a restart:** fully quit and reopen the named AI client.
+- **You want no editor changes:** use `anvil start --no-mcp` for the
+  daemon-backed path without client configuration.
 
-Watch mode is **save-time fallback only** — never claimed equivalent to MCP
-pre-write interception.
+## Next step
 
-The initial watch pass builds baseline/readiness state and does not report the
-existing repository as new violations. Watch reports findings after later file
-changes. It also prints startup feedback immediately and falls back to plain
-output when stdin or stdout is not a terminal.
+If beta access is approved and `anvil auth whoami` confirms your identity, run
+the [ten-minute protection tutorial](first-gate.md) to create, detect, fix, and
+remove a deliberate finding.
 
-From `v0.8.0-beta`, when a live anvil daemon answers, `anvil watch` routes
-save-time validation through the daemon by default — faster verdicts and a
-workspace assurance state you can read at any time with `anvil status`. Set
-`ANVIL_WATCH_DAEMON=0` to opt out, or `=1` to force daemon routing. As of
-`v0.8.1-beta`, if no daemon is running, an interactive `anvil watch` offers to
-start one (`anvil start` auto-starts it instead); pass `--no-daemon` to skip the
-offer, or `ANVIL_WATCH_DAEMON=0` to also disable reuse of a live daemon. See
-`anvil watch --help` for the routing and lifecycle details. If you are consuming
-watch output from a script, prefer the global-flag-first form
-(`anvil --json watch`) and follow the
-[Watch JSON Output](integrations/watch-output.md) NDJSON contract. The
-equivalent `anvil watch --json` form also parses because `--json` is global; use
-one form consistently in scripts.
-
-To walk this path end to end — activation, a deliberately bad save, and reading
-the finding anvil raises in your own repo — follow
-[Your First Save Caught](tutorials/first-save-caught.md).
-
-## 5. Connect Your AI Editor (MCP)
-
-`anvil start` can wire MCP entries for strongly detected or explicitly selected
-first-wave clients; its full layered activation diagnostic remains available for
-Cursor and Claude Code. To finish the connection:
-
-1. Restart your editor so it picks up the new MCP entry.
-2. Check that `anvil` appears in the editor's MCP server list.
-3. Ask the AI to make a change you know is wrong — the `anvil_validate_write`
-   tool should refuse it before the write lands.
-
-To generate the editor config manually (or to re-emit it for one editor), use:
-
-```bash
-anvil mcp-config --target claude-code
-anvil mcp-config --target codex
-anvil mcp install --client zed --scope project
-```
-
-See the [MCP integration guide](integrations/mcp.md) for the full setup and
-troubleshooting reference.
-
-## 6. Scan Your Project
-
-You can also surface findings directly with the targeted source-analysis
-command:
-
-```bash
-anvil check --all
-```
-
-`anvil check` is the targeted source-analysis command. In the current Rust CLI
-it scans source artefacts for Anvil's registry-backed anti-pattern rules,
-including architecture-category findings emitted by that scanner. Use
-`anvil gate` when you want the full workflow judgement across architecture,
-policy, secrets, and other gate checks.
-
-Most projects have something. Here is typical `check` output:
-
-```
-Checked 12 file(s)
-
-Warnings
-----------------------------------------
-  ⚠ [AP-003] Explicit any type detected
-  src/utils/parser.ts:42
-  Using 'any' defeats type safety
-
-  ⚠ [AP-006] Empty catch block
-  src/services/auth.ts:87
-  Empty catch blocks hide errors
-
-Summary
-----------------------------------------
-  Total            2
-  Warnings         2
-  Time             42ms
-```
-
-If everything passes, you will see:
-
-```
-Checked 12 file(s)
-
-  ✓ No warnings found
-```
-
-To run the broader gate surface, use:
-
-```bash
-anvil gate --profile dev
-```
-
-## 7. Diagnostics
-
-Verify state and the binary you're running:
-
-```bash
-anvil status --verify     # Read-only activation probe (same backend as `anvil start --verify`)
-anvil version             # Current and latest version + the upgrade command for your install method
-anvil doctor              # Environment health check
-```
-
-`anvil version` is install-method aware — it knows whether you used Homebrew,
-Scoop, WinGet, the install script, or a developer build, and prints the right
-upgrade command for that path.
-
-## 8. Turn On Watch Mode (fallback)
-
-If `anvil start` finished in `watching` rather than `protecting`, anvil is
-already running the save-time fallback. To run a standalone watcher in another
-terminal:
-
-```bash
-anvil watch --source
-```
-
-Watch mode is the save-time fallback for the AI guardrail — useful when MCP
-pre-write attach is not available, but never equivalent to pre-write
-interception.
-
-```
-Anvil Watch
-
-Watching for changes...
-Press Ctrl+C to stop.
-```
-
-Save a file and see anvil catch it. Every change is validated in milliseconds,
-not minutes.
-
-Audit and watch skip local tool state, agent worktrees, generated folders, and
-common caches by default, including `.claude`, `.opencode`, `.gemini`,
-`.serena`, `.worktrees`, `node_modules`, `target`, `dist`, and cache
-directories.
-
-:::tip
-
-Run watch mode in a dedicated terminal pane or use the VS Code extension for
-in-editor diagnostics.
-
-:::
-
-## 9. Fix Your First Issue
-
-Take one of the warnings from the scan -- say AP-003, the explicit `any` in
-`src/utils/parser.ts`:
-
-**Before:**
-
-```typescript
-export function parse(input: any): Record<string, unknown> {
-  // ...
-}
-```
-
-**After:**
-
-```typescript
-export function parse(input: string): Record<string, unknown> {
-  // ...
-}
-```
-
-Save the file. If watch mode is running you will see immediate confirmation:
-
-```
-Change detected: src/utils/parser.ts
-
-Checking antipattern-scan... done
-
-All gates passed.
-```
-
-One warning down. Repeat for the rest at your own pace.
-
-## Next Steps
-
-- **Interactive tutorial** -- run `anvil tutorial` for a guided walk-through
-  inside your terminal
-- [Set up your first project](/anvil/first-project) -- architecture boundaries,
-  suppressions, and CI
-- [Understand gates](/anvil/concepts/gates) -- what anvil validates and why
-- [Configuration reference](/anvil/operations/config) -- customise checks,
-  patterns, and watch behaviour
-- [Uninstalling Anvil](./operations/uninstall.md) -- clean project or
-  machine-level reset after beta testing
-
-**Feature tutorials:**
-
-- [Custom policies](/anvil/tutorials/policies) -- write OPA/Rego rules for your
-  team's standards
-- [Architecture boundaries](/anvil/tutorials/architecture) -- define and enforce
-  module boundaries
-- [Drift detection](/anvil/tutorials/drift) -- capture snapshots and track
-  architectural drift
-- [GitHub integration](integrations/github.md) -- add anvil to your pipeline
-
-**Operator surfaces** (runbooks are the source of truth):
-
-- [`anvil-run` — wrapped-launch ingress](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
-  — route `claude`, `codex`, `aider`, and similar agents through a
-  daemon-attributed session. Stable exit codes (`64 / 69 / 73 / 75 / 78`) and
-  shell-integration script.
-- [`anvil l4-validate`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
-  — dedicated L4-policy validator for CI / pre-push consumers; replaces the
-  prior `anvil hook pre-push` reuse.
-- Protection-claim contract — `anvil status --json | jq '.claim.worktree_state'`
-  and the same `ProtectionClaim` shape on `anvil doctor --json`, the
-  `anvil_validate_write` MCP-tool response when the daemon is reachable, and the
-  TypeScript driver-client. Windows MCP protection-claim parity landed in
-  `v0.7.1-beta`.
-- `anvil baseline --new-identity` / `anvil start --new-identity` — fork opt-out:
-  mint a fresh `project_uuid` and record the previous one as `forked_from`.
-- [`anvil intercept unblock --acknowledge-cascade`](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
-  — clear a `degraded:fence-cascade` rate-limited fence. The `RateWindow`
-  capacity is 4, so the **fifth** fire within a 60 s window engages cascade; use
-  this flag once the incident is resolved.
-- [Witness chain](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-witness-chain.md)
-  and
-  [hook coexistence](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-hook-coexistence.md)
-  — what `anvil/witness/` writes into your repo and how Anvil registers under
-  lefthook / husky / pre-commit-framework instead of overwriting `.git/hooks/`.
-
----
-
-**Next:** [Set up your first project →](/anvil/first-project)
-
-**Need help?** Check [Troubleshooting](/anvil/operations/troubleshooting) or
-[open an issue](https://github.com/eddacraft/anvil/issues).
+If you are waiting for access, keep using the account-free `anvil welcome`
+journey. You can also review [when anvil fits](when-to-use.md), compare the
+[supported languages and clients](reference/support.md), or request access at
+[eddacraft.ai](https://eddacraft.ai). The protection tutorial uses an
+authenticated command and will not work until your beta access is approved.

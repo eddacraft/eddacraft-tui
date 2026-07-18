@@ -17,14 +17,14 @@ function HomepageHeader() {
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
         <p className={styles.heroDescription}>
-          Plan with intent, validate with gates, and preserve reusable knowledge.
+          Start with a real result, then add protection at the pace your project needs.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/anvil/overview">
-            Get Started
+            Understand anvil
           </Link>
           <Link className="button button--secondary button--lg" to="/anvil/quickstart">
-            Anvil Quickstart
+            Install anvil
           </Link>
         </div>
       </div>
@@ -75,9 +75,9 @@ function ProductTiles() {
       <div className="container">
         <div className={styles.productGrid}>
           <ProductTile
-            title="Anvil"
-            tagline="Ship with restraint"
-            description="Validate AI-generated code changes at save-time. Catch architecture drift and anti-patterns before they reach review."
+            title="anvil"
+            tagline="Safer changes, earlier"
+            description="Check AI-assisted and conventional code changes locally, then add save-time, pre-write, hook, or CI protection when you are ready."
             href="/anvil/overview"
             variant="anvil"
           />
@@ -120,13 +120,12 @@ function ValueProps() {
           <div className={styles.valueProp}>
             <h3>Provenance Tracked</h3>
             <p>
-              Every change, validation, and observation traces to its origin. Full audit trail
-              included.
+              Protected checks can retain their named inputs, results, and origin for later review.
             </p>
           </div>
           <div className={styles.valueProp}>
             <h3>Open Standards</h3>
-            <p>APS and Kindling are open source. Build on open foundations without lock-in.</p>
+            <p>APS and kindling are open source. Build on open foundations without lock-in.</p>
           </div>
           <div className={styles.valueProp}>
             <h3>Knowledge That Sticks</h3>
@@ -151,13 +150,13 @@ function QuickLinks() {
             <h4>Getting Started</h4>
             <ul>
               <li>
-                <Link to="/anvil/overview">Anvil Overview</Link>
+                <Link to="/anvil/overview">What anvil does</Link>
               </li>
               <li>
                 <Link to="/aps/overview">APS Overview</Link>
               </li>
               <li>
-                <Link to="/anvil/quickstart">Anvil Quickstart</Link>
+                <Link to="/anvil/quickstart">Install anvil</Link>
               </li>
               <li>
                 <Link to="/edda-stack/overview">Memory System Overview</Link>
@@ -191,7 +190,7 @@ function QuickLinks() {
                 <Link to="/anvil/integrations/vscode">VS Code</Link>
               </li>
               <li>
-                <Link to="/anvil/integrations/mcp">MCP Server</Link>
+                <Link to="/anvil/integrations/mcp">AI client integration</Link>
               </li>
             </ul>
           </div>
@@ -219,7 +218,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="The forge for governed AI-assisted work"
-      description="eddacraft builds tools that make AI-generated code changes safe for production. Anvil validates. APS plans."
+      description="eddacraft builds tools for safer AI-assisted software work. anvil checks changes locally; APS makes plans reproducible."
     >
       <HomepageHeader />
       <main>

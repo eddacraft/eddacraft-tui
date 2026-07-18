@@ -1,165 +1,121 @@
 ---
 id: first-gate
-title: Your First Gate Moment
-description: Experience anvil catching an issue before it reaches review.
-sidebar_position: 5
+title: Ten-minute protection tutorial
+description:
+  Create a safe temporary finding, see anvil detect it, fix it, and confirm the
+  clean result.
+sidebar_position: 3
 ---
 
-# Your First Gate Moment
+# Ten-minute protection tutorial
 
-This page walks through the experience of anvil catching an issue in real-time.
+**For:** users who completed the quickstart
 
-:::tip Run `anvil start` first
+**Time:** about 10 minutes
 
-For the install-to-protection flow on a fresh repo, run `anvil start` — it wires
-Cursor / Claude Code MCP entries, baselines the repo, and ends in a literal
-protection state. The scenario below assumes you're already past that step and
-have watch mode (the save-time fallback) running.
+**Outcome:** prove that anvil can detect a new problem and confirm its fix
 
-:::
+This tutorial creates a reserved `anvil-docs-tutorial/` directory in your
+project. It refuses to start if that path already exists, so it cannot overwrite
+an existing file. Remove the directory at the end.
 
-## Before You Start
+## Before you begin
 
-This example assumes you have already run `anvil init`, created
-`.anvil/architecture.yaml`, and started watch mode. If you have not done that
-yet, follow [First Project](/anvil/first-project) first.
+- Complete [install and get first value](quickstart.md).
+- Have approved beta access and complete `anvil auth login`.
+- Run `anvil auth whoami` and confirm that it shows the identity you intend to
+  use. The `anvil check` command in this tutorial requires authentication.
+- Run from the root of a project.
+- Confirm `anvil --version` works.
 
-## The Scenario
+## 1. Create a deliberate finding
 
-You're using an AI coding assistant to add a new endpoint. The AI generates
-working code, but it violates your architecture.
-
-## Step 1: Start Watch Mode
-
-In a terminal:
+macOS or Linux:
 
 ```bash
-anvil watch
+test ! -e anvil-docs-tutorial &&
+  mkdir anvil-docs-tutorial &&
+  printf '/* eslint-disable */\nexport const answer: any = 42;\n' \
+    > anvil-docs-tutorial/check.ts
 ```
 
-You see:
+Windows PowerShell:
 
-```
-Anvil Watch
-
-Watching for changes...
-Press Ctrl+C to stop.
-```
-
-## Step 2: AI Generates Code
-
-You ask your AI assistant: "Add a DELETE endpoint for users"
-
-The AI generates `src/api/handlers/delete-user.ts`:
-
-```typescript
-import { Request, Response } from 'express';
-import { db } from '../../repositories/db'; // Direct DB access!
-
-export async function deleteUser(req: Request, res: Response) {
-  const { id } = req.params;
-
-  try {
-    await db.query('DELETE FROM users WHERE id = $1', [id]);
-    res.status(204).send();
-  } catch (e) {
-    // AI left an empty catch block
-    res.status(500).send();
-  }
+```powershell
+if (Test-Path .\anvil-docs-tutorial) {
+  throw '.\anvil-docs-tutorial already exists; choose another project or move it safely.'
 }
+New-Item -ItemType Directory -Path .\anvil-docs-tutorial | Out-Null
+Set-Content -Path .\anvil-docs-tutorial\check.ts -Value @(
+  '/* eslint-disable */'
+  'export const answer: any = 42;'
+)
 ```
 
-## Step 3: Save the File
+The example contains two intentional escape hatches: a broad lint suppression
+and an explicit `any` type.
 
-The moment you save, anvil responds:
+## 2. Check the file
 
-```
-Change detected: src/api/handlers/delete-user.ts
-
-Checking import-boundaries...
-  ARCH-001: Boundary violation
-    src/api/handlers/delete-user.ts:2
-    imports from ../../repositories/db
-    Rule: api-layer denies imports from src/repositories/**
-
-    API handlers should use services, not repositories directly.
-
-Checking antipattern-scan...
-  [AP-006] Empty catch block
-    src/api/handlers/delete-user.ts:10:5
-
-    Empty catch blocks hide errors. Log the error or re-throw.
-
-1 error, 1 warning found.
-Gate status: FAIL
+```text
+anvil check anvil-docs-tutorial/check.ts --format plain
 ```
 
-## Step 4: Fix Before Commit
+Success means the output names one or more findings for
+`anvil-docs-tutorial/check.ts`. Rule IDs can differ as the catalogue evolves;
+the explanation should identify the broad suppression or unsafe type.
 
-You now know _immediately_ that this code has issues—before you commit, before
-you push, before a reviewer has to point it out.
+If the result is clean, confirm that the file contains both lines exactly, then
+compare the extension with the [support matrix](reference/support.md).
 
-Fix the architecture violation:
+## 3. Fix the file
 
-```typescript
-import { Request, Response } from 'express';
-import { UserService } from '../../services/user.service'; // Correct!
+macOS or Linux:
 
-export async function deleteUser(req: Request, res: Response) {
-  const { id } = req.params;
-
-  try {
-    await UserService.delete(id);
-    res.status(204).send();
-  } catch (error) {
-    console.error('Failed to delete user:', error); // Proper handling
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
-}
+```bash
+printf 'export const answer: number = 42;\n' > anvil-docs-tutorial/check.ts
 ```
 
-Save again:
+Windows PowerShell:
 
-```
-Change detected: src/api/handlers/delete-user.ts
-
-Checking import-boundaries... done
-Checking antipattern-scan... done
-
-All gates passed.
+```powershell
+Set-Content -Path .\anvil-docs-tutorial\check.ts -Value 'export const answer: number = 42;'
 ```
 
-## The Value
+Run the same check again:
 
-In traditional workflows:
+```text
+anvil check anvil-docs-tutorial/check.ts --format plain
+```
 
-1. AI generates code
-2. You commit and push
-3. CI runs (5 minutes)
-4. Reviewer spots the issue (hours later)
-5. You context-switch back to fix
+Success is an explicit clean result with no finding for the temporary file.
 
-With anvil:
+## 4. Remove the temporary file
 
-1. AI generates code
-2. You save
-3. anvil catches it (milliseconds)
-4. You fix while context is fresh
+macOS or Linux:
 
-**Time saved:** Hours of review cycles, context-switching, and accumulated
-technical debt.
+```bash
+rm anvil-docs-tutorial/check.ts
+rmdir anvil-docs-tutorial
+```
 
-## What Gates Provide
+Windows PowerShell:
 
-| Traditional               | With anvil                  |
-| ------------------------- | --------------------------- |
-| Issues found in review    | Issues found at save        |
-| Reviewer cognitive load   | Automated enforcement       |
-| Inconsistent enforcement  | Deterministic rules         |
-| "It passed tests" excuses | Architecture is tested too  |
-| Invisible AI drift        | Visible, immediate feedback |
+```powershell
+Remove-Item .\anvil-docs-tutorial\check.ts
+Remove-Item .\anvil-docs-tutorial
+```
 
----
+Both directory-removal commands refuse to remove a non-empty directory. If you
+added another file there during the tutorial, move it deliberately before
+retrying cleanup.
 
-**Previous:** [First project](/anvil/first-project) | **Next:**
-[Understand the concepts behind gates →](/anvil/concepts/gates)
+## What you proved
+
+You observed the complete loop: create a change, receive a deterministic
+finding, make a safe correction, and verify the result.
+
+## Next step
+
+Use [protect AI-assisted writes](guides/agent-harness.md) or
+[save-time validation](guides/save-time-validation.md) for your normal workflow.

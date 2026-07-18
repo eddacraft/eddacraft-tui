@@ -1,229 +1,103 @@
 ---
 id: first-project
-title: First Project
-description: Set up anvil in an existing project with architecture boundaries.
-sidebar_position: 4
+title: Define architecture boundaries
+description:
+  Add and validate a small layered architecture definition for an existing
+  project.
 ---
 
-# First Project
+# Define architecture boundaries
 
-This guide walks through setting up anvil in an existing TypeScript (or other
-supported-language) project with intentional architecture boundaries. Python and
-Rust follow the same activation path; only the example tree below is TypeScript.
+**For:** teams that want anvil to detect new dependency drift
 
-:::tip Activate first with `anvil start`
+**Time:** 15–30 minutes
 
-If you just want the install-to-protection flow, run `anvil start` from the
-project root — it handles `anvil init`, MCP wiring for the MCP-capable editors
-it strongly detects, keeps the full activation evidence path for Cursor and
-Claude Code, and ends in one literal protection state. See the
-[Quickstart](/anvil/quickstart) for that path. This guide goes deeper into
-defining and enforcing architecture boundaries on top of that foundation.
+**Outcome:** a validated architecture definition that matches your directory
+layout
 
-:::
+Complete the [quickstart](quickstart.md) first.
 
-## Scenario
+## 1. Identify real layers
 
-You have a project with this structure:
+Choose directories that already have distinct responsibilities. For example:
 
-```
-my-app/
-├── src/
-│   ├── api/           # HTTP handlers
-│   ├── services/      # Business logic
-│   ├── repositories/  # Data access
-│   └── utils/         # Shared utilities
-├── package.json
-└── tsconfig.json
-```
+- `src/api` receives requests;
+- `src/services` contains business logic;
+- `src/storage` accesses data; and
+- `src/shared` contains dependency-free helpers.
 
-You want to enforce these boundaries:
+Do not invent a target architecture that the project does not yet follow.
 
-- `api/` can import from `services/` but not `repositories/`
-- `services/` can import from `repositories/` and `utils/`
-- `repositories/` can only import from `utils/`
-- `utils/` cannot import from other layers
+## 2. Create the definition
 
-## Step 1: Install and Initialise
-
-```bash
-# macOS / Linux
-curl -fsSL https://install.eddacraft.ai | sh
-```
-
-```powershell
-# Windows (PowerShell)
-irm https://install.eddacraft.ai/windows | iex
-```
-
-Then initialise in your project:
-
-```bash
-anvil init
-```
-
-## Step 2: Define Architecture Boundaries
-
-Create `.anvil/architecture.yaml` to define your layer rules. Layers are a map
-keyed by name, with `patterns` (glob list) and `depends_on` (allowed
-dependencies):
+Create `.anvil/architecture.yaml` in the project root:
 
 ```yaml
 schema_version: '0.1.0'
-template: custom
+template: layered
 layers:
-  api-layer:
+  api:
     patterns:
       - 'src/api/**'
     depends_on:
-      - service-layer
-      - utils
-
-  service-layer:
+      - services
+      - shared
+  services:
     patterns:
       - 'src/services/**'
     depends_on:
-      - repository-layer
-      - utils
-
-  repository-layer:
+      - storage
+      - shared
+  storage:
     patterns:
-      - 'src/repositories/**'
+      - 'src/storage/**'
     depends_on:
-      - utils
-
-  utils:
+      - shared
+  shared:
     patterns:
-      - 'src/utils/**'
+      - 'src/shared/**'
     depends_on: []
 ```
 
-The `depends_on` field declares which layers a given layer **may** import from.
-Any import outside that list is a boundary violation.
+Change the patterns to match your project. A layer may depend only on the layers
+listed in `depends_on`.
 
-Validate the definition:
+## 3. Validate the file
 
-```bash
+```text
 anvil architecture validate
 ```
 
-## Step 3: Run Initial Gate
+Success means anvil confirms the definition is valid. A schema or pattern error
+must be fixed before running an architecture gate.
 
-```bash
-anvil gate --only-checks import-boundaries,antipattern-scan
+## 4. Inspect what anvil loaded
+
+```text
+anvil architecture show
 ```
 
-You might see existing violations:
+Confirm that the displayed layers and paths match your intent.
 
-```
-Checking import-boundaries...
-  ARCH-001: Boundary violation
-    src/api/handlers/user.ts imports from src/repositories/user.repo.ts
-    Rule: api-layer denies imports from src/repositories/**
+## 5. Run the architecture check
 
-Checking antipattern-scan...
-  [AP-003] Explicit 'any' type
-    src/services/parser.ts:42:10
-
-1 error, 1 warning found.
-Gate status: FAIL
+```text
+anvil gate --only-checks architecture --format plain
 ```
 
-## Step 4: Fix Violations
+Existing edges may be adopted into the baseline. The useful signal is a new edge
+that violates the declared direction after this point.
 
-For architecture violations, you have two options:
+## Common problems
 
-### Option A: Fix the Code
+- **No files match a layer:** adjust its glob to the actual project root.
+- **Everything is in one layer:** start with two meaningful responsibilities
+  rather than forcing a detailed model.
+- **A legitimate edge is rejected:** review the direction first; add it only
+  when the dependency is intentionally part of the architecture.
 
-Refactor to respect boundaries. In the example above, the API handler should
-call a service, not a repository directly:
+## Next step
 
-```typescript
-// Before (violation)
-import { UserRepo } from '../repositories/user.repo';
-
-// After (correct)
-import { UserService } from '../services/user.service';
-```
-
-### Option B: Suppress with Explanation
-
-If the violation is intentional, add a suppression:
-
-```typescript
-// @anvil-ignore ARCH-001: Legacy pattern, will refactor in Q2
-import { UserRepo } from '../repositories/user.repo';
-```
-
-:::caution
-
-Suppressions require explanations. `@anvil-ignore` without a reason will itself
-trigger a warning.
-
-:::
-
-## Step 5: Start Watch Mode
-
-Once clean (or suppressions added), start watch mode:
-
-```bash
-anvil watch
-```
-
-Now any new violations will surface immediately when you save.
-
-## Step 6: Add to CI
-
-Add anvil to your CI pipeline:
-
-```yaml
-# .github/workflows/ci.yml (Linux runner)
-- name: Install anvil
-  run: curl -fsSL https://install.eddacraft.ai | sh
-
-- name: Run anvil
-  env:
-    ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
-  run: anvil gate --profile ci
-```
-
-For Windows runners:
-
-```yaml
-# .github/workflows/ci.yml (Windows runner)
-- name: Install anvil
-  shell: pwsh
-  run: irm https://install.eddacraft.ai/windows | iex
-
-- name: Run anvil
-  env:
-    ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
-  run: anvil gate --profile ci
-```
-
-The `ci` profile runs the configured CI gate checks and returns appropriate exit
-codes. Add `--json` before the subcommand (`anvil --json gate --profile ci`) if
-your workflow needs machine-readable output.
-
-## What You've Achieved
-
-- anvil validates architecture boundaries on every save
-- New boundary violations are caught before commit
-- Anti-patterns surface immediately
-- CI blocks PRs with violations
-
----
-
-**Previous:** [Quickstart](/anvil/quickstart) | **Next:**
-[Experience your first gate moment →](/anvil/first-gate)
-
-**Learn more:**
-
-- [Custom policies](/anvil/tutorials/policies) -- write OPA/Rego rules for your
-  standards
-- [Architecture boundaries](/anvil/tutorials/architecture) -- templates and
-  enforcement
-- [Drift detection](/anvil/tutorials/drift) -- track architectural changes
-- [GitHub integration](integrations/github.md) -- add anvil to your pipeline
-- [Suppression health](guides/insights.md) -- create, audit, and retire
-  suppressions
+Read [checks, findings, and gates](concepts/gates.md), then add
+[Git hooks](operations/git-hooks.md) or
+[continuous integration](integrations/github.md).

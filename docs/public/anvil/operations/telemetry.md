@@ -1,120 +1,47 @@
 ---
 id: telemetry
-title: Anonymous usage telemetry
+title: Upcoming anonymous usage telemetry
 description:
-  Inspect and control anvil's narrow anonymous fleet beacon, including its exact
-  next payload, identity, retention, and permanent off switches.
-sidebar_position: 6
-docgov:
-  type: 'Public docs'
-  authority: 'Authoritative'
-  owner: 'FLEET'
-  status: 'Live'
-  freshness:
-    'Last reviewed 2026-07-16 against `v0.9.0-beta`, ADR-107,
-    `crates/anvil-cli/src/telemetry.rs`, and
-    `apps/anvil-api/src/lib/fleet-overview.ts`'
-  upstream:
-    '`plans/decisions/107-fleet-telemetry-consent-posture.md`,
-    `crates/anvil-cli/src/telemetry.rs`,
-    `apps/anvil-api/src/lib/fleet-overview.ts`, and the `/api/v1/telemetry`
-    schema'
-  downstream: 'anvil users, privacy reviews, and fleet telemetry operators'
+  Preview the privacy boundary for anonymous usage telemetry in an unreleased
+  anvil build.
+public_unlisted: true
 ---
 
-# Anonymous usage telemetry
+# Upcoming anonymous usage telemetry
 
-Anvil sends a narrow anonymous usage beacon from eligible `anvil start` sessions
-on beta, release-candidate, and stable builds. Alpha, nightly, and other
-pre-beta builds never beacon. It is disclosed opt-out: the first eligible
-interactive start shows the notice before any beacon can be sent. The network
-request runs separately with a short timeout, so it does not delay the command;
-failures are silent and are not queued for retry.
+This page describes an unreleased telemetry implementation. It is deliberately
+excluded from the current navigation because the public `0.9.0-beta` binary does
+not send this beacon and does not include the `anvil telemetry` command.
 
-## See the exact next payload
+Do not use this page as current beta setup guidance. For the released product's
+network boundary, use [local data and security](security.md).
 
-```bash
-anvil telemetry
-anvil --json telemetry
-```
+## Proposed privacy boundary
 
-When sending is allowed, both forms show the exact canonical body the worker
-will send. On first allowed inspection, anvil creates the random install ID so
-the preview is literal. When sending is blocked, the command does not create an
-ID and names the exact blocking reason instead.
+The unreleased implementation is designed to send a narrow anonymous usage
+beacon from eligible beta, release-candidate, and stable builds. Source code,
+paths, repository names, command arguments, findings, output, hostnames, emails,
+account identity, stack traces, and free-form diagnostic text are excluded.
 
-The body has exactly these top-level fields:
+The proposed body contains only:
 
-| Field                   | Value                                                                                                          |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `schema_version`        | Version of this strict beacon wire format.                                                                     |
-| `install_id`            | Random UUID v4, derived from nothing about the user, account, hardware, or repository.                         |
-| `version`               | Version of the running anvil binary.                                                                           |
-| `install_method`        | One closed-set label: `homebrew`, `scoop`, `winget`, `cargo_dist`, `cargo_install`, `dev_build`, or `unknown`. |
-| `platform`              | Platform target triple.                                                                                        |
-| `channel`               | Eligible release channel: `stable`, `beta`, or `rc`.                                                           |
-| `flag_snapshot_version` | Active flag snapshot version; `0` means no remote snapshot is installed.                                       |
-| `features`              | Sorted `{key, count}` pairs for feature flags exercised since the last successful beacon.                      |
+- a random install identifier that is not derived from a person or machine;
+- the anvil version, release channel, platform, and install method;
+- the active feature-flag snapshot version; and
+- aggregate feature-key counts.
 
-It never contains paths, repository names, command names, arguments, findings,
-file contents, output, hostnames, emails, account or licence identity, the local
-salted principal, stack traces, or free-form diagnostic text. Adding a field
-requires a dated amendment to ADR-107.
+The implementation is designed to send at most one successful beacon per
+installation in 24 hours, retain raw beacon rows for no more than 90 calendar
+dates, and avoid retaining source IP addresses. The random identifier is not an
+authenticated customer identity, so aggregate metrics are directional product
+evidence rather than a verified customer count.
 
-## Identity and frequency
+## Proposed controls
 
-The install ID is stored owner-only beside anvil's other user-scoped state. It
-is not derived from a machine or person. A reservation and success commit
-enforce at most one successful beacon per install per 24 hours. Feature counts
-remain eligible until a beacon succeeds; a failed body is not spooled.
+The unreleased command surface is designed to preview the exact next payload,
+turn sending on or off, and rotate the random install identifier. Environment
+hard-offs are designed to include `ANVIL_TELEMETRY=off` and `DO_NOT_TRACK=1`.
 
-Rotate the ID at any time:
-
-```bash
-anvil telemetry reset-id
-```
-
-Rotation makes beacons under the old and new IDs unjoinable.
-
-## Turn it off
-
-Any one of these is a permanent hard off:
-
-```bash
-anvil telemetry off
-export ANVIL_TELEMETRY=off
-export DO_NOT_TRACK=1
-```
-
-`DO_NOT_TRACK=1` also disables local command-usage collection. A non-default
-`ANVIL_HOME`, an unreadable consent file, and a non-terminal first run that
-could not mark the notice as shown fail closed. Turn persisted telemetry back on
-with `anvil telemetry on`; environment hard offs still take precedence.
-
-## Storage and retention
-
-The API does not retain source IP addresses. Raw beacon rows are retained for at
-most 90 calendar dates. Daily install, version, install-method, platform,
-channel, and feature aggregates are retained indefinitely. Identity-based
-active-install and observed-retention cohorts remain bounded by the raw window;
-daily aggregates cannot reconstruct install identities. Access to all fleet
-views is operator-only.
-
-Historical install aggregates remain exact dimension cells. Their distinct count
-applies only inside one day/version/install-method/platform/channel cell; cells
-are not additive because one anonymous install can change dimensions within a
-day.
-
-The anonymous random install ID is not authenticated or independently verified.
-An install can rotate it, and a caller can fabricate an ID or payload. Fleet
-metrics are therefore directional product evidence, not audit-grade evidence or
-a verified customer count.
-
-## Local Kindling data is separate
-
-Anvil's detailed `command.invoked` and governance observations remain in the
-local Kindling pipe and are not uploaded. The beacon derives only the
-allowlisted feature-key counts; it never sends a Kindling row or the local
-salted principal. See the
-[usage analytics privacy contract](../../../observability/usage-analytics.md)
-for the full boundary.
+These controls become actionable documentation only when a public release
+contains them. Until then, the current beta behaviour documented by the
+[security guide](security.md) is authoritative.

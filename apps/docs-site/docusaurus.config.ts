@@ -18,10 +18,12 @@ const config: Config = {
   projectName: 'eddacraft-docs',
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
 
   markdown: {
     format: 'detect',
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
   },
 
   i18n: {
@@ -41,7 +43,6 @@ const config: Config = {
             type: ['rss', 'atom'],
             xslt: true,
           },
-          editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/website/',
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',
@@ -62,10 +63,9 @@ const config: Config = {
     //     path: '../../docs/public/start-here',
     //     routeBasePath: 'start-here',
     //     sidebarPath: './sidebars/start-here.ts',
-    //     editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/start-here/',
     //   },
     // ],
-    // Anvil - primary product
+    // anvil - primary product
     [
       '@docusaurus/plugin-content-docs',
       {
@@ -73,7 +73,6 @@ const config: Config = {
         path: '../../docs/public/anvil',
         routeBasePath: 'anvil',
         sidebarPath: './sidebars/anvil.ts',
-        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/anvil/',
       },
     ],
     // APS - OSS spec
@@ -84,10 +83,9 @@ const config: Config = {
         path: '../../docs/public/aps',
         routeBasePath: 'aps',
         sidebarPath: './sidebars/aps.ts',
-        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/aps/',
       },
     ],
-    // Kindling - OSS memory capture
+    // kindling - OSS memory capture
     [
       '@docusaurus/plugin-content-docs',
       {
@@ -95,7 +93,6 @@ const config: Config = {
         path: '../../docs/public/kindling',
         routeBasePath: 'kindling',
         sidebarPath: './sidebars/kindling.ts',
-        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/kindling/',
       },
     ],
     [
@@ -105,7 +102,6 @@ const config: Config = {
         path: '../../docs/public/edda-stack',
         routeBasePath: 'edda-stack',
         sidebarPath: './sidebars/edda-stack.ts',
-        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/edda-stack/',
       },
     ],
     // Beta - unlisted quickstart for beta testers (not in navbar/footer)
@@ -116,7 +112,6 @@ const config: Config = {
         path: '../../docs/public/beta',
         routeBasePath: 'beta',
         sidebarPath: './sidebars/beta.ts',
-        editUrl: 'https://github.com/eddacraft/anvil-001/tree/main/docs/public/beta/',
       },
     ],
   ],
@@ -137,7 +132,7 @@ const config: Config = {
       },
       items: [
         {
-          label: 'Anvil',
+          label: 'anvil',
           to: '/anvil/overview',
           position: 'left',
         },
@@ -147,7 +142,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          label: 'Kindling',
+          label: 'kindling',
           to: '/kindling/overview',
           position: 'left',
         },
@@ -175,16 +170,16 @@ const config: Config = {
         {
           title: 'Products',
           items: [
-            { label: 'Anvil', to: '/anvil/overview' },
+            { label: 'anvil', to: '/anvil/overview' },
             { label: 'APS', to: '/aps/overview' },
-            { label: 'Kindling', to: '/kindling/overview' },
+            { label: 'kindling', to: '/kindling/overview' },
           ],
         },
         {
           title: 'Docs',
           items: [
-            { label: 'Anvil Overview', to: '/anvil/overview' },
-            { label: 'Anvil Quickstart', to: '/anvil/quickstart' },
+            { label: 'What anvil does', to: '/anvil/overview' },
+            { label: 'Install anvil', to: '/anvil/quickstart' },
             { label: 'APS Spec', to: '/aps/spec/taxonomy' },
           ],
         },
@@ -197,7 +192,7 @@ const config: Config = {
             },
             {
               label: 'Releases',
-              href: 'https://github.com/eddacraft/anvil-001/releases',
+              href: 'https://github.com/eddacraft/anvil/releases',
             },
           ],
         },
