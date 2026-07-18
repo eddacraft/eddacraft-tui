@@ -931,16 +931,33 @@ pub fn disclosure_text() -> String {
 /// closing output.
 ///
 /// Returns the notice text when it is due, or `None` when it has already
-/// been shown or the user has already opted out (no point disclosing a
-/// beacon that will not fire). `notice_shown` is persisted **only when
-/// `stdout_is_tty` is true** — a piped/CI run may print the text, but a
-/// notice no human saw must never unlock the beacon, so non-TTY first
-/// runs stay blocked (gated/CI environments never beacon).
+/// been shown, the user has already opted out, or this build's release
+/// channel is ineligible to beacon (no point disclosing — or persisting
+/// `notice_shown` for — a beacon that [`send_gate`] will refuse anyway).
+/// That eligibility check must live here, not just in `send_gate`: without
+/// it, an alpha/nightly/dev build would persist `notice_shown` on its
+/// first TTY run, so a later upgrade to an eligible beta/stable build
+/// would beacon without the notice ever having been shown on an eligible
+/// build. `notice_shown` is persisted **only when `stdout_is_tty` is
+/// true** — a piped/CI run may print the text, but a notice no human saw
+/// must never unlock the beacon, so non-TTY first runs stay blocked
+/// (gated/CI environments never beacon).
 ///
 /// A corrupt consent file propagates as `Err` (the caller warns; the
 /// send gate is already fail-safe blocked) and is never overwritten from
 /// this passive path.
 pub fn first_run_disclosure_in(state_dir: &Path, stdout_is_tty: bool) -> Result<Option<String>> {
+    first_run_disclosure_for_version_in(state_dir, stdout_is_tty, env!("CARGO_PKG_VERSION"))
+}
+
+fn first_run_disclosure_for_version_in(
+    state_dir: &Path,
+    stdout_is_tty: bool,
+    version: &str,
+) -> Result<Option<String>> {
+    if !release_is_eligible(version) {
+        return Ok(None);
+    }
     let consent = load_consent_in(state_dir)?;
     if consent.notice_shown || !consent.enabled {
         return Ok(None);
@@ -1696,6 +1713,26 @@ mod tests {
         let dir = temp_dir();
         set_enabled_in(dir.path(), false).unwrap();
         assert!(first_run_disclosure_in(dir.path(), true).unwrap().is_none());
+    }
+
+    #[test]
+    fn first_run_disclosure_skipped_and_never_marked_on_ineligible_build() {
+        // An alpha/nightly/dev build must neither print nor persist
+        // `notice_shown` — otherwise a later upgrade to an eligible
+        // beta/stable build would beacon without the notice ever having
+        // been shown on an eligible build.
+        let dir = temp_dir();
+        let outcome =
+            first_run_disclosure_for_version_in(dir.path(), true, "0.9.0-nightly.1").unwrap();
+        assert!(outcome.is_none());
+        let state = load_consent_in(dir.path()).unwrap();
+        assert!(!state.notice_shown);
+        // Once the build becomes eligible, the notice is still due.
+        assert!(
+            first_run_disclosure_for_version_in(dir.path(), true, "0.9.0-beta.1")
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[test]
