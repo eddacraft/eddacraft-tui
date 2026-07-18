@@ -2,9 +2,12 @@
 
 | ID       | Owner      | Status | Progress |
 | -------- | ---------- | ------ | -------- |
-| DASHCORE | @eddacraft | Ready  | 0/9      |
+| DASHCORE | @eddacraft | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-09
+**Last reviewed:** 2026-07-18 — Wave 2 started with DASHCORE-001 after the
+archived schema-source callouts were reconciled against the shipped Wave 1
+Rust API boundary. DASHCORE-001 now owns honest current-state cards;
+DASHCORE-002 owns the retained-history read model and all trend/sparkline work.
 
 ## Purpose
 
@@ -35,9 +38,16 @@ the minimum viable dashboard.
 
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   theme, deep linking, dashboard server, and OpenAPI client seam
-- `contracts` — `WarningSchema`, `EvidenceEntrySchema`, `ProvenanceRecordSchema` (see `schema-contracts` module)
-- `drift-reporting` — Drift score for Overview metric card [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
-- `antipattern-library` — Pattern definitions for registry page [REVIEW: archived module — pattern definitions now live in `crates/anvil-checks/`; verify registry source]
+- `crates/anvil-dashboard-server` — authoritative dashboard capability adapter;
+  Rust response types flow through OpenAPI into the generated TypeScript client
+- `crates/anvil-kernel-types/src/gate_snapshot.rs` — canonical persisted latest
+  gate summary; deliberately excludes retained history and diagnostic detail
+- `patterns/compiled/registry.json`, loaded by
+  `crates/anvil-checks/src/antipattern/registry_loader.rs` — canonical
+  anti-pattern catalogue source for DASHCORE-009
+- an authoritative Rust retained-history read surface — required by
+  DASHCORE-002 before trends, drift history, or suppression history can be
+  claimed; no such dashboard capability exists yet
 
 **Exposes:**
 
@@ -72,28 +82,56 @@ DASHARCH.
 
 ### DASHCORE-001: Overview — metric cards row
 
-- **Intent:** Show at-a-glance project health via key metrics
-- **Expected Outcome:** MetricCards for gate pass rate (sparkline), active
-  warnings by severity, drift score with trend arrow, suppression count, last
-  gate run with badge. Each links to detail page.
+- **Status:** In Progress
+- **Intent:** Show the current project-health facts the shipped local dashboard
+  API can prove, without manufacturing retained history.
+- **Expected Outcome:** A responsive MetricCard row derived only from the typed
+  `ProtectionOverview` resource: save-time protection state, latest gate
+  score/result, active-warning count or explicit partial/unavailable state,
+  workspace assurance coverage/state, and evidence freshness. Cards remain
+  readable without colour or hover. No sparkline, drift history, suppression
+  total, or 30-day claim renders until DASHCORE-002 supplies genuine retained
+  points through the Rust API.
 - **Files:**
-  - `apps/dashboard/src/routes/index.tsx`
-  - `apps/dashboard/src/modules/core/overview/metric-cards.tsx`
-- **Dependencies:** DASH-003, DASH-006
-- **Validation:** Cards render with real data from API; sparklines show 30-day
-  trend; clicking navigates to detail
+  - `apps/dashboard/src/components/primitives/metric-card.tsx`
+  - `apps/dashboard/src/modules/core/overview/current-health-cards.tsx`
+  - `apps/dashboard/src/modules/core/overview/current-health-cards.test.tsx`
+  - `apps/dashboard/src/modules/protection/protection-overview.tsx`
+  - `apps/dashboard/src/modules/protection/protection-overview.test.tsx`
+  - `apps/dashboard/src/styles.css`
+- **Dependencies:** DASH-003, DASH-006, DASH-010
+- **Validation:** Typed component tests prove complete, partial, and unavailable
+  resources never collapse into false zeroes; dashboard test, lint, typecheck,
+  and build targets pass
 - **Confidence:** high
 
-### DASHCORE-002: Overview — trend charts
+### DASHCORE-002: Overview — retained history and trend charts
 
-- **Intent:** Visualise codebase health trajectory over time
-- **Expected Outcome:** Warning count trend (line, 30/60/90 day toggle) and gate
-  pass rate (area, daily/weekly). Uses DASH-004 charts.
+- **Status:** Proposed — requires an authoritative Rust retained-history source;
+  the latest-run `GateSnapshot` is intentionally insufficient.
+- **Intent:** Add the authoritative historical health read model, then visualise
+  codebase-health trajectory without fixture-invented points.
+- **Expected Outcome:** The local Rust dashboard API exposes dated gate pass,
+  warning, drift, and suppression series from their owning evidence stores.
+  Overview cards and charts use every genuine retained point available: target
+  at least 30 days, include a longer retained range when present, show a shorter
+  actual range honestly, label the covered dates, and never pad missing days.
+  Warning-count trend and gate-pass-rate views provide daily/weekly controls.
+  Uses DASH-004 chart primitives.
 - **Files:**
+  - `crates/anvil-dashboard-server/src/api.rs`
+  - `crates/anvil-dashboard-server/src/capabilities/`
+  - `crates/anvil-dashboard-server/src/openapi.rs`
+  - `apps/dashboard/src/api/generated/openapi.json`
+  - `apps/dashboard/src/api/generated/openapi.d.ts`
+  - `apps/dashboard/src/api/client.ts`
   - `apps/dashboard/src/modules/core/overview/trend-charts.tsx`
-- **Dependencies:** DASH-004, DASH-006
-- **Validation:** Charts render with historical data; time range toggle works
-- **Confidence:** medium
+- **Dependencies:** DASH-004, DASH-006; retained-history source design and
+  ownership validation
+- **Validation:** Rust contract tests pin source attribution and date ordering;
+  TypeScript tests prove actual-range labels, no padded samples, longer-than-30
+  retention, shorter available history, missing periods, and time aggregation
+- **Confidence:** low until the retained-history authority is selected
 
 ### DASHCORE-003: Overview — activity feed
 

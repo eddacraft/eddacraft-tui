@@ -113,7 +113,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | Ready | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASH Wave 1 is fully merged via PR #3321, so the minimum viable Overview, Gates, and Warnings product views are the next user-facing dashboard slice. DASHARCH may run in parallel; DASHOPS remains Wave 3. | Revalidate DASHCORE's archived schema-source callouts, then start DASHCORE-001. |
+| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASH Wave 1 is fully merged via PR #3321, so the minimum viable Overview, Gates, and Warnings product views are the next user-facing dashboard slice. The archived schema-source callouts were reconciled on 2026-07-18; current-state cards proceed first while retained-history trends stay under DASHCORE-002. DASHARCH may run in parallel; DASHOPS remains Wave 3. | Complete DASHCORE-001 using only facts exposed by the typed ProtectionOverview resource. |
 
 NBI review note (2026-07-16, DASH Wave 1 reconciled): **JOURNEY-001..006**
 shipped in `v0.9.0-beta`, and **DASH-001..011** are terminal after PR #3321
@@ -693,7 +693,7 @@ tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary
 | Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
 | ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
 | [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 11/11 (all Wave 1 items Merged via PR #3321; pending release evidence) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | Ready  | 0/9      | 2    | dashboard-foundation                                                     |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | In Progress | 0/9      | 2    | dashboard-foundation                                                     |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)                 | DASHAI   | Draft  | 0/6      | 4    | dashboard-foundation                                                     |
