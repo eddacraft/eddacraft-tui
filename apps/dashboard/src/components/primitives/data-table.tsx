@@ -48,7 +48,10 @@ export function DataTable<TData>({
       <TableBody>
         {table.getRowModel().rows.length === 0 ? (
           <TableRow>
-            <TableCell className="text-muted-foreground" colSpan={columns.length}>
+            <TableCell
+              className="text-muted-foreground"
+              colSpan={Math.max(1, table.getVisibleLeafColumns().length)}
+            >
               {emptyMessage}
             </TableCell>
           </TableRow>

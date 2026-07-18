@@ -86,6 +86,16 @@ fi
 
 release_url="https://github.com/${public_repo}/releases/tag/${public_tag}"
 
+# Write via a same-directory temp file so a failed jq/render cannot leave a
+# truncated final evidence document in place of a previously valid one.
+output_dir="$(dirname -- "$OUTPUT")"
+mkdir -p "$output_dir"
+tmp_output="$(mktemp "${output_dir}/.release-evidence.XXXXXX.md")"
+cleanup_tmp() {
+  rm -f "$tmp_output"
+}
+trap cleanup_tmp EXIT
+
 {
   echo "# Release evidence — ${tag}"
   echo
@@ -138,6 +148,9 @@ release_url="https://github.com/${public_repo}/releases/tag/${public_tag}"
   echo "_Auto-generated from the signed build-provenance manifest (CIB-034). It"
   echo "deliberately omits raw logs, secrets, internal hostnames, private workflow"
   echo "URLs, and private development detail._"
-} >"$OUTPUT"
+} >"$tmp_output"
+
+mv -f "$tmp_output" "$OUTPUT"
+trap - EXIT
 
 echo "::notice title=release evidence::wrote ${OUTPUT} for ${tag} (${asset_count} artefacts)"

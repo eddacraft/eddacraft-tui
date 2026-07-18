@@ -36,9 +36,11 @@ else
 fi
 
 # Extract every ADR reference from DECISION-LOG: looks for [NNN](NNN<letter>?-*.md).
+# Capture both the label and the linked filename so a mismatched target
+# ([001](999-missing.md)) cannot pass as a valid reference to ADR 001.
 # Same tolerance: grep returns 1 if the log has no references yet.
-mapfile -t log_refs < <(grep -oE '\[[0-9]{3}[a-z]?\]\([0-9]{3}[a-z]?-[^)]+\)' "${log_file}" 2>/dev/null \
-  | sed -E 's/\[([0-9]{3}[a-z]?)\].*/\1/' | sort -u || true)
+mapfile -t log_links < <(grep -oE '\[[0-9]{3}[a-z]?\]\([0-9]{3}[a-z]?-[^)]+\)' "${log_file}" 2>/dev/null \
+  | sort -u || true)
 
 failed=0
 
@@ -53,17 +55,42 @@ if [[ -n "${duplicates}" ]]; then
   failed=1
 fi
 
+# 1b. Label/target mismatch and missing link targets in DECISION-LOG
+declare -a log_refs=()
+declare -A seen_log_refs=()
+for link in "${log_links[@]+"${log_links[@]}"}"; do
+  [[ -z "${link}" ]] && continue
+  label="$(sed -E 's/\[([0-9]{3}[a-z]?)\].*/\1/' <<<"${link}")"
+  target="$(sed -E 's/\[[0-9]{3}[a-z]?\]\(([^)]+)\)/\1/' <<<"${link}")"
+  target_id="$(sed -E 's/^([0-9]{3}[a-z]?)-.*/\1/' <<<"${target}")"
+  if [[ "${label}" != "${target_id}" ]]; then
+    echo "FAIL: DECISION-LOG label/target mismatch: ${link} (label ADR-${label}, target id ADR-${target_id})"
+    failed=1
+  fi
+  if [[ ! -f "${decisions_dir}/${target}" ]]; then
+    echo "FAIL: DECISION-LOG link target missing: ${link} → ${target}"
+    failed=1
+  fi
+  if [[ -z "${seen_log_refs[${label}]+x}" ]]; then
+    log_refs+=("${label}")
+    seen_log_refs["${label}"]=1
+  fi
+done
+if [[ ${#log_refs[@]} -gt 0 ]]; then
+  mapfile -t log_refs < <(printf '%s\n' "${log_refs[@]}" | sort -u)
+fi
+
 # 2. Files not indexed in DECISION-LOG
 mapfile -t file_ids < <(printf '%s\n' "${adr_files[@]}" | sed -E 's/^([0-9]{3}[a-z]?)-.*/\1/' | sort -u)
-mapfile -t missing_from_log < <(comm -23 <(printf '%s\n' "${file_ids[@]}") <(printf '%s\n' "${log_refs[@]}"))
+mapfile -t missing_from_log < <(comm -23 <(printf '%s\n' "${file_ids[@]}") <(printf '%s\n' "${log_refs[@]+"${log_refs[@]}"}"))
 if [[ ${#missing_from_log[@]} -gt 0 && -n "${missing_from_log[0]}" ]]; then
   echo "FAIL: ADR files not referenced in DECISION-LOG.md:"
   printf '  ADR-%s\n' "${missing_from_log[@]}"
   failed=1
 fi
 
-# 3. DECISION-LOG entries with no corresponding file
-mapfile -t missing_files < <(comm -13 <(printf '%s\n' "${file_ids[@]}") <(printf '%s\n' "${log_refs[@]}"))
+# 3. DECISION-LOG entries with no corresponding file (by label id)
+mapfile -t missing_files < <(comm -13 <(printf '%s\n' "${file_ids[@]}") <(printf '%s\n' "${log_refs[@]+"${log_refs[@]}"}"))
 if [[ ${#missing_files[@]} -gt 0 && -n "${missing_files[0]}" ]]; then
   echo "FAIL: DECISION-LOG references with no ADR file:"
   printf '  ADR-%s\n' "${missing_files[@]}"

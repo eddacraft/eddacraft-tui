@@ -76,6 +76,20 @@ doctrine.
 - **Severity:** 0 high · 124 medium · 140 low
 - **Triage:** 55 confirmed-bug · 93 test-gap · 81 risk · 33 contract-mismatch · 2 docs-gap
 
+## Batch 2 (same session, post-PR)
+
+| Finding | Verdict | Basis |
+| ------- | ------- | ----- |
+| Fallback text parsed as package data (`license-check.sh`) | **fixed** | Parser failure exits 2; no fallback through package loop |
+| `grep -c \|\| echo 0` double-zero (`aps-cleanup.sh`) | **fixed** | `\|\| true` + `${var:-0}` |
+| Evidence file truncated on fail (`generate-evidence.sh`) | **fixed** | temp + `mv` |
+| `--pr` mixes working tree (`guidance.sh`) | **fixed** | gh success path is PR-scoped only |
+| ADR log ignores link target (`adr-integrity.sh`) | **fixed** | validate label/target match + target exists |
+| Empty-state colSpan uses root columns (`data-table.tsx`) | **fixed** | `getVisibleLeafColumns().length` |
+| Partial snapshot file (`snapshot-db.sh`) | **fixed** | temp + rename |
+
+Open after batch 2: see `clawpatch status` (257 open, 0 high).
+
 ## Residual backlog
 
 No open high-severity findings. Remaining open confirmed-bugs are medium/low and

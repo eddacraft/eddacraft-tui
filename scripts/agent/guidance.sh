@@ -92,8 +92,9 @@ changed_files() {
     pr)
       if [[ "$SOURCE" == "gh-pr" ]]; then
         if gh_files="$(gh pr diff --name-only)"; then
+          # PR mode is PR-scoped: do not mix in live working-tree / branch
+          # overlays when gh succeeds. Local overlays live under --branch.
           printf '%s\n' "$gh_files"
-          branch_changed_files
         else
           SOURCE="branch-fallback"
           add_unique WARNINGS "PR diff unavailable; guidance fell back to branch/local git diff."

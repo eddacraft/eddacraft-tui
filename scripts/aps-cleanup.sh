@@ -182,7 +182,10 @@ count_work_items() {
     # `total` but not to any bucket; the caller still sees the right
     # `done/total` ratio.
     local heading_count
-    heading_count=$(grep -cE "^###+ ${prefix}-[0-9]" "$file" 2>/dev/null || echo 0)
+    # grep -c prints 0 then exits 1 on no match; do not append a second 0 via
+    # `|| echo 0` or arithmetic later sees a multi-line "0\n0".
+    heading_count=$(grep -cE "^###+ ${prefix}-[0-9]" "$file" 2>/dev/null || true)
+    heading_count=${heading_count:-0}
     heading_count=${heading_count:-0}
     local bucket_sum=$((done + in_progress + proposed + draft + ready + deferred + superseded))
     if [[ "$heading_count" -ge "$bucket_sum" ]]; then
@@ -388,8 +391,10 @@ INDEX="$REPO/plans/index.aps.md"
 if [[ -f "$INDEX" ]]; then
   # Count modules in plans/modules/ vs linked in index
   module_count=$(ls "$MODULES_DIR"/*.aps.md 2>/dev/null | wc -l)
-  indexed_count=$(grep -cE '\./modules/.*\.aps\.md\)' "$INDEX" 2>/dev/null || echo 0)
-  archived_linked=$(grep -cE '\./archive/modules/.*\.aps\.md\)' "$INDEX" 2>/dev/null || echo 0)
+  indexed_count=$(grep -cE '\./modules/.*\.aps\.md\)' "$INDEX" 2>/dev/null || true)
+  indexed_count=${indexed_count:-0}
+  archived_linked=$(grep -cE '\./archive/modules/.*\.aps\.md\)' "$INDEX" 2>/dev/null || true)
+  archived_linked=${archived_linked:-0}
 
   unindexed=$((module_count - indexed_count))
   if [[ "$unindexed" -gt 0 ]]; then

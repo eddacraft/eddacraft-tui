@@ -34,10 +34,20 @@ mkdir -p "$DIR"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="$DIR/${TAG}-${TS}.sql.gz"
+TMP_OUT="$DIR/.${TAG}-${TS}.$$.sql.gz.tmp"
+
+cleanup_tmp() {
+  rm -f "$TMP_OUT"
+}
+trap cleanup_tmp EXIT
 
 echo "→ snapshotting $TAG via pg_dump …" >&2
+# Write via temp + rename so a failed dump/gzip cannot leave a final-named
+# partial .sql.gz that looks like a usable disaster-recovery snapshot.
 pg_dump "$DB_URL" --no-owner --no-privileges --quote-all-identifiers \
-  | gzip -9 > "$OUT"
+  | gzip -9 > "$TMP_OUT"
+mv -f "$TMP_OUT" "$OUT"
+trap - EXIT
 
 SIZE=$(du -h "$OUT" | awk '{print $1}')
 echo "→ wrote $OUT ($SIZE)" >&2

@@ -9,19 +9,19 @@
     "totalFindings": 920,
     "byStatus": {
       "wont-fix": 568,
-      "open": 264,
-      "fixed": 74,
+      "open": 257,
+      "fixed": 81,
       "false-positive": 11,
       "uncertain": 3
     },
-    "open": 264,
+    "open": 257,
     "openBySeverity": {
       "low": 140,
-      "medium": 124
+      "medium": 117
     },
     "openByTriage": {
       "test-gap": 93,
-      "confirmed-bug": 55,
+      "confirmed-bug": 48,
       "contract-mismatch": 33,
       "risk": 81,
       "docs-gap": 2
@@ -75,7 +75,64 @@
       "status": "fixed",
       "category": "data-loss",
       "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-9b097e4777-a23a5_0c4451de4d",
+      "title": "Output file is truncated before generation can fail",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "data-loss",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-9c8f223bdf-27545_6d547be27f",
+      "title": "Fallback echo corrupts captured grep counts when there are zero matches",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-00b82e9929-3005b_e9ad32a09b",
+      "title": "Fallback text is captured and parsed as package data",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-bdb6d1c0ad-59480_4367a088b7",
+      "title": "Failed dump can leave a valid-looking partial snapshot file",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "data-loss",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-ui-flow-94b6ad9eaa-872a_82ffc01acf",
+      "title": "Empty-state cell uses root column count instead of rendered leaf columns",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-5cb71a8732-9763b_0104eb0e2f",
+      "title": "ADR log validation ignores the linked filename target",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-9882419506-0e2a1_8a8e5e28a7",
+      "title": "--pr mode mixes live working-tree changes into PR guidance",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
     }
   ],
-  "openHigh": []
+  "openHigh": [],
+  "updatedAt": "2026-07-18T13:31:51.214454+00:00"
 }

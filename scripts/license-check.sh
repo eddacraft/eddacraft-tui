@@ -166,14 +166,18 @@ while IFS= read -r license; do
   [ -z "$license" ] && continue
 
   if echo "$license" | grep -qiE "$BLOCKED_PATTERNS"; then
-    # Get the packages under this blocked license
-    PACKAGES=$(printf '%s' "$LICENSE_OUTPUT" | LICENSE_KEY="$license" node -e "
+    # Get the packages under this blocked license. Do not feed fallback text
+    # through the package parser — a list/parse failure is a tool error.
+    if ! PACKAGES=$(printf '%s' "$LICENSE_OUTPUT" | LICENSE_KEY="$license" node -e "
       const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
       const key = process.env.LICENSE_KEY;
       if (data[key]) {
         data[key].forEach(pkg => console.log('  - ' + pkg.name + '@' + pkg.version));
       }
-    " 2>/dev/null || echo "  (could not list packages)")
+    " 2>/dev/null); then
+      echo "ERROR: could not list packages for blocked license: $license" >&2
+      exit 2
+    fi
 
     # Filter out allowlisted packages
     FILTERED_PACKAGES=()
