@@ -4,17 +4,18 @@ export interface MetricCardProps {
   label: string;
   value: string;
   detail?: string;
+  state?: 'complete' | 'partial' | 'unavailable';
 }
 
-export function MetricCard({ label, value, detail }: MetricCardProps) {
+export function MetricCard({ label, value, detail, state }: MetricCardProps) {
   return (
-    <Card>
-      <CardHeader>
+    <Card aria-label={label} className="metric-card gap-2 py-3" data-state={state} role="group">
+      <CardHeader className="gap-0 px-4">
         <CardDescription>{label}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <strong className="text-2xl font-semibold tabular-nums">{value}</strong>
-        {detail ? <p className="mt-1 text-xs text-muted-foreground">{detail}</p> : null}
+      <CardContent className="px-4">
+        <strong className="metric-card-value">{value}</strong>
+        {detail ? <p className="metric-card-detail">{detail}</p> : null}
       </CardContent>
     </Card>
   );

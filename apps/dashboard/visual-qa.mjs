@@ -30,6 +30,11 @@ async function audit(name, contextOptions, screenshotPath) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   assert.equal(homeLayout.scrollWidth, homeLayout.clientWidth, `${name} home page overflows`);
+  assert.equal(
+    await page.locator('.current-health-cards > .metric-card').count(),
+    5,
+    `${name} health card count`
+  );
   assert.equal(consoleErrors.length, 0, `${name} console errors: ${consoleErrors.join(' | ')}`);
   assert.equal(
     externalRequests.length,
@@ -48,14 +53,16 @@ async function audit(name, contextOptions, screenshotPath) {
     const highSeverity = document.createElement('span');
     highSeverity.className = 'severity-badge-high';
     document.body.append(highSeverity);
-    const panels = [...document.querySelectorAll('.panel, .protection-summary')].map((panel) => {
-      const style = getComputedStyle(panel);
-      return {
-        backgroundImage: style.backgroundImage,
-        borderRadius: style.borderRadius,
-        boxShadow: style.boxShadow,
-      };
-    });
+    const panels = [...document.querySelectorAll('.panel, .protection-summary, .metric-card')].map(
+      (panel) => {
+        const style = getComputedStyle(panel);
+        return {
+          backgroundImage: style.backgroundImage,
+          borderRadius: style.borderRadius,
+          boxShadow: style.boxShadow,
+        };
+      }
+    );
     const snapshot = {
       activeNavigationText: activeNavigation ? getComputedStyle(activeNavigation).color : null,
       background: getComputedStyle(document.body).backgroundColor,

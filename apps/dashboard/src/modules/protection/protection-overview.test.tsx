@@ -35,6 +35,20 @@ async function render(
 }
 
 describe('Protection Overview typed resource', () => {
+  it('places current health cards after the protection summary and before detail tables', async () => {
+    await render();
+
+    const summary = container?.querySelector('.protection-summary-stack');
+    const cards = container?.querySelector('[aria-label="Current workspace health"]');
+    const details = container?.querySelector('.protection-grid');
+
+    expect(cards?.textContent).toContain('Latest gate');
+    expect(cards?.textContent).toContain('Workspace assurance');
+    if (!summary || !cards || !details) throw new Error('expected overview regions');
+    expect(summary.compareDocumentPosition(cards)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(cards.compareDocumentPosition(details)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   it('renders runs, warnings, affected files, freshness and selected evidence from API data', async () => {
     await render();
     expect(container?.textContent).toContain('2026-07-13 08:30:00');

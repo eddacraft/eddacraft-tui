@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProtectionOverview } from '@/hooks/use-protection-overview';
 import type { DashboardSearch } from '@/lib/search-params';
+import { CurrentHealthCards } from '@/modules/core/overview/current-health-cards';
 import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
 import { ProtectionSummary } from '@/modules/protection/protection-summary';
 
@@ -158,6 +159,7 @@ export function ProtectionOverviewContent({
         onInspectAttention={() => selected && select(selected.id)}
         warning={selected}
       />
+      <CurrentHealthCards overview={overview} />
       <div className="protection-grid">
         <Tabs
           className="protection-tabs"

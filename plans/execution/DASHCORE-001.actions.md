@@ -38,15 +38,15 @@ types, existing shadcn Card primitive.
 - Create: `apps/dashboard/src/modules/core/overview/current-health-cards.test.tsx`
 - Create: `apps/dashboard/src/modules/core/overview/current-health-cards.tsx`
 
-- [ ] Write a failing test for the five current facts from a complete typed
+- [x] Write a failing test for the five current facts from a complete typed
       fixture.
-- [ ] Add failing cases for partial warnings, unavailable warnings, absent
+- [x] Add failing cases for partial warnings, unavailable warnings, absent
       gate evidence, absent assurance, and absent timestamps.
-- [ ] Run
+- [x] Run
       `pnpm exec nx run dashboard:test --skip-nx-cache -- --run current-health-cards`
       and verify failure because the component does not exist.
-- [ ] Implement pure derivation helpers and the minimal component.
-- [ ] Run the targeted test and verify all cases pass.
+- [x] Implement pure derivation helpers and the minimal component.
+- [x] Run the targeted test and verify all cases pass.
 
 ## Task 2: Integrate the cards into Protection Overview
 
@@ -57,13 +57,13 @@ types, existing shadcn Card primitive.
 - Modify: `apps/dashboard/src/components/primitives/metric-card.tsx`
 - Modify: `apps/dashboard/src/styles.css`
 
-- [ ] Add a failing integration assertion that the card group follows the
+- [x] Add a failing integration assertion that the card group follows the
       protection/attention summary and precedes detailed tables.
-- [ ] Add the responsive five-card grid with direct text labels and explicit
+- [x] Add the responsive five-card grid with direct text labels and explicit
       state attributes.
-- [ ] Preserve the existing desktop/mobile reading order and ensure no
+- [x] Preserve the existing desktop/mobile reading order and ensure no
       horizontal page overflow.
-- [ ] Run the dashboard test target and verify it passes.
+- [x] Run the dashboard test target and verify it passes.
 
 ## Task 3: Validate and review
 
@@ -71,12 +71,12 @@ types, existing shadcn Card primitive.
 
 - Modify only if validation or Council exposes a defect.
 
-- [ ] Run dashboard test, lint, typecheck, and build targets without Nx cache.
-- [ ] Run `pnpm validate:changed`, `pnpm aps:active-lint`,
+- [x] Run dashboard test, lint, typecheck, and build targets without Nx cache.
+- [x] Run `pnpm validate:changed`, `pnpm aps:active-lint`,
       `pnpm aps:index:check`, `pnpm docs:check`, `pnpm format:check`, and
       `git diff --check`.
-- [ ] Run desktop and mobile visual QA; retain evidence without committing
+- [x] Run desktop and mobile visual QA; retain evidence without committing
       generated output unless governance requires it.
-- [ ] Run Council against the worktree diff and resolve all critical/major
+- [x] Run Council against the worktree diff and resolve all critical/major
       findings.
-- [ ] Record the continuous-improvement closeout in the pending queue.
+- [x] Record the continuous-improvement closeout in the pending queue.

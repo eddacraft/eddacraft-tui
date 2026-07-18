@@ -103,6 +103,10 @@ DASHARCH.
 - **Validation:** Typed component tests prove complete, partial, and unavailable
   resources never collapse into false zeroes; dashboard test, lint, typecheck,
   and build targets pass
+- **Evidence:** 43 dashboard tests, dashboard lint/typecheck/build,
+  `validate:changed`, APS/docs/format checks, and desktop/mobile visual QA pass;
+  Council session `council-aca76a2d` converged with one minor finding fixed and
+  no open findings
 - **Confidence:** high
 
 ### DASHCORE-002: Overview — retained history and trend charts

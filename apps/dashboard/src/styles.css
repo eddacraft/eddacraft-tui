@@ -444,6 +444,7 @@ kbd {
 
 .protection-overview {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.9rem;
   width: min(100%, 105rem);
   margin-inline: auto;
@@ -497,6 +498,56 @@ kbd {
 .protection-summary-stack {
   display: grid;
   gap: 0.65rem;
+}
+
+.current-health-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.metric-card {
+  min-width: 0;
+  border-color: var(--border);
+  background: var(--panel);
+}
+
+.metric-card[data-state='partial'] {
+  border-left-color: var(--dull-amber);
+}
+
+.metric-card[data-state='unavailable'] {
+  border-left-color: var(--ghost-grey);
+}
+
+.metric-card [data-slot='card-description'] {
+  color: var(--muted);
+  font-size: 0.56rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.metric-card-value {
+  display: block;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: clamp(1rem, 1.6vw, 1.35rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 680;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-card-detail {
+  min-height: 1.8em;
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 0.58rem;
+  line-height: 1.35;
 }
 
 .protection-summary,
@@ -1153,6 +1204,7 @@ kbd {
 
 .data-state-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.55rem;
 }
@@ -1357,6 +1409,10 @@ kbd {
 }
 
 @media (max-width: 76rem) {
+  .current-health-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .protection-grid {
     grid-template-columns: minmax(0, 1.55fr) minmax(18rem, 0.85fr);
   }
@@ -1404,6 +1460,10 @@ kbd {
 
   .dashboard-root {
     display: block;
+  }
+
+  .current-health-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dashboard-sidebar,
@@ -1789,6 +1849,10 @@ kbd {
 }
 
 @media (max-width: 25rem) {
+  .current-health-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .dashboard-stage {
     padding-inline: 0.5rem;
   }
