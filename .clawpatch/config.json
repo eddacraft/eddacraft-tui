@@ -24,7 +24,8 @@
   ],
   "provider": {
     "name": "codex",
-    "model": null
+    "model": "gpt-5.6-terra",
+    "reasoningEffort": "high"
   },
   "commands": {
     "typecheck": "pnpm typecheck",
