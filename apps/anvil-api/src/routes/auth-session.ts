@@ -4,12 +4,11 @@ import { zValidator } from '@hono/zod-validator';
 import { getClient } from '../db/client.js';
 import {
   findRefreshTokenByHash,
-  consumeRefreshToken,
   revokeRefreshFamilyAndAccessTokensForUser,
   findUserById,
 } from '../db/queries.js';
 import { hashToken } from '../lib/token.js';
-import { mintSession } from '../lib/session.js';
+import { mintRotatedSession } from '../lib/session.js';
 import { createDebugger } from '../lib/debug.js';
 
 const debug = createDebugger('auth-session');
@@ -68,27 +67,26 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     return c.json({ error: 'User account is not active' }, 401);
   }
 
-  // Atomically consume the old refresh token (WHERE consumed_at IS NULL
-  // prevents two concurrent requests from both succeeding)
-  const consumed = await consumeRefreshToken(sql, record.id);
-  if (!consumed) {
-    debug('concurrent refresh detected — revoking family', { familyId: record.family_id });
+  // Atomically consume the old token and insert its replacement. A concurrent
+  // request that loses the race (or triggers family revocation) cannot leave
+  // a live post-revoke refresh token for the winner to return.
+  const rotated = await mintRotatedSession(sql, {
+    user,
+    identity: { provider: 'email', id: null },
+    familyId: record.family_id,
+    oldTokenId: record.id,
+  });
+  if (!rotated.ok) {
+    debug('concurrent refresh or family revoke — revoking family', {
+      familyId: record.family_id,
+    });
     await revokeRefreshFamilyAndAccessTokensForUser(sql, record.family_id, record.user_id);
     return c.json({ error: 'Token reuse detected' }, 401);
   }
 
-  // Mint a new licence + refresh token, rotating within the same family.
-  // Scopes are carried forward from `access_tokens` (FLAGM-005) so an
-  // `admin invite` grant is not silently downgraded on the user's first refresh.
-  const session = await mintSession(sql, {
-    user,
-    identity: { provider: 'email', id: null },
-    familyId: record.family_id,
-  });
-
   debug('session refreshed', { userId: user.id, familyId: record.family_id });
 
-  return c.json(session);
+  return c.json(rotated.session);
 });
 
 export { authSession };

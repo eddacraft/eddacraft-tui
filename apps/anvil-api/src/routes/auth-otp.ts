@@ -5,8 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import {
   findUserByEmail,
-  countActiveOtpCodes,
-  insertOtpCode,
+  insertOtpCodeIfUnderLimit,
   registerActiveOtpAttempts,
   consumeOtpCode,
 } from '../db/queries.js';
@@ -64,19 +63,24 @@ authOtp.post('/request', zValidator('json', requestSchema), async (c) => {
     return c.json(SUCCESS_RESPONSE);
   }
 
-  // Rate-limit: cap active (unconsumed, unexpired) codes per user
-  const activeCount = await countActiveOtpCodes(sql, user.id);
-
-  if (activeCount >= MAX_ACTIVE_CODES) {
-    debug('otp rate limit reached', { userId: user.id });
-    return c.json(SUCCESS_RESPONSE);
-  }
-
+  // Rate-limit: cap active (unconsumed, unexpired) codes per user. The insert
+  // is conditional and advisory-locked so concurrent requests cannot all
+  // observe a sub-cap count and overshoot MAX_ACTIVE_CODES.
   const code = generateOtpCode();
   const codeHash = hashOtp(code);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_SECONDS * 1000);
 
-  await insertOtpCode(sql, user.id, codeHash, expiresAt);
+  const inserted = await insertOtpCodeIfUnderLimit(
+    sql,
+    user.id,
+    codeHash,
+    expiresAt,
+    MAX_ACTIVE_CODES
+  );
+  if (!inserted) {
+    debug('otp rate limit reached', { userId: user.id });
+    return c.json(SUCCESS_RESPONSE);
+  }
 
   const delivery = await sendOtpCode(normalised, code);
   if (!delivery.sent) {

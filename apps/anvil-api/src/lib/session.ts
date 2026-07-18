@@ -1,6 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { NeonClient } from '../db/client.js';
-import { findActiveScopesForUser, insertRefreshToken } from '../db/queries.js';
+import {
+  consumeAndRotateRefreshToken,
+  findActiveScopesForUser,
+  insertRefreshToken,
+} from '../db/queries.js';
 import { signLicence, type LicenceClaims } from './licence.js';
 import { hashToken } from './token.js';
 
@@ -79,4 +83,64 @@ export async function mintSession(
   const expiresAt = new Date(Date.now() + ttlDays * DAY_MS).toISOString();
 
   return { license, refreshToken: rawRefreshToken, expiresAt };
+}
+
+export type MintRotatedSessionResult = { ok: true; session: MintSessionResult } | { ok: false };
+
+/**
+ * Mint a session by rotating an existing refresh token. Consumes the old
+ * token and inserts the replacement in one atomic statement so concurrent
+ * family revocation cannot leave a live post-revoke refresh token.
+ *
+ * On `{ ok: false }` the caller should treat the rotation as theft-detection
+ * failure (revoke the family and return 401) — the same response used when
+ * the non-atomic consume previously lost its race.
+ */
+export async function mintRotatedSession(
+  sql: NeonClient,
+  input: MintSessionInput & { oldTokenId: string; familyId: string }
+): Promise<MintRotatedSessionResult> {
+  const {
+    user,
+    identity,
+    ttlDays = DEFAULT_LICENCE_TTL_DAYS,
+    refreshTtlDays = DEFAULT_REFRESH_TTL_DAYS,
+    familyId,
+    oldTokenId,
+  } = input;
+
+  const rawRefreshToken = randomBytes(32).toString('hex');
+  const refreshHash = hashToken(rawRefreshToken);
+  const refreshExpiresAt = new Date(Date.now() + refreshTtlDays * DAY_MS);
+
+  const rotated = await consumeAndRotateRefreshToken(sql, {
+    oldTokenId,
+    userId: user.id,
+    newTokenHash: refreshHash,
+    familyId,
+    expiresAt: refreshExpiresAt,
+  });
+  if (rotated.status !== 'rotated') {
+    return { ok: false };
+  }
+
+  const scopes = await findActiveScopesForUser(sql, user.id);
+
+  const claims: LicenceClaims = {
+    sub: user.id,
+    email: user.email,
+    identity,
+    org: null,
+    tier: 'pro',
+    scopes,
+    seats: 1,
+  };
+
+  const license = await signLicence(claims, undefined, ttlDays);
+  const expiresAt = new Date(Date.now() + ttlDays * DAY_MS).toISOString();
+
+  return {
+    ok: true,
+    session: { license, refreshToken: rawRefreshToken, expiresAt },
+  };
 }

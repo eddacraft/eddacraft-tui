@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "clawpatch-periodic-scan",
+  "generatedAt": "2026-07-18T13:21:26.819903+00:00",
+  "runId": "20260718T130816-1a9b30",
+  "branch": "test/clawpatch",
+  "corpusNote": "Processed from local .clawpatch state after run 20260718T130816-1a9b30",
+  "summary": {
+    "totalFindings": 920,
+    "byStatus": {
+      "wont-fix": 568,
+      "open": 264,
+      "fixed": 74,
+      "false-positive": 11,
+      "uncertain": 3
+    },
+    "open": 264,
+    "openBySeverity": {
+      "low": 140,
+      "medium": 124
+    },
+    "openByTriage": {
+      "test-gap": 93,
+      "confirmed-bug": 55,
+      "contract-mismatch": 33,
+      "risk": 81,
+      "docs-gap": 2
+    }
+  },
+  "sessionVerdicts": [
+    {
+      "id": "fnd_sig-feat-ui-flow-ee7667547a-75ef_c63b3826da",
+      "title": "Button defaults to form submission when used inside a form",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-library-8107990571-35e0_5753fe66ad",
+      "title": "Detected generic token secrets can still be persisted after redaction",
+      "severity": "medium",
+      "status": "wont-fix",
+      "category": "security",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-config-50c988b883-45f66_460592a2d6",
+      "title": "Explicit branch fetch leaves origin/main stale",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "bug",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-library-29f5ad5751-47cd_bb74508d2d",
+      "title": "OTP active-code limit is bypassable by concurrent requests",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "concurrency",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-library-29f5ad5751-6dde_f7f4c47fdb",
+      "title": "Refresh-token race can mint a live session after family revocation",
+      "severity": "high",
+      "status": "fixed",
+      "category": "security",
+      "triage": "confirmed-bug"
+    },
+    {
+      "id": "fnd_sig-feat-cli-command-2cc29bca9a-_8244c8edf2",
+      "title": "Write the generated contract atomically",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "data-loss",
+      "triage": "confirmed-bug"
+    }
+  ],
+  "openHigh": []
+}

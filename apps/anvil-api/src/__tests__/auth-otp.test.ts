@@ -9,8 +9,7 @@ vi.mock('../db/client.js', () => ({
 
 vi.mock('../db/queries.js', () => ({
   findUserByEmail: vi.fn(),
-  countActiveOtpCodes: vi.fn(),
-  insertOtpCode: vi.fn(),
+  insertOtpCodeIfUnderLimit: vi.fn(),
   registerActiveOtpAttempts: vi.fn(),
   consumeOtpCode: vi.fn(),
   insertRefreshToken: vi.fn(),
@@ -31,10 +30,9 @@ vi.mock('../lib/token.js', async (importOriginal) => {
 
 import {
   consumeOtpCode,
-  countActiveOtpCodes,
   registerActiveOtpAttempts,
   findUserByEmail,
-  insertOtpCode,
+  insertOtpCodeIfUnderLimit,
   insertRefreshToken,
   findActiveScopesForUser,
   type OtpCode,
@@ -91,9 +89,8 @@ beforeEach(() => {
   // matching hashes without knowing the raw code bytes ahead of time.
   vi.mocked(hashToken).mockImplementation((input: string) => `hash:${input}`);
   vi.mocked(findUserByEmail).mockResolvedValue(null);
-  vi.mocked(countActiveOtpCodes).mockResolvedValue(0);
   vi.mocked(registerActiveOtpAttempts).mockResolvedValue([]);
-  vi.mocked(insertOtpCode).mockResolvedValue(makeOtpCodeRow());
+  vi.mocked(insertOtpCodeIfUnderLimit).mockResolvedValue(makeOtpCodeRow());
   vi.mocked(consumeOtpCode).mockResolvedValue(true);
   vi.mocked(insertRefreshToken).mockResolvedValue(makeRefreshTokenRow());
   vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
@@ -159,7 +156,7 @@ describe('POST /auth/otp/request', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(SUCCESS_RESPONSE);
-    expect(vi.mocked(insertOtpCode)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertOtpCodeIfUnderLimit)).not.toHaveBeenCalled();
     expect(vi.mocked(sendOtpCode)).not.toHaveBeenCalled();
   });
 
@@ -170,7 +167,7 @@ describe('POST /auth/otp/request', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(SUCCESS_RESPONSE);
-    expect(vi.mocked(insertOtpCode)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertOtpCodeIfUnderLimit)).not.toHaveBeenCalled();
     expect(vi.mocked(sendOtpCode)).not.toHaveBeenCalled();
   });
 
@@ -181,7 +178,14 @@ describe('POST /auth/otp/request', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(SUCCESS_RESPONSE);
-    expect(vi.mocked(insertOtpCode)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(insertOtpCodeIfUnderLimit)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(insertOtpCodeIfUnderLimit)).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      expect.stringMatching(/^hash:\d{6}$/),
+      expect.any(Date),
+      3
+    );
     expect(vi.mocked(sendOtpCode)).toHaveBeenCalledWith(
       'active@example.com',
       expect.stringMatching(/^\d{6}$/)
@@ -200,26 +204,27 @@ describe('POST /auth/otp/request', () => {
     );
   });
 
-  it('silently rate-limits when MAX_ACTIVE_CODES is reached', async () => {
+  it('silently rate-limits when the atomic insert is denied by the cap', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(countActiveOtpCodes).mockResolvedValue(3);
+    vi.mocked(insertOtpCodeIfUnderLimit).mockResolvedValue(null);
 
     const res = await post('/auth/otp/request', { email: 'active@example.com' });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(SUCCESS_RESPONSE);
-    expect(vi.mocked(insertOtpCode)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertOtpCodeIfUnderLimit)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(sendOtpCode)).not.toHaveBeenCalled();
   });
 
-  it('inserts a fresh code when active count is below the limit', async () => {
+  it('inserts a fresh code when the atomic insert claims a slot under the cap', async () => {
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
-    vi.mocked(countActiveOtpCodes).mockResolvedValue(2);
+    vi.mocked(insertOtpCodeIfUnderLimit).mockResolvedValue(makeOtpCodeRow());
 
     const res = await post('/auth/otp/request', { email: 'active@example.com' });
 
     expect(res.status).toBe(200);
-    expect(vi.mocked(insertOtpCode)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(insertOtpCodeIfUnderLimit)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendOtpCode)).toHaveBeenCalledTimes(1);
   });
 
   it('still returns the success shape when the email provider reports a failure', async () => {

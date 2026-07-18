@@ -3760,7 +3760,8 @@ archive.
 
 ### CIB-141: Fail-closed entitlement default and atomic refresh-token rotation
 
-- **Status:** Proposed
+- **Status:** Proposed (rotation half landed 2026-07-18 on `test/clawpatch`;
+  entitlement-default half still product-gated)
 - **Intent:** Close two related gaps in `apps/anvil-api`'s licence/session
   issuance: an entitlement lookup that fails open by design, and a
   refresh-token rotation that isn't fully atomic.
@@ -3774,6 +3775,11 @@ archive.
   transaction, matching the pattern already used by
   `revokeRefreshFamilyAndAccessTokensForUser`, so a partial failure can't
   leave a consumed token with no replacement.
+- **Progress (2026-07-18 clawpatch):** rotation half implemented as
+  `consumeAndRotateRefreshToken` (single data-modifying CTE) +
+  `mintRotatedSession` on `/session/refresh`. Closes the clawpatch high
+  "Refresh-token race can mint a live session after family revocation".
+  Unit coverage in `auth-session` / `session` / `queries` tests.
 - **Open Question (product decision):** Is defaulting an active, zero-token
   user to `['beta']` the intended self-signup entry point (as the existing
   code comment states), and if so, what signal should distinguish that from

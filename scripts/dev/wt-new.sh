@@ -33,5 +33,9 @@ shift
 # Fetch the integration target so origin/main reflects the remote tip, then
 # branch off it. We deliberately do NOT touch the local `main` ref (it may be
 # checked out in a shared worktree that siblings are parked in).
-git fetch --quiet origin main
+#
+# Use an explicit refspec that updates refs/remotes/origin/main. A bare
+# `git fetch origin main` lands in FETCH_HEAD and does not reliably refresh the
+# remote-tracking ref that --base consumes.
+git fetch --quiet origin refs/heads/main:refs/remotes/origin/main
 exec wt switch --create "$branch" --base origin/main "$@"

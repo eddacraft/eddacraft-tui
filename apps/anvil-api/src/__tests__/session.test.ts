@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../db/queries.js', () => ({
   findActiveScopesForUser: vi.fn(),
   insertRefreshToken: vi.fn(),
+  consumeAndRotateRefreshToken: vi.fn(),
 }));
 
 vi.mock('../lib/licence.js', () => ({
@@ -14,10 +15,14 @@ vi.mock('../lib/token.js', async (importOriginal) => {
   return { ...actual, hashToken: vi.fn() };
 });
 
-import { findActiveScopesForUser, insertRefreshToken } from '../db/queries.js';
+import {
+  consumeAndRotateRefreshToken,
+  findActiveScopesForUser,
+  insertRefreshToken,
+} from '../db/queries.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
-import { mintSession } from '../lib/session.js';
+import { mintRotatedSession, mintSession } from '../lib/session.js';
 
 const sql = {} as never;
 const user = { id: 'user-1', email: 'alice@example.com' };
@@ -30,6 +35,19 @@ beforeEach(() => {
   vi.mocked(signLicence).mockResolvedValue('signed.jwt.token');
   vi.mocked(hashToken).mockImplementation((t: string) => `hash:${t}`);
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
+  vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({
+    status: 'rotated',
+    token: {
+      id: 'rt-2',
+      user_id: 'user-1',
+      token_hash: 'hash:new',
+      family_id: 'family-1',
+      expires_at: '2026-09-01T00:00:00.000Z',
+      revoked_at: null,
+      consumed_at: null,
+      created_at: '2026-07-18T00:00:00.000Z',
+    },
+  });
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -126,5 +144,49 @@ describe('mintSession', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('mintRotatedSession', () => {
+  it('rotates via the atomic query then signs a licence', async () => {
+    const result = await mintRotatedSession(sql, {
+      user,
+      identity: { provider: 'email', id: null },
+      familyId: 'family-1',
+      oldTokenId: 'rt-1',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      session: {
+        license: 'signed.jwt.token',
+        refreshToken: expect.stringMatching(/^[0-9a-f]{64}$/),
+        expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      },
+    });
+    expect(vi.mocked(consumeAndRotateRefreshToken)).toHaveBeenCalledWith(sql, {
+      oldTokenId: 'rt-1',
+      userId: 'user-1',
+      newTokenHash: expect.stringMatching(/^hash:[0-9a-f]{64}$/),
+      familyId: 'family-1',
+      expiresAt: expect.any(Date),
+    });
+    expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
+    expect(vi.mocked(findActiveScopesForUser)).toHaveBeenCalledWith(sql, 'user-1');
+  });
+
+  it('returns ok:false without signing when the atomic rotate fails', async () => {
+    vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({ status: 'failed' });
+
+    const result = await mintRotatedSession(sql, {
+      user,
+      identity: { provider: 'email', id: null },
+      familyId: 'family-1',
+      oldTokenId: 'rt-1',
+    });
+
+    expect(result).toEqual({ ok: false });
+    expect(vi.mocked(signLicence)).not.toHaveBeenCalled();
+    expect(vi.mocked(findActiveScopesForUser)).not.toHaveBeenCalled();
   });
 });

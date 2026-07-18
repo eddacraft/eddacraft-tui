@@ -9,9 +9,8 @@ vi.mock('../db/client.js', () => ({
 
 vi.mock('../db/queries.js', () => ({
   findRefreshTokenByHash: vi.fn(),
-  consumeRefreshToken: vi.fn(),
+  consumeAndRotateRefreshToken: vi.fn(),
   revokeRefreshFamilyAndAccessTokensForUser: vi.fn(),
-  insertRefreshToken: vi.fn(),
   findUserById: vi.fn(),
   findActiveScopesForUser: vi.fn(),
 }));
@@ -25,10 +24,9 @@ vi.mock('../lib/token.js', async (importOriginal) => {
 });
 
 import {
-  consumeRefreshToken,
+  consumeAndRotateRefreshToken,
   findRefreshTokenByHash,
   findUserById,
-  insertRefreshToken,
   revokeRefreshFamilyAndAccessTokensForUser,
   findActiveScopesForUser,
   type RefreshToken,
@@ -52,12 +50,14 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(consumeRefreshToken).mockResolvedValue(true);
+  vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({
+    status: 'rotated',
+    token: makeToken({ id: 'rt-2', token_hash: 'hash:new' }),
+  });
   vi.mocked(revokeRefreshFamilyAndAccessTokensForUser).mockResolvedValue({
     refreshTokensRevoked: 0,
     accessTokensRevoked: 0,
   });
-  vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
   // Default to the conservative `['beta']` fallback so existing tests
   // don't have to know about the new scope-lookup call. Tests that care
   // about graded scopes set this explicitly.
@@ -129,14 +129,13 @@ describe('POST /auth/session/refresh', () => {
     expect(body.refreshToken).not.toBe('raw-token');
     expect(body.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-    expect(vi.mocked(consumeRefreshToken)).toHaveBeenCalledWith(expect.anything(), 'rt-1');
-    expect(vi.mocked(insertRefreshToken)).toHaveBeenCalledWith(
-      expect.anything(),
-      'user-1',
-      expect.stringMatching(/^hash:[0-9a-f]{64}$/),
-      'family-1', // new token carries the same family_id
-      expect.any(Date)
-    );
+    expect(vi.mocked(consumeAndRotateRefreshToken)).toHaveBeenCalledWith(expect.anything(), {
+      oldTokenId: 'rt-1',
+      userId: 'user-1',
+      newTokenHash: expect.stringMatching(/^hash:[0-9a-f]{64}$/),
+      familyId: 'family-1',
+      expiresAt: expect.any(Date),
+    });
     expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).not.toHaveBeenCalled();
   });
 
@@ -179,7 +178,7 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Invalid refresh token' });
-    expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
+    expect(vi.mocked(consumeAndRotateRefreshToken)).not.toHaveBeenCalled();
   });
 
   it('revokes the entire family when a consumed token is reused', async () => {
@@ -196,9 +195,8 @@ describe('POST /auth/session/refresh', () => {
       'family-compromised',
       'user-1'
     );
-    expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
-    // Must not call consumeRefreshToken — reuse path short-circuits before it.
-    expect(vi.mocked(consumeRefreshToken)).not.toHaveBeenCalled();
+    // Must not call rotate — reuse path short-circuits before it.
+    expect(vi.mocked(consumeAndRotateRefreshToken)).not.toHaveBeenCalled();
   });
 
   it('returns 401 without revoking the family when the token is revoked', async () => {
@@ -211,7 +209,7 @@ describe('POST /auth/session/refresh', () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Invalid refresh token' });
     expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).not.toHaveBeenCalled();
-    expect(vi.mocked(consumeRefreshToken)).not.toHaveBeenCalled();
+    expect(vi.mocked(consumeAndRotateRefreshToken)).not.toHaveBeenCalled();
   });
 
   it('returns 401 with the expired error when the token is past its TTL', async () => {
@@ -223,7 +221,7 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Refresh token expired' });
-    expect(vi.mocked(consumeRefreshToken)).not.toHaveBeenCalled();
+    expect(vi.mocked(consumeAndRotateRefreshToken)).not.toHaveBeenCalled();
   });
 
   it('returns 401 when the associated user is not active', async () => {
@@ -234,7 +232,7 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'User account is not active' });
-    expect(vi.mocked(consumeRefreshToken)).not.toHaveBeenCalled();
+    expect(vi.mocked(consumeAndRotateRefreshToken)).not.toHaveBeenCalled();
   });
 
   it('returns 401 when the user record has been deleted', async () => {
@@ -245,13 +243,13 @@ describe('POST /auth/session/refresh', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'User account is not active' });
-    expect(vi.mocked(consumeRefreshToken)).not.toHaveBeenCalled();
+    expect(vi.mocked(consumeAndRotateRefreshToken)).not.toHaveBeenCalled();
   });
 
-  it('revokes the family when the atomic consume loses a race', async () => {
+  it('revokes the family when the atomic rotate loses a race', async () => {
     vi.mocked(findRefreshTokenByHash).mockResolvedValue(makeToken({ family_id: 'family-race' }));
     vi.mocked(findUserById).mockResolvedValue(activeUser());
-    vi.mocked(consumeRefreshToken).mockResolvedValue(false);
+    vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({ status: 'failed' });
 
     const res = await post({ refreshToken: 'raw-token' });
 
@@ -262,7 +260,26 @@ describe('POST /auth/session/refresh', () => {
       'family-race',
       'user-1'
     );
-    expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
+  });
+
+  it('does not return a session when rotate fails after concurrent family revocation', async () => {
+    // Regression for clawpatch high: a winner that consumed then lost the
+    // mint race against a concurrent family revoke must not hand back a
+    // live replacement refresh token.
+    vi.mocked(findRefreshTokenByHash).mockResolvedValue(
+      makeToken({ family_id: 'family-post-revoke' })
+    );
+    vi.mocked(findUserById).mockResolvedValue(activeUser());
+    vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({ status: 'failed' });
+
+    const res = await post({ refreshToken: 'raw-token' });
+
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Token reuse detected' });
+    expect(body).not.toHaveProperty('license');
+    expect(body).not.toHaveProperty('refreshToken');
+    expect(vi.mocked(findActiveScopesForUser)).not.toHaveBeenCalled();
   });
 
   it.each([

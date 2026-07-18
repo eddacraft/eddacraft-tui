@@ -584,6 +584,61 @@ export async function consumeRefreshToken(sql: NeonClient, id: string): Promise<
   return r.length > 0;
 }
 
+/**
+ * Atomically consume a refresh token and insert its replacement in the same
+ * family. Used by `/session/refresh` so a concurrent family-revocation (theft
+ * detection on a racing request) cannot leave a live replacement token after
+ * the consume has already succeeded.
+ *
+ * Implemented as a single data-modifying CTE statement rather than a multi-
+ * statement Neon batch: empty INSERT is not an error, so a batch would still
+ * commit a consume-without-insert partial. The CTE only mutates when both
+ * the family is clear and the old token is still consumable.
+ */
+export type RefreshRotateResult = { status: 'rotated'; token: RefreshToken } | { status: 'failed' };
+
+export async function consumeAndRotateRefreshToken(
+  sql: NeonClient,
+  args: {
+    oldTokenId: string;
+    userId: string;
+    newTokenHash: string;
+    familyId: string;
+    expiresAt: Date;
+  }
+): Promise<RefreshRotateResult> {
+  const r = rows(
+    await sql`
+    WITH family_clear AS (
+      SELECT 1 AS ok
+      WHERE NOT EXISTS (
+        SELECT 1 FROM refresh_tokens
+        WHERE family_id = ${args.familyId}
+          AND revoked_at IS NOT NULL
+      )
+    ),
+    consumed AS (
+      UPDATE refresh_tokens rt
+      SET consumed_at = now()
+      FROM family_clear
+      WHERE rt.id = ${args.oldTokenId}
+        AND rt.consumed_at IS NULL
+        AND rt.revoked_at IS NULL
+      RETURNING rt.id
+    ),
+    inserted AS (
+      INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
+      SELECT ${args.userId}, ${args.newTokenHash}, ${args.familyId}, ${args.expiresAt.toISOString()}
+      FROM consumed
+      RETURNING *
+    )
+    SELECT * FROM inserted
+  `
+  );
+  if (!r[0]) return { status: 'failed' };
+  return { status: 'rotated', token: RefreshTokenSchema.parse(r[0]) };
+}
+
 export async function revokeRefreshTokenFamily(sql: NeonClient, familyId: string): Promise<number> {
   const r = rows(
     await sql`
@@ -890,6 +945,44 @@ export async function countActiveOtpCodes(sql: NeonClient, userId: string): Prom
   `
   );
   return z.coerce.number().parse(r[0]?.count ?? 0);
+}
+
+/**
+ * Insert an OTP code only when the user is still under `maxActive` active
+ * (unconsumed, unexpired) codes. Serialises concurrent requestors for the same
+ * user with a transaction-scoped advisory lock so two racing `/auth/otp/request`
+ * calls cannot both observe a sub-cap count and both insert.
+ *
+ * Returns the inserted row, or `null` when the cap is already reached (caller
+ * should still return the anti-enumeration success shape).
+ */
+export async function insertOtpCodeIfUnderLimit(
+  sql: NeonClient,
+  userId: string,
+  codeHash: string,
+  expiresAt: Date,
+  maxActive: number
+): Promise<OtpCode | null> {
+  const txResult = await sql.transaction([
+    // hashtext yields int4; advisory locks are session/xact scoped. Pairing the
+    // lock with the conditional INSERT in one Neon batch makes the cap check
+    // race-free for a given user_id under concurrent HTTP requests.
+    sql`SELECT pg_advisory_xact_lock(hashtext(${userId}))`,
+    sql`
+      INSERT INTO otp_codes (user_id, code_hash, expires_at)
+      SELECT ${userId}, ${codeHash}, ${expiresAt.toISOString()}
+      WHERE (
+        SELECT COUNT(*)::int FROM otp_codes
+        WHERE user_id = ${userId}
+          AND consumed_at IS NULL
+          AND expires_at > now()
+      ) < ${maxActive}
+      RETURNING *
+    `,
+  ]);
+  const insertRows = (txResult as unknown[][])[1] ?? [];
+  if (!insertRows[0]) return null;
+  return OtpCodeSchema.parse(insertRows[0]);
 }
 
 // ---------------------------------------------------------------------------

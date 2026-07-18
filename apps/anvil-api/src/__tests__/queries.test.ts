@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NeonClient } from '../db/client.js';
 import {
+  consumeAndRotateRefreshToken,
   findActiveScopesForUser,
+  insertOtpCodeIfUnderLimit,
   revokeRefreshFamilyAndAccessTokensForUser,
 } from '../db/queries.js';
 
@@ -51,6 +53,105 @@ describe('db queries', () => {
       await expect(
         revokeRefreshFamilyAndAccessTokensForUser(sql, 'family-1', 'user-1')
       ).rejects.toThrow('database unavailable');
+    });
+  });
+
+  describe('consumeAndRotateRefreshToken', () => {
+    const args = {
+      oldTokenId: 'rt-1',
+      userId: 'user-1',
+      newTokenHash: 'hash:new-token',
+      familyId: 'family-1',
+      expiresAt: new Date('2026-09-01T00:00:00.000Z'),
+    };
+
+    it('returns the inserted token when the atomic rotate succeeds', async () => {
+      const inserted = {
+        id: 'rt-2',
+        user_id: 'user-1',
+        token_hash: 'hash:new-token',
+        family_id: 'family-1',
+        expires_at: '2026-09-01T00:00:00.000Z',
+        revoked_at: null,
+        consumed_at: null,
+        created_at: '2026-07-18T00:00:00.000Z',
+      };
+      const sql = mockSql([inserted]);
+
+      await expect(consumeAndRotateRefreshToken(sql, args)).resolves.toEqual({
+        status: 'rotated',
+        token: {
+          id: 'rt-2',
+          user_id: 'user-1',
+          token_hash: 'hash:new-token',
+          family_id: 'family-1',
+          expires_at: '2026-09-01T00:00:00.000Z',
+          revoked_at: null,
+          consumed_at: null,
+          created_at: '2026-07-18T00:00:00.000Z',
+        },
+      });
+      expect(sql).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns failed when no replacement row is produced', async () => {
+      // Covers both consume-lost and family-already-revoked: the CTE returns
+      // zero rows and must not leave a partial consume (single-statement).
+      const sql = mockSql([]);
+
+      await expect(consumeAndRotateRefreshToken(sql, args)).resolves.toEqual({
+        status: 'failed',
+      });
+    });
+  });
+
+  describe('insertOtpCodeIfUnderLimit', () => {
+    it('returns the inserted row when the cap still has room', async () => {
+      const inserted = {
+        id: 'otp-1',
+        user_id: 'user-1',
+        code_hash: 'hash:123456',
+        attempts: 0,
+        expires_at: '2026-07-18T01:00:00.000Z',
+        consumed_at: null,
+        created_at: '2026-07-18T00:00:00.000Z',
+      };
+      const sql = mockSql();
+      vi.mocked(sql.transaction).mockResolvedValue([[{ pg_advisory_xact_lock: '' }], [inserted]]);
+
+      await expect(
+        insertOtpCodeIfUnderLimit(
+          sql,
+          'user-1',
+          'hash:123456',
+          new Date('2026-07-18T01:00:00.000Z'),
+          3
+        )
+      ).resolves.toEqual({
+        id: 'otp-1',
+        user_id: 'user-1',
+        code_hash: 'hash:123456',
+        attempts: 0,
+        expires_at: '2026-07-18T01:00:00.000Z',
+        consumed_at: null,
+        created_at: '2026-07-18T00:00:00.000Z',
+      });
+      expect(sql.transaction).toHaveBeenCalledWith([expect.anything(), expect.anything()]);
+    });
+
+    it('returns null when the cap blocks the insert', async () => {
+      const sql = mockSql();
+      vi.mocked(sql.transaction).mockResolvedValue([[{ pg_advisory_xact_lock: '' }], []]);
+
+      await expect(
+        insertOtpCodeIfUnderLimit(
+          sql,
+          'user-1',
+          'hash:123456',
+          new Date('2026-07-18T01:00:00.000Z'),
+          3
+        )
+      ).resolves.toBeNull();
     });
   });
 });
