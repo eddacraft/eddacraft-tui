@@ -83,6 +83,7 @@ DASHARCH.
 ### DASHCORE-001: Overview — metric cards row
 
 - **Status:** In Progress
+- **Pull Request:** [#3363](https://github.com/eddacraft/anvil-001/pull/3363)
 - **Intent:** Show the current project-health facts the shipped local dashboard
   API can prove, without manufacturing retained history.
 - **Expected Outcome:** A responsive MetricCard row derived only from the typed
