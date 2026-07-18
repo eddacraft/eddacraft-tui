@@ -52,6 +52,12 @@ fn run_stdio_server() -> anyhow::Result<()> {
     // takes a byte offset (GCTX-provider convention), not a line/character
     // pair.
     let mut documents: HashMap<String, String> = HashMap::new();
+    // Prefer workspace roots advertised by the LSP client. Process CWD is
+    // only a compatibility fallback for clients that omit both modern
+    // workspace fields; it must not override an explicit root because the
+    // server is commonly launched outside the project directory.
+    let fallback_workspace_root = std::env::current_dir().ok();
+    let mut workspace_roots = fallback_workspace_root.iter().cloned().collect::<Vec<_>>();
 
     while let Some(body) = read_lsp_frame(&mut reader)? {
         if body.iter().all(u8::is_ascii_whitespace) {
@@ -66,6 +72,10 @@ fn run_stdio_server() -> anyhow::Result<()> {
 
         match method {
             Some("initialize") => {
+                let advertised_roots = workspace_roots_from_initialize(&message);
+                if !advertised_roots.is_empty() {
+                    workspace_roots = advertised_roots;
+                }
                 if let Some(id) = id {
                     write_message(&mut stdout, &initialize_response(&id))?;
                 }
@@ -117,7 +127,7 @@ fn run_stdio_server() -> anyhow::Result<()> {
             }
             Some("textDocument/references") => {
                 if let Some(id) = id {
-                    let response = references_response(&id, &message, &documents);
+                    let response = references_response(&id, &message, &documents, &workspace_roots);
                     write_message(&mut stdout, &response)?;
                 }
             }
@@ -128,13 +138,13 @@ fn run_stdio_server() -> anyhow::Result<()> {
             // via the same shared production client `references` uses.
             Some("anvil/impactOfChange") => {
                 if let Some(id) = id {
-                    let response = impact_of_change_response(&id, &message);
+                    let response = impact_of_change_response(&id, &message, &workspace_roots);
                     write_message(&mut stdout, &response)?;
                 }
             }
             Some("anvil/affectedTests") => {
                 if let Some(id) = id {
-                    let response = affected_tests_response(&id, &message);
+                    let response = affected_tests_response(&id, &message, &workspace_roots);
                     write_message(&mut stdout, &response)?;
                 }
             }
@@ -236,6 +246,50 @@ fn uri_to_path(uri: &str) -> String {
     uri.strip_prefix("file://").unwrap_or(uri).to_string()
 }
 
+/// Workspace roots advertised by the client during `initialize`. Modern
+/// `workspaceFolders` takes precedence over the deprecated `rootUri`; the
+/// server keeps every folder so a document in a nested/multi-root workspace
+/// can be routed to the most specific admitted root.
+#[cfg(unix)]
+fn workspace_roots_from_initialize(message: &Value) -> Vec<std::path::PathBuf> {
+    let workspace_folders = message
+        .pointer("/params/workspaceFolders")
+        .and_then(Value::as_array)
+        .map(|folders| {
+            folders
+                .iter()
+                .filter_map(|folder| folder.get("uri").and_then(Value::as_str))
+                .filter_map(|uri| uri.strip_prefix("file://"))
+                .map(std::path::PathBuf::from)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !workspace_folders.is_empty() {
+        return workspace_folders;
+    }
+
+    message
+        .pointer("/params/rootUri")
+        .and_then(Value::as_str)
+        .and_then(|uri| uri.strip_prefix("file://"))
+        .map(std::path::PathBuf::from)
+        .into_iter()
+        .collect()
+}
+
+/// Select the most specific advertised workspace containing `path`.
+#[cfg(unix)]
+fn workspace_root_for_path<'a>(
+    path: &std::path::Path,
+    workspace_roots: &'a [std::path::PathBuf],
+) -> Option<&'a std::path::Path> {
+    workspace_roots
+        .iter()
+        .filter(|root| path.strip_prefix(root).is_ok())
+        .max_by_key(|root| root.components().count())
+        .map(std::path::PathBuf::as_path)
+}
+
 #[cfg(unix)]
 fn publish_diagnostics_notification(
     uri: &str,
@@ -323,7 +377,13 @@ fn lsp_position_to_byte_offset(text: &str, line: u32, character: u32) -> usize {
 /// to an LSP `(line, character)` pair. `byte_offset` clamps to `text.len()`.
 #[cfg(unix)]
 fn byte_offset_to_lsp_position(text: &str, byte_offset: usize) -> (u32, u32) {
-    let clamped = byte_offset.min(text.len());
+    let mut clamped = byte_offset.min(text.len());
+    // Daemon spans describe the resident on-disk graph while an open LSP
+    // buffer may have moved since that graph was built. Never let a stale
+    // byte offset land inside a UTF-8 code point and panic the stdio server.
+    while !text.is_char_boundary(clamped) {
+        clamped = clamped.saturating_sub(1);
+    }
     let mut line = 0u32;
     let mut line_start = 0usize;
     for (idx, ch) in text.char_indices() {
@@ -350,17 +410,15 @@ fn path_to_uri(path: &std::path::Path) -> String {
 /// `path` (an absolute filesystem path, from [`uri_to_path`]) relative to
 /// `workspace_root` — the convention every `SymbolIdentity.file` uses
 /// (`crates/anvil-cli/src/mcp/tools/find_callers.rs`'s `target.file`, for
-/// example). Falls back to `path` unchanged when it is not under
-/// `workspace_root` (e.g. a symlinked or otherwise-rooted file) — the daemon
-/// then reports a clean miss rather than this client guessing wrong.
+/// example). Returns `None` outside `workspace_root`: CE-6 requires a relative
+/// path, so forwarding an absolute path would turn the intended clean miss
+/// into an `InvalidQuery` outcome.
 #[cfg(unix)]
-fn relative_to_workspace(path: &str, workspace_root: &std::path::Path) -> String {
+fn relative_to_workspace(path: &str, workspace_root: &std::path::Path) -> Option<String> {
     std::path::Path::new(path)
         .strip_prefix(workspace_root)
-        .map_or_else(
-            |_| path.to_string(),
-            |rel| rel.to_string_lossy().into_owned(),
-        )
+        .ok()
+        .map(|rel| rel.to_string_lossy().into_owned())
 }
 
 /// Build the `textDocument/references` JSON-RPC response: resolve the
@@ -370,7 +428,12 @@ fn relative_to_workspace(path: &str, workspace_root: &std::path::Path) -> String
 /// no-symbol-here outcome degrades to an empty result array, never an
 /// error — matches `textDocument/references`' "nothing found" convention.
 #[cfg(unix)]
-fn references_response(id: &Value, message: &Value, documents: &HashMap<String, String>) -> Value {
+fn references_response(
+    id: &Value,
+    message: &Value,
+    documents: &HashMap<String, String>,
+    workspace_roots: &[std::path::PathBuf],
+) -> Value {
     let uri = message
         .pointer("/params/textDocument/uri")
         .and_then(Value::as_str);
@@ -393,17 +456,15 @@ fn references_response(id: &Value, message: &Value, documents: &HashMap<String, 
     let character = u32::try_from(character).unwrap_or(u32::MAX);
     let byte_offset =
         u32::try_from(lsp_position_to_byte_offset(text, line, character)).unwrap_or(u32::MAX);
-    let path = uri_to_path(uri);
-    let workspace_root = match std::env::current_dir() {
-        Ok(dir) => dir,
-        Err(err) => {
-            eprintln!("anvil-lsp: references cwd unavailable: {err}");
-            return success_response(id, &Value::Array(Vec::new()));
-        }
+    let path = std::path::PathBuf::from(uri_to_path(uri));
+    let Some(workspace_root) = workspace_root_for_path(&path, workspace_roots) else {
+        return success_response(id, &Value::Array(Vec::new()));
     };
-    let relative_file = relative_to_workspace(&path, &workspace_root);
+    let Some(relative_file) = relative_to_workspace(&path.to_string_lossy(), workspace_root) else {
+        return success_response(id, &Value::Array(Vec::new()));
+    };
 
-    let locations = daemon::references_at(&workspace_root, &relative_file, byte_offset)
+    let locations = daemon::references_at(workspace_root, &relative_file, byte_offset)
         .unwrap_or_else(|err| {
             eprintln!("anvil-lsp: references lookup failed: {err}");
             Vec::new()
@@ -454,41 +515,69 @@ fn references_response(id: &Value, message: &Value, documents: &HashMap<String, 
 fn parse_changed_files_params(
     message: &Value,
     workspace_root: &std::path::Path,
-) -> (Vec<String>, Option<u32>) {
+) -> Option<(Vec<String>, Option<u32>)> {
     let changed_files = message
         .pointer("/params/changedFiles")
         .and_then(Value::as_array)
-        .map(|files| {
-            files
-                .iter()
-                .filter_map(Value::as_str)
-                .map(|f| {
-                    if std::path::Path::new(f).is_absolute() {
-                        relative_to_workspace(f, workspace_root)
-                    } else {
-                        f.to_string()
-                    }
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+        .map_or_else(
+            || Some(Vec::new()),
+            |files| {
+                files
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(|f| {
+                        if std::path::Path::new(f).is_absolute() {
+                            relative_to_workspace(f, workspace_root)
+                        } else {
+                            Some(f.to_string())
+                        }
+                    })
+                    .collect::<Option<Vec<_>>>()
+            },
+        )?;
     let max_depth = message
         .pointer("/params/maxDepth")
         .and_then(Value::as_u64)
         .and_then(|d| u32::try_from(d).ok());
-    (changed_files, max_depth)
+    Some((changed_files, max_depth))
 }
 
 #[cfg(unix)]
-fn impact_of_change_response(id: &Value, message: &Value) -> Value {
-    let Ok(workspace_root) = std::env::current_dir() else {
-        return error_response(id, -32603, "Internal error");
+fn workspace_root_for_changed_files<'a>(
+    message: &Value,
+    workspace_roots: &'a [std::path::PathBuf],
+) -> Option<&'a std::path::Path> {
+    let absolute_path = message
+        .pointer("/params/changedFiles")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(std::path::Path::new)
+        .find(|path| path.is_absolute());
+
+    absolute_path
+        .and_then(|path| workspace_root_for_path(path, workspace_roots))
+        .or_else(|| workspace_roots.first().map(std::path::PathBuf::as_path))
+}
+
+#[cfg(unix)]
+fn impact_of_change_response(
+    id: &Value,
+    message: &Value,
+    workspace_roots: &[std::path::PathBuf],
+) -> Value {
+    let Some(workspace_root) = workspace_root_for_changed_files(message, workspace_roots) else {
+        return error_response(id, -32602, "Invalid params");
     };
-    let (changed_files, max_depth) = parse_changed_files_params(message, &workspace_root);
+    let Some((changed_files, max_depth)) = parse_changed_files_params(message, workspace_root)
+    else {
+        return error_response(id, -32602, "Invalid params");
+    };
     if changed_files.is_empty() {
         return error_response(id, -32602, "Invalid params");
     }
-    match daemon::impact_of_change(&workspace_root, changed_files, max_depth) {
+    match daemon::impact_of_change(workspace_root, changed_files, max_depth) {
         Ok(report) => success_response(id, &report),
         Err(err) => {
             eprintln!("anvil-lsp: impactOfChange lookup failed: {err}");
@@ -498,15 +587,22 @@ fn impact_of_change_response(id: &Value, message: &Value) -> Value {
 }
 
 #[cfg(unix)]
-fn affected_tests_response(id: &Value, message: &Value) -> Value {
-    let Ok(workspace_root) = std::env::current_dir() else {
-        return error_response(id, -32603, "Internal error");
+fn affected_tests_response(
+    id: &Value,
+    message: &Value,
+    workspace_roots: &[std::path::PathBuf],
+) -> Value {
+    let Some(workspace_root) = workspace_root_for_changed_files(message, workspace_roots) else {
+        return error_response(id, -32602, "Invalid params");
     };
-    let (changed_files, max_depth) = parse_changed_files_params(message, &workspace_root);
+    let Some((changed_files, max_depth)) = parse_changed_files_params(message, workspace_root)
+    else {
+        return error_response(id, -32602, "Invalid params");
+    };
     if changed_files.is_empty() {
         return error_response(id, -32602, "Invalid params");
     }
-    match daemon::affected_tests(&workspace_root, changed_files, max_depth) {
+    match daemon::affected_tests(workspace_root, changed_files, max_depth) {
         Ok(report) => success_response(id, &report),
         Err(err) => {
             eprintln!("anvil-lsp: affectedTests lookup failed: {err}");
@@ -857,20 +953,84 @@ mod tests {
     }
 
     #[test]
+    fn offset_to_position_clamps_stale_offsets_to_a_utf8_boundary() {
+        let text = "aéz";
+        // Byte offset 2 is inside the two-byte `é`; a stale graph span must
+        // degrade to the preceding character boundary rather than panic.
+        assert_eq!(byte_offset_to_lsp_position(text, 2), (0, 1));
+    }
+
+    #[test]
     fn relative_to_workspace_strips_the_prefix() {
         let root = std::path::Path::new("/home/user/project");
         assert_eq!(
             relative_to_workspace("/home/user/project/src/a.ts", root),
-            "src/a.ts"
+            Some("src/a.ts".to_string())
         );
     }
 
     #[test]
-    fn relative_to_workspace_falls_back_to_the_input_when_not_under_root() {
+    fn relative_to_workspace_rejects_paths_outside_the_root() {
         let root = std::path::Path::new("/home/user/project");
+        assert_eq!(relative_to_workspace("/somewhere/else/a.ts", root), None);
+    }
+
+    #[test]
+    fn initialize_workspace_roots_prefers_workspace_folders() {
+        let message = json!({
+            "params": {
+                "rootUri": "file:///fallback/project",
+                "workspaceFolders": [
+                    { "uri": "file:///home/user/project", "name": "project" },
+                    { "uri": "file:///home/user/project/packages/a", "name": "a" }
+                ]
+            }
+        });
+
         assert_eq!(
-            relative_to_workspace("/somewhere/else/a.ts", root),
-            "/somewhere/else/a.ts"
+            workspace_roots_from_initialize(&message),
+            vec![
+                std::path::PathBuf::from("/home/user/project"),
+                std::path::PathBuf::from("/home/user/project/packages/a"),
+            ]
+        );
+    }
+
+    #[test]
+    fn initialize_workspace_roots_falls_back_to_root_uri() {
+        let message = json!({
+            "params": { "rootUri": "file:///home/user/project" }
+        });
+
+        assert_eq!(
+            workspace_roots_from_initialize(&message),
+            vec![std::path::PathBuf::from("/home/user/project")]
+        );
+    }
+
+    #[test]
+    fn workspace_root_for_path_selects_the_most_specific_folder() {
+        let roots = vec![
+            std::path::PathBuf::from("/home/user/project"),
+            std::path::PathBuf::from("/home/user/project/packages/a"),
+        ];
+
+        assert_eq!(
+            workspace_root_for_path(
+                std::path::Path::new("/home/user/project/packages/a/src/lib.rs"),
+                &roots,
+            ),
+            Some(std::path::Path::new("/home/user/project/packages/a"))
+        );
+    }
+
+    #[test]
+    fn workspace_root_for_path_returns_none_outside_advertised_folders() {
+        let roots = vec![std::path::PathBuf::from("/home/user/project")];
+
+        assert_eq!(
+            workspace_root_for_path(std::path::Path::new("/elsewhere/src/lib.rs"), &roots),
+            None
         );
     }
 
@@ -893,7 +1053,8 @@ mod tests {
                 "position": { "line": 0, "character": 0 }
             }
         });
-        let response = references_response(&json!(1), &message, &documents);
+        let roots = vec![std::path::PathBuf::from("/workspace")];
+        let response = references_response(&json!(1), &message, &documents, &roots);
         assert_eq!(response["result"], json!([]));
         assert!(response.get("error").is_none());
     }
@@ -906,8 +1067,29 @@ mod tests {
             "method": "textDocument/references",
             "params": { "textDocument": { "uri": "file:///a.ts" } }
         });
-        let response = references_response(&json!(1), &message, &documents);
+        let roots = vec![std::path::PathBuf::from("/")];
+        let response = references_response(&json!(1), &message, &documents, &roots);
         assert_eq!(response["error"]["code"], -32602);
+    }
+
+    #[test]
+    fn references_response_returns_a_clean_miss_outside_advertised_workspaces() {
+        let uri = "file:///elsewhere/src/lib.rs";
+        let documents = HashMap::from([(uri.to_string(), "fn example() {}".to_string())]);
+        let message = json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": { "uri": uri },
+                "position": { "line": 0, "character": 3 }
+            }
+        });
+        let roots = vec![std::path::PathBuf::from("/workspace")];
+
+        let response = references_response(&json!(1), &message, &documents, &roots);
+
+        assert_eq!(response["result"], json!([]));
+        assert!(response.get("error").is_none());
     }
 
     #[test]
@@ -915,27 +1097,37 @@ mod tests {
         let root = std::path::Path::new("/home/user/project");
         let message = json!({
             "params": {
-                "changedFiles": ["/home/user/project/src/a.ts", "src/b.ts", "/elsewhere/c.ts"],
+                "changedFiles": ["/home/user/project/src/a.ts", "src/b.ts"],
                 "maxDepth": 2
             }
         });
-        let (changed_files, max_depth) = parse_changed_files_params(&message, root);
+        let (changed_files, max_depth) = parse_changed_files_params(&message, root)
+            .expect("all changed files should be under the workspace root");
         assert_eq!(
             changed_files,
-            vec![
-                "src/a.ts".to_string(),
-                "src/b.ts".to_string(),
-                "/elsewhere/c.ts".to_string(),
-            ]
+            vec!["src/a.ts".to_string(), "src/b.ts".to_string(),]
         );
         assert_eq!(max_depth, Some(2));
+    }
+
+    #[test]
+    fn parse_changed_files_rejects_absolute_entries_outside_the_workspace() {
+        let root = std::path::Path::new("/home/user/project");
+        let message = json!({
+            "params": {
+                "changedFiles": ["/home/user/project/src/a.ts", "/elsewhere/c.ts"]
+            }
+        });
+
+        assert_eq!(parse_changed_files_params(&message, root), None);
     }
 
     #[test]
     fn parse_changed_files_defaults_are_empty_and_no_depth() {
         let root = std::path::Path::new("/home/user/project");
         let message = json!({ "params": {} });
-        let (changed_files, max_depth) = parse_changed_files_params(&message, root);
+        let (changed_files, max_depth) =
+            parse_changed_files_params(&message, root).expect("empty params are valid to parse");
         assert!(changed_files.is_empty());
         assert_eq!(max_depth, None);
     }
@@ -943,14 +1135,16 @@ mod tests {
     #[test]
     fn impact_of_change_response_rejects_empty_changed_files() {
         let message = json!({ "params": { "changedFiles": [] } });
-        let response = impact_of_change_response(&json!(1), &message);
+        let roots = vec![std::path::PathBuf::from("/workspace")];
+        let response = impact_of_change_response(&json!(1), &message, &roots);
         assert_eq!(response["error"]["code"], -32602);
     }
 
     #[test]
     fn affected_tests_response_rejects_empty_changed_files() {
         let message = json!({ "params": { "changedFiles": [] } });
-        let response = affected_tests_response(&json!(1), &message);
+        let roots = vec![std::path::PathBuf::from("/workspace")];
+        let response = affected_tests_response(&json!(1), &message, &roots);
         assert_eq!(response["error"]["code"], -32602);
     }
 }
