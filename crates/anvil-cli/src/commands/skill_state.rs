@@ -292,6 +292,15 @@ enum FileMatch {
 fn files_match_manifest(destination: &Path, files: &BTreeMap<String, String>) -> FileMatch {
     for (relative, expected_hash) in files {
         let path = destination.join(relative);
+        // `symlink_metadata` (unlike `metadata`) does not follow a symlink,
+        // so a symlink standing in for a managed file is flagged as drift
+        // without ever reading whatever it points at.
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            return FileMatch::Drift;
+        };
+        if !metadata.is_file() {
+            return FileMatch::Drift;
+        }
         let Ok(bytes) = fs::read(&path) else {
             return FileMatch::Drift;
         };
@@ -440,6 +449,29 @@ mod tests {
         let expected = expected_developer_functions_manifest();
         write_managed_install(&destination, &expected);
         fs::write(destination.join("SKILL.md"), "user modification").unwrap();
+        assert_eq!(
+            evaluate_install(&destination, &expected),
+            SkillInstallOutcome::Dirty
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn evaluate_dirty_when_managed_file_is_a_symlink() {
+        // A symlink standing in for a managed file must be flagged as
+        // drift without ever being followed and read.
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join(DEFAULT_SKILL_NAME);
+        let expected = expected_developer_functions_manifest();
+        write_managed_install(&destination, &expected);
+
+        let outside = root.path().join("outside-secret.txt");
+        fs::write(&outside, "not part of the skill bundle").unwrap();
+        fs::remove_file(destination.join("SKILL.md")).unwrap();
+        symlink(&outside, destination.join("SKILL.md")).unwrap();
+
         assert_eq!(
             evaluate_install(&destination, &expected),
             SkillInstallOutcome::Dirty

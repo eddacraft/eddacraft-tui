@@ -1164,7 +1164,10 @@ fn classify_managed_skill_status(
                 command: Some("anvil skill install".to_string()),
                 doc_url: None,
             },
-            true,
+            // `apply_fixes` has no handler for "managed-skills" — doctor is
+            // read-only here, and remediation runs through the printed
+            // `anvil skill install` command, not `--fix`.
+            false,
         );
     }
     if broken > 0 && dirty == 0 && unmanaged == 0 && stale == 0 && !missing_required_fresh {
@@ -3199,7 +3202,10 @@ mod tests {
             "warn message should mention stale: {}",
             check.message
         );
-        assert!(check.auto_fixable, "pure stale is auto-fixable");
+        assert!(
+            !check.auto_fixable,
+            "apply_fixes has no managed-skills handler; must not claim auto-fixable"
+        );
         assert_eq!(
             check.remediation.command.as_deref(),
             Some("anvil skill install")
