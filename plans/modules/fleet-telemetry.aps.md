@@ -5,7 +5,7 @@
 
 | ID    | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLEET | —     | High     | In Progress |
+| FLEET | —     | High     | Done |
 
 **Last reviewed:** 2026-07-15 — OQ3 resolved by the operator (investor
 evidence is the trigger); design gate
@@ -182,7 +182,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-003: Telemetry beacon producer
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-18 via PR #3362
 - **Files:** `crates/anvil-cli/src/telemetry.rs`,
   `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/main.rs`,
   and start-activation fixtures.
@@ -224,7 +224,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-004: `anvil telemetry` transparency command
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-18 via PR #3362
 - **Files:** `crates/anvil-cli/src/commands/telemetry.rs` and
   `crates/anvil-cli/src/telemetry.rs`.
 - **Intent:** The allowlist is auditable from the binary itself, not just
@@ -260,7 +260,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-006: Privacy contract and docs update
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-18 via PR #3362
 - **Files:** `docs/public/anvil/operations/telemetry.md`,
   `docs/observability/usage-analytics.md`, affected public guides and
   tutorials, `docs/runbooks/anvil-adoption.md`, and generated docs indexes.
@@ -283,7 +283,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-007: Operator fleet view
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-18 via PR #3362
 - **Files:** `apps/anvil-api/src/lib/fleet-overview.ts`, the protected admin
   route and tests, `crates/anvil-cli/src/commands/admin.rs`, the admin client,
   and `docs/runbooks/admin-cli.md`.
