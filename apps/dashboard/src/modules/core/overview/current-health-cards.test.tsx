@@ -52,6 +52,29 @@ describe('CurrentHealthCards', () => {
     expect(card('Active warnings')?.getAttribute('data-state')).toBe('partial');
   });
 
+  it('renders an observed inactive save-time driver consistently as a complete fact', async () => {
+    await render({ save_time: { active: false, failure_count: 1, state: 'failed' } });
+
+    expect(card('Save-time protection')?.textContent).toContain('Not observed');
+    expect(card('Save-time protection')?.textContent).toContain('Failed');
+    expect(card('Save-time protection')?.getAttribute('data-state')).toBe('complete');
+  });
+
+  it('renders missing save-time data as unavailable', async () => {
+    await render({ save_time: null });
+
+    expect(card('Save-time protection')?.textContent).toContain('Not observed');
+    expect(card('Save-time protection')?.textContent).toContain('Live state unavailable');
+    expect(card('Save-time protection')?.getAttribute('data-state')).toBe('unavailable');
+  });
+
+  it('does not render a zero observation timestamp as Unix epoch evidence', async () => {
+    await render({ observed_at_unix: 0 });
+
+    expect(card('Evidence freshness')?.textContent).toContain('Not observed');
+    expect(card('Evidence freshness')?.getAttribute('data-state')).toBe('unavailable');
+  });
+
   it('does not turn unavailable facts into zeroes', async () => {
     await render({
       assurance: null,

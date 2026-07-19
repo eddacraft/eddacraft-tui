@@ -30,11 +30,9 @@ async function audit(name, contextOptions, screenshotPath) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   assert.equal(homeLayout.scrollWidth, homeLayout.clientWidth, `${name} home page overflows`);
-  assert.equal(
-    await page.locator('.current-health-cards > .metric-card').count(),
-    5,
-    `${name} health card count`
-  );
+  const healthCards = page.locator('.current-health-cards > .metric-card');
+  await healthCards.first().waitFor({ state: 'visible' });
+  assert.equal(await healthCards.count(), 5, `${name} health card count`);
   assert.equal(consoleErrors.length, 0, `${name} console errors: ${consoleErrors.join(' | ')}`);
   assert.equal(
     externalRequests.length,

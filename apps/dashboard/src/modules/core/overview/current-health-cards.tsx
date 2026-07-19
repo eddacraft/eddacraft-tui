@@ -28,9 +28,9 @@ function protectionFact(overview: Overview): CardFact {
     return { value: 'Not observed', detail: 'Live state unavailable', state: 'unavailable' };
   }
   return {
-    value: saveTime.active ? 'Active' : 'Not active',
+    value: saveTime.active ? 'Active' : 'Not observed',
     detail: sentenceCase(saveTime.state),
-    state: saveTime.active ? 'complete' : 'partial',
+    state: 'complete',
   };
 }
 
@@ -94,7 +94,7 @@ function assuranceFact(overview: Overview): CardFact {
 }
 
 function freshnessFact(overview: Overview): CardFact {
-  if (overview.observed_at_unix === null) {
+  if (!overview.observed_at_unix) {
     return { value: 'Not observed', detail: 'Live timestamp unavailable', state: 'unavailable' };
   }
   const observedAt = new Date(overview.observed_at_unix * 1000);
