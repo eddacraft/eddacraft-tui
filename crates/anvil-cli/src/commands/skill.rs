@@ -3,25 +3,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, IsTerminal, Write};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
-use sha2::{Digest, Sha256};
 
 use crate::GlobalArgs;
 use crate::activation::agent_registry::{AgentClientId, InstallScope};
 use crate::activation::detect_agents::RealDetectionEnv;
-const SKILL_NAME: &str = "anvil-developer-functions";
-const SOURCE_COMMIT: &str = "ef5b34c5f424c9de4292406405e4bedfb603a65a";
-const SKILL_MD: &str = include_str!("../../assets/skills/anvil-developer-functions/SKILL.md");
-const TOOL_REFERENCE: &str =
-    include_str!("../../assets/skills/anvil-developer-functions/references/tool-reference.md");
-const _BUNDLE_PROVENANCE: &str =
-    include_str!("../../assets/skills/anvil-developer-functions/bundle-provenance.json");
-const MANIFEST_NAME: &str = ".anvil-managed.json";
+use crate::commands::skill_state::{
+    self, DEFAULT_SKILL_NAME, MANIFEST_NAME, ManagedManifest, SKILL_MD, TOOL_REFERENCE,
+    expected_developer_functions_manifest,
+};
+
+const SKILL_NAME: &str = DEFAULT_SKILL_NAME;
 
 #[derive(Debug, Args)]
 pub struct SkillArgs {
@@ -64,17 +61,6 @@ struct TargetReport {
     clients: Vec<&'static str>,
     path: PathBuf,
     status: &'static str,
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ManagedManifest {
-    schema_version: u32,
-    skill: String,
-    source_commit: String,
-    anvil_version: String,
-    bundle_digest: String,
-    files: BTreeMap<String, String>,
 }
 
 pub fn run(args: &SkillArgs, global: &GlobalArgs) -> Result<()> {
@@ -311,15 +297,10 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
         );
     }
     for (relative, expected_hash) in &manifest.files {
-        let relative_path = Path::new(relative);
-        if relative_path.as_os_str().is_empty()
-            || relative_path
-                .components()
-                .any(|component| !matches!(component, Component::Normal(_)))
-        {
+        if !skill_state::is_safe_relative_path(relative) {
             bail!("managed manifest contains unsafe relative path `{relative}`");
         }
-        let path = destination.join(relative_path);
+        let path = destination.join(relative);
         ensure_safe_destination(&path)?;
         let bytes = fs::read(&path).with_context(|| {
             format!(
@@ -327,14 +308,14 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
                 path.display()
             )
         })?;
-        if sha256(&bytes) != *expected_hash {
+        if skill_state::sha256(&bytes) != *expected_hash {
             bail!(
                 "managed skill file {} was modified; refusing to overwrite user changes",
                 path.display()
             );
         }
     }
-    if bundle_digest(&manifest.files) != manifest.bundle_digest {
+    if skill_state::bundle_digest(&manifest.files) != manifest.bundle_digest {
         bail!(
             "managed manifest {} has an invalid bundle digest; refusing to overwrite",
             manifest_path.display()
@@ -409,36 +390,7 @@ fn validate_no_unmanaged_entries(
 }
 
 fn expected_manifest() -> ManagedManifest {
-    let files = BTreeMap::from([
-        ("SKILL.md".to_string(), sha256(SKILL_MD.as_bytes())),
-        (
-            "references/tool-reference.md".to_string(),
-            sha256(TOOL_REFERENCE.as_bytes()),
-        ),
-    ]);
-    ManagedManifest {
-        schema_version: 1,
-        skill: SKILL_NAME.to_string(),
-        source_commit: SOURCE_COMMIT.to_string(),
-        anvil_version: env!("CARGO_PKG_VERSION").to_string(),
-        bundle_digest: bundle_digest(&files),
-        files,
-    }
-}
-
-fn bundle_digest(files: &BTreeMap<String, String>) -> String {
-    let mut digest = Sha256::new();
-    for (relative, file_digest) in files {
-        digest.update(relative.as_bytes());
-        digest.update([0]);
-        digest.update(file_digest.as_bytes());
-        digest.update([0]);
-    }
-    hex::encode(digest.finalize())
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    hex::encode(Sha256::digest(bytes))
+    expected_developer_functions_manifest()
 }
 
 fn write_staged_file(destination: &Path, relative: &str, content: &str) -> Result<()> {

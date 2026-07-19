@@ -121,6 +121,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_registry_patterns_compile(),
         check_project_id(),
         check_state_boundary(),
+        check_managed_skills(),
     ]
 }
 
@@ -1044,6 +1045,234 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
             truncated,
         }),
         _ => None,
+    }
+}
+
+/// Soft freshness of the managed `anvil-developer-functions` skill installs.
+fn check_managed_skills() -> DiagnosticCheck {
+    let home = crate::util::user_home_dir();
+    let project = std::env::current_dir().ok();
+    check_managed_skills_at(home.as_deref(), project.as_deref())
+}
+
+/// Testable entry point for managed-skill doctor evaluation.
+fn check_managed_skills_at(home: Option<&Path>, project: Option<&Path>) -> DiagnosticCheck {
+    use crate::commands::skill_state::{
+        SkillInstallOutcome, any_skill_capable_client_detected, evaluate_known_skills,
+    };
+
+    let reports = evaluate_known_skills(home, project);
+    let clients_detected = any_skill_capable_client_detected();
+
+    if reports.is_empty() {
+        let message = if clients_detected {
+            "skill-capable agent clients detected but no managed skill install sites reported"
+                .to_string()
+        } else {
+            "no skill-capable agent clients detected".to_string()
+        };
+        // No installs and no skill-capable clients → soft pass. When clients
+        // are detected, evaluate_known_skills already emits Absent rows, so
+        // this branch is the "nothing to do" case.
+        return DiagnosticCheck {
+            name: "managed-skills".to_string(),
+            category: "Agent skills".to_string(),
+            status: CheckStatus::Pass,
+            message,
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    let mut fresh = 0usize;
+    let mut stale = 0usize;
+    let mut dirty = 0usize;
+    let mut unmanaged = 0usize;
+    let mut absent = 0usize;
+    let mut broken = 0usize;
+    let mut detail_lines = Vec::new();
+
+    for report in &reports {
+        let clients = if report.clients.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", report.clients.join(", "))
+        };
+        let line = match &report.outcome {
+            SkillInstallOutcome::Fresh => {
+                fresh += 1;
+                format!("fresh: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Stale {
+                installed_anvil,
+                current_anvil,
+            } => {
+                stale += 1;
+                format!(
+                    "stale: {}{clients} (installed anvil {installed_anvil}, current {current_anvil})",
+                    report.path.display()
+                )
+            }
+            SkillInstallOutcome::Dirty => {
+                dirty += 1;
+                format!("dirty: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Unmanaged => {
+                unmanaged += 1;
+                format!("unmanaged: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Absent => {
+                absent += 1;
+                format!("absent: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Broken { reason } => {
+                broken += 1;
+                format!("broken: {}{clients} ({reason})", report.path.display())
+            }
+        };
+        detail_lines.push(line);
+    }
+
+    let has_fresh = fresh > 0;
+    // At least one Fresh install satisfies "installed somewhere" even when
+    // other client roots remain Absent — users pick clients at install time.
+    let missing_required_fresh = clients_detected && !has_fresh;
+    let pure_stale = stale > 0 && dirty == 0 && unmanaged == 0 && broken == 0;
+    let has_integrity_or_drift = broken > 0 || dirty > 0 || unmanaged > 0 || stale > 0;
+
+    let (status, message, remediation, auto_fixable) = if !has_integrity_or_drift
+        && !missing_required_fresh
+        && has_fresh
+    {
+        (
+            CheckStatus::Pass,
+            format!(
+                "managed skill anvil-developer-functions is fresh at {fresh} site{}",
+                if fresh == 1 { "" } else { "s" }
+            ),
+            Remediation::default(),
+            false,
+        )
+    } else if pure_stale {
+        (
+            CheckStatus::Warn,
+            format!(
+                "managed skill anvil-developer-functions is stale at {stale} site{} (reinstall to match this anvil)",
+                if stale == 1 { "" } else { "s" }
+            ),
+            Remediation {
+                summary: "Reinstall the managed skill so it matches the bundle shipped with this anvil."
+                    .to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            true,
+        )
+    } else if broken > 0 && dirty == 0 && unmanaged == 0 && stale == 0 && !missing_required_fresh {
+        // Integrity-only failures on found installs (may coexist with Fresh elsewhere).
+        (
+            CheckStatus::Fail,
+            format!(
+                "managed skill install marker broken at {broken} site{}",
+                if broken == 1 { "" } else { "s" }
+            ),
+            Remediation {
+                summary: "Repair or remove the broken managed skill directory, then reinstall with `anvil skill install`."
+                    .to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            false,
+        )
+    } else if missing_required_fresh && !has_integrity_or_drift {
+        // Detected clients, nothing installed (or only Absent rows).
+        (
+            CheckStatus::Warn,
+            "managed skill anvil-developer-functions is not installed for detected agent clients"
+                .to_string(),
+            Remediation {
+                summary: "Install the managed skill with `anvil skill install`."
+                    .to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            false,
+        )
+    } else {
+        // Mixed soft issues (dirty/unmanaged/stale/broken combinations).
+        let mut parts = Vec::new();
+        if broken > 0 {
+            parts.push(format!("{broken} broken"));
+        }
+        if dirty > 0 {
+            parts.push(format!("{dirty} dirty"));
+        }
+        if unmanaged > 0 {
+            parts.push(format!("{unmanaged} unmanaged"));
+        }
+        if absent > 0 && missing_required_fresh {
+            parts.push(format!("{absent} absent"));
+        }
+        if stale > 0 {
+            parts.push(format!("{stale} stale"));
+        }
+        if fresh > 0 {
+            parts.push(format!("{fresh} fresh"));
+        }
+        let summary = if parts.is_empty() {
+            "see details".to_string()
+        } else {
+            parts.join(", ")
+        };
+        let status = if broken > 0 {
+            CheckStatus::Fail
+        } else {
+            CheckStatus::Warn
+        };
+        let (remediation_summary, command) = if dirty > 0 || unmanaged > 0 || broken > 0 {
+            (
+                "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`."
+                    .to_string(),
+                Some("anvil skill install".to_string()),
+            )
+        } else {
+            (
+                "Install or refresh the managed skill with `anvil skill install`."
+                    .to_string(),
+                Some("anvil skill install".to_string()),
+            )
+        };
+        (
+            status,
+            format!("managed skill issues: {summary}"),
+            Remediation {
+                summary: remediation_summary,
+                command,
+                doc_url: None,
+            },
+            false,
+        )
+    };
+
+    // Surface per-site details when there is more than a single clean Fresh
+    // row, so Absent roots remain visible without failing the check.
+    let details = if detail_lines.len() > 1
+        || matches!(status, CheckStatus::Warn | CheckStatus::Fail)
+    {
+        Some(detail_lines.join("\n"))
+    } else {
+        detail_lines.first().cloned()
+    };
+
+    DiagnosticCheck {
+        name: "managed-skills".to_string(),
+        category: "Agent skills".to_string(),
+        status,
+        message,
+        details,
+        auto_fixable,
+        remediation,
     }
 }
 
@@ -2821,6 +3050,114 @@ mod tests {
         assert!(
             claim_idx > summary_idx,
             "protection-claim section must follow the summary line: summary@{summary_idx} claim@{claim_idx} in {rendered:?}",
+        );
+    }
+
+    // --- managed-skills (skill freshness) ---
+
+    fn write_expected_skill_install(destination: &std::path::Path) {
+        use crate::commands::skill_state::{
+            MANIFEST_NAME, SKILL_MD, TOOL_REFERENCE, expected_developer_functions_manifest,
+        };
+
+        std::fs::create_dir_all(destination.join("references")).unwrap();
+        std::fs::write(destination.join("SKILL.md"), SKILL_MD).unwrap();
+        std::fs::write(
+            destination.join("references/tool-reference.md"),
+            TOOL_REFERENCE,
+        )
+        .unwrap();
+        let expected = expected_developer_functions_manifest();
+        let body = format!("{}\n", serde_json::to_string_pretty(&expected).unwrap());
+        std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+    }
+
+    #[test]
+    fn run_all_checks_includes_managed_skills_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "managed-skills"),
+            "managed-skills must be registered in run_all_checks",
+        );
+    }
+
+    #[test]
+    fn managed_skills_pass_when_project_install_matches_expected() {
+        use crate::commands::skill_state::DEFAULT_SKILL_NAME;
+
+        let project = tempfile::tempdir().unwrap();
+        let destination = project
+            .path()
+            .join(".agents/skills")
+            .join(DEFAULT_SKILL_NAME);
+        write_expected_skill_install(&destination);
+
+        // home=None avoids scanning the real user home; only the project
+        // fixture is evaluated. Existing Fresh installs pass regardless of
+        // whether a skill-capable client is detected on the host.
+        let check = check_managed_skills_at(None, Some(project.path()));
+        assert_eq!(check.name, "managed-skills");
+        assert_eq!(check.category, "Agent skills");
+        assert_eq!(
+            check.status,
+            CheckStatus::Pass,
+            "message={:?} details={:?}",
+            check.message,
+            check.details
+        );
+        assert!(
+            check.message.contains("fresh"),
+            "pass message should mention freshness: {}",
+            check.message
+        );
+        assert!(
+            check.message.contains("anvil"),
+            "user-facing message should use lowercase anvil: {}",
+            check.message
+        );
+    }
+
+    #[test]
+    fn managed_skills_warn_stale_when_marker_version_drifts() {
+        use crate::commands::skill_state::{
+            DEFAULT_SKILL_NAME, MANIFEST_NAME, SKILL_MD, TOOL_REFERENCE,
+            expected_developer_functions_manifest,
+        };
+
+        let project = tempfile::tempdir().unwrap();
+        let destination = project
+            .path()
+            .join(".agents/skills")
+            .join(DEFAULT_SKILL_NAME);
+        std::fs::create_dir_all(destination.join("references")).unwrap();
+        std::fs::write(destination.join("SKILL.md"), SKILL_MD).unwrap();
+        std::fs::write(
+            destination.join("references/tool-reference.md"),
+            TOOL_REFERENCE,
+        )
+        .unwrap();
+        let mut stale = expected_developer_functions_manifest();
+        stale.anvil_version = "0.0.0-stale".to_string();
+        let body = format!("{}\n", serde_json::to_string_pretty(&stale).unwrap());
+        std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+
+        let check = check_managed_skills_at(None, Some(project.path()));
+        assert_eq!(
+            check.status,
+            CheckStatus::Warn,
+            "message={:?} details={:?}",
+            check.message,
+            check.details
+        );
+        assert!(
+            check.message.contains("stale"),
+            "warn message should mention stale: {}",
+            check.message
+        );
+        assert!(check.auto_fixable, "pure stale is auto-fixable");
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil skill install")
         );
     }
 }

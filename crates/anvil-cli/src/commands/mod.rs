@@ -41,6 +41,7 @@ pub mod policy;
 pub mod protection_claim_section;
 pub mod report_fp;
 pub mod skill;
+pub mod skill_state;
 pub mod start;
 pub mod status;
 pub mod telemetry;
