@@ -1056,10 +1056,222 @@ fn check_managed_skills() -> DiagnosticCheck {
 }
 
 /// Testable entry point for managed-skill doctor evaluation.
-fn check_managed_skills_at(home: Option<&Path>, project: Option<&Path>) -> DiagnosticCheck {
-    use crate::commands::skill_state::{
-        SkillInstallOutcome, any_skill_capable_client_detected, evaluate_known_skills,
+/// Per-outcome tallies across a skill's evaluated install sites.
+#[derive(Default)]
+struct SkillOutcomeCounts {
+    fresh: usize,
+    stale: usize,
+    dirty: usize,
+    unmanaged: usize,
+    absent: usize,
+    broken: usize,
+}
+
+fn tally_skill_outcomes(
+    reports: &[crate::commands::skill_state::SkillInstallReport],
+) -> (SkillOutcomeCounts, Vec<String>) {
+    use crate::commands::skill_state::SkillInstallOutcome;
+
+    let mut counts = SkillOutcomeCounts::default();
+    let mut detail_lines = Vec::new();
+
+    for report in reports {
+        let clients = if report.clients.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", report.clients.join(", "))
+        };
+        let line = match &report.outcome {
+            SkillInstallOutcome::Fresh => {
+                counts.fresh += 1;
+                format!("fresh: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Stale {
+                installed_anvil,
+                current_anvil,
+            } => {
+                counts.stale += 1;
+                format!(
+                    "stale: {}{clients} (installed anvil {installed_anvil}, current {current_anvil})",
+                    report.path.display()
+                )
+            }
+            SkillInstallOutcome::Dirty => {
+                counts.dirty += 1;
+                format!("dirty: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Unmanaged => {
+                counts.unmanaged += 1;
+                format!("unmanaged: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Absent => {
+                counts.absent += 1;
+                format!("absent: {}{clients}", report.path.display())
+            }
+            SkillInstallOutcome::Broken { reason } => {
+                counts.broken += 1;
+                format!("broken: {}{clients} ({reason})", report.path.display())
+            }
+        };
+        detail_lines.push(line);
+    }
+
+    (counts, detail_lines)
+}
+
+fn classify_managed_skill_status(
+    counts: &SkillOutcomeCounts,
+    clients_detected: bool,
+) -> (CheckStatus, String, Remediation, bool) {
+    let SkillOutcomeCounts {
+        fresh,
+        stale,
+        dirty,
+        unmanaged,
+        broken,
+        ..
+    } = *counts;
+
+    let has_fresh = fresh > 0;
+    // At least one Fresh install satisfies "installed somewhere" even when
+    // other client roots remain Absent — users pick clients at install time.
+    let missing_required_fresh = clients_detected && !has_fresh;
+    let pure_stale = stale > 0 && dirty == 0 && unmanaged == 0 && broken == 0;
+    let has_integrity_or_drift = broken > 0 || dirty > 0 || unmanaged > 0 || stale > 0;
+
+    if !has_integrity_or_drift && !missing_required_fresh && has_fresh {
+        return (
+            CheckStatus::Pass,
+            format!(
+                "managed skill anvil-developer-functions is fresh at {fresh} site{}",
+                if fresh == 1 { "" } else { "s" }
+            ),
+            Remediation::default(),
+            false,
+        );
+    }
+    if pure_stale {
+        return (
+            CheckStatus::Warn,
+            format!(
+                "managed skill anvil-developer-functions is stale at {stale} site{} (reinstall to match this anvil)",
+                if stale == 1 { "" } else { "s" }
+            ),
+            Remediation {
+                summary:
+                    "Reinstall the managed skill so it matches the bundle shipped with this anvil."
+                        .to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            true,
+        );
+    }
+    if broken > 0 && dirty == 0 && unmanaged == 0 && stale == 0 && !missing_required_fresh {
+        // Integrity-only failures on found installs (may coexist with Fresh elsewhere).
+        return (
+            CheckStatus::Fail,
+            format!(
+                "managed skill install marker broken at {broken} site{}",
+                if broken == 1 { "" } else { "s" }
+            ),
+            Remediation {
+                summary: "Repair or remove the broken managed skill directory, then reinstall with `anvil skill install`."
+                    .to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            false,
+        );
+    }
+    if missing_required_fresh && !has_integrity_or_drift {
+        // Detected clients, nothing installed (or only Absent rows).
+        return (
+            CheckStatus::Warn,
+            "managed skill anvil-developer-functions is not installed for detected agent clients"
+                .to_string(),
+            Remediation {
+                summary: "Install the managed skill with `anvil skill install`.".to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            false,
+        );
+    }
+
+    classify_mixed_skill_issues(counts, missing_required_fresh)
+}
+
+/// Fallback branch of [`classify_managed_skill_status`] for combinations that
+/// don't fit a single clean status (dirty/unmanaged/stale/broken mixes).
+fn classify_mixed_skill_issues(
+    counts: &SkillOutcomeCounts,
+    missing_required_fresh: bool,
+) -> (CheckStatus, String, Remediation, bool) {
+    let &SkillOutcomeCounts {
+        fresh,
+        stale,
+        dirty,
+        unmanaged,
+        absent,
+        broken,
+    } = counts;
+
+    let mut parts = Vec::new();
+    if broken > 0 {
+        parts.push(format!("{broken} broken"));
+    }
+    if dirty > 0 {
+        parts.push(format!("{dirty} dirty"));
+    }
+    if unmanaged > 0 {
+        parts.push(format!("{unmanaged} unmanaged"));
+    }
+    if absent > 0 && missing_required_fresh {
+        parts.push(format!("{absent} absent"));
+    }
+    if stale > 0 {
+        parts.push(format!("{stale} stale"));
+    }
+    if fresh > 0 {
+        parts.push(format!("{fresh} fresh"));
+    }
+    let summary = if parts.is_empty() {
+        "see details".to_string()
+    } else {
+        parts.join(", ")
     };
+    let status = if broken > 0 {
+        CheckStatus::Fail
+    } else {
+        CheckStatus::Warn
+    };
+    let (remediation_summary, command) = if dirty > 0 || unmanaged > 0 || broken > 0 {
+        (
+            "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`."
+                .to_string(),
+            Some("anvil skill install".to_string()),
+        )
+    } else {
+        (
+            "Install or refresh the managed skill with `anvil skill install`.".to_string(),
+            Some("anvil skill install".to_string()),
+        )
+    };
+    (
+        status,
+        format!("managed skill issues: {summary}"),
+        Remediation {
+            summary: remediation_summary,
+            command,
+            doc_url: None,
+        },
+        false,
+    )
+}
+
+fn check_managed_skills_at(home: Option<&Path>, project: Option<&Path>) -> DiagnosticCheck {
+    use crate::commands::skill_state::{any_skill_capable_client_detected, evaluate_known_skills};
 
     let reports = evaluate_known_skills(home, project);
     let clients_detected = any_skill_capable_client_detected();
@@ -1085,185 +1297,18 @@ fn check_managed_skills_at(home: Option<&Path>, project: Option<&Path>) -> Diagn
         };
     }
 
-    let mut fresh = 0usize;
-    let mut stale = 0usize;
-    let mut dirty = 0usize;
-    let mut unmanaged = 0usize;
-    let mut absent = 0usize;
-    let mut broken = 0usize;
-    let mut detail_lines = Vec::new();
-
-    for report in &reports {
-        let clients = if report.clients.is_empty() {
-            String::new()
-        } else {
-            format!(" [{}]", report.clients.join(", "))
-        };
-        let line = match &report.outcome {
-            SkillInstallOutcome::Fresh => {
-                fresh += 1;
-                format!("fresh: {}{clients}", report.path.display())
-            }
-            SkillInstallOutcome::Stale {
-                installed_anvil,
-                current_anvil,
-            } => {
-                stale += 1;
-                format!(
-                    "stale: {}{clients} (installed anvil {installed_anvil}, current {current_anvil})",
-                    report.path.display()
-                )
-            }
-            SkillInstallOutcome::Dirty => {
-                dirty += 1;
-                format!("dirty: {}{clients}", report.path.display())
-            }
-            SkillInstallOutcome::Unmanaged => {
-                unmanaged += 1;
-                format!("unmanaged: {}{clients}", report.path.display())
-            }
-            SkillInstallOutcome::Absent => {
-                absent += 1;
-                format!("absent: {}{clients}", report.path.display())
-            }
-            SkillInstallOutcome::Broken { reason } => {
-                broken += 1;
-                format!("broken: {}{clients} ({reason})", report.path.display())
-            }
-        };
-        detail_lines.push(line);
-    }
-
-    let has_fresh = fresh > 0;
-    // At least one Fresh install satisfies "installed somewhere" even when
-    // other client roots remain Absent — users pick clients at install time.
-    let missing_required_fresh = clients_detected && !has_fresh;
-    let pure_stale = stale > 0 && dirty == 0 && unmanaged == 0 && broken == 0;
-    let has_integrity_or_drift = broken > 0 || dirty > 0 || unmanaged > 0 || stale > 0;
-
-    let (status, message, remediation, auto_fixable) = if !has_integrity_or_drift
-        && !missing_required_fresh
-        && has_fresh
-    {
-        (
-            CheckStatus::Pass,
-            format!(
-                "managed skill anvil-developer-functions is fresh at {fresh} site{}",
-                if fresh == 1 { "" } else { "s" }
-            ),
-            Remediation::default(),
-            false,
-        )
-    } else if pure_stale {
-        (
-            CheckStatus::Warn,
-            format!(
-                "managed skill anvil-developer-functions is stale at {stale} site{} (reinstall to match this anvil)",
-                if stale == 1 { "" } else { "s" }
-            ),
-            Remediation {
-                summary: "Reinstall the managed skill so it matches the bundle shipped with this anvil."
-                    .to_string(),
-                command: Some("anvil skill install".to_string()),
-                doc_url: None,
-            },
-            true,
-        )
-    } else if broken > 0 && dirty == 0 && unmanaged == 0 && stale == 0 && !missing_required_fresh {
-        // Integrity-only failures on found installs (may coexist with Fresh elsewhere).
-        (
-            CheckStatus::Fail,
-            format!(
-                "managed skill install marker broken at {broken} site{}",
-                if broken == 1 { "" } else { "s" }
-            ),
-            Remediation {
-                summary: "Repair or remove the broken managed skill directory, then reinstall with `anvil skill install`."
-                    .to_string(),
-                command: Some("anvil skill install".to_string()),
-                doc_url: None,
-            },
-            false,
-        )
-    } else if missing_required_fresh && !has_integrity_or_drift {
-        // Detected clients, nothing installed (or only Absent rows).
-        (
-            CheckStatus::Warn,
-            "managed skill anvil-developer-functions is not installed for detected agent clients"
-                .to_string(),
-            Remediation {
-                summary: "Install the managed skill with `anvil skill install`."
-                    .to_string(),
-                command: Some("anvil skill install".to_string()),
-                doc_url: None,
-            },
-            false,
-        )
-    } else {
-        // Mixed soft issues (dirty/unmanaged/stale/broken combinations).
-        let mut parts = Vec::new();
-        if broken > 0 {
-            parts.push(format!("{broken} broken"));
-        }
-        if dirty > 0 {
-            parts.push(format!("{dirty} dirty"));
-        }
-        if unmanaged > 0 {
-            parts.push(format!("{unmanaged} unmanaged"));
-        }
-        if absent > 0 && missing_required_fresh {
-            parts.push(format!("{absent} absent"));
-        }
-        if stale > 0 {
-            parts.push(format!("{stale} stale"));
-        }
-        if fresh > 0 {
-            parts.push(format!("{fresh} fresh"));
-        }
-        let summary = if parts.is_empty() {
-            "see details".to_string()
-        } else {
-            parts.join(", ")
-        };
-        let status = if broken > 0 {
-            CheckStatus::Fail
-        } else {
-            CheckStatus::Warn
-        };
-        let (remediation_summary, command) = if dirty > 0 || unmanaged > 0 || broken > 0 {
-            (
-                "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`."
-                    .to_string(),
-                Some("anvil skill install".to_string()),
-            )
-        } else {
-            (
-                "Install or refresh the managed skill with `anvil skill install`."
-                    .to_string(),
-                Some("anvil skill install".to_string()),
-            )
-        };
-        (
-            status,
-            format!("managed skill issues: {summary}"),
-            Remediation {
-                summary: remediation_summary,
-                command,
-                doc_url: None,
-            },
-            false,
-        )
-    };
+    let (counts, detail_lines) = tally_skill_outcomes(&reports);
+    let (status, message, remediation, auto_fixable) =
+        classify_managed_skill_status(&counts, clients_detected);
 
     // Surface per-site details when there is more than a single clean Fresh
     // row, so Absent roots remain visible without failing the check.
-    let details = if detail_lines.len() > 1
-        || matches!(status, CheckStatus::Warn | CheckStatus::Fail)
-    {
-        Some(detail_lines.join("\n"))
-    } else {
-        detail_lines.first().cloned()
-    };
+    let details =
+        if detail_lines.len() > 1 || matches!(status, CheckStatus::Warn | CheckStatus::Fail) {
+            Some(detail_lines.join("\n"))
+        } else {
+            detail_lines.first().cloned()
+        };
 
     DiagnosticCheck {
         name: "managed-skills".to_string(),

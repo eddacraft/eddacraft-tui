@@ -115,7 +115,10 @@ pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> Skill
         Ok(manifest) => manifest,
         Err(error) => {
             return SkillInstallOutcome::Broken {
-                reason: format!("invalid managed manifest {}: {error}", manifest_path.display()),
+                reason: format!(
+                    "invalid managed manifest {}: {error}",
+                    manifest_path.display()
+                ),
             };
         }
     };
@@ -289,9 +292,8 @@ enum FileMatch {
 fn files_match_manifest(destination: &Path, files: &BTreeMap<String, String>) -> FileMatch {
     for (relative, expected_hash) in files {
         let path = destination.join(relative);
-        let bytes = match fs::read(&path) {
-            Ok(bytes) => bytes,
-            Err(_) => return FileMatch::Drift,
+        let Ok(bytes) = fs::read(&path) else {
+            return FileMatch::Drift;
         };
         if sha256(&bytes) != *expected_hash {
             return FileMatch::Drift;
@@ -477,16 +479,17 @@ mod tests {
     fn discover_skill_paths_dedupes_shared_agents_root() {
         let home = tempfile::tempdir().unwrap();
         let paths = discover_skill_paths(Some(home.path()), None, DEFAULT_SKILL_NAME);
-        let agents = home
-            .path()
-            .join(".agents/skills")
-            .join(DEFAULT_SKILL_NAME);
+        let agents = home.path().join(".agents/skills").join(DEFAULT_SKILL_NAME);
         let entry = paths
             .iter()
             .find(|(path, _)| path == &agents)
             .expect("shared .agents/skills path present");
         // Codex, Gemini CLI, OpenClaw, and Copilot CLI all share this root.
-        assert!(entry.1.len() >= 2, "expected shared client labels: {:?}", entry.1);
+        assert!(
+            entry.1.len() >= 2,
+            "expected shared client labels: {:?}",
+            entry.1
+        );
         assert!(entry.1.contains(&"codex"));
     }
 
