@@ -622,6 +622,8 @@ export async function consumeAndRotateRefreshToken(
       SET consumed_at = now()
       FROM family_clear
       WHERE rt.id = ${args.oldTokenId}
+        AND rt.user_id = ${args.userId}
+        AND rt.family_id = ${args.familyId}
         AND rt.consumed_at IS NULL
         AND rt.revoked_at IS NULL
       RETURNING rt.id

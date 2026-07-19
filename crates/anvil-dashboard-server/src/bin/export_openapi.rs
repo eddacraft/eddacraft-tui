@@ -15,14 +15,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Write `content` via a same-directory temp file + rename so an interrupted
-/// export cannot leave the committed OpenAPI contract truncated.
+/// export cannot leave the committed `OpenAPI` contract truncated.
 fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
-    let dir = path.parent().filter(|p| !p.as_os_str().is_empty()).ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!("no parent directory for {}", path.display()),
-        )
-    })?;
+    // Bare filenames like `openapi.json` report an empty parent; treat that as
+    // the current directory. Only error when `parent()` is actually missing
+    // (e.g. a root path).
+    let dir = match path.parent() {
+        None => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("no parent directory for {}", path.display()),
+            ));
+        }
+        Some(p) if p.as_os_str().is_empty() => Path::new("."),
+        Some(p) => p,
+    };
 
     let file_name = path
         .file_name()
@@ -78,8 +85,30 @@ mod tests {
             .filter_map(Result::ok)
             .filter(|e| e.path() != path)
             .collect();
-        assert!(leftovers.is_empty(), "temp file should be renamed away: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "temp file should be renamed away: {leftovers:?}"
+        );
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn atomic_write_accepts_bare_filename_in_cwd() {
+        let cwd = std::env::temp_dir().join(format!("export-openapi-cwd-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&cwd);
+        fs::create_dir_all(&cwd).expect("temp dir");
+        let prev = std::env::current_dir().expect("cwd");
+        std::env::set_current_dir(&cwd).expect("chdir");
+
+        let result = atomic_write(Path::new("openapi.json"), b"{\"cwd\":true}\n");
+        std::env::set_current_dir(prev).expect("restore cwd");
+        result.expect("bare filename write");
+
+        assert_eq!(
+            fs::read_to_string(cwd.join("openapi.json")).expect("read"),
+            "{\"cwd\":true}\n"
+        );
+        let _ = fs::remove_dir_all(&cwd);
     }
 }
