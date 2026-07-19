@@ -411,6 +411,25 @@ else
   fail "public command truth skipped an inline YAML run step (status ${status}); got: ${out}"
 fi
 
+cat >"${command_root}/docs/public/anvil/help.md" <<'EOF'
+```bash
+anvil drift compare --help
+```
+EOF
+cat >"${fake_anvil}" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${ANVIL_ARGS_FILE}"
+exit 0
+EOF
+chmod +x "${fake_anvil}"
+args_file="${command_root}/anvil-args"
+ANVIL_ARGS_FILE="${args_file}" node "${public_command_script}" --root "${command_root}" --anvil-bin "${fake_anvil}" >/dev/null 2>&1
+if grep -qx "drift compare --help" "${args_file}" && ! grep -q -- "--help --help" "${args_file}"; then
+  pass "existing help flags are probed without duplication"
+else
+  fail "public command truth duplicated an existing help flag; got: $(tr '\n' ';' <"${args_file}")"
+fi
+
 # Case 14 (DOCSYNC-028): release-tag reference generation handles every Clap
 # variant shape, ignores post-release source, and rejects hand-edited output.
 echo "case 14: generated anvil references detect stale output"

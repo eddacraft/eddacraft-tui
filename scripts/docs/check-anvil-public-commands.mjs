@@ -40,7 +40,10 @@ for (const example of commands) {
   }
   const args = words.slice(1);
   if (args.length === 1 && (args[0] === '--help' || args[0] === '--version')) continue;
-  const result = spawnSync(ANVIL_BIN, [...args, '--help'], {
+  const probeArgs = args.some((arg) => arg === '--help' || arg === '-h')
+    ? args
+    : [...args, '--help'];
+  const result = spawnSync(ANVIL_BIN, probeArgs, {
     cwd: ROOT,
     encoding: 'utf8',
     env: { ...process.env, DO_NOT_TRACK: '1' },
