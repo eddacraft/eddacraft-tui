@@ -23,11 +23,92 @@ anvil watch --no-tui
 
 for plain logs, or:
 
-```text
-anvil watch --json
+```bash
+anvil --json watch
 ```
 
-when your installed version supports machine-readable watch events.
+for a machine-readable stream. `--json` is a global option, so it comes before
+`watch`.
+
+## Machine-readable event stream
+
+JSON mode writes newline-delimited JSON (NDJSON) to standard output: each line
+is one complete event object. Human-readable diagnostics go to standard error,
+so a consumer can parse standard output without stripping log messages.
+
+Every event contains:
+
+| Field            | Meaning                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| `schema_version` | The event contract. Accept `anvil.watch.event.v1`; handle other values explicitly. |
+| `seq`            | A process-local sequence number that helps detect missing or reordered events.     |
+| `timestamp`      | The UTC time at which anvil emitted the event.                                     |
+| `event_type`     | The payload variant: `progress`, `snapshot`, `violation`, or `error`.              |
+| `payload`        | Data for that event type.                                                          |
+
+Treat unknown event types as additive information rather than terminating a
+long-running consumer.
+
+### Initial scan progress
+
+```json
+{
+  "schema_version": "anvil.watch.event.v1",
+  "seq": 0,
+  "timestamp": "2026-05-14T10:21:30Z",
+  "event_type": "progress",
+  "payload": { "phase": "initial-scan", "current": 12, "total": 100 }
+}
+```
+
+### Graph snapshot
+
+```json
+{
+  "schema_version": "anvil.watch.event.v1",
+  "seq": 3,
+  "timestamp": "2026-05-14T10:21:30Z",
+  "event_type": "snapshot",
+  "payload": { "node_count": 312, "edge_count": 845, "files_watched": 64 }
+}
+```
+
+### Finding
+
+```json
+{
+  "schema_version": "anvil.watch.event.v1",
+  "seq": 7,
+  "timestamp": "2026-05-14T10:21:31Z",
+  "event_type": "violation",
+  "payload": {
+    "policy_id": "no-circular-deps",
+    "file": "src/main.ts",
+    "symbol": "App",
+    "message": "Circular dependency detected"
+  }
+}
+```
+
+### Recoverable error
+
+```json
+{
+  "schema_version": "anvil.watch.event.v1",
+  "seq": 9,
+  "timestamp": "2026-05-14T10:21:31Z",
+  "event_type": "error",
+  "payload": {
+    "code": "ParseError",
+    "file": "src/broken.ts",
+    "message": "Unexpected token",
+    "recoverable": true
+  }
+}
+```
+
+When `recoverable` is `true`, keep reading the stream. When it is `false`,
+record the error and expect the watcher to stop.
 
 ## Do not infer more than the output proves
 
