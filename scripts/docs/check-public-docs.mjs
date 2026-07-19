@@ -56,12 +56,18 @@ const internalPatterns = [
 ];
 
 const productNamePattern = /\b(?:Anvil|EddaCraft|Kindling)\b/;
-const installPatterns = [
-  /github\.com\/eddacraft\/anvil\/releases\/(?:latest\/download|download\/v[^/]+)\/eddacraft-anvil-installer\.sh/,
-  /github\.com\/eddacraft\/anvil\/releases\/(?:latest\/download|download\/v[^/]+)\/eddacraft-anvil-installer\.ps1/i,
-  /brew install eddacraft\/tap\/anvil/,
-  /winget install eddacraft\.anvil/i,
-  /scoop install anvil/,
+const releaseDownloadPrefix = 'https://github.com/eddacraft/anvil/releases/';
+const installChecks = [
+  (line) =>
+    releaseAssetPath(line, /^(?:latest\/download|download\/v[^/]+)\/eddacraft-anvil-installer\.sh/),
+  (line) =>
+    releaseAssetPath(
+      line,
+      /^(?:latest\/download|download\/v[^/]+)\/eddacraft-anvil-installer\.ps1/i
+    ),
+  (line) => /brew install eddacraft\/tap\/anvil/.test(line),
+  (line) => /winget install eddacraft\.anvil/i.test(line),
+  (line) => /scoop install anvil/.test(line),
 ];
 
 for (const file of files) {
@@ -78,8 +84,8 @@ for (const file of files) {
       if (rule.pattern.test(line)) add(publicPath, index + 1, rule.message);
     }
     if (contentFileSet.has(file) && !isCanonicalQuickstart(file)) {
-      for (const pattern of installPatterns) {
-        if (pattern.test(line)) {
+      for (const isInstallProcedure of installChecks) {
+        if (isInstallProcedure(line)) {
           add(
             publicPath,
             index + 1,
@@ -317,6 +323,12 @@ function documentId(file, explicitId) {
 function isCanonicalQuickstart(file) {
   const relativePath = normalise(relative(ANVIL_ROOT, file));
   return relativePath === 'quickstart.md' || relativePath === 'integrations/github.md';
+}
+
+function releaseAssetPath(line, assetPattern) {
+  const start = line.indexOf(releaseDownloadPrefix);
+  if (start < 0) return false;
+  return assetPattern.test(line.slice(start + releaseDownloadPrefix.length));
 }
 
 function add(file, line, message) {

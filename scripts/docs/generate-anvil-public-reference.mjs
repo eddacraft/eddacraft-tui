@@ -356,7 +356,11 @@ function formatMarkdown(path, content) {
 }
 
 function escapeCell(value) {
-  return lowerBrands(String(value)).replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+  return lowerBrands(String(value))
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function fail(message) {
