@@ -27,6 +27,9 @@ use serde::Deserialize;
 #[cfg(unix)]
 use serde_json::{Value, json};
 
+#[cfg(unix)]
+use crate::daemon_validation::{ScanBufferError, ScanMode, scan_buffer};
+
 pub(crate) const INPUT_RULE_ID: &str = "mcp-validate-write-input";
 pub(crate) const PRE_WRITE_MODE: &str = "pre-write";
 #[cfg(unix)]
@@ -218,14 +221,16 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
     ) -> DaemonValidationOutcome {
         #[cfg(unix)]
         {
-            let socket_path = match ipc::resolve_socket_path() {
-                Ok(path) => path,
-                Err(err) => {
-                    eprintln!("anvil-mcp: daemon socket path unavailable: {err}");
-                    return DaemonValidationOutcome::Unavailable;
+            match scan_buffer(ScanMode::PreWrite, request.relative_path, request.content) {
+                Ok(diagnostics) => DaemonValidationOutcome::Diagnostics(diagnostics),
+                Err(ScanBufferError::Unavailable) => DaemonValidationOutcome::Unavailable,
+                Err(ScanBufferError::Truncated) => {
+                    DaemonValidationOutcome::OperationalFailure(DAEMON_TRUNCATED_FAILURE)
                 }
-            };
-            SocketDaemonValidationClient { socket_path }.validate_pre_write(request)
+                Err(ScanBufferError::Failed | ScanBufferError::VersionMismatch) => {
+                    DaemonValidationOutcome::OperationalFailure(DAEMON_FAILURE)
+                }
+            }
         }
         #[cfg(not(unix))]
         {

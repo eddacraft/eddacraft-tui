@@ -1,19 +1,26 @@
-//! RTAI-005 throwaway spike (ADR-109, Accepted 2026-07-16).
+//! RTAI-005 production LSP diagnostics surface (ADR-109).
 //!
-//! Proves the loop `textDocument/didChange` -> daemon `scan_buffer`
-//! (`mode = "midEdit"`) -> `textDocument/publishDiagnostics` end to end,
-//! one rule / one fixture, per the RTAI-001 spike precedent
-//! (`plans/modules/realtime-ai-validation.aps.md`). This settles the
-//! connection-lifecycle question (per-call connect, mirroring
-//! `crate::mcp::validation`'s `SocketDaemonValidationClient`) before any
-//! full build — it is not production-hardened and is not wired into the
-//! MCP validation client's fail-closed/security posture.
+//! `anvil lsp --stdio` is a thin, advisory-only frontend over the daemon's
+//! existing `scan_buffer(mode = "midEdit")` contract. Graph navigation belongs
+//! to LSPNAV and is deliberately absent from this module.
+
+use std::io::{self, BufReader, Write};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use clap::Args;
-#[cfg(unix)]
 use serde_json::{Value, json};
-#[cfg(unix)]
-use std::io::{self, BufReader, Write};
+
+use crate::daemon_validation::{ScanMode, scan_buffer};
+
+mod protocol;
+mod state;
+
+use protocol::{file_uri_to_path, read_lsp_frame};
+use state::{DocumentStore, ScanJob};
+
+const DEFAULT_DEBOUNCE: Duration = Duration::from_millis(80);
 
 #[derive(Debug, Args)]
 pub struct LspArgs {
@@ -29,76 +36,76 @@ pub fn run(args: &LspArgs) -> anyhow::Result<()> {
     run_stdio_server()
 }
 
-#[cfg(unix)]
-const MAX_LSP_FRAME_BYTES: u64 = 4 * 1024 * 1024;
-
-#[cfg(not(unix))]
-fn run_stdio_server() -> anyhow::Result<()> {
-    anyhow::bail!(
-        "anvil lsp (spike) requires a Unix domain socket; not yet supported on this platform"
-    );
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Lifecycle {
+    WaitingForInitialize,
+    WaitingForInitialized,
+    Running,
+    Shutdown,
 }
 
-#[cfg(unix)]
-fn run_stdio_server() -> anyhow::Result<()> {
-    let stdin = io::stdin();
-    let mut reader = BufReader::new(stdin.lock());
-    let mut stdout = io::stdout().lock();
+enum Event {
+    Message(Value),
+    ParseError,
+    ProtocolError,
+    ScanComplete {
+        job: ScanJob,
+        diagnostics: Vec<anvil_kernel_types::Diagnostic>,
+    },
+    Eof,
+}
 
-    while let Some(body) = read_lsp_frame(&mut reader)? {
-        if body.iter().all(u8::is_ascii_whitespace) {
-            continue;
+fn run_stdio_server() -> anyhow::Result<()> {
+    let (sender, receiver) = mpsc::channel();
+    spawn_reader(sender.clone());
+
+    let mut stdout = io::stdout().lock();
+    let mut lifecycle = Lifecycle::WaitingForInitialize;
+    let mut documents = DocumentStore::new(DEFAULT_DEBOUNCE);
+
+    loop {
+        for job in documents.take_due(Instant::now()) {
+            spawn_scan(sender.clone(), job);
         }
-        let Ok(message) = serde_json::from_slice::<Value>(&body) else {
+
+        let event = match documents.next_deadline() {
+            Some(deadline) => {
+                match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                    Ok(event) => Some(event),
+                    Err(RecvTimeoutError::Timeout) => None,
+                    Err(RecvTimeoutError::Disconnected) => Some(Event::Eof),
+                }
+            }
+            None => receiver.recv().ok(),
+        };
+        let Some(event) = event else {
             continue;
         };
 
-        let method = message.get("method").and_then(Value::as_str);
-        let id = message.get("id").cloned();
-
-        match method {
-            Some("initialize") => {
-                if let Some(id) = id {
-                    write_message(&mut stdout, &initialize_response(&id))?;
-                }
+        match event {
+            Event::Eof => break,
+            Event::ParseError | Event::ProtocolError => {
+                write_message(
+                    &mut stdout,
+                    &error_response(&Value::Null, -32700, "Parse error"),
+                )?;
             }
-            Some("initialized") => {}
-            Some("textDocument/didChange") => {
-                let uri = message
-                    .pointer("/params/textDocument/uri")
-                    .and_then(Value::as_str);
-                let text = message
-                    .pointer("/params/contentChanges/0/text")
-                    .and_then(Value::as_str);
-                if let (Some(uri), Some(text)) = (uri, text) {
-                    let path = uri_to_path(uri);
-                    // Always publish — `didChange` is a notification, so a
-                    // client (including the benchmark harness) waiting on
-                    // `publishDiagnostics` to clear/update state would hang
-                    // if a scan failure produced no reply. An empty
-                    // diagnostics set on failure degrades to "no in-flight
-                    // findings," matching RTAI-005's daemon-down posture.
-                    let diagnostics =
-                        daemon::scan_buffer_mid_edit(&path, text).unwrap_or_else(|err| {
-                            eprintln!("anvil-lsp: mid-edit scan failed: {err}");
-                            Vec::new()
-                        });
-                    let notification = publish_diagnostics_notification(uri, &diagnostics);
-                    write_message(&mut stdout, &notification)?;
-                }
-            }
-            Some("shutdown") => {
-                if let Some(id) = id {
-                    write_message(&mut stdout, &success_response(&id, &Value::Null))?;
-                }
-            }
-            Some("exit") => break,
-            _ => {
-                if let Some(id) = id {
+            Event::ScanComplete { job, diagnostics } => {
+                if documents.finish(&job) {
                     write_message(
                         &mut stdout,
-                        &error_response(&id, -32601, "Method not found"),
+                        &publish_diagnostics_notification(
+                            &job.uri,
+                            job.version,
+                            &job.text,
+                            &diagnostics,
+                        ),
                     )?;
+                }
+            }
+            Event::Message(message) => {
+                if !handle_message(&mut stdout, &message, &mut lifecycle, &mut documents)? {
+                    break;
                 }
             }
         }
@@ -107,42 +114,146 @@ fn run_stdio_server() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
-fn read_lsp_frame(reader: &mut impl io::BufRead) -> io::Result<Option<Vec<u8>>> {
-    let mut content_length: Option<usize> = None;
-    loop {
-        let mut line = String::new();
-        let bytes = reader.read_line(&mut line)?;
-        if bytes == 0 {
-            return Ok(None);
+fn spawn_reader(sender: Sender<Event>) {
+    thread::spawn(move || {
+        let stdin = io::stdin();
+        let mut reader = BufReader::new(stdin.lock());
+        loop {
+            match read_lsp_frame(&mut reader) {
+                Ok(Some(body)) => match serde_json::from_slice(&body) {
+                    Ok(message) => {
+                        if sender.send(Event::Message(message)).is_err() {
+                            return;
+                        }
+                    }
+                    Err(_) => {
+                        if sender.send(Event::ParseError).is_err() {
+                            return;
+                        }
+                    }
+                },
+                Ok(None) => {
+                    let _ = sender.send(Event::Eof);
+                    return;
+                }
+                Err(error) => {
+                    eprintln!("anvil-lsp: rejected malformed protocol frame: {error}");
+                    let _ = sender.send(Event::ProtocolError);
+                    return;
+                }
+            }
         }
-        let trimmed = line.trim_end_matches(['\r', '\n']);
-        if trimmed.is_empty() {
-            break;
-        }
-        if let Some(value) = trimmed.strip_prefix("Content-Length:") {
-            content_length = value.trim().parse::<usize>().ok();
-        }
-    }
-    let Some(len) = content_length else {
-        return Ok(Some(Vec::new()));
-    };
-    if len as u64 > MAX_LSP_FRAME_BYTES {
-        let mut remaining = len;
-        let mut sink = [0u8; 8192];
-        while remaining > 0 {
-            let chunk = remaining.min(sink.len());
-            reader.read_exact(&mut sink[..chunk])?;
-            remaining -= chunk;
-        }
-        return Ok(Some(Vec::new()));
-    }
-    let mut body = vec![0u8; len];
-    reader.read_exact(&mut body)?;
-    Ok(Some(body))
+    });
 }
 
-#[cfg(unix)]
+fn spawn_scan(sender: Sender<Event>, job: ScanJob) {
+    thread::spawn(move || {
+        let diagnostics = match file_uri_to_path(&job.uri) {
+            Ok(path) => scan_buffer(ScanMode::MidEdit, &path.to_string_lossy(), &job.text)
+                .unwrap_or_else(|error| {
+                    eprintln!("anvil-lsp: mid-edit scan unavailable: {error}");
+                    Vec::new()
+                }),
+            Err(error) => {
+                eprintln!("anvil-lsp: refused document URI: {error}");
+                Vec::new()
+            }
+        };
+        let _ = sender.send(Event::ScanComplete { job, diagnostics });
+    });
+}
+
+fn handle_message(
+    stdout: &mut impl Write,
+    message: &Value,
+    lifecycle: &mut Lifecycle,
+    documents: &mut DocumentStore,
+) -> anyhow::Result<bool> {
+    let method = message.get("method").and_then(Value::as_str);
+    let id = message.get("id").cloned();
+
+    if method == Some("exit") {
+        return Ok(false);
+    }
+
+    match (*lifecycle, method) {
+        (Lifecycle::WaitingForInitialize, Some("initialize")) => {
+            let Some(id) = id else {
+                return Ok(true);
+            };
+            write_message(stdout, &initialize_response(&id))?;
+            *lifecycle = Lifecycle::WaitingForInitialized;
+        }
+        (Lifecycle::WaitingForInitialize, _) => {
+            if let Some(id) = id {
+                write_message(
+                    stdout,
+                    &error_response(&id, -32002, "Server not initialized"),
+                )?;
+            }
+        }
+        (Lifecycle::WaitingForInitialized, Some("initialized")) => {
+            *lifecycle = Lifecycle::Running;
+        }
+        (Lifecycle::WaitingForInitialized, Some("shutdown"))
+        | (Lifecycle::Running, Some("shutdown")) => {
+            if let Some(id) = id {
+                write_message(stdout, &success_response(&id, &Value::Null))?;
+            }
+            *lifecycle = Lifecycle::Shutdown;
+        }
+        (Lifecycle::Running, Some("textDocument/didOpen")) => {
+            if let (Some(uri), Some(version), Some(text)) = (
+                message
+                    .pointer("/params/textDocument/uri")
+                    .and_then(Value::as_str),
+                message
+                    .pointer("/params/textDocument/version")
+                    .and_then(Value::as_i64),
+                message
+                    .pointer("/params/textDocument/text")
+                    .and_then(Value::as_str),
+            ) {
+                if documents.open(uri, version, text, Instant::now()).is_err() {
+                    eprintln!("anvil-lsp: open-document capacity reached");
+                }
+            }
+        }
+        (Lifecycle::Running, Some("textDocument/didChange")) => {
+            if let (Some(uri), Some(version), Some(text)) = (
+                message
+                    .pointer("/params/textDocument/uri")
+                    .and_then(Value::as_str),
+                message
+                    .pointer("/params/textDocument/version")
+                    .and_then(Value::as_i64),
+                message
+                    .pointer("/params/contentChanges/0/text")
+                    .and_then(Value::as_str),
+            ) {
+                let _ = documents.change(uri, version, text, Instant::now());
+            }
+        }
+        (Lifecycle::Running, Some("textDocument/didClose")) => {
+            if let Some(uri) = message
+                .pointer("/params/textDocument/uri")
+                .and_then(Value::as_str)
+            {
+                documents.close(uri);
+                write_message(stdout, &publish_diagnostics_notification(uri, 0, "", &[]))?;
+            }
+        }
+        (Lifecycle::Shutdown, _) => {}
+        (Lifecycle::WaitingForInitialized, _) | (Lifecycle::Running, _) => {
+            if let Some(id) = id {
+                write_message(stdout, &error_response(&id, -32601, "Method not found"))?;
+            }
+        }
+    }
+
+    Ok(true)
+}
+
 fn write_message(stdout: &mut impl Write, message: &Value) -> anyhow::Result<()> {
     let body = serde_json::to_vec(message)?;
     write!(stdout, "Content-Length: {}\r\n\r\n", body.len())?;
@@ -151,43 +262,31 @@ fn write_message(stdout: &mut impl Write, message: &Value) -> anyhow::Result<()>
     Ok(())
 }
 
-#[cfg(unix)]
 fn success_response(id: &Value, result: &Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
-#[cfg(unix)]
 fn error_response(id: &Value, code: i64, message: &str) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
-#[cfg(unix)]
 fn initialize_response(id: &Value) -> Value {
     success_response(
         id,
         &json!({
-            "capabilities": {
-                // Full sync: `contentChanges[0].text` carries the whole
-                // buffer, no incremental-range reconciliation needed for
-                // this spike.
-                "textDocumentSync": 1
-            },
+            "capabilities": { "textDocumentSync": 1 },
             "serverInfo": {
-                "name": "anvil-lsp-spike",
+                "name": "anvil-lsp",
                 "version": env!("CARGO_PKG_VERSION")
             }
         }),
     )
 }
 
-#[cfg(unix)]
-fn uri_to_path(uri: &str) -> String {
-    uri.strip_prefix("file://").unwrap_or(uri).to_string()
-}
-
-#[cfg(unix)]
 fn publish_diagnostics_notification(
     uri: &str,
+    version: i64,
+    text: &str,
     diagnostics: &[anvil_kernel_types::Diagnostic],
 ) -> Value {
     json!({
@@ -195,20 +294,23 @@ fn publish_diagnostics_notification(
         "method": "textDocument/publishDiagnostics",
         "params": {
             "uri": uri,
-            "diagnostics": diagnostics.iter().map(to_lsp_diagnostic).collect::<Vec<_>>()
+            "version": version,
+            "diagnostics": diagnostics
+                .iter()
+                .map(|diagnostic| to_lsp_diagnostic(diagnostic, text))
+                .collect::<Vec<_>>()
         }
     })
 }
 
-#[cfg(unix)]
-fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic) -> Value {
+fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, text: &str) -> Value {
     let start_line = diagnostic.location.line.unwrap_or(1).saturating_sub(1);
-    let start_col = diagnostic.location.column.unwrap_or(1).saturating_sub(1);
     let end_line = diagnostic
         .location
         .end_line
         .unwrap_or(diagnostic.location.line.unwrap_or(1))
         .saturating_sub(1);
+    let start_col = diagnostic.location.column.unwrap_or(1).saturating_sub(1);
     let end_col = diagnostic
         .location
         .end_column
@@ -223,122 +325,66 @@ fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic) -> Value {
 
     json!({
         "range": {
-            "start": { "line": start_line, "character": start_col },
-            "end": { "line": end_line, "character": end_col }
+            "start": {
+                "line": start_line,
+                "character": byte_column_to_utf16(text, start_line, start_col)
+            },
+            "end": {
+                "line": end_line,
+                "character": byte_column_to_utf16(text, end_line, end_col)
+            }
         },
         "severity": severity,
         "code": diagnostic.source.rule_id,
         "source": "anvil",
         "message": diagnostic.summary,
-        // Marker distinguishing in-flight (mid-edit) from on-disk
-        // (save-time) diagnostics, per RTAI-005's Expected Outcome.
         "data": { "phase": "midEdit" }
     })
 }
 
-#[cfg(unix)]
-mod daemon {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixStream;
-    use std::time::Duration;
+fn byte_column_to_utf16(text: &str, line: u32, byte_column: u32) -> u32 {
+    let Some(line_text) = text.lines().nth(line as usize) else {
+        return 0;
+    };
+    let mut end = usize::try_from(byte_column)
+        .unwrap_or(usize::MAX)
+        .min(line_text.len());
+    while !line_text.is_char_boundary(end) {
+        end = end.saturating_sub(1);
+    }
+    u32::try_from(line_text[..end].encode_utf16().count()).unwrap_or(u32::MAX)
+}
 
-    use anvil_intercept::ipc;
-    use anvil_kernel_types::Diagnostic;
-    use anyhow::{Context, Result, bail};
-    use serde::Deserialize;
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
     use serde_json::json;
 
-    const DAEMON_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
-    const DAEMON_RESPONSE_LINE_BYTES: u64 = 1 << 20;
-    const DAEMON_REQUEST_ID: &str = "lsp-mid-edit-validation";
-    const SCAN_BUFFER_REQUEST_VERSION: u64 = 1;
+    use super::{DocumentStore, Lifecycle, byte_column_to_utf16, handle_message};
 
-    /// Thin frontend over the shipped `scan_buffer` RPC in
-    /// `mode = "midEdit"` — connects fresh per call, mirroring
-    /// `crate::mcp::validation::request_daemon_diagnostics`'s
-    /// connection-lifecycle choice (RTAI-005's readiness-note open
-    /// question). Deliberately not merged with that function: this is
-    /// spike code, not wired into the MCP client's fail-closed/security
-    /// posture or its test suite.
-    pub(super) fn scan_buffer_mid_edit(path: &str, text: &str) -> Result<Vec<Diagnostic>> {
-        let socket_path = ipc::resolve_socket_path().context("resolve daemon socket path")?;
-        ipc::validate_socket_path_for_client(&socket_path).context("daemon socket unavailable")?;
-        let mut stream = UnixStream::connect(&socket_path).context("connect to daemon")?;
-        ipc::validate_connected_peer_for_client(&stream).context("daemon peer rejected")?;
-        stream
-            .set_read_timeout(Some(DAEMON_REQUEST_TIMEOUT))
-            .context("set read timeout")?;
-        stream
-            .set_write_timeout(Some(DAEMON_REQUEST_TIMEOUT))
-            .context("set write timeout")?;
-
-        let frame = json!({
-            "jsonrpc": "2.0",
-            "method": "scan_buffer",
-            "params": {
-                "path": path,
-                "text": text,
-                "version": SCAN_BUFFER_REQUEST_VERSION,
-                "mode": "midEdit"
-            },
-            "id": DAEMON_REQUEST_ID
-        });
-        writeln!(stream, "{frame}").context("send scan_buffer request")?;
-        stream.flush().context("flush scan_buffer request")?;
-
-        let mut reader = BufReader::new(stream);
-        let line = read_capped_response_line(&mut reader)?;
-        parse_scan_buffer_response(&line)
+    #[test]
+    fn unicode_columns_are_projected_as_utf16_code_units() {
+        assert_eq!(byte_column_to_utf16("a😀z", 0, 5), 3);
     }
 
-    fn read_capped_response_line(reader: &mut impl BufRead) -> Result<String> {
-        let mut response = Vec::new();
-        let read = reader
-            .by_ref()
-            .take(DAEMON_RESPONSE_LINE_BYTES + 1)
-            .read_until(b'\n', &mut response)?;
-        if read == 0 {
-            bail!("daemon closed connection without a response");
-        }
-        if response.len() as u64 > DAEMON_RESPONSE_LINE_BYTES {
-            bail!("daemon response exceeded line cap");
-        }
-        if !response.ends_with(b"\n") {
-            bail!("daemon response omitted newline frame terminator");
-        }
-        Ok(String::from_utf8(response)?)
-    }
+    #[test]
+    fn requests_before_initialize_return_server_not_initialized() {
+        let mut output = Vec::new();
+        let mut lifecycle = Lifecycle::WaitingForInitialize;
+        let mut documents = DocumentStore::new(Duration::from_millis(80));
 
-    fn parse_scan_buffer_response(line: &str) -> Result<Vec<Diagnostic>> {
-        let response: JsonRpcScanBufferResponse =
-            serde_json::from_str(line).context("parse daemon response")?;
-        if let Some(error) = response.error {
-            bail!("daemon scan_buffer error {}: {}", error.code, error.message);
-        }
-        let result = response.result.context("daemon response missing result")?;
-        if result.truncated {
-            bail!("daemon scan_buffer response was truncated");
-        }
-        Ok(result.diagnostics)
-    }
+        handle_message(
+            &mut output,
+            &json!({"jsonrpc":"2.0","id":1,"method":"shutdown"}),
+            &mut lifecycle,
+            &mut documents,
+        )
+        .expect("handle request");
 
-    // B3-style local mirror (see `mcp::validation`): deliberately
-    // decoupled from the daemon's own `ScanBufferResponse` struct.
-    #[derive(Debug, Deserialize)]
-    struct JsonRpcScanBufferResponse {
-        result: Option<ScanBufferResult>,
-        error: Option<JsonRpcErrorBody>,
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct ScanBufferResult {
-        diagnostics: Vec<Diagnostic>,
-        truncated: bool,
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct JsonRpcErrorBody {
-        code: i64,
-        message: String,
+        let rendered = String::from_utf8(output).expect("utf8 output");
+        assert!(rendered.contains("-32002"));
+        assert_eq!(lifecycle, Lifecycle::WaitingForInitialize);
+        assert!(documents.take_due(Instant::now()).is_empty());
     }
 }

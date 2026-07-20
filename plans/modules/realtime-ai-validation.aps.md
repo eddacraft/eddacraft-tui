@@ -500,9 +500,24 @@ convention" section). Concretely:
   full LSP suite at MCP tool-call parity (find-usages, impact-of-change,
   affected-tests), budget ~15-20% lower payload/token cost, not 2.6-2.8x**
   — see the report's Decision (c) before citing a bigger number.
+- **Production diagnostics implementation in PR #3360 (2026-07-20):** the
+  branch was reduced to this item's diagnostics-only boundary; all experimental
+  symbol lookup, references, impact analysis, affected-test, graph-cache, GCTX
+  and Intercept protocol changes were removed. The remaining implementation
+  adds bounded case-insensitive LSP framing, explicit initialise/shutdown and
+  open/change/close lifecycle state, an 80 ms latest-version debounce, stale
+  result suppression, SHA-256 identical-buffer coalescing, a 256-document cap,
+  percent-decoded file URI handling, UTF-16 diagnostic projection, versioned
+  publications, daemon-down degradation and a shared `scan_buffer` client over
+  the existing owner-validated Unix/Windows daemon transport. Local evidence:
+  eight LSP unit tests, two shared-client contract tests, MCP daemon parity and
+  the process-level daemon-down LSP lifecycle test pass. Windows compilation is
+  delegated to CI because the local Linux host lacks an MSVC native toolchain;
+  Council and the production latency evidence remain merge gates.
 - **Confidence:** medium
-- **Status:** Ready — spike closed (report above); full build scheduling
-  and sizing against current active work remain open, operator-owned
+- **Status:** In Progress — production diagnostics are under review in PR
+  #3360; completion requires green cross-platform CI, Council and fresh
+  diagnostics-path latency evidence
 
 ---
 

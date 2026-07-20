@@ -4,6 +4,7 @@ mod capacity;
 mod commands;
 mod config_summary;
 mod config_view;
+mod daemon_validation;
 mod feature_flags;
 #[cfg(unix)]
 mod graph_base_producer;
