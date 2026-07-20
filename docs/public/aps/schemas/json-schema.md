@@ -1,220 +1,117 @@
 ---
 id: json-schema
-title: Document Structure
-description: APS document types, required sections, and field reference.
+title: Document format reference
+description: Look up required sections and fields for APS Markdown documents.
 sidebar_position: 1
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# Document Structure
+# Document format reference
 
-APS is markdown-native. There is no separate binary format — documents are
-validated by structure and field conventions enforced by `aps lint`.
+APS uses Markdown headings, tables, and labelled list fields. It is not a JSON
+file format; the CLI parser is the executable contract.
 
-## Document types
+## Index
 
-| Type        | File pattern             | Executable? | Key sections                        |
-| ----------- | ------------------------ | ----------- | ----------------------------------- |
-| Index       | `index.aps.md`           | No          | Overview, Modules, Milestones       |
-| Module      | `modules/*.aps.md`       | If Ready    | Purpose, Work Items                 |
-| Action Plan | `execution/*.actions.md` | Yes         | Actions with checkpoints            |
-| Issues      | `issues.md`              | No          | Issues (ISS-NNN), Questions (Q-NNN) |
-| Release     | `releases/v*.md`         | No          | Release Theme, What Ships           |
-| Design      | `designs/*.design.md`    | No          | Problem, Approach, Decisions        |
-
-## Index structure
+An index file is named `index.aps.md` and requires a `Modules` section. A useful
+index also states the overview, problem, success criteria, constraints, risks,
+and decisions.
 
 ```markdown
-# Plan Title
-
-## Overview
-
-[One paragraph]
+# Project name
 
 ## Problem & Success Criteria
 
-**Problem:** [...] **Success Criteria:**
+**Problem:** The problem to solve.
 
-- [ ] [...]
+**Success Criteria:**
+
+- [ ] An observable result.
 
 ## Modules
 
-| Module | ID | Owner | Status | Priority | Dependencies | | [...] | | | | | |
+| Module                        | ID   | Status | Dependencies |
+| ----------------------------- | ---- | ------ | ------------ |
+| [auth](./modules/auth.aps.md) | AUTH | Ready  | —            |
 ```
 
-Required sections (lint E004): `## Modules`
+## Module
 
-## Module structure
+A module needs an ID and status metadata table, a `Purpose` section, and a
+`Work Items` section.
 
 ```markdown
-# Module Title
+# Authentication
 
 | ID   | Owner | Priority | Status |
 | ---- | ----- | -------- | ------ |
-| AUTH | @you  | high     | Draft  |
+| AUTH | @team | high     | Ready  |
 
 ## Purpose
 
-[Why this module exists]
-
-## In Scope
-
-- [...]
-
-## Out of Scope _(optional)_
-
-- [...]
-
-## Interfaces _(optional)_
-
-**Depends on:** [...] **Exposes:** [...]
+Own user authentication.
 
 ## Work Items
-
-### AUTH-001: [Title]
-
-- **Intent:** [...]
-- **Expected Outcome:** [...]
-- **Validation:** `[command]`
 ```
 
-Required sections (lint E001, E002, E003): metadata table, `## Purpose`,
-`## Work Items`
+`In Scope`, `Out of Scope`, `Interfaces`, `Constraints`, review date, decisions,
+and notes are optional but useful when they remove ambiguity.
 
-## Work item fields
+## Work item
 
-### Required
+The heading ID uses an uppercase prefix, a hyphen, and three digits. Every
+active item requires `Intent`, `Expected Outcome`, and `Validation`.
 
-| Field            | Format       | Description                    |
-| ---------------- | ------------ | ------------------------------ |
-| ID               | `PREFIX-NNN` | Unique identifier              |
-| Intent           | string       | One-sentence outcome           |
-| Expected Outcome | string       | Testable or observable result  |
-| Validation       | string       | Command or condition to verify |
+```markdown
+### AUTH-001: Add login
 
-### Optional
+- **Status:** Ready
+- **Intent:** Allow registered users to authenticate.
+- **Expected Outcome:** Valid credentials create a session.
+- **Validation:** `npm test -- auth`
+- **Dependencies:** CORE-001
+- **Confidence:** medium
+- **Non-scope:** Password recovery.
+- **Files:** src/auth, test/auth.test.ts
+- **Packages:** api, core
+```
 
-| Field        | Format                      | Description                  |
-| ------------ | --------------------------- | ---------------------------- |
-| Status       | enum                        | See status vocabulary below  |
-| Dependencies | list of IDs                 | Upstream work items          |
-| Confidence   | `low` \| `medium` \| `high` | Uncertainty level            |
-| Scope        | string                      | What will change             |
-| Non-scope    | string                      | What will not change         |
-| Files        | list of paths               | Best-effort affected files   |
-| Risks        | list                        | Potential risks              |
-| Learning     | string                      | Captured by `aps complete`   |
-| Packages     | list                        | Affected packages (monorepo) |
+The status, dependencies, confidence, non-scope, files, and package fields are
+optional to the basic parser, but orchestration requires a meaningful status.
 
-### Status vocabulary
-
-Canonical: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`
-
-Aliases (normalised internally): `Proposed` → `Draft`, `Done` → `Complete`
-
-Terminal compaction: `Merged` and `Released/Shipped` are accepted as terminal
-labels for release/archival records and lint field-completeness checks.
-Orchestration dependency checks (`aps start`) only accept `Complete` or `Done`.
-
-## Action plan structure
+## Action plan
 
 ```markdown
 # Action Plan: AUTH-001
 
-| Field     | Value                     |
-| --------- | ------------------------- |
-| Work Item | AUTH-001 — Login endpoint |
-| Status    | Draft                     |
+| Field     | Value    |
+| --------- | -------- |
+| Work Item | AUTH-001 |
+| Status    | Draft    |
 
 ## Actions
 
-### Action 1 — [Verb] [target]
+### Action 1 — Add the login endpoint
 
-**Purpose** [Why this action exists]
+**Purpose** Expose the authorised login behaviour.
 
-**Produces** [Concrete artefacts]
+**Produces** A tested endpoint.
 
-**Checkpoint** [Observable state — max ~12 words]
+**Checkpoint** Valid credentials create a session.
 
-**Validate** `[command]` _(optional)_
-
-**Wave** 1 _(optional)_
+**Validate** `npm test -- auth`
 ```
 
-## Issues structure
+## Status handling
 
-```markdown
-# Development Issues
+The orchestration lifecycle is `Draft` → `Ready` → `In Progress` → `Complete`,
+with `Blocked` available when a named condition prevents progress. `Proposed`
+and `Done` are accepted aliases. Lint also recognises imported historical items
+labelled merged, released, or shipped as terminal.
 
-## Issues
+## Release file
 
-### ISS-001: [Title]
+Files under `plans/releases/` use `v<version>.md` and require a metadata table
+with target and status, plus `Release Theme` and `What Ships` sections.
 
-| Field      | Value    |
-| ---------- | -------- |
-| Status     | Open     |
-| Severity   | medium   |
-| Discovered | AUTH-002 |
-| Module     | AUTH     |
-
-**Context:** [...]
-
-## Questions
-
-### Q-001: [Title]
-
-| Field      | Value    |
-| ---------- | -------- |
-| Status     | Open     |
-| Priority   | low      |
-| Discovered | planning |
-```
-
-Required sections (lint E010, E011): `## Issues`, `## Questions`
-
-## Release structure
-
-```markdown
-# v0.4.0
-
-| Field  | Value      |
-| ------ | ---------- |
-| Target | 2026-06-01 |
-| Status | Shipped    |
-
-## Release Theme
-
-[One paragraph]
-
-## What Ships
-
-| Capability | Module | Work Items | | [...] | | |
-```
-
-Required sections (lint R003, R004): `## Release Theme`, `## What Ships`
-
-## Anvil repository extension
-
-The Anvil product repository uses a richer operating-model lifecycle for active
-planning. This is repository guidance, not the portable APS package contract:
-
-```text
-Draft → Proposed → Ready → In Progress → Merged → Released/Shipped → Complete
-```
-
-Work items may also carry release reconstruction metadata (`changeType`,
-`releaseIntent`, `releaseScope`, `releaseNote`). These fields are specific to
-Anvil's release operating model and are not required by `aps lint` in generic
-APS projects.
-
----
-
-**Next:** [Schema examples →](./examples.md)
+See [copyable fragments](examples.md) and the
+[validation rules](../spec/determinism.md).

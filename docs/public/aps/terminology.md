@@ -1,142 +1,48 @@
 ---
 id: terminology
-title: Terminology
-description:
-  APS vocabulary — work items, action plans, actions, and checkpoints.
+title: APS glossary
+description: Plain-language definitions for the terms used in APS documentation.
 sidebar_position: 5
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# APS Terminology
+# APS glossary
 
-This page defines the words APS uses and what they mean.
+You can start using APS without memorising these terms. Return here when a guide
+or command introduces an unfamiliar word.
 
-## Renamed concepts (v0.2.0+)
+| Term                   | Meaning                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Index**              | The entry point that explains the whole plan and links its modules. It is descriptive, not execution authority. |
+| **Module**             | A bounded area of responsibility containing related work items.                                                 |
+| **Work item**          | One authorised, observable outcome with a validation method.                                                    |
+| **Action plan**        | An optional breakdown of complex work into actions and checkpoints.                                             |
+| **Action**             | One coherent part of an action plan.                                                                            |
+| **Checkpoint**         | Observable evidence that an action reached its intended state.                                                  |
+| **Intent**             | Why a work item exists and what it aims to achieve.                                                             |
+| **Expected outcome**   | The result that must be observable when the item is complete.                                                   |
+| **Validation**         | The command or check that proves the expected outcome.                                                          |
+| **Dependency**         | Another item or module that must be complete first.                                                             |
+| **Context package**    | A focused, generated brief written when `aps start` claims an item.                                             |
+| **Learning**           | A durable observation recorded at completion for downstream work.                                               |
+| **Conductor module**   | A module that coordinates work owned by several other modules without taking over their implementation.         |
+| **Tagged monorepo**    | One plan tree whose modules or items name the packages they affect.                                             |
+| **Federated monorepo** | A root plan that links independently owned child plan trees.                                                    |
+| **Toolchain pin**      | The expected APS CLI version stored in `.aps/config.yml`.                                                       |
 
-| Old term        | Current term | Meaning                                                            |
-| --------------- | ------------ | ------------------------------------------------------------------ |
-| Task            | Work Item    | A bounded unit of work with intent, outcome, scope, and validation |
-| Step (file)     | Action Plan  | Execution breakdown for a work item                                |
-| Step (numbered) | Action       | A coherent unit of execution within a plan                         |
-| Checkpoint      | Checkpoint   | Observable proof that an action is complete                        |
+## Statuses
 
-New projects start with current terminology. Upgrading from pre-v0.2 projects:
+| Status        | Meaning                                                         |
+| ------------- | --------------------------------------------------------------- |
+| `Draft`       | The item or module is still being shaped and is not executable. |
+| `Ready`       | Its boundaries and validation are clear enough to execute.      |
+| `In Progress` | Someone has claimed the work.                                   |
+| `Blocked`     | Execution cannot continue until a named condition changes.      |
+| `Complete`    | The outcome and validation have been recorded as finished.      |
 
-- **Task** sections → **Work Items**
-- **`.steps.md`** files → **`.actions.md`**
-- Numbered **steps** → **Actions**
+`Proposed` is accepted as a draft alias and `Done` as a completion alias. New
+portable plans should prefer the canonical statuses above.
 
-No content needs rewriting unless it violates checkpoint rules.
+## Next step
 
-## Core principle
-
-- **Specs describe intent.**
-- **Work items define outcomes.**
-- **Action plans decompose execution.**
-- **Checkpoints verify state.**
-
-Implementation emerges from patterns and agent judgement.
-
-## Hierarchy
-
-| Layer       | Purpose             | You write                          | You do not write      |
-| ----------- | ------------------- | ---------------------------------- | --------------------- |
-| Index       | Plan overview       | Modules, milestones, risks         | Implementation detail |
-| Module      | Bounded work area   | Interfaces, boundaries, work items | Code snippets         |
-| Work Item   | Outcome unit        | Intent, outcome, validation        | How to implement      |
-| Action Plan | Execution breakdown | Actions, checkpoints               | Tutorials             |
-| Action      | Unit of work        | Purpose, produces, checkpoint      | Code structure        |
-| Checkpoint  | Verification        | Observable state                   | Implementation steps  |
-
-## Work items
-
-A work item is the contract: what will be achieved and how success is verified.
-
-### Required fields
-
-- **Intent** — One sentence describing the outcome
-- **Expected Outcome** — Testable or observable result
-- **Validation** — Command or condition to verify completion
-
-### Optional fields
-
-- Scope / Non-scope
-- Dependencies
-- Confidence (`low`, `medium`, `high`)
-- Files (best-effort)
-- Risks
-- Deliverables
-
-### Rules
-
-- Work items describe **what must be true**, not how it is achieved
-- Work items authorise change but do not prescribe implementation
-- Validation must be deterministic where possible
-
-## Action plans
-
-An action plan decomposes a work item into executable actions.
-
-### When to create one
-
-- The work item is non-trivial
-- Multiple artefacts are produced
-- Ordering or dependencies matter
-
-Simple work items may be executed without an action plan.
-
-### File naming
-
-```
-plans/execution/{WORK-ITEM-ID}.actions.md
-```
-
-Example: `AUTH-001.actions.md`
-
-## Actions and checkpoints
-
-Each action represents a coherent unit of execution, not a tutorial.
-
-```markdown
-## Action 1 — Create authentication middleware
-
-**Purpose** Validate requests and attach user context.
-
-**Produces** Auth middleware module.
-
-**Checkpoint** Auth middleware validates requests, attaches user to context
-
-**Validate** `npm test -- auth.middleware.test.ts`
-```
-
-### Checkpoint rules
-
-- Must be verifiable by inspection or command
-- Must avoid implementation detail
-- Must remain valid even if implementation changes
-
-✅ **Good:** "Authenticated requests attach user context"
-
-❌ **Bad:** "Create mapping.ts with switch statement"
-
-## Module types
-
-Most modules are **vertical** — they own a single domain end-to-end.
-
-A **conductor** (crosscutting) module coordinates work _across_ vertical modules
-— release cuts, security audits, perf budgets. Mark it with `Type: Conductor` in
-the metadata table. See
-[Conductor modules](https://github.com/EddaCraft/anvil-plan-spec/blob/main/docs/conductor-modules.md)
-in the source repository.
-
----
-
-**Next:** [Taxonomy →](./spec/taxonomy.md)
+Return to [what APS does](overview.md) or review the
+[document hierarchy](spec/taxonomy.md).

@@ -1,158 +1,99 @@
 ---
 id: determinism
-title: Validation Rules
-description: How APS lint enforces structure, references, and consistency.
+title: Validation, audit, and CI safety
+description:
+  Understand what APS checks and when plan validation may execute commands.
 sidebar_position: 3
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# Validation Rules
+# Validation, audit, and CI safety
 
-APS enforces consistent, machine-checkable plan structure through `aps lint` and
-`aps audit`. This page describes what the tooling validates and why.
+APS has two different verification layers:
 
-## What lint checks
+- `aps lint` parses plan files and reports structural errors or drift warnings.
+- `aps audit` compares plan claims with project state and can execute validation
+  commands.
 
-`aps lint` validates APS documents for:
+That distinction is a security boundary.
 
-- Required sections and metadata tables
-- Work item field completeness
-- ID format conformance
-- Cross-reference resolution
-- Release narrative structure
+## Lint a plan
 
 ```bash
-aps lint plans/                       # lint entire plan tree
-aps lint plans/modules/auth.aps.md    # lint one file
-aps lint . --json                     # machine-readable output
+aps lint
 ```
 
-Errors cause a non-zero exit code. Warnings are informational. `--strict` is for
-toolchain-version drift: it turns a `.aps/config.yml` `cli_version` mismatch
-into a failing result.
-
-## Error codes
-
-| Code | Scope     | Description                                                            |
-| ---- | --------- | ---------------------------------------------------------------------- |
-| E001 | Module    | Missing `## Purpose` section                                           |
-| E002 | Module    | Missing `## Work Items` section                                        |
-| E003 | Module    | Missing ID/Status metadata table                                       |
-| E004 | Index     | Missing `## Modules` section                                           |
-| E005 | Work Item | Missing required field (`Intent`, `Expected Outcome`, or `Validation`) |
-| E010 | Issues    | Missing `## Issues` section                                            |
-| E011 | Issues    | Missing `## Questions` section                                         |
-| R001 | Release   | Release file not named `v<version>.md`                                 |
-| R002 | Release   | Missing release header table with `Target` and `Status`                |
-| R003 | Release   | Missing `## Release Theme` section                                     |
-| R004 | Release   | Missing `## What Ships` section                                        |
-
-## Warning codes
-
-| Code | Scope          | Description                                                                    |
-| ---- | -------------- | ------------------------------------------------------------------------------ |
-| W001 | Work Item      | ID does not match `PREFIX-NNN` pattern                                         |
-| W002 | Module         | Conductor references a work-item ID that resolves nowhere                      |
-| W003 | Work Item      | Dependency references an ID not found in the plan tree                         |
-| W004 | Module / Index | Section exists but is empty                                                    |
-| W005 | Module         | Status is `Ready` but no work items are defined                                |
-| W006 | Index          | Module listed under Conductor subsection but file is not `Type: Conductor`     |
-| W010 | Issues         | Issue entry missing `Status`, `Discovered`, or `Severity`                      |
-| W011 | Issues         | Question entry missing `Status`, `Discovered`, or `Priority`                   |
-| W012 | Issues         | Issue ID does not match `ISS-NNN` format                                       |
-| W013 | Issues         | Question ID does not match `Q-NNN` format                                      |
-| W017 | Module         | Active module missing or stale `**Last reviewed:**` field (threshold: 60 days) |
-| W018 | Work Item      | Complete item missing `Validation` in an active module                         |
-| W019 | Index          | Module link points to a non-existent file                                      |
-
-## Work item ID format
-
-Pattern: `{PREFIX}-{NNN}`
-
-```text
-✓ AUTH-001   ✓ PAY-123   ✓ CORE-001
-✗ auth-001   ✗ AUTH-1    ✗ AUTH_001
-```
-
-- PREFIX: 1–10 uppercase alphanumeric characters
-- NNN: 3-digit zero-padded number
-
-## Required work item fields
-
-```markdown
-### AUTH-001: Title
-
-- **Intent:** Required — what outcome this achieves
-- **Expected Outcome:** Required — testable result
-- **Validation:** Required — command to verify completion
-```
-
-## Status consistency
-
-The bash fallback/vendored orchestration commands enforce a state machine:
-
-```text
-Draft ──→ Ready ──→ In Progress ──→ Complete
-```
-
-| Command        | Transition enforced                                 |
-| -------------- | --------------------------------------------------- |
-| `aps next`     | None — read-only                                    |
-| `aps start`    | Ready → In Progress (dependencies must be Complete) |
-| `aps complete` | In Progress → Complete                              |
-
-Invalid transitions are rejected with a clear error.
-
-## Toolchain pinning
-
-Projects pin their expected CLI version in `.aps/config.yml`:
-
-```yaml
-cli_version: 0.4.0
-```
-
-`aps` compares the pin to the running binary and warns on mismatch. Add
-`--strict` (or `APS_STRICT=1`) to fail CI on drift:
+Errors produce a non-zero exit. Warnings do not, unless a separate project
+policy promotes them. Use JSON for automation:
 
 ```bash
-aps lint --strict
+aps lint plans --json
 ```
 
-## Audit: plan vs reality
+### Error codes
 
-In the bash fallback/vendored runtime, `aps audit` checks whether Complete items
-actually pass their validation commands and whether Draft items have files that
-already exist:
+| Code          | Meaning                                                                |
+| ------------- | ---------------------------------------------------------------------- |
+| `E001`        | A module has no `Purpose` section.                                     |
+| `E002`        | A module has no `Work Items` section.                                  |
+| `E003`        | A module has no ID or status metadata table.                           |
+| `E004`        | An index has no `Modules` section.                                     |
+| `E005`        | An active work item lacks intent, expected outcome, or validation.     |
+| `E010`        | An issues file has no `Issues` section.                                |
+| `E011`        | An issues file has no `Questions` section.                             |
+| `R001`–`R004` | A release file has an invalid name or lacks required release sections. |
 
-| Code | Meaning                                                            |
-| ---- | ------------------------------------------------------------------ |
-| A001 | Overstated — Complete item whose Validation command fails          |
-| A002 | Understated — Draft item whose Files already exist with content    |
-| A003 | Stale — Ready item in a module with no recent `**Last reviewed:**` |
-| A004 | Broken link — index module link points to a non-existent file      |
+### Warning codes
 
-> **CI safety:** Use `aps audit --no-run` in pull-request jobs. Running with
-> execution enabled executes Validation commands from plan files with full shell
-> semantics — only run on trusted branches.
+| Code          | Meaning                                                               |
+| ------------- | --------------------------------------------------------------------- |
+| `W001`        | A work-item ID does not use `PREFIX-NNN`.                             |
+| `W002`        | A conductor references a work item that cannot be found.              |
+| `W003`        | A dependency cannot be resolved.                                      |
+| `W004`        | A required planning section is empty.                                 |
+| `W005`        | A ready module has no work items.                                     |
+| `W006`        | A crosscutting index entry does not identify a conductor module.      |
+| `W010`–`W013` | An issue or question has missing or malformed metadata.               |
+| `W017`        | An active module has no recent review date.                           |
+| `W018`        | A completed item cannot be audited because validation is missing.     |
+| `W019`        | An index links to a module file that does not exist.                  |
+| `W020`–`W021` | Federated child plans contain ambiguous work-item or module IDs.      |
+| `W022`        | A package tag does not resolve to a package or application directory. |
 
-## CI integration
+## Enforce the CLI pin
+
+By default APS warns when `.aps/config.yml` expects another CLI version. Use
+strict mode in CI when drift must fail:
+
+```bash
+aps --strict lint
+```
+
+## Audit plan claims
+
+The safe pull-request form is:
+
+```bash
+aps audit --no-run
+```
+
+Without `--no-run`, `aps audit` executes validation commands stored in completed
+work items with shell semantics. Only do that for plan content you trust. Never
+run untrusted pull-request validation fields with execution enabled.
+
+Audit findings cover:
+
+- completed work whose validation fails;
+- draft work whose named files already exist;
+- ready work in stale modules; and
+- broken module links.
+
+## Minimal CI job
 
 ```yaml
-- name: Lint APS documents
-  run: aps lint plans/ --strict
+- name: Validate APS plans
+  run: aps --strict lint
+- name: Check plan drift without executing plan commands
+  run: aps audit --no-run
 ```
 
-See the canonical workflow at
-[anvil-plan-spec `docs/ci-lint-example.yml`](https://github.com/EddaCraft/anvil-plan-spec/blob/main/docs/ci-lint-example.yml).
-
----
-
-**Next:** [Document structure →](../schemas/json-schema.md)
+Use the [CLI reference](../tooling/validation.md) for command options.

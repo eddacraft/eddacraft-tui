@@ -1,137 +1,79 @@
 ---
 id: ai-agents
-title: AI Agents
-description: Guide for AI agents working with APS specs.
-sidebar_position: 2
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
+title: Use APS with an AI agent
+description:
+  Give an AI coding agent bounded, validated work without tying the plan to one
+  tool.
+sidebar_position: 1
 ---
 
-# AI Agent Guide
+# Use APS with an AI agent
 
-This guide is for LLMs and AI agents working with APS. For human-readable
-onboarding, see [Getting Started →](../getting-started.md).
+APS works without an AI tool. When you do use one, the plan stays portable: the
+agent reads the same Markdown that a person reviews.
 
-## Quick decision tree
+## Set up an integration
+
+Choose integrations during `aps init`, or add one later:
+
+```bash
+aps setup codex
+```
+
+Available tool keys include `claude-code`, `copilot`, `codex`, `opencode`,
+`grok`, and `generic`. Run `aps setup` for the guided picker.
+
+Tool setup adds guidance for that client; it does not move the plan into the
+client or make the client the source of truth.
+
+## Prepare work before prompting
+
+1. Run `aps lint`.
+2. Use `aps next` to find an item whose dependencies are complete.
+3. Review its scope, non-scope, expected outcome, and validation.
+4. Run `aps start <ID>` to claim it and generate focused context.
+5. Give the agent the work-item ID and context-package path.
+
+Example prompt:
 
 ```text
-Is there a plans/ directory?
-├─ NO  → Initialize APS (aps init or scaffold/install)
-├─ YES → Does plans/index.aps.md exist?
-   ├─ NO  → Create index
-   ├─ YES → Read index, identify request type:
-      ├─ Planning request → Generate/update specs
-      ├─ Implementation request → Execute work items
-      └─ Question → Read relevant specs, answer from context
+Implement work item AUTH-003.
+Read .aps/context/AUTH-003.md and the source module it names.
+Stay within the stated scope and non-scope.
+Run the work item's validation command and report the evidence.
+Do not mark the item complete if validation fails.
 ```
 
-## Core principles
+## Keep authority clear
 
-1. **Never implement without a work item** — Create one first or ask
-2. **Always read before you write** — Check existing specs and code patterns
-3. **Work items are permission** — Status must be `Ready` before execution
-4. **Checkpoints over instructions** — Write what should exist, not how to
-   create it
-5. **One work item at a time** — Complete and validate before moving to next
+- A chat request is not a substitute for a ready work item.
+- The plan defines the outcome; the repository defines implementation truth.
+- The agent may propose new work, but new scope starts as draft.
+- Validation evidence comes before completion.
+- One agent should own one in-progress item unless the plan explicitly
+  coordinates several owners.
 
-## Planning workflow
+## Close the item
 
-When asked to plan a feature:
+After reviewing the implementation and fresh validation evidence:
 
-1. Read `plans/index.aps.md`, `plans/aps-rules.md`, and existing modules
-2. Determine scope:
-   - Small (1–3 items) → `simple.template.md`
-   - Medium (4–8 items) → `module.template.md`
-   - Large (multiple modules) → update index, create leaf modules
-3. Create/update module spec with Purpose, Scope, Interfaces
-4. **Do not write work items** until module is Ready and scope is clear
-5. Add work items with Intent, Expected Outcome, Validation
-6. Run `aps lint plans/` to validate
-
-## Execution workflow
-
-When asked to implement:
-
-1. Find the authorised work item — status must be `Ready`
-2. If the bash fallback/vendored runtime is available, run `aps start <ID>` to
-   claim it and get the context package; otherwise hand-edit the status to
-   `In Progress`
-3. Read `.aps/context/<ID>.md` for focused brief when generated
-4. If complex, open or create `{ID}.actions.md`
-5. Execute one action at a time; validate each checkpoint
-6. Run the work item's Validation command
-7. Mark the item `Complete: YYYY-MM-DD`; with the bash fallback/vendored
-   runtime, prefer `aps complete <ID> --learning "..."`
-
-## Prompting a work item
-
-```text
-You have a work item authorised at plans/modules/auth.aps.md (AUTH-003).
-Context package: .aps/context/AUTH-003.md.
-Implement it, run the validation step, and report back.
+```bash
+aps complete AUTH-003 --learning "The session boundary owns token renewal"
 ```
 
-This prompt works in Claude Code, Cursor, Copilot, Codex, OpenCode, Gemini, or
-pasted into ChatGPT.
+The learning becomes durable planning context for dependent work.
 
-## Agent definitions
+## Optional hooks
 
-APS ships first-class agent definitions for:
+APS can install hooks that remind supported clients to read or update plans.
+Treat them as workflow assistance, not as security controls. Repository
+permissions, review, tests, and CI still enforce the real boundaries.
 
-- Claude Code (`.claude/agents/`)
-- GitHub Copilot (`.github/agents/`)
-- OpenCode (`.opencode/agents/`)
-- Codex (`.codex/config.toml`)
-- Gemini (`.gemini/`)
+## When not to automate
 
-Install with `aps setup <tool>` or select during `aps init`.
+Keep a person in the loop when the work changes architecture, security or data
+boundaries, public contracts, destructive operations, or unclear product
+behaviour. Clarify the plan before expanding agent authority.
 
-## Prompts
-
-Tool-agnostic prompts ship in
-[anvil-plan-spec `docs/ai/prompting/`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/docs/ai/prompting):
-
-| Task               | Prompt file           |
-| ------------------ | --------------------- |
-| Planning           | `index.prompt.md`     |
-| Module design      | `module.prompt.md`    |
-| Work item creation | `work-item.prompt.md` |
-| Execution          | `actions.prompt.md`   |
-
-## aps-rules.md
-
-`aps init` scaffolds `plans/aps-rules.md` — a portable guide that travels with
-your specs. Point your agent at it and APS conventions are followed by default.
-
-The canonical source is
-[`scaffold/plans/aps-rules.md`](https://github.com/EddaCraft/anvil-plan-spec/blob/main/scaffold/plans/aps-rules.md)
-in anvil-plan-spec.
-
-## MCP integration
-
-For MCP-capable agents, register the APS MCP server:
-
-```json
-{
-  "mcpServers": {
-    "aps": {
-      "command": "node",
-      "args": ["/path/to/anvil-plan-spec/mcp/src/index.ts"],
-      "env": { "APS_PLANS": "/path/to/your/project/plans" }
-    }
-  }
-}
-```
-
-See [CLI Reference →](../tooling/validation.md) for details.
-
----
-
-**Back to:** [APS Overview →](../overview.md)
+See the [workflow](../workflow.md) for the full lifecycle and the
+[glossary](../terminology.md) for planning terms.

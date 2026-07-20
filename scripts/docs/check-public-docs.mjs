@@ -21,9 +21,12 @@ const JSON_OUTPUT = argv.includes('--json');
 const SKIP_GENERATED = argv.includes('--skip-generated');
 const ANVIL_ROOT = resolve(REPO_ROOT, 'docs/public/anvil');
 const BETA_ROOT = resolve(REPO_ROOT, 'docs/public/beta');
-const SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/anvil.ts');
+const APS_ROOT = resolve(REPO_ROOT, 'docs/public/aps');
+const ANVIL_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/anvil.ts');
+const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/aps.ts');
 const SITE_SHELL_PATHS = [
-  SIDEBAR_PATH,
+  ANVIL_SIDEBAR_PATH,
+  APS_SIDEBAR_PATH,
   resolve(REPO_ROOT, 'apps/docs-site/docusaurus.config.ts'),
   resolve(REPO_ROOT, 'apps/docs-site/src/pages/index.tsx'),
   resolve(REPO_ROOT, 'apps/docs-site/api/auth/login.ts'),
@@ -33,17 +36,13 @@ const SITE_SHELL_PATHS = [
 const findings = [];
 const contentFiles = [
   ...markdownFiles(ANVIL_ROOT),
+  ...markdownFiles(APS_ROOT),
   ...markdownFiles(BETA_ROOT).filter((path) => path.endsWith(`${sep}quickstart.md`)),
 ];
 const contentFileSet = new Set(contentFiles);
 const files = [...contentFiles, ...SITE_SHELL_PATHS.filter(existsSync)];
 
 const internalPatterns = [
-  {
-    pattern:
-      /(?:^|[\s`("'=/])(?:\.\.\/)*(?:plans|crates|packages|apps|scripts|\.github|\.claude|\.codex)\//,
-    message: 'internal repository reference',
-  },
   {
     pattern: /(?:^|[\s`("'=/])(?:\.\.\/)*docs\/(?:architecture|guides|runbooks|specs)\//,
     message: 'internal documentation reference',
@@ -53,6 +52,19 @@ const internalPatterns = [
     message: 'internal work-item or decision reference',
   },
   { pattern: /\banvil-001\b/, message: 'internal repository name' },
+];
+const anvilInternalPatterns = [
+  {
+    pattern:
+      /(?:^|[\s`("'=/])(?:\.\.\/)*(?:plans|crates|packages|apps|scripts|\.github|\.claude|\.codex)\//,
+    message: 'internal repository reference',
+  },
+];
+const apsInternalPatterns = [
+  {
+    pattern: /(?:^|[\s`("'=/])(?:\.\.\/)*(?:cli\/src|lib\/rules|docs\/ai\/prompting)\//,
+    message: 'internal repository reference',
+  },
 ];
 
 const productNamePattern = /\b(?:Anvil|EddaCraft|Kindling)\b/;
@@ -80,7 +92,12 @@ for (const file of files) {
     if (productNamePattern.test(line)) {
       add(publicPath, index + 1, 'product name must be lowercase: anvil, eddacraft, or kindling');
     }
-    for (const rule of internalPatterns) {
+    const productPatterns = file.startsWith(`${ANVIL_ROOT}${sep}`)
+      ? anvilInternalPatterns
+      : file.startsWith(`${APS_ROOT}${sep}`)
+        ? apsInternalPatterns
+        : [];
+    for (const rule of [...internalPatterns, ...productPatterns]) {
       if (rule.pattern.test(line)) add(publicPath, index + 1, rule.message);
     }
     if (contentFileSet.has(file) && !isCanonicalQuickstart(file)) {
@@ -136,33 +153,39 @@ function markdownFiles(root) {
 }
 
 function checkNavigation() {
-  if (!existsSync(SIDEBAR_PATH)) {
-    add(normalise(relative(REPO_ROOT, SIDEBAR_PATH)), 1, 'anvil sidebar is missing');
+  checkProductNavigation(ANVIL_ROOT, ANVIL_SIDEBAR_PATH, 'anvilSidebar', 'anvil');
+  checkProductNavigation(APS_ROOT, APS_SIDEBAR_PATH, 'apsSidebar', 'APS');
+}
+
+function checkProductNavigation(root, sidebarPath, sidebarKey, productLabel) {
+  if (!existsSync(root)) return;
+  if (!existsSync(sidebarPath)) {
+    add(normalise(relative(REPO_ROOT, sidebarPath)), 1, `${productLabel} sidebar is missing`);
     return;
   }
 
-  const sidebar = readFileSync(SIDEBAR_PATH, 'utf8');
+  const sidebar = readFileSync(sidebarPath, 'utf8');
   let documentIds = new Set();
   try {
-    documentIds = sidebarDocumentIds(sidebar);
+    documentIds = sidebarDocumentIds(sidebar, sidebarPath, sidebarKey);
   } catch (error) {
     add(
-      normalise(relative(REPO_ROOT, SIDEBAR_PATH)),
+      normalise(relative(REPO_ROOT, sidebarPath)),
       1,
-      `anvil sidebar could not be read structurally: ${error.message}`
+      `${productLabel} sidebar could not be read structurally: ${error.message}`
     );
   }
 
-  for (const file of markdownFiles(ANVIL_ROOT)) {
+  for (const file of markdownFiles(root)) {
     const content = readFileSync(file, 'utf8');
     const frontmatter = parseFrontmatter(content);
     if (frontmatter.public_unlisted === 'true') continue;
-    const id = documentId(file, frontmatter.id);
+    const id = documentId(file, frontmatter.id, root);
     if (!documentIds.has(id)) {
       add(
         normalise(relative(REPO_ROOT, file)),
         1,
-        `public page ${id} is not present in the anvil sidebar and is not marked public_unlisted: true`
+        `public page ${id} is not present in the ${productLabel} sidebar and is not marked public_unlisted: true`
       );
     }
   }
@@ -189,11 +212,29 @@ function checkGeneratedReferences() {
       .split(/\r?\n/)[0];
     add('docs/public/anvil/reference', 1, `generated public reference is stale: ${detail}`);
   }
+
+  if (existsSync(APS_ROOT)) {
+    const apsChecker = resolve(REPO_ROOT, 'scripts/docs/check-aps-public-commands.mjs');
+    if (!existsSync(apsChecker)) {
+      add(normalise(relative(REPO_ROOT, apsChecker)), 1, 'APS public command checker is missing');
+      return;
+    }
+    const apsResult = spawnSync(process.execPath, [apsChecker, '--root', REPO_ROOT], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    if (apsResult.status !== 0) {
+      const detail = (apsResult.stderr || apsResult.stdout || 'APS command examples are stale')
+        .trim()
+        .split(/\r?\n/)[0];
+      add('docs/public/aps', 1, `APS command example is stale: ${detail}`);
+    }
+  }
 }
 
-function sidebarDocumentIds(source) {
+function sidebarDocumentIds(source, sidebarPath, sidebarKey) {
   const sourceFile = ts.createSourceFile(
-    SIDEBAR_PATH,
+    sidebarPath,
     source,
     ts.ScriptTarget.Latest,
     true,
@@ -223,10 +264,10 @@ function sidebarDocumentIds(source) {
   if (!root || !ts.isObjectLiteralExpression(root)) {
     throw new Error('default export is not a statically readable object');
   }
-  const sidebar = propertyValue(root, 'anvilSidebar');
+  const sidebar = propertyValue(root, sidebarKey);
   const items = resolveExpression(sidebar, bindings);
   if (!items || !ts.isArrayLiteralExpression(items)) {
-    throw new Error('anvilSidebar is not a statically readable array');
+    throw new Error(`${sidebarKey} is not a statically readable array`);
   }
 
   const ids = new Set();
@@ -313,8 +354,8 @@ function parseFrontmatter(content) {
   return values;
 }
 
-function documentId(file, explicitId) {
-  const rel = normalise(relative(ANVIL_ROOT, file)).replace(/\.mdx?$/, '');
+function documentId(file, explicitId, root) {
+  const rel = normalise(relative(root, file)).replace(/\.mdx?$/, '');
   const directory = normalise(dirname(rel));
   const leaf = explicitId || rel.split('/').at(-1);
   return directory === '.' ? leaf : `${directory}/${leaf}`;

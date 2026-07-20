@@ -1,211 +1,110 @@
 ---
 id: multi-module
-title: Multi-Module Plan
-description: A realistic multi-module APS plan based on the user-auth example.
+title: 'Example: dependent modules'
+description: A multi-module APS plan with an explicit dependency boundary.
 sidebar_position: 2
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec
-    `examples/user-auth`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth)'
-  downstream: 'APS docs-site section'
 ---
 
-# Multi-Module Plan
+# Example: dependent modules
 
-A realistic example showing a multi-module APS structure for adding user
-authentication to an existing application. Based on the
-[user-auth example](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth)
-in anvil-plan-spec.
-
-## Directory structure
-
-```text
-plans/
-├── index.aps.md
-├── modules/
-│   ├── auth.aps.md
-│   └── session.aps.md
-├── designs/
-│   └── 2025-01-05-auth-architecture.design.md
-└── execution/
-    └── AUTH-001.actions.md
-```
+This example separates identity from sessions. The session module cannot begin
+until the identity module is complete.
 
 ## Index
 
 ```markdown
-# User Authentication
+# Account access
 
 ## Overview
 
-Add user authentication to an existing web application.
+Add account identity and session creation in dependency order.
 
 ## Problem & Success Criteria
 
-**Problem:** The application has no user authentication.
+**Problem:** The product has no authenticated account access.
 
 **Success Criteria:**
 
-- [ ] Users can register with email and password
-- [ ] Users can log in and receive a session token
-- [ ] Protected routes reject unauthenticated requests
-
-## Designs
-
-- [Auth Architecture](./designs/2025-01-05-auth-architecture.design.md)
+- [ ] A registered user can create a session.
+- [ ] Invalid credentials do not create a session.
 
 ## Modules
 
-| Module                              | ID      | Owner | Status | Priority | Dependencies |
-| ----------------------------------- | ------- | ----- | ------ | -------- | ------------ |
-| [auth](./modules/auth.aps.md)       | AUTH    | @josh | Ready  | high     | —            |
-| [session](./modules/session.aps.md) | SESSION | @josh | Draft  | high     | auth         |
+| Module                                | ID      | Status | Dependencies |
+| ------------------------------------- | ------- | ------ | ------------ |
+| [identity](./modules/identity.aps.md) | ID      | Ready  | —            |
+| [sessions](./modules/sessions.aps.md) | SESSION | Draft  | ID           |
 ```
 
-## Auth module
+## Identity module
 
 ```markdown
-# Authentication Module
+# Identity
 
-| ID   | Owner | Priority | Status |
-| ---- | ----- | -------- | ------ |
-| AUTH | @josh | high     | Ready  |
+| ID  | Owner | Priority | Status |
+| --- | ----- | -------- | ------ |
+| ID  | @team | high     | Ready  |
 
 ## Purpose
 
-Handle user registration and credential verification.
+Own account records and credential verification.
 
 ## In Scope
 
-- User registration (email + password)
-- Password hashing and verification
-- Login credential validation
+- Account creation.
+- Credential verification.
 
-## Out of Scope
-
-- Session management (see SESSION module)
-- OAuth/social login (future work)
-
-## Interfaces
-
-**Depends on:**
-
-- Database — user table with email, password_hash columns
-
-**Exposes:**
-
-- `registerUser(email, password)` → User
-- `verifyCredentials(email, password)` → User | null
+**Last reviewed:** 2026-07-20
 
 ## Work Items
 
-### AUTH-001: Create user registration function
+### ID-001: Verify credentials
 
-- **Intent:** Allow new users to register with email and password
-- **Expected Outcome:** `registerUser()` creates user record with hashed
-  password
-- **Validation:** `npm test -- auth.test.ts`
-- **Confidence:** high
-
-### AUTH-002: Create credential verification function
-
-- **Intent:** Verify email/password combinations for login
-- **Expected Outcome:** `verifyCredentials()` returns user if valid, null if not
-- **Validation:** `npm test -- auth.test.ts`
-- **Dependencies:** AUTH-001
-- **Confidence:** high
+- **Status:** Ready
+- **Intent:** Verify a registered account's credentials.
+- **Expected Outcome:** Correct credentials return an account ID; incorrect
+  credentials fail safely.
+- **Validation:** `npm test -- identity`
 ```
 
 ## Session module
 
 ```markdown
-# Session Module
+# Sessions
 
-| ID      | Owner | Priority | Status |
-| ------- | ----- | -------- | ------ |
-| SESSION | @josh | high     | Draft  |
+| ID      | Owner | Priority | Status | Dependencies |
+| ------- | ----- | -------- | ------ | ------------ |
+| SESSION | @team | high     | Draft  | ID           |
 
 ## Purpose
 
-Manage user sessions via JWT tokens.
+Create and revoke authenticated sessions after identity verification.
 
-## Interfaces
+## In Scope
 
-**Depends on:**
-
-- auth — credential verification
-
-**Exposes:**
-
-- `createSession(user)` → token
-- `validateSession(token)` → user | null
+- Session creation and revocation.
 
 ## Work Items
 
-### SESSION-001: JWT token generation
+### SESSION-001: Create a session
 
-- **Intent:** Generate signed JWT tokens on successful login
-- **Expected Outcome:** Token contains user ID and expiry; verifiable with
-  secret
-- **Validation:** `npm test -- session.test.ts`
-- **Dependencies:** AUTH-002
+- **Status:** Draft
+- **Intent:** Create a session for a verified account.
+- **Expected Outcome:** A verified account receives a revocable session.
+- **Validation:** `npm test -- sessions`
+- **Dependencies:** ID-001
 ```
 
-## Action plan
-
-`plans/execution/AUTH-001.actions.md`:
-
-```markdown
-# Action Plan: AUTH-001
-
-| Field     | Value                                        |
-| --------- | -------------------------------------------- |
-| Work Item | AUTH-001 — Create user registration function |
-| Status    | In Progress                                  |
-
-## Actions
-
-### Action 1 — Create user table migration
-
-**Checkpoint** Migration file exists with email, password_hash, created_at
-columns
-
-**Validate** `npm run migrate`
-
-### Action 2 — Implement registerUser function
-
-**Checkpoint** Function hashes password and inserts user record
-
-**Validate** `npm test -- auth.test.ts`
-
-### Action 3 — Reject duplicate emails
-
-**Checkpoint** Duplicate email registration returns error
-
-**Validate** `npm test -- auth.test.ts`
-```
-
-## Dependency graph
-
-```text
-AUTH-001 ──▶ AUTH-002 ──▶ SESSION-001
-```
-
-## Driving with the CLI
+## How the queue behaves
 
 ```bash
-aps next                    # AUTH-001 (first Ready item)
-aps start AUTH-001          # claim it
-# ...implement via action plan...
-aps complete AUTH-001 --learning "bcrypt cost 12 sufficient for v1"
-aps next                    # AUTH-002 (AUTH-001 now Complete)
+aps next
+aps graph
 ```
 
----
+The queue selects `ID-001`. `SESSION-001` remains unavailable because both its
+module and dependency are unfinished. After identity completes, review the
+session scope and deliberately change its module and item to `Ready`.
 
-**Next:** [CLI Reference →](../tooling/validation.md)
+This is the central APS boundary: dependency state, not prompt urgency, decides
+what may execute next.

@@ -1,235 +1,86 @@
 ---
 id: taxonomy
-title: Taxonomy
-description: The APS document hierarchy — Index, Module, Work Item, Action Plan.
+title: How APS documents fit together
+description: Understand indexes, modules, work items, and optional action plans.
 sidebar_position: 1
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# APS Taxonomy
+# How APS documents fit together
 
-APS documents follow a hierarchy: **Index → Module → Work Item → Action Plan**.
+APS separates strategic intent from execution authority so a large plan can stay
+readable without making every idea immediately actionable.
 
-## Hierarchy
-
-```
-┌─────────────────────────────────────────────────┐
-│                     Index                        │
-│  (Project-level, lists all modules)             │
-└───────────────────────┬─────────────────────────┘
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-    ┌───────┐       ┌───────┐       ┌───────┐
-    │Module │       │Module │       │Module │
-    │   A   │       │   B   │       │   C   │
-    └───┬───┘       └───┬───┘       └───┬───┘
-        │               │               │
-    ┌───▼───┐       ┌───▼───┐       ┌───▼───┐
-    │Work   │       │Work   │       │Work   │
-    │Items  │       │Items  │       │Items  │
-    └───┬───┘       └───┬───┘       └───┬───┘
-        │               │               │
-    ┌───▼───┐       ┌───▼───┐       ┌───▼───┐
-    │Action │       │Action │       │Action │
-    │Plans  │       │Plans  │       │Plans  │
-    └───────┘       └───────┘       └───────┘
+```text
+index
+└── module
+    └── work item
+        └── action plan (optional)
 ```
 
-## Level 1: Index
+## Index
 
-The root document that ties everything together.
+The index is the plan entry point. It explains the problem, success criteria,
+constraints, and module map.
 
-### Purpose
+An index does not authorise implementation. Its module links help people and
+tools find the files that do.
 
-- Lists all modules in the project
-- Provides project-level metadata (problem, success criteria, milestones)
-- Serves as entry point for validation
+## Module
 
-### Format
+A module groups work that shares one boundary. It states why that area exists,
+what is in and out of scope, which interfaces matter, and whether the module is
+ready for execution.
 
-```markdown
-# Project Name
+A module should be large enough to have a meaningful boundary and small enough
+that one owner can keep its intent coherent.
 
-## Overview
+## Work item
 
-Brief description of the project.
+A work item is the unit of execution authority. An active item needs:
 
-## Problem & Success Criteria
+- a `PREFIX-NNN` identifier;
+- a status;
+- an intent;
+- an expected outcome; and
+- a validation method.
 
-**Problem:** [What problem are we solving?]
+Optional fields can name dependencies, affected files or packages, non-scope,
+confidence, and risks.
 
-**Success Criteria:**
+One work item should produce one reviewable outcome. Split items that can fail,
+ship, or be reviewed independently.
 
-- [ ] [Measurable outcome]
+## Action plan
 
-## Modules
+An action plan is an optional execution breakdown. Use one when the work needs
+several checkpoints, ordered waves, or coordination between people or agents.
 
-| Module                                | ID   | Owner | Status | Priority |
-| ------------------------------------- | ---- | ----- | ------ | -------- |
-| [auth](./modules/auth.aps.md)         | AUTH | @you  | Draft  | high     |
-| [payments](./modules/payments.aps.md) | PAY  | @you  | Draft  | medium   |
+Each action states what it produces and how its checkpoint can be observed. It
+does not need to prescribe every implementation keystroke.
+
+## Execution direction
+
+Author plans from broad to specific:
+
+```text
+problem → index → modules → ready work items
 ```
 
-The Index is **non-executable** — it describes intent, not implementation.
+Execute from specific to broad:
 
-## Level 2: Module
-
-A cohesive unit of functionality with bounded scope.
-
-### Purpose
-
-- Groups related work items
-- Defines a bounded context with interfaces
-- Maps to a feature, component, or crosscutting concern
-
-### Format
-
-```markdown
-# Authentication Module
-
-| ID   | Owner | Priority | Status |
-| ---- | ----- | -------- | ------ |
-| AUTH | @you  | high     | Draft  |
-
-## Purpose
-
-Handles user authentication and authorisation.
-
-## In Scope
-
-- Login/logout
-- Registration
-
-## Work Items
-
-### AUTH-001: Login endpoint
-
-- **Intent:** Users authenticate with email and password
-- **Expected Outcome:** POST /auth/login returns JWT for valid credentials
-- **Validation:** `npm test -- auth.test.ts`
+```text
+work item → validation → module progress → plan outcome
 ```
 
-### Module metadata fields
+## Choosing the smallest useful shape
 
-| Field    | Required | Description                                            |
-| -------- | -------- | ------------------------------------------------------ |
-| ID       | Yes      | 2–6 uppercase chars (AUTH, PAY, CORE)                  |
-| Owner    | No       | Person or team responsible                             |
-| Priority | No       | `low`, `medium`, `high`                                |
-| Status   | Yes      | `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked` |
-| Packages | No       | Affected packages (monorepo only)                      |
-| Type     | No       | `Conductor` for crosscutting modules                   |
+| Situation                            | Start with                         |
+| ------------------------------------ | ---------------------------------- |
+| One small outcome                    | One index and one module           |
+| Several outcomes in one bounded area | One module with several work items |
+| Several bounded areas                | An index with multiple modules     |
+| Complex execution inside one item    | Add an action plan                 |
+| One shared monorepo backlog          | Add package tags                   |
+| Independently owned package backlogs | Add child plans                    |
 
-## Level 3: Work Item
-
-A unit of authorised work — execution authority.
-
-### Required fields
-
-| Field            | Description                        |
-| ---------------- | ---------------------------------- |
-| ID               | `PREFIX-NNN` (e.g., `AUTH-001`)    |
-| Intent           | What the work item aims to achieve |
-| Expected Outcome | Testable or observable result      |
-| Validation       | Command to verify completion       |
-
-### Optional fields
-
-| Field        | Description                                  |
-| ------------ | -------------------------------------------- |
-| Status       | `Draft`, `Ready`, `In Progress`, `Complete`  |
-| Dependencies | Other work item IDs that must complete first |
-| Confidence   | `low`, `medium` (default), `high`            |
-| Scope        | What will change                             |
-| Non-scope    | What will not change                         |
-| Files        | Best-effort list of affected files           |
-| Risks        | Potential risks                              |
-
-### Work item ID format
-
-Pattern: `{PREFIX}-{NNN}`
-
-- `AUTH-001`, `AUTH-002` — Authentication
-- `PAY-001` — Payments
-- `CORE-001` — Core/shared
-
-PREFIX is 1–10 uppercase alphanumeric characters. NNN is a 3-digit zero-padded
-number.
-
-## Level 4: Action Plan
-
-An optional execution breakdown for complex work items.
-
-### Purpose
-
-- Breaks down complex work items into actions
-- Provides progress visibility with checkpoints
-- Enables wave-based parallel execution
-
-### Format
-
-```markdown
-# Action Plan: AUTH-001
-
-| Field     | Value                     |
-| --------- | ------------------------- |
-| Work Item | AUTH-001 — Login endpoint |
-| Status    | Draft                     |
-
-## Actions
-
-### Action 1 — Create login endpoint
-
-**Checkpoint** Endpoint accepts POST /auth/login
-
-**Validate** `npm test -- auth.login.test.ts`
-```
-
-### Action rules
-
-**Do:**
-
-- Describe observable state in checkpoints
-- Use verifiable conditions
-- Keep checkpoints under ~12 words
-
-**Do not:**
-
-- Include implementation details
-- Reference specific libraries or code structure
-- Use subjective criteria
-
-## Relationships
-
-### Work item dependencies
-
-```markdown
-### AUTH-002: Registration
-
-- **Dependencies:** AUTH-001, CORE-001
-```
-
-### Module dependencies
-
-Declared in the Index module table or module interfaces:
-
-```markdown
-## Interfaces
-
-**Depends on:**
-
-- session — token management
-```
-
----
-
-**Next:** [File layout →](./file-layout.md)
+See the [file layout](file-layout.md) for where each document lives.

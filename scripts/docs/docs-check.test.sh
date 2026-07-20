@@ -28,6 +28,7 @@ tags_script="${script_dir}/check-tags.mjs"
 links_script="${script_dir}/check-links.mjs"
 public_script="${script_dir}/check-public-docs.mjs"
 public_command_script="${script_dir}/check-anvil-public-commands.mjs"
+aps_command_script="${script_dir}/check-aps-public-commands.mjs"
 index_script="${script_dir}/check-index-freshness.mjs"
 index_generator="${script_dir}/docs-index.mjs"
 
@@ -615,6 +616,113 @@ elif echo "${out}" | grep -qE "^\[links\] ERROR: docs/bad\.md:[0-9]+ — malform
   pass "check-links emits a labelled ERROR and exits non-zero on malformed percent escape"
 else
   fail "check-links did not emit a labelled malformed-link ERROR (status ${status}); got: $(echo "${out}" | head -3)"
+fi
+
+# Case 15 (DOCSYNC-029): the public-doc boundary applies the newcomer trust
+# contract to APS, including casing, internal references, and complete sidebar
+# discovery.
+echo "case 15: APS public docs enforce the newcomer trust contract"
+aps_public_root="${tmp_root}/aps-public-docs-fixture"
+mkdir -p "${aps_public_root}/docs/public/aps/guides" "${aps_public_root}/apps/docs-site/sidebars"
+cat >"${aps_public_root}/docs/public/aps/getting-started.md" <<'EOF'
+---
+id: getting-started
+title: Create your first APS plan
+description: Install APS and validate a first plan.
+---
+
+# Create your first APS plan
+
+Install APS, create a plan, and run `aps lint`.
+EOF
+cat >"${aps_public_root}/docs/public/aps/guides/agents.md" <<'EOF'
+---
+id: agents
+title: Work with an AI agent
+description: Give an AI agent a bounded APS work item.
+---
+
+# Work with an AI agent
+
+Start a ready item before asking an agent to implement it.
+EOF
+cat >"${aps_public_root}/apps/docs-site/sidebars/aps.ts" <<'EOF'
+export default {
+  apsSidebar: ['getting-started', { type: 'category', label: 'Guides', items: ['guides/agents'] }],
+};
+EOF
+set +e
+out="$(node "${public_script}" --root "${aps_public_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "^\[public-docs\] summary: 0 errors, [0-9]+ files checked$"; then
+  pass "complete lowercase APS fixture passes"
+else
+  fail "valid APS fixture should pass (status ${status}); got: ${out}"
+fi
+cat >"${aps_public_root}/docs/public/aps/guides/internal.md" <<'EOF'
+---
+id: internal
+title: APS internals
+description: Internal implementation notes.
+---
+
+# APS internals
+
+Read `/cli/src/main.rs` in the Anvil repository.
+EOF
+set +e
+out="$(node "${public_script}" --root "${aps_public_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "internal repository reference" \
+  && echo "${out}" | grep -q "product name must be lowercase" \
+  && echo "${out}" | grep -q "not present in the APS sidebar"; then
+  pass "APS internal leakage, casing, and hidden pages fail together"
+else
+  fail "APS public boundary missed one or more defects (status ${status}); got: ${out}"
+fi
+
+# Case 16 (DOCSYNC-029): fenced APS commands are checked against a pinned
+# upstream CLI contract rather than accepted as plausible prose.
+echo "case 16: APS command examples follow the pinned CLI contract"
+aps_command_root="${tmp_root}/aps-command-fixture"
+mkdir -p "${aps_command_root}/docs/public/aps"
+cat >"${aps_command_root}/docs/public/aps/commands.md" <<'EOF'
+```bash
+aps lint plans
+aps next --package core
+aps complete AUTH-003 --learning "Captured the retry rule"
+```
+EOF
+set +e
+out="$(node "${aps_command_script}" --root "${aps_command_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "^\[aps-public-commands\] 3/3 fenced APS commands match"; then
+  pass "valid APS commands pass"
+else
+  fail "valid APS commands should pass (status ${status}); got: ${out}"
+fi
+cat >"${aps_command_root}/docs/public/aps/commands.md" <<'EOF'
+```bash
+aps upgrade --apply
+aps update --global
+aps init --scope nested
+```
+EOF
+set +e
+out="$(node "${aps_command_script}" --root "${aps_command_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "unknown command 'upgrade'" \
+  && echo "${out}" | grep -q "update does not accept --global" \
+  && echo "${out}" | grep -q "init does not accept --scope"; then
+  pass "removed APS commands and flags fail together"
+else
+  fail "APS command boundary missed removed syntax (status ${status}); got: ${out}"
 fi
 
 if [[ "${failures}" -gt 0 ]]; then

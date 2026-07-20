@@ -105,6 +105,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 - DOCSYNC-028: Rebuild the anvil public docs around a first-time-user journey,
   public-only language, source-derived reference material, and enforceable
   trust boundaries
+- DOCSYNC-029: Rebuild the APS public docs around a first-time-user journey,
+  public-only language, and the current anvil-plan-spec command and scaffold
+  contracts
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -151,7 +154,8 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-025 | Done   | Anvil public docs refreshed for current daemon lifecycle, MCP targets, watch NDJSON lifecycle wording, and safer daemon reset guidance |
 | DOCSYNC-026 | Done   | Public tutorials and terminal tutorial policy-directory step now include macOS/Linux and Windows PowerShell/native-shell variants |
 | DOCSYNC-027 | Done   | README + `docs/public/anvil/**` + beta quickstart audited against `v0.9.0-beta`; obsolete runtime and roadmap guidance removed; 216 fenced command examples parse against the shipped Rust CLI; docs and site validation pass |
-| DOCSYNC-028 | In Progress | Structured new-user rebuild approved 2026-07-18; implementation plan: [`plans/execution/DOCSYNC-028.actions.md`](../execution/DOCSYNC-028.actions.md) |
+| DOCSYNC-028 | Merged 2026-07-20 via PR #3366 | Structured new-user rebuild delivered with one canonical journey, generated references, public-only validation, and complete navigation. |
+| DOCSYNC-029 | In Progress | APS equivalent of DOCSYNC-028: code-truth audit completed against anvil-plan-spec `origin/main` at `53e6278`; implementation plan: [`plans/execution/DOCSYNC-029.actions.md`](../execution/DOCSYNC-029.actions.md). |
 
 ## Approved New-User Rebuild
 
@@ -166,7 +170,7 @@ surface is extended instead of duplicated.
 
 ### DOCSYNC-028 delivery contract
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-20 via PR #3366
 - **Intent:** Give a first-time user one complete path to verified value without
   repository access or prior anvil knowledge.
 - **Expected Outcome:** Public docs use lowercase `anvil`, `eddacraft`, and
@@ -183,6 +187,51 @@ surface is extended instead of duplicated.
 - **Dependencies:** DOCSYNC-027 is Done. Coordinate host changes with DSITE-001
   and validation changes with DOCGOV's existing `docs:check` authority.
 - **Validation:** See `plans/execution/DOCSYNC-028.actions.md`.
+
+## Approved APS New-User Rebuild
+
+DOCSYNC-024 synchronised the public APS section to v0.4.0. A clean-room audit
+against anvil-plan-spec v0.6.0 on 2026-07-20 found that the public journey now
+misstates the native command surface, installer flow, Windows requirements,
+migration command, default scaffold, monorepo support, and generated project
+shape. It also introduces source-repository concepts before a new user reaches
+a first validated plan.
+
+DOCSYNC-029 applies the DOCSYNC-028 documentation model to APS. The public
+section will lead with one verified first-success path, separate tutorials and
+how-to guidance from concepts and reference, translate implementation truth
+into standalone user language, and validate examples against a versioned
+snapshot of the upstream CLI contract.
+
+### DOCSYNC-029 delivery contract
+
+- **Status:** In Progress
+- **Intent:** Give a first-time APS user one complete path from installation to
+  a lint-clean plan and an executable work item without repository access or
+  prior planning vocabulary.
+- **Expected Outcome:** Public APS docs use lowercase `anvil`, `eddacraft`, and
+  `kindling`; contain no internal plans, paths, decision IDs, or work-item
+  language; describe the v0.6.0 native CLI, installer, scaffold, orchestration,
+  and monorepo behaviour accurately; expose every public page through
+  intent-based navigation; and reject invalid fenced `aps` commands in the docs
+  validation pipeline.
+- **Scope:** `docs/public/aps/**`, the APS docs-site sidebar, the existing public
+  docs validation surface, and a source-pinned APS CLI contract snapshot.
+- **Non-scope:** anvil-plan-spec product behaviour, upstream repository docs,
+  APS parser or CLI implementation, Docusaurus visual redesign, and sibling
+  product documentation beyond lowercase naming.
+- **Dependencies:** DOCSYNC-024 is Done and DOCSYNC-028 is Merged. Coordinate
+  host changes with DSITE and validation changes with the existing DOCGOV
+  `docs:check` authority.
+- **Validation:** See `plans/execution/DOCSYNC-029.actions.md`.
+- **Results:** Rebuilt all 15 public APS pages and the sidebar around one
+  install-to-first-plan journey; corrected the native CLI, platform, migration,
+  scaffold, agent, and monorepo contracts against anvil-plan-spec v0.6.0 at
+  `53e6278`; added a source-pinned command manifest plus public-only,
+  navigation, and fenced-command validation; 68/68 documented `aps` commands
+  match the contract; the docs regression suite, docs checks, APS lint,
+  formatting, and Docusaurus production build pass. Council session
+  `council-21580e5f` converged with no findings.
 
 ### Reassigned items (out of DOCSYNC totals)
 

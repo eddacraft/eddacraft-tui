@@ -1,128 +1,99 @@
 ---
 id: workflow
-title: Workflow
-description: The APS planning lifecycle — Plan, Execute, Validate, Learn.
+title: Run the APS workflow
+description: Select, start, validate, and complete one bounded work item.
 sidebar_position: 4
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# APS Workflow
+# Run the APS workflow
 
-APS follows compound engineering: each unit of work should make future work
-easier. The workflow has four phases that loop back to planning:
+**For:** people or agents working from an existing APS plan
 
-```
-Plan → Execute → Validate → Learn → Plan again
-  ↑                                      │
-  └──────────────────────────────────────┘
-```
+**Time:** the duration of one work item
 
-| Phase        | What happens                | APS artefacts                       |
-| ------------ | --------------------------- | ----------------------------------- |
-| **Plan**     | Define scope and success    | Designs, Index, Modules, Work Items |
-| **Execute**  | Work against specs          | Action Plans, status updates        |
-| **Validate** | Check outcomes against spec | Review notes, checklist             |
-| **Learn**    | Document solutions          | Solution docs in `docs/solutions/`  |
+**Outcome:** one validated outcome recorded as complete, with the next ready
+item visible
 
-**The 80/20 principle:** Spend 80% of effort on planning and validation, 20% on
-execution.
+## Before you begin
 
-## Driving the loop with the CLI
+Run `aps lint` and resolve errors. The work item you intend to execute must be
+`Ready`, its module must be active, and its dependencies must be complete.
+
+## 1. Find ready work
 
 ```bash
-aps next                              # Plan → discover next ready work item
-# edit status to In Progress, implement, run validation
-# edit status to Complete: YYYY-MM-DD, capture learnings
-aps next                              # Loop
+aps next
 ```
 
-The native v0.4.0 binary resolves `next` and lints the plan. The bash
-fallback/vendored runtime also provides `aps start` and `aps complete`, which
-enforce the state machine (`Ready` → `In Progress` → `Complete`), check
-dependencies, generate context packages, and write status lines consistently.
+This command is read-only. It chooses the first ready item whose dependencies
+are satisfied. Use a module name to narrow the queue:
 
-## Work item status vocabulary
+```bash
+aps next auth
+```
 
-Canonical values: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`.
+## 2. Claim one item
 
-Accepted aliases (tools normalise internally; your files are not rewritten):
+```bash
+aps start AUTH-003
+```
 
-| Alias      | Canonical  | Notes                      |
-| ---------- | ---------- | -------------------------- |
-| `Proposed` | `Draft`    | Not yet actionable         |
-| `Done`     | `Complete` | Terminal / compacted items |
+On success APS:
 
-Terminal compaction may also use `Merged` or `Released/Shipped` in Anvil's
-release operating model. Lint treats those terminal labels as completed for
-field-completeness checks. Orchestration dependency checks (`aps start`) only
-accept `Complete` or `Done` on prerequisites — `Merged`/`Released/Shipped`
-remain terminal but do not satisfy dependencies.
+- changes the item from `Ready` to `In Progress`;
+- reports the file it changed;
+- suggests a branch name without creating it; and
+- writes `.aps/context/AUTH-003.md` with the focused planning context.
 
-## Starting a feature
+Commit the status change with the implementation so the plan and code travel
+together.
 
-1. **Assess scope** — Single module or multiple? Create an Index for
-   multi-module work.
-2. **Write a design (optional)** — For non-obvious architecture, capture the
-   "why this approach" in `plans/designs/`.
-3. **Create the Index** — Problem, success criteria, module table.
-4. **Draft modules** — Purpose and scope; leave Work Items empty while
-   exploring.
-5. **Get approval** — Share the Index; discuss scope and risks.
-6. **Move to Ready** — Change module status to Ready; add work items.
-7. **Execute** — Work through items; create action plans for complex ones.
+## 3. Implement only the authorised outcome
 
-## Mid-implementation
+Read the work item's intent, expected outcome, non-scope, dependencies, and
+validation. An action plan is optional; use one when the work needs several
+independently verifiable checkpoints.
 
-When you discover missing work:
+If you discover separate work, record a new draft item instead of silently
+expanding the active item.
 
-With the bash fallback/vendored runtime, use `aps start AUTH-000` and
-`aps complete AUTH-000 --learning "Migrations must run before schema-aware tests"`.
-With the native-only v0.4.0 binary, hand-edit the status and learning fields.
+## 4. Run the declared validation
 
-Capture blockers in `plans/issues.md` rather than inventing new status values.
-APS does not have a `Blocked` CLI transition — blocking is a planning question.
+Execute the exact command in the work item's `Validation` field. A passing
+unrelated test is not completion evidence.
 
-## Completion and archival
+## 5. Record completion
 
-1. **Validate** — Run each work item's validation command. The bash
-   fallback/vendored runtime's `aps audit <module>` does this mechanically.
-2. **Mark module complete** — Bump the metadata table to `Complete` once every
-   work item is Complete.
-3. **Update the Index** — Reflect module status.
-4. **Roll into completed archive** — Copy the work-item table into
-   `plans/completed.aps.md`, grouped by release.
-5. **Write a release narrative** — For multi-module releases, use
-   `plans/releases/v<version>.md`.
+```bash
+aps complete AUTH-003 --learning "Retry behaviour belongs at the client boundary"
+```
 
-## Review specs in PRs
+APS requires the item to be `In Progress`, stamps the completion date, and
+records the optional learning beside the validation field. Downstream work can
+then receive that learning in its context package.
 
-A PR that implements a work item should carry:
+## 6. Continue the queue
 
-- The status change (`In Progress` → `Complete`, with date) — `aps complete`
-  does this
-- A `Results:` line for non-trivial items, and any learnings captured
-- New `Draft` items for work discovered along the way, or `ISS-NNN` entries in
-  `plans/issues.md`
-- A green `aps lint plans`
+```bash
+aps lint
+aps next
+```
 
-If the plan files did not change, ask whether the plan still matches reality —
-that is exactly the drift `aps audit` exists to catch in the bash
-fallback/vendored runtime.
+The loop is deliberately small:
 
-## Learn phase
+```text
+lint → next → start → implement → validate → complete → lint
+```
 
-After solving non-trivial problems, document solutions in `docs/solutions/`
-organised by category. Inline learnings from `aps complete --learning "..."` are
-a good seed for a solution doc.
+## When the loop stops
 
----
+- **No ready item:** a dependency, decision, or module status still blocks the
+  queue.
+- **Start is rejected:** read the named state or dependency and repair the plan;
+  do not force the transition.
+- **Validation fails:** leave the item in progress and fix the result.
+- **The outcome changed:** return the item to planning through a deliberate edit
+  and review.
 
-**Next:** [Terminology →](./terminology.md)
+Use [validation and audit](spec/determinism.md) for CI and plan-versus-project
+checks.

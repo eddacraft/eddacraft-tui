@@ -1,236 +1,126 @@
 ---
 id: validation
-title: CLI Reference
-description: The aps CLI — authoring, orchestration, audit, and CI integration.
+title: CLI command reference
+description: Look up the public commands in the APS 0.6 native CLI.
 sidebar_position: 1
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# CLI Reference
+# CLI command reference
 
-The `aps` CLI has two implementations in v0.4.0:
-
-- **Native binary** — scaffold projects, add integrations, lint specs, resolve
-  the next work item, and diagnose installs (`init`, `setup`, `lint`, `next`,
-  `doctor`)
-- **Bash fallback/vendored runtime** — also carries legacy/update and
-  orchestration helpers (`update`, `migrate`, `start`, `complete`, `graph`,
-  `audit`, `upgrade`)
-
-You can ignore orchestration and edit markdown by hand — the CLI is additive.
+This reference describes the native APS 0.6 command surface audited from the
+released CLI definitions. Run `aps <command> --help` for the flags supported by
+your installed version.
 
 ## Command index
 
-```bash
-aps init [dir]              # Create APS structure
-aps lint [file|dir]         # Validate APS documents
-aps next [module]           # Show next ready work item
-aps doctor                  # Diagnose global binary vs vendored CLI
-aps setup [component]       # Add integrations (hooks, agents, tools)
+| Command        | Purpose                                                                 | Changes project files?                         |
+| -------------- | ----------------------------------------------------------------------- | ---------------------------------------------- |
+| `aps init`     | Create an APS project through the wizard, flags, or saved configuration | Yes                                            |
+| `aps setup`    | Add optional hooks, agent support, or tool integrations                 | Usually                                        |
+| `aps update`   | Reconcile APS-managed templates and installed skills                    | Yes                                            |
+| `aps migrate`  | Preview or apply migration from an older vendored runtime               | Only with `--apply`                            |
+| `aps lint`     | Validate APS documents                                                  | No                                             |
+| `aps next`     | Select ready work whose dependencies are complete                       | No                                             |
+| `aps start`    | Mark one ready item in progress and write its context package           | Yes                                            |
+| `aps complete` | Mark one in-progress item complete and optionally record a learning     | Yes                                            |
+| `aps graph`    | Print work items and dependency arrows                                  | No                                             |
+| `aps rollup`   | Print a current monorepo roll-up table                                  | No                                             |
+| `aps audit`    | Compare plan state with project state                                   | No plan edits; may execute validation commands |
+| `aps export`   | Emit an `aps-export/v1` JSON snapshot                                   | No                                             |
+| `aps doctor`   | Diagnose the installed binary, project pin, and old runtime files       | No                                             |
 
-# Bash fallback/vendored runtime only in v0.4.0:
-aps update [dir]            # Refresh templates and tool files
-aps migrate [dir]           # Convert v1 layout to v2 (.aps/)
-aps start <ID>              # Mark Ready → In Progress
-aps complete <ID>           # Mark In Progress → Complete
-aps graph [module]          # Dependency graph
-aps audit [module]          # Audit plan state against reality
-aps upgrade [--apply]       # Remove generated bloat
-aps --help                  # Top-level help
+## Global options
+
+```bash
+aps --version
+aps --help
+aps --strict lint
 ```
 
-Project-scoped orchestration commands in the bash fallback accept
-`--plans <dir>` when plans are not at the default `plans/` location. `aps lint`
-takes the plan path as its argument, for example `aps lint packages/foo/plans/`.
+`--strict` turns a project CLI-version mismatch into a non-zero exit for
+project-scoped commands.
 
-## Project config discovery
-
-Project-scoped commands resolve their plan root automatically. `aps` walks up
-from the current directory for the nearest `.aps/config.yml` and uses its
-`plans_dir`.
-
-Resolution order: explicit target/`--plans` where supported → `APS_PLANS` env
-var → discovered `plans_dir` → `plans/`.
-
-Add `--strict` (or `APS_STRICT=1`) to fail on toolchain version drift:
+## Initialisation and maintenance
 
 ```bash
-aps lint --strict
+aps init
+aps init --non-interactive --profile team --shape monorepo
+aps setup codex
+aps update
+aps doctor
+aps migrate --dry-run
+aps migrate --apply
 ```
 
-## `aps lint`
+`aps init --from <config.yml>` replays a previous initialisation selection. Use
+`aps init --help` for selectable tools, templates, paths, components, hook
+verbosity, and model preferences.
+
+## Authoring
 
 ```bash
-aps lint                          # Lint plans/
+aps lint
 aps lint plans/modules/auth.aps.md
-aps lint . --json                 # Machine-readable output
+aps lint plans --json
 ```
 
-See [Validation rules →](../spec/determinism.md) for error and warning codes.
+An explicit lint target wins over project discovery. Without one, APS finds the
+nearest `.aps/config.yml` and reads its `plans_dir`.
 
 ## Orchestration
 
-The orchestration commands read and rewrite `.aps.md` files in place. Markdown
-stays the single source of truth. In v0.4.0 these commands are available in the
-bash fallback/vendored runtime; native-only installs should hand-edit equivalent
-status changes.
-
-### State machine
-
-```text
-Draft ──→ Ready ──→ In Progress ──→ Complete
-```
-
-| Command        | Transition                                          |
-| -------------- | --------------------------------------------------- |
-| `aps next`     | Read-only                                           |
-| `aps start`    | Ready → In Progress (dependencies must be Complete) |
-| `aps complete` | In Progress → Complete                              |
-| `aps graph`    | Read-only                                           |
-| `aps audit`    | Read-only (executes Validation commands by default) |
-
-### `aps next`
-
-```bash
-$ aps next
-AUTH-003: Implement token refresh
-Module: AUTH | Dependencies: AUTH-001, AUTH-002 | Status: Ready
-File: plans/modules/auth.aps.md
-
-$ aps next auth          # Scope to one module
-```
-
-### `aps start <ID>` _(bash fallback/vendored runtime)_
-
-```bash
-$ aps start AUTH-003
-Marked AUTH-003 as In Progress
-Suggested branch: work/auth-003
-Context package: .aps/context/AUTH-003.md
-```
-
-On success:
-
-- Rewrites `- **Status:**` to `In Progress`
-- Suggests a branch name (`work/<id>`)
-- Writes a context package at `.aps/context/<ID>.md`
-
-### `aps complete <ID>` _(bash fallback/vendored runtime)_
-
-```bash
-$ aps complete AUTH-003 --learning "Token refresh needs retry on network errors"
-Marked AUTH-003 as Complete: 2026-05-12
-Learning recorded for AUTH-003
-```
-
-### `aps graph [module]` _(bash fallback/vendored runtime)_
-
-```bash
-$ aps graph auth
-AUTH-001 [Complete] Create users
-  <- none
-AUTH-002 [Complete] Verify credentials
-  <- AUTH-001[Complete]
-AUTH-003 [Ready] Add token refresh
-  <- AUTH-001[Complete] AUTH-002[Complete]
-```
-
-### `aps audit [module]` _(bash fallback/vendored runtime)_
-
-```bash
-$ aps audit
-Complete-item verification:
-  AUTH-001     PASS     npm test -- auth.test.ts
-  AUTH-002     FAIL     npm test -- session.test.ts
-
-Findings:
-  A001  AUTH-002     overstated: Validation failed
-  A003  UI-002       stale: module last reviewed 89 days ago
-
-Findings: 2 (23 items audited)
-```
-
-Options: `--json`, `--no-run` (skip executing validation commands),
-`--stale-days N`.
-
-> **CI safety:** Use `aps audit --no-run` in pull-request jobs.
-
-### `aps doctor`
-
-Read-only diagnostics for global binary vs vendored CLI state:
-
-```bash
-$ aps doctor
-  [ok  ] global binary: aps 0.4.0 at ~/.aps/bin/aps
-  [warn] cli_version: project pins 0.3.0 but this binary is 0.4.0
-  [warn] vendored CLI: leftover bin/aps, lib/ — run `aps upgrade`
-```
-
-## End-to-end loop
-
-This full loop uses the bash fallback/vendored orchestration helpers. With a
-native-only v0.4.0 install, use `aps next`, then edit the status fields in
-markdown manually.
-
 ```bash
 aps next
+aps next auth
 aps start AUTH-003
-git switch -c work/auth-003
-# ...implement, test, commit...
-aps complete AUTH-003 --learning "..."
-aps next
+aps complete AUTH-003 --learning "A durable observation"
+aps graph auth
 ```
 
-## MCP server
+`next`, `start`, `complete`, and `graph` accept `--plans <dir>`. Federated plans
+also accept `--child <name>`; start and complete accept a qualified ID such as
+`catalog:PROD-001`.
 
-An optional MCP server in
-[anvil-plan-spec `mcp/`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/mcp)
-exposes orchestration commands as a single `aps` tool over stdio.
+## Monorepo views
 
-```json
-{
-  "mcpServers": {
-    "aps": {
-      "command": "node",
-      "args": ["/path/to/anvil-plan-spec/mcp/src/index.ts"],
-      "env": { "APS_PLANS": "/path/to/your/project/plans" }
-    }
-  }
-}
+```bash
+aps next --package core
+aps next --by-package
+aps rollup --by-package
+aps rollup --plans packages
 ```
 
-## CI integration
+Package filters use a work item's `Packages` field, falling back to its module
+metadata. Federated roll-up reads child plans linked from the root.
 
-```yaml
-name: Lint APS Documents
+## Audit
 
-on:
-  push:
-    paths: ['plans/**/*.aps.md', 'plans/**/*.actions.md']
-  pull_request:
-    paths: ['plans/**/*.aps.md', 'plans/**/*.actions.md']
-
-jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install APS CLI
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install \
-            | bash -s -- --global
-      - name: Lint APS documents
-        run: aps lint plans/ --strict
+```bash
+aps audit --no-run
+aps audit auth --json --no-run
+aps audit --stale-days 30 --no-run
 ```
 
----
+Omitting `--no-run` executes validation commands stored in completed work items.
+Only do that for trusted plan content.
 
-**Back to:** [APS Overview →](../overview.md)
+## Export
+
+```bash
+aps export --json
+aps export --plans packages
+```
+
+JSON is the only export format; `--json` is accepted to make the intent
+explicit.
+
+## Plan-root resolution
+
+For commands that operate on a plan tree, the order is:
+
+1. an explicit target or `--plans` value;
+2. the `APS_PLANS` environment variable;
+3. `plans_dir` from the nearest `.aps/config.yml`; then
+4. `plans/`.
+
+See [run the APS workflow](../workflow.md) for the end-to-end sequence.

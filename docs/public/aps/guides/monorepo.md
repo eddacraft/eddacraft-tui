@@ -1,135 +1,108 @@
 ---
 id: monorepo
-title: Monorepo
-description: Using APS in monorepos with multiple packages and applications.
-sidebar_position: 1
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
+title: Plan a monorepo
+description: Choose between one tagged plan and independently owned child plans.
+sidebar_position: 2
 ---
 
-# APS in Monorepos
+# Plan a monorepo
 
-This guide explains how to use APS effectively in monorepos with multiple
-packages and applications.
+APS supports two monorepo shapes. Start with the lighter one and adopt
+federation only when ownership demands it.
 
-## The problem
+## Choose a tier
 
-Standard APS assumes a single `plans/` directory for one project. In a monorepo:
+| Signal                                       | Tagged plan              | Federated child plans            |
+| -------------------------------------------- | ------------------------ | -------------------------------- |
+| Packages share one backlog                   | Best fit                 | Unnecessary overhead             |
+| Work commonly spans packages                 | Best fit                 | Useful only with separate owners |
+| Packages have independent owners or releases | Can become crowded       | Best fit                         |
+| A package may move to another repository     | Plan must be split later | Child plan moves with it         |
 
-```text
-monorepo/
-├── apps/
-│   ├── api/
-│   ├── web/
-│   └── cli/
-├── packages/
-│   ├── core/
-│   └── shared/
-└── plans/
-```
+## Tier 1: one tagged plan
 
-You will hit these pain points:
-
-1. **Scope ambiguity** — Does AUTH-001 affect `api`, `web`, both, or `core`?
-2. **Navigation difficulty** — Hard to find which module owns a work item
-3. **Cross-cutting concerns** — Work spans multiple packages
-4. **Prioritisation gaps** — No clear "what's next" view across the monorepo
-
-## The solution
-
-Keep a single `plans/` at the monorepo root. Add:
-
-- **Explicit package tags** on modules and work items
-- **"What's Next" view** in the index for a prioritised work queue
-- **"By Package" view** in the index for navigation
-- **Session rituals** to keep docs in sync
-
-Use the
-[`index-monorepo.template.md`](https://github.com/EddaCraft/anvil-plan-spec/blob/main/templates/index-monorepo.template.md)
-template.
-
-## Index structure
-
-### What's Next section
-
-```markdown
-## What's Next
-
-| #   | Work Item | Module | Packages    | Owner | Status |
-| --- | --------- | ------ | ----------- | ----- | ------ |
-| 1   | AUTH-002  | auth   | core, api   | @josh | Ready  |
-| 2   | CLI-001   | cli    | cli, shared | @josh | Ready  |
-```
-
-### Modules by package section
-
-```markdown
-## Modules by Package
-
-### apps/api
-
-- [auth](./modules/01-auth.aps.md) — AUTH-002 ready
-
-### packages/core
-
-- [auth](./modules/01-auth.aps.md) — AUTH-002 ready
-- [data](./modules/04-data.aps.md) — no ready items
-```
-
-## Module package tags
+Keep one `plans/` directory at the repository root. Add a `Packages` column to
+module metadata:
 
 ```markdown
 | ID   | Owner | Priority | Status | Packages  |
 | ---- | ----- | -------- | ------ | --------- |
-| AUTH | @josh | high     | Ready  | core, api |
+| AUTH | @team | high     | Ready  | core, api |
 ```
 
-Work items can override the module default:
+A work item can narrow that default:
 
 ```markdown
-### AUTH-002: API login endpoint
+### AUTH-002: Add the API login endpoint
 
+- **Status:** Ready
 - **Packages:** api
-- **Intent:** POST /auth/login returns JWT
+- **Intent:** Expose login through the API.
+- **Expected Outcome:** Valid credentials create a session.
+- **Validation:** `pnpm test --filter api`
 ```
 
-## Custom plans directory
-
-Monorepos with per-package plans can set `plans_dir` in `.aps/config.yml`:
-
-```yaml
-cli_version: 0.4.0
-plans_dir: packages/foo/plans/
-```
-
-Or pass the plan root explicitly to commands that accept a target:
+Use package-aware queue and roll-up views:
 
 ```bash
-aps lint packages/foo/plans/
-APS_PLANS=packages/foo/plans/ aps next
+aps next --package api
+aps next --by-package
+aps rollup --by-package
 ```
 
-## Session rituals
+`W022` warns when a package tag does not resolve under the repository's package
+or application directories.
 
-At the start of each session:
+## Tier 2: federated child plans
 
-1. Run `aps next` to find the highest-priority ready item
-2. Check the "What's Next" table in the index
-3. Review any open issues in `plans/issues.md`
+Use child plans when packages own separate backlogs and lifecycles:
 
-At the end of each session:
+```text
+monorepo/
+├── plans/index.aps.md
+└── packages/
+    ├── catalog/plans/index.aps.md
+    └── storefront/plans/index.aps.md
+```
 
-1. Update work item statuses
-2. Log discoveries in `plans/issues.md`
-3. Run `aps lint plans/` before committing
+The root index links children in a `Child Plans` section and holds a roll-up.
+Each child remains a complete plan that can lint and execute independently.
 
----
+Create a federated starting shape with:
 
-**Next:** [AI Agents →](./ai-agents.md)
+```bash
+aps init --non-interactive --shape monorepo --templates index-nested
+```
+
+Within one child, IDs stay short, such as `PROD-001`. Across children, qualify
+the dependency with the child name, such as `catalog:PROD-001`.
+
+```bash
+aps lint plans
+aps next --plans plans
+aps next --child catalog --plans plans
+aps start catalog:PROD-001 --plans plans
+aps graph --plans plans
+aps rollup --plans plans
+```
+
+The CLI rejects an ambiguous bare ID instead of changing the wrong child file.
+
+## Keep generated views current
+
+`aps rollup` prints Markdown derived from current module state. Paste the result
+into the root roll-up or package view when plan state changes. The index stays
+reviewable Markdown while the command supplies current rows.
+
+## Migration path
+
+Move one package at a time:
+
+1. Create a standalone child plan beside the package.
+2. Move that package's modules into the child.
+3. Qualify dependencies that now cross child boundaries.
+4. Link the child from the root and remove its old root module rows.
+5. Run `aps lint` from the federation root and from the child.
+
+Do not federate every package merely for symmetry. Mixed adoption is valid while
+some packages still share the root backlog.

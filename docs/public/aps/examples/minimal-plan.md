@@ -1,113 +1,82 @@
 ---
 id: minimal-plan
-title: Minimal Plan
-description: The simplest possible APS plan.
+title: 'Example: one small module'
+description: A complete small APS plan with one executable work item.
 sidebar_position: 1
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# Minimal Plan
+# Example: one small module
 
-This example shows the smallest useful APS plan.
+This example is the smallest practical orchestration shape: one index and one
+module. It is intentionally more complete than an illustrative one-file sketch.
 
-## Single-file plan
-
-For small projects, one file is enough:
+## `plans/index.aps.md`
 
 ```markdown
-# Todo App
+# Status endpoint
 
-A simple todo list application.
+## Overview
 
-## Problem
+Add one machine-readable service status endpoint.
 
-Users need to track tasks.
+## Problem & Success Criteria
 
-## Success Criteria
+**Problem:** Operators cannot distinguish a running service from a healthy one.
 
-- [ ] Users can add todos
-- [ ] Users can list todos
+**Success Criteria:**
+
+- [ ] `GET /status` returns HTTP 200 and a stable JSON body.
+
+## Modules
+
+| Module                            | ID     | Status | Dependencies |
+| --------------------------------- | ------ | ------ | ------------ |
+| [status](./modules/status.aps.md) | STATUS | Ready  | —            |
+```
+
+## `plans/modules/status.aps.md`
+
+```markdown
+# Status endpoint
+
+| ID     | Owner | Priority | Status |
+| ------ | ----- | -------- | ------ |
+| STATUS | @team | medium   | Ready  |
+
+## Purpose
+
+Expose the service's current health in a stable machine-readable form.
+
+## In Scope
+
+- One unauthenticated status endpoint.
+- A response-contract test.
+
+## Out of Scope
+
+- Metrics and tracing.
+
+**Last reviewed:** 2026-07-20
 
 ## Work Items
 
-### TODO-001: Initial setup
+### STATUS-001: Add the status endpoint
 
-- **Intent:** Project structure created with working build
-- **Expected Outcome:** `npm run build` exits 0
-- **Validation:** `npm run build`
-
-### TODO-002: Add todo endpoint
-
-- **Intent:** POST /todos creates a new todo item
-- **Expected Outcome:** Endpoint returns 201 with created todo
-- **Validation:** `npm test -- todos.create.test.ts`
-
-### TODO-003: List todos endpoint
-
-- **Intent:** GET /todos returns all todos for user
-- **Expected Outcome:** Endpoint returns paginated list filtered by user
-- **Validation:** `npm test -- todos.list.test.ts`
+- **Status:** Ready
+- **Intent:** Give operators a deterministic health probe.
+- **Expected Outcome:** `GET /status` returns HTTP 200 with `{"status":"ok"}`.
+- **Validation:** `npm test -- status`
 ```
 
-## Why this works
+## Try the example
 
-Even this minimal plan provides:
+Use a current review date and a validation command that exists in your project,
+then run:
 
-### Clear outcomes
-
-Each work item has a single, measurable outcome. You know when it is done.
-
-### Validation commands
-
-Tests prove completion. No ambiguity.
-
-### Observable checkpoints
-
-When you need more granularity, add an action plan — but simple items do not
-require one.
-
-## When to grow
-
-Upgrade to multi-file when:
-
-- More than 5–7 work items
-- Multiple distinct features or modules
-- Multiple people working concurrently
-
-See [Multi-module example →](./multi-module.md)
-
-## Template
-
-Copy this template for new projects:
-
-```markdown
-# {Project Name}
-
-## Problem
-
-{Brief problem statement}
-
-## Success Criteria
-
-- [ ] {Observable outcome}
-
-## Work Items
-
-### {PREFIX}-001: {Title}
-
-- **Intent:** {What success looks like}
-- **Expected Outcome:** {Testable result}
-- **Validation:** `{command}`
+```bash
+aps lint
+aps next
 ```
 
----
-
-**Next:** [Multi-module example →](./multi-module.md)
+`aps next` selects `STATUS-001`. Continue with the
+[execution workflow](../workflow.md).

@@ -1,0 +1,39 @@
+{
+  "schema": "aps-public-cli-contract/v1",
+  "source": {
+    "repository": "eddacraft/anvil-plan-spec",
+    "commit": "53e6278df0fc65e78cd9f11b96ea2f768085af8e",
+    "version": "0.6.0"
+  },
+  "globalOptions": ["--strict", "--help", "-h", "--version", "-V"],
+  "commands": {
+    "init": [
+      "--non-interactive",
+      "--from",
+      "--profile",
+      "--shape",
+      "--tools",
+      "--templates",
+      "--custom-template",
+      "--plans-dir",
+      "--docs-dir",
+      "--tooling-root",
+      "--components",
+      "--hooks",
+      "--model",
+      "--no-agents"
+    ],
+    "setup": ["--yes", "-y"],
+    "update": [],
+    "migrate": ["--apply", "--dry-run", "--yes", "-y"],
+    "lint": ["--json"],
+    "next": ["--plans", "--child", "--package", "--by-package"],
+    "start": ["--plans", "--child"],
+    "complete": ["--learning", "--plans", "--child"],
+    "graph": ["--plans", "--child"],
+    "rollup": ["--plans", "--by-package"],
+    "audit": ["--json", "--no-run", "--stale-days", "--plans", "--child"],
+    "export": ["--plans", "--json"],
+    "doctor": []
+  }
+}

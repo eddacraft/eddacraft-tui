@@ -1,153 +1,123 @@
 ---
 id: installation
-title: Installation
+title: Install, update, or migrate APS
 description:
-  Install the APS CLI, scaffold a project, and configure release channels.
+  Choose an APS installation path and maintain an existing project safely.
 sidebar_position: 3
-docgov:
-  type: 'Public docs'
-  authority: 'Derived'
-  owner: 'DOCSYNC'
-  status: 'Live'
-  freshness: 'Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0'
-  upstream:
-    '[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**`'
-  downstream: 'APS docs-site section'
 ---
 
-# Installation
+# Install, update, or migrate APS
 
-## Quick install (Linux/macOS)
+Use the [first-plan tutorial](getting-started.md) for the canonical first
+installation. This page covers alternatives and maintenance.
+
+## Supported platforms
+
+The native `aps` binary provides the complete command surface on macOS, Linux,
+and Windows. Windows users do not need WSL or Git Bash. The legacy shell runtime
+is only a fallback when a release binary is unavailable.
+
+## Install only the CLI
+
+Use `--cli` when you want the command on the machine without creating project
+files:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install | bash
+curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil-plan-spec/main/scaffold/install | bash -s -- --cli
 ```
 
-In an interactive terminal this shows a **mode picker**:
+On Windows PowerShell, append `--cli` to the scriptblock command shown in the
+quickstart.
 
-1. **Install the APS CLI** on this machine
-2. **Initialize APS planning** in this repository
-3. **Initialize this repository for an AI agent**
-4. **Upgrade** an existing APS project
-5. **Add a tool integration**
+## Install with a package tool
 
-Pick non-interactively with a flag (required in CI):
+Build from source with Cargo:
 
 ```bash
-curl -fsSL .../scaffold/install | bash -s -- --cli       # CLI only
-curl -fsSL .../scaffold/install | bash -s -- --init      # scaffold this repo
-curl -fsSL .../scaffold/install | bash -s -- --agent     # minimal agent bootstrap
-curl -fsSL .../scaffold/install | bash -s -- --upgrade   # upgrade in place
-curl -fsSL .../scaffold/install | bash -s -- --setup claude-code
-```
-
-`--init` is **minimal by default**: it writes `plans/` with rules, templates,
-`project-context.md`, `issues.md`, and `.aps/config.yml` — nothing else. The
-global `aps` binary on your PATH drives the repo.
-
-## Global install
-
-```bash
-# Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install | bash -s -- --global
-
-# Windows (PowerShell)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install.ps1))) --global
-```
-
-This is **binary-first**: `--cli` installs the prebuilt native `aps` binary to
-`~/.aps/bin` and adds it to your shell PATH. It falls back to the
-bash/PowerShell CLI only when no release binary exists for your platform.
-
-To update:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/update | bash -s -- --global
-# Or: aps update --global
-```
-
-## Release channels
-
-The native `aps` binary is built for five targets (Linux x86_64/aarch64, macOS
-x86_64/aarch64, Windows x86_64) and published to GitHub releases.
-
-```bash
-# Pin an exact release
-VERSION=0.4.0 curl -fsSL .../scaffold/install | bash -s -- --cli
-
-# cargo-binstall — prebuilt binary from GitHub releases
-cargo binstall aps-cli
-
-# cargo install — build from source
 cargo install aps-cli
 ```
 
-On Windows, install via the script or **Scoop**:
+Install the prebuilt release with cargo-binstall:
+
+```bash
+cargo binstall aps-cli
+```
+
+On Windows, Scoop can install the published manifest:
 
 ```powershell
-scoop install https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/packaging/scoop/aps.json
+scoop install https://raw.githubusercontent.com/eddacraft/anvil-plan-spec/main/packaging/scoop/aps.json
 ```
 
-## Project config (`.aps/config.yml`)
+Use one ownership method for upgrades. Do not overlay a script installation with
+Cargo or Scoop unless you first remove the old binary from `PATH`.
 
-`aps init` writes the per-repo contract the global `aps` binary reads by walking
-up from the current directory:
+## Initialise without the wizard
 
-```yaml
-cli_version: 0.4.0 # toolchain semver, stamped from the running binary
-plans_dir: plans/ # where plan documents live
-docs_dir: docs/ # where generated docs live
-tooling_root: .aps/ # APS-owned tooling root
-```
-
-- **`cli_version`** pins the toolchain a project expects
-- **`plans_dir` / `docs_dir` / `tooling_root`** are runtime defaults — a
-  monorepo can set `plans_dir: packages/foo/plans/`
-- Unknown keys are ignored for forward compatibility
-
-## Add integrations (`aps setup`)
-
-After minimal `aps init`, add optional pieces:
+For automation or a terminal without interactive input:
 
 ```bash
-aps setup                 # interactive picker
-aps setup hooks           # hook scripts into .aps/scripts
-aps setup claude-code     # tool integration (skill + agents)
-aps setup all --yes       # full footprint
+aps init --non-interactive --profile solo --shape single
 ```
 
-Tool names: `claude-code`, `copilot`, `codex`, `opencode`, `gemini`, `generic`.
+Change `solo` to `team` or `agent-operator`, and `single` to `monorepo`, when
+those choices match the project. Run `aps init --help` for optional templates,
+paths, tools, hooks, and components.
 
-## Upgrade (remove generated bloat)
-
-Older installs scatter generated files across the repo. `aps upgrade` removes
-that bloat safely:
+## Add an optional integration
 
 ```bash
-aps upgrade            # dry run
-aps upgrade --apply    # back up to .aps/backup/<timestamp>/, then remove
+aps setup
 ```
 
-`upgrade` never deletes user content: `plans/**`, `AGENTS.md`, and settings
-files are protected.
+The picker explains available additions. A direct tool setup is also valid:
 
-## Platform support
+```bash
+aps setup codex
+```
 
-| Platform    | Authoring (`lint`/`init`)          | Orchestration (`next`/`start`/`complete`) |
-| ----------- | ---------------------------------- | ----------------------------------------- |
-| **Linux**   | Bash 4.0+                          | Bash 4.0+                                 |
-| **macOS**   | Bash 4.0+ via `brew install bash`  | Bash 4.0+ via Homebrew bash               |
-| **Windows** | PowerShell 5.1+ (native `aps.ps1`) | Bash 4.0+ via WSL or Git Bash             |
+Supported tool keys are shown by `aps setup --help` and during the picker.
 
-macOS ships Bash 3.2 (too old — APS needs associative arrays). Homebrew's bash
-is picked up automatically.
+## Update generated APS files
 
-## Next steps
+```bash
+aps update
+```
 
-1. Edit `plans/index.aps.md` to define your plan
-2. Copy templates to create modules (remove the leading dot from filenames)
-3. Point your AI agent at `plans/aps-rules.md`, or run `aps next`
+`aps update` reconciles APS-owned templates and installed skills. It does not
+rewrite your plan content.
 
----
+To update the global binary, repeat the installation method that owns it. The
+`aps update` command updates a project, not the machine-wide executable.
 
-**Next:** [Workflow →](./workflow.md)
+## Migrate an older project
+
+First inspect the project without changing it:
+
+```bash
+aps doctor
+aps migrate --dry-run
+```
+
+If the preview is correct, apply it:
+
+```bash
+aps migrate --apply
+```
+
+Migration backs up files before removing an old vendored runtime and adjusts
+known generated paths. Review the reported backup location before deleting any
+old files yourself.
+
+## Project configuration
+
+`.aps/config.yml` records the CLI version and project paths. Project-scoped
+commands find it by walking up from the current directory, so they work from a
+subdirectory without repeated path flags.
+
+Use `--strict` in continuous integration when a CLI-version mismatch must fail
+instead of warn:
+
+```bash
+aps --strict lint
+```

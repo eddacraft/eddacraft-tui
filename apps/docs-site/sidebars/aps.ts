@@ -2,40 +2,35 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   apsSidebar: [
-    'overview',
-    'getting-started',
-    'installation',
-    'workflow',
-    'terminology',
     {
       type: 'category',
-      label: 'Specification',
+      label: 'Start here',
       collapsed: false,
+      items: ['overview', 'getting-started', 'workflow', 'terminology'],
+    },
+    {
+      type: 'category',
+      label: 'How-to guides',
+      collapsed: false,
+      items: ['installation', 'guides/ai-agents', 'guides/monorepo'],
+    },
+    {
+      type: 'category',
+      label: 'Concepts',
+      collapsed: true,
       items: ['spec/taxonomy', 'spec/file-layout', 'spec/determinism'],
     },
     {
       type: 'category',
-      label: 'Schemas',
-      collapsed: true,
-      items: ['schemas/json-schema', 'schemas/examples'],
-    },
-    {
-      type: 'category',
       label: 'Examples',
-      collapsed: false,
-      items: ['examples/minimal-plan', 'examples/multi-module'],
+      collapsed: true,
+      items: ['examples/minimal-plan', 'examples/multi-module', 'schemas/examples'],
     },
     {
       type: 'category',
-      label: 'Guides',
+      label: 'Reference',
       collapsed: true,
-      items: ['guides/monorepo', 'guides/ai-agents'],
-    },
-    {
-      type: 'category',
-      label: 'Tooling',
-      collapsed: true,
-      items: ['tooling/validation'],
+      items: ['tooling/validation', 'schemas/json-schema'],
     },
   ],
 };
