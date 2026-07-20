@@ -692,6 +692,7 @@ mkdir -p "${aps_command_root}/docs/public/aps"
 cat >"${aps_command_root}/docs/public/aps/commands.md" <<'EOF'
 ```bash
 aps lint plans
+aps --strict lint plans
 aps next --package core
 aps complete AUTH-003 --learning "Captured the retry rule"
 ```
@@ -700,7 +701,7 @@ set +e
 out="$(node "${aps_command_script}" --root "${aps_command_root}" 2>&1)"
 status=$?
 set -e
-if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "^\[aps-public-commands\] 3/3 fenced APS commands match"; then
+if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "^\[aps-public-commands\] 4/4 fenced APS commands match"; then
   pass "valid APS commands pass"
 else
   fail "valid APS commands should pass (status ${status}); got: ${out}"
@@ -708,6 +709,7 @@ fi
 cat >"${aps_command_root}/docs/public/aps/commands.md" <<'EOF'
 ```bash
 aps upgrade --apply
+aps --strict archived
 aps update --global
 aps init --scope nested
 ```
@@ -718,6 +720,7 @@ status=$?
 set -e
 if [[ "${status}" -ne 0 ]] \
   && echo "${out}" | grep -q "unknown command 'upgrade'" \
+  && echo "${out}" | grep -q "unknown command 'archived'" \
   && echo "${out}" | grep -q "update does not accept --global" \
   && echo "${out}" | grep -q "init does not accept --scope"; then
   pass "removed APS commands and flags fail together"

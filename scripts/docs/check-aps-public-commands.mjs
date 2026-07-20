@@ -37,28 +37,28 @@ function validate(example) {
   }
   if (words.length === 1) return;
 
-  const first = words[1];
-  if (first.startsWith('-')) {
-    for (const token of words.slice(1).filter((word) => word.startsWith('-'))) {
-      const option = token.split('=', 1)[0];
-      if (!globalOptions.has(option)) {
-        failures.push({ ...example, reason: `aps does not accept ${option} without a command` });
-        return;
-      }
+  let commandIndex = 1;
+  while (commandIndex < words.length && words[commandIndex].startsWith('-')) {
+    const option = words[commandIndex].split('=', 1)[0];
+    if (!globalOptions.has(option)) {
+      failures.push({ ...example, reason: `aps does not accept ${option} before a command` });
+      return;
     }
-    return;
+    commandIndex += 1;
   }
+  if (commandIndex === words.length) return;
 
-  const commandOptions = contract.commands[first];
+  const command = words[commandIndex];
+  const commandOptions = contract.commands[command];
   if (!commandOptions) {
-    failures.push({ ...example, reason: `unknown command '${first}'` });
+    failures.push({ ...example, reason: `unknown command '${command}'` });
     return;
   }
   const allowed = new Set([...globalOptions, ...commandOptions]);
-  for (const token of words.slice(2).filter((word) => word.startsWith('-'))) {
+  for (const token of words.slice(commandIndex + 1).filter((word) => word.startsWith('-'))) {
     const option = token.split('=', 1)[0];
     if (!allowed.has(option)) {
-      failures.push({ ...example, reason: `${first} does not accept ${option}` });
+      failures.push({ ...example, reason: `${command} does not accept ${option}` });
       return;
     }
   }
