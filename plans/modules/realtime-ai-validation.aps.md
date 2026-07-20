@@ -15,11 +15,13 @@ See: plans/aps-rules.md
 | ---- | ----- | ----------- | -------- |
 | RTAI | —     | In Progress | 8/9      |
 
-**Last reviewed:** 2026-04-30
+**Last reviewed:** 2026-07-20 — RTAI-005 reconciled to ADR-109 and Planning
+Council `plan-33b005f5`: production LSP diagnostics only; graph-backed editor
+navigation is owned by [LSPNAV](./lsp-graph-navigation.aps.md).
 
 > **A1 launch slice:** RTAI-001 (Done), RTAI-002, RTAI-003, RTAI-006, RTAI-008.
-> RTAI-004 (TS `DriverClient` envelope) and RTAI-005 (VSCode editor-driver
-> mid-edit path) are deferred to the post-A1 editor-driver path. RTAI-007
+> RTAI-004 (TS `DriverClient` envelope) and RTAI-005 (generic LSP diagnostics
+> path) are deferred to the post-A1 editor-driver path. RTAI-007
 > (telemetry mirror) and RTAI-009 (architecture doc supersession) remain on
 > the H2 roadmap but are not part of the A1 cut.
 
@@ -385,6 +387,8 @@ convention" section). Concretely:
 
 ### RTAI-005: Editor mid-edit path (LSP server surface)
 
+- **Execution plan:** [RTAI-005 production diagnostics](../execution/RTAI-005.actions.md)
+
 - **Reframed 2026-06-02:** from "Editor-driver mid-edit path (VSCode +
   LSP shape)" to a **generic LSP server** surface. Rationale: an
   `anvil lsp` server is write-once leverage — VS Code, Neovim, Helix,
@@ -395,7 +399,8 @@ convention" section). Concretely:
   server is a thin frontend over the shipped `scan_buffer` RPC
   (RTAI-002). A VS Code extension, if wanted, becomes an optional thin
   wrapper for richer UX (status bar, code actions) — not the
-  foundation. Still parked under ADR-033.
+  foundation. Un-parked in principle by ADR-109; production scope remains
+  diagnostics-only.
 - **Intent:** Expose Anvil's mid-edit validation to any editor that
   speaks LSP by shipping a generic language-server surface (`anvil
   lsp`) that turns `textDocument/didChange` into a daemon `scan_buffer`
@@ -415,6 +420,16 @@ convention" section). Concretely:
   indicator) **without** suppressing save-time diagnostics. Editor
   wiring (a thin VS Code extension, Neovim `lspconfig`, etc.) consumes
   this one server.
+- **Strict scope boundary (2026-07-20):** RTAI-005 ships production diagnostics
+  only: LSP lifecycle, debounce/coalescing, URI and UTF-16 diagnostic ranges,
+  daemon-down degradation, Unix/Windows transport, and editor-agnostic E2E
+  evidence. It does **not** own symbol lookup, reference occurrences,
+  `textDocument/references`, impact analysis, affected-test discovery, or their
+  benchmarks. Those capabilities require the separate
+  [LSPNAV](./lsp-graph-navigation.aps.md) module and
+  [ADR-111](../decisions/111-graph-backed-lsp-references.md). PR #3360 must be
+  reduced to this boundary before RTAI-005 can be completed; unmerged
+  navigation wires have no compatibility promise.
 - **Blocks on:** RTAI-004 (mid-edit envelope + debouncer). The
   LSP-server reframing **decouples this item from a VS Code-specific
   editor driver** — it no longer hard-blocks on DRVR-002 / DRVR-003 (the
