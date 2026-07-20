@@ -46,9 +46,9 @@ use anvil_intercept_proto::protocol::{
     GctxGetSnippetRequest, GctxGetSnippetResponse, GctxGraphEdgesRequest, GctxGraphEdgesResponse,
     GctxGraphStatsRequest, GctxGraphStatsResponse, GctxImpactOfChangeRequest,
     GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
-    GctxSymbolAtRequest, GctxSymbolAtResponse, GctxSymbolContextRequest, GctxSymbolContextResponse,
-    RequestFullScanRequest, RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse,
-    WitnessAppendRequest, WitnessAppendResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
+    GctxSymbolContextRequest, GctxSymbolContextResponse, RequestFullScanRequest,
+    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WitnessAppendRequest,
+    WitnessAppendResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -158,25 +158,6 @@ pub trait GctxDispatch: Send {
         &mut self,
         request: &GctxFindCallersRequest,
     ) -> Result<GctxFindCallersResponse, SaveTimeError>;
-
-    /// Resolve the innermost resident symbol at a byte offset in a file
-    /// (daemon-side CE-5 projection). Backs `anvil lsp`'s
-    /// `textDocument/references` provider: it converts an LSP position to a
-    /// byte offset client-side, calls this to resolve the enclosing symbol,
-    /// then calls [`Self::find_callers`] with that identity. The
-    /// `workspace_root` is admitted against this connection's admitted-root
-    /// set (ADR-084 C3) before any read.
-    ///
-    /// Like [`Self::find_callers`], degradation rides in-band in the response
-    /// `outcome` (CE-7); the only `Err` returns are connection-level.
-    ///
-    /// # Errors
-    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
-    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
-    fn symbol_at(
-        &mut self,
-        request: &GctxSymbolAtRequest,
-    ) -> Result<GctxSymbolAtResponse, SaveTimeError>;
 
     /// Project an identity-only impact-of-change report (affected symbols +
     /// dependent-file closure + heuristic known tests) from the warm graph pair
@@ -2907,7 +2888,6 @@ pub const COMMAND_INVOKED_ALLOWLIST: &[&str] = &[
     anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS,
     anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_DEPENDENTS,
     anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
-    anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_AT,
     anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE,
     anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
     anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS,
@@ -3211,21 +3191,6 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     if method == anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS {
         return dispatch_span.in_scope(|| {
             handle_gctx_find_callers_jsonrpc(
-                params,
-                response_id,
-                traceparent,
-                is_notification,
-                save_time,
-            )
-        });
-    }
-
-    // GCTX position-to-symbol lookup (ADR-084): same read-only `GctxDispatch`
-    // surface — never the enforcement path. Backs `anvil lsp`'s
-    // `textDocument/references` position -> SymbolIdentity step.
-    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_AT {
-        return dispatch_span.in_scope(|| {
-            handle_gctx_symbol_at_jsonrpc(
                 params,
                 response_id,
                 traceparent,
@@ -3620,38 +3585,6 @@ fn handle_gctx_find_callers_jsonrpc(
     };
     match serde_json::from_value::<GctxFindCallersRequest>(params.clone()) {
         Ok(request) => save_time_result(dispatch.find_callers(&request), response_id, traceparent),
-        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
-    }
-}
-
-/// Route the GCTX `symbol_at` verb to the per-connection dispatcher. Mirrors
-/// [`handle_gctx_find_callers_jsonrpc`].
-fn handle_gctx_symbol_at_jsonrpc(
-    params: &Value,
-    response_id: Option<Value>,
-    traceparent: Option<&str>,
-    is_notification: bool,
-    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
-) -> Option<Value> {
-    if is_notification {
-        tracing::warn!(
-            target: "anvil_intercept::gctx",
-            "ignoring gctx verb sent as a notification: request id required",
-        );
-        return None;
-    }
-    let Some(dispatch) = save_time else {
-        return jsonrpc_request_error(
-            response_id,
-            traceparent,
-            false,
-            -32601,
-            "Method not found",
-            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
-        );
-    };
-    match serde_json::from_value::<GctxSymbolAtRequest>(params.clone()) {
-        Ok(request) => save_time_result(dispatch.symbol_at(&request), response_id, traceparent),
         Err(err) => save_time_invalid_params(response_id, traceparent, &err),
     }
 }
@@ -5926,14 +5859,13 @@ mod tests {
                  deliberate USAGE-004 decision"
             );
         }
-        // Count pin: 10 GCTX query methods are allowlisted (search/dependents/
-        // callers/symbol_at/impact/affected-tests + GCTX-030
-        // graph_stats/graph_edges + GCTX-021 get_snippet + GCTX-023
-        // symbol_context); the rest are excluded. Moving either set must move
-        // this.
+        // Count pin: 9 GCTX query methods are allowlisted (search/dependents/
+        // callers/impact/affected-tests + GCTX-030 graph_stats/graph_edges +
+        // GCTX-021 get_snippet + GCTX-023 symbol_context); the rest are
+        // excluded. Moving either set must move this.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            EXCLUDED.len() + 10,
+            EXCLUDED.len() + 9,
             "ALL_ANVIL_METHODS changed — reclassify the new method for USAGE-004"
         );
     }
@@ -7841,84 +7773,6 @@ mod tests {
                 "method": anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
                 "id": "gctx-callers-2",
                 "params": {"workspace_root": "/tmp/x", "query": {"target": {"file": "src/a.ts", "kind": "Function", "name": "handle", "ordinal": 0}}},
-            }),
-            &dispatcher,
-            &scan_buffer,
-            &status,
-            None,
-            None,
-            None,
-        )
-        .await
-        .expect("response");
-
-        assert_eq!(response["error"]["code"], -32601);
-    }
-
-    /// ADR-084: an `anvil/gctx/symbol_at` frame routes to the dedicated GCTX
-    /// arm and is answered with a sealed, assurance-bearing result. Mirrors
-    /// `dispatch_arm_routes_gctx_find_callers`. A cold worktree degrades
-    /// in-band to `not_ready` (a success envelope).
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn dispatch_arm_routes_gctx_symbol_at() {
-        use crate::confinement::Confinement;
-        use crate::save_time::{SaveTimeConn, SaveTimeState};
-        use crate::workspace_pool::WorkScheduler;
-        use anvil_checks::antipattern::types::AntipatternCheckConfig;
-
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let state = SaveTimeState::new(
-            WorkScheduler::new().expect("scheduler"),
-            AntipatternCheckConfig::default(),
-            Confinement::open_default(),
-        );
-        let mut conn = SaveTimeConn::new(&state);
-        let dispatcher = Arc::new(NoopDispatcher);
-        let scan_buffer = ScanBufferService::default();
-        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
-
-        let response = handle_jsonrpc_value(
-            json!({
-                "jsonrpc": "2.0",
-                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_AT,
-                "id": "gctx-symbol-at-1",
-                "params": {"workspace_root": tmp.path().to_string_lossy(), "query": {"file": "src/a.ts", "byte_offset": 10}},
-            }),
-            &dispatcher,
-            &scan_buffer,
-            &status,
-            None,
-            None,
-            Some(&mut conn as &mut dyn SaveTimeDispatch),
-        )
-        .await
-        .expect("a gctx symbol_at request returns a response");
-
-        assert_eq!(response["id"], "gctx-symbol-at-1");
-        assert!(
-            response.get("error").is_none(),
-            "gctx symbol_at must route to the gctx arm, not error: {response}",
-        );
-        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
-        assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
-    }
-
-    /// Without save-time state wired, the GCTX `symbol_at` verb replies
-    /// `Method not found` (which the MCP consumer maps to `unavailable`).
-    /// Mirrors `gctx_find_callers_method_not_found_without_save_time_state`.
-    #[tokio::test]
-    async fn gctx_symbol_at_method_not_found_without_save_time_state() {
-        let dispatcher = Arc::new(NoopDispatcher);
-        let scan_buffer = ScanBufferService::default();
-        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
-
-        let response = handle_jsonrpc_value(
-            json!({
-                "jsonrpc": "2.0",
-                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_AT,
-                "id": "gctx-symbol-at-2",
-                "params": {"workspace_root": "/tmp/x", "query": {"file": "src/a.ts", "byte_offset": 10}},
             }),
             &dispatcher,
             &scan_buffer,

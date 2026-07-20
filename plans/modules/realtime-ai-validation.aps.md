@@ -500,42 +500,9 @@ convention" section). Concretely:
   full LSP suite at MCP tool-call parity (find-usages, impact-of-change,
   affected-tests), budget ~15-20% lower payload/token cost, not 2.6-2.8x**
   — see the report's Decision (c) before citing a bigger number.
-- **Full LSP suite build — branch `feat/rtai-005-lsp-suite`:** extends
-  the spike's diagnostics-only surface with real find-usages/
-  impact-of-change/affected-tests. Built at **full GCTX ceremony**, not
-  spike weight (operator direction: "Full parity" over a reduced or
-  omitted version) — a new daemon RPC `anvil/gctx/symbol_at`
-  (position -> symbol identity) matches `find_callers` exactly:
-  `WorkspaceAssurance`/CE-7, CE-11 egress kill-switch, CE-6 query
-  validation, ADR-084 admitted-root check, 5-variant outcome enum.
-  `textDocument/references` chains `symbol_at` -> `find_callers`
-  (paginated) -> `get_snippet`, with a real UTF-16-position <->
-  byte-offset conversion (verified against multi-byte and astral/
-  surrogate-pair fixtures) — not a word-under-cursor heuristic.
-  `anvil/impactOfChange` and `anvil/affectedTests` (custom LSP extension
-  methods; no standard LSP verb covers either) wrap the already-shipped
-  `anvil_impact_of_change`/`anvil_affected_tests` daemon RPCs. All three
-  reuse the same production `daemon_rpc_call` client the MCP tools use —
-  no bespoke fourth transport. The benchmark now measures all three
-  pairs for real, superseding the closure note's ~15-20% estimate:
-  references payload 362B (LSP) vs 817B (MCP) = 2.26x; impactOfChange
-  550B vs 855B = 1.55x; affectedTests 334B vs 653B = 1.96x — narrower
-  than the diagnostics case's 2.64x as predicted (governance-field
-  overhead shrinks for read-only queries), but still above the
-  protocol-structural-only floor, most so for `references` (its MCP
-  response carries per-caller identity + hop-distance + heuristic flags
-  the LSP `Location[]` shape drops). Latency is at p50 parity across all
-  three (sub-millisecond on a warm resident graph); the references pair
-  showed a 524ms p95 tail (mean 140ms) over 50 iterations against a
-  freshly-warmed graph — worth a larger/warmer re-run before citing a
-  p95 figure in the report.
 - **Confidence:** medium
-- **Status:** In Progress — full LSP suite build complete on branch
-  `feat/rtai-005-lsp-suite`, PR open. `anvil lsp --stdio` is
-  production-quality and usable by any LSP client today; still parked
-  under ADR-033 for editor-wiring distribution (VS Code extension,
-  Neovim `lspconfig`, etc.) — that packaging step is separate from this
-  item's server-surface scope.
+- **Status:** Ready — spike closed (report above); full build scheduling
+  and sizing against current active work remain open, operator-owned
 
 ---
 

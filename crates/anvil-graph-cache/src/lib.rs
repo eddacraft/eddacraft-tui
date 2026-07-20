@@ -21,7 +21,7 @@ pub mod symbol_graph;
 pub mod tokens;
 pub mod trust;
 
-pub use call_graph::{CallerResult, CallersReport, MAX_CALLERS_WALK, callers_of, symbol_at_offset};
+pub use call_graph::{CallerResult, CallersReport, MAX_CALLERS_WALK, callers_of};
 pub use certify::{
     Certifiability, CertifyStale, ChangeKind, ExportSurfaceDiff, certify,
     clamp_reverse_impact_depth, export_surface_changed, export_surface_diff,

@@ -48,8 +48,7 @@ use anvil_gctx_types::{
     FindDependentsProjection, FindDependentsQuery, GctxOutcome, GraphEdgesProjection,
     GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary, OmittedContext,
     OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult,
-    SymbolAtProjection, SymbolContextProjection, SymbolContextRedactionSummary, SymbolSummary,
-    TestEvidence,
+    SymbolContextProjection, SymbolContextRedactionSummary, SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{
@@ -566,65 +565,6 @@ impl GctxProjector {
             next_cursor,
             partial: walk_truncated || callers_incomplete,
         })
-    }
-
-    /// Resolve the innermost symbol at `byte_offset` in `file` (the
-    /// `symbol_at` position-lookup verb backing `anvil lsp`'s
-    /// `textDocument/references` provider). **Call this under the cache
-    /// lock** (it borrows the symbol graph).
-    ///
-    /// A point lookup, not a traversal: the result is at most one identity,
-    /// so — unlike [`Self::collect_callers`] — there is no node-budget bound
-    /// to report and no truncation state. Returns the resolved identity (or
-    /// `None` on a clean miss) and whether it was withheld by the CE-3
-    /// sensitive-path deny-list. A withheld symbol is folded to `None` by
-    /// [`Self::project_symbol_at`], not returned with its path — the deny
-    /// list must never egress the path it's dropping.
-    #[must_use]
-    pub fn collect_symbol_at(
-        graph: &SymbolGraph,
-        file: &str,
-        byte_offset: u32,
-    ) -> (Option<SymbolIdentity>, bool) {
-        let Some(identity) = anvil_graph_cache::symbol_at_offset(graph, file, byte_offset) else {
-            return (None, false);
-        };
-        // CE-5 defence in depth (mirrors `collect_callers`): a symbol
-        // identity carries a workspace-relative path, so an absolute path
-        // should never be resident — but if one is, withhold it rather than
-        // egress it.
-        if is_absolute_path_like(&identity.file) {
-            return (None, false);
-        }
-        // CIB-091a (CE-3): a sensitive-path symbol is withheld and counted,
-        // never egressed.
-        if is_sensitive_egress_path(&identity.file) {
-            return (None, true);
-        }
-        (Some(identity), false)
-    }
-
-    /// Seal the collected `symbol_at` result into the egress projection.
-    /// **Call this after releasing the cache lock** (ADR-084 C2) — trivial
-    /// here since there is no sort/pagination step, but kept as a distinct
-    /// call for the same lock-discipline reason every other GCTX verb splits
-    /// collect/project.
-    #[must_use]
-    pub fn project_symbol_at(
-        symbol: Option<SymbolIdentity>,
-        omitted_sensitive: bool,
-    ) -> SymbolAtProjection {
-        let hit = usize::from(symbol.is_some());
-        SymbolAtProjection {
-            redaction_summary: RedactionSummary {
-                matched: hit,
-                returned: hit,
-                truncated: false,
-                omitted_sensitive_paths: usize::from(omitted_sensitive),
-                ..Default::default()
-            },
-            symbol,
-        }
     }
 
     /// Collect the raw, identity-only pieces of an impact-of-change report
@@ -4897,66 +4837,5 @@ mod tests {
         .next_cursor
         .expect("more pages remain");
         assert_eq!(keys_of(&edges_cursor), ["k", "q"], "EdgesCursorPayload");
-    }
-
-    fn spanned_node(id: u64, name: &str, file: &str, start: u32, end: u32) -> SymbolNode {
-        SymbolNode {
-            span: Some(ByteRange { start, end }),
-            ..node(id, name, file, SymbolKind::Function, Visibility::Public)
-        }
-    }
-
-    #[test]
-    fn symbol_at_hit_reports_matched_and_returned_of_one() {
-        let g = graph_of(vec![spanned_node(1, "greet", "src/a.ts", 0, 20)]);
-
-        let (candidate, omitted) = GctxProjector::collect_symbol_at(&g, "src/a.ts", 10);
-        let projection = GctxProjector::project_symbol_at(candidate, omitted);
-
-        assert_eq!(projection.symbol.map(|s| s.name), Some("greet".to_string()));
-        assert_eq!(projection.redaction_summary.matched, 1);
-        assert_eq!(projection.redaction_summary.returned, 1);
-        assert!(!projection.redaction_summary.truncated);
-        assert_eq!(projection.redaction_summary.omitted_sensitive_paths, 0);
-    }
-
-    #[test]
-    fn symbol_at_clean_miss_reports_matched_and_returned_of_zero() {
-        let g = graph_of(vec![spanned_node(1, "greet", "src/a.ts", 0, 20)]);
-
-        let (candidate, omitted) = GctxProjector::collect_symbol_at(&g, "src/a.ts", 999);
-        let projection = GctxProjector::project_symbol_at(candidate, omitted);
-
-        assert_eq!(projection.symbol, None);
-        assert_eq!(projection.redaction_summary.matched, 0);
-        assert_eq!(projection.redaction_summary.returned, 0);
-    }
-
-    #[test]
-    fn symbol_at_withholds_sensitive_path_and_counts_it() {
-        let g = graph_of(vec![spanned_node(1, "token", ".ssh/config.ts", 0, 20)]);
-
-        let (candidate, omitted) = GctxProjector::collect_symbol_at(&g, ".ssh/config.ts", 5);
-        assert!(
-            candidate.is_none(),
-            "a sensitive-path symbol must be withheld, not egressed"
-        );
-        assert!(omitted, "the withholding must be counted");
-
-        let projection = GctxProjector::project_symbol_at(candidate, omitted);
-        assert_eq!(projection.symbol, None);
-        assert_eq!(
-            projection.redaction_summary.omitted_sensitive_paths, 1,
-            "CE-3 withholding must be visible as a counts-only signal"
-        );
-    }
-
-    #[test]
-    fn symbol_at_on_absent_file_is_a_clean_miss_not_an_error() {
-        let g = graph_of(vec![spanned_node(1, "greet", "src/a.ts", 0, 20)]);
-
-        let (candidate, omitted) = GctxProjector::collect_symbol_at(&g, "src/missing.ts", 0);
-        assert_eq!(candidate, None);
-        assert!(!omitted);
     }
 }
