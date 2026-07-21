@@ -361,6 +361,9 @@ fn publish_diagnostics_notification(
     text: &str,
     diagnostics: &[anvil_kernel_types::Diagnostic],
 ) -> Value {
+    // Build the line index once per publication so UTF-16 projection is
+    // O(text + diagnostics) rather than O(diagnostics × lines).
+    let lines: Vec<&str> = text.lines().collect();
     json!({
         "jsonrpc": "2.0",
         "method": "textDocument/publishDiagnostics",
@@ -369,7 +372,7 @@ fn publish_diagnostics_notification(
             "version": version,
             "diagnostics": diagnostics
                 .iter()
-                .map(|diagnostic| to_lsp_diagnostic(diagnostic, text))
+                .map(|diagnostic| to_lsp_diagnostic(diagnostic, &lines))
                 .collect::<Vec<_>>()
         }
     })
@@ -434,7 +437,7 @@ fn handle_did_change(
     }
 }
 
-fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, text: &str) -> Value {
+fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, lines: &[&str]) -> Value {
     let start_line = diagnostic.location.line.unwrap_or(1).saturating_sub(1);
     let end_line = diagnostic
         .location
@@ -458,11 +461,11 @@ fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, text: &str) ->
         "range": {
             "start": {
                 "line": start_line,
-                "character": byte_column_to_utf16(text, start_line, start_col)
+                "character": byte_column_to_utf16(lines, start_line, start_col)
             },
             "end": {
                 "line": end_line,
-                "character": byte_column_to_utf16(text, end_line, end_col)
+                "character": byte_column_to_utf16(lines, end_line, end_col)
             }
         },
         "severity": severity,
@@ -473,8 +476,8 @@ fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, text: &str) ->
     })
 }
 
-fn byte_column_to_utf16(text: &str, line: u32, byte_column: u32) -> u32 {
-    let Some(line_text) = text.lines().nth(line as usize) else {
+fn byte_column_to_utf16(lines: &[&str], line: u32, byte_column: u32) -> u32 {
+    let Some(line_text) = lines.get(line as usize) else {
         return 0;
     };
     let mut end = usize::try_from(byte_column)
@@ -525,9 +528,12 @@ mod tests {
 
     #[test]
     fn unicode_columns_are_projected_as_utf16_code_units() {
-        assert_eq!(byte_column_to_utf16("a😀z", 0, 5), 3);
-        assert_eq!(byte_column_to_utf16("first\r\na😀e\u{301}z", 1, 8), 5);
-        assert_eq!(byte_column_to_utf16("plain", 0, 3), 3);
+        let single: Vec<&str> = "a😀z".lines().collect();
+        assert_eq!(byte_column_to_utf16(&single, 0, 5), 3);
+        let multi: Vec<&str> = "first\r\na😀e\u{301}z".lines().collect();
+        assert_eq!(byte_column_to_utf16(&multi, 1, 8), 5);
+        let plain: Vec<&str> = "plain".lines().collect();
+        assert_eq!(byte_column_to_utf16(&plain, 0, 3), 3);
     }
 
     #[test]
