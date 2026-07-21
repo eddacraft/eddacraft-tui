@@ -41,7 +41,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
 };
-use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
+use windows_sys::Win32::System::Pipes::{GetNamedPipeClientProcessId, GetNamedPipeServerProcessId};
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
@@ -154,6 +154,39 @@ fn named_pipe_client_pid(server_handle: RawHandle) -> io::Result<u32> {
     Ok(pid)
 }
 
+/// Whether the process at the *server* end of a connected named-pipe client
+/// handle runs under the same user SID as this process.
+///
+/// The per-user pipe name and owner-only server DACL prevent a legitimate
+/// daemon from accepting another user's client. They do not prevent a
+/// different user from pre-creating the predictable pipe name with a
+/// permissive DACL. Authenticate the connected server before any request bytes
+/// leave this process so such a pipe cannot receive document contents or forge
+/// a daemon response.
+fn named_pipe_server_is_owner(client_handle: RawHandle) -> io::Result<bool> {
+    let server_pid = named_pipe_server_pid(client_handle)?;
+    let server_sid = process_user_sid(server_pid)?;
+    sid_matches_current_user(&server_sid)
+}
+
+/// PID of the process at the server end of a connected named-pipe client
+/// handle.
+fn named_pipe_server_pid(client_handle: RawHandle) -> io::Result<u32> {
+    let mut pid: u32 = 0;
+    // SAFETY: `client_handle` is a live, connected named-pipe client handle the
+    // caller owns; `&mut pid` is a valid out parameter. The call only reads the
+    // server PID and never closes the handle.
+    let ok = unsafe { GetNamedPipeServerProcessId(client_handle as HANDLE, &mut pid) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(pid)
+}
+
+fn sid_matches_current_user(peer_sid: &str) -> io::Result<bool> {
+    Ok(peer_sid == current_user_sid_string()?)
+}
+
 /// The token-user SID string of the process identified by `pid`.
 fn process_user_sid(pid: u32) -> io::Result<String> {
     let process = ProcessHandle::open_query(pid)?;
@@ -182,14 +215,11 @@ fn process_user_sid(pid: u32) -> io::Result<String> {
 /// `ReadFile`, and `CloseHandle` is quarantined to this crate so
 /// `anvil-intercept` can keep `#![forbid(unsafe_code)]`.
 ///
-/// The trust model is the daemon-side ACL: the named pipe is
-/// created with the owner-only DACL by
-/// [`create_owner_only_pipe_server`], so a client connecting from a
-/// different SID is rejected by the kernel. Defence-in-depth pipe-
-/// owner validation on the client side is intentionally skipped in
-/// v1 — see the security note in the inline doc comment below — but
-/// could be layered on later via `GetSecurityInfo` without changing
-/// this signature.
+/// The trust model is mutual same-user authentication. The daemon-side
+/// owner-only DACL rejects clients from a different SID, while the connected
+/// client validates the server process SID before returning the handle to its
+/// caller. Any identity lookup failure is terminal and the handle is closed,
+/// so request or document bytes cannot be sent to an unauthenticated server.
 pub fn connect_owner_only_pipe_client(pipe_name: &str) -> io::Result<OwnerOnlyPipeClient> {
     let wide = wide_null(pipe_name);
     // SAFETY: `wide` is a null-terminated UTF-16 string owned for the
@@ -222,7 +252,14 @@ pub fn connect_owner_only_pipe_client(pipe_name: &str) -> io::Result<OwnerOnlyPi
     if handle == INVALID_HANDLE_VALUE {
         return Err(io::Error::last_os_error());
     }
-    Ok(OwnerOnlyPipeClient(handle))
+    let client = OwnerOnlyPipeClient(handle);
+    if !named_pipe_server_is_owner(client.raw_handle() as RawHandle)? {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "named-pipe server is owned by a different user SID",
+        ));
+    }
+    Ok(client)
 }
 
 /// Owned synchronous named-pipe client handle. Closes via
@@ -1162,6 +1199,25 @@ mod tests {
         );
     }
 
+    /// Client-side server authentication must fail closed when the peer SID
+    /// differs from the caller. The integration round-trip below covers the
+    /// positive same-SID path through `GetNamedPipeServerProcessId`; this pins
+    /// the cross-SID decision independently of which account runs Windows CI.
+    #[test]
+    fn named_pipe_server_authentication_rejects_a_different_sid() {
+        let current = current_user_sid_string().expect("current user SID");
+        let different = if current == "S-1-5-18" {
+            "S-1-5-19"
+        } else {
+            "S-1-5-18"
+        };
+
+        assert!(
+            !sid_matches_current_user(different).expect("compare server SID"),
+            "a server process with a different SID must be rejected",
+        );
+    }
+
     /// Round-trip: server bind via the existing helper, client
     /// connect via the new sync helper, write and read a single
     /// JSON-line frame on a private per-test pipe name. The server
@@ -1208,6 +1264,11 @@ mod tests {
         let client_thread = thread::spawn(move || {
             let mut client =
                 connect_owner_only_pipe_client(&client_pipe_name).expect("client connect");
+            assert!(
+                named_pipe_server_is_owner(client.raw_handle() as RawHandle)
+                    .expect("query connected server identity"),
+                "the local same-user server must authenticate before writes",
+            );
             let payload = b"hello-from-cli\n";
             client.write_all(payload).expect("client write");
             let mut buf = [0_u8; 64];
