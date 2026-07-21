@@ -27,7 +27,7 @@ use serde::Deserialize;
 #[cfg(unix)]
 use serde_json::{Value, json};
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use crate::daemon_validation::{ScanBufferError, ScanMode, scan_buffer};
 
 pub(crate) const INPUT_RULE_ID: &str = "mcp-validate-write-input";
@@ -62,13 +62,13 @@ const DAEMON_REQUEST_ID: &str = "mcp-prewrite-validation";
 const SCAN_BUFFER_REQUEST_VERSION: u64 = 1;
 #[cfg(unix)]
 const SCAN_BUFFER_RESULT_VERSION: u64 = 1;
-#[cfg(any(unix, test))]
+#[cfg(any(unix, windows, test))]
 const DAEMON_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-unavailable",
     message: "anvil could not validate the proposed write.",
     retriable: true,
 };
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const DAEMON_TRUNCATED_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-truncated",
     message: "anvil daemon returned a truncated validation response.",

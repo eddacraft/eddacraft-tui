@@ -366,13 +366,13 @@ where
         let remaining = deadline.saturating_duration_since(std::time::Instant::now());
         if remaining.is_zero() {
             eprintln!("anvil-daemon: {method_label} pipe request timed out");
-            return Err(DaemonRpcError::Unavailable);
+            return Err(DaemonRpcError::Failure);
         }
         match rx.recv_timeout(remaining.min(Duration::from_millis(10))) {
             Ok(outcome) => break outcome?,
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(DaemonRpcError::Unavailable);
+                return Err(DaemonRpcError::Failure);
             }
         }
     };
