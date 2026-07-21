@@ -22,8 +22,9 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_ACCESS_DENIED, ERROR_BROKEN_PIPE, ERROR_INVALID_PARAMETER,
-    ERROR_PIPE_NOT_CONNECTED, FILETIME, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
+    CloseHandle, ERROR_ACCESS_DENIED, ERROR_BROKEN_PIPE, ERROR_INVALID_PARAMETER, ERROR_IO_PENDING,
+    ERROR_NOT_FOUND, ERROR_OPERATION_ABORTED, ERROR_PIPE_NOT_CONNECTED, FILETIME, HANDLE,
+    INVALID_HANDLE_VALUE, LocalFree, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, GetSecurityInfo,
@@ -35,16 +36,19 @@ use windows_sys::Win32::Security::{
 };
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, CreateDirectoryW, CreateFileW, FILE_FLAG_OPEN_REPARSE_POINT,
-    FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, GetFileInformationByHandle,
-    OPEN_EXISTING, ReadFile, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT, WriteFile,
+    FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    GetFileInformationByHandle, OPEN_EXISTING, ReadFile, SECURITY_IDENTIFICATION,
+    SECURITY_SQOS_PRESENT, WriteFile,
 };
+use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
 };
 use windows_sys::Win32::System::Pipes::{GetNamedPipeClientProcessId, GetNamedPipeServerProcessId};
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
-    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
+    CreateEventW, GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess,
+    OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+    TerminateProcess, WaitForSingleObject,
 };
 
 // `GENERIC_READ` / `GENERIC_WRITE` are not re-exported from any
@@ -260,6 +264,248 @@ pub fn connect_owner_only_pipe_client(pipe_name: &str) -> io::Result<OwnerOnlyPi
         ));
     }
     Ok(client)
+}
+
+/// Open an owner-authenticated named-pipe client for explicit overlapped I/O.
+pub fn connect_owner_only_overlapped_pipe_client(
+    pipe_name: &str,
+) -> io::Result<OwnerOnlyOverlappedPipeClient> {
+    let wide = wide_null(pipe_name);
+    // SAFETY: identical ownership and SQOS contract to the synchronous client
+    // above, with FILE_FLAG_OVERLAPPED added so every read/write can be
+    // cancelled and completion-drained under the caller's deadline.
+    let handle = unsafe {
+        CreateFileW(
+            wide.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            null_mut(),
+            OPEN_EXISTING,
+            SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION | FILE_FLAG_OVERLAPPED,
+            null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    let client = OwnerOnlyOverlappedPipeClient(handle);
+    if !named_pipe_server_is_owner(client.0 as RawHandle)? {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "named-pipe server is owned by a different user SID",
+        ));
+    }
+    Ok(client)
+}
+
+/// Owner-authenticated named-pipe client whose operations are explicitly
+/// cancellable and completion-drained before their buffers leave scope.
+pub struct OwnerOnlyOverlappedPipeClient(HANDLE);
+
+impl OwnerOnlyOverlappedPipeClient {
+    /// Write the full buffer before `deadline`, or cancel and drain the pending
+    /// kernel operation when the deadline/caller cancellation wins.
+    pub fn write_all_cancellable(
+        &mut self,
+        mut buffer: &[u8],
+        deadline: std::time::Instant,
+        cancellation: Option<&std::sync::atomic::AtomicBool>,
+    ) -> io::Result<()> {
+        while !buffer.is_empty() {
+            let len = u32::try_from(buffer.len().min(u32::MAX as usize))
+                .expect("buffer length is capped to u32");
+            let written = self.overlapped_operation(deadline, cancellation, |overlapped| {
+                // SAFETY: `buffer` remains borrowed until overlapped_operation
+                // has observed or cancelled and drained completion.
+                unsafe { WriteFile(self.0, buffer.as_ptr(), len, null_mut(), overlapped) }
+            })?;
+            if written == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "named-pipe overlapped write made no progress",
+                ));
+            }
+            buffer = &buffer[written as usize..];
+        }
+        Ok(())
+    }
+
+    /// Read one chunk before `deadline`, with the same cancellation/drain
+    /// guarantee as [`Self::write_all_cancellable`].
+    pub fn read_cancellable(
+        &mut self,
+        buffer: &mut [u8],
+        deadline: std::time::Instant,
+        cancellation: Option<&std::sync::atomic::AtomicBool>,
+    ) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        let len = u32::try_from(buffer.len().min(u32::MAX as usize))
+            .expect("buffer length is capped to u32");
+        let read = self.overlapped_operation(deadline, cancellation, |overlapped| {
+            // SAFETY: `buffer` remains borrowed until overlapped_operation has
+            // observed or cancelled and drained completion.
+            unsafe { ReadFile(self.0, buffer.as_mut_ptr(), len, null_mut(), overlapped) }
+        })?;
+        Ok(read as usize)
+    }
+
+    fn overlapped_operation(
+        &self,
+        deadline: std::time::Instant,
+        cancellation: Option<&std::sync::atomic::AtomicBool>,
+        start: impl FnOnce(*mut OVERLAPPED) -> i32,
+    ) -> io::Result<u32> {
+        if cancellation.is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire)) {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "named-pipe operation cancelled",
+            ));
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "named-pipe operation timed out",
+            ));
+        }
+        let event = OwnedEvent::new()?;
+        let mut overlapped = OVERLAPPED {
+            hEvent: event.0,
+            ..OVERLAPPED::default()
+        };
+        let started = start(&mut overlapped);
+        if started != 0 {
+            let mut transferred = 0;
+            // SAFETY: a non-zero start result means this OVERLAPPED completed
+            // synchronously; retrieve its byte count before returning.
+            let completed =
+                unsafe { GetOverlappedResult(self.0, &overlapped, &mut transferred, 0) };
+            return if completed == 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(transferred)
+            };
+        } else {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(ERROR_IO_PENDING as i32) {
+                return Err(error);
+            }
+        }
+
+        loop {
+            let cancelled =
+                cancellation.is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Acquire));
+            let timed_out = std::time::Instant::now() >= deadline;
+            if cancelled || timed_out {
+                self.cancel_and_drain(&mut overlapped)?;
+                return Err(io::Error::new(
+                    if cancelled {
+                        io::ErrorKind::Interrupted
+                    } else {
+                        io::ErrorKind::TimedOut
+                    },
+                    if cancelled {
+                        "named-pipe operation cancelled"
+                    } else {
+                        "named-pipe operation timed out"
+                    },
+                ));
+            }
+
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let wait_ms = remaining.as_millis().clamp(1, 5) as u32;
+            // SAFETY: event.0 is a live event handle owned for this operation.
+            match unsafe { WaitForSingleObject(event.0, wait_ms) } {
+                WAIT_OBJECT_0 => {
+                    let mut transferred = 0;
+                    // SAFETY: the event signalled completion for this live
+                    // OVERLAPPED and its backing buffer remains in scope.
+                    let ok =
+                        unsafe { GetOverlappedResult(self.0, &overlapped, &mut transferred, 0) };
+                    return if ok == 0 {
+                        Err(io::Error::last_os_error())
+                    } else {
+                        Ok(transferred)
+                    };
+                }
+                WAIT_TIMEOUT => {}
+                WAIT_FAILED => {
+                    let wait_error = io::Error::last_os_error();
+                    self.cancel_and_drain(&mut overlapped)?;
+                    return Err(wait_error);
+                }
+                other => {
+                    let wait_error =
+                        io::Error::other(format!("unexpected named-pipe wait result {other}"));
+                    self.cancel_and_drain(&mut overlapped)?;
+                    return Err(wait_error);
+                }
+            }
+        }
+    }
+
+    fn cancel_and_drain(&self, overlapped: &mut OVERLAPPED) -> io::Result<()> {
+        // SAFETY: this OVERLAPPED belongs to a pending operation on self.0 and
+        // remains live until GetOverlappedResult has drained its completion.
+        let cancelled = unsafe { CancelIoEx(self.0, overlapped) };
+        let cancel_error = if cancelled == 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(ERROR_NOT_FOUND as i32) {
+                Some(error)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let mut transferred = 0;
+        // SAFETY: waiting here is what keeps the OVERLAPPED and caller buffer
+        // alive until cancellation (or a raced normal completion) is final.
+        let completed = unsafe { GetOverlappedResult(self.0, overlapped, &mut transferred, 1) };
+        if completed != 0 {
+            return cancel_error.map_or(Ok(()), Err);
+        }
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(ERROR_OPERATION_ABORTED as i32) {
+            Ok(())
+        } else {
+            Err(cancel_error.unwrap_or(error))
+        }
+    }
+}
+
+impl Drop for OwnerOnlyOverlappedPipeClient {
+    fn drop(&mut self) {
+        if self.0 != INVALID_HANDLE_VALUE && !self.0.is_null() {
+            // SAFETY: owned CreateFileW handle, closed exactly once.
+            unsafe { CloseHandle(self.0) };
+        }
+    }
+}
+
+struct OwnedEvent(HANDLE);
+
+impl OwnedEvent {
+    fn new() -> io::Result<Self> {
+        // SAFETY: null security/name pointers request an unnamed,
+        // non-inheritable auto-reset event.
+        let handle = unsafe { CreateEventW(null_mut(), 0, 0, null_mut()) };
+        if handle.is_null() {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(Self(handle))
+        }
+    }
+}
+
+impl Drop for OwnedEvent {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            // SAFETY: owned CreateEventW handle, closed exactly once.
+            unsafe { CloseHandle(self.0) };
+        }
+    }
 }
 
 /// Owned synchronous named-pipe client handle. Closes via

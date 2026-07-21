@@ -130,7 +130,10 @@ fn malformed_frame_is_reported_then_terminates_without_hanging() {
         .expect("parse error frame");
     assert_eq!(response["error"]["code"], -32700);
     let status = child.0.wait().expect("malformed frame process exits");
-    assert!(status.success());
+    assert!(
+        !status.success(),
+        "terminal framing violations must exit non-zero"
+    );
 }
 
 #[test]

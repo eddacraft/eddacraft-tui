@@ -75,11 +75,15 @@ pub(super) fn file_uri_to_path(uri: &str) -> Result<PathBuf, UriError> {
     }
     let decoded = String::from_utf8(decoded).map_err(|_| UriError)?;
     #[cfg(windows)]
-    let decoded = decoded
+    let mut decoded = decoded
         .strip_prefix('/')
         .filter(|path| path.as_bytes().get(1) == Some(&b':'))
         .unwrap_or(&decoded)
         .to_string();
+    #[cfg(windows)]
+    if decoded.as_bytes().get(1) == Some(&b':') {
+        decoded[..1].make_ascii_uppercase();
+    }
     let path = PathBuf::from(decoded);
     if path.is_absolute() {
         Ok(path)
@@ -326,9 +330,19 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn windows_file_uri_drive_prefix_is_normalised() {
-        let path = file_uri_to_path("file:///C:/anvil%20project/src/main.rs")
+        let path = file_uri_to_path("file:///c:/anvil%20project/src/main.rs")
             .expect("valid Windows file URI");
 
         assert_eq!(path, std::path::Path::new("C:/anvil project/src/main.rs"));
+
+        let roots = WorkspaceRoots::from_initialize(&json!({
+            "params": {"rootUri": "file:///C:/anvil%20project"}
+        }));
+        assert_eq!(
+            roots
+                .relative_path("file:///c:/anvil%20project/src/main.rs")
+                .expect("drive-letter case must not change workspace membership"),
+            std::path::Path::new("src/main.rs")
+        );
     }
 }

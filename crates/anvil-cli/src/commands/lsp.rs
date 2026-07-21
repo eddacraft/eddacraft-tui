@@ -94,14 +94,18 @@ fn run_stdio_server() -> anyhow::Result<()> {
 
         match event {
             Event::Eof => break,
-            Event::ParseError | Event::ProtocolError => {
+            Event::ParseError => {
                 write_message(
                     &mut stdout,
                     &error_response(&Value::Null, -32700, "Parse error"),
                 )?;
-                if matches!(event, Event::ProtocolError) {
-                    break;
-                }
+            }
+            Event::ProtocolError => {
+                write_message(
+                    &mut stdout,
+                    &error_response(&Value::Null, -32700, "Parse error"),
+                )?;
+                anyhow::bail!("LSP protocol framing failed");
             }
             Event::ScanComplete { job, result } => {
                 let successful = result.is_ok();

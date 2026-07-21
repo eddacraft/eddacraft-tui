@@ -5,7 +5,7 @@
 //! it for the read-only `anvil/gctx/*` methods; the `anvil hook` witness path
 //! (MLP2-005 phase 3) reuses the same transport for `anvil/witness/append`.
 //! Transport failures that mean “no usable daemon surface” (an absent socket,
-//! or `Method not found` for a non-validation method) classify as
+//! a stale refused socket for a non-validation method, or `Method not found` for a non-validation method) classify as
 //! [`DaemonRpcError::Unavailable`]; malformed replies and security-relevant
 //! failures classify as [`DaemonRpcError::Failure`].
 
@@ -29,6 +29,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub(crate) enum DaemonRpcError {
     Unavailable,
     Failure,
+}
+
+#[cfg(any(unix, windows))]
+fn classify_connect_error(method: &str, kind: std::io::ErrorKind) -> DaemonRpcError {
+    if kind == std::io::ErrorKind::NotFound
+        || (kind == std::io::ErrorKind::ConnectionRefused && method != "scan_buffer")
+    {
+        DaemonRpcError::Unavailable
+    } else {
+        DaemonRpcError::Failure
+    }
 }
 
 #[cfg(unix)]
@@ -83,35 +94,6 @@ struct GctxRpcEnvelope<R> {
 #[derive(serde::Deserialize)]
 struct GctxRpcError {
     code: i64,
-}
-
-#[cfg(windows)]
-static ACTIVE_PIPE_WORKERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-#[cfg(windows)]
-const MAX_PIPE_WORKERS: usize = 8;
-
-#[cfg(windows)]
-struct PipeWorkerPermit;
-
-#[cfg(windows)]
-impl PipeWorkerPermit {
-    fn try_acquire() -> Result<Self, DaemonRpcError> {
-        ACTIVE_PIPE_WORKERS
-            .fetch_update(
-                std::sync::atomic::Ordering::AcqRel,
-                std::sync::atomic::Ordering::Acquire,
-                |active| (active < MAX_PIPE_WORKERS).then_some(active + 1),
-            )
-            .map(|_| Self)
-            .map_err(|_| DaemonRpcError::Failure)
-    }
-}
-
-#[cfg(windows)]
-impl Drop for PipeWorkerPermit {
-    fn drop(&mut self) {
-        ACTIVE_PIPE_WORKERS.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
-    }
 }
 
 #[cfg(any(unix, windows))]
@@ -192,11 +174,7 @@ where
     }
     let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
         eprintln!("anvil-daemon: {method} connect failed: {err}");
-        if err.kind() == std::io::ErrorKind::NotFound {
-            DaemonRpcError::Unavailable
-        } else {
-            DaemonRpcError::Failure
-        }
+        classify_connect_error(method, err.kind())
     })?;
     ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
         eprintln!("anvil-daemon: {method} peer rejected: {err}");
@@ -275,10 +253,87 @@ where
     decode_rpc_response(&line, method, request_id)
 }
 
-/// Forward a sealed request to the daemon over the Windows owner-only named
-/// pipe. This mirrors the Unix socket JSON-RPC contract while bounding the whole
-/// synchronous pipe exchange on a worker thread because Win32 pipe reads/writes
-/// do not expose the same per-stream timeout setters.
+#[cfg(windows)]
+const WINDOWS_RESPONSE_LINE_CAP: u64 = 4 << 20;
+#[cfg(windows)]
+const WINDOWS_RPC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+#[cfg(windows)]
+fn daemon_rpc_call_windows_at<Resp>(
+    pipe_name: String,
+    method: &str,
+    params: serde_json::Value,
+    request_id: &str,
+    cancellation: Option<Arc<AtomicBool>>,
+) -> Result<Resp, DaemonRpcError>
+where
+    Resp: DeserializeOwned,
+{
+    let deadline = std::time::Instant::now() + WINDOWS_RPC_TIMEOUT;
+    let cancellation = cancellation.as_deref();
+    let mut client = anvil_intercept_win32::connect_owner_only_overlapped_pipe_client(&pipe_name)
+        .map_err(|error| {
+        eprintln!("anvil-daemon: {method} pipe connect failed: {error}");
+        classify_connect_error(method, error.kind())
+    })?;
+    let mut frame = json!({
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": request_id,
+    });
+    if method != "scan_buffer" {
+        crate::usage::attach_principal(&mut frame);
+    }
+    let mut request_bytes = serde_json::to_vec(&frame).map_err(|error| {
+        eprintln!("anvil-daemon: {method} request serialise failed: {error}");
+        DaemonRpcError::Failure
+    })?;
+    request_bytes.push(b'\n');
+    client
+        .write_all_cancellable(&request_bytes, deadline, cancellation)
+        .map_err(|error| {
+            eprintln!("anvil-daemon: {method} pipe request write failed: {error}");
+            DaemonRpcError::Failure
+        })?;
+
+    let mut line = Vec::new();
+    let mut chunk = [0_u8; 4096];
+    while line.len() as u64 <= WINDOWS_RESPONSE_LINE_CAP {
+        let read = client
+            .read_cancellable(&mut chunk, deadline, cancellation)
+            .map_err(|error| {
+                eprintln!("anvil-daemon: {method} pipe response read failed: {error}");
+                DaemonRpcError::Failure
+            })?;
+        if read == 0 {
+            break;
+        }
+        line.extend_from_slice(&chunk[..read]);
+        if let Some(newline) = line.iter().position(|byte| *byte == b'\n') {
+            line.truncate(newline + 1);
+            break;
+        }
+    }
+    if line.is_empty() || line.len() as u64 > WINDOWS_RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
+        eprintln!("anvil-daemon: {method} pipe response was empty, oversized, or unframed");
+        return Err(DaemonRpcError::Failure);
+    }
+    let line = String::from_utf8(line).map_err(|_| {
+        eprintln!("anvil-daemon: {method} pipe response was not UTF-8");
+        DaemonRpcError::Failure
+    })?;
+    let value = decode_rpc_response(&line, method, request_id)?;
+    serde_json::from_value(value).map_err(|error| {
+        eprintln!("anvil-daemon: {method} pipe response decode failed: {error}");
+        DaemonRpcError::Failure
+    })
+}
+
+/// Forward a sealed request to the daemon over a Windows owner-authenticated,
+/// overlapped named pipe. Each pending read/write is explicitly cancelled and
+/// completion-drained at the shared absolute deadline or caller cancellation,
+/// so no synchronous worker or kernel-owned request buffer can be stranded.
 #[cfg(windows)]
 pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
     method: &str,
@@ -290,14 +345,6 @@ where
     Req: Serialize,
     Resp: DeserializeOwned,
 {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::sync::mpsc;
-    use std::thread;
-    use std::time::Duration;
-
-    const RESPONSE_LINE_CAP: u64 = 4 << 20;
-    const TIMEOUT: Duration = Duration::from_secs(2);
-
     let pipe_name = anvil_intercept::ipc::resolve_pipe_name().map_err(|err| {
         eprintln!("anvil-daemon: {method} pipe unavailable: {err}");
         DaemonRpcError::Unavailable
@@ -306,85 +353,7 @@ where
         eprintln!("anvil-daemon: {method} request serialise failed: {err}");
         DaemonRpcError::Failure
     })?;
-    let method = method.to_owned();
-    let method_label = method.clone();
-    let request_id = request_id.to_owned();
-    let permit = PipeWorkerPermit::try_acquire()?;
-    let (tx, rx) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let _permit = permit;
-        let outcome: Result<serde_json::Value, DaemonRpcError> = (|| {
-            let mut client = anvil_intercept_win32::connect_owner_only_pipe_client(&pipe_name)
-                .map_err(|err| {
-                    eprintln!("anvil-daemon: {method} pipe connect failed: {err}");
-                    if err.kind() == std::io::ErrorKind::NotFound {
-                        DaemonRpcError::Unavailable
-                    } else {
-                        DaemonRpcError::Failure
-                    }
-                })?;
-            let mut frame = json!({
-                "jsonrpc": "2.0",
-                "method": method.as_str(),
-                "params": params,
-                "id": request_id.as_str(),
-            });
-            if method != "scan_buffer" {
-                crate::usage::attach_principal(&mut frame);
-            }
-            if let Err(err) = writeln!(client, "{frame}").and_then(|()| client.flush()) {
-                eprintln!("anvil-daemon: {method} pipe request write failed: {err}");
-                return Err(DaemonRpcError::Failure);
-            }
-
-            let mut reader = BufReader::new(client);
-            let mut line = Vec::new();
-            let read = reader
-                .by_ref()
-                .take(RESPONSE_LINE_CAP + 1)
-                .read_until(b'\n', &mut line)
-                .map_err(|err| {
-                    eprintln!("anvil-daemon: {method} pipe response read failed: {err}");
-                    DaemonRpcError::Failure
-                })?;
-            if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-                eprintln!("anvil-daemon: {method} pipe response was empty, oversized, or unframed");
-                return Err(DaemonRpcError::Failure);
-            }
-            let line = String::from_utf8(line).map_err(|_| {
-                eprintln!("anvil-daemon: {method} pipe response was not UTF-8");
-                DaemonRpcError::Failure
-            })?;
-            decode_rpc_response(&line, &method, &request_id)
-        })();
-        let _ = tx.send(outcome);
-    });
-
-    let deadline = std::time::Instant::now() + TIMEOUT;
-    let value = loop {
-        if cancellation
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Acquire))
-        {
-            return Err(DaemonRpcError::Failure);
-        }
-        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-        if remaining.is_zero() {
-            eprintln!("anvil-daemon: {method_label} pipe request timed out");
-            return Err(DaemonRpcError::Failure);
-        }
-        match rx.recv_timeout(remaining.min(Duration::from_millis(10))) {
-            Ok(outcome) => break outcome?,
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(DaemonRpcError::Failure);
-            }
-        }
-    };
-    serde_json::from_value(value).map_err(|err| {
-        eprintln!("anvil-daemon: {method_label} pipe response decode failed: {err}");
-        DaemonRpcError::Failure
-    })
+    daemon_rpc_call_windows_at(pipe_name, method, params, request_id, cancellation)
 }
 
 /// Non-Unix, non-Windows targets have no daemon transport.
@@ -410,6 +379,21 @@ where
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_socket_degrades_only_for_non_validation_methods() {
+        assert_eq!(
+            classify_connect_error(
+                "anvil/gctx/searchSymbols",
+                std::io::ErrorKind::ConnectionRefused
+            ),
+            DaemonRpcError::Unavailable
+        );
+        assert_eq!(
+            classify_connect_error("scan_buffer", std::io::ErrorKind::ConnectionRefused),
+            DaemonRpcError::Failure
+        );
+    }
 
     #[test]
     fn linux_and_macos_peer_validation_failures_remain_hard_failures() {
@@ -453,5 +437,114 @@ mod tests {
             ),
             Err(DaemonRpcError::Unavailable)
         );
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use serde_json::json;
+
+    use super::*;
+
+    static WINDOWS_TRANSPORT_TEST_LOCK: Mutex<()> = Mutex::new(());
+    const LEGACY_WORKER_LIMIT: usize = 8;
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+    }
+
+    fn non_responding_server(
+        runtime: &tokio::runtime::Runtime,
+        pipe_name: &str,
+    ) -> (tokio::task::JoinHandle<()>, mpsc::Receiver<()>) {
+        let server = {
+            let _guard = runtime.enter();
+            anvil_intercept_win32::create_owner_only_pipe_server(
+                pipe_name,
+                anvil_intercept_win32::PipeInstance::First,
+            )
+            .expect("bind owner-only test pipe")
+        };
+        let (accepted_tx, accepted_rx) = mpsc::sync_channel(1);
+        let task = runtime.spawn(async move {
+            server.connect().await.expect("accept test client");
+            let _ = accepted_tx.send(());
+            std::future::pending::<()>().await;
+        });
+        (task, accepted_rx)
+    }
+
+    #[test]
+    fn repeated_windows_cancellation_drains_beyond_the_legacy_worker_limit() {
+        let _test_guard = WINDOWS_TRANSPORT_TEST_LOCK
+            .lock()
+            .expect("transport test lock");
+        let runtime = runtime();
+
+        for attempt in 0..(LEGACY_WORKER_LIMIT + 2) {
+            let pipe_name = format!(
+                r"\\.\pipe\anvil-gctx-cancel-test-{}-{attempt}",
+                std::process::id(),
+            );
+            let (server_task, accepted_rx) = non_responding_server(&runtime, &pipe_name);
+            let cancellation = Arc::new(AtomicBool::new(false));
+            let cancellation_signal = Arc::clone(&cancellation);
+            let canceller = thread::spawn(move || {
+                accepted_rx
+                    .recv_timeout(Duration::from_secs(1))
+                    .expect("every call must acquire a permit and connect");
+                cancellation_signal.store(true, Ordering::Release);
+            });
+
+            let started = Instant::now();
+            let result: Result<serde_json::Value, DaemonRpcError> = daemon_rpc_call_windows_at(
+                pipe_name,
+                "scan_buffer",
+                json!({"content": "x".repeat(1024 * 1024)}),
+                &format!("cancel-{attempt}"),
+                Some(cancellation),
+            );
+            assert_eq!(result, Err(DaemonRpcError::Failure));
+            assert!(
+                started.elapsed() < Duration::from_secs(1),
+                "caller cancellation must return promptly"
+            );
+            canceller.join().expect("canceller joins");
+            server_task.abort();
+        }
+    }
+
+    #[test]
+    fn windows_timeout_is_bounded_and_drains_the_pending_operation() {
+        let _test_guard = WINDOWS_TRANSPORT_TEST_LOCK
+            .lock()
+            .expect("transport test lock");
+        let runtime = runtime();
+        let pipe_name = format!(r"\\.\pipe\anvil-gctx-timeout-test-{}", std::process::id(),);
+        let (server_task, accepted_rx) = non_responding_server(&runtime, &pipe_name);
+
+        let started = Instant::now();
+        let result: Result<serde_json::Value, DaemonRpcError> =
+            daemon_rpc_call_windows_at(pipe_name, "scan_buffer", json!({}), "timeout", None);
+        let elapsed = started.elapsed();
+        assert_eq!(result, Err(DaemonRpcError::Failure));
+        accepted_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("timed request connects to the server");
+        assert!(
+            elapsed <= WINDOWS_RPC_TIMEOUT + Duration::from_millis(100),
+            "two-second RPC deadline must remain bounded; elapsed {elapsed:?}"
+        );
+        server_task.abort();
     }
 }
