@@ -155,18 +155,17 @@ quick if a fast turnaround is needed.
 
 ### Merge, tag, publish
 
-After merge, follow the release skill per
-[`SKILL.md`](../../.claude/skills/release/SKILL.md). Stop at preflight. Ask the
-operator for exact mutating commands per step (tag, publish, monitor, verify,
-downstream surfaces). Record every command and its result on the release
-tracking issue.
+After merge, follow the [release runbook](./release-runbook.md#2-run-preflight).
+Stop at preflight. Ask the operator for exact mutating commands per step (tag,
+publish, monitor, verify, downstream surfaces). Record every command and its
+result on the release tracking issue.
 
 There is no back-merge step. `main` is the single integration target.
 
 ## Success criteria
 
-- The hotfix tag verifies per the release skill's
-  [`6. Verify`](../../.claude/skills/release/SKILL.md#6-verify) step.
+- The hotfix tag verifies per the release runbook's
+  [verification step](./release-runbook.md#8-verify-the-release).
 - Smoke checks ([`post-deploy-smoke-check.md`](./post-deploy-smoke-check.md))
   pass against the hotfix release.
 - The trigger that justified the hotfix is resolved (regression closed, security
@@ -220,8 +219,8 @@ Close the release tracking issue (or the dedicated incident issue) when:
 - Hotfix branches cut from the released tag and merge to `main`. There is no
   back-merge step — `main` is the single integration target.
 - Until RELORCH-011 lands the target release command surface, mutating release
-  commands remain operator-owned per
-  [`SKILL.md`](../../.claude/skills/release/SKILL.md). The release skill stops
-  at preflight in this mode and asks for exact mutating commands; it must not
-  improvise an emergency tag push. Treat the SKILL.md emergency-recovery
-  boundary as load-bearing.
+  commands remain operator-owned per the
+  [release runbook](./release-runbook.md#2-run-preflight). The workflow stops at
+  preflight in this mode and asks for exact mutating commands; it must not
+  improvise an emergency tag push. Treat that emergency-recovery boundary as
+  load-bearing.

@@ -224,12 +224,6 @@ available tools.
 
 ## References
 
-- `dev-workflow` (Claude):
-  [`.claude/skills/dev-workflow/SKILL.md`](../../.claude/skills/dev-workflow/SKILL.md)
-- `dev-workflow` (OpenCode):
-  [`.opencode/skills/dev-workflow/SKILL.md`](../../.opencode/skills/dev-workflow/SKILL.md)
-- `dev-workflow` (Codex):
-  [`.codex/skills/dev-workflow/SKILL.md`](../../.codex/skills/dev-workflow/SKILL.md)
 - Council command + Role Map:
   [`.claude/commands/council.md`](../../.claude/commands/council.md)
 - Agent conventions: [`AGENTS.md`](../../AGENTS.md)

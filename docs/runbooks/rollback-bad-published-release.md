@@ -106,10 +106,9 @@ pnpm validate:full
 ```
 
 Open the PR, merge after CI is green and council review per repo policy. Then
-follow the release skill in compatibility mode. Stop at preflight; ask the
-operator for exact mutating commands per the skill's
-[`SKILL.md`](../../.claude/skills/release/SKILL.md). Tag, build, publish, and
-verify per the release runbook.
+follow the release workflow in compatibility mode. Stop at
+[preflight](./release-runbook.md#2-run-preflight); ask the operator for exact
+mutating commands. Tag, build, publish, and verify per the release runbook.
 
 When the new release is verified:
 
@@ -168,8 +167,8 @@ wrong and when the correction was applied.
 - The bad release is no longer presented as the recommended or latest version on
   any surface where the team has authority (private repo, public mirror,
   Homebrew, Scoop, WinGet, install site).
-- For supersession: the new release verifies per the release skill's
-  [`6. Verify`](../../.claude/skills/release/SKILL.md#6-verify) step, and smoke
+- For supersession: the new release passes the release runbook's
+  [verification step](./release-runbook.md#8-verify-the-release), and smoke
   checks ([`post-deploy-smoke-check.md`](./post-deploy-smoke-check.md)) pass
   against the new release.
 - The bad release record is `superseded` with `supersededBy` populated, or
@@ -254,10 +253,10 @@ approval for closure is recorded inline.
 ## Mode notes
 
 - **Compatibility mode (today).** Mutating release commands are operator-owned
-  per [`SKILL.md`](../../.claude/skills/release/SKILL.md): the release skill
+  per the [release runbook](./release-runbook.md#2-run-preflight): the workflow
   stops after preflight, the operator supplies exact commands per step, and the
   tracking issue is the durable log. Treat that boundary as load-bearing — do
-  not delegate the supersession or yank to the skill autonomously.
+  not delegate the supersession or yank autonomously.
 - **Target mode.** When `scripts/release/*.sh` and the release record location
   are wired (post RELORCH-011), supersession runs as a normal release through
   `prepare.sh` / `tag.sh` / `verify.sh` / `closeout.sh`. The yank path stays
