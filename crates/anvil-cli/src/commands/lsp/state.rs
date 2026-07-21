@@ -35,10 +35,13 @@ struct Document {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct StaleVersion;
+pub(super) struct DocumentCapacityExceeded;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct DocumentCapacityExceeded;
+pub(super) enum ChangeError {
+    StaleVersion,
+    CapacityExceeded,
+}
 
 pub(super) struct DocumentStore {
     documents: HashMap<String, Document>,
@@ -113,19 +116,24 @@ impl DocumentStore {
         version: i64,
         text: &str,
         now: Instant,
-    ) -> Result<(), StaleVersion> {
-        let document = self.documents.get_mut(uri).ok_or(StaleVersion)?;
+    ) -> Result<(), ChangeError> {
+        let document = self
+            .documents
+            .get_mut(uri)
+            .ok_or(ChangeError::StaleVersion)?;
         let fixed_bytes = document.retained_bytes.saturating_sub(document.text.len());
         let retained_bytes = fixed_bytes.saturating_add(text.len());
-        if version <= document.version
-            || text.len() > super::protocol::MAX_DOCUMENT_BYTES
+        if version <= document.version {
+            return Err(ChangeError::StaleVersion);
+        }
+        if text.len() > super::protocol::MAX_DOCUMENT_BYTES
             || self
                 .total_bytes
                 .saturating_sub(document.retained_bytes)
                 .saturating_add(retained_bytes)
                 > MAX_TOTAL_DOCUMENT_BYTES
         {
-            return Err(StaleVersion);
+            return Err(ChangeError::CapacityExceeded);
         }
         let hash = content_hash(text);
         self.total_bytes = self
@@ -237,7 +245,7 @@ mod tests {
     use std::sync::atomic::Ordering;
     use std::time::{Duration, Instant};
 
-    use super::DocumentStore;
+    use super::{ChangeError, DocumentStore};
 
     #[test]
     fn debounce_keeps_only_the_latest_document_version() {
@@ -265,6 +273,29 @@ mod tests {
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].version, 2);
         assert_eq!(jobs[0].text.as_ref(), "two");
+    }
+
+    #[test]
+    fn change_distinguishes_stale_versions_from_capacity_rejection() {
+        let started = Instant::now();
+        let mut store = DocumentStore::new(Duration::ZERO);
+        store
+            .open("file:///src/main.rs", "main.rs".into(), 1, "one", started)
+            .expect("document capacity");
+
+        assert_eq!(
+            store.change("file:///src/main.rs", 1, "stale", started),
+            Err(ChangeError::StaleVersion)
+        );
+        assert_eq!(
+            store.change(
+                "file:///src/main.rs",
+                2,
+                &"x".repeat(super::super::protocol::MAX_DOCUMENT_BYTES + 1),
+                started,
+            ),
+            Err(ChangeError::CapacityExceeded)
+        );
     }
 
     #[test]
