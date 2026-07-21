@@ -157,9 +157,9 @@ pub fn antipattern_diagnostic(warning: &Warning) -> Diagnostic {
 }
 
 /// Canonical wire order for save-time diagnostics: sort by `(path, rule_id,
-/// span_start)` — file, then rule id, then the span as the scanner reports it
-/// (`line, column, end_line, end_column`; line is 1-based, column is whatever
-/// the antipattern scanner emits — not normalised here), then `summary` as the
+/// span_start)` — file, then rule id, then the canonical `Diagnostic` span
+/// (`line, column, end_line, end_column`; antipattern columns are normalised to
+/// one-based coordinates by `antipattern_diagnostic`), then `summary` as the
 /// final tiebreaker.
 ///
 /// This is the **shared sort-before-envelope normalisation** the cross-path
