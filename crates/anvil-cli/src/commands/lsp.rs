@@ -291,12 +291,7 @@ fn handle_message(
                             .open(uri, relative_path, version, text, Instant::now())
                             .is_err()
                         {
-                            eprintln!("anvil-lsp: document capacity reached");
-                            // Fail closed like didChange CapacityExceeded: drop any
-                            // retained document and clear published diagnostics so a
-                            // refused re-open cannot leave stale client state.
-                            documents.close(uri);
-                            write_message(stdout, &clear_diagnostics_notification(uri))?;
+                            reject_document_capacity(stdout, documents, uri)?;
                         }
                     }
                     Err(error) => eprintln!("anvil-lsp: refused document URI: {error}"),
@@ -318,9 +313,7 @@ fn handle_message(
                 match documents.change(uri, version, text, Instant::now()) {
                     Ok(()) | Err(ChangeError::StaleVersion) => {}
                     Err(ChangeError::CapacityExceeded) => {
-                        eprintln!("anvil-lsp: document capacity reached during change");
-                        documents.close(uri);
-                        write_message(stdout, &clear_diagnostics_notification(uri))?;
+                        reject_document_capacity(stdout, documents, uri)?;
                     }
                 }
             }
@@ -400,6 +393,19 @@ fn clear_diagnostics_notification(uri: &str) -> Value {
         "method": "textDocument/publishDiagnostics",
         "params": { "uri": uri, "diagnostics": [] }
     })
+}
+
+/// Fail closed on document capacity: drop any retained document for `uri`
+/// (cancelling in-flight scans) and clear published diagnostics so a refused
+/// open/change cannot leave stale client state.
+fn reject_document_capacity(
+    stdout: &mut impl Write,
+    documents: &mut DocumentStore,
+    uri: &str,
+) -> anyhow::Result<()> {
+    eprintln!("anvil-lsp: document capacity reached");
+    documents.close(uri);
+    write_message(stdout, &clear_diagnostics_notification(uri))
 }
 
 fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, text: &str) -> Value {
