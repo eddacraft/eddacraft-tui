@@ -221,15 +221,23 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
     ) -> DaemonValidationOutcome {
         #[cfg(unix)]
         {
-            match scan_buffer(ScanMode::PreWrite, request.relative_path, request.content) {
+            let cancellation = std::sync::atomic::AtomicBool::new(false);
+            match scan_buffer(
+                ScanMode::PreWrite,
+                request.relative_path,
+                request.content,
+                &cancellation,
+            ) {
                 Ok(diagnostics) => DaemonValidationOutcome::Diagnostics(diagnostics),
                 Err(ScanBufferError::Unavailable) => DaemonValidationOutcome::Unavailable,
                 Err(ScanBufferError::Truncated) => {
                     DaemonValidationOutcome::OperationalFailure(DAEMON_TRUNCATED_FAILURE)
                 }
-                Err(ScanBufferError::Failed | ScanBufferError::VersionMismatch) => {
-                    DaemonValidationOutcome::OperationalFailure(DAEMON_FAILURE)
-                }
+                Err(
+                    ScanBufferError::Failed
+                    | ScanBufferError::VersionMismatch
+                    | ScanBufferError::Cancelled,
+                ) => DaemonValidationOutcome::OperationalFailure(DAEMON_FAILURE),
             }
         }
         #[cfg(not(unix))]

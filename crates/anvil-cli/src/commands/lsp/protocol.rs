@@ -1,8 +1,12 @@
 use std::fmt;
 use std::io::{self, BufRead, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(super) const MAX_LSP_FRAME_BYTES: usize = 4 * 1024 * 1024;
+pub(super) const MAX_DOCUMENT_BYTES: usize = 1024 * 1024;
+const MAX_HEADER_BYTES: usize = 8 * 1024;
+const MAX_HEADER_LINE_BYTES: usize = 1024;
+const MAX_HEADER_COUNT: usize = 64;
 
 #[derive(Debug)]
 pub(super) enum FrameError {
@@ -11,6 +15,7 @@ pub(super) enum FrameError {
     DuplicateContentLength,
     InvalidContentLength,
     FrameTooLarge,
+    HeadersTooLarge,
 }
 
 impl fmt::Display for FrameError {
@@ -21,6 +26,7 @@ impl fmt::Display for FrameError {
             Self::DuplicateContentLength => formatter.write_str("duplicate Content-Length header"),
             Self::InvalidContentLength => formatter.write_str("invalid Content-Length header"),
             Self::FrameTooLarge => formatter.write_str("LSP frame exceeds 4 MiB limit"),
+            Self::HeadersTooLarge => formatter.write_str("LSP headers exceed bounded limits"),
         }
     }
 }
@@ -63,6 +69,9 @@ pub(super) fn file_uri_to_path(uri: &str) -> Result<PathBuf, UriError> {
             index += 1;
         }
     }
+    if decoded.contains(&0) {
+        return Err(UriError);
+    }
     let decoded = String::from_utf8(decoded).map_err(|_| UriError)?;
     #[cfg(windows)]
     let decoded = decoded
@@ -78,6 +87,47 @@ pub(super) fn file_uri_to_path(uri: &str) -> Result<PathBuf, UriError> {
     }
 }
 
+#[derive(Debug, Default)]
+pub(super) struct WorkspaceRoots(Vec<PathBuf>);
+
+impl WorkspaceRoots {
+    pub fn from_initialize(message: &serde_json::Value) -> Self {
+        let folder_uris = message
+            .pointer("/params/workspaceFolders")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|folder| folder.get("uri").and_then(serde_json::Value::as_str));
+        let mut roots = folder_uris
+            .filter_map(|uri| file_uri_to_path(uri).ok())
+            .collect::<Vec<_>>();
+        if roots.is_empty()
+            && let Some(uri) = message
+                .pointer("/params/rootUri")
+                .and_then(serde_json::Value::as_str)
+        {
+            roots.extend(file_uri_to_path(uri).ok());
+        }
+        roots.sort_by_key(|root| std::cmp::Reverse(root.components().count()));
+        roots.dedup();
+        Self(roots)
+    }
+
+    pub fn relative_path(&self, uri: &str) -> Result<PathBuf, UriError> {
+        let path = file_uri_to_path(uri)?;
+        self.0
+            .iter()
+            .find_map(|root| path.strip_prefix(root).ok().map(Path::to_path_buf))
+            .filter(|relative| {
+                !relative.as_os_str().is_empty()
+                    && relative
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_)))
+            })
+            .ok_or(UriError)
+    }
+}
+
 fn hex_value(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
@@ -89,15 +139,30 @@ fn hex_value(byte: u8) -> Option<u8> {
 
 pub(super) fn read_lsp_frame(reader: &mut impl BufRead) -> Result<Option<Vec<u8>>, FrameError> {
     let mut content_length = None;
+    let mut header_bytes = 0usize;
+    let mut header_count = 0usize;
     loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line)? == 0 {
+        let mut line = Vec::new();
+        let read = reader
+            .take((MAX_HEADER_LINE_BYTES + 1) as u64)
+            .read_until(b'\n', &mut line)?;
+        if read == 0 {
             return if content_length.is_none() {
                 Ok(None)
             } else {
                 Err(FrameError::InvalidContentLength)
             };
         }
+        header_bytes = header_bytes.saturating_add(read);
+        header_count += 1;
+        if read > MAX_HEADER_LINE_BYTES
+            || header_bytes > MAX_HEADER_BYTES
+            || header_count > MAX_HEADER_COUNT
+            || !line.ends_with(b"\n")
+        {
+            return Err(FrameError::HeadersTooLarge);
+        }
+        let line = std::str::from_utf8(&line).map_err(|_| FrameError::InvalidContentLength)?;
         let trimmed = line.trim_end_matches(['\r', '\n']);
         if trimmed.is_empty() {
             break;
@@ -120,7 +185,6 @@ pub(super) fn read_lsp_frame(reader: &mut impl BufRead) -> Result<Option<Vec<u8>
 
     let length = content_length.ok_or(FrameError::MissingContentLength)?;
     if length > MAX_LSP_FRAME_BYTES {
-        io::copy(&mut reader.take(length as u64), &mut io::sink())?;
         return Err(FrameError::FrameTooLarge);
     }
     let mut body = vec![0; length];
@@ -132,7 +196,9 @@ pub(super) fn read_lsp_frame(reader: &mut impl BufRead) -> Result<Option<Vec<u8>
 mod tests {
     use std::io::Cursor;
 
-    use super::{FrameError, file_uri_to_path, read_lsp_frame};
+    use serde_json::json;
+
+    use super::{FrameError, WorkspaceRoots, file_uri_to_path, read_lsp_frame};
 
     #[test]
     fn frame_headers_are_case_insensitive() {
@@ -153,6 +219,36 @@ mod tests {
             read_lsp_frame(&mut input),
             Err(FrameError::DuplicateContentLength)
         ));
+    }
+
+    #[test]
+    fn oversized_header_line_is_rejected_without_waiting_for_a_body() {
+        let mut input = Cursor::new(vec![b'a'; 1025]);
+        assert!(matches!(
+            read_lsp_frame(&mut input),
+            Err(FrameError::HeadersTooLarge)
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn most_specific_workspace_root_supplies_a_relative_path() {
+        let roots = WorkspaceRoots::from_initialize(&json!({"params":{"workspaceFolders":[
+            {"uri":"file:///tmp/anvil%20project"},
+            {"uri":"file:///tmp/anvil%20project/crates/cli"}
+        ]}}));
+        assert_eq!(
+            roots
+                .relative_path("file:///tmp/anvil%20project/crates/cli/src/main.rs")
+                .unwrap(),
+            std::path::Path::new("src/main.rs")
+        );
+        assert!(roots.relative_path("file:///tmp/outside.rs").is_err());
+        assert!(
+            roots
+                .relative_path("file:///tmp/anvil%20project/crates/cli/../outside.rs")
+                .is_err()
+        );
     }
 
     #[test]

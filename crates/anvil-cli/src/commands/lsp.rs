@@ -5,7 +5,8 @@
 //! to LSPNAV and is deliberately absent from this module.
 
 use std::io::{self, BufReader, Write};
-use std::sync::mpsc::{self, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, RecvTimeoutError, SyncSender, TrySendError};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -17,10 +18,13 @@ use crate::daemon_validation::{ScanMode, scan_buffer};
 mod protocol;
 mod state;
 
-use protocol::{file_uri_to_path, read_lsp_frame};
+use protocol::{WorkspaceRoots, read_lsp_frame};
 use state::{DocumentStore, ScanJob};
 
 const DEFAULT_DEBOUNCE: Duration = Duration::from_millis(80);
+const EVENT_QUEUE_CAPACITY: usize = 32;
+const SCAN_QUEUE_CAPACITY: usize = 8;
+const SCAN_WORKERS: usize = 4;
 
 #[derive(Debug, Args)]
 pub struct LspArgs {
@@ -50,22 +54,28 @@ enum Event {
     ProtocolError,
     ScanComplete {
         job: ScanJob,
-        diagnostics: Vec<anvil_kernel_types::Diagnostic>,
+        result:
+            Result<Vec<anvil_kernel_types::Diagnostic>, crate::daemon_validation::ScanBufferError>,
     },
     Eof,
 }
 
 fn run_stdio_server() -> anyhow::Result<()> {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = mpsc::sync_channel(EVENT_QUEUE_CAPACITY);
     spawn_reader(sender.clone());
+    let (scan_sender, scan_receiver) = mpsc::sync_channel(SCAN_QUEUE_CAPACITY);
+    spawn_scan_workers(&sender, scan_receiver);
 
     let mut stdout = io::stdout().lock();
     let mut lifecycle = Lifecycle::WaitingForInitialize;
     let mut documents = DocumentStore::new(DEFAULT_DEBOUNCE);
+    let mut workspace_roots = WorkspaceRoots::default();
 
     loop {
         for job in documents.take_due(Instant::now()) {
-            spawn_scan(sender.clone(), job);
+            if let Err(TrySendError::Full(job)) = scan_sender.try_send(job) {
+                documents.retry(&job, Instant::now());
+            }
         }
 
         let event = match documents.next_deadline() {
@@ -89,9 +99,17 @@ fn run_stdio_server() -> anyhow::Result<()> {
                     &mut stdout,
                     &error_response(&Value::Null, -32700, "Parse error"),
                 )?;
+                if matches!(event, Event::ProtocolError) {
+                    break;
+                }
             }
-            Event::ScanComplete { job, diagnostics } => {
-                if documents.finish(&job) {
+            Event::ScanComplete { job, result } => {
+                let successful = result.is_ok();
+                let diagnostics = result.unwrap_or_else(|error| {
+                    eprintln!("anvil-lsp: mid-edit scan unavailable: {error}");
+                    Vec::new()
+                });
+                if documents.finish(&job, successful) {
                     write_message(
                         &mut stdout,
                         &publish_diagnostics_notification(
@@ -104,7 +122,13 @@ fn run_stdio_server() -> anyhow::Result<()> {
                 }
             }
             Event::Message(message) => {
-                if !handle_message(&mut stdout, &message, &mut lifecycle, &mut documents)? {
+                if !handle_message(
+                    &mut stdout,
+                    &message,
+                    &mut lifecycle,
+                    &mut documents,
+                    &mut workspace_roots,
+                )? {
                     break;
                 }
             }
@@ -114,7 +138,7 @@ fn run_stdio_server() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn spawn_reader(sender: Sender<Event>) {
+fn spawn_reader(sender: SyncSender<Event>) {
     thread::spawn(move || {
         let stdin = io::stdin();
         let mut reader = BufReader::new(stdin.lock());
@@ -146,21 +170,32 @@ fn spawn_reader(sender: Sender<Event>) {
     });
 }
 
-fn spawn_scan(sender: Sender<Event>, job: ScanJob) {
-    thread::spawn(move || {
-        let diagnostics = match file_uri_to_path(&job.uri) {
-            Ok(path) => scan_buffer(ScanMode::MidEdit, &path.to_string_lossy(), &job.text)
-                .unwrap_or_else(|error| {
-                    eprintln!("anvil-lsp: mid-edit scan unavailable: {error}");
-                    Vec::new()
-                }),
-            Err(error) => {
-                eprintln!("anvil-lsp: refused document URI: {error}");
-                Vec::new()
+fn spawn_scan_workers(sender: &SyncSender<Event>, receiver: mpsc::Receiver<ScanJob>) {
+    let receiver = Arc::new(Mutex::new(receiver));
+    for _ in 0..SCAN_WORKERS {
+        let sender = sender.clone();
+        let receiver = Arc::clone(&receiver);
+        thread::spawn(move || {
+            loop {
+                let job = {
+                    let Ok(receiver) = receiver.lock() else {
+                        return;
+                    };
+                    let Ok(job) = receiver.recv() else { return };
+                    job
+                };
+                let result = scan_buffer(
+                    ScanMode::MidEdit,
+                    &job.relative_path.to_string_lossy(),
+                    &job.text,
+                    &job.cancelled,
+                );
+                if sender.send(Event::ScanComplete { job, result }).is_err() {
+                    return;
+                }
             }
-        };
-        let _ = sender.send(Event::ScanComplete { job, diagnostics });
-    });
+        });
+    }
 }
 
 fn handle_message(
@@ -168,11 +203,15 @@ fn handle_message(
     message: &Value,
     lifecycle: &mut Lifecycle,
     documents: &mut DocumentStore,
+    workspace_roots: &mut WorkspaceRoots,
 ) -> anyhow::Result<bool> {
     let method = message.get("method").and_then(Value::as_str);
     let id = message.get("id").cloned();
 
     if method == Some("exit") {
+        if *lifecycle != Lifecycle::Shutdown {
+            anyhow::bail!("LSP exit received before shutdown");
+        }
         return Ok(false);
     }
 
@@ -182,6 +221,7 @@ fn handle_message(
                 return Ok(true);
             };
             write_message(stdout, &initialize_response(&id))?;
+            *workspace_roots = WorkspaceRoots::from_initialize(message);
             *lifecycle = Lifecycle::WaitingForInitialized;
         }
         (Lifecycle::WaitingForInitialize, _) => {
@@ -195,12 +235,12 @@ fn handle_message(
         (Lifecycle::WaitingForInitialized, Some("initialized")) => {
             *lifecycle = Lifecycle::Running;
         }
-        (Lifecycle::WaitingForInitialized, Some("shutdown"))
-        | (Lifecycle::Running, Some("shutdown")) => {
+        (Lifecycle::WaitingForInitialized | Lifecycle::Running, Some("shutdown")) => {
             if let Some(id) = id {
                 write_message(stdout, &success_response(&id, &Value::Null))?;
             }
             *lifecycle = Lifecycle::Shutdown;
+            documents.close_all();
         }
         (Lifecycle::Running, Some("textDocument/didOpen")) => {
             if let (Some(uri), Some(version), Some(text)) = (
@@ -214,8 +254,16 @@ fn handle_message(
                     .pointer("/params/textDocument/text")
                     .and_then(Value::as_str),
             ) {
-                if documents.open(uri, version, text, Instant::now()).is_err() {
-                    eprintln!("anvil-lsp: open-document capacity reached");
+                match workspace_roots.relative_path(uri) {
+                    Ok(relative_path) => {
+                        if documents
+                            .open(uri, relative_path, version, text, Instant::now())
+                            .is_err()
+                        {
+                            eprintln!("anvil-lsp: document capacity reached");
+                        }
+                    }
+                    Err(error) => eprintln!("anvil-lsp: refused document URI: {error}"),
                 }
             }
         }
@@ -240,11 +288,11 @@ fn handle_message(
                 .and_then(Value::as_str)
             {
                 documents.close(uri);
-                write_message(stdout, &publish_diagnostics_notification(uri, 0, "", &[]))?;
+                write_message(stdout, &clear_diagnostics_notification(uri))?;
             }
         }
         (Lifecycle::Shutdown, _) => {}
-        (Lifecycle::WaitingForInitialized, _) | (Lifecycle::Running, _) => {
+        (Lifecycle::WaitingForInitialized | Lifecycle::Running, _) => {
             if let Some(id) = id {
                 write_message(stdout, &error_response(&id, -32601, "Method not found"))?;
             }
@@ -300,6 +348,14 @@ fn publish_diagnostics_notification(
                 .map(|diagnostic| to_lsp_diagnostic(diagnostic, text))
                 .collect::<Vec<_>>()
         }
+    })
+}
+
+fn clear_diagnostics_notification(uri: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": { "uri": uri, "diagnostics": [] }
     })
 }
 
@@ -361,11 +417,13 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{DocumentStore, Lifecycle, byte_column_to_utf16, handle_message};
+    use super::{DocumentStore, Lifecycle, WorkspaceRoots, byte_column_to_utf16, handle_message};
 
     #[test]
     fn unicode_columns_are_projected_as_utf16_code_units() {
         assert_eq!(byte_column_to_utf16("a😀z", 0, 5), 3);
+        assert_eq!(byte_column_to_utf16("first\r\na😀e\u{301}z", 1, 8), 5);
+        assert_eq!(byte_column_to_utf16("plain", 0, 3), 3);
     }
 
     #[test]
@@ -373,12 +431,14 @@ mod tests {
         let mut output = Vec::new();
         let mut lifecycle = Lifecycle::WaitingForInitialize;
         let mut documents = DocumentStore::new(Duration::from_millis(80));
+        let mut roots = WorkspaceRoots::default();
 
         handle_message(
             &mut output,
             &json!({"jsonrpc":"2.0","id":1,"method":"shutdown"}),
             &mut lifecycle,
             &mut documents,
+            &mut roots,
         )
         .expect("handle request");
 

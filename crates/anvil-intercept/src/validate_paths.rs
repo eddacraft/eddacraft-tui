@@ -119,7 +119,14 @@ pub fn antipattern_diagnostic(warning: &Warning) -> Diagnostic {
     let location = Location {
         file: warning.location.file.clone(),
         line: u32::try_from(warning.location.line).ok(),
-        column: warning.location.column.and_then(|c| u32::try_from(c).ok()),
+        // Antipattern scanners report zero-based byte offsets; the canonical
+        // diagnostic contract is one-based so every downstream projection has
+        // one coordinate convention.
+        column: warning
+            .location
+            .column
+            .and_then(|c| u32::try_from(c).ok())
+            .and_then(|c| c.checked_add(1)),
         end_line: warning
             .location
             .end_line
@@ -127,7 +134,8 @@ pub fn antipattern_diagnostic(warning: &Warning) -> Diagnostic {
         end_column: warning
             .location
             .end_column
-            .and_then(|c| u32::try_from(c).ok()),
+            .and_then(|c| u32::try_from(c).ok())
+            .and_then(|c| c.checked_add(1)),
     };
     let diagnostic = Diagnostic::new(
         warning.id.clone(),
@@ -692,7 +700,7 @@ mod tests {
         assert_eq!(d.summary, "`any` defeats the type checker");
         assert_eq!(d.location.file, "src/app.ts");
         assert_eq!(d.location.line, Some(12));
-        assert_eq!(d.location.column, Some(4));
+        assert_eq!(d.location.column, Some(5));
         assert_eq!(d.category, Category::Antipattern);
         assert_eq!(d.source.rule_id, "AP-001");
         assert_eq!(d.source.source_module, ANTIPATTERN_SOURCE_MODULE);

@@ -1,5 +1,5 @@
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use anvil_kernel_types::Diagnostic;
 use serde::{Deserialize, Serialize};
@@ -58,6 +58,7 @@ pub(crate) enum ScanBufferError {
     Failed,
     Truncated,
     VersionMismatch,
+    Cancelled,
 }
 
 impl fmt::Display for ScanBufferError {
@@ -67,6 +68,7 @@ impl fmt::Display for ScanBufferError {
             Self::Failed => "daemon validation failed",
             Self::Truncated => "daemon validation response was truncated",
             Self::VersionMismatch => "daemon validation response version did not match",
+            Self::Cancelled => "daemon validation was cancelled",
         })
     }
 }
@@ -77,7 +79,11 @@ pub(crate) fn scan_buffer(
     mode: ScanMode,
     path: &str,
     text: &str,
+    cancellation: &AtomicBool,
 ) -> Result<Vec<Diagnostic>, ScanBufferError> {
+    if cancellation.load(Ordering::Acquire) {
+        return Err(ScanBufferError::Cancelled);
+    }
     let params = build_scan_buffer_params(mode, path, text);
     let request_id = format!(
         "cli-scan-buffer-{}",
@@ -88,6 +94,9 @@ pub(crate) fn scan_buffer(
             DaemonRpcError::Unavailable => ScanBufferError::Unavailable,
             DaemonRpcError::Failure => ScanBufferError::Failed,
         })?;
+    if cancellation.load(Ordering::Acquire) {
+        return Err(ScanBufferError::Cancelled);
+    }
     if result.version != SCAN_BUFFER_VERSION {
         return Err(ScanBufferError::VersionMismatch);
     }

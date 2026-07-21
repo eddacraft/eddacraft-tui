@@ -4,8 +4,8 @@
 //! over a single line-framed JSON-RPC exchange. The GCTX MCP tools/resources use
 //! it for the read-only `anvil/gctx/*` methods; the `anvil hook` witness path
 //! (MLP2-005 phase 3) reuses the same transport for `anvil/witness/append`.
-//! Transport failures that mean “no usable daemon surface” (absent socket /
-//! `Method not found`) classify as [`DaemonRpcError::Unavailable`]; malformed
+//! Transport failures that mean “no usable daemon surface” (an absent socket)
+//! classify as [`DaemonRpcError::Unavailable`]; malformed
 //! replies and security-relevant failures classify as [`DaemonRpcError::Failure`].
 
 use serde::Serialize;
@@ -14,7 +14,7 @@ use serde_json::json;
 
 /// Why a daemon JSON-RPC request could not complete.
 ///
-/// `Unavailable` (socket absent / `Method not found`) degrades to a structured
+/// `Unavailable` (socket absent) degrades to a structured
 /// `unavailable` outcome; `Failure` (a malformed reply, an IO error mid-exchange,
 /// or a security-relevant validation failure) is a tool/resource error. The
 /// witness-append hook path treats *both* as "no durable daemon result" and falls
@@ -58,6 +58,8 @@ fn classify_peer_validation_failure(platform: PeerCredentialPlatform) -> DaemonR
 #[derive(serde::Deserialize)]
 struct GctxRpcEnvelope<R> {
     #[serde(default)]
+    jsonrpc: Option<String>,
+    #[serde(default)]
     id: Option<String>,
     #[serde(default = "Option::default")]
     result: Option<R>,
@@ -69,6 +71,58 @@ struct GctxRpcEnvelope<R> {
 #[derive(serde::Deserialize)]
 struct GctxRpcError {
     code: i64,
+}
+
+#[cfg(windows)]
+static ACTIVE_PIPE_WORKERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[cfg(windows)]
+const MAX_PIPE_WORKERS: usize = 8;
+
+#[cfg(windows)]
+struct PipeWorkerPermit;
+
+#[cfg(windows)]
+impl PipeWorkerPermit {
+    fn try_acquire() -> Result<Self, DaemonRpcError> {
+        ACTIVE_PIPE_WORKERS
+            .fetch_update(
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+                |active| (active < MAX_PIPE_WORKERS).then_some(active + 1),
+            )
+            .map(|_| Self)
+            .map_err(|_| DaemonRpcError::Failure)
+    }
+}
+
+#[cfg(windows)]
+impl Drop for PipeWorkerPermit {
+    fn drop(&mut self) {
+        ACTIVE_PIPE_WORKERS.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+    }
+}
+
+#[cfg(any(unix, windows))]
+fn decode_rpc_response<R>(line: &str, method: &str, request_id: &str) -> Result<R, DaemonRpcError>
+where
+    R: DeserializeOwned,
+{
+    let envelope: GctxRpcEnvelope<R> = serde_json::from_str(line).map_err(|err| {
+        eprintln!("anvil-daemon: {method} response parse failed: {err}");
+        DaemonRpcError::Failure
+    })?;
+    if envelope.jsonrpc.as_deref() != Some("2.0")
+        || envelope.id.as_deref() != Some(request_id)
+        || envelope.result.is_some() == envelope.error.is_some()
+    {
+        eprintln!("anvil-daemon: {method} response envelope was invalid");
+        return Err(DaemonRpcError::Failure);
+    }
+    if let Some(error) = envelope.error {
+        eprintln!("anvil-daemon: {method} daemon error {}", error.code);
+        return Err(DaemonRpcError::Failure);
+    }
+    envelope.result.ok_or(DaemonRpcError::Failure)
 }
 
 /// Forward a sealed request to the daemon over a line-framed JSON-RPC exchange
@@ -109,7 +163,11 @@ where
     }
     let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
         eprintln!("anvil-daemon: {method} connect failed: {err}");
-        DaemonRpcError::Unavailable
+        if err.kind() == std::io::ErrorKind::NotFound {
+            DaemonRpcError::Unavailable
+        } else {
+            DaemonRpcError::Failure
+        }
     })?;
     ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
         eprintln!("anvil-daemon: {method} peer rejected: {err}");
@@ -132,7 +190,12 @@ where
     });
     // USAGE-004: attach the caller's salted-hash principal so the daemon records
     // an attributable `command.invoked` row.
-    crate::usage::attach_principal(&mut frame);
+    // The legacy `scan_buffer` parser is intentionally a sealed JSON-RPC
+    // surface and rejects the usage extension field. Its caller attribution is
+    // handled by the daemon's authenticated transport boundary.
+    if method != "scan_buffer" {
+        crate::usage::attach_principal(&mut frame);
+    }
     if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
         eprintln!("anvil-daemon: {method} request write failed: {err}");
         return Err(DaemonRpcError::Failure);
@@ -157,26 +220,7 @@ where
         DaemonRpcError::Failure
     })?;
 
-    let envelope: GctxRpcEnvelope<Resp> = serde_json::from_str(&line).map_err(|err| {
-        eprintln!("anvil-daemon: {method} response parse failed: {err}");
-        DaemonRpcError::Failure
-    })?;
-    if envelope.id.as_deref() != Some(request_id) {
-        eprintln!("anvil-daemon: {method} response id mismatch");
-        return Err(DaemonRpcError::Failure);
-    }
-    if let Some(error) = envelope.error {
-        return if error.code == -32601 {
-            Err(DaemonRpcError::Unavailable)
-        } else {
-            eprintln!("anvil-daemon: {method} daemon error {}", error.code);
-            Err(DaemonRpcError::Failure)
-        };
-    }
-    envelope.result.ok_or_else(|| {
-        eprintln!("anvil-daemon: {method} response carried neither result nor error");
-        DaemonRpcError::Failure
-    })
+    decode_rpc_response(&line, method, request_id)
 }
 
 /// Forward a sealed request to the daemon over the Windows owner-only named
@@ -212,13 +256,19 @@ where
     let method = method.to_owned();
     let method_label = method.clone();
     let request_id = request_id.to_owned();
+    let permit = PipeWorkerPermit::try_acquire()?;
     let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(move || {
+        let _permit = permit;
         let outcome: Result<serde_json::Value, DaemonRpcError> = (|| {
             let mut client = anvil_intercept_win32::connect_owner_only_pipe_client(&pipe_name)
                 .map_err(|err| {
                     eprintln!("anvil-daemon: {method} pipe connect failed: {err}");
-                    DaemonRpcError::Unavailable
+                    if err.kind() == std::io::ErrorKind::NotFound {
+                        DaemonRpcError::Unavailable
+                    } else {
+                        DaemonRpcError::Failure
+                    }
                 })?;
             let mut frame = json!({
                 "jsonrpc": "2.0",
@@ -226,7 +276,9 @@ where
                 "params": params,
                 "id": request_id.as_str(),
             });
-            crate::usage::attach_principal(&mut frame);
+            if method != "scan_buffer" {
+                crate::usage::attach_principal(&mut frame);
+            }
             if let Err(err) = writeln!(client, "{frame}").and_then(|()| client.flush()) {
                 eprintln!("anvil-daemon: {method} pipe request write failed: {err}");
                 return Err(DaemonRpcError::Failure);
@@ -250,27 +302,7 @@ where
                 eprintln!("anvil-daemon: {method} pipe response was not UTF-8");
                 DaemonRpcError::Failure
             })?;
-            let envelope: GctxRpcEnvelope<serde_json::Value> = serde_json::from_str(&line)
-                .map_err(|err| {
-                    eprintln!("anvil-daemon: {method} pipe response parse failed: {err}");
-                    DaemonRpcError::Failure
-                })?;
-            if envelope.id.as_deref() != Some(request_id.as_str()) {
-                eprintln!("anvil-daemon: {method} pipe response id mismatch");
-                return Err(DaemonRpcError::Failure);
-            }
-            if let Some(error) = envelope.error {
-                return if error.code == -32601 {
-                    Err(DaemonRpcError::Unavailable)
-                } else {
-                    eprintln!("anvil-daemon: {method} pipe daemon error {}", error.code);
-                    Err(DaemonRpcError::Failure)
-                };
-            }
-            envelope.result.ok_or_else(|| {
-                eprintln!("anvil-daemon: {method} pipe response carried neither result nor error");
-                DaemonRpcError::Failure
-            })
+            decode_rpc_response(&line, &method, &request_id)
         })();
         let _ = tx.send(outcome);
     });
@@ -326,5 +358,19 @@ mod tests {
             classify_peer_validation_failure(PeerCredentialPlatform::OtherUnix),
             DaemonRpcError::Unavailable
         );
+    }
+
+    #[test]
+    fn received_daemon_errors_and_malformed_envelopes_fail_closed() {
+        let method_not_found = r#"{"jsonrpc":"2.0","id":"scan-1","error":{"code":-32601}}"#;
+        let missing_version = r#"{"id":"scan-1","result":{}}"#;
+        let ambiguous = r#"{"jsonrpc":"2.0","id":"scan-1","result":{},"error":{"code":-1}}"#;
+
+        for response in [method_not_found, missing_version, ambiguous] {
+            assert_eq!(
+                decode_rpc_response::<serde_json::Value>(response, "scan_buffer", "scan-1"),
+                Err(DaemonRpcError::Failure)
+            );
+        }
     }
 }
