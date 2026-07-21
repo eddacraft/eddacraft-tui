@@ -1,5 +1,5 @@
 pub mod check;
-pub mod generated;
+pub(crate) mod generated;
 pub(crate) mod mask;
 pub mod patterns;
 pub mod registry_loader;
@@ -13,7 +13,6 @@ pub use registry_loader::{
 };
 
 pub use check::run_antipattern_check;
-pub use generated::{has_generated_banner, is_generated_path, is_generated_source};
 pub use patterns::{
     all_patterns, get_default_patterns, get_enabled_patterns, get_pattern, get_pattern_ids,
     is_valid_pattern_id, patterns_count,

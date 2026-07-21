@@ -193,14 +193,19 @@ pub fn run_antipattern_check_bytes(
                 if !is_scannable_file(file_path, config) {
                     return None;
                 }
-                let content = String::from_utf8_lossy(bytes);
                 // CIB-199: machine-generated files (TanStack Router's
                 // `routeTree.gen.ts`, protobuf/GraphQL codegen output) are
                 // overwritten on regeneration and ship blanket suppression
                 // headers by construction. Anti-pattern findings on them are
-                // unactionable, so skip them here. Secret detection and other
-                // gate engines walk independently and are unaffected.
-                if crate::antipattern::generated::is_generated_source(file_path, &content) {
+                // unactionable, so skip them. Secret detection and other gate
+                // engines walk independently and are unaffected. The cheap
+                // path check runs first so a path-identified generated file is
+                // never UTF-8 decoded.
+                if crate::antipattern::generated::is_generated_path(file_path) {
+                    return None;
+                }
+                let content = String::from_utf8_lossy(bytes);
+                if crate::antipattern::generated::has_generated_banner(&content) {
                     return None;
                 }
                 let relative_path = normalise_file_path(file_path, workspace_root);
