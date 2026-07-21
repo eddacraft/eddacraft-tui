@@ -156,7 +156,7 @@ fn exit_before_shutdown_is_an_abnormal_termination() {
 
 #[test]
 #[allow(clippy::too_many_lines)]
-fn live_daemon_publishes_a_real_mid_edit_diagnostic() {
+fn live_daemon_uses_cwd_fallback_and_publishes_a_real_mid_edit_diagnostic() {
     let anvil_home = tempfile::tempdir().expect("temporary anvil home");
     let workspace = tempfile::tempdir().expect("temporary workspace");
     let mut daemon = ChildGuard(
@@ -222,9 +222,7 @@ fn live_daemon_publishes_a_real_mid_edit_diagnostic() {
     let document_uri = format!("{root_uri}/src/app.ts");
     write_message(
         &mut stdin,
-        &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
-            "workspaceFolders":[{"uri":root_uri,"name":"fixture"}]
-        }}),
+        &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
     );
     receiver
         .recv_timeout(Duration::from_secs(5))

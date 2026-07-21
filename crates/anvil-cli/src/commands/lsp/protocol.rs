@@ -93,6 +93,13 @@ pub(super) struct WorkspaceRoots(Vec<PathBuf>);
 
 impl WorkspaceRoots {
     pub fn from_initialize(message: &serde_json::Value) -> Self {
+        Self::from_initialize_with_fallback(message, std::env::current_dir().ok())
+    }
+
+    fn from_initialize_with_fallback(
+        message: &serde_json::Value,
+        fallback_root: Option<PathBuf>,
+    ) -> Self {
         let folder_uris = message
             .pointer("/params/workspaceFolders")
             .and_then(serde_json::Value::as_array)
@@ -111,6 +118,9 @@ impl WorkspaceRoots {
                 .filter(|uri| uri.len() <= MAX_DOCUMENT_URI_BYTES)
         {
             roots.extend(file_uri_to_path(uri).ok());
+        }
+        if roots.is_empty() {
+            roots.extend(fallback_root.filter(|root| root.is_absolute()));
         }
         roots.sort_by(|left, right| {
             right
@@ -282,6 +292,24 @@ mod tests {
                 std::path::PathBuf::from("/tmp/a"),
                 std::path::PathBuf::from("/tmp/b")
             ]
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn missing_workspace_metadata_falls_back_to_process_working_directory() {
+        let fallback = std::path::PathBuf::from("/tmp/anvil-fallback");
+        let roots = WorkspaceRoots::from_initialize_with_fallback(
+            &json!({"params": {}}),
+            Some(fallback.clone()),
+        );
+
+        assert_eq!(roots.0, vec![fallback]);
+        assert_eq!(
+            roots
+                .relative_path("file:///tmp/anvil-fallback/src/main.rs")
+                .unwrap(),
+            std::path::Path::new("src/main.rs")
         );
     }
 
