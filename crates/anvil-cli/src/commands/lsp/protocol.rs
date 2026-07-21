@@ -182,11 +182,7 @@ pub(super) fn read_lsp_frame(reader: &mut impl BufRead) -> Result<Option<Vec<u8>
             };
         }
         header_bytes = header_bytes.saturating_add(read);
-        header_count += 1;
-        if read > MAX_HEADER_LINE_BYTES
-            || header_bytes > MAX_HEADER_BYTES
-            || header_count > MAX_HEADER_COUNT
-            || !line.ends_with(b"\n")
+        if read > MAX_HEADER_LINE_BYTES || header_bytes > MAX_HEADER_BYTES || !line.ends_with(b"\n")
         {
             return Err(FrameError::HeadersTooLarge);
         }
@@ -194,6 +190,10 @@ pub(super) fn read_lsp_frame(reader: &mut impl BufRead) -> Result<Option<Vec<u8>
         let trimmed = line.trim_end_matches(['\r', '\n']);
         if trimmed.is_empty() {
             break;
+        }
+        header_count += 1;
+        if header_count > MAX_HEADER_COUNT {
+            return Err(FrameError::HeadersTooLarge);
         }
         let Some((name, value)) = trimmed.split_once(':') else {
             continue;
@@ -226,7 +226,7 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{FrameError, WorkspaceRoots, file_uri_to_path, read_lsp_frame};
+    use super::{FrameError, MAX_HEADER_COUNT, WorkspaceRoots, file_uri_to_path, read_lsp_frame};
 
     #[test]
     fn frame_headers_are_case_insensitive() {
@@ -254,6 +254,27 @@ mod tests {
         let mut input = Cursor::new(vec![b'a'; 1025]);
         assert!(matches!(
             read_lsp_frame(&mut input),
+            Err(FrameError::HeadersTooLarge)
+        ));
+    }
+
+    #[test]
+    fn header_count_limit_excludes_the_blank_terminator() {
+        let mut accepted = b"X-Ignored: value\r\n".repeat(MAX_HEADER_COUNT - 1);
+        accepted.extend_from_slice(b"Content-Length: 2\r\n\r\n{}");
+        let mut accepted = Cursor::new(accepted);
+        assert_eq!(
+            read_lsp_frame(&mut accepted)
+                .expect("the declared header limit should be accepted")
+                .expect("frame body"),
+            b"{}"
+        );
+
+        let mut rejected = b"X-Ignored: value\r\n".repeat(MAX_HEADER_COUNT);
+        rejected.extend_from_slice(b"Content-Length: 2\r\n\r\n{}");
+        let mut rejected = Cursor::new(rejected);
+        assert!(matches!(
+            read_lsp_frame(&mut rejected),
             Err(FrameError::HeadersTooLarge)
         ));
     }
