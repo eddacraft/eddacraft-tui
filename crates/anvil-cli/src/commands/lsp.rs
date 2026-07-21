@@ -5,7 +5,7 @@
 //! to LSPNAV and is deliberately absent from this module.
 
 use std::io::{self, BufReader, Write};
-use std::sync::mpsc::{self, RecvTimeoutError, SyncSender, TrySendError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -60,6 +60,11 @@ enum Event {
     Eof,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScanDispatchError {
+    Disconnected,
+}
+
 fn run_stdio_server() -> anyhow::Result<()> {
     let (sender, receiver) = mpsc::sync_channel(EVENT_QUEUE_CAPACITY);
     spawn_reader(sender.clone());
@@ -73,21 +78,16 @@ fn run_stdio_server() -> anyhow::Result<()> {
 
     loop {
         for job in documents.take_due_bounded(Instant::now(), SCAN_QUEUE_CAPACITY) {
-            if let Err(TrySendError::Full(job)) = scan_sender.try_send(job) {
-                documents.retry(&job, Instant::now());
+            match try_send_scan(&scan_sender, job) {
+                Ok(Some(job)) => documents.retry(&job, Instant::now()),
+                Ok(None) => {}
+                Err(ScanDispatchError::Disconnected) => {
+                    anyhow::bail!("LSP scan workers disconnected")
+                }
             }
         }
 
-        let event = match documents.next_deadline() {
-            Some(deadline) => {
-                match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                    Ok(event) => Some(event),
-                    Err(RecvTimeoutError::Timeout) => None,
-                    Err(RecvTimeoutError::Disconnected) => Some(Event::Eof),
-                }
-            }
-            None => receiver.recv().ok(),
-        };
+        let event = receive_event(&receiver, documents.next_deadline());
         let Some(event) = event else {
             continue;
         };
@@ -136,6 +136,33 @@ fn run_stdio_server() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn try_send_scan(
+    sender: &SyncSender<ScanJob>,
+    job: ScanJob,
+) -> Result<Option<ScanJob>, ScanDispatchError> {
+    match sender.try_send(job) {
+        Ok(()) => Ok(None),
+        Err(TrySendError::Full(job)) => Ok(Some(job)),
+        Err(TrySendError::Disconnected(_)) => Err(ScanDispatchError::Disconnected),
+    }
+}
+
+fn receive_event(receiver: &Receiver<Event>, deadline: Option<Instant>) -> Option<Event> {
+    match deadline {
+        Some(deadline) => {
+            match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                Ok(event) => Some(event),
+                Err(RecvTimeoutError::Timeout) => None,
+                Err(RecvTimeoutError::Disconnected) => Some(Event::Eof),
+            }
+        }
+        None => match receiver.recv() {
+            Ok(event) => Some(event),
+            Err(_) => Some(Event::Eof),
+        },
+    }
 }
 
 fn spawn_reader(sender: SyncSender<Event>) {
@@ -413,11 +440,40 @@ fn byte_column_to_utf16(text: &str, line: u32, byte_column: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
     use serde_json::json;
 
-    use super::{DocumentStore, Lifecycle, WorkspaceRoots, byte_column_to_utf16, handle_message};
+    use super::{
+        DocumentStore, Event, Lifecycle, ScanDispatchError, WorkspaceRoots, byte_column_to_utf16,
+        handle_message, receive_event, try_send_scan,
+    };
+
+    #[test]
+    fn disconnected_event_channel_is_treated_as_eof() {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        drop(sender);
+
+        assert!(matches!(receive_event(&receiver, None), Some(Event::Eof)));
+    }
+
+    #[test]
+    fn disconnected_scan_workers_are_terminal() {
+        let started = Instant::now();
+        let mut documents = DocumentStore::new(Duration::ZERO);
+        documents
+            .open("file:///src/main.rs", "main.rs".into(), 1, "one", started)
+            .expect("document capacity");
+        let job = documents.take_due(started).pop().expect("due scan job");
+        let (sender, receiver) = mpsc::sync_channel(1);
+        drop(receiver);
+
+        assert!(matches!(
+            try_send_scan(&sender, job),
+            Err(ScanDispatchError::Disconnected)
+        ));
+    }
 
     #[test]
     fn unicode_columns_are_projected_as_utf16_code_units() {

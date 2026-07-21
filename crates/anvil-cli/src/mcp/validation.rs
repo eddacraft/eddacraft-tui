@@ -243,7 +243,7 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
         #[cfg(not(any(unix, windows)))]
         {
             let _ = request;
-            eprintln!("anvil-mcp: daemon validation requires a Unix domain socket");
+            eprintln!("anvil-mcp: daemon validation transport is unsupported on this platform");
             DaemonValidationOutcome::Unavailable
         }
     }

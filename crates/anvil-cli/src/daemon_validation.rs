@@ -75,6 +75,16 @@ impl fmt::Display for ScanBufferError {
 
 impl std::error::Error for ScanBufferError {}
 
+fn classify_rpc_error(error: DaemonRpcError, cancelled: bool) -> ScanBufferError {
+    if cancelled {
+        return ScanBufferError::Cancelled;
+    }
+    match error {
+        DaemonRpcError::Unavailable => ScanBufferError::Unavailable,
+        DaemonRpcError::Failure => ScanBufferError::Failed,
+    }
+}
+
 pub(crate) fn scan_buffer(
     mode: ScanMode,
     path: &str,
@@ -95,10 +105,7 @@ pub(crate) fn scan_buffer(
         &request_id,
         Some(std::sync::Arc::clone(cancellation)),
     )
-    .map_err(|error| match error {
-        DaemonRpcError::Unavailable => ScanBufferError::Unavailable,
-        DaemonRpcError::Failure => ScanBufferError::Failed,
-    })?;
+    .map_err(|error| classify_rpc_error(error, cancellation.load(Ordering::Acquire)))?;
     if cancellation.load(Ordering::Acquire) {
         return Err(ScanBufferError::Cancelled);
     }
@@ -115,7 +122,25 @@ pub(crate) fn scan_buffer(
 mod tests {
     use serde_json::json;
 
-    use super::{ScanMode, build_scan_buffer_params};
+    use super::{
+        DaemonRpcError, ScanBufferError, ScanMode, build_scan_buffer_params, classify_rpc_error,
+    };
+
+    #[test]
+    fn cancellation_takes_precedence_over_transport_failure() {
+        assert_eq!(
+            classify_rpc_error(DaemonRpcError::Failure, true),
+            ScanBufferError::Cancelled
+        );
+        assert_eq!(
+            classify_rpc_error(DaemonRpcError::Unavailable, false),
+            ScanBufferError::Unavailable
+        );
+        assert_eq!(
+            classify_rpc_error(DaemonRpcError::Failure, false),
+            ScanBufferError::Failed
+        );
+    }
 
     #[test]
     fn mid_edit_request_uses_the_existing_scan_buffer_contract() {

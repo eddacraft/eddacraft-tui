@@ -112,7 +112,13 @@ impl WorkspaceRoots {
         {
             roots.extend(file_uri_to_path(uri).ok());
         }
-        roots.sort_by_key(|root| std::cmp::Reverse(root.components().count()));
+        roots.sort_by(|left, right| {
+            right
+                .components()
+                .count()
+                .cmp(&left.components().count())
+                .then_with(|| left.cmp(right))
+        });
         roots.dedup();
         Self(roots)
     }
@@ -259,6 +265,24 @@ mod tests {
         );
         let oversized_uri = format!("file:///tmp/{}", "a".repeat(4096));
         assert!(roots.relative_path(&oversized_uri).is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn duplicate_same_depth_workspace_roots_are_removed() {
+        let roots = WorkspaceRoots::from_initialize(&json!({"params":{"workspaceFolders":[
+            {"uri":"file:///tmp/a"},
+            {"uri":"file:///tmp/b"},
+            {"uri":"file:///tmp/a"}
+        ]}}));
+
+        assert_eq!(
+            roots.0,
+            vec![
+                std::path::PathBuf::from("/tmp/a"),
+                std::path::PathBuf::from("/tmp/b")
+            ]
+        );
     }
 
     #[test]
