@@ -500,20 +500,26 @@ convention" section). Concretely:
   full LSP suite at MCP tool-call parity (find-usages, impact-of-change,
   affected-tests), budget ~15-20% lower payload/token cost, not 2.6-2.8x**
   — see the report's Decision (c) before citing a bigger number.
-- **Production diagnostics implementation in PR #3360 (2026-07-20):** the
+- **Production diagnostics implementation in PR #3360 (2026-07-21):** the
   branch was reduced to this item's diagnostics-only boundary; all experimental
   symbol lookup, references, impact analysis, affected-test, graph-cache, GCTX
   and Intercept protocol changes were removed. The remaining implementation
   adds bounded case-insensitive LSP framing, explicit initialise/shutdown and
   open/change/close lifecycle state, an 80 ms latest-version debounce, stale
-  result suppression, SHA-256 identical-buffer coalescing, a 256-document cap,
-  percent-decoded file URI handling, UTF-16 diagnostic projection, versioned
-  publications, daemon-down degradation and a shared `scan_buffer` client over
-  the existing owner-validated Unix/Windows daemon transport. Local evidence:
-  eight LSP unit tests, two shared-client contract tests, MCP daemon parity and
-  the process-level daemon-down LSP lifecycle test pass. Windows compilation is
-  delegated to CI because the local Linux host lacks an MSVC native toolchain;
-  Council and the production latency evidence remain merge gates.
+  result suppression, active Unix exchange cancellation (with bounded Windows
+  cancellation polling), SHA-256 identical-buffer coalescing, bounded document,
+  URI, aggregate-memory, event-queue and worker-pool resources, multi-root
+  admission, percent-decoded file URI handling, UTF-16 diagnostic projection,
+  versioned publications, daemon-down degradation and a shared `scan_buffer`
+  client over the existing owner-validated Unix/Windows daemon transport. Fresh
+  local evidence: 13 LSP unit tests and five process tests pass, including a
+  live daemon diagnostic/change/clear flow and an active-exchange cancellation
+  race. The feature-gated `midedit_roundtrip` benchmark sampled 500 warm calls
+  per case; worst-case round-trip p95 was 39.040 ms for the near-cap 1 MiB case,
+  within ADR-031's 80 ms gate (dirty diagnostic p95 4.465 ms). Windows executes
+  the same live process test in CI; local cross-compilation remains unavailable
+  because this Linux host lacks the MSVC native toolchain. Final Council and CI
+  remain merge gates.
 - **Confidence:** medium
 - **Status:** In Progress — production diagnostics are under review in PR
   #3360; completion requires green cross-platform CI, Council and fresh

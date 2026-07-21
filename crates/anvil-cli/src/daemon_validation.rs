@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anvil_kernel_types::Diagnostic;
 use serde::{Deserialize, Serialize};
 
-use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
+use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call_cancellable};
 
 const SCAN_BUFFER_VERSION: u64 = 1;
 static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
@@ -79,7 +79,7 @@ pub(crate) fn scan_buffer(
     mode: ScanMode,
     path: &str,
     text: &str,
-    cancellation: &AtomicBool,
+    cancellation: &std::sync::Arc<AtomicBool>,
 ) -> Result<Vec<Diagnostic>, ScanBufferError> {
     if cancellation.load(Ordering::Acquire) {
         return Err(ScanBufferError::Cancelled);
@@ -89,11 +89,16 @@ pub(crate) fn scan_buffer(
         "cli-scan-buffer-{}",
         NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed)
     );
-    let result: ScanBufferResult =
-        daemon_rpc_call("scan_buffer", &params, &request_id).map_err(|error| match error {
-            DaemonRpcError::Unavailable => ScanBufferError::Unavailable,
-            DaemonRpcError::Failure => ScanBufferError::Failed,
-        })?;
+    let result: ScanBufferResult = daemon_rpc_call_cancellable(
+        "scan_buffer",
+        &params,
+        &request_id,
+        Some(std::sync::Arc::clone(cancellation)),
+    )
+    .map_err(|error| match error {
+        DaemonRpcError::Unavailable => ScanBufferError::Unavailable,
+        DaemonRpcError::Failure => ScanBufferError::Failed,
+    })?;
     if cancellation.load(Ordering::Acquire) {
         return Err(ScanBufferError::Cancelled);
     }

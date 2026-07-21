@@ -154,7 +154,6 @@ fn exit_before_shutdown_is_an_abnormal_termination() {
     assert!(!status.success());
 }
 
-#[cfg(unix)]
 #[test]
 #[allow(clippy::too_many_lines)]
 fn live_daemon_publishes_a_real_mid_edit_diagnostic() {
@@ -174,14 +173,25 @@ fn live_daemon_publishes_a_real_mid_edit_diagnostic() {
             .spawn()
             .expect("spawn intercept daemon"),
     );
-    let socket = anvil_home.path().join("intercept.sock");
-    for _ in 0..60 {
-        if socket.exists() {
-            break;
+    #[cfg(unix)]
+    {
+        let socket = anvil_home.path().join("intercept.sock");
+        for _ in 0..60 {
+            if socket.exists() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
         }
-        std::thread::sleep(Duration::from_millis(100));
+        assert!(socket.exists(), "daemon socket did not become ready");
     }
-    assert!(socket.exists(), "daemon socket did not become ready");
+    #[cfg(windows)]
+    {
+        std::thread::sleep(Duration::from_millis(500));
+        assert!(
+            daemon.0.try_wait().unwrap().is_none(),
+            "named-pipe daemon exited before the LSP test"
+        );
+    }
 
     let mut lsp = ChildGuard(
         Command::new(env!("CARGO_BIN_EXE_anvil"))
@@ -208,7 +218,7 @@ fn live_daemon_publishes_a_real_mid_edit_diagnostic() {
             }
         }
     });
-    let root_uri = format!("file://{}", workspace.path().display());
+    let root_uri = path_to_file_uri(workspace.path());
     let document_uri = format!("{root_uri}/src/app.ts");
     write_message(
         &mut stdin,
@@ -306,11 +316,149 @@ fn live_daemon_publishes_a_real_mid_edit_diagnostic() {
     let _ = &mut daemon;
 }
 
+#[cfg(unix)]
+#[test]
+#[allow(clippy::too_many_lines)]
+fn changing_a_document_cancels_the_active_daemon_exchange() {
+    use std::io::Read;
+    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::net::UnixListener;
+
+    let anvil_home = tempfile::tempdir().expect("temporary anvil home");
+    let workspace = tempfile::tempdir().expect("temporary workspace");
+    std::fs::set_permissions(anvil_home.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    let socket = anvil_home.path().join("intercept.sock");
+    let listener = UnixListener::bind(&socket).expect("bind fake daemon socket");
+    std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let (first_seen_tx, first_seen_rx) = mpsc::channel();
+    let (cancelled_tx, cancelled_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        for request_index in 0..2 {
+            let (stream, _) = listener.accept().expect("accept LSP daemon request");
+            if request_index == 0 {
+                let first_seen_tx = first_seen_tx.clone();
+                let cancelled_tx = cancelled_tx.clone();
+                std::thread::spawn(move || {
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    let mut reader = BufReader::new(stream);
+                    let mut request = String::new();
+                    reader.read_line(&mut request).expect("read first request");
+                    first_seen_tx.send(()).unwrap();
+                    let mut byte = [0u8; 1];
+                    let cancelled = reader.read(&mut byte).is_ok_and(|count| count == 0);
+                    cancelled_tx.send(cancelled).unwrap();
+                });
+            } else {
+                std::thread::spawn(move || {
+                    let mut reader = BufReader::new(stream);
+                    let mut request = String::new();
+                    reader
+                        .read_line(&mut request)
+                        .expect("read replacement request");
+                    let request: Value = serde_json::from_str(&request).unwrap();
+                    let response = json!({
+                        "jsonrpc":"2.0",
+                        "id":request["id"],
+                        "result":{"version":1,"diagnostics":[],"truncated":false}
+                    });
+                    writeln!(reader.get_mut(), "{response}").expect("write replacement response");
+                    reader.get_mut().flush().unwrap();
+                });
+            }
+        }
+    });
+
+    let mut lsp = ChildGuard(
+        Command::new(env!("CARGO_BIN_EXE_anvil"))
+            .args(["lsp", "--stdio"])
+            .env("ANVIL_DEV", "1")
+            .env("ANVIL_HOME", anvil_home.path())
+            .env("HOME", anvil_home.path())
+            .env("USERPROFILE", anvil_home.path())
+            .current_dir(workspace.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn anvil lsp"),
+    );
+    let mut stdin = lsp.0.stdin.take().expect("piped stdin");
+    let stdout = lsp.0.stdout.take().expect("piped stdout");
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        while let Ok(Some(message)) = read_message(&mut reader) {
+            if sender.send(message).is_err() {
+                break;
+            }
+        }
+    });
+    let root_uri = path_to_file_uri(workspace.path());
+    let document_uri = format!("{root_uri}/src/app.ts");
+    write_message(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"rootUri":root_uri}}),
+    );
+    receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+    write_message(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    write_message(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{
+            "uri":document_uri,"languageId":"typescript","version":1,"text":"one"
+        }}}),
+    );
+    first_seen_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("first scan reached daemon");
+    write_message(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{
+            "textDocument":{"uri":document_uri,"version":2},
+            "contentChanges":[{"text":"two"}]
+        }}),
+    );
+    assert!(
+        cancelled_rx
+            .recv_timeout(Duration::from_millis(500))
+            .expect("active exchange cancellation result"),
+        "the stale daemon socket must be closed promptly"
+    );
+    let publication = receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("replacement diagnostics");
+    assert_eq!(publication["params"]["version"], 2);
+
+    write_message(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","id":2,"method":"shutdown"}),
+    );
+    receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+    write_message(&mut stdin, &json!({"jsonrpc":"2.0","method":"exit"}));
+    drop(stdin);
+    assert!(lsp.0.wait().expect("wait for LSP").success());
+}
+
 fn write_message(stdin: &mut ChildStdin, message: &Value) {
     let body = serde_json::to_vec(message).expect("serialise LSP message");
     write!(stdin, "Content-Length: {}\r\n\r\n", body.len()).expect("write LSP header");
     stdin.write_all(&body).expect("write LSP body");
     stdin.flush().expect("flush LSP frame");
+}
+
+fn path_to_file_uri(path: &std::path::Path) -> String {
+    let encoded = path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .replace(' ', "%20");
+    #[cfg(windows)]
+    return format!("file:///{encoded}");
+    #[cfg(not(windows))]
+    format!("file://{encoded}")
 }
 
 fn read_message(reader: &mut impl BufRead) -> std::io::Result<Option<Value>> {

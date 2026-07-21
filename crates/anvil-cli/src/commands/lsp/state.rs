@@ -31,6 +31,7 @@ struct Document {
     in_flight: bool,
     generation: u64,
     cancellation: Arc<AtomicBool>,
+    retained_bytes: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,11 +68,15 @@ impl DocumentStore {
         let replaced_bytes = self
             .documents
             .get(uri)
-            .map_or(0, |document| document.text.len());
+            .map_or(0, |document| document.retained_bytes);
+        let retained_bytes = uri
+            .len()
+            .saturating_add(relative_path.to_string_lossy().len())
+            .saturating_add(text.len());
         let next_total = self
             .total_bytes
             .saturating_sub(replaced_bytes)
-            .saturating_add(text.len());
+            .saturating_add(retained_bytes);
         if text.len() > super::protocol::MAX_DOCUMENT_BYTES
             || next_total > MAX_TOTAL_DOCUMENT_BYTES
             || (!self.documents.contains_key(uri) && self.documents.len() >= MAX_OPEN_DOCUMENTS)
@@ -96,6 +101,7 @@ impl DocumentStore {
                 in_flight: false,
                 generation,
                 cancellation: Arc::new(AtomicBool::new(false)),
+                retained_bytes,
             },
         );
         Ok(())
@@ -109,12 +115,14 @@ impl DocumentStore {
         now: Instant,
     ) -> Result<(), StaleVersion> {
         let document = self.documents.get_mut(uri).ok_or(StaleVersion)?;
+        let fixed_bytes = document.retained_bytes.saturating_sub(document.text.len());
+        let retained_bytes = fixed_bytes.saturating_add(text.len());
         if version <= document.version
             || text.len() > super::protocol::MAX_DOCUMENT_BYTES
             || self
                 .total_bytes
-                .saturating_sub(document.text.len())
-                .saturating_add(text.len())
+                .saturating_sub(document.retained_bytes)
+                .saturating_add(retained_bytes)
                 > MAX_TOTAL_DOCUMENT_BYTES
         {
             return Err(StaleVersion);
@@ -122,10 +130,11 @@ impl DocumentStore {
         let hash = content_hash(text);
         self.total_bytes = self
             .total_bytes
-            .saturating_sub(document.text.len())
-            .saturating_add(text.len());
+            .saturating_sub(document.retained_bytes)
+            .saturating_add(retained_bytes);
         document.version = version;
         document.text = Arc::from(text);
+        document.retained_bytes = retained_bytes;
         document.content_hash = hash;
         document.cancellation.store(true, Ordering::Release);
         document.cancellation = Arc::new(AtomicBool::new(false));
@@ -143,7 +152,7 @@ impl DocumentStore {
     pub fn close(&mut self, uri: &str) {
         if let Some(document) = self.documents.remove(uri) {
             document.cancellation.store(true, Ordering::Release);
-            self.total_bytes = self.total_bytes.saturating_sub(document.text.len());
+            self.total_bytes = self.total_bytes.saturating_sub(document.retained_bytes);
         }
     }
 
@@ -155,9 +164,17 @@ impl DocumentStore {
         self.total_bytes = 0;
     }
 
+    #[cfg(test)]
     pub fn take_due(&mut self, now: Instant) -> Vec<ScanJob> {
+        self.take_due_bounded(now, usize::MAX)
+    }
+
+    pub fn take_due_bounded(&mut self, now: Instant, limit: usize) -> Vec<ScanJob> {
         let mut jobs = Vec::new();
         for (uri, document) in &mut self.documents {
+            if jobs.len() >= limit {
+                break;
+            }
             if document.in_flight || document.due.is_none_or(|due| due > now) {
                 continue;
             }

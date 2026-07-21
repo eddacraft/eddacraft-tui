@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 pub(super) const MAX_LSP_FRAME_BYTES: usize = 4 * 1024 * 1024;
 pub(super) const MAX_DOCUMENT_BYTES: usize = 1024 * 1024;
+pub(super) const MAX_DOCUMENT_URI_BYTES: usize = 4096;
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_HEADER_LINE_BYTES: usize = 1024;
 const MAX_HEADER_COUNT: usize = 64;
@@ -97,7 +98,9 @@ impl WorkspaceRoots {
             .and_then(serde_json::Value::as_array)
             .into_iter()
             .flatten()
-            .filter_map(|folder| folder.get("uri").and_then(serde_json::Value::as_str));
+            .filter_map(|folder| folder.get("uri").and_then(serde_json::Value::as_str))
+            .filter(|uri| uri.len() <= MAX_DOCUMENT_URI_BYTES)
+            .take(64);
         let mut roots = folder_uris
             .filter_map(|uri| file_uri_to_path(uri).ok())
             .collect::<Vec<_>>();
@@ -105,6 +108,7 @@ impl WorkspaceRoots {
             && let Some(uri) = message
                 .pointer("/params/rootUri")
                 .and_then(serde_json::Value::as_str)
+                .filter(|uri| uri.len() <= MAX_DOCUMENT_URI_BYTES)
         {
             roots.extend(file_uri_to_path(uri).ok());
         }
@@ -114,6 +118,9 @@ impl WorkspaceRoots {
     }
 
     pub fn relative_path(&self, uri: &str) -> Result<PathBuf, UriError> {
+        if uri.len() > MAX_DOCUMENT_URI_BYTES {
+            return Err(UriError);
+        }
         let path = file_uri_to_path(uri)?;
         self.0
             .iter()
@@ -124,6 +131,7 @@ impl WorkspaceRoots {
                         .components()
                         .all(|component| matches!(component, std::path::Component::Normal(_)))
             })
+            .filter(|relative| relative.to_string_lossy().len() <= MAX_DOCUMENT_URI_BYTES)
             .ok_or(UriError)
     }
 }
@@ -249,6 +257,8 @@ mod tests {
                 .relative_path("file:///tmp/anvil%20project/crates/cli/../outside.rs")
                 .is_err()
         );
+        let oversized_uri = format!("file:///tmp/{}", "a".repeat(4096));
+        assert!(roots.relative_path(&oversized_uri).is_err());
     }
 
     #[test]

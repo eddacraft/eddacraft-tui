@@ -11,6 +11,8 @@
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::json;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Why a daemon JSON-RPC request could not complete.
 ///
@@ -35,6 +37,16 @@ enum PeerCredentialPlatform {
     OtherUnix,
 }
 
+#[cfg(unix)]
+struct CancellationDone(Arc<AtomicBool>);
+
+#[cfg(unix)]
+impl Drop for CancellationDone {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Release);
+    }
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform::LinuxOrMacos;
 
@@ -44,13 +56,11 @@ const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform:
 #[cfg(unix)]
 fn classify_peer_validation_failure(platform: PeerCredentialPlatform) -> DaemonRpcError {
     match platform {
-        PeerCredentialPlatform::LinuxOrMacos => DaemonRpcError::Failure,
-        // CIB-099: non-Linux/macOS Unix builds do not have the same peer-credential
-        // implementation. Treat that validation failure as an unavailable daemon
-        // transport so callers degrade consistently instead of surfacing a hard
-        // failure — the GCTX tools return `unavailable`; the witness hook falls
-        // back to the embedded writer.
-        PeerCredentialPlatform::OtherUnix => DaemonRpcError::Unavailable,
+        // An unimplemented or rejected identity check is never equivalent to an
+        // absent transport. Callers that enforce writes must fail closed.
+        PeerCredentialPlatform::LinuxOrMacos | PeerCredentialPlatform::OtherUnix => {
+            DaemonRpcError::Failure
+        }
     }
 }
 
@@ -128,7 +138,6 @@ where
 /// Forward a sealed request to the daemon over a line-framed JSON-RPC exchange
 /// on the Unix socket and deserialise the sealed response. Method-agnostic: the
 /// `anvil/gctx/*` reads and `anvil/witness/append` share this transport.
-#[cfg(unix)]
 pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     request: &Req,
@@ -138,8 +147,23 @@ where
     Req: Serialize,
     Resp: DeserializeOwned,
 {
+    daemon_rpc_call_cancellable(method, request, request_id, None)
+}
+
+#[cfg(unix)]
+pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
+    method: &str,
+    request: &Req,
+    request_id: &str,
+    cancellation: Option<Arc<AtomicBool>>,
+) -> Result<Resp, DaemonRpcError>
+where
+    Req: Serialize,
+    Resp: DeserializeOwned,
+{
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::net::UnixStream;
+    use std::thread;
     use std::time::Duration;
 
     use anvil_intercept::ipc;
@@ -173,6 +197,29 @@ where
         eprintln!("anvil-daemon: {method} peer rejected: {err}");
         classify_peer_validation_failure(PEER_CREDENTIAL_PLATFORM)
     })?;
+    let cancellation_done = Arc::new(AtomicBool::new(false));
+    let _cancellation_guard = CancellationDone(Arc::clone(&cancellation_done));
+    if let Some(cancellation) = cancellation {
+        let cancel_stream = stream.try_clone().map_err(|error| {
+            eprintln!("anvil-daemon: {method} cancellation setup failed: {error}");
+            DaemonRpcError::Failure
+        })?;
+        thread::Builder::new()
+            .name("anvil-daemon-cancel".to_owned())
+            .spawn(move || {
+                while !cancellation_done.load(Ordering::Acquire) {
+                    if cancellation.load(Ordering::Acquire) {
+                        let _ = cancel_stream.shutdown(std::net::Shutdown::Both);
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(5));
+                }
+            })
+            .map_err(|error| {
+                eprintln!("anvil-daemon: {method} cancellation watcher failed: {error}");
+                DaemonRpcError::Failure
+            })?;
+    }
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-daemon: {method} read-timeout setup failed: {err}");
         DaemonRpcError::Failure
@@ -228,10 +275,11 @@ where
 /// synchronous pipe exchange on a worker thread because Win32 pipe reads/writes
 /// do not expose the same per-stream timeout setters.
 #[cfg(windows)]
-pub(crate) fn daemon_rpc_call<Req, Resp>(
+pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
     method: &str,
     request: &Req,
     request_id: &str,
+    cancellation: Option<Arc<AtomicBool>>,
 ) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
@@ -307,13 +355,26 @@ where
         let _ = tx.send(outcome);
     });
 
-    let value = match rx.recv_timeout(TIMEOUT) {
-        Ok(outcome) => outcome?,
-        Err(mpsc::RecvTimeoutError::Timeout) => {
+    let deadline = std::time::Instant::now() + TIMEOUT;
+    let value = loop {
+        if cancellation
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Acquire))
+        {
+            return Err(DaemonRpcError::Failure);
+        }
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
             eprintln!("anvil-daemon: {method_label} pipe request timed out");
             return Err(DaemonRpcError::Unavailable);
         }
-        Err(mpsc::RecvTimeoutError::Disconnected) => return Err(DaemonRpcError::Unavailable),
+        match rx.recv_timeout(remaining.min(Duration::from_millis(10))) {
+            Ok(outcome) => break outcome?,
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(DaemonRpcError::Unavailable);
+            }
+        }
     };
     serde_json::from_value(value).map_err(|err| {
         eprintln!("anvil-daemon: {method_label} pipe response decode failed: {err}");
@@ -323,10 +384,11 @@ where
 
 /// Non-Unix, non-Windows targets have no daemon transport.
 #[cfg(all(not(unix), not(windows)))]
-pub(crate) fn daemon_rpc_call<Req, Resp>(
+pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
     method: &str,
     _request: &Req,
     _request_id: &str,
+    _cancellation: Option<Arc<AtomicBool>>,
 ) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
@@ -353,10 +415,10 @@ mod tests {
     }
 
     #[test]
-    fn other_unix_peer_validation_failures_degrade_to_unavailable() {
+    fn other_unix_peer_validation_failures_remain_hard_failures() {
         assert_eq!(
             classify_peer_validation_failure(PeerCredentialPlatform::OtherUnix),
-            DaemonRpcError::Unavailable
+            DaemonRpcError::Failure
         );
     }
 

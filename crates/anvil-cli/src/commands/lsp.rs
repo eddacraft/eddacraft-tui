@@ -72,7 +72,7 @@ fn run_stdio_server() -> anyhow::Result<()> {
     let mut workspace_roots = WorkspaceRoots::default();
 
     loop {
-        for job in documents.take_due(Instant::now()) {
+        for job in documents.take_due_bounded(Instant::now(), SCAN_QUEUE_CAPACITY) {
             if let Err(TrySendError::Full(job)) = scan_sender.try_send(job) {
                 documents.retry(&job, Instant::now());
             }

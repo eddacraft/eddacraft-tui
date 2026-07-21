@@ -219,9 +219,9 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
         &self,
         request: &PreWriteValidationRequest<'_>,
     ) -> DaemonValidationOutcome {
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
-            let cancellation = std::sync::atomic::AtomicBool::new(false);
+            let cancellation = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             match scan_buffer(
                 ScanMode::PreWrite,
                 request.relative_path,
@@ -240,7 +240,7 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
                 ) => DaemonValidationOutcome::OperationalFailure(DAEMON_FAILURE),
             }
         }
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = request;
             eprintln!("anvil-mcp: daemon validation requires a Unix domain socket");
