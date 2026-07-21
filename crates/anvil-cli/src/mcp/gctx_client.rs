@@ -512,7 +512,7 @@ mod windows_tests {
             let result: Result<serde_json::Value, DaemonRpcError> = daemon_rpc_call_windows_at(
                 pipe_name,
                 "scan_buffer",
-                json!({"content": "x".repeat(1024 * 1024)}),
+                json!({"mode": "midEdit", "path": "main.rs", "text": "x".repeat(1024 * 1024)}),
                 &format!("cancel-{attempt}"),
                 Some(cancellation),
             );
@@ -536,8 +536,13 @@ mod windows_tests {
         let (server_task, accepted_rx) = non_responding_server(&runtime, &pipe_name);
 
         let started = Instant::now();
-        let result: Result<serde_json::Value, DaemonRpcError> =
-            daemon_rpc_call_windows_at(pipe_name, "scan_buffer", json!({}), "timeout", None);
+        let result: Result<serde_json::Value, DaemonRpcError> = daemon_rpc_call_windows_at(
+            pipe_name,
+            "scan_buffer",
+            json!({"mode": "midEdit", "path": "main.rs", "text": "fn main() {}"}),
+            "timeout",
+            None,
+        );
         let elapsed = started.elapsed();
         assert_eq!(result, Err(DaemonRpcError::Failure));
         accepted_rx
