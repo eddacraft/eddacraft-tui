@@ -13,7 +13,9 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+#[cfg(unix)]
+use std::sync::atomic::Ordering;
 
 /// Why a daemon JSON-RPC request could not complete.
 ///
