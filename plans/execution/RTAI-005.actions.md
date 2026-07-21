@@ -95,8 +95,10 @@ cross-platform daemon client keeps Unix sockets and Windows named pipes aligned.
       tests fail because no shared client exists.
 - [ ] Move the transport-neutral request/response logic and both platform
       transports from the MCP-local implementation into `daemon_validation`.
-      Expose only `scan_buffer(mode, workspace_root, path, content,
-      cancellation)` and keep wire types private.
+      Expose only `scan_buffer(mode, path, content, cancellation)` and keep wire
+      types private. LSP owns workspace admission and most-specific-root
+      selection, then passes the selected-workspace-relative path because the
+      existing sealed daemon RPC has no workspace-root field.
 - [ ] Make MCP call the shared client in `preWrite` mode and LSP call it in
       `midEdit` mode. Do not change enforcement semantics or add a persistent
       connection; the accepted spike proved per-call connect meets ADR-031.

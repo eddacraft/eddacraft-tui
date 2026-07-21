@@ -4,9 +4,10 @@
 //! over a single line-framed JSON-RPC exchange. The GCTX MCP tools/resources use
 //! it for the read-only `anvil/gctx/*` methods; the `anvil hook` witness path
 //! (MLP2-005 phase 3) reuses the same transport for `anvil/witness/append`.
-//! Transport failures that mean “no usable daemon surface” (an absent socket)
-//! classify as [`DaemonRpcError::Unavailable`]; malformed
-//! replies and security-relevant failures classify as [`DaemonRpcError::Failure`].
+//! Transport failures that mean “no usable daemon surface” (an absent socket,
+//! or `Method not found` for a non-validation method) classify as
+//! [`DaemonRpcError::Unavailable`]; malformed replies and security-relevant
+//! failures classify as [`DaemonRpcError::Failure`].
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -16,12 +17,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Why a daemon JSON-RPC request could not complete.
 ///
-/// `Unavailable` (socket absent) degrades to a structured
-/// `unavailable` outcome; `Failure` (a malformed reply, an IO error mid-exchange,
-/// or a security-relevant validation failure) is a tool/resource error. The
-/// witness-append hook path treats *both* as "no durable daemon result" and falls
-/// back to the embedded writer (the daemon is a pure optimisation there), so it
-/// does not distinguish the two variants.
+/// `Unavailable` (socket absent, or a non-validation method that the daemon does
+/// not implement) degrades to a structured `unavailable` outcome; `Failure` (a
+/// malformed reply, an IO error mid-exchange, or a security-relevant validation
+/// failure) is a tool/resource error. The witness-append hook path treats *both*
+/// as "no durable daemon result" and falls back to the embedded writer (the
+/// daemon is a pure optimisation there), so it does not distinguish the two
+/// variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) enum DaemonRpcError {
@@ -130,6 +132,9 @@ where
     }
     if let Some(error) = envelope.error {
         eprintln!("anvil-daemon: {method} daemon error {}", error.code);
+        if error.code == -32601 && method != "scan_buffer" {
+            return Err(DaemonRpcError::Unavailable);
+        }
         return Err(DaemonRpcError::Failure);
     }
     envelope.result.ok_or(DaemonRpcError::Failure)
@@ -434,5 +439,19 @@ mod tests {
                 Err(DaemonRpcError::Failure)
             );
         }
+    }
+
+    #[test]
+    fn legacy_method_not_found_remains_unavailable_for_non_validation_calls() {
+        let method_not_found = r#"{"jsonrpc":"2.0","id":"gctx-1","error":{"code":-32601}}"#;
+
+        assert_eq!(
+            decode_rpc_response::<serde_json::Value>(
+                method_not_found,
+                "anvil/gctx/search_symbols",
+                "gctx-1",
+            ),
+            Err(DaemonRpcError::Unavailable)
+        );
     }
 }
