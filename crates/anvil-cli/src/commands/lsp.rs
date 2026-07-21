@@ -19,7 +19,7 @@ mod protocol;
 mod state;
 
 use protocol::{WorkspaceRoots, read_lsp_frame};
-use state::{ChangeError, DocumentStore, ScanJob};
+use state::{ChangeError, ChangeResult, DocumentStore, ScanJob};
 
 const DEFAULT_DEBOUNCE: Duration = Duration::from_millis(80);
 const EVENT_QUEUE_CAPACITY: usize = 32;
@@ -113,7 +113,12 @@ fn run_stdio_server() -> anyhow::Result<()> {
                     eprintln!("anvil-lsp: mid-edit scan unavailable: {error}");
                     Vec::new()
                 });
-                if documents.finish(&job, successful) {
+                let cache = if successful {
+                    Some(diagnostics.as_slice())
+                } else {
+                    None
+                };
+                if documents.finish(&job, cache) {
                     write_message(
                         &mut stdout,
                         &publish_diagnostics_notification(
@@ -299,24 +304,7 @@ fn handle_message(
             }
         }
         (Lifecycle::Running, Some("textDocument/didChange")) => {
-            if let (Some(uri), Some(version), Some(text)) = (
-                message
-                    .pointer("/params/textDocument/uri")
-                    .and_then(Value::as_str),
-                message
-                    .pointer("/params/textDocument/version")
-                    .and_then(Value::as_i64),
-                message
-                    .pointer("/params/contentChanges/0/text")
-                    .and_then(Value::as_str),
-            ) {
-                match documents.change(uri, version, text, Instant::now()) {
-                    Ok(()) | Err(ChangeError::StaleVersion) => {}
-                    Err(ChangeError::CapacityExceeded) => {
-                        reject_document_capacity(stdout, documents, uri)?;
-                    }
-                }
-            }
+            handle_did_change(stdout, message, documents)?;
         }
         (Lifecycle::Running, Some("textDocument/didClose")) => {
             if let Some(uri) = message
@@ -406,6 +394,44 @@ fn reject_document_capacity(
     eprintln!("anvil-lsp: document capacity reached");
     documents.close(uri);
     write_message(stdout, &clear_diagnostics_notification(uri))
+}
+
+fn handle_did_change(
+    stdout: &mut impl Write,
+    message: &Value,
+    documents: &mut DocumentStore,
+) -> anyhow::Result<()> {
+    let Some(uri) = message
+        .pointer("/params/textDocument/uri")
+        .and_then(Value::as_str)
+    else {
+        return Ok(());
+    };
+    let Some(version) = message
+        .pointer("/params/textDocument/version")
+        .and_then(Value::as_i64)
+    else {
+        return Ok(());
+    };
+    let Some(text) = message
+        .pointer("/params/contentChanges/0/text")
+        .and_then(Value::as_str)
+    else {
+        return Ok(());
+    };
+    match documents.change(uri, version, text, Instant::now()) {
+        Ok(ChangeResult::Scheduled) | Err(ChangeError::StaleVersion) => Ok(()),
+        Ok(ChangeResult::RepublishUnchanged) => {
+            if let Some((version, text, diagnostics)) = documents.cached_publication(uri) {
+                write_message(
+                    stdout,
+                    &publish_diagnostics_notification(uri, version, &text, &diagnostics),
+                )?;
+            }
+            Ok(())
+        }
+        Err(ChangeError::CapacityExceeded) => reject_document_capacity(stdout, documents, uri),
+    }
 }
 
 fn to_lsp_diagnostic(diagnostic: &anvil_kernel_types::Diagnostic, text: &str) -> Value {

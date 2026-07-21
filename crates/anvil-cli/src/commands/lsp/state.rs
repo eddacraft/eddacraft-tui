@@ -27,6 +27,9 @@ struct Document {
     text: Arc<str>,
     content_hash: [u8; 32],
     last_scanned_hash: Option<[u8; 32]>,
+    /// Last successfully published diagnostics for the current content hash.
+    /// Used to re-publish with a newer document version when content is unchanged.
+    last_diagnostics: Option<Vec<anvil_kernel_types::Diagnostic>>,
     due: Option<Instant>,
     in_flight: bool,
     generation: u64,
@@ -41,6 +44,16 @@ pub(super) struct DocumentCapacityExceeded;
 pub(super) enum ChangeError {
     StaleVersion,
     CapacityExceeded,
+}
+
+/// Outcome of an accepted document change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ChangeResult {
+    /// Content changed (or was never successfully scanned); a scan is scheduled.
+    Scheduled,
+    /// Content hash matches the last successful scan; republish cached
+    /// diagnostics with the new version instead of re-scanning.
+    RepublishUnchanged,
 }
 
 pub(super) struct DocumentStore {
@@ -100,6 +113,7 @@ impl DocumentStore {
                 text: Arc::from(text),
                 content_hash: content_hash(text),
                 last_scanned_hash: None,
+                last_diagnostics: None,
                 due: Some(now + self.debounce),
                 in_flight: false,
                 generation,
@@ -116,7 +130,7 @@ impl DocumentStore {
         version: i64,
         text: &str,
         now: Instant,
-    ) -> Result<(), ChangeError> {
+    ) -> Result<ChangeResult, ChangeError> {
         let document = self
             .documents
             .get_mut(uri)
@@ -136,6 +150,8 @@ impl DocumentStore {
             return Err(ChangeError::CapacityExceeded);
         }
         let hash = content_hash(text);
+        let content_unchanged =
+            document.last_scanned_hash == Some(hash) && document.last_diagnostics.is_some();
         self.total_bytes = self
             .total_bytes
             .saturating_sub(document.retained_bytes)
@@ -149,12 +165,27 @@ impl DocumentStore {
         document.generation = self.next_generation;
         self.next_generation = self.next_generation.wrapping_add(1).max(1);
         document.in_flight = false;
-        document.due = if document.last_scanned_hash == Some(hash) {
-            None
+        if content_unchanged {
+            // Keep last_diagnostics; skip the daemon round-trip and let the
+            // handler republish the cached set with the new version.
+            document.due = None;
+            Ok(ChangeResult::RepublishUnchanged)
         } else {
-            Some(now + self.debounce)
-        };
-        Ok(())
+            document.last_diagnostics = None;
+            document.due = Some(now + self.debounce);
+            Ok(ChangeResult::Scheduled)
+        }
+    }
+
+    /// Cached publication for a URI whose content was unchanged but whose
+    /// version advanced. Returns version, text, and last successful diagnostics.
+    pub fn cached_publication(
+        &self,
+        uri: &str,
+    ) -> Option<(i64, Arc<str>, Vec<anvil_kernel_types::Diagnostic>)> {
+        let document = self.documents.get(uri)?;
+        let diagnostics = document.last_diagnostics.clone()?;
+        Some((document.version, Arc::clone(&document.text), diagnostics))
     }
 
     pub fn close(&mut self, uri: &str) {
@@ -201,7 +232,11 @@ impl DocumentStore {
         jobs
     }
 
-    pub fn finish(&mut self, job: &ScanJob, successful: bool) -> bool {
+    pub fn finish(
+        &mut self,
+        job: &ScanJob,
+        diagnostics: Option<&[anvil_kernel_types::Diagnostic]>,
+    ) -> bool {
         let Some(document) = self.documents.get_mut(&job.uri) else {
             return false;
         };
@@ -212,8 +247,9 @@ impl DocumentStore {
         {
             return false;
         }
-        if successful {
+        if let Some(diagnostics) = diagnostics {
             document.last_scanned_hash = Some(job.content_hash);
+            document.last_diagnostics = Some(diagnostics.to_vec());
         }
         true
     }
@@ -245,7 +281,7 @@ mod tests {
     use std::sync::atomic::Ordering;
     use std::time::{Duration, Instant};
 
-    use super::{ChangeError, DocumentStore};
+    use super::{ChangeError, ChangeResult, DocumentStore};
 
     #[test]
     fn debounce_keeps_only_the_latest_document_version() {
@@ -254,14 +290,17 @@ mod tests {
         store
             .open("file:///src/main.rs", "main.rs".into(), 1, "one", started)
             .expect("document capacity");
-        store
-            .change(
-                "file:///src/main.rs",
-                2,
-                "two",
-                started + Duration::from_millis(20),
-            )
-            .expect("newer version");
+        assert_eq!(
+            store
+                .change(
+                    "file:///src/main.rs",
+                    2,
+                    "two",
+                    started + Duration::from_millis(20),
+                )
+                .expect("newer version"),
+            ChangeResult::Scheduled
+        );
 
         assert!(
             store
@@ -318,7 +357,7 @@ mod tests {
             )
             .expect("newer version");
 
-        assert!(!store.finish(&first, true));
+        assert!(!store.finish(&first, Some(&[])));
         let second = store
             .take_due(started + Duration::from_millis(170))
             .pop()
@@ -352,7 +391,7 @@ mod tests {
             .expect("new version launches without waiting for stale completion");
         assert_eq!(replacement.version, 2);
         assert!(stale.cancelled.load(Ordering::Acquire));
-        assert!(!store.finish(&stale, true));
+        assert!(!store.finish(&stale, Some(&[])));
     }
 
     #[test]
@@ -366,18 +405,27 @@ mod tests {
             .take_due(started + Duration::from_millis(80))
             .pop()
             .expect("first scan");
-        assert!(store.finish(&first, true));
+        assert!(store.finish(&first, Some(&[])));
 
-        store
-            .change(
-                "file:///src/main.rs",
-                2,
-                "same",
-                started + Duration::from_millis(90),
-            )
-            .expect("newer version");
+        assert_eq!(
+            store
+                .change(
+                    "file:///src/main.rs",
+                    2,
+                    "same",
+                    started + Duration::from_millis(90),
+                )
+                .expect("newer version"),
+            ChangeResult::RepublishUnchanged
+        );
 
         assert!(store.take_due(started + Duration::from_secs(1)).is_empty());
+        let (version, text, diagnostics) = store
+            .cached_publication("file:///src/main.rs")
+            .expect("cached publication for unchanged content");
+        assert_eq!(version, 2);
+        assert_eq!(text.as_ref(), "same");
+        assert!(diagnostics.is_empty());
     }
 
     #[test]
@@ -395,7 +443,7 @@ mod tests {
         store
             .open("file:///src/main.rs", "main.rs".into(), 1, "same", started)
             .unwrap();
-        assert!(!store.finish(&old, true));
+        assert!(!store.finish(&old, Some(&[])));
     }
 
     #[test]
@@ -409,7 +457,7 @@ mod tests {
             .take_due(started + Duration::from_millis(80))
             .pop()
             .unwrap();
-        assert!(store.finish(&failed, false));
+        assert!(store.finish(&failed, None));
         store
             .change("file:///src/main.rs", 2, "same", started)
             .unwrap();
