@@ -292,6 +292,11 @@ fn handle_message(
                             .is_err()
                         {
                             eprintln!("anvil-lsp: document capacity reached");
+                            // Fail closed like didChange CapacityExceeded: drop any
+                            // retained document and clear published diagnostics so a
+                            // refused re-open cannot leave stale client state.
+                            documents.close(uri);
+                            write_message(stdout, &clear_diagnostics_notification(uri))?;
                         }
                     }
                     Err(error) => eprintln!("anvil-lsp: refused document URI: {error}"),
@@ -541,6 +546,48 @@ mod tests {
             &mut roots,
         )
         .expect("handle capacity-rejected change");
+
+        let rendered = String::from_utf8(output).expect("utf8 output");
+        assert!(rendered.contains("textDocument/publishDiagnostics"));
+        assert!(rendered.contains("\"diagnostics\":[]"));
+        assert!(rendered.contains(uri));
+        assert!(documents.take_due(Instant::now()).is_empty());
+    }
+
+    #[test]
+    fn capacity_rejected_open_closes_retained_document_and_clears_diagnostics() {
+        let uri = "file:///src/main.rs";
+        let mut output = Vec::new();
+        let mut lifecycle = Lifecycle::Running;
+        let mut documents = DocumentStore::new(Duration::ZERO);
+        documents
+            .open(uri, "main.rs".into(), 1, "one", Instant::now())
+            .expect("document capacity");
+        let mut roots = WorkspaceRoots::from_initialize(&json!({
+            "params": {
+                "rootUri": "file:///"
+            }
+        }));
+
+        handle_message(
+            &mut output,
+            &json!({
+                "jsonrpc":"2.0",
+                "method":"textDocument/didOpen",
+                "params":{
+                    "textDocument":{
+                        "uri":uri,
+                        "languageId":"rust",
+                        "version":2,
+                        "text":"x".repeat(super::protocol::MAX_DOCUMENT_BYTES + 1)
+                    }
+                }
+            }),
+            &mut lifecycle,
+            &mut documents,
+            &mut roots,
+        )
+        .expect("handle capacity-rejected open");
 
         let rendered = String::from_utf8(output).expect("utf8 output");
         assert!(rendered.contains("textDocument/publishDiagnostics"));
