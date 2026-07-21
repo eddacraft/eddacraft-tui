@@ -16,9 +16,9 @@ the tracked runtime adapters, and external skill repositories is detectable.
 name their own hooks and commands, but this guide remains the single inventory
 for shared agent-surface discovery.
 
-Status: **In Progress** (CIB-002). Until automated validation lands, the
-[Drift Detection](#drift-detection) section below describes the manual
-cross-check.
+This guide is **Live**. CIB-002 automated drift validation is still pending;
+until that lands, the [Drift Detection](#drift-detection) section below
+describes the manual cross-check.
 
 ## Purpose
 

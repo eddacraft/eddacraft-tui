@@ -517,9 +517,9 @@ convention" section). Concretely:
   race. The feature-gated `midedit_roundtrip` benchmark sampled 500 warm calls
   per case; worst-case round-trip p95 was 39.040 ms for the near-cap 1 MiB case,
   within ADR-031's 80 ms gate (dirty diagnostic p95 4.465 ms). Windows executes
-  the same live process test in CI; local cross-compilation remains unavailable
-  because this Linux host lacks the MSVC native toolchain. Final Council and CI
-  remain merge gates.
+  the same live process test in CI. Local MSVC-target builds remain unavailable
+  because this Linux host lacks the MSVC native toolchain; Windows GNU target
+  check and clippy were verified. Final Council and CI remain merge gates.
 - **Confidence:** medium
 - **Status:** In Progress — production diagnostics are under review in PR
   #3360; completion requires green cross-platform CI, Council and fresh
