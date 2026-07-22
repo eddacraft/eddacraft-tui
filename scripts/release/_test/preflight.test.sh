@@ -120,7 +120,12 @@ if run_version_gate false ""; then
   exit 1
 fi
 
-sed -i 's/0.9.0-beta/0.10.0-beta/g' "$version_fixture/Cargo.toml" "$version_fixture/package.json"
+node - "$version_fixture/Cargo.toml" "$version_fixture/package.json" <<'NODE'
+const fs = require('node:fs');
+for (const path of process.argv.slice(2)) {
+  fs.writeFileSync(path, fs.readFileSync(path, 'utf8').replaceAll('0.9.0-beta', '0.10.0-beta'));
+}
+NODE
 run_version_gate false v0.10.0-beta
 
 # An invalid --version value is rejected as invalid-input.
