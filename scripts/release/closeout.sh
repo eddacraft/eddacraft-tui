@@ -164,7 +164,7 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
 fi
 
 [[ -n "$version" ]] || fail_usage "--version is required"
-[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$ ]] || fail_usage "--version must look like vX.Y.Z[-suffix]"
+[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)?$ ]] || fail_usage "--version must look like vX.Y.Z[-suffix]"
 [[ -n "$tag" ]] || fail_usage "--tag is required"
 [[ -n "$source_sha" ]] || fail_usage "--source-sha is required"
 [[ "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]] || fail_usage "--source-sha requires a full 40-character commit SHA"

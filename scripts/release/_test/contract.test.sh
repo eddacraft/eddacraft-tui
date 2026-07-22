@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 HARNESS="$ROOT/scripts/release/_test/harness.sh"
 FIXTURE="$ROOT/scripts/release/_test/fixtures/contract-command.sh"
+BUMP_HOMEBREW="$ROOT/scripts/release/bump-homebrew.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -18,6 +19,18 @@ assert_contains() {
     exit 1
   fi
 }
+
+# Every release command accepts the same SemVer-safe candidate-tag grammar.
+# Reject malformed dot-separated prerelease identifiers before other inputs
+# are validated, preventing a direct invocation from reaching Cargo or npm
+# with a version those tools reject.
+for release_script in preflight.sh prepare.sh promote.sh tag.sh monitor.sh verify.sh closeout.sh; do
+  malformed_output="$(bash "$ROOT/scripts/release/$release_script" --json --version v1.2.3-beta..1 2>/dev/null || true)"
+  assert_contains "$malformed_output" '"code":"invalid-input"'
+done
+
+malformed_homebrew_output="$(bash "$BUMP_HOMEBREW" --release-tag v1.2.3-beta..1 --formula-source "$tmp/missing.rb" --out "$tmp/anvil.rb" 2>&1 || true)"
+assert_contains "$malformed_homebrew_output" '--release-tag must look like vX.Y.Z[-suffix]'
 
 bash "$HARNESS" run-contract \
   --name success-envelope \

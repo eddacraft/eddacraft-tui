@@ -351,7 +351,7 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
 fi
 
 [[ -n "$version" ]] || fail_usage "--version is required"
-[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || fail_usage "--version must look like vX.Y.Z[-suffix]"
+[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)?$ ]] || fail_usage "--version must look like vX.Y.Z[-suffix]"
 [[ -n "$release_type" ]] || fail_usage "--release-type is required"
 [[ "$release_type" == "beta" || "$release_type" == "production" ]] || fail_usage "--release-type must be beta or production"
 [[ "$strategy" == "direct" || "$strategy" == "stabilisation" ]] || fail_usage "--strategy must be direct or stabilisation"

@@ -101,7 +101,7 @@ JSON
 run_version_gate() {
   local mode="$1"
   local candidate="$2"
-  ANVIL_RELEASE_PREFLIGHT_TEST_LIB=1 bash -c '
+  bash -c '
     cd "$1"
     source "$2"
     pre_prepare="$3"
@@ -131,6 +131,14 @@ run_version_gate false v0.10.0-beta
 # An invalid --version value is rejected as invalid-input.
 version_invalid_json="$(bash "$PREFLIGHT" --json --version not-a-version 2>/dev/null || true)"
 assert_contains "$version_invalid_json" '"code":"invalid-input"'
+
+for malformed_version in v1.2.3-.1 v1.2.3-beta..1; do
+  malformed_version_json="$(bash "$PREFLIGHT" --json --version "$malformed_version" 2>/dev/null || true)"
+  assert_contains "$malformed_version_json" '"code":"invalid-input"'
+done
+
+ANVIL_RELEASE_PREFLIGHT_TEST_LIB=1 bash "$PREFLIGHT" --help >"$tmp/help-with-test-env.out"
+assert_contains "$(<"$tmp/help-with-test-env.out")" "Usage:"
 
 ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
   bash "$PREFLIGHT" --base main --head dev >"$tmp/human.out"

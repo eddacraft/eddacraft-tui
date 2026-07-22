@@ -92,7 +92,7 @@ done
 [[ -n "$formula_source" ]] || die "$EX_USAGE" "--formula-source is required"
 [[ -n "$out_path" ]]       || die "$EX_USAGE" "--out is required"
 
-if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][A-Za-z0-9._-]+)?$ ]]; then
+if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)?$ ]]; then
   die "$EX_USAGE" "--release-tag must look like vX.Y.Z[-suffix]; got: $release_tag"
 fi
 

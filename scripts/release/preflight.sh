@@ -37,7 +37,7 @@ deny_status="unknown"
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/release/preflight.sh [--json] [--base <ref>] [--head <ref>] [--version <vX.Y.Z>] [--pre-prepare] [--repo <owner/name>]
+Usage: bash scripts/release/preflight.sh [--json] [--base <ref>] [--head <ref>] [--version <vX.Y.Z[-suffix]>] [--pre-prepare] [--repo <owner/name>]
 
 Runs deterministic local release-readiness gates without network or gh calls.
 
@@ -45,7 +45,10 @@ Options:
   --json              Emit exactly one JSON object to stdout.
   --base <ref>        Comparison base ref recorded in output.
   --head <ref>        Comparison head ref recorded in output.
-  --version <vX.Y.Z>  Tag to be cut; checked against the workspace version.
+  --version <vX.Y.Z[-suffix]>
+                      In normal mode, must match the workspace version tag.
+                      With --pre-prepare, is the planned next candidate and
+                      must differ from the source workspace version.
   --pre-prepare       Validate a planned next version before prepare.sh bumps it; requires --version.
   --repo <owner/name> Repository owner/name. Defaults to eddacraft/anvil-001.
   -h, --help          Show this help.
@@ -161,7 +164,7 @@ require_cargo_tool_version() {
 
 validate_version() {
   local value="$1"
-  [[ "$value" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+  [[ "$value" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
 }
 
 # Reads [workspace.package].version from the first Cargo.toml argument.
@@ -574,6 +577,6 @@ main() {
   exit "$exit_code"
 }
 
-if [[ "${ANVIL_RELEASE_PREFLIGHT_TEST_LIB:-}" != "1" ]]; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   main "$@"
 fi

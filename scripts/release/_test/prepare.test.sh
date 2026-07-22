@@ -85,6 +85,11 @@ bash "$HARNESS" run-contract \
 invalid_version_output="$(bash "$PREPARE" --json --version v0.7.0-beta_1 --release-type beta --strategy direct 2>/dev/null || true)"
 assert_contains "$invalid_version_output" '"code":"invalid-input"'
 
+for malformed_version in v1.2.3-.1 v1.2.3-beta..1; do
+  invalid_version_output="$(bash "$PREPARE" --json --version "$malformed_version" --release-type beta --strategy direct 2>/dev/null || true)"
+  assert_contains "$invalid_version_output" '"code":"invalid-input"'
+done
+
 bash "$HARNESS" run-kill9-rerun \
   --name prepare-kill-rerun \
   --state-file "$tmp/prepare-kill.state" \

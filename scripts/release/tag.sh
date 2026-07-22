@@ -118,7 +118,7 @@ if [[ -n "${ANVIL_RELEASE_TAG_FAKE_READINESS_FILE:-}" && "${ANVIL_RELEASE_TEST_M
 fi
 
 [[ -n "$version" ]] || fail_usage "--version is required"
-[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$ ]] || fail_usage "--version must look like vX.Y.Z[-suffix]"
+[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)?$ ]] || fail_usage "--version must look like vX.Y.Z[-suffix]"
 [[ -n "$source_sha" ]] || fail_usage "--source-sha is required"
 [[ "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]] || fail_usage "--source-sha requires a full 40-character commit SHA"
 git rev-parse --verify "${source_sha}^{commit}" >/dev/null 2>&1 || fail_usage "source SHA is not a commit: $source_sha"

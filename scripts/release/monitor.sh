@@ -28,7 +28,7 @@ NODE
 fail_usage() { if [[ "$json" == true ]]; then emit failed '{"workflowRun":null,"state":null,"failedJob":null,"logUrl":null}' "$(failure_json invalid-input "$1" false correct-usage)" monitor 'Fix command arguments.'; else usage >&2; fi; exit 129; }
 while (($# > 0)); do case "$1" in --json) json=true; shift;; --poll) poll=true; shift;; --version) version="${2:-}"; shift 2;; --run-url) run_url="${2:-}"; shift 2;; --repo) repo="${2:-}"; shift 2;; -h|--help) usage; exit 0;; *) fail_usage "unknown argument: $1";; esac; done
 [[ -n "$version" ]] || fail_usage '--version is required'
-[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$ ]] || fail_usage '--version must look like vX.Y.Z[-suffix]'
+[[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)?$ ]] || fail_usage '--version must look like vX.Y.Z[-suffix]'
 if [[ -n "${ANVIL_RELEASE_MONITOR_FAKE_RUN_FILE:-}" && "${ANVIL_RELEASE_TEST_MODE:-}" != monitor-fake-run ]]; then emit failed '{"workflowRun":null,"state":null,"failedJob":null,"logUrl":null}' "$(failure_json invalid-input 'ANVIL_RELEASE_MONITOR_FAKE_RUN_FILE requires ANVIL_RELEASE_TEST_MODE=monitor-fake-run' false correct-test-usage)" monitor 'Unset test hook.'; exit 129; fi
 if [[ -n "${ANVIL_RELEASE_MONITOR_FAKE_RUN_FILE:-}" ]]; then
   result="$(node - "$ANVIL_RELEASE_MONITOR_FAKE_RUN_FILE" "$version" <<'NODE'
