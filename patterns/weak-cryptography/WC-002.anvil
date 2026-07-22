@@ -5,7 +5,7 @@ family: weak-cryptography
 title: Broken cipher or ECB mode in a construction call
 version: 1
 
-severity: warning
+severity: error
 confidence: high
 spectrum_position: 2
 

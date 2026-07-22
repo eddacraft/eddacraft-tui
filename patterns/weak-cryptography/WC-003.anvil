@@ -5,7 +5,7 @@ family: weak-cryptography
 title: JWT configured with the `none` algorithm
 version: 1
 
-severity: warning
+severity: error
 confidence: high
 spectrum_position: 3
 

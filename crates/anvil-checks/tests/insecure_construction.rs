@@ -296,12 +296,21 @@ fn wc003_does_not_fire_on_non_jwt_algorithm_config() {
 }
 
 #[test]
-fn wc003_is_a_warning_not_a_blocking_error() {
-    // ADR-087 §6 warnings-over-blocks: every insecure-construction rule is a
-    // warning so a match cannot fail `anvil check` at the default error
-    // threshold. WC-003 was downgraded from error to warning in review.
-    let p = get_pattern("WC-003").expect("WC-003 exists");
-    assert_eq!(p.severity, WarningSeverity::Warning);
+fn wc002_and_wc003_block_but_wc001_stays_a_warning() {
+    // ADR-112 reconciliation: the genuinely must-block security rules — broken
+    // cipher / ECB (WC-002) and JWT `none` (WC-003) — carry `error` severity so
+    // they fail the gate on their own merit, even though the gate no longer
+    // promotes warnings to blocking. This amends ADR-087 §6's blanket "every
+    // insecure-construction rule is a warning" for these two rules only.
+    let wc002 = get_pattern("WC-002").expect("WC-002 exists");
+    assert_eq!(wc002.severity, WarningSeverity::Error);
+    let wc003 = get_pattern("WC-003").expect("WC-003 exists");
+    assert_eq!(wc003.severity, WarningSeverity::Error);
+
+    // WC-001 (MD5/SHA-1) has legitimate non-cryptographic uses (checksums,
+    // cache keys, ETags), so it stays a warning to avoid false-positive blocks.
+    let wc001 = get_pattern("WC-001").expect("WC-001 exists");
+    assert_eq!(wc001.severity, WarningSeverity::Warning);
 }
 
 #[test]

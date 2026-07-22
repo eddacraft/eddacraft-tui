@@ -43,6 +43,12 @@ pub struct GateArgs {
     #[arg(long)]
     fail_fast: bool,
 
+    /// Treat warning-severity anti-pattern findings as blocking (exit non-zero).
+    /// Off by default (warnings do not block); also settable via
+    /// `ANVIL_FAIL_ON_WARNINGS`. Error-severity rules always block regardless.
+    #[arg(long)]
+    fail_on_warnings: bool,
+
     /// Show real-time progress
     #[arg(long)]
     progress: bool,
@@ -1209,11 +1215,25 @@ fn run_check_shell(name: &str, root: &Path, walked_files: &[String]) -> CheckRes
     }
 }
 
+/// CIB-199 / ADR-112: the anti-pattern gate honours the accepted ADR-002
+/// posture — warnings do not block by default (`Error` threshold), so only
+/// `error`-severity rules fail the gate. `fail_on_warnings` (the opt-in
+/// `--fail-on-warnings` flag / `ANVIL_FAIL_ON_WARNINGS`) lowers the threshold to
+/// `Warning`, restoring strict blocking for teams that want it. Security rules
+/// that must always block (weak-cipher WC-002, JWT-`none` WC-003, plus the
+/// dynamic-execution family) carry `error` severity in the registry, so they
+/// block regardless of this flag.
 fn run_check_antipattern(
     name: &str,
     root: &Path,
     plan_files: &std::collections::HashSet<String>,
+    fail_on_warnings: bool,
 ) -> CheckResult {
+    let severity_threshold = if fail_on_warnings {
+        anvil_checks::antipattern::WarningSeverity::Warning
+    } else {
+        anvil_checks::antipattern::WarningSeverity::Error
+    };
     let mut files_to_scan = walk_source_files(root, &[]);
     if !plan_files.is_empty() {
         files_to_scan.retain(|f| {
@@ -1236,7 +1256,7 @@ fn run_check_antipattern(
     let result = anvil_checks::antipattern::run_antipattern_check(
         &file_refs,
         &anvil_checks::antipattern::AntipatternCheckConfig {
-            severity_threshold: anvil_checks::antipattern::WarningSeverity::Warning,
+            severity_threshold,
             ..anvil_checks::antipattern::AntipatternCheckConfig::default()
         },
         Some(&root_str),
@@ -1271,11 +1291,14 @@ fn run_check_antipattern(
         .iter()
         .filter(|w| {
             w.suppressed.is_none()
-                && matches!(
-                    w.severity,
-                    anvil_checks::antipattern::WarningSeverity::Error
-                        | anvil_checks::antipattern::WarningSeverity::Warning
-                )
+                && match w.severity {
+                    anvil_checks::antipattern::WarningSeverity::Error => true,
+                    // Warning-severity AST rules block only under fail-on-warnings,
+                    // matching the regex-tier threshold above (ADR-112). No such
+                    // rule ships today, so this is forward-compatibility.
+                    anvil_checks::antipattern::WarningSeverity::Warning => fail_on_warnings,
+                    anvil_checks::antipattern::WarningSeverity::Info => false,
+                }
         })
         .collect();
 
@@ -2334,7 +2357,9 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     let mut result = match name {
         "lint" => run_check_lint(name, root),
         "test" => run_check_test(name, root),
-        "antipattern-scan" => run_check_antipattern(name, root, &ctx.plan_files),
+        "antipattern-scan" => {
+            run_check_antipattern(name, root, &ctx.plan_files, ctx.fail_on_warnings)
+        }
         "secret" => run_check_secret(name, root, &ctx.plan_files),
         "sql-migrations" => run_check_sql_migrations(name, root, &ctx.walked_files),
         "github-actions" => run_check_github_actions(name, root, &ctx.walked_files),
@@ -2865,6 +2890,9 @@ struct GateContext {
     /// When true (set by `--profile ai`), missing or invalid config is
     /// treated as a blocking diagnostic rather than a soft warning.
     strict_config: bool,
+    /// When true (`--fail-on-warnings` / `ANVIL_FAIL_ON_WARNINGS`), warning-
+    /// severity anti-pattern findings block the gate (ADR-112 / ADR-002 opt-in).
+    fail_on_warnings: bool,
 }
 
 /// True when `check_name` is a flag-gated Track 3 surface whose
@@ -2882,6 +2910,20 @@ fn surface_check_disabled(check_name: &str) -> bool {
         "shell-scripts" => !track_surface_sh_enabled(),
         _ => false,
     }
+}
+
+/// True when env var `name` holds a truthy value (present, non-empty, and not
+/// `0`/`false`/`no`/`off`). Mirrors `install_root::is_truthy` locally so the
+/// gate does not widen that module's visibility.
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|value| {
+        let value = value.trim();
+        !value.is_empty()
+            && !matches!(
+                value.to_ascii_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
+    })
 }
 
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
@@ -2956,6 +2998,11 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let strict_config = args.profile.as_deref() == Some(AiGuardrailProfile::NAME)
         && AiGuardrailProfile::DEFAULT.strict_config;
 
+    // ADR-112: warnings block only when explicitly opted in, via the flag or
+    // the `ANVIL_FAIL_ON_WARNINGS` env var (any non-empty, non-"0"/"false"
+    // value). Errors always block regardless.
+    let fail_on_warnings = args.fail_on_warnings || env_flag_enabled("ANVIL_FAIL_ON_WARNINGS");
+
     let ctx = GateContext {
         workspace_root: root,
         profile: args.profile.clone(),
@@ -2963,6 +3010,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         plan_path,
         walked_files,
         strict_config,
+        fail_on_warnings,
     };
 
     let mut checks = Vec::new();
@@ -5268,10 +5316,72 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
-        assert!(!result.passed);
-        assert!(result.message.contains("AP-003"));
+        // AP-003 is warning-severity: under the default posture (ADR-112) it is
+        // recorded — the score drops — but it does not block the gate.
+        assert!(result.passed, "AP-003 (warning) must not block by default");
+        assert!(
+            result.score < 100.0,
+            "AP-003 finding should lower the score, got: {}",
+            result.score
+        );
+    }
+
+    #[test]
+    fn antipattern_fail_on_warnings_blocks_warning_rule() {
+        // ADR-112 opt-in: the same warning-severity finding (AP-003) that
+        // passes by default must block once fail-on-warnings is set.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("warn.ts"), "const value: any = source;\n").unwrap();
+
+        let default = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+        assert!(default.passed, "warning must not block by default");
+
+        let strict = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+        assert!(
+            !strict.passed,
+            "warning must block under fail-on-warnings; got: {}",
+            strict.message
+        );
+        assert!(strict.message.contains("AP-003"));
+    }
+
+    #[test]
+    fn antipattern_wc003_error_blocks_by_default() {
+        // ADR-112: JWT `none` (WC-003) was promoted to error severity, so it
+        // blocks the gate even without --fail-on-warnings.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("auth.ts"),
+            "export const options = { algorithm: 'none' };\n",
+        )
+        .unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(
+            !result.passed,
+            "WC-003 (error) must block by default; got: {}",
+            result.message
+        );
+        assert!(result.message.contains("WC-003"), "got: {}", result.message);
     }
 
     // ── LANGTS-006 / #1801: dynamic-execution rules ──────────────────
@@ -5291,6 +5401,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(!result.passed, "AP-008 must trip on eval(<identifier>)");
@@ -5317,6 +5428,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(!result.passed, "AP-009 must trip on `new Function(...)`");
@@ -5345,6 +5457,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(
@@ -5374,6 +5487,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(
@@ -5403,16 +5517,19 @@ rules: []
                 "antipattern-scan",
                 tmp.path(),
                 &std::collections::HashSet::new(),
+                false,
             );
 
+            // AP-015 is warning-severity: recorded (score < 100) but
+            // non-blocking by default (ADR-112).
             assert!(
-                !result.passed,
-                "AP-015 must trip on Zod escape hatch `{snippet}`"
+                result.passed,
+                "AP-015 (warning) must not block by default for `{snippet}`"
             );
             assert!(
-                result.message.contains("AP-015"),
-                "expected AP-015 for `{snippet}`, got: {}",
-                result.message
+                result.score < 100.0,
+                "AP-015 finding should lower the score for `{snippet}`, got: {}",
+                result.score
             );
         }
     }
@@ -5432,6 +5549,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(
@@ -5458,6 +5576,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(
@@ -5477,6 +5596,7 @@ rules: []
             "antipattern-scan",
             tmp.path(),
             &std::collections::HashSet::new(),
+            false,
         );
 
         assert!(result.passed);
@@ -5658,6 +5778,7 @@ rules: []
             plan_path: None,
             walked_files: Vec::new(),
             strict_config: true,
+            fail_on_warnings: false,
         }
     }
 
@@ -5730,6 +5851,7 @@ rules: []
             plan_path: None,
             walked_files: Vec::new(),
             strict_config: false,
+            fail_on_warnings: false,
         };
         let result = run_single_check("architecture", &ctx);
         assert!(result.passed);
@@ -5925,6 +6047,7 @@ rules: []
             plan_path: None,
             walked_files: Vec::new(),
             strict_config: false,
+            fail_on_warnings: false,
         };
         let result = run_single_check("nonexistent", &ctx);
         assert!(!result.passed);

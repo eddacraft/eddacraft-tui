@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-07-16T04:57:30.830Z",
+  "compiled_at": "2026-07-21T23:58:24.063Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -1313,7 +1313,7 @@
       "family": "weak-cryptography",
       "title": "Broken cipher or ECB mode in a construction call",
       "version": 1,
-      "severity": "warning",
+      "severity": "error",
       "confidence": "high",
       "spectrum_position": 2,
       "targets": ["source"],
@@ -1355,7 +1355,7 @@
       "family": "weak-cryptography",
       "title": "JWT configured with the `none` algorithm",
       "version": 1,
-      "severity": "warning",
+      "severity": "error",
       "confidence": "high",
       "spectrum_position": 3,
       "targets": ["source"],
