@@ -286,14 +286,22 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                     exclude_globs,
                 };
                 // CIB-199: drop `.gitattributes` linguist-generated files from the
-                // anti-pattern scan only. The secret scan keeps `files` unfiltered.
+                // anti-pattern scan only. The secret scan keeps `files`
+                // unfiltered. `check`'s `files` are absolute, but `git check-attr`
+                // matches repo-relative paths, so relativise before the query and
+                // filter on the relative form.
+                let rel_paths: Vec<String> = files
+                    .iter()
+                    .map(|f| relativise(f, workspace_root.as_deref()))
+                    .collect();
                 let generated = root_path
-                    .map(|root| crate::util::git_generated_paths(root, &files))
+                    .map(|root| crate::util::git_generated_paths(root, &rel_paths))
                     .unwrap_or_default();
                 let file_refs: Vec<&str> = files
                     .iter()
-                    .filter(|f| !generated.contains(f.as_str()))
-                    .map(String::as_str)
+                    .zip(rel_paths.iter())
+                    .filter(|(_, rel)| !generated.contains(rel.as_str()))
+                    .map(|(f, _)| f.as_str())
                     .collect();
                 let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
                 // ADR-071: the gate-time AST tier (Rust unwrap/unsafe/serde/panic
