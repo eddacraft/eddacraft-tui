@@ -106,11 +106,16 @@ optional and only used for the JSON record of what was compared; preflight
 itself does not require a SHA input.
 
 ```bash
-bash scripts/release/preflight.sh --base <previous-tag>
+bash scripts/release/preflight.sh \
+  --base <previous-tag> \
+  --pre-prepare \
+  --version <candidate-version>
 ```
 
-This must pass before release prep starts. It owns formatting, linting,
-typechecking, tests, and release-tool pin checks.
+This must pass before release prep starts. `--pre-prepare` is required because
+`prepare.sh` owns the version bump; it checks the planned candidate version and
+all formatting, linting, typechecking, test, and release-tool pin gates without
+mistaking the source version for a forgotten bump.
 
 For scanner/runtime releases, treat `pnpm test:scanner-parity` as a named
 preflight gate when the script exists in the checked-out SHA. It proves the

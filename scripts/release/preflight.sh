@@ -16,6 +16,7 @@ base=""
 head=""
 version=""
 repo="$DEFAULT_REPO"
+pre_prepare=false
 parse_error=""
 
 declare -a GATE_IDS=()
@@ -36,7 +37,7 @@ deny_status="unknown"
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/release/preflight.sh [--json] [--base <ref>] [--head <ref>] [--version <vX.Y.Z>] [--repo <owner/name>]
+Usage: bash scripts/release/preflight.sh [--json] [--base <ref>] [--head <ref>] [--version <vX.Y.Z>] [--pre-prepare] [--repo <owner/name>]
 
 Runs deterministic local release-readiness gates without network or gh calls.
 
@@ -45,6 +46,7 @@ Options:
   --base <ref>        Comparison base ref recorded in output.
   --head <ref>        Comparison head ref recorded in output.
   --version <vX.Y.Z>  Tag to be cut; checked against the workspace version.
+  --pre-prepare       Validate a planned next version before prepare.sh bumps it; requires --version.
   --repo <owner/name> Repository owner/name. Defaults to eddacraft/anvil-001.
   -h, --help          Show this help.
 
@@ -195,8 +197,10 @@ read_package_json_version() {
 # cargo-version gate: keeps the cut from shipping a stale or drifted version.
 #   1. Confirms workspace Cargo.toml carries a [workspace.package].version.
 #   2. Confirms root package.json matches that version (catches inverse drift).
-#   3. When --version is supplied, confirms it equals v<workspace-version>.
-#   4. Even without --version, fails when the workspace version still equals
+#   3. During --pre-prepare, requires a planned version different from the
+#      source workspace version because prepare.sh owns the bump.
+#   4. Otherwise, when --version is supplied, confirms it equals
+#      v<workspace-version>; and fails when the workspace version still equals
 #      the latest existing release tag (the engineer forgot to bump).
 require_workspace_version_match() {
   local cargo_manifest="Cargo.toml"
@@ -214,6 +218,11 @@ require_workspace_version_match() {
     if [[ -n "$package_version" && "$package_version" != "$cargo_version" ]]; then
       return 1
     fi
+  fi
+
+  if [[ "$pre_prepare" == true ]]; then
+    [[ -n "$version" && "$version" != "v${cargo_version}" ]] || return 1
+    return 0
   fi
 
   if [[ -n "$version" && "$version" != "v${cargo_version}" ]]; then
@@ -383,7 +392,7 @@ emit_json() {
   printf '"startedAt":%s,' "$(json_string "$started_at")"
   printf '"endedAt":%s,' "$(json_string "$ended_at")"
   printf '"repository":%s,' "$(json_string "$repo")"
-  printf '"inputs":{"base":%s,"head":%s,"version":%s,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")" "$(json_nullable_string "$version")"
+  printf '"inputs":{"base":%s,"head":%s,"version":%s,"prePrepare":%s,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")" "$(json_nullable_string "$version")" "$pre_prepare"
   printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
   printf '"releaseRecord":{"lifecycleState":"candidate","recordUrl":null,"sha256":null},'
   printf '"data":{"failedGateCount":%s,"passedGateCount":%s,"toolVersions":{' "$failed_count" "$((${#GATE_IDS[@]} - failed_count))"
@@ -459,7 +468,7 @@ emit_invalid_json() {
   printf '{'
   printf '"schemaVersion":"1.0.0","command":"preflight","phase":"preflight","mode":"compatibility","status":"failed",'
   printf '"startedAt":%s,"endedAt":%s,"repository":%s,' "$(json_string "$started_at")" "$(json_string "$ended_at")" "$(json_string "$repo")"
-  printf '"inputs":{"base":%s,"head":%s,"version":%s,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")" "$(json_nullable_string "$version")"
+  printf '"inputs":{"base":%s,"head":%s,"version":%s,"prePrepare":%s,"sourceSha":null,"trackingIssue":null},' "$(json_nullable_string "$base")" "$(json_nullable_string "$head")" "$(json_nullable_string "$version")" "$pre_prepare"
   printf '"trackingIssue":{"repository":%s,"number":null,"url":null,"metadataCommentUrl":null},' "$(json_string "$repo")"
   printf '"releaseRecord":{"lifecycleState":null,"recordUrl":null,"sha256":null},'
   printf '"data":{"failedGateCount":0,"passedGateCount":0,"toolVersions":{},"gates":[]},"warnings":[],'
@@ -490,6 +499,10 @@ parse_args() {
         validate_version "$version" || { parse_error="--version must look like vX.Y.Z[-suffix]"; return 129; }
         shift 2
         ;;
+      --pre-prepare)
+        pre_prepare=true
+        shift
+        ;;
       --repo)
         repo="${2:-}"
         [[ -n "$repo" ]] || { parse_error="--repo requires a value"; return 129; }
@@ -506,6 +519,11 @@ parse_args() {
         ;;
     esac
   done
+
+  if [[ "$pre_prepare" == true && -z "$version" ]]; then
+    parse_error="--pre-prepare requires --version"
+    return 129
+  fi
 }
 
 prescan_json_arg() {
@@ -556,4 +574,6 @@ main() {
   exit "$exit_code"
 }
 
-main "$@"
+if [[ "${ANVIL_RELEASE_PREFLIGHT_TEST_LIB:-}" != "1" ]]; then
+  main "$@"
+fi

@@ -2075,7 +2075,9 @@ archive.
   need an ADR before implementation.
 ### CIB-077: resolve `preflight.sh` version-gate vs `prepare.sh` bump ordering
 
-- **Status:** Draft
+- **Status:** In Progress 2026-07-22 — release preflight reproduced the ordering
+  failure for the v0.10.0-beta preparation path; implementation now uses an
+  explicit pre-prepare mode rather than a bypass environment variable.
 - **Intent:** the release flow's `preflight.sh` runs a `cargo-version` gate
   (`require_workspace_version_match`) that fails when the workspace version
   equals the latest release tag — treating it as "the engineer forgot to
@@ -2084,19 +2086,18 @@ archive.
   legitimately still equals the latest tag at preflight time, so the gate
   aborts the release before `prepare` ever gets to bump it — a chicken-and-egg
   ordering wall.
-- **Expected Outcome:** `preflight.sh` gains a deferred/skip mode (e.g.
-  `SKIP_VERSION_GATE=1` or a `--pre-prepare` flag) that bypasses the
-  workspace-equals-latest-tag check when the bump is intentionally deferred to
-  `prepare.sh`; default behaviour and gate ordering are unchanged so a genuine
-  forgotten bump on a normal cut still fails; the release runbook documents
-  when the skip is appropriate and the hotfix-from-tag flow it unblocks.
+- **Expected Outcome:** `preflight.sh --pre-prepare --version <candidate>`
+  validates the planned candidate version and all ordinary release gates while
+  allowing the source workspace to equal the latest tag until `prepare.sh`
+  performs its owned bump. Default preflight behaviour remains strict, so a
+  genuinely forgotten bump still fails outside the explicit release path; the
+  release runbook documents the required mode.
 - **Files:** `scripts/release/preflight.sh` (cargo-version gate, ~L195–325),
   `scripts/release/prepare.sh` (bump stage — ordering reference),
   `docs/runbooks/release-runbook.md`.
-- **Validation:** manual — re-run a hotfix-from-tag flow with the skip mode and
-  confirm `preflight` passes, `prepare` bumps the version, and `promote`/`tag`
-  proceed; confirm a normal cut with a genuinely missing bump still fails the
-  gate.
+- **Validation:** `bash scripts/release/_test/preflight.test.sh`; cover the
+  explicit pre-prepare path, the planned-version mismatch, and unchanged strict
+  default behaviour.
 - **Identified From:** release attempt 2026-06-14 — v0.8.2-beta hotfix (from
   v0.8.1-beta) aborted twice on the `cargo-version` preflight gate (workspace
   `0.8.1-beta` == latest tag); recovered from a release-attempt log note that

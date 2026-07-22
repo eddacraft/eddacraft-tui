@@ -56,6 +56,70 @@ if (doc.inputs.version !== 'v9.9.9') {
 }
 NODE
 
+# A pre-prepare release run needs to name its planned version while the source
+# workspace still carries the previous tag's version.
+ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
+  bash "$PREFLIGHT" --json --pre-prepare --version v0.10.0-beta >"$tmp/pre-prepare.json"
+node - "$tmp/pre-prepare.json" <<'NODE'
+const fs = require('node:fs');
+const doc = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (doc.inputs.prePrepare !== true) {
+  throw new Error(`expected inputs.prePrepare true, got ${doc.inputs.prePrepare}`);
+}
+if (doc.inputs.version !== 'v0.10.0-beta') {
+  throw new Error(`expected pre-prepare version to be preserved, got ${doc.inputs.version}`);
+}
+NODE
+
+pre_prepare_without_version_json="$(bash "$PREFLIGHT" --json --pre-prepare 2>/dev/null || true)"
+assert_contains "$pre_prepare_without_version_json" '"code":"invalid-input"'
+
+# Exercise the real cargo-version function against a tiny tagged repository.
+# The ordinary fixtures bypass gates, so they cannot prove this release-ordering
+# contract.
+version_fixture="$tmp/version-gate"
+mkdir -p "$version_fixture"
+git -C "$version_fixture" init -q
+git -C "$version_fixture" config user.email release-test@example.invalid
+git -C "$version_fixture" config user.name release-test
+git -C "$version_fixture" commit --allow-empty -qm fixture
+git -C "$version_fixture" tag v0.9.0-beta
+cat >"$version_fixture/Cargo.toml" <<'TOML'
+[workspace]
+members = []
+
+[workspace.package]
+version = "0.9.0-beta"
+TOML
+cat >"$version_fixture/package.json" <<'JSON'
+{"version":"0.9.0-beta"}
+JSON
+
+run_version_gate() {
+  local mode="$1"
+  local candidate="$2"
+  ANVIL_RELEASE_PREFLIGHT_TEST_LIB=1 bash -c '
+    cd "$1"
+    source "$2"
+    pre_prepare="$3"
+    version="$4"
+    require_workspace_version_match
+  ' _ "$version_fixture" "$PREFLIGHT" "$mode" "$candidate"
+}
+
+run_version_gate true v0.10.0-beta
+if run_version_gate true v0.9.0-beta; then
+  echo "expected pre-prepare to reject the source workspace version" >&2
+  exit 1
+fi
+if run_version_gate false ""; then
+  echo "expected normal mode to reject a workspace still at the latest tag" >&2
+  exit 1
+fi
+
+sed -i 's/0.9.0-beta/0.10.0-beta/g' "$version_fixture/Cargo.toml" "$version_fixture/package.json"
+run_version_gate false v0.10.0-beta
+
 # An invalid --version value is rejected as invalid-input.
 version_invalid_json="$(bash "$PREFLIGHT" --json --version not-a-version 2>/dev/null || true)"
 assert_contains "$version_invalid_json" '"code":"invalid-input"'
