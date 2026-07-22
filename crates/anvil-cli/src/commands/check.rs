@@ -270,13 +270,31 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     for check_name in &enabled_checks {
         match *check_name {
             "antipattern-scan" => {
+                let root_path = workspace_root.as_deref().map(Path::new);
+                // CIB-199: user-declared exclude globs from `antipattern.exclude`.
+                let exclude_globs = root_path
+                    .map(|root| {
+                        crate::commands::gate::read_anvilrc_antipattern_excludes(root)
+                            .unwrap_or_default()
+                    })
+                    .unwrap_or_default();
                 let config = AntipatternCheckConfig {
                     patterns: Vec::new(),
                     include_opt_in: args.include_opt_in,
                     extensions: extensions.clone(),
                     severity_threshold,
+                    exclude_globs,
                 };
-                let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+                // CIB-199: drop `.gitattributes` linguist-generated files from the
+                // anti-pattern scan only. The secret scan keeps `files` unfiltered.
+                let generated = root_path
+                    .map(|root| crate::util::git_generated_paths(root, &files))
+                    .unwrap_or_default();
+                let file_refs: Vec<&str> = files
+                    .iter()
+                    .filter(|f| !generated.contains(f.as_str()))
+                    .map(String::as_str)
+                    .collect();
                 let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
                 // ADR-071: the gate-time AST tier (Rust unwrap/unsafe/serde/panic
                 // rules the regex scanner can't express). `anvil check` is a

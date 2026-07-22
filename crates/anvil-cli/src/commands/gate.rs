@@ -1247,6 +1247,18 @@ fn run_check_antipattern(
         });
     }
 
+    // CIB-199: drop files the repo declares generated via `.gitattributes`
+    // `linguist-generated`. Anti-pattern-scan only — the secret scan and other
+    // gate engines walk independently and still see these files.
+    let generated = crate::util::git_generated_paths(root, &files_to_scan);
+    if !generated.is_empty() {
+        files_to_scan.retain(|f| !generated.contains(f));
+    }
+
+    // CIB-199: project-config `antipattern.exclude` globs (for generators the
+    // path/banner auto-detector does not recognise).
+    let exclude_globs = read_anvilrc_antipattern_excludes(root).unwrap_or_default();
+
     let absolute_files: Vec<String> = files_to_scan
         .iter()
         .map(|rel| root.join(rel).to_string_lossy().into_owned())
@@ -1257,6 +1269,7 @@ fn run_check_antipattern(
         &file_refs,
         &anvil_checks::antipattern::AntipatternCheckConfig {
             severity_threshold,
+            exclude_globs,
             ..anvil_checks::antipattern::AntipatternCheckConfig::default()
         },
         Some(&root_str),
@@ -2685,6 +2698,40 @@ pub(crate) fn read_anvilrc_checks(
 
     let value = parse_anvilrc_contents(&contents, &path)?;
     finalise_checks_from_value(&value)
+}
+
+/// CIB-199: workspace-relative exclude globs declared under `antipattern.exclude`
+/// in the project config (`.anvil.<ext>` or legacy `.anvilrc`). Files matching
+/// these are skipped by the anti-pattern scan, letting users declare generated
+/// paths whose naming convention or banner the auto-detector does not recognise.
+/// Missing config, missing key, or non-array value all yield an empty list.
+pub(crate) fn read_anvilrc_antipattern_excludes(workspace_root: &Path) -> Result<Vec<String>> {
+    let value = if let Some(discovered) = anvil_config::discover(workspace_root, ".anvil")
+        .with_context(|| format!("scanning {} for .anvil.<ext>", workspace_root.display()))?
+    {
+        anvil_config::parse_file(&discovered.path)
+            .with_context(|| format!("failed to parse {}", discovered.path.display()))?
+    } else {
+        let path = workspace_root.join(".anvilrc");
+        match std::fs::read_to_string(&path) {
+            Ok(contents) => parse_anvilrc_contents(&contents, &path)?,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(err) => return Err(anyhow::anyhow!("failed to read {}: {err}", path.display())),
+        }
+    };
+
+    let globs = value
+        .get("antipattern")
+        .and_then(|antipattern| antipattern.get("exclude"))
+        .and_then(serde_json::Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(globs)
 }
 
 fn finalise_checks_from_value(
@@ -6135,6 +6182,39 @@ rules: []
     fn read_anvilrc_checks_none_when_missing() {
         let tmp = tempfile::TempDir::new().unwrap();
         assert!(read_anvilrc_checks(tmp.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn read_anvilrc_antipattern_excludes_parses_globs() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"antipattern": {"exclude": ["src/generated/**", "*.pb.ts"]}}"#,
+        )
+        .unwrap();
+        let globs = read_anvilrc_antipattern_excludes(tmp.path()).unwrap();
+        assert_eq!(
+            globs,
+            vec!["src/generated/**".to_string(), "*.pb.ts".to_string()]
+        );
+    }
+
+    #[test]
+    fn read_anvilrc_antipattern_excludes_empty_when_absent_or_unset() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // No config file at all.
+        assert!(
+            read_anvilrc_antipattern_excludes(tmp.path())
+                .unwrap()
+                .is_empty()
+        );
+        // Config present but no `antipattern.exclude` key.
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks": ["secret"]}"#).unwrap();
+        assert!(
+            read_anvilrc_antipattern_excludes(tmp.path())
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

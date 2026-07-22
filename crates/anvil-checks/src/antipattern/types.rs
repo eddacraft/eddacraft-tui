@@ -353,6 +353,12 @@ pub struct AntipatternCheckConfig {
     pub extensions: Vec<String>,
     #[serde(rename = "severityThreshold")]
     pub severity_threshold: WarningSeverity,
+    /// CIB-199: workspace-relative glob patterns whose matching files are
+    /// skipped by the anti-pattern scan. Populated from the project config's
+    /// `exclude` list so users can declare generated paths their generator's
+    /// naming convention or banner does not expose to the auto-detector.
+    #[serde(default, rename = "excludeGlobs")]
+    pub exclude_globs: Vec<String>,
 }
 
 impl Default for AntipatternCheckConfig {
@@ -389,6 +395,7 @@ impl Default for AntipatternCheckConfig {
                 ".less".to_string(),
             ],
             severity_threshold: WarningSeverity::Error,
+            exclude_globs: Vec::new(),
         }
     }
 }

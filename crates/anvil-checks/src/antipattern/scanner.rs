@@ -561,6 +561,35 @@ fn compile_allowlist(allowlist: &[String]) -> Vec<AllowlistGlob> {
         .collect()
 }
 
+/// A precompiled set of workspace-relative glob patterns for path exclusion,
+/// reusing the same glob semantics as pattern allowlists (`**/` prefix, `*`
+/// stops at `/`, `**` spans, basename match when the glob has no `/`). Used by
+/// the anti-pattern scanner to honour the project config's `exclude` list
+/// (CIB-199). Wraps the private [`AllowlistGlob`] machinery so callers outside
+/// this module do not depend on its internals.
+pub(crate) struct PathGlobSet {
+    globs: Vec<AllowlistGlob>,
+}
+
+impl PathGlobSet {
+    /// Compile `patterns` once. Invalid globs are retained as no-ops (they match
+    /// nothing), mirroring the allowlist behaviour.
+    pub(crate) fn compile(patterns: &[String]) -> Self {
+        Self {
+            globs: compile_allowlist(patterns),
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.globs.is_empty()
+    }
+
+    /// True when `path` (workspace-relative, `/`-separated) matches any glob.
+    pub(crate) fn matches(&self, path: &str) -> bool {
+        is_file_allowlisted_compiled(path, &self.globs)
+    }
+}
+
 /// Specification for a hand-coded PCRE rewrite: the regex-crate-compatible
 /// base regex plus the rule-specific post-filter that mirrors the lookaround
 /// the base regex cannot express. Kept as a pure data table so `rewrite_spec`

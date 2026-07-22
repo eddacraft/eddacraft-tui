@@ -151,6 +151,10 @@ impl AntipatternConfigFile {
             severity_threshold: self
                 .severity_threshold
                 .unwrap_or(default.severity_threshold),
+            // The save-time daemon relies on the scanner's path/banner
+            // auto-detection for generated files; config-declared exclude globs
+            // are a gate/check surface concern (CIB-199), so this stays default.
+            exclude_globs: default.exclude_globs,
         }
     }
 }

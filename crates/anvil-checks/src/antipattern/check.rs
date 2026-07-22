@@ -182,6 +182,11 @@ pub fn run_antipattern_check_bytes(
     pool: &rayon::ThreadPool,
 ) -> AntipatternCheckResult {
     let scan_options = scan_options_from_config(config);
+    // CIB-199: user-declared generated/excluded paths from the project config's
+    // `exclude` list. Compiled once; matched against the workspace-relative
+    // path. Complements the path/banner auto-detection below for generators
+    // whose convention the auto-detector does not recognise.
+    let exclude_globs = crate::antipattern::scanner::PathGlobSet::compile(&config.exclude_globs);
 
     // Scan supplied bytes concurrently on the *injected* pool. `filter_map`
     // drops non-scannable files; the bytes are already in hand, so no file is
@@ -191,6 +196,11 @@ pub fn run_antipattern_check_bytes(
             .par_iter()
             .filter_map(|(file_path, bytes)| {
                 if !is_scannable_file(file_path, config) {
+                    return None;
+                }
+                let relative_path = normalise_file_path(file_path, workspace_root);
+                // Config-declared exclude globs (no I/O, no decode).
+                if !exclude_globs.is_empty() && exclude_globs.matches(&relative_path) {
                     return None;
                 }
                 // CIB-199: machine-generated files (TanStack Router's
@@ -208,7 +218,6 @@ pub fn run_antipattern_check_bytes(
                 if crate::antipattern::generated::has_generated_banner(&content) {
                     return None;
                 }
-                let relative_path = normalise_file_path(file_path, workspace_root);
                 Some(scan_file(&relative_path, &content, Some(&scan_options)))
             })
             .collect()
@@ -384,6 +393,42 @@ mod tests {
 
         assert!(result.passed);
         assert_eq!(result.warnings.summary.warnings, 0);
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn config_exclude_glob_skips_matching_file() {
+        // CIB-199: a user-declared exclude glob skips a file the auto-detector
+        // would not recognise as generated (plain path, no banner).
+        let temp_dir = create_temp_dir("exclude-glob");
+        let sub = temp_dir.join("vendor");
+        fs::create_dir_all(&sub).unwrap();
+        let file = sub.join("client.ts");
+        fs::write(&file, "/* eslint-disable */\nconst value = 1;\n").unwrap();
+
+        let root = temp_dir.to_string_lossy().to_string();
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+
+        let excluded = AntipatternCheckConfig {
+            severity_threshold: WarningSeverity::Warning,
+            exclude_globs: vec!["vendor/**".to_string()],
+            ..AntipatternCheckConfig::default()
+        };
+        let result = run_antipattern_check(&files, &excluded, Some(&root));
+        assert!(result.passed, "excluded file must not fail the gate");
+        assert_eq!(result.warnings.summary.warnings, 0);
+
+        // Control: without the exclude glob the same file is flagged, proving
+        // the glob — not a broken fixture — suppresses the finding.
+        let not_excluded = AntipatternCheckConfig {
+            severity_threshold: WarningSeverity::Warning,
+            ..AntipatternCheckConfig::default()
+        };
+        let flagged = run_antipattern_check(&files, &not_excluded, Some(&root));
+        assert!(!flagged.passed);
+        assert_eq!(flagged.warnings.summary.warnings, 1);
 
         let _ = fs::remove_dir_all(temp_dir);
     }

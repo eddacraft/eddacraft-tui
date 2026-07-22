@@ -169,6 +169,67 @@ pub fn format_user_error(err: &anyhow::Error, verbose: bool) -> String {
     }
 }
 
+/// CIB-199: return the subset of `paths` that `.gitattributes` marks as
+/// `linguist-generated` (value `true` or `set`), via one batched
+/// `git check-attr`. The returned strings are exactly the input strings that
+/// matched, so callers can filter with set membership whether `paths` are
+/// workspace-relative or absolute (git echoes each path back verbatim).
+///
+/// Best-effort: any git failure (no repo, git absent, non-zero exit) yields an
+/// empty set, so anti-pattern scanning behaves exactly as before wherever the
+/// attribute is unused.
+pub(crate) fn git_generated_paths(
+    root: &Path,
+    paths: &[String],
+) -> std::collections::HashSet<String> {
+    use std::process::{Command, Stdio};
+
+    let mut generated = std::collections::HashSet::new();
+    if paths.is_empty() {
+        return generated;
+    }
+
+    let Ok(mut child) = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["check-attr", "--stdin", "-z", "linguist-generated"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return generated;
+    };
+
+    if let Some(mut stdin) = child.stdin.take() {
+        let mut buf = Vec::new();
+        for path in paths {
+            buf.extend_from_slice(path.as_bytes());
+            buf.push(0);
+        }
+        // Ignore write errors — a broken pipe surfaces as a non-success exit,
+        // which we already treat as "no exclusions".
+        let _ = stdin.write_all(&buf);
+    }
+
+    let output = match child.wait_with_output() {
+        Ok(output) if output.status.success() => output,
+        _ => return generated,
+    };
+
+    // `-z` output is NUL-separated triples: <path>\0<attr>\0<value>\0…
+    let mut fields = output.stdout.split(|&byte| byte == 0);
+    while let (Some(path), Some(_attr), Some(value)) = (fields.next(), fields.next(), fields.next())
+    {
+        let value = std::str::from_utf8(value).unwrap_or_default();
+        if value == "true" || value == "set" {
+            generated.insert(String::from_utf8_lossy(path).into_owned());
+        }
+    }
+
+    generated
+}
+
 /// Write `data` to `path` atomically by writing to a uniquely-named temporary
 /// file in the same directory and then renaming. This prevents partial/corrupt
 /// state files if the process crashes or is interrupted mid-write.
@@ -400,6 +461,55 @@ mod tests {
     use super::*;
     use anvil_checks::secret::{AllowlistProvenance, Suppression};
     use anvil_kernel::watcher::filter::IGNORE_DIRS;
+
+    #[test]
+    fn git_generated_paths_honours_linguist_generated() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let initialised = std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["init", "-q"])
+            .status()
+            .is_ok_and(|s| s.success());
+        if !initialised {
+            return; // git unavailable — the helper is best-effort, so skip.
+        }
+        std::fs::write(
+            root.join(".gitattributes"),
+            "*.gen.ts linguist-generated=true\nsrc/api.ts linguist-generated\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        for rel in ["routeTree.gen.ts", "src/api.ts", "src/app.ts"] {
+            std::fs::write(root.join(rel), "x\n").unwrap();
+        }
+
+        let paths = vec![
+            "routeTree.gen.ts".to_string(),
+            "src/api.ts".to_string(),
+            "src/app.ts".to_string(),
+        ];
+        let generated = git_generated_paths(root, &paths);
+        assert!(
+            generated.contains("routeTree.gen.ts"),
+            "linguist-generated=true must be treated as generated"
+        );
+        assert!(
+            generated.contains("src/api.ts"),
+            "bare `linguist-generated` (set) must be treated as generated"
+        );
+        assert!(
+            !generated.contains("src/app.ts"),
+            "an unmarked file must not be excluded"
+        );
+    }
+
+    #[test]
+    fn git_generated_paths_empty_for_empty_input() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(git_generated_paths(tmp.path(), &[]).is_empty());
+    }
 
     fn suppression(provenance: AllowlistProvenance) -> Suppression {
         Suppression {
