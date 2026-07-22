@@ -4,10 +4,10 @@
 | -------- | ---------- | ------ | -------- |
 | DASHCORE | @eddacraft | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-18 — Wave 2 started with DASHCORE-001 after the
-archived schema-source callouts were reconciled against the shipped Wave 1
-Rust API boundary. DASHCORE-001 now owns honest current-state cards;
-DASHCORE-002 owns the retained-history read model and all trend/sparkline work.
+**Last reviewed:** 2026-07-22 — DASHCORE-001 Merged via PR #3363 (2026-07-19).
+Wave 2 continues with remaining Overview/Gates/Warnings views.
+DASHCORE-001 delivered honest current-state cards; DASHCORE-002 still owns the
+retained-history read model and all trend/sparkline work.
 
 ## Purpose
 
@@ -82,7 +82,7 @@ DASHARCH.
 
 ### DASHCORE-001: Overview — metric cards row
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-19 via PR #3363
 - **Pull Request:** [#3363](https://github.com/eddacraft/anvil-001/pull/3363)
 - **Intent:** Show the current project-health facts the shipped local dashboard
   API can prove, without manufacturing retained history.

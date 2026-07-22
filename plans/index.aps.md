@@ -113,7 +113,13 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASH Wave 1 is fully merged via PR #3321, so the minimum viable Overview, Gates, and Warnings product views are the next user-facing dashboard slice. The archived schema-source callouts were reconciled on 2026-07-18; current-state cards proceed first while retained-history trends stay under DASHCORE-002. DASHARCH may run in parallel; DASHOPS remains Wave 3. | Complete DASHCORE-001 using only facts exposed by the typed ProtectionOverview resource. |
+| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASH Wave 1 is fully merged via PR #3321; DASHCORE-001 Merged 2026-07-19 via PR #3363. Remaining Wave 2 Overview/Gates/Warnings views are the next user-facing dashboard slice. Retained-history trends stay under DASHCORE-002 (Proposed). DASHARCH may run in parallel; DASHOPS remains Wave 3. | Pick up DASHCORE-003 (Overview activity feed) or DASHCORE-004 (gate history list) — both unblocked by DASH foundation. |
+
+NBI review note (2026-07-22, DASHCORE-001 merge reconciled): **DASHCORE-001**
+Merged via PR #3363 (2026-07-19). NBI stays on DASHCORE Wave 2; next action moves
+to the next unblocked product slice (**DASHCORE-003** / **DASHCORE-004**).
+**DASHCORE-002** remains Proposed until an authoritative Rust retained-history
+source exists. Advisory module `N/M` left unchanged (ADR-053).
 
 NBI review note (2026-07-16, DASH Wave 1 reconciled): **JOURNEY-001..006**
 shipped in `v0.9.0-beta`, and **DASH-001..011** are terminal after PR #3321
