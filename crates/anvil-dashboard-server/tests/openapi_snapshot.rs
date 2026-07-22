@@ -85,6 +85,7 @@ fn serialised_handler_dtos_conform_to_the_committed_schemas() {
         started_at: None,
         new_warning_count: None,
         changed_file_count: None,
+        checks: Vec::new(),
     });
     let protection = serde_json::to_value(protection).expect("protection DTO");
     assert!(schema_validator("ProtectionOverview").is_valid(&protection));

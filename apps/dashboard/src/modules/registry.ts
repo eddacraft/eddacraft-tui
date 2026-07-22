@@ -49,7 +49,7 @@ export const dashboardModuleRegistry = createModuleRegistry([
   {
     id: 'protection',
     navigation: {
-      label: 'Protection',
+      label: 'Overview',
       path: '/',
       glyph: 'action',
     },
@@ -59,6 +59,33 @@ export const dashboardModuleRegistry = createModuleRegistry([
     resources: [
       { id: 'runs', label: 'Latest runs', search: { view: 'runs' } },
       { id: 'warnings', label: 'Active warnings', search: { view: 'warnings' } },
+    ],
+  },
+  {
+    id: 'gates',
+    navigation: { label: 'Gates', path: '/gates', glyph: 'history' },
+    routes: [
+      { id: 'index', path: '/gates', resource: 'protection-overview' },
+      { id: 'detail', path: '/gates/$id', resource: 'protection-overview' },
+    ],
+    queryBindings: ['protection-overview'],
+    renderers: ['GateHistoryTable', 'GateDetailPage'],
+    resources: [{ id: 'index', label: 'Gate history' }],
+  },
+  {
+    id: 'warnings',
+    navigation: { label: 'Warnings', path: '/warnings', glyph: 'context' },
+    routes: [
+      { id: 'index', path: '/warnings', resource: 'protection-overview' },
+      { id: 'breakdown', path: '/warnings/breakdown', resource: 'protection-overview' },
+      { id: 'patterns', path: '/warnings/patterns', resource: 'pattern-catalogue' },
+    ],
+    queryBindings: ['protection-overview', 'pattern-catalogue'],
+    renderers: ['WarningTable', 'WarningCharts', 'PatternRegistry'],
+    resources: [
+      { id: 'index', label: 'Active warnings' },
+      { id: 'breakdown', label: 'Breakdown' },
+      { id: 'patterns', label: 'Patterns' },
     ],
   },
   {

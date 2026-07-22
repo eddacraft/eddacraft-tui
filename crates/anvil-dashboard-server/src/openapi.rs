@@ -16,6 +16,9 @@ pub fn openapi_document() -> Value {
             "/api/v1/protection": {
                 "get": operation("Protection", "ProtectionOverview", "Current local protection evidence", true)
             },
+            "/api/v1/patterns": {
+                "get": operation("Patterns", "PatternCatalogue", "Compiled anti-pattern catalogue", true)
+            },
             "/api/v1/plans": {
                 "get": {
                     "operationId": "listPlans",
@@ -85,6 +88,7 @@ fn operation(tag: &str, schema: &str, summary: &str, worker_failure: bool) -> Va
     let operation_id = match schema {
         "HealthResponse" => "getHealth",
         "ProtectionOverview" => "getProtectionOverview",
+        "PatternCatalogue" => "getPatternCatalogue",
         _ => "getResource",
     };
     let mut responses = serde_json::Map::from_iter([
@@ -168,9 +172,19 @@ fn schemas() -> Value {
             "type": "string",
             "enum": ["unbound", "attached", "participating", "embedded-fallback", "degraded", "cross-boundary-refused", "quarantined", "detached"]
         },
+        "GateCheckSummary": {
+            "type": "object",
+            "required": ["name", "status", "score", "message"],
+            "properties": {
+                "name": { "type": "string" },
+                "status": { "type": "string" },
+                "score": { "type": ["string", "null"] },
+                "message": { "type": "string" }
+            }
+        },
         "GateRunSummary": {
             "type": "object",
-            "required": ["id", "result", "label", "score", "warning_count", "duration_seconds", "started_at", "new_warning_count", "changed_file_count"],
+            "required": ["id", "result", "label", "score", "warning_count", "duration_seconds", "started_at", "new_warning_count", "changed_file_count", "checks"],
             "properties": {
                 "id": { "type": "string" },
                 "result": { "type": "string" },
@@ -180,7 +194,8 @@ fn schemas() -> Value {
                 "duration_seconds": { "type": ["number", "null"] },
                 "started_at": { "type": ["string", "null"] },
                 "new_warning_count": { "type": ["integer", "null"], "minimum": 0 },
-                "changed_file_count": { "type": ["integer", "null"], "minimum": 0 }
+                "changed_file_count": { "type": ["integer", "null"], "minimum": 0 },
+                "checks": { "type": "array", "items": { "$ref": "#/components/schemas/GateCheckSummary" } }
             }
         },
         "EvidenceLine": {
@@ -283,6 +298,29 @@ fn schemas() -> Value {
                 "affected_files_state": { "$ref": "#/components/schemas/DataState" },
                 "affected_files": { "type": "array", "items": { "$ref": "#/components/schemas/AffectedFile" } },
                 "gaps": { "type": "array", "items": { "$ref": "#/components/schemas/DataGap" } }
+            }
+        },
+        "PatternSummary": {
+            "type": "object",
+            "required": ["id", "title", "family", "severity", "enabled", "instance_count", "description"],
+            "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "family": { "type": "string" },
+                "severity": { "type": "string" },
+                "enabled": { "type": "boolean" },
+                "instance_count": { "type": "integer", "minimum": 0 },
+                "description": { "type": "string" }
+            }
+        },
+        "PatternCatalogue": {
+            "type": "object",
+            "required": ["schema_version", "data_state", "source_message", "patterns"],
+            "properties": {
+                "schema_version": { "type": "string", "const": "anvil.dashboard.patterns.v1" },
+                "data_state": { "$ref": "#/components/schemas/DataState" },
+                "source_message": { "type": "string" },
+                "patterns": { "type": "array", "items": { "$ref": "#/components/schemas/PatternSummary" } }
             }
         },
         "PlanSummary": {

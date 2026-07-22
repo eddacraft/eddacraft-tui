@@ -3,6 +3,7 @@ import createClient from 'openapi-fetch';
 import type { components, paths } from '@/api/generated/openapi';
 
 type ProtectionOverview = components['schemas']['ProtectionOverview'];
+type PatternCatalogue = components['schemas']['PatternCatalogue'];
 type PlanSummary = components['schemas']['PlanSummary'];
 type PlanDetail = components['schemas']['PlanDetail'];
 
@@ -18,6 +19,7 @@ export class DashboardApiError extends Error {
 
 export interface DashboardApi {
   getProtectionOverview: () => Promise<ProtectionOverview>;
+  getPatternCatalogue: () => Promise<PatternCatalogue>;
   listPlans: () => Promise<PlanSummary[]>;
   getPlan: (id: string) => Promise<PlanDetail>;
 }
@@ -41,6 +43,9 @@ export function createDashboardApi(apiClient: OpenApiClient): DashboardApi {
   return {
     async getProtectionOverview() {
       return unwrap(await apiClient.GET('/api/v1/protection'));
+    },
+    async getPatternCatalogue() {
+      return unwrap(await apiClient.GET('/api/v1/patterns'));
     },
     async listPlans() {
       return unwrap(await apiClient.GET('/api/v1/plans'));

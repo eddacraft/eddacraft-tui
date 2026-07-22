@@ -38,6 +38,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/patterns': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Compiled anti-pattern catalogue */
+    get: operations['getPatternCatalogue'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/plans': {
     parameters: {
       query?: never;
@@ -131,6 +148,12 @@ export interface components {
       | 'cross-boundary-refused'
       | 'quarantined'
       | 'detached';
+    GateCheckSummary: {
+      name: string;
+      status: string;
+      score: string | null;
+      message: string;
+    };
     GateRunSummary: {
       id: string;
       result: string;
@@ -141,6 +164,7 @@ export interface components {
       started_at: string | null;
       new_warning_count: number | null;
       changed_file_count: number | null;
+      checks: components['schemas']['GateCheckSummary'][];
     };
     EvidenceLine: {
       number: number;
@@ -210,6 +234,22 @@ export interface components {
       affected_files_state: components['schemas']['DataState'];
       affected_files: components['schemas']['AffectedFile'][];
       gaps: components['schemas']['DataGap'][];
+    };
+    PatternSummary: {
+      id: string;
+      title: string;
+      family: string;
+      severity: string;
+      enabled: boolean;
+      instance_count: number;
+      description: string;
+    };
+    PatternCatalogue: {
+      /** @constant */
+      schema_version: 'anvil.dashboard.patterns.v1';
+      data_state: components['schemas']['DataState'];
+      source_message: string;
+      patterns: components['schemas']['PatternSummary'][];
     };
     PlanSummary: {
       id: string;
@@ -302,6 +342,53 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ProtectionOverview'];
+        };
+      };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Dashboard worker failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  getPatternCatalogue: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PatternCatalogue'];
         };
       };
       /** @description Cross-origin request rejected */

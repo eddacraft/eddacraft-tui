@@ -4,10 +4,9 @@
 | -------- | ---------- | ------ | -------- |
 | DASHCORE | @eddacraft | In Progress | 0/9      |
 
-**Last reviewed:** 2026-07-22 — DASHCORE-001 Merged via PR #3363 (2026-07-19).
-Wave 2 continues with remaining Overview/Gates/Warnings views.
-DASHCORE-001 delivered honest current-state cards; DASHCORE-002 still owns the
-retained-history read model and all trend/sparkline work.
+**Last reviewed:** 2026-07-22 — Wave 2 product routes implemented for
+DASHCORE-003..009 on honest latest-gate evidence; DASHCORE-001 Merged via
+PR #3363; DASHCORE-002 remains Proposed (retained-history design gate).
 
 ## Purpose
 
@@ -140,6 +139,8 @@ DASHARCH.
 
 ### DASHCORE-003: Overview — activity feed
 
+- **Status:** In Progress
+
 - **Intent:** Show recent events and provide navigation shortcuts
 - **Expected Outcome:** Last 20 events from provenance: gate runs, new warnings,
   suppressions. Timestamp, type badge, summary, actor. Click navigates to detail.
@@ -152,29 +153,35 @@ DASHARCH.
 
 ### DASHCORE-004: Gate history list
 
+- **Status:** In Progress
+
 - **Intent:** Browse all gate runs with sorting and filtering
 - **Expected Outcome:** DataTable of gate runs: timestamp, status, score, checks
   (passed/total), trigger, duration, file count. Filters via useFilterParams.
   Click navigates to detail.
 - **Files:**
-  - `apps/dashboard/src/routes/gates.index.tsx`
+  - `apps/dashboard/src/routes/gates.tsx`
   - `apps/dashboard/src/modules/core/gates/gate-history-table.tsx`
+  - `crates/anvil-dashboard-server/src/capabilities/protection.rs`
 - **Dependencies:** DASH-003, DASH-006, DASH-008
-- **Validation:** Table renders gate history; filters narrow results; row click
-  navigates
+- **Validation:** Table renders latest-gate recent_runs; empty state is honest;
+  row open navigates to detail
 - **Confidence:** high
 
 ### DASHCORE-005: Gate detail with check tree
+
+- **Status:** In Progress
 
 - **Intent:** Deep dive into a single gate run's results
 - **Expected Outcome:** Header (status, score, timestamp, trigger), expandable
   check tree (name, status, score, message, duration → detailed output on
   expand), evidence panel, provenance footer. Keyboard nav (j/k/Enter/n/N).
 - **Files:**
-  - `apps/dashboard/src/routes/gates.$id.tsx`
+  - `apps/dashboard/src/routes/gates.tsx`
+  - `apps/dashboard/src/modules/core/gates/gate-detail-page.tsx`
   - `apps/dashboard/src/modules/core/gates/check-tree.tsx`
   - `apps/dashboard/src/modules/core/gates/gate-detail-header.tsx`
-  - `apps/dashboard/src/modules/core/gates/evidence-panel.tsx`
+  - `crates/anvil-dashboard-server/src/api.rs`
 - **Dependencies:** DASHCORE-004, DASH-003
 - **Validation:** Detail view renders full gate data; check tree expands;
   keyboard nav works
@@ -182,14 +189,17 @@ DASHARCH.
 
 ### DASHCORE-006: Warning list with grouping/filtering
 
+- **Status:** In Progress
+
 - **Intent:** Browse and investigate all active warnings
 - **Expected Outcome:** DataTable: ID, severity badge, category, title, file,
   line, new-since-baseline, suppression status. Filters: severity, category,
   file glob, new-only, suppressed. Group-by: file, category, severity, pattern.
   Click opens detail panel.
 - **Files:**
-  - `apps/dashboard/src/routes/warnings.index.tsx`
+  - `apps/dashboard/src/routes/warnings.tsx`
   - `apps/dashboard/src/modules/core/warnings/warning-table.tsx`
+  - `crates/anvil-dashboard-server/src/capabilities/protection.rs`
 - **Dependencies:** DASH-003, DASH-006, DASH-008
 - **Validation:** Table renders warnings; filters narrow results; group-by
   reorganises data
@@ -197,12 +207,15 @@ DASHARCH.
 
 ### DASHCORE-007: Warning detail panel
 
+- **Status:** In Progress
+
 - **Intent:** Understand a specific warning in full context
 - **Expected Outcome:** shadcn/ui Sheet with full message, explanation, fix
   suggestion, code context (highlighted violation), suppression status, drift
   info. Opens on row click, closes on Escape.
 - **Files:**
   - `apps/dashboard/src/modules/core/warnings/warning-detail-panel.tsx`
+  - `apps/dashboard/src/routes/warnings.tsx`
 - **Dependencies:** DASHCORE-006
 - **Validation:** Clicking a warning opens panel with full context; code
   rendering is readable
@@ -210,11 +223,13 @@ DASHARCH.
 
 ### DASHCORE-008: Warning breakdown visualisations
 
+- **Status:** In Progress
+
 - **Intent:** Understand warning distribution and identify hotspots
 - **Expected Outcome:** Bar chart by pattern ID, hotspot file ranking, donut for
   severity, donut for category.
 - **Files:**
-  - `apps/dashboard/src/routes/warnings.breakdown.tsx`
+  - `apps/dashboard/src/routes/warnings.tsx`
   - `apps/dashboard/src/modules/core/warnings/warning-charts.tsx`
 - **Dependencies:** DASH-004, DASH-006
 - **Validation:** Charts render and reflect current warning data; hotspots are
@@ -223,12 +238,15 @@ DASHARCH.
 
 ### DASHCORE-009: Anti-pattern registry reference
 
+- **Status:** In Progress
+
 - **Intent:** Document all defined anti-patterns in an accessible reference
 - **Expected Outcome:** Table of all patterns (AP-001..007): ID, name, category,
   severity, enabled, instance count, sparkline. Click expands inline docs.
 - **Files:**
-  - `apps/dashboard/src/routes/warnings.patterns.tsx`
+  - `apps/dashboard/src/routes/warnings.tsx`
   - `apps/dashboard/src/modules/core/warnings/pattern-registry.tsx`
+  - `crates/anvil-dashboard-server/src/capabilities/patterns.rs`
 - **Dependencies:** DASH-003, DASH-006
 - **Validation:** All defined patterns appear; clicking opens documentation;
   instance counts are accurate

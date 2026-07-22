@@ -196,7 +196,7 @@ describe('dashboard app host', () => {
 
     const mobileNav = container.querySelector('[data-mobile-bottom-nav]');
     const mobileProtection = [...mobileNav!.querySelectorAll('a')].find(
-      (link) => link.textContent?.trim() === 'Protection'
+      (link) => link.textContent?.trim() === 'Overview'
     );
     const mobilePlans = [...mobileNav!.querySelectorAll('a')].find(
       (link) => link.textContent?.trim() === 'Plans'
@@ -217,7 +217,7 @@ describe('dashboard app host', () => {
 
     const detailMobileNav = container.querySelector('[data-mobile-bottom-nav]');
     const detailMobileProtection = [...detailMobileNav!.querySelectorAll('a')].find(
-      (link) => link.textContent?.trim() === 'Protection'
+      (link) => link.textContent?.trim() === 'Overview'
     );
     const detailMobilePlans = [...detailMobileNav!.querySelectorAll('a')].find(
       (link) => link.textContent?.trim() === 'Plans'

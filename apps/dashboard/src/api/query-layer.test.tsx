@@ -64,6 +64,12 @@ describe('dashboard query layer', () => {
     let resolve!: (value: Awaited<ReturnType<DashboardApi['getProtectionOverview']>>) => void;
     const api: DashboardApi = {
       getProtectionOverview: () => new Promise((next) => (resolve = next)),
+      getPatternCatalogue: async () => ({
+        schema_version: 'anvil.dashboard.patterns.v1' as const,
+        data_state: 'unavailable' as const,
+        source_message: 'fixture',
+        patterns: [],
+      }),
       listPlans: async () => [],
       getPlan: async () => {
         throw new Error('unused');
@@ -84,6 +90,12 @@ describe('dashboard query layer', () => {
       getProtectionOverview: async () => {
         throw Object.assign(new Error('Workspace unavailable'), { code: 'workspace-unavailable' });
       },
+      getPatternCatalogue: async () => ({
+        schema_version: 'anvil.dashboard.patterns.v1' as const,
+        data_state: 'unavailable' as const,
+        source_message: 'fixture',
+        patterns: [],
+      }),
       listPlans: async () => [],
       getPlan: async () => {
         throw new Error('unused');
@@ -106,6 +118,12 @@ describe('dashboard query layer', () => {
       .mockResolvedValueOnce({ source_message: 'Recovered API data' } as never);
     const api: DashboardApi = {
       getProtectionOverview,
+      getPatternCatalogue: async () => ({
+        schema_version: 'anvil.dashboard.patterns.v1' as const,
+        data_state: 'unavailable' as const,
+        source_message: 'fixture',
+        patterns: [],
+      }),
       listPlans: async () => [],
       getPlan: async () => {
         throw new Error('unused');

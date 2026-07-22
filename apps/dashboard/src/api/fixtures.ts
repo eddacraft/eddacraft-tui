@@ -25,6 +25,7 @@ export const protectionOverviewFixture = {
     started_at: '2026-07-13 08:30:00',
     new_warning_count: 1,
     changed_file_count: 1,
+    checks: [],
   },
   recent_runs: [
     {
@@ -37,6 +38,7 @@ export const protectionOverviewFixture = {
       started_at: '2026-07-13 08:30:00',
       new_warning_count: 1,
       changed_file_count: 1,
+      checks: [],
     },
     {
       id: 'run-081500',
@@ -48,6 +50,7 @@ export const protectionOverviewFixture = {
       started_at: '2026-07-13 08:15:00',
       new_warning_count: 0,
       changed_file_count: 0,
+      checks: [],
     },
   ],
   next_attention: {

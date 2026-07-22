@@ -10,8 +10,9 @@ use anvil_kernel_types::{GateSnapshot, protection_claim::ProtectionClaim};
 use serde_json::Value;
 
 use crate::api::{
-    AssuranceSummary, AttentionItem, DataGap, DataState, GateRunSummary,
-    PROTECTION_OVERVIEW_SCHEMA, ProtectionOverview, SaveTimeSummary,
+    AffectedFile, AssuranceSummary, AttentionItem, DataGap, DataState, GateCheckSummary,
+    GateRunSummary, PROTECTION_OVERVIEW_SCHEMA, ProtectionOverview, SaveTimeSummary,
+    WarningSummary,
 };
 use crate::{Workspace, WorkspaceReadError};
 
@@ -64,13 +65,10 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         return overview;
     };
 
-    let next_attention = gate.warning_list.first().map(|warning| AttentionItem {
-        title: "Review latest gate attention item".to_owned(),
-        detail: warning.message.clone(),
-        evidence_id: None,
-    });
-    let warning_count = gate.warnings.parse().unwrap_or(gate.warning_list.len());
-    let latest_run = Some(GateRunSummary {
+    let warnings = map_gate_warnings(&gate);
+    let checks = map_gate_checks(&gate);
+    let warning_count = gate.warnings.parse().unwrap_or(warnings.len());
+    let latest_run = GateRunSummary {
         id: "latest-gate".to_owned(),
         result: gate.status,
         label: gate.status_label,
@@ -80,8 +78,40 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         started_at: None,
         new_warning_count: None,
         changed_file_count: None,
+        checks,
+    };
+    let next_attention = warnings.first().map(|warning| AttentionItem {
+        title: "Review latest gate attention item".to_owned(),
+        detail: warning.message.clone(),
+        evidence_id: Some(warning.id.clone()),
     });
-    let gaps = history_gaps();
+    let affected_files = map_affected_files(&warnings);
+    let warnings_state = if warnings.is_empty() {
+        DataState::Unavailable
+    } else {
+        // Latest-gate only — not retained multi-run diagnostics.
+        DataState::Partial
+    };
+    let affected_files_state = if affected_files.is_empty() {
+        DataState::Unavailable
+    } else {
+        DataState::Partial
+    };
+    let mut gaps = history_gaps();
+    if !warnings.is_empty() {
+        gaps.retain(|gap| gap.component != "retained-warning-history");
+        gaps.push(DataGap {
+            component: "retained-warning-history".to_owned(),
+            reason: "Only the latest gate snapshot attention items are available; multi-run retained diagnostics are not.".to_owned(),
+        });
+    }
+    if !affected_files.is_empty() {
+        gaps.retain(|gap| gap.component != "affected-files");
+        gaps.push(DataGap {
+            component: "affected-files".to_owned(),
+            reason: "Affected files are derived from the latest gate snapshot only.".to_owned(),
+        });
+    }
 
     ProtectionOverview {
         schema_version: PROTECTION_OVERVIEW_SCHEMA.to_owned(),
@@ -93,13 +123,14 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         assurance: None,
         save_time: None,
         observed_at_unix: None,
-        latest_run,
-        recent_runs: Vec::new(),
+        latest_run: Some(latest_run.clone()),
+        // Single latest run only — no retained multi-run history store.
+        recent_runs: vec![latest_run],
         next_attention,
-        warnings_state: DataState::Unavailable,
-        warnings: Vec::new(),
-        affected_files_state: DataState::Unavailable,
-        affected_files: Vec::new(),
+        warnings_state,
+        warnings,
+        affected_files_state,
+        affected_files,
         gaps,
     }
 }
@@ -228,6 +259,190 @@ fn stale_reason(reason: StaleReason) -> &'static str {
         StaleReason::DaemonAbsent => "daemon-absent",
         StaleReason::UnknownClass => "unknown-class",
         StaleReason::Unknown => "unknown",
+    }
+}
+
+
+fn map_gate_checks(gate: &GateSnapshot) -> Vec<GateCheckSummary> {
+    gate.check_rows
+        .iter()
+        .filter_map(|row| {
+            let name = row.first()?.clone();
+            let status = row.get(1).cloned().unwrap_or_else(|| "unknown".to_owned());
+            let score = row.get(2).cloned().filter(|value| !value.is_empty());
+            let message = row.get(3).cloned().unwrap_or_default();
+            Some(GateCheckSummary {
+                name,
+                status,
+                score,
+                message,
+            })
+        })
+        .collect()
+}
+
+fn map_gate_warnings(gate: &GateSnapshot) -> Vec<WarningSummary> {
+    let mut warnings = Vec::new();
+    for (index, warning) in gate.warning_list.iter().enumerate() {
+        warnings.push(warning_from_gate_attention(index, warning.severity.as_str(), &warning.message));
+    }
+    // Prefer structured antipattern lines when the gate row embeds them and the
+    // attention list is only a short summary.
+    if let Some(antipattern_row) = gate
+        .check_rows
+        .iter()
+        .find(|row| row.first().is_some_and(|name| name.contains("antipattern")))
+    {
+        let detail = antipattern_row.get(3).map(String::as_str).unwrap_or("");
+        let parsed = parse_antipattern_lines(detail);
+        if parsed.len() > warnings.len() {
+            warnings = parsed;
+        } else if warnings.is_empty() {
+            warnings = parsed;
+        }
+    }
+    warnings
+}
+
+fn warning_from_gate_attention(index: usize, severity: &str, message: &str) -> WarningSummary {
+    let (file_path, line) = parse_location(message);
+    let (rule, category) = split_rule_category(message);
+    let pattern = extract_pattern_id(message).unwrap_or_default();
+    WarningSummary {
+        id: format!("latest-gate-warning-{index}"),
+        severity: normalise_severity(severity),
+        category,
+        message: message.to_owned(),
+        file_path,
+        age_label: "Latest gate".to_owned(),
+        evidence_id: format!("latest-gate-warning-{index}"),
+        rule,
+        line,
+        explanation: message.to_owned(),
+        matched_pattern: pattern,
+        evidence_excerpt: Vec::new(),
+    }
+}
+
+fn parse_antipattern_lines(detail: &str) -> Vec<WarningSummary> {
+    detail
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || !trimmed.contains('[') {
+                return None;
+            }
+            let pattern = extract_pattern_id(trimmed)?;
+            let (file_path, line_no) = parse_location(trimmed);
+            let severity = "medium".to_owned();
+            Some(WarningSummary {
+                id: format!(
+                    "latest-gate-pattern-{}-{}",
+                    pattern,
+                    file_path.as_deref().unwrap_or("workspace")
+                ),
+                severity,
+                category: "anti-pattern".to_owned(),
+                message: trimmed.to_owned(),
+                file_path,
+                age_label: "Latest gate".to_owned(),
+                evidence_id: format!(
+                    "latest-gate-pattern-{}-{}",
+                    pattern,
+                    line_no.map(|n| n.to_string()).unwrap_or_else(|| "na".to_owned())
+                ),
+                rule: pattern.clone(),
+                line: line_no,
+                explanation: format!("Anti-pattern {pattern} matched in the latest gate scan."),
+                matched_pattern: pattern,
+                evidence_excerpt: Vec::new(),
+            })
+        })
+        .collect()
+}
+
+fn map_affected_files(warnings: &[WarningSummary]) -> Vec<AffectedFile> {
+    use std::collections::BTreeMap;
+    let mut by_path: BTreeMap<String, AffectedFile> = BTreeMap::new();
+    for warning in warnings {
+        let Some(path) = warning.file_path.clone() else {
+            continue;
+        };
+        let entry = by_path.entry(path.clone()).or_insert_with(|| AffectedFile {
+            path,
+            highest_severity: warning.severity.clone(),
+            warning_count: 0,
+            first_seen: warning.age_label.clone(),
+            last_seen: warning.age_label.clone(),
+            warning_id: warning.id.clone(),
+        });
+        entry.warning_count += 1;
+        if severity_rank(&warning.severity) > severity_rank(&entry.highest_severity) {
+            entry.highest_severity = warning.severity.clone();
+            entry.warning_id = warning.id.clone();
+        }
+    }
+    by_path.into_values().collect()
+}
+
+fn severity_rank(severity: &str) -> u8 {
+    match severity {
+        "high" | "error" => 3,
+        "medium" | "warn" | "warning" => 2,
+        "low" | "info" => 1,
+        _ => 0,
+    }
+}
+
+fn normalise_severity(raw: &str) -> String {
+    match raw.to_ascii_lowercase().as_str() {
+        "error" | "high" | "fail" | "failed" => "high".to_owned(),
+        "warn" | "warning" | "medium" => "medium".to_owned(),
+        "info" | "low" | "note" => "low".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
+fn split_rule_category(message: &str) -> (String, String) {
+    if let Some((head, _)) = message.split_once(':') {
+        let rule = head.trim().to_owned();
+        if !rule.is_empty() && !rule.contains('/') && rule.len() < 64 {
+            return (rule.clone(), rule);
+        }
+    }
+    if let Some(pattern) = extract_pattern_id(message) {
+        return (pattern.clone(), "anti-pattern".to_owned());
+    }
+    ("gate-warning".to_owned(), "gate".to_owned())
+}
+
+fn parse_location(message: &str) -> (Option<String>, Option<usize>) {
+    // Match path:line tokens such as src/config.ts:18
+    for token in message.split_whitespace() {
+        let token = token.trim_matches(|c: char| c == ',' || c == ';' || c == ')');
+        if let Some((path, line)) = token.rsplit_once(':') {
+            if path.contains('/') || path.contains('.') {
+                if let Ok(line_no) = line.parse::<usize>() {
+                    return (Some(path.to_owned()), Some(line_no));
+                }
+            }
+        }
+    }
+    (None, None)
+}
+
+fn extract_pattern_id(message: &str) -> Option<String> {
+    let start = message.find('[')?;
+    let end = message[start + 1..].find(']')? + start + 1;
+    let candidate = &message[start + 1..end];
+    if candidate
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && candidate.contains('-')
+    {
+        Some(candidate.to_owned())
+    } else {
+        None
     }
 }
 

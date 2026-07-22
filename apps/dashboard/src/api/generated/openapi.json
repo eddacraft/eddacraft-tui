@@ -100,6 +100,55 @@
         }
       }
     },
+    "/api/v1/patterns": {
+      "get": {
+        "operationId": "getPatternCatalogue",
+        "summary": "Compiled anti-pattern catalogue",
+        "tags": ["Patterns"],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternCatalogue"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cross-origin request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "421": {
+            "description": "Loopback Host required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Dashboard worker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plans": {
       "get": {
         "operationId": "listPlans",
@@ -359,6 +408,24 @@
           "detached"
         ]
       },
+      "GateCheckSummary": {
+        "type": "object",
+        "required": ["name", "status", "score", "message"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "score": {
+            "type": ["string", "null"]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "GateRunSummary": {
         "type": "object",
         "required": [
@@ -370,7 +437,8 @@
           "duration_seconds",
           "started_at",
           "new_warning_count",
-          "changed_file_count"
+          "changed_file_count",
+          "checks"
         ],
         "properties": {
           "id": {
@@ -402,6 +470,12 @@
           "changed_file_count": {
             "type": ["integer", "null"],
             "minimum": 0
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateCheckSummary"
+            }
           }
         }
       },
@@ -707,6 +781,64 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DataGap"
+            }
+          }
+        }
+      },
+      "PatternSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "family",
+          "severity",
+          "enabled",
+          "instance_count",
+          "description"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "instance_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "PatternCatalogue": {
+        "type": "object",
+        "required": ["schema_version", "data_state", "source_message", "patterns"],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "anvil.dashboard.patterns.v1"
+          },
+          "data_state": {
+            "$ref": "#/components/schemas/DataState"
+          },
+          "source_message": {
+            "type": "string"
+          },
+          "patterns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PatternSummary"
             }
           }
         }

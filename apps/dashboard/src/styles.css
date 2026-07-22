@@ -1884,3 +1884,81 @@ kbd {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* DASHCORE Wave 2 product routes */
+.activity-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.activity-feed-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border, #333);
+  text-decoration: none;
+  color: inherit;
+}
+
+.activity-feed-item:hover,
+.activity-feed-item:focus-visible {
+  border-color: var(--anvil, #c45);
+  outline: none;
+}
+
+.warning-filters,
+.warning-charts-grid {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1rem;
+}
+
+.warning-filters {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.warning-charts-grid {
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.check-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.check-tree-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border, #333);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.check-tree-detail {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  white-space: pre-wrap;
+  border: 1px solid var(--border, #333);
+  border-top: 0;
+  font-size: 0.85rem;
+}
+
+.warning-detail-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}

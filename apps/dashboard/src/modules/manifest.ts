@@ -8,13 +8,21 @@ export interface DashboardActionRequestDescriptor {
 
 export interface DashboardModuleNavigation {
   readonly label: string;
-  readonly path: '/' | '/plans';
+  readonly path: '/' | '/plans' | '/gates' | '/warnings';
   readonly glyph?: SyntaxGlyphKind;
 }
 
 export interface DashboardModuleRoute {
   readonly id: string;
-  readonly path: '/' | '/plans' | '/plans/$id';
+  readonly path:
+    | '/'
+    | '/plans'
+    | '/plans/$id'
+    | '/gates'
+    | '/gates/$id'
+    | '/warnings'
+    | '/warnings/breakdown'
+    | '/warnings/patterns';
   readonly resource: string;
 }
 

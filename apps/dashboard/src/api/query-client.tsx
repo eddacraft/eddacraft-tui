@@ -5,8 +5,26 @@ import { dashboardApi, type DashboardApi } from '@/api/client';
 import { protectionOverviewFixture } from '@/api/fixtures';
 import { dashboardQueryKeys } from '@/api/query-keys';
 
+const patternCatalogueFixture = {
+  schema_version: 'anvil.dashboard.patterns.v1' as const,
+  data_state: 'complete' as const,
+  source_message: 'Fixture catalogue',
+  patterns: [
+    {
+      id: 'AP-001',
+      title: 'Broad eslint-disable added',
+      family: 'guardrail-suppression',
+      severity: 'warning',
+      enabled: true,
+      instance_count: 0,
+      description: 'Disables lint rules broadly.',
+    },
+  ],
+};
+
 const fixtureApi: DashboardApi = {
   getProtectionOverview: async () => protectionOverviewFixture,
+  getPatternCatalogue: async () => patternCatalogueFixture,
   listPlans: async () => [],
   getPlan: async () => {
     throw new Error('No plan fixture selected');

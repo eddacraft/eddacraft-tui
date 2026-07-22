@@ -15,8 +15,9 @@ use axum::{Json, Router};
 use tokio::net::TcpListener;
 
 use crate::Workspace;
-use crate::api::{HealthResponse, PlanDetail, PlanSummary, ProtectionOverview};
+use crate::api::{HealthResponse, PatternCatalogue, PlanDetail, PlanSummary, ProtectionOverview};
 use crate::capabilities::plans::{load_plan, load_plans};
+use crate::capabilities::patterns::load_pattern_catalogue;
 use crate::capabilities::protection::load_protection_overview;
 use crate::error::{ApiError, ServerError};
 use crate::openapi::openapi_document;
@@ -34,6 +35,7 @@ fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
         .route("/healthz", get(health))
         .route("/openapi.json", get(openapi))
         .route("/api/v1/protection", get(protection))
+        .route("/api/v1/patterns", get(patterns))
         .route("/api/v1/plans", get(plans))
         .route("/api/v1/plans/{id}", get(plan))
         .layer(axum::middleware::from_fn(loopback_host_guard))
@@ -157,4 +159,12 @@ async fn plan(
         .map_err(|_| ApiError::Worker)??
         .ok_or(ApiError::PlanNotFound)?;
     Ok(Json(plan))
+}
+
+async fn patterns(State(state): State<AppState>) -> Result<Json<PatternCatalogue>, ApiError> {
+    let workspace = state.workspace;
+    let catalogue = tokio::task::spawn_blocking(move || load_pattern_catalogue(&workspace))
+        .await
+        .map_err(|_| ApiError::Worker)?;
+    Ok(Json(catalogue))
 }

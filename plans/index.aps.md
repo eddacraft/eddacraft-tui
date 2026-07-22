@@ -113,7 +113,11 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASH Wave 1 is fully merged via PR #3321; DASHCORE-001 Merged 2026-07-19 via PR #3363. Remaining Wave 2 Overview/Gates/Warnings views are the next user-facing dashboard slice. Retained-history trends stay under DASHCORE-002 (Proposed). DASHARCH may run in parallel; DASHOPS remains Wave 3. | Pick up DASHCORE-003 (Overview activity feed) or DASHCORE-004 (gate history list) — both unblocked by DASH foundation. |
+| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE-001 Merged; DASHCORE-003..009 product routes in flight on latest-gate evidence. DASHCORE-002 remains Proposed (retained-history). DASHARCH may run in parallel; DASHOPS Wave 3. | Land the DASHCORE finish PR; leave DASHCORE-002 Proposed until retained-history design. |
+
+NBI review note (2026-07-22, DASHCORE finish wave): **DASHCORE-003..009**
+product routes implemented against honest latest-gate evidence + patterns
+catalogue; **DASHCORE-002** remains Proposed (retained-history design gate).
 
 NBI review note (2026-07-22, DASHCORE-001 merge reconciled): **DASHCORE-001**
 Merged via PR #3363 (2026-07-19). NBI stays on DASHCORE Wave 2; next action moves

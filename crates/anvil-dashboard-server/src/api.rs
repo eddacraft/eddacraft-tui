@@ -27,6 +27,14 @@ pub enum DataState {
     Unavailable,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GateCheckSummary {
+    pub name: String,
+    pub status: String,
+    pub score: Option<String>,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GateRunSummary {
     pub id: String,
@@ -38,6 +46,9 @@ pub struct GateRunSummary {
     pub started_at: Option<String>,
     pub new_warning_count: Option<usize>,
     pub changed_file_count: Option<usize>,
+    /// Check tree for this run when the gate artefact includes rows.
+    #[serde(default)]
+    pub checks: Vec<GateCheckSummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,6 +151,39 @@ impl ProtectionOverview {
             affected_files_state: DataState::Unavailable,
             affected_files: Vec::new(),
             gaps: Vec::new(),
+        }
+    }
+}
+
+
+pub const PATTERN_CATALOGUE_SCHEMA: &str = "anvil.dashboard.patterns.v1";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatternSummary {
+    pub id: String,
+    pub title: String,
+    pub family: String,
+    pub severity: String,
+    pub enabled: bool,
+    pub instance_count: usize,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatternCatalogue {
+    pub schema_version: String,
+    pub data_state: DataState,
+    pub source_message: String,
+    pub patterns: Vec<PatternSummary>,
+}
+
+impl PatternCatalogue {
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            schema_version: PATTERN_CATALOGUE_SCHEMA.to_owned(),
+            data_state: DataState::Unavailable,
+            source_message: message.into(),
+            patterns: Vec::new(),
         }
     }
 }

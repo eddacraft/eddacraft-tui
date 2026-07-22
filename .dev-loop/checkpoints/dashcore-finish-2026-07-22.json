@@ -1,0 +1,17 @@
+{
+  "runId": "dashcore-finish-2026-07-22",
+  "phase": "claimed",
+  "mode": "interactive",
+  "policy": "default-interactive-no-file",
+  "target": "DASHCORE",
+  "scope": "Finish implementable DASHCORE-003..009; DASHCORE-002 remains Proposed",
+  "branch": "feat/dashcore-finish",
+  "workspace": "/home/aneki/Projects/src/anvil-001.feat-dashcore-finish",
+  "baseRevision": "d3c8a0115",
+  "integrationBranch": "main",
+  "terminal": "review-ready",
+  "mergeAuthority": false,
+  "nextAction": "backend honesty + product routes",
+  "startedAt": "2026-07-22T11:20:14.895777+00:00",
+  "writeGate": "content-mode-worktree"
+}

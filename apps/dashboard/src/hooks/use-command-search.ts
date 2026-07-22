@@ -4,7 +4,7 @@ export interface DashboardCommandEntry {
   readonly id: string;
   readonly label: string;
   readonly group: string;
-  readonly to: '/' | '/plans';
+  readonly to: '/' | '/plans' | '/gates' | '/warnings';
   readonly search?: Readonly<Record<string, string>>;
 }
 
