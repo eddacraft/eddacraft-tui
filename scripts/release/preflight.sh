@@ -161,7 +161,7 @@ require_cargo_tool_version() {
 
 validate_version() {
   local value="$1"
-  [[ "$value" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z._-]+)?$ ]]
+  [[ "$value" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
 }
 
 # Reads [workspace.package].version from the first Cargo.toml argument.

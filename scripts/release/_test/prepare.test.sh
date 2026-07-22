@@ -82,6 +82,9 @@ bash "$HARNESS" run-contract \
   --expected-command prepare \
   -- bash "$PREPARE" --json --unknown
 
+invalid_version_output="$(bash "$PREPARE" --json --version v0.7.0-beta_1 --release-type beta --strategy direct 2>/dev/null || true)"
+assert_contains "$invalid_version_output" '"code":"invalid-input"'
+
 bash "$HARNESS" run-kill9-rerun \
   --name prepare-kill-rerun \
   --state-file "$tmp/prepare-kill.state" \

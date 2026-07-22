@@ -71,8 +71,8 @@ if (doc.inputs.version !== 'v0.10.0-beta') {
 }
 NODE
 
-ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass \
-  bash "$PREFLIGHT" --json --pre-prepare --version v0.10.0-beta_1 >"$tmp/pre-prepare-underscore.json"
+pre_prepare_underscore_json="$(ANVIL_RELEASE_PREFLIGHT_FIXTURE=pass bash "$PREFLIGHT" --json --pre-prepare --version v0.10.0-beta_1 2>/dev/null || true)"
+assert_contains "$pre_prepare_underscore_json" '"code":"invalid-input"'
 
 pre_prepare_without_version_json="$(bash "$PREFLIGHT" --json --pre-prepare 2>/dev/null || true)"
 assert_contains "$pre_prepare_without_version_json" '"code":"invalid-input"'
