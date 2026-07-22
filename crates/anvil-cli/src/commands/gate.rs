@@ -1223,6 +1223,48 @@ fn run_check_shell(name: &str, root: &Path, walked_files: &[String]) -> CheckRes
 /// that must always block (weak-cipher WC-002, JWT-`none` WC-003, plus the
 /// dynamic-execution family) carry `error` severity in the registry, so they
 /// block regardless of this flag.
+/// The workspace-relative files the anti-pattern scan should read: walked source
+/// files, narrowed to `plan_files` when plan-scoped, minus files the repo
+/// declares generated via `.gitattributes` `linguist-generated` (CIB-199). The
+/// `.gitattributes` filter is anti-pattern-scan only — the secret scan and other
+/// gate engines walk independently and still see these files.
+fn antipattern_scan_files(
+    root: &Path,
+    plan_files: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    let mut files = walk_source_files(root, &[]);
+    if !plan_files.is_empty() {
+        files.retain(|f| {
+            plan_files.iter().any(|pf| {
+                if pf.ends_with('/') || root.join(pf).is_dir() {
+                    f.starts_with(pf.as_str())
+                } else {
+                    f == pf.as_str()
+                }
+            })
+        });
+    }
+
+    let generated = crate::util::git_generated_paths(root, &files);
+    if !generated.is_empty() {
+        files.retain(|f| !generated.contains(f));
+    }
+    files
+}
+
+/// CIB-199: read `antipattern.exclude` globs, or a failing [`CheckResult`]
+/// naming the config surface when the project config cannot be read or parsed.
+/// Operator-declared exclusions must never be silently dropped.
+fn resolve_antipattern_excludes(name: &str, root: &Path) -> Result<Vec<String>, CheckResult> {
+    read_anvilrc_antipattern_excludes(root).map_err(|err| CheckResult {
+        name: name.to_string(),
+        passed: false,
+        score: 0.0,
+        message: format!("Failed to read `antipattern.exclude` from project config: {err}"),
+        requires_config: false,
+    })
+}
+
 fn run_check_antipattern(
     name: &str,
     root: &Path,
@@ -1234,30 +1276,15 @@ fn run_check_antipattern(
     } else {
         anvil_checks::antipattern::WarningSeverity::Error
     };
-    let mut files_to_scan = walk_source_files(root, &[]);
-    if !plan_files.is_empty() {
-        files_to_scan.retain(|f| {
-            plan_files.iter().any(|pf| {
-                if pf.ends_with('/') || root.join(pf).is_dir() {
-                    f.starts_with(pf.as_str())
-                } else {
-                    f == pf.as_str()
-                }
-            })
-        });
-    }
-
-    // CIB-199: drop files the repo declares generated via `.gitattributes`
-    // `linguist-generated`. Anti-pattern-scan only — the secret scan and other
-    // gate engines walk independently and still see these files.
-    let generated = crate::util::git_generated_paths(root, &files_to_scan);
-    if !generated.is_empty() {
-        files_to_scan.retain(|f| !generated.contains(f));
-    }
+    let files_to_scan = antipattern_scan_files(root, plan_files);
 
     // CIB-199: project-config `antipattern.exclude` globs (for generators the
-    // path/banner auto-detector does not recognise).
-    let exclude_globs = read_anvilrc_antipattern_excludes(root).unwrap_or_default();
+    // path/banner auto-detector does not recognise). A malformed config fails
+    // the check loudly rather than silently disabling the exclude list.
+    let exclude_globs = match resolve_antipattern_excludes(name, root) {
+        Ok(globs) => globs,
+        Err(failure) => return failure,
+    };
 
     let absolute_files: Vec<String> = files_to_scan
         .iter()
@@ -5429,6 +5456,26 @@ rules: []
             result.message
         );
         assert!(result.message.contains("WC-003"), "got: {}", result.message);
+    }
+
+    #[test]
+    fn antipattern_fails_loudly_on_malformed_exclude_config() {
+        // CIB-199: a malformed project config must fail the check with a visible
+        // message, not silently disable `antipattern.exclude`.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "{").unwrap();
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+        assert!(!result.passed, "malformed config must fail the check");
+        assert!(
+            result.message.contains("antipattern.exclude"),
+            "message must name the failing config surface; got: {}",
+            result.message
+        );
     }
 
     // ── LANGTS-006 / #1801: dynamic-execution rules ──────────────────

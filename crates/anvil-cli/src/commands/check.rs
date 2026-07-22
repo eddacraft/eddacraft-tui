@@ -272,12 +272,12 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             "antipattern-scan" => {
                 let root_path = workspace_root.as_deref().map(Path::new);
                 // CIB-199: user-declared exclude globs from `antipattern.exclude`.
-                let exclude_globs = root_path
-                    .map(|root| {
-                        crate::commands::gate::read_anvilrc_antipattern_excludes(root)
-                            .unwrap_or_default()
-                    })
-                    .unwrap_or_default();
+                // A malformed config propagates as an error rather than silently
+                // disabling the exclude list (operator config: no silent defaults).
+                let exclude_globs = match root_path {
+                    Some(root) => crate::commands::gate::read_anvilrc_antipattern_excludes(root)?,
+                    None => Vec::new(),
+                };
                 let config = AntipatternCheckConfig {
                     patterns: Vec::new(),
                     include_opt_in: args.include_opt_in,
