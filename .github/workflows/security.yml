@@ -51,7 +51,7 @@ jobs:
       # Primary checkout at the PR head (or pushed SHA): the tree whose diff the
       # classifier inspects. Change inputs stay the PR's own actual changes.
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -66,7 +66,7 @@ jobs:
       # checkout fails, the job fails and the dependent scan jobs run the full
       # set (see their `result != 'success'` guards) rather than skipping.
       - name: Checkout trusted classifier
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref:
             ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
@@ -100,7 +100,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run Semgrep
         continue-on-error: true
@@ -133,7 +133,7 @@ jobs:
        needs.detect-changes.outputs.dependency-audit-required == 'true')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # pnpm audit uses the retired npm v1 audit endpoint (returns 410).
       # Trivy reads pnpm-lock.yaml directly via NVD/OSV databases — no
@@ -163,7 +163,7 @@ jobs:
        needs.detect-changes.outputs.code-changed == 'true')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -189,7 +189,7 @@ jobs:
        needs.detect-changes.outputs.dependency-audit-required == 'true')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9

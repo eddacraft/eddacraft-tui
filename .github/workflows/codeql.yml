@@ -47,14 +47,14 @@ jobs:
       rust-changed: ${{ steps.changes.outputs.rust-changed }}
     steps:
       # Primary checkout at the PR head: the tree whose diff is classified.
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       # CIB-137: this workflow shares the "Detect Changes" required-context name
       # with ci.yml, so resolve the classifier from a trusted ref (base SHA on a
       # PR, else the already-trusted head) rather than the PR head. See ci.yml
       # for the full rationale.
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref:
             ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
@@ -78,7 +78,7 @@ jobs:
       (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.source-changed == 'true')
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
@@ -112,7 +112,7 @@ jobs:
       (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.rust-changed == 'true')
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
 
@@ -145,7 +145,7 @@ jobs:
       'ubuntu-latest' }}
     if: github.event_name == 'schedule'
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
