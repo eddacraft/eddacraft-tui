@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 343 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 344 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1346,8 +1346,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `serde_json` | 1.0.150 | MIT License | https://github.com/serde-rs/json |
 | `serde_yaml` | 0.9.34+deprecated | MIT License | https://github.com/dtolnay/serde-yaml |
 | `syn` | 2.0.118 | MIT License | https://github.com/dtolnay/syn |
-| `thiserror-impl` | 2.0.18 | MIT License | https://github.com/dtolnay/thiserror |
-| `thiserror` | 2.0.18 | MIT License | https://github.com/dtolnay/thiserror |
+| `syn` | 3.0.3 | MIT License | https://github.com/dtolnay/syn |
+| `thiserror-impl` | 2.0.19 | MIT License | https://github.com/dtolnay/thiserror |
+| `thiserror` | 2.0.19 | MIT License | https://github.com/dtolnay/thiserror |
 | `unicode-ident` | 1.0.24 | MIT License | https://github.com/dtolnay/unicode-ident |
 | `unsafe-libyaml` | 0.2.11 | MIT License | https://github.com/dtolnay/unsafe-libyaml |
 | `zmij` | 1.0.21 | MIT License | https://github.com/dtolnay/zmij |
