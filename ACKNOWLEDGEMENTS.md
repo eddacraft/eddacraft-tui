@@ -1343,7 +1343,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `serde` | 1.0.228 | MIT License | https://github.com/serde-rs/serde |
 | `serde_core` | 1.0.228 | MIT License | https://github.com/serde-rs/serde |
 | `serde_derive` | 1.0.228 | MIT License | https://github.com/serde-rs/serde |
-| `serde_json` | 1.0.150 | MIT License | https://github.com/serde-rs/json |
+| `serde_json` | 1.0.151 | MIT License | https://github.com/serde-rs/json |
 | `serde_yaml` | 0.9.34+deprecated | MIT License | https://github.com/dtolnay/serde-yaml |
 | `syn` | 2.0.118 | MIT License | https://github.com/dtolnay/syn |
 | `syn` | 3.0.3 | MIT License | https://github.com/dtolnay/syn |
