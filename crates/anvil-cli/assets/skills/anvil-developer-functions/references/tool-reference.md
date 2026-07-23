@@ -1,66 +1,162 @@
-# Anvil MCP tool reference
+# anvil developer functions — full reference
 
-## Write validation
+Deep detail for the developer functions. The loop and everyday usage live in
+[`../SKILL.md`](../SKILL.md); reach here for exact parameters, the `graph://`
+resources, and the egress/redaction mechanics.
 
-### `anvil_validate_write`
+## Setup and verification
 
-Use for new files and whole-file writes.
+The graph-context surface ships with the Rust CLI's MCP server,
+`anvil mcp serve --stdio`, verified against Claude Code and Cursor. The daemon
+must be running for the tools to return data.
 
-- `filePath`: workspace-relative destination path.
-- `proposedContent`: exact content to be written.
-- `intent`: short explanation of the requested change.
+```bash
+anvil start                              # auto-installs the MCP server, starts the daemon
+anvil mcp install --client claude-code   # install for Claude Code explicitly
+anvil mcp install --client cursor        # install for Cursor explicitly
+```
 
-The response decision is `allow`, `warn`, `block`, or `gateUnavailable`.
-Diagnostics may include rule identifiers, locations, messages, and repair
-guidance. A `block` is authoritative for that proposed content.
+Manual wiring — add the shim to the client's MCP config (`~/.claude.json` for
+Claude Code, which needs the `"type": "stdio"` discriminator; `~/.cursor/mcp.json`
+for Cursor, same entry without `type`):
 
-### `anvil_apply_patch`
+```json
+{
+  "mcpServers": {
+    "anvil": {
+      "type": "stdio",
+      "command": "anvil",
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {}
+    }
+  }
+}
+```
 
-Use for a unified diff against existing files. Supply the complete unified diff
-and a short intent. The tool validates added lines and returns a decision; it
-does not write the file. Apply the patch through the normal editing mechanism
-only after an `allow` or permitted `warn`. Do not apply it through a different
-mechanism after a `block`.
+Restart the client (or reload its MCP servers) after writing the config, or the
+tools will not appear. Verify by reading `graph://stats` or calling
+`anvil_search_symbols` — a `ready` result confirms the wiring.
 
-## Graph context
+## Tool details
 
-### `anvil_search_symbols`
+All six graph-context tools are **identity-only by default**: they return symbol
+identities (name, kind, workspace-relative path, visibility) and edge topology —
+never source text, absolute paths, or secrets. Results are deterministic. The
+listing tools (`anvil_search_symbols`, `anvil_find_dependents`,
+`anvil_find_callers`) paginate with opaque cursors; the report tools
+(`anvil_impact_of_change`, `anvil_affected_tests`, `anvil_symbol_context`) return
+a single bounded report. The reverse-dependency walks cap at **2 hops**, matching
+the daemon's impact-depth limit.
 
-Search for symbol definitions and references. Use a focused query such as a
-type, function, command, or module name. Treat an empty result as absence of
-graph evidence, not proof that the repository contains no matching text.
+| Tool                     | Key inputs                                                   | Returns                                                                                    |
+| ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `anvil_search_symbols`   | `name` (substring), `kind`, `file`, `language`, `visibility` | Matching symbol identities, paginated                                                      |
+| `anvil_find_dependents`  | a file path                                                  | Importing files, each with hop distance (`1` direct, `2` transitive)                       |
+| `anvil_find_callers`     | a symbol                                                     | Calling symbols; flags `heuristic` (overload fan-out) and `partial` (incomplete walk)      |
+| `anvil_impact_of_change` | `changedFiles` (paths, ≤200; never diff content)             | Affected symbols, depth-bounded dependent files, best-effort `known_tests`                 |
+| `anvil_affected_tests`   | `changedFiles` (paths)                                       | Test files importing them (with evidence edges) + `coverage_gaps`; `heuristic: true`       |
+| `anvil_symbol_context`   | a seed symbol or file; token budget; `includeSource`         | Neighbourhood symbols, one-hop importers, direct callers (symbol seeds), spans-as-location |
 
-### `anvil_find_dependents`
+`anvil_find_callers` is a best-effort static over-approximation and cannot see
+dynamic dispatch — never treat its output as an authoritative caller set.
+`anvil_affected_tests` relevance is an import heuristic, not execution-verified
+coverage.
 
-Find files that statically depend on a target file. Use it before changing a
-shared interface to identify downstream impact.
+## `graph://` resources
 
-### `anvil_find_callers`
+For clients that prefer resources to tool calls:
 
-Find static callers of a symbol. Results can be heuristic or partial; preserve
-those qualifiers when reporting them.
+- **`graph://stats`** — counts only (symbol, edge, file totals). Lowest-risk
+  surface; a good warm-up probe.
+- **`graph://symbols`** — all resident symbols as identity summaries. Scope with
+  `?file=…` or page with `?cursor=…`.
+- **`graph://edges`** — resident symbol-graph edges as `(from, to, edge_type)`
+  summaries. Scope with `?file=…`, page with `?cursor=…` and `?limit=…`. The
+  response carries a `bounded` flag indicating whether the daemon's walk was
+  capped by its node budget — a result field, not a request parameter.
 
-### `anvil_impact_of_change`
+Resources and tools share one per-session egress budget, so a client cannot
+reassemble the whole graph past the ceiling by alternating between them.
 
-Report affected symbols, dependent files, and known tests for changed paths. Use
-it to shape a focused verification plan, not as proof of complete coverage.
+## `anvil_validate_write`
 
-### `anvil_affected_tests`
+The pre-write enforcement gate (the Rust shim, daemon-backed when reachable;
+embedded fallback otherwise). Call it before applying a write.
 
-Suggest likely tests for changed files and identify known coverage gaps.
+```json
+{
+  "tool": "anvil_validate_write",
+  "arguments": {
+    "workspaceRoot": "/absolute/path/to/project",
+    "path": "src/auth/login.ts",
+    "operation": "create",
+    "proposedContent": "export const login = …"
+  }
+}
+```
 
-### `anvil_symbol_context`
+The `decision` is four-valued: `block` (authoritative — do not write), `warn`
+(findings detected but enforcement mode permits the write — surface and proceed),
+`gateUnavailable` (gate could not run — surface and proceed), `allow` (passed).
+The response also carries a `correlation` envelope whose `daemonStatus` reports
+whether the daemon-backed path ran (`available`), fell back to the embedded
+scanner (`unavailable`), or was not compiled in (`not-wired`).
 
-Return a bounded structural neighbourhood around a symbol or file. Source
-snippets require both workspace egress consent and `includeSource: true`;
-identity-only context is the safe default.
+`anvil_status` is a read-only workspace-health summary (status, available checks,
+config, baseline presence, version) with path values redacted to
+workspace-relative forms.
 
-## Failure handling
+> Team shorthand sometimes calls launch validation "RMCP validation" (the Rust
+> MCP full-port server that hosts it). The user-facing entry point is
+> `anvil_validate_write`.
 
-- If the MCP server is not configured, tell the user which capability is
-  unavailable and continue with normal read-only repository inspection.
-- If the server cannot start or handshake, do not describe the repository as
-  protected.
-- If a live validation returns `gateUnavailable`, report that exact state. It is
-  not equivalent to `allow`, but it does not itself block the write.
-- Never include secrets in tool arguments, diagnostics, examples, or logs.
+## Egress and redaction
+
+The default posture is **identity-only**. Source **snippets** are an explicit
+opt-in and only `anvil_symbol_context` can return them. They are double-gated:
+the operator enables egress for the workspace **and** the request sets
+`includeSource: true`. With either missing, the tool returns identity-only
+locations — and, when source was requested but egress is off, a
+`snippetEgressHint` describing how to ask the operator to enable it.
+
+Operators opt in per-workspace and persisted:
+
+```bash
+anvil gctx egress enable     # prints the consequence, asks for confirmation
+anvil gctx egress status     # shows the effective state and where it comes from
+anvil gctx egress disable    # revert to identity-only
+```
+
+`enable` records consent under the workspace's ignored
+`anvil/witness/gctx-egress.json` (pass `--yes` to acknowledge
+non-interactively). Consent is per-workspace.
+
+`ANVIL_GCTX_EGRESS` is a process-scoped override, re-read on every call:
+
+- **unset** (default) — persisted workspace consent decides; with none recorded,
+  the surface is identity-only.
+- **`1`** — snippets permitted for this process regardless of persisted consent
+  (still per-request via `includeSource`).
+- **`0`** — a hard kill-switch: the entire surface is off and every tool and
+  resource returns `disabled`, overriding persisted consent.
+
+"Off by default" refers to _snippets_, not the surface. Setting
+`ANVIL_GCTX_EGRESS=0` takes the whole surface offline; the safe identity-only
+default is leaving it unset.
+
+When snippets are enabled they still pass a deny-by-default pipeline before any
+text is emitted: sensitive paths (`.env*`, `*.pem`/`*.key`, `.git/`, `secrets/`,
+`.ssh/`, …) are dropped, gitignored files are withheld, and a secret scan redacts
+matches in the emitted text. Counts of what was dropped or redacted are reported;
+the dropped content is not.
+
+## Source docs (anvil repo — maintainers only)
+
+Internal anvil-repo paths — not available in consuming projects; for maintainers
+only. These are the upstream authorities this skill is distilled from; consult
+them in the anvil repository if behaviour seems to have changed:
+
+- `docs/guides/ai-context-delivery.md` — the graph-context surface and egress
+- `docs/public/anvil/integrations/mcp.md` — client setup and tool reference
+- `docs/public/anvil/guides/save-time-validation.md` — the `anvil_validate_write`
+  enforcement path
