@@ -1091,7 +1091,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `regex-automata` | 0.4.14 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.13.0 | MIT License | https://github.com/rust-lang/regex |
-| `uuid` | 1.23.4 | MIT License | https://github.com/uuid-rs/uuid |
+| `uuid` | 1.24.0 | MIT License | https://github.com/uuid-rs/uuid |
 | `libsqlite3-sys` | 0.38.1 | MIT License | https://github.com/rusqlite/rusqlite |
 | `rusqlite` | 0.40.1 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
