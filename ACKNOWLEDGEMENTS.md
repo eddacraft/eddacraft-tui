@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 344 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 345 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1212,9 +1212,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `anstyle-query` | 1.1.5 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle-wincon` | 3.0.11 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle` | 1.0.14 | MIT License | https://github.com/rust-cli/anstyle.git |
-| `clap` | 4.6.1 | MIT License | https://github.com/clap-rs/clap |
-| `clap_builder` | 4.6.0 | MIT License | https://github.com/clap-rs/clap |
-| `clap_derive` | 4.6.1 | MIT License | https://github.com/clap-rs/clap |
+| `clap` | 4.6.4 | MIT License | https://github.com/clap-rs/clap |
+| `clap_builder` | 4.6.2 | MIT License | https://github.com/clap-rs/clap |
+| `clap_derive` | 4.6.4 | MIT License | https://github.com/clap-rs/clap |
 | `clap_lex` | 1.1.0 | MIT License | https://github.com/clap-rs/clap |
 | `colorchoice` | 1.0.5 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `is_terminal_polyfill` | 1.70.2 | MIT License | https://github.com/polyfill-rs/is_terminal_polyfill |
@@ -1299,6 +1299,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `windows-strings` | 0.4.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-strings` | 0.5.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.52.0 | MIT License | https://github.com/microsoft/windows-rs |
+| `windows-sys` | 0.59.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.60.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-targets` | 0.52.6 | MIT License | https://github.com/microsoft/windows-rs |
@@ -1475,6 +1476,7 @@ section above; this block focuses on the build-time runtime surface.
 | @yarnpkg/lockfile | 1.1.0 | BSD-2-Clause | https://github.com/yarnpkg/yarn/blob/master/packages/lockfile |
 | @zkochan/js-yaml | 0.0.7 | MIT | https://github.com/nodeca/js-yaml |
 | abbrev | 1.1.1 | ISC | https://github.com/isaacs/abbrev-js |
+| agent-base | 6.0.2 | MIT | https://github.com/TooTallNate/node-agent-base |
 | ansi-colors | 4.1.3 | MIT | https://github.com/doowb/ansi-colors |
 | ansi-regex | 5.0.1 | MIT | https://github.com/chalk/ansi-regex |
 | ansi-regex | 6.2.2 | MIT | https://github.com/chalk/ansi-regex |
@@ -1485,14 +1487,14 @@ section above; this block focuses on the build-time runtime surface.
 | asap | 2.0.6 | MIT | https://github.com/kriskowal/asap |
 | assertion-error | 2.0.1 | MIT | https://github.com/chaijs/assertion-error |
 | asynckit | 0.4.0 | MIT | https://github.com/alexindigo/asynckit |
-| axios | 1.16.0 | MIT | https://github.com/axios/axios |
+| axios | 1.18.1 | MIT | https://github.com/axios/axios |
 | balanced-match | 1.0.2 | MIT | https://github.com/juliangruber/balanced-match |
 | balanced-match | 4.0.3 | MIT | https://github.com/juliangruber/balanced-match |
 | balanced-match | 4.0.4 | MIT | https://github.com/juliangruber/balanced-match |
 | base64-js | 1.5.1 | MIT | https://github.com/beatgammit/base64-js |
 | bl | 4.1.0 | MIT | https://github.com/rvagg/bl |
-| brace-expansion | 1.1.14 | MIT | https://github.com/juliangruber/brace-expansion |
-| brace-expansion | 5.0.6 | MIT | https://github.com/juliangruber/brace-expansion |
+| brace-expansion | 1.1.16 | MIT | https://github.com/juliangruber/brace-expansion |
+| brace-expansion | 5.0.7 | MIT | https://github.com/juliangruber/brace-expansion |
 | buffer | 5.7.1 | MIT | https://github.com/feross/buffer |
 | call-bind-apply-helpers | 1.0.2 | MIT | https://github.com/ljharb/call-bind-apply-helpers |
 | chai | 6.2.2 | MIT | https://github.com/chaijs/chai |
@@ -1566,6 +1568,7 @@ section above; this block focuses on the build-time runtime surface.
 | hasown | 2.0.3 | MIT | https://github.com/inspect-js/hasOwn |
 | hasown | 2.0.4 | MIT | https://github.com/inspect-js/hasOwn |
 | hosted-git-info | 2.8.9 | ISC | https://github.com/npm/hosted-git-info |
+| https-proxy-agent | 5.0.1 | MIT | https://github.com/TooTallNate/node-https-proxy-agent |
 | husky | 9.1.7 | MIT | https://github.com/typicode/husky |
 | ieee754 | 1.2.1 | BSD-3-Clause | https://github.com/feross/ieee754 |
 | ignore | 7.0.5 | MIT | https://github.com/kaelzhang/node-ignore |
@@ -1582,7 +1585,7 @@ section above; this block focuses on the build-time runtime surface.
 | is-interactive | 1.0.0 | MIT | https://github.com/sindresorhus/is-interactive |
 | is-unicode-supported | 0.1.0 | MIT | https://github.com/sindresorhus/is-unicode-supported |
 | is-wsl | 2.2.0 | MIT | https://github.com/sindresorhus/is-wsl |
-| js-yaml | 4.2.0 | MIT | https://github.com/nodeca/js-yaml |
+| js-yaml | 4.3.0 | MIT | https://github.com/nodeca/js-yaml |
 | json-parse-even-better-errors | 2.3.1 | MIT | https://github.com/npm/json-parse-even-better-errors |
 | json5 | 2.2.3 | MIT | https://github.com/json5/json5 |
 | jsonc-parser | 3.2.0 | MIT | https://github.com/microsoft/node-jsonc-parser |
@@ -1594,7 +1597,7 @@ section above; this block focuses on the build-time runtime surface.
 | lightningcss-linux-x64-musl | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lightningcss | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lines-and-columns | 2.0.3 | MIT | https://github.com/eventualbuddha/lines-and-columns |
-| linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
+| linkify-it | 5.0.2 | MIT | https://github.com/markdown-it/linkify-it |
 | log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
 | magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
 | markdown-it | 14.2.0 | MIT | https://github.com/markdown-it/markdown-it |

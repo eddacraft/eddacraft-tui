@@ -6640,6 +6640,7 @@ dependencies = [
  "smallvec",
  "strum",
  "syn 2.0.118",
+ "syn 3.0.3",
  "sync_wrapper",
  "textwrap",
  "thiserror 2.0.19",
@@ -6651,6 +6652,9 @@ dependencies = [
  "tracing-core",
  "unicode-truncate",
  "winapi",
+ "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
  "windows-sys 0.61.2",
  "zerocopy",
 ]
