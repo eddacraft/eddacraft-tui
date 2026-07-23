@@ -1088,7 +1088,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `num-rational` | 0.4.2 | MIT License | https://github.com/rust-num/num-rational |
 | `num-traits` | 0.2.19 | MIT License | https://github.com/rust-num/num-traits |
 | `num` | 0.4.3 | MIT License | https://github.com/rust-num/num |
-| `regex-automata` | 0.4.14 | MIT License | https://github.com/rust-lang/regex |
+| `regex-automata` | 0.4.16 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.13.0 | MIT License | https://github.com/rust-lang/regex |
 | `uuid` | 1.24.0 | MIT License | https://github.com/uuid-rs/uuid |
