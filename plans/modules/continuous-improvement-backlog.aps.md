@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 154/194  |
+| CIB | —     | In Progress | 155/196  |
 
 ## Purpose
 
@@ -5189,3 +5189,41 @@ archive.
   (warnings-over-blocks).
 - **Confidence:** high — F1/F2/F3 verified in-repo by all five reviewers;
   Safe A implemented in PR #3373 and green in CI.
+
+### CIB-200: Delegate package-manager-owned updates after explicit consent
+
+- **Status:** Ready
+- **Intent:** Let `anvil update` complete an explicitly authorised update through
+  the package manager that owns the running binary instead of stopping at a
+  manual-command advisory.
+- **Expected Outcome:** Homebrew, WinGet, and Scoop installs retain package-manager
+  ownership and integrity verification while gaining a typed, allowlisted
+  execution path. An interactive bare `anvil update` prints the exact command on
+  stderr and asks `Run it now? [y/N]`; only an explicit yes launches it. `--yes`
+  provides the same consent without a prompt, including for non-interactive
+  callers. `--check` always remains read-only; `--version` and `--force` fail
+  actionably on package-manager paths because the allowlisted latest-version
+  commands cannot honour those requests. JSON mode never prompts, requires
+  `--yes` before execution, and emits exactly one JSON document on stdout.
+  Package-manager output is visible in human mode, a missing executable or
+  non-zero exit is propagated, and declining leaves the installation unchanged.
+- **Non-scope:** No arbitrary command execution, privilege elevation, manager-
+  specific version selection, package-channel availability probe, new package
+  manager, or change to the sidecar/library update and signature-verification
+  paths.
+- **Files:** `crates/anvil-cli/src/commands/update.rs`,
+  `crates/anvil-cli/tests/update_resolution_chain.rs`,
+  `docs/runbooks/cli-surface.md`, `plans/index.aps.md`, this module.
+- **Validation:** `cargo fmt --all -- --check`;
+  `cargo test -p eddacraft-anvil commands::update::tests`;
+  `cargo test -p eddacraft-anvil --test update_resolution_chain`;
+  `cargo clippy -p eddacraft-anvil --all-targets -- -D warnings`;
+  `pnpm docs:check`; `pnpm aps:active-lint`; `pnpm aps:index:check`;
+  `pnpm validate:changed`.
+- **Identified From:** 2026-07-24 operator proposal after a Homebrew-owned
+  `anvil update` stopped with only `brew upgrade eddacraft/tap/anvil` guidance.
+- **Coordinates with:** ADR-025 package-manager distribution, ADR-045 update
+  signing and delegated package-manager integrity, archived DISTRIB-001.
+- **Confidence:** high — install-method detection and package-manager command
+  mapping already exist; the remaining work is consent, typed process execution,
+  output-mode discipline, and behavioural coverage.
