@@ -23,6 +23,8 @@ struct CompiledPattern {
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
+    nudge: Option<String>,
+    #[serde(default)]
     enabled: Option<bool>,
 }
 
@@ -68,7 +70,7 @@ pub fn load_pattern_catalogue(workspace: &Workspace) -> PatternCatalogue {
             },
             enabled: pattern.enabled.unwrap_or(true),
             instance_count: 0,
-            description: pattern.description.unwrap_or_default(),
+            description: pattern.description.or(pattern.nudge).unwrap_or_default(),
         })
         .collect::<Vec<_>>();
 
@@ -107,7 +109,7 @@ mod tests {
                   "family": "guardrail-suppression",
                   "title": "Broad eslint-disable added",
                   "severity": "warning",
-                  "description": "Disables lint rules broadly."
+                  "nudge": "Disables lint rules broadly."
                 }
               ]
             }"#,
@@ -119,5 +121,9 @@ mod tests {
         assert_eq!(catalogue.patterns.len(), 1);
         assert_eq!(catalogue.patterns[0].id, "AP-001");
         assert!(catalogue.patterns[0].enabled);
+        assert_eq!(
+            catalogue.patterns[0].description,
+            "Disables lint rules broadly."
+        );
     }
 }

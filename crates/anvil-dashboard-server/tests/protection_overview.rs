@@ -82,3 +82,31 @@ fn missing_gate_artefact_is_an_honest_empty_state() {
     assert_eq!(overview.affected_files_state, DataState::Unavailable);
     assert!(overview.source_message.contains("No local gate artefact"));
 }
+
+#[test]
+fn clean_latest_gate_reports_empty_partial_collections() {
+    let root = tempdir().expect("workspace");
+    fs::create_dir(root.path().join(".anvil")).expect(".anvil");
+    fs::write(
+        root.path().join(".anvil/gates.json"),
+        br#"{
+          "status": "pass",
+          "statusLabel": "PASSED - score 100/100",
+          "score": 100,
+          "warnings": "0",
+          "durationSeconds": "1.2",
+          "checksRun": "1",
+          "checkRows": [["lint", "passed", "100", "No lint errors"]],
+          "warningList": []
+        }"#,
+    )
+    .expect("gate fixture");
+    let workspace = Workspace::new(root.path()).expect("workspace boundary");
+
+    let overview = load_persisted_protection_overview(&workspace);
+
+    assert!(overview.warnings.is_empty());
+    assert!(overview.affected_files.is_empty());
+    assert_eq!(overview.warnings_state, DataState::Partial);
+    assert_eq!(overview.affected_files_state, DataState::Partial);
+}

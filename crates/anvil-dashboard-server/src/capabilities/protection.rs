@@ -86,32 +86,22 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         evidence_id: Some(warning.id.clone()),
     });
     let affected_files = map_affected_files(&warnings);
-    let warnings_state = if warnings.is_empty() {
-        DataState::Unavailable
-    } else {
-        // Latest-gate only — not retained multi-run diagnostics.
-        DataState::Partial
-    };
-    let affected_files_state = if affected_files.is_empty() {
-        DataState::Unavailable
-    } else {
-        DataState::Partial
-    };
+    // A successfully parsed gate artefact proves these latest-snapshot
+    // collections are available, including when a clean run yields no rows.
+    // They remain partial because no retained multi-run diagnostics exist.
+    let warnings_state = DataState::Partial;
+    let affected_files_state = DataState::Partial;
     let mut gaps = history_gaps();
-    if !warnings.is_empty() {
-        gaps.retain(|gap| gap.component != "retained-warning-history");
-        gaps.push(DataGap {
-            component: "retained-warning-history".to_owned(),
-            reason: "Only the latest gate snapshot attention items are available; multi-run retained diagnostics are not.".to_owned(),
-        });
-    }
-    if !affected_files.is_empty() {
-        gaps.retain(|gap| gap.component != "affected-files");
-        gaps.push(DataGap {
-            component: "affected-files".to_owned(),
-            reason: "Affected files are derived from the latest gate snapshot only.".to_owned(),
-        });
-    }
+    gaps.retain(|gap| gap.component != "retained-warning-history");
+    gaps.push(DataGap {
+        component: "retained-warning-history".to_owned(),
+        reason: "Only the latest gate snapshot attention items are available; multi-run retained diagnostics are not.".to_owned(),
+    });
+    gaps.retain(|gap| gap.component != "affected-files");
+    gaps.push(DataGap {
+        component: "affected-files".to_owned(),
+        reason: "Affected files are derived from the latest gate snapshot only.".to_owned(),
+    });
 
     ProtectionOverview {
         schema_version: PROTECTION_OVERVIEW_SCHEMA.to_owned(),
