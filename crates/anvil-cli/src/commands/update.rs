@@ -1,9 +1,11 @@
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::Context;
 
 use crate::GlobalArgs;
+use crate::commands::version::InstallMethod;
 
 mod fetch;
 mod signature;
@@ -21,6 +23,9 @@ impl std::fmt::Display for UpdateAvailable {
 
 impl std::error::Error for UpdateAvailable {}
 
+// These are independent CLI switches, not coupled state; modelling them as a
+// state machine would obscure clap's composable flag surface.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, clap::Args)]
 pub struct UpdateArgs {
     /// Check for updates without installing.
@@ -35,6 +40,10 @@ pub struct UpdateArgs {
     #[arg(long)]
     pub force: bool,
 
+    /// Consent to a package-manager-owned update without prompting.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+
     /// Skip signature verification of the downloaded artefact. Dangerous —
     /// only use when the release public key is known to be temporarily
     /// unavailable and the user explicitly accepts the risk. Logs a
@@ -48,11 +57,11 @@ pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // 1. Package-manager installs: defer to the package manager so the user
     //    gets the one command that will work, not a menu of options. Detected
-    //    via path markers shared with `commands::version` (see
-    //    `package_manager_for_exe`).
-    if let Some(pm) = detect_package_manager() {
-        report_package_manager_install(current, global, pm);
-        return Ok(());
+    //    through the canonical install-method detector in `commands::version`.
+    if let Some(command) =
+        package_manager_command_for(crate::commands::version::detect_install_method())
+    {
+        return run_package_manager_update(current, args, global, command);
     }
 
     // 2. Try sidecar binary
@@ -69,65 +78,329 @@ pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
 // ── Package-manager detection ───────────────────────────────────────
 
-/// A package manager that owns the installed `anvil` binary. The upgrade
-/// must go through it, not through `anvil update`'s in-process replace.
+/// A package-manager operation that anvil may execute after explicit consent.
+///
+/// Keeping the executable and arguments as separate static fields makes this an
+/// allowlist, not a shell-command surface. [`Command`] receives these values
+/// directly; the human-readable form is never parsed or executed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PackageManager {
-    Homebrew,
-    Winget,
-    Scoop,
+struct PackageManagerCommand {
+    install_method: &'static str,
+    display_name: &'static str,
+    executable: &'static str,
+    argv: &'static [&'static str],
 }
 
-const HOMEBREW_PREFIXES: &[&str] = &["/opt/homebrew/", "/usr/local/Cellar/", "/home/linuxbrew/"];
-// Mirrors the markers in `commands::version` — kept in sync intentionally.
-// Winget installs land under `%LOCALAPPDATA%\Microsoft\WindowsApps\eddacraft...`,
-// scoop installs under `%USERPROFILE%\scoop\apps\anvil\<version>\`.
-const WINGET_MARKERS: &[&str] = &["WindowsApps\\eddacraft", "WindowsApps/eddacraft"];
-const SCOOP_MARKERS: &[&str] = &["scoop\\apps\\anvil\\", "scoop/apps/anvil/"];
-
-fn detect_package_manager() -> Option<PackageManager> {
-    let exe = std::env::current_exe().ok()?;
-    package_manager_for_exe(&exe)
+impl PackageManagerCommand {
+    fn display(self) -> String {
+        std::iter::once(self.executable)
+            .chain(self.argv.iter().copied())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct PackageManagerExecution {
+    success: bool,
+    exit_code: Option<i32>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+impl PackageManagerExecution {
+    #[cfg(test)]
+    fn success(stdout: Vec<u8>, stderr: Vec<u8>) -> Self {
+        Self {
+            success: true,
+            exit_code: Some(0),
+            stdout,
+            stderr,
+        }
+    }
+}
+
+fn package_manager_command_for(method: InstallMethod) -> Option<PackageManagerCommand> {
+    match method {
+        InstallMethod::Homebrew => Some(PackageManagerCommand {
+            install_method: "homebrew",
+            display_name: "Homebrew",
+            executable: "brew",
+            argv: &["upgrade", "eddacraft/tap/anvil"],
+        }),
+        InstallMethod::Winget => Some(PackageManagerCommand {
+            install_method: "winget",
+            display_name: "WinGet",
+            executable: "winget",
+            argv: &["upgrade", "--id", "eddacraft.anvil"],
+        }),
+        InstallMethod::Scoop => Some(PackageManagerCommand {
+            install_method: "scoop",
+            display_name: "Scoop",
+            executable: "scoop",
+            argv: &["update", "anvil"],
+        }),
+        InstallMethod::CargoDist
+        | InstallMethod::CargoInstall
+        | InstallMethod::DevBuild
+        | InstallMethod::Unknown => None,
+    }
+}
+
+#[cfg(test)]
+type PackageManager = InstallMethod;
+
+#[cfg(test)]
 fn package_manager_for_exe(path: &Path) -> Option<PackageManager> {
-    let s = path.to_str()?;
-    if HOMEBREW_PREFIXES.iter().any(|p| s.starts_with(p)) {
-        return Some(PackageManager::Homebrew);
-    }
-    if WINGET_MARKERS.iter().any(|m| s.contains(m)) {
-        return Some(PackageManager::Winget);
-    }
-    if SCOOP_MARKERS.iter().any(|m| s.contains(m)) {
-        return Some(PackageManager::Scoop);
-    }
-    None
+    let method = crate::commands::version::classify_exe_path(path);
+    package_manager_command_for(method).map(|_| method)
 }
 
-fn report_package_manager_install(current: &str, global: &GlobalArgs, pm: PackageManager) {
-    let (method, upgrade_cmd) = match pm {
-        PackageManager::Homebrew => ("homebrew", "brew upgrade eddacraft/tap/anvil"),
-        PackageManager::Winget => ("winget", "winget upgrade --id eddacraft.anvil"),
-        PackageManager::Scoop => ("scoop", "scoop update anvil"),
-    };
-    let display = match pm {
-        PackageManager::Homebrew => "Homebrew",
-        PackageManager::Winget => "WinGet",
-        PackageManager::Scoop => "Scoop",
-    };
-    if global.json {
-        println!(
+fn run_package_manager_update(
+    current: &str,
+    args: &UpdateArgs,
+    global: &GlobalArgs,
+    command: PackageManagerCommand,
+) -> anyhow::Result<()> {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    let stderr = std::io::stderr();
+    run_package_manager_update_with(
+        current,
+        args,
+        global.json,
+        command,
+        &mut stdin.lock(),
+        &mut stdout.lock(),
+        &mut stderr.lock(),
+        execute_package_manager_command,
+    )
+}
+
+fn execute_package_manager_command(
+    command: PackageManagerCommand,
+    capture: bool,
+) -> std::io::Result<PackageManagerExecution> {
+    let mut child = Command::new(command.executable);
+    child.args(command.argv);
+    if capture {
+        // Structured mode is non-interactive. A manager that unexpectedly
+        // asks for more input receives EOF instead of corrupting or hanging a
+        // JSON caller's pipeline.
+        let output = child.stdin(Stdio::null()).output()?;
+        Ok(PackageManagerExecution {
+            success: output.status.success(),
+            exit_code: output.status.code(),
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })
+    } else {
+        let status = child
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()?;
+        Ok(PackageManagerExecution {
+            success: status.success(),
+            exit_code: status.code(),
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        })
+    }
+}
+
+fn validate_package_manager_options(
+    args: &UpdateArgs,
+    command: PackageManagerCommand,
+) -> anyhow::Result<()> {
+    if args.version.is_some() {
+        anyhow::bail!(
+            "`--version` is not supported for {}-owned installs; this package manager can only select its configured latest version. Run `{}` instead.",
+            command.display_name,
+            command.display()
+        );
+    }
+    if args.force {
+        anyhow::bail!(
+            "`--force` is not supported for {}-owned installs; anvil will not map it to a different package-manager operation. Run `{}` instead.",
+            command.display_name,
+            command.display()
+        );
+    }
+    Ok(())
+}
+
+fn write_package_manager_check<W: Write>(
+    current: &str,
+    json: bool,
+    command: PackageManagerCommand,
+    stdout: &mut W,
+) -> std::io::Result<()> {
+    if json {
+        writeln!(
+            stdout,
             "{}",
             serde_json::json!({
                 "current_version": current,
-                "install_method": method,
-                "message": format!("Installed via {display}. Run `{upgrade_cmd}` instead."),
-                "upgrade_command": upgrade_cmd,
+                "install_method": command.install_method,
+                "action": "check",
+                "message": format!(
+                    "Installed via {}. Updates are managed by the package manager.",
+                    command.display_name
+                ),
+                "upgrade_command": command.display(),
             })
-        );
+        )
     } else {
-        println!("anvil was installed via {display}. Run `{upgrade_cmd}` instead.");
+        writeln!(
+            stdout,
+            "Installed via {}. Updates are managed by the package manager.",
+            command.display_name
+        )?;
+        writeln!(stdout, "Upgrade command: {}", command.display())
     }
+}
+
+fn write_package_manager_execution_json<W: Write>(
+    current: &str,
+    command: PackageManagerCommand,
+    action: &str,
+    attempted: &str,
+    execution: &PackageManagerExecution,
+    stdout: &mut W,
+) -> std::io::Result<()> {
+    writeln!(
+        stdout,
+        "{}",
+        serde_json::json!({
+            "current_version": current,
+            "install_method": command.install_method,
+            "action": action,
+            "upgrade_command": attempted,
+            "exit_code": execution.exit_code,
+            "manager_stdout": String::from_utf8_lossy(&execution.stdout),
+            "manager_stderr": String::from_utf8_lossy(&execution.stderr),
+        })
+    )
+}
+
+fn write_package_manager_error_json<W: Write>(
+    current: &str,
+    command: PackageManagerCommand,
+    attempted: &str,
+    error: &str,
+    stdout: &mut W,
+) -> std::io::Result<()> {
+    writeln!(
+        stdout,
+        "{}",
+        serde_json::json!({
+            "current_version": current,
+            "install_method": command.install_method,
+            "action": "failed",
+            "upgrade_command": attempted,
+            "error": error,
+        })
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_package_manager_update_with<R, W, E, F>(
+    current: &str,
+    args: &UpdateArgs,
+    json: bool,
+    command: PackageManagerCommand,
+    input: &mut R,
+    stdout: &mut W,
+    stderr: &mut E,
+    execute: F,
+) -> anyhow::Result<()>
+where
+    R: BufRead,
+    W: Write,
+    E: Write,
+    F: FnOnce(PackageManagerCommand, bool) -> std::io::Result<PackageManagerExecution>,
+{
+    if let Err(error) = validate_package_manager_options(args, command) {
+        if json {
+            write_package_manager_error_json(
+                current,
+                command,
+                &command.display(),
+                &error.to_string(),
+                stdout,
+            )?;
+        }
+        return Err(error);
+    }
+
+    if args.check {
+        write_package_manager_check(current, json, command, stdout)?;
+        return Ok(());
+    }
+
+    if json && !args.yes {
+        let error = "package-manager updates in JSON mode require explicit consent; rerun with `anvil update --yes --json`";
+        write_package_manager_error_json(current, command, &command.display(), error, stdout)?;
+        anyhow::bail!(error);
+    }
+
+    writeln!(stderr, "Detected package manager: {}", command.display_name)?;
+    writeln!(stderr, "Command: {}", command.display())?;
+
+    if !args.yes {
+        write!(stderr, "Run it now? [y/N] ")?;
+        stderr.flush()?;
+        let mut answer = String::new();
+        input.read_line(&mut answer)?;
+        if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+            writeln!(stderr, "Update declined; no changes made.")?;
+            return Ok(());
+        }
+    }
+
+    let attempted = command.display();
+    let execution = match execute(command, json) {
+        Ok(execution) => execution,
+        Err(error) => {
+            if json {
+                write_package_manager_error_json(
+                    current,
+                    command,
+                    &attempted,
+                    &error.to_string(),
+                    stdout,
+                )?;
+            }
+            return Err(error)
+                .with_context(|| format!("failed to run package-manager command `{attempted}`"));
+        }
+    };
+    if !execution.success {
+        let code = execution.exit_code.map_or_else(
+            || "terminated by signal".to_string(),
+            |code| format!("exit code {code}"),
+        );
+        if json {
+            write_package_manager_execution_json(
+                current, command, "failed", &attempted, &execution, stdout,
+            )?;
+        }
+        anyhow::bail!("package-manager command `{attempted}` failed with {code}");
+    }
+
+    if json {
+        write_package_manager_execution_json(
+            current, command, "updated", &attempted, &execution, stdout,
+        )?;
+    } else {
+        writeln!(
+            stdout,
+            "Update completed successfully via {}.",
+            command.display_name
+        )?;
+    }
+    Ok(())
 }
 
 // ── Sidecar resolution ─────────────────────────────────────────────
@@ -579,6 +852,427 @@ fn perform_update(
 mod tests {
     use super::*;
 
+    // Package-manager command allowlist.
+
+    #[test]
+    fn package_manager_commands_are_static_executable_and_argv_pairs() {
+        use crate::commands::version::InstallMethod;
+
+        let cases = [
+            (
+                InstallMethod::Homebrew,
+                "Homebrew",
+                "brew",
+                &["upgrade", "eddacraft/tap/anvil"][..],
+            ),
+            (
+                InstallMethod::Winget,
+                "WinGet",
+                "winget",
+                &["upgrade", "--id", "eddacraft.anvil"][..],
+            ),
+            (
+                InstallMethod::Scoop,
+                "Scoop",
+                "scoop",
+                &["update", "anvil"][..],
+            ),
+        ];
+
+        for (method, display_name, executable, argv) in cases {
+            let command = package_manager_command_for(method).expect("supported manager");
+            assert_eq!(command.display_name, display_name);
+            assert_eq!(command.executable, executable);
+            assert_eq!(command.argv, argv);
+        }
+    }
+
+    #[test]
+    fn non_package_manager_install_methods_have_no_command() {
+        use crate::commands::version::InstallMethod;
+
+        for method in [
+            InstallMethod::CargoDist,
+            InstallMethod::CargoInstall,
+            InstallMethod::DevBuild,
+            InstallMethod::Unknown,
+        ] {
+            assert!(package_manager_command_for(method).is_none());
+        }
+    }
+
+    fn consent_test_args(yes: bool) -> UpdateArgs {
+        UpdateArgs {
+            check: false,
+            version: None,
+            force: false,
+            yes,
+            insecure_skip_verify: false,
+        }
+    }
+
+    #[test]
+    fn interactive_explicit_yes_prompts_then_executes() {
+        let command = package_manager_command_for(InstallMethod::Homebrew).unwrap();
+        let mut input = "yes\n".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let executed = std::cell::Cell::new(false);
+
+        run_package_manager_update_with(
+            "0.9.0-beta",
+            &consent_test_args(false),
+            false,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |actual, capture| {
+                executed.set(true);
+                assert_eq!(actual, command);
+                assert!(!capture, "human mode must stream manager output");
+                Ok(PackageManagerExecution::success(Vec::new(), Vec::new()))
+            },
+        )
+        .expect("explicit yes should execute");
+
+        assert!(executed.get());
+        let stderr = String::from_utf8(stderr).unwrap();
+        assert!(stderr.contains("Detected package manager: Homebrew"));
+        assert!(stderr.contains("Command: brew upgrade eddacraft/tap/anvil"));
+        assert!(stderr.contains("Run it now? [y/N]"));
+        assert!(
+            String::from_utf8(stdout)
+                .unwrap()
+                .contains("Update completed successfully via Homebrew.")
+        );
+    }
+
+    #[test]
+    fn decline_and_eof_are_clean_no_ops() {
+        let command = package_manager_command_for(InstallMethod::Homebrew).unwrap();
+        for answer in ["n\n", "", "not now\n"] {
+            let mut input = answer.as_bytes();
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let executed = std::cell::Cell::new(false);
+            run_package_manager_update_with(
+                "0.9.0-beta",
+                &consent_test_args(false),
+                false,
+                command,
+                &mut input,
+                &mut stdout,
+                &mut stderr,
+                |_, _| {
+                    executed.set(true);
+                    Ok(PackageManagerExecution::success(Vec::new(), Vec::new()))
+                },
+            )
+            .expect("decline and EOF are clean no-ops");
+
+            assert!(!executed.get(), "answer {answer:?} must not spawn");
+            assert!(stdout.is_empty());
+            assert!(
+                String::from_utf8(stderr)
+                    .unwrap()
+                    .contains("no changes made")
+            );
+        }
+    }
+
+    #[test]
+    fn yes_flag_skips_prompt_and_executes_for_non_interactive_callers() {
+        let command = package_manager_command_for(InstallMethod::Scoop).unwrap();
+        let mut input = "no\n".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let executed = std::cell::Cell::new(false);
+
+        run_package_manager_update_with(
+            "0.9.0-beta",
+            &consent_test_args(true),
+            false,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, capture| {
+                executed.set(true);
+                assert!(!capture);
+                Ok(PackageManagerExecution::success(Vec::new(), Vec::new()))
+            },
+        )
+        .unwrap();
+
+        assert!(executed.get());
+        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+    }
+
+    #[test]
+    fn check_with_yes_is_read_only_and_reports_package_manager_guidance() {
+        let command = package_manager_command_for(InstallMethod::Winget).unwrap();
+        let args = UpdateArgs {
+            check: true,
+            yes: true,
+            ..consent_test_args(false)
+        };
+        let mut input = "yes\n".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let executed = std::cell::Cell::new(false);
+
+        run_package_manager_update_with(
+            "0.9.0-beta",
+            &args,
+            false,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, _| {
+                executed.set(true);
+                Ok(PackageManagerExecution::success(Vec::new(), Vec::new()))
+            },
+        )
+        .expect("check should report without executing");
+
+        assert!(!executed.get(), "--check must never spawn");
+        let stdout = String::from_utf8(stdout).unwrap();
+        assert!(stdout.contains("Installed via WinGet"));
+        assert!(stdout.contains("winget upgrade --id eddacraft.anvil"));
+        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+    }
+
+    #[test]
+    fn json_without_yes_refuses_without_prompting_or_executing() {
+        let command = package_manager_command_for(InstallMethod::Scoop).unwrap();
+        let mut input = "yes\n".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let executed = std::cell::Cell::new(false);
+
+        let err = run_package_manager_update_with(
+            "0.9.0-beta",
+            &consent_test_args(false),
+            true,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, _| {
+                executed.set(true);
+                Ok(PackageManagerExecution::success(Vec::new(), Vec::new()))
+            },
+        )
+        .expect_err("JSON execution requires --yes");
+
+        assert!(err.to_string().contains("--yes"));
+        assert!(!executed.get());
+        let stdout = String::from_utf8(stdout).unwrap();
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["action"], "failed");
+        assert_eq!(document["install_method"], "scoop");
+        assert!(document["error"].as_str().unwrap().contains("--yes"));
+        assert_eq!(stdout.lines().count(), 1);
+        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+    }
+
+    #[test]
+    fn json_with_yes_captures_child_output_in_one_document() {
+        let command = package_manager_command_for(InstallMethod::Scoop).unwrap();
+        let mut input = "ignored\n".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let captured = std::cell::Cell::new(false);
+
+        run_package_manager_update_with(
+            "0.9.0-beta",
+            &consent_test_args(true),
+            true,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |actual, capture| {
+                assert_eq!(actual, command);
+                captured.set(capture);
+                Ok(PackageManagerExecution::success(
+                    b"manager stdout\n".to_vec(),
+                    b"manager stderr\n".to_vec(),
+                ))
+            },
+        )
+        .expect("JSON --yes should execute");
+
+        assert!(captured.get(), "JSON mode must capture manager output");
+        let stdout = String::from_utf8(stdout).unwrap();
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["action"], "updated");
+        assert_eq!(document["install_method"], "scoop");
+        assert_eq!(document["manager_stdout"], "manager stdout\n");
+        assert_eq!(document["manager_stderr"], "manager stderr\n");
+        assert_eq!(stdout.lines().count(), 1, "stdout must be one JSON line");
+        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+    }
+
+    #[test]
+    fn package_manager_paths_reject_version_and_force_actionably() {
+        let command = package_manager_command_for(InstallMethod::Homebrew).unwrap();
+        let cases = [
+            UpdateArgs {
+                version: Some("0.8.1-beta".to_string()),
+                ..consent_test_args(true)
+            },
+            UpdateArgs {
+                force: true,
+                ..consent_test_args(true)
+            },
+        ];
+
+        for args in cases {
+            let mut input = "".as_bytes();
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            let executed = std::cell::Cell::new(false);
+            let err = run_package_manager_update_with(
+                "0.9.0-beta",
+                &args,
+                false,
+                command,
+                &mut input,
+                &mut stdout,
+                &mut stderr,
+                |_, _| {
+                    executed.set(true);
+                    Ok(PackageManagerExecution::success(Vec::new(), Vec::new()))
+                },
+            )
+            .expect_err("unsupported package-manager option must fail");
+
+            let message = err.to_string();
+            let flag = if args.version.is_some() {
+                "--version"
+            } else {
+                "--force"
+            };
+            assert!(message.contains(flag), "missing {flag}: {message}");
+            assert!(message.contains("Homebrew"), "missing owner: {message}");
+            assert!(
+                message.contains("brew upgrade eddacraft/tap/anvil"),
+                "missing actionable command: {message}"
+            );
+            assert!(!executed.get());
+        }
+    }
+
+    #[test]
+    fn json_unsupported_option_emits_one_failure_document() {
+        let command = package_manager_command_for(InstallMethod::Homebrew).unwrap();
+        let args = UpdateArgs {
+            force: true,
+            ..consent_test_args(true)
+        };
+        let mut input = "".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let err = run_package_manager_update_with(
+            "0.9.0-beta",
+            &args,
+            true,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, _| panic!("invalid options must not execute"),
+        )
+        .expect_err("--force must fail on package-manager paths");
+
+        assert!(err.to_string().contains("--force"));
+        let stdout = String::from_utf8(stdout).unwrap();
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["action"], "failed");
+        assert!(document["error"].as_str().unwrap().contains("--force"));
+        assert_eq!(stdout.lines().count(), 1);
+    }
+
+    #[test]
+    fn json_nonzero_exit_emits_one_failure_document_and_propagates() {
+        let command = package_manager_command_for(InstallMethod::Winget).unwrap();
+        let mut input = "".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let err = run_package_manager_update_with(
+            "0.9.0-beta",
+            &consent_test_args(true),
+            true,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, capture| {
+                assert!(capture);
+                Ok(PackageManagerExecution {
+                    success: false,
+                    exit_code: Some(23),
+                    stdout: b"partial output\n".to_vec(),
+                    stderr: b"manager failure\n".to_vec(),
+                })
+            },
+        )
+        .expect_err("non-zero child exit must propagate");
+
+        let message = err.to_string();
+        assert!(message.contains("winget upgrade --id eddacraft.anvil"));
+        assert!(message.contains("exit code 23"));
+        let stdout = String::from_utf8(stdout).unwrap();
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["action"], "failed");
+        assert_eq!(document["exit_code"], 23);
+        assert_eq!(document["manager_stdout"], "partial output\n");
+        assert_eq!(document["manager_stderr"], "manager failure\n");
+        assert_eq!(stdout.lines().count(), 1);
+    }
+
+    #[test]
+    fn missing_manager_executable_is_named_and_emits_json_failure() {
+        let command = package_manager_command_for(InstallMethod::Homebrew).unwrap();
+        let mut input = "".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        let err = run_package_manager_update_with(
+            "0.9.0-beta",
+            &consent_test_args(true),
+            true,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, _| {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "executable not found",
+                ))
+            },
+        )
+        .expect_err("missing executable must propagate");
+
+        assert!(err.to_string().contains("brew upgrade eddacraft/tap/anvil"));
+        let stdout = String::from_utf8(stdout).unwrap();
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["action"], "failed");
+        assert!(
+            document["error"]
+                .as_str()
+                .unwrap()
+                .contains("executable not found")
+        );
+        assert_eq!(stdout.lines().count(), 1);
+    }
+
     // ── Package-manager detection ───────────────────────────────────
 
     #[test]
@@ -728,6 +1422,7 @@ mod tests {
             check,
             version: version.map(str::to_string),
             force,
+            yes: false,
             insecure_skip_verify: false,
         }
     }
@@ -766,6 +1461,7 @@ mod tests {
             check: false,
             version: None,
             force: true,
+            yes: false,
             insecure_skip_verify: true,
         };
         let got = sidecar_args(&args);
@@ -820,6 +1516,7 @@ mod tests {
             check: false,
             version: None,
             force: false,
+            yes: false,
             insecure_skip_verify: true,
         };
         assert!(
@@ -837,6 +1534,7 @@ mod tests {
             check: true,
             version: None,
             force: false,
+            yes: false,
             insecure_skip_verify: true,
         };
         assert!(
@@ -1046,6 +1744,7 @@ mod tests {
         );
         assert!(!parsed.args.force, "force defaults off");
         assert!(!parsed.args.check, "check defaults off");
+        assert!(!parsed.args.yes, "yes defaults off");
         assert!(parsed.args.version.is_none(), "version defaults to None");
     }
 }

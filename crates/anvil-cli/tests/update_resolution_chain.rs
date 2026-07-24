@@ -65,17 +65,23 @@ fn update_unknown_flag_is_rejected_by_clap() {
 }
 
 #[test]
-fn update_help_documents_check_force_and_version_flags() {
+fn update_help_documents_update_and_consent_flags() {
     // The visible flags from the v0.6 surface stay visible.
     let out = anvil().args(["update", "--help"]).output().unwrap();
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    for visible_flag in ["--check", "--version", "--force"] {
+    for visible_flag in ["--check", "--version", "--force", "--yes"] {
         assert!(
             stdout.contains(visible_flag),
             "{visible_flag} must remain in --help, got:\n{stdout}"
         );
     }
+}
+
+#[test]
+fn update_short_yes_alias_parses() {
+    let out = anvil().args(["update", "-y", "--help"]).output().unwrap();
+    assert!(out.status.success(), "-y should parse: {out:?}");
 }
 
 #[test]

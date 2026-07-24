@@ -426,9 +426,10 @@ winget install eddacraft.anvil
 First value after install: `anvil welcome` (no login) or `anvil start` (daemon,
 beta auth). Details: [Quick Start](./docs/public/anvil/quickstart.md).
 
-On Windows, `anvil update` cannot self-replace while an MCP process holds the
-binary — quit the IDE / stop `anvil mcp serve`, then re-run the installer or
-`winget upgrade --id eddacraft.anvil`.
+On Windows, release the running binary first by quitting the IDE or stopping
+`anvil mcp serve`, then run `anvil update`. For a WinGet-owned install, anvil
+shows the exact WinGet command and invokes it only after `y`/`yes` consent (or
+`--yes`).
 
 ---
 

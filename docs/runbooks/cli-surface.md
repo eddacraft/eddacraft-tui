@@ -1618,17 +1618,37 @@ $ anvil gctx egress disable
 
 **Class:** User-explicit **Purpose:** Update Anvil to the latest version. **When
 to use:** To check for or install a newer release. Package-manager installs
-(Homebrew, Scoop, WinGet) defer to their package manager automatically.
+(Homebrew, Scoop, WinGet) remain owned by their package manager; anvil can run
+the manager's fixed latest-version command after explicit consent.
 
-**Synopsis:** `anvil update [--check] [--version <ver>] [--force]`
+**Synopsis:** `anvil update [--check] [--version <ver>] [--force] [--yes]`
 
 **Flags:**
 
-| Flag              | Description                                      |
-| ----------------- | ------------------------------------------------ |
-| `--check`         | Check for updates without installing.            |
-| `--version <ver>` | Install a specific version instead of latest.    |
-| `--force`         | Reinstall even if already on the latest version. |
+| Flag              | Description                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
+| `--check`         | Check for updates without installing; always read-only, including with `--yes`. |
+| `--version <ver>` | Install a specific version instead of latest; unsupported for package-manager-owned installs. |
+| `--force`         | Reinstall even if already on the latest version; unsupported for package-manager-owned installs. |
+| `--yes` / `-y`    | Consent to run the detected package manager without an interactive prompt. |
+
+For a Homebrew, WinGet, or Scoop install, interactive `anvil update` prints the
+detected manager and exact command on stderr, then asks `Run it now? [y/N]`.
+Only `y` or `yes` starts the manager; any other response or end-of-input exits
+successfully without changing the installation. The allowlisted commands are:
+
+| Manager  | Command                                    |
+| -------- | ------------------------------------------ |
+| Homebrew | `brew upgrade eddacraft/tap/anvil`        |
+| WinGet   | `winget upgrade --id eddacraft.anvil`     |
+| Scoop    | `scoop update anvil`                      |
+
+Package-manager commands always select the manager's configured latest
+version. Use `--yes` for CI and other non-interactive callers. JSON mode never
+prompts and refuses package-manager execution without `--yes`; with consent it
+captures manager output and emits one JSON document on stdout. Human mode
+streams manager output directly. A missing executable or non-zero manager exit
+fails the command and names the attempted command.
 
 **Exit codes:** 0 (success or already up to date), 1 (update available when
 `--check` is used, or install error)
@@ -1638,6 +1658,8 @@ to use:** To check for or install a newer release. Package-manager installs
 ```
 $ anvil update
 $ anvil update --check
+$ anvil update --yes
+$ anvil update --yes --json
 $ anvil update --version 0.6.1
 ```
 
