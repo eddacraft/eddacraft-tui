@@ -138,6 +138,7 @@ gha-creds-*.json
 
 # Local tool state and worktrees
 /.serena
+.dev-loop/
 .worktrees/
 .vercel
 
