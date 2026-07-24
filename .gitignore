@@ -82,6 +82,8 @@ docs/analysis/claude-code-safety-net-review.md
 # Claude Code — ignore local state, keep declarative config and vendored hooks
 # Committed: agents/*.md, skills/, rules/*.md, commands/, selected hooks
 # Ignored: council scripts, agent-bus, settings, mcp, sessions, local hook extras
+# Machine-only adapter notes (personal hooks/toggles); thin CLAUDE.md stays tracked
+CLAUDE.local.md
 .claude/hooks/*
 !.claude/hooks/post-edit.sh
 !.claude/hooks/tdd-guard.sh

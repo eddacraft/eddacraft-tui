@@ -1,64 +1,22 @@
 # anvil
 
-**For shared agent conventions (planning, commits, scope, code quality), see
-`@AGENTS.md`.**
+**Shared conventions:** `@AGENTS.md`  
+**Repo map:** `@CONTEXT.md`  
+**Skills / agents / commands:** `@docs/guides/agent-surface-inventory.md`
 
-For the shared inventory of skills, agents, and commands, see
-`@docs/guides/agent-surface-inventory.md`. This file only records Claude
-Code-specific adapter details.
+This file is the **Claude Code adapter only**. Do not restate shared workflow,
+validation commands, architecture, or skill procedures here — those live in
+`AGENTS.md`, `CONTEXT.md`, and the inventory.
 
-## Commands
+## Claude-only
 
-No build or test commands in this config layer — the monorepo uses `pnpm` and
-`nx` for builds/tests, `cargo` for Rust crates.
-
-## Key Paths
-
-- `plans/` — APS implementation plans; check before planning new features
-- `docs/vision/` — North star docs for validating feature alignment (not scope)
-- `.claude/` — Claude Code configuration (agents, hooks, skills, MCP servers)
-
-## Active Hooks
-
-Hook scripts live in `.claude/hooks/` (several symlinked from
-`code-env/.claude/hooks/`). The event wiring is in **user** settings
-(`~/.claude/settings.json`), not project settings — so the set below reflects
-this machine's config. Command hooks receive the tool payload as JSON on
-**stdin**.
-
-| Hook                        | Trigger                   | What it does                                  | Gating                                             |
-| --------------------------- | ------------------------- | --------------------------------------------- | -------------------------------------------------- |
-| `security-guard.sh`         | PreToolUse (Bash)         | Blocks dangerous commands (`rm -rf`, dev/...) | Always                                             |
-| `git-safety.sh`             | PreToolUse (Bash)         | Guards risky git operations                   | Always                                             |
-| `local-review-precommit.sh` | PreToolUse (Bash)         | Reminds to check local review before commit   | `CLAUDE_LOCAL_REVIEW_PRECOMMIT` (default off)      |
-| `council-gate.sh`           | PreToolUse (Bash)         | Blocks commit without Council review          | `CLAUDE_COUNCIL_GATE` (default off)                |
-| `tdd-guard.sh`              | PreToolUse (Write\|Edit)  | TDD enforcement on edits                      | `CLAUDE_TDD_STRICT` / `CLAUDE_TDD_RUN_TESTS` (off) |
-| `post-edit.sh`              | PostToolUse (Write\|Edit) | Post-edit lint                                | `CLAUDE_POST_EDIT_LINT` (default off)              |
-| `codex-review-post.sh`      | PostToolUse (Bash)        | Async Codex review after commit               | `CLAUDE_CODEX_REVIEW` (on by default)              |
-| `on-stop.sh`                | Stop                      | Desktop notification when the turn ends       | `CLAUDE_NOTIFICATION_COOLDOWN`                     |
-| `on-agent-stop.sh`          | SubagentStop              | Subagent-stop triggers                        | `CLAUDE_AGENT_TRIGGERS`                            |
-| `session-start.sh`          | SessionStart              | Tooling / git readiness banner at startup     | Always                                             |
-
-> `kindling-capture.sh` is present in `.claude/hooks/` but is **not wired to any
-> event** in the current settings — it does not run. Wire it under a
-> `PostToolUse` matcher to activate.
-
-## Council Review
-
-Multi-perspective code review via `/council`. Spawns 5 specialist agents in
-parallel (council-reviewer, kernel-maintainer, adversarial-reviewer,
-operations-reviewer, pragmatic-lead). Findings are deduplicated, sorted by
-severity, and synthesised into a unified verdict. Use for significant changes or
-release prep. For quick reviews, use `/review` instead.
-
-## Skills
-
-- **Fable model**: when running as the Fable model, prefer skills with the `f5`
-  prefix when an `f5`-prefixed equivalent exists; fall back to the standard
-  skill otherwise.
-
-## Gotchas
-
-- This repo uses ESM (`"type": "module"` in package.json)
-- TypeScript config exists for package and app surfaces; use the repo validation
-  scripts rather than inferring build coverage from this adapter.
+- **Hooks and event wiring** live in **user** settings
+  (`~/.claude/settings.json`). Scripts under `.claude/hooks/` (some via
+  `code-env`). Do not treat this file as a hook inventory — inspect settings
+  and the hooks directory when a hook blocks or surprises you.
+- Prefer repo validation scripts (`pnpm validate:*` and friends — see
+  `AGENTS.md`) over inventing Claude-layer build or test commands.
+- **Fable model:** prefer `f5`-prefixed skills when an equivalent exists;
+  otherwise use the standard skill.
+- Machine-specific notes (local toggles, personal hook maps):
+  `CLAUDE.local.md` if present (gitignored; not shared).

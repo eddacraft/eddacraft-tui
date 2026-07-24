@@ -6,8 +6,10 @@ For orientation, vocabulary, and repository layout, read
 [`CONTEXT.md`](CONTEXT.md). This file is the shared behaviour contract;
 `CONTEXT.md` is the map.
 
-Tool-specific adapters live outside this contract. Claude Code-specific hooks,
-commands, skills, MCP/config notes, and Claude-only gotchas live in `CLAUDE.md`.
+Tool-specific adapters live outside this contract. Claude Code keeps a **thin**
+`CLAUDE.md` (import this contract + Claude-only notes). Shared skills, agents,
+and commands are inventoried in `docs/guides/agent-surface-inventory.md` — do
+not re-describe them in adapters.
 
 ## Operating Rules
 
