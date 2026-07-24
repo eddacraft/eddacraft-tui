@@ -5251,6 +5251,8 @@ archive.
   roots. Added the required Git and formatter carve-outs for the new native
   paths so managed skill hashes remain fresh while `.github` agents stay under
   anvil's pinned formatter. APS doctor reports all four managed skill trees
-  fresh. Format, docs, active APS lint, CIB index counts, changed validation,
-  and diff checks pass; the pre-existing DASHCORE count mismatch remains an
-  advisory.
+  fresh. Format, docs, active APS lint, CIB index counts, and diff checks pass.
+  Changed-scope validation passed except for nine daemon-absence assertions
+  contaminated by a live local daemon; the isolated MCP tool slice passed all
+  211 tests. Proposed in [PR #3407](https://github.com/eddacraft/anvil-001/pull/3407).
+  The pre-existing DASHCORE count mismatch remains an advisory.
