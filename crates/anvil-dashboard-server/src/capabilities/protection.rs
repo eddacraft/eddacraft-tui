@@ -286,10 +286,19 @@ fn map_gate_warnings(gate: &GateSnapshot) -> Vec<WarningSummary> {
         .iter()
         .find(|row| row.first().is_some_and(|name| name.contains("antipattern")))
     {
+        let antipattern_name = antipattern_row.first().map_or("", String::as_str);
         let detail = antipattern_row.get(3).map_or("", String::as_str);
         let parsed = parse_antipattern_lines(detail);
-        if parsed.len() > warnings.len() {
-            warnings = parsed;
+        if !parsed.is_empty() {
+            warnings.retain(|warning| {
+                warning.rule != antipattern_name
+                    && warning.message != antipattern_name
+                    && !warning
+                        .message
+                        .strip_prefix(antipattern_name)
+                        .is_some_and(|suffix| suffix.starts_with(':'))
+            });
+            warnings.extend(parsed);
         }
     }
     warnings
@@ -450,6 +459,7 @@ fn history_gaps() -> Vec<DataGap> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_kernel_types::GateSnapshotWarning;
     use anvil_kernel_types::protection_claim::WorktreeClaimState;
 
     #[test]
@@ -505,5 +515,57 @@ mod tests {
         assert_eq!(warnings[0].evidence_id, warnings[0].id);
         assert_ne!(warnings[0].id, warnings[1].id);
         assert!(warnings.iter().all(|warning| warning.id.len() <= 128));
+    }
+
+    #[test]
+    fn expanded_antipattern_rows_preserve_unrelated_gate_warnings() {
+        let gate = GateSnapshot {
+            status: "fail".to_owned(),
+            status_label: "FAILED".to_owned(),
+            score: 50.0,
+            checks_run: "2".to_owned(),
+            warnings: "2".to_owned(),
+            duration_seconds: "1.0".to_owned(),
+            check_rows: vec![
+                vec![
+                    "secret-detection".to_owned(),
+                    "failed".to_owned(),
+                    "0".to_owned(),
+                    "Potential secret in src/config.ts:7".to_owned(),
+                ],
+                vec![
+                    "antipattern-scan".to_owned(),
+                    "failed".to_owned(),
+                    "0".to_owned(),
+                    "[PAT-001] src/a.rs:12 first\n[PAT-002] src/b.rs:24 second".to_owned(),
+                ],
+            ],
+            warning_list: vec![
+                GateSnapshotWarning {
+                    severity: "error".to_owned(),
+                    message: "secret-detection: Potential secret in src/config.ts:7".to_owned(),
+                },
+                GateSnapshotWarning {
+                    severity: "error".to_owned(),
+                    message: "antipattern-scan: 2 matches".to_owned(),
+                },
+            ],
+        };
+
+        let warnings = map_gate_warnings(&gate);
+
+        assert_eq!(warnings.len(), 3);
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.rule == "secret-detection")
+        );
+        assert!(warnings.iter().any(|warning| warning.rule == "PAT-001"));
+        assert!(warnings.iter().any(|warning| warning.rule == "PAT-002"));
+        assert!(
+            !warnings
+                .iter()
+                .any(|warning| warning.rule == "antipattern-scan")
+        );
     }
 }
