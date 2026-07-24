@@ -32,12 +32,12 @@ fn installs_embedded_bundle_for_codex_at_global_default() {
     let skill = root.path().join(".agents/skills/anvil-developer-functions");
     let body = fs::read_to_string(skill.join("SKILL.md")).unwrap();
     assert!(body.contains("anvil_validate_write"));
-    assert!(body.contains("safety and structural-context layer"));
+    assert!(body.contains("pre-write enforcement gate"));
     assert!(body.contains("anvil_find_dependents"));
     assert!(!body.contains("anvil_get_dependencies"));
 
     let reference = fs::read_to_string(skill.join("references/tool-reference.md")).unwrap();
-    assert!(reference.contains("it\ndoes not write the file"));
+    assert!(reference.contains("Call it before applying a write."));
     assert!(!reference.contains("anvil_explain"));
 
     let manifest: Value =
