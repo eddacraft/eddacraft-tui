@@ -139,7 +139,11 @@ fn package_manager_command_for(method: InstallMethod) -> Option<PackageManagerCo
             display_name: "Scoop",
             display_command: "scoop update anvil",
             executable: "powershell.exe",
-            argv: &["-NoProfile", "-Command", "scoop update anvil"],
+            argv: &[
+                "-NoProfile",
+                "-Command",
+                "scoop update anvil; $anvilSucceeded = $?; $anvilExitCode = $LASTEXITCODE; if ($anvilSucceeded) { exit 0 }; if ($null -ne $anvilExitCode -and $anvilExitCode -ne 0) { exit $anvilExitCode }; exit 1",
+            ],
         }),
         InstallMethod::CargoDist
         | InstallMethod::CargoInstall
@@ -398,7 +402,12 @@ where
 
     if json {
         write_package_manager_execution_json(
-            current, command, "updated", attempted, &execution, stdout,
+            current,
+            command,
+            "manager_completed",
+            attempted,
+            &execution,
+            stdout,
         )?;
     } else {
         writeln!(
@@ -884,7 +893,11 @@ mod tests {
                 InstallMethod::Scoop,
                 "Scoop",
                 "powershell.exe",
-                &["-NoProfile", "-Command", "scoop update anvil"][..],
+                &[
+                    "-NoProfile",
+                    "-Command",
+                    "scoop update anvil; $anvilSucceeded = $?; $anvilExitCode = $LASTEXITCODE; if ($anvilSucceeded) { exit 0 }; if ($null -ne $anvilExitCode -and $anvilExitCode -ne 0) { exit $anvilExitCode }; exit 1",
+                ][..],
                 "scoop update anvil",
             ),
         ];
@@ -907,6 +920,36 @@ mod tests {
             .status()
             .expect("the selected Scoop PowerShell launcher must resolve");
         assert!(status.success());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn scoop_powershell_wrapper_preserves_exit_semantics() {
+        let command = package_manager_command_for(InstallMethod::Scoop).unwrap();
+        let script = command.argv.get(2).expect("Scoop PowerShell script");
+        let forwarding = script
+            .strip_prefix("scoop update anvil; ")
+            .expect("fixed Scoop command precedes exit forwarding");
+        let run_probe = |probe: &str| {
+            let script = format!("{probe}; {forwarding}");
+            Command::new(command.executable)
+                .args(["-NoProfile", "-Command", &script])
+                .status()
+                .expect("PowerShell must run the exit-code probe")
+                .code()
+        };
+
+        assert_eq!(run_probe("cmd.exe /D /C exit 37"), Some(37));
+        assert_eq!(
+            run_probe("cmd.exe /D /C exit 37; $anvilProbe = 1"),
+            Some(0),
+            "PowerShell success must override a stale native exit code"
+        );
+        assert_eq!(
+            run_probe("Write-Error 'probe' -ErrorAction SilentlyContinue"),
+            Some(1),
+            "PowerShell-only failure must use the fallback exit code"
+        );
     }
 
     #[test]
@@ -1131,7 +1174,7 @@ mod tests {
         assert!(captured.get(), "JSON mode must capture manager output");
         let stdout = String::from_utf8(stdout).unwrap();
         let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(document["action"], "updated");
+        assert_eq!(document["action"], "manager_completed");
         assert_eq!(document["install_method"], "scoop");
         assert_eq!(document["manager_stdout"], "manager stdout\n");
         assert_eq!(document["manager_stderr"], "manager stderr\n");
