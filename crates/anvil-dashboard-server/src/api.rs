@@ -155,7 +155,6 @@ impl ProtectionOverview {
     }
 }
 
-
 pub const PATTERN_CATALOGUE_SCHEMA: &str = "anvil.dashboard.patterns.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

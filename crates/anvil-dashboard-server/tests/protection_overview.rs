@@ -45,15 +45,18 @@ fn maps_the_latest_gate_artefact_without_claiming_daemon_state() {
     assert_eq!(overview.affected_files_state, DataState::Partial);
     assert_eq!(overview.recent_runs.len(), 1);
     assert_eq!(overview.recent_runs[0].id, "latest-gate");
-    assert!(!overview.latest_run.as_ref().expect("latest").checks.is_empty());
-    assert_eq!(overview.affected_files.len(), 1);
-    assert_eq!(
-        overview.affected_files[0].path,
-        "src/config.ts".to_owned()
+    assert!(
+        !overview
+            .latest_run
+            .as_ref()
+            .expect("latest")
+            .checks
+            .is_empty()
     );
+    assert_eq!(overview.affected_files.len(), 1);
+    assert_eq!(overview.affected_files[0].path, "src/config.ts".to_owned());
     assert!(overview.gaps.iter().any(|gap| {
-        gap.component == "retained-warning-history"
-            && gap.reason.contains("latest gate snapshot")
+        gap.component == "retained-warning-history" && gap.reason.contains("latest gate snapshot")
     }));
     let secret = overview
         .warnings

@@ -16,8 +16,8 @@ use tokio::net::TcpListener;
 
 use crate::Workspace;
 use crate::api::{HealthResponse, PatternCatalogue, PlanDetail, PlanSummary, ProtectionOverview};
-use crate::capabilities::plans::{load_plan, load_plans};
 use crate::capabilities::patterns::load_pattern_catalogue;
+use crate::capabilities::plans::{load_plan, load_plans};
 use crate::capabilities::protection::load_protection_overview;
 use crate::error::{ApiError, ServerError};
 use crate::openapi::openapi_document;

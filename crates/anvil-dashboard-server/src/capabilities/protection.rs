@@ -262,7 +262,6 @@ fn stale_reason(reason: StaleReason) -> &'static str {
     }
 }
 
-
 fn map_gate_checks(gate: &GateSnapshot) -> Vec<GateCheckSummary> {
     gate.check_rows
         .iter()
@@ -284,7 +283,11 @@ fn map_gate_checks(gate: &GateSnapshot) -> Vec<GateCheckSummary> {
 fn map_gate_warnings(gate: &GateSnapshot) -> Vec<WarningSummary> {
     let mut warnings = Vec::new();
     for (index, warning) in gate.warning_list.iter().enumerate() {
-        warnings.push(warning_from_gate_attention(index, warning.severity.as_str(), &warning.message));
+        warnings.push(warning_from_gate_attention(
+            index,
+            warning.severity.as_str(),
+            &warning.message,
+        ));
     }
     // Prefer structured antipattern lines when the gate row embeds them and the
     // attention list is only a short summary.
@@ -293,11 +296,9 @@ fn map_gate_warnings(gate: &GateSnapshot) -> Vec<WarningSummary> {
         .iter()
         .find(|row| row.first().is_some_and(|name| name.contains("antipattern")))
     {
-        let detail = antipattern_row.get(3).map(String::as_str).unwrap_or("");
+        let detail = antipattern_row.get(3).map_or("", String::as_str);
         let parsed = parse_antipattern_lines(detail);
         if parsed.len() > warnings.len() {
-            warnings = parsed;
-        } else if warnings.is_empty() {
             warnings = parsed;
         }
     }
@@ -349,7 +350,7 @@ fn parse_antipattern_lines(detail: &str) -> Vec<WarningSummary> {
                 evidence_id: format!(
                     "latest-gate-pattern-{}-{}",
                     pattern,
-                    line_no.map(|n| n.to_string()).unwrap_or_else(|| "na".to_owned())
+                    line_no.map_or_else(|| "na".to_owned(), |n| n.to_string())
                 ),
                 rule: pattern.clone(),
                 line: line_no,
@@ -378,8 +379,8 @@ fn map_affected_files(warnings: &[WarningSummary]) -> Vec<AffectedFile> {
         });
         entry.warning_count += 1;
         if severity_rank(&warning.severity) > severity_rank(&entry.highest_severity) {
-            entry.highest_severity = warning.severity.clone();
-            entry.warning_id = warning.id.clone();
+            entry.highest_severity.clone_from(&warning.severity);
+            entry.warning_id.clone_from(&warning.id);
         }
     }
     by_path.into_values().collect()
@@ -420,12 +421,11 @@ fn parse_location(message: &str) -> (Option<String>, Option<usize>) {
     // Match path:line tokens such as src/config.ts:18
     for token in message.split_whitespace() {
         let token = token.trim_matches(|c: char| c == ',' || c == ';' || c == ')');
-        if let Some((path, line)) = token.rsplit_once(':') {
-            if path.contains('/') || path.contains('.') {
-                if let Ok(line_no) = line.parse::<usize>() {
-                    return (Some(path.to_owned()), Some(line_no));
-                }
-            }
+        if let Some((path, line)) = token.rsplit_once(':')
+            && (path.contains('/') || path.contains('.'))
+            && let Ok(line_no) = line.parse::<usize>()
+        {
+            return (Some(path.to_owned()), Some(line_no));
         }
     }
     (None, None)
