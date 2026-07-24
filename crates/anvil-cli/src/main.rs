@@ -32,7 +32,7 @@ mod util;
 mod warmup_cache;
 mod whats_new;
 
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 use std::process::ExitCode;
 
 use anyhow::Context;
@@ -1154,6 +1154,30 @@ fn exit_status_to_code(status: std::process::ExitStatus) -> u8 {
     EXIT_ERROR
 }
 
+fn dispatch_update_result<W: Write>(
+    result: anyhow::Result<()>,
+    wants_json: bool,
+    stderr: &mut W,
+) -> u8 {
+    match result {
+        Ok(()) => EXIT_OK,
+        Err(err) if err.is::<commands::update::UpdateAvailable>() => EXIT_ERROR,
+        Err(err) if err.is::<output::AlreadyReported>() => EXIT_ERROR,
+        Err(err) => {
+            if wants_json {
+                let _ = writeln!(
+                    stderr,
+                    "{}",
+                    serde_json::json!({ "error": format!("{err:#}") })
+                );
+            } else {
+                let _ = writeln!(stderr, "Error: {err:#}");
+            }
+            EXIT_ERROR
+        }
+    }
+}
+
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
     // FLEET-003: the detached beacon worker bypasses CLI parsing and usage
@@ -1292,18 +1316,9 @@ fn main() -> ExitCode {
 
     // Update --check returns UpdateAvailable error when an update exists (exit 1).
     if let Commands::Update(args) = &cli.command {
-        return match commands::update::run(args, &cli.global) {
-            Ok(()) => ExitCode::from(EXIT_OK),
-            Err(err) if err.is::<commands::update::UpdateAvailable>() => ExitCode::from(EXIT_ERROR),
-            Err(err) => {
-                if wants_json {
-                    eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
-                } else {
-                    eprintln!("Error: {err:#}");
-                }
-                ExitCode::from(EXIT_ERROR)
-            }
-        };
+        let result = commands::update::run(args, &cli.global);
+        let mut stderr = std::io::stderr().lock();
+        return ExitCode::from(dispatch_update_result(result, wants_json, &mut stderr));
     }
 
     // Gate returns Result<bool> (false = gate failed); all others return Result<()>.
@@ -2494,5 +2509,22 @@ mod tests {
             "check", "--all"
         ])));
         assert!(allows_interactive_auth_prompt(&parse_command(&["status"])));
+    }
+
+    #[test]
+    fn update_dispatcher_silences_already_reported_errors() {
+        let mut stderr = Vec::new();
+
+        let exit_code = dispatch_update_result(
+            Err(crate::output::AlreadyReported.into()),
+            true,
+            &mut stderr,
+        );
+
+        assert_eq!(exit_code, EXIT_ERROR);
+        assert!(
+            stderr.is_empty(),
+            "dispatcher must not duplicate JSON errors"
+        );
     }
 }

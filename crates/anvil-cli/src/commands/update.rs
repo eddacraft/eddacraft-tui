@@ -332,6 +332,7 @@ where
                 &error.to_string(),
                 stdout,
             )?;
+            return Err(crate::output::AlreadyReported.into());
         }
         return Err(error);
     }
@@ -344,7 +345,7 @@ where
     if json && !args.yes {
         let error = "package-manager updates in JSON mode require explicit consent; rerun with `anvil update --yes --json`";
         write_package_manager_error_json(current, command, command.display(), error, stdout)?;
-        anyhow::bail!(error);
+        return Err(crate::output::AlreadyReported.into());
     }
 
     if !json {
@@ -375,6 +376,7 @@ where
                     &error.to_string(),
                     stdout,
                 )?;
+                return Err(crate::output::AlreadyReported.into());
             }
             return Err(error)
                 .with_context(|| format!("failed to run package-manager command `{attempted}`"));
@@ -389,6 +391,7 @@ where
             write_package_manager_execution_json(
                 current, command, "failed", attempted, &execution, stdout,
             )?;
+            return Err(crate::output::AlreadyReported.into());
         }
         anyhow::bail!("package-manager command `{attempted}` failed with {code}");
     }
@@ -1087,7 +1090,7 @@ mod tests {
         )
         .expect_err("JSON execution requires --yes");
 
-        assert!(err.to_string().contains("--yes"));
+        assert!(err.is::<crate::output::AlreadyReported>());
         assert!(!executed.get());
         let stdout = String::from_utf8(stdout).unwrap();
         let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
@@ -1095,7 +1098,7 @@ mod tests {
         assert_eq!(document["install_method"], "scoop");
         assert!(document["error"].as_str().unwrap().contains("--yes"));
         assert_eq!(stdout.lines().count(), 1);
-        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+        assert!(stderr.is_empty(), "JSON failure suppresses human stderr");
     }
 
     #[test]
@@ -1239,12 +1242,13 @@ mod tests {
         )
         .expect_err("--force must fail on package-manager paths");
 
-        assert!(err.to_string().contains("--force"));
+        assert!(err.is::<crate::output::AlreadyReported>());
         let stdout = String::from_utf8(stdout).unwrap();
         let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(document["action"], "failed");
         assert!(document["error"].as_str().unwrap().contains("--force"));
         assert_eq!(stdout.lines().count(), 1);
+        assert!(stderr.is_empty(), "JSON failure suppresses human stderr");
     }
 
     #[test]
@@ -1274,9 +1278,7 @@ mod tests {
         )
         .expect_err("non-zero child exit must propagate");
 
-        let message = err.to_string();
-        assert!(message.contains("winget upgrade --id eddacraft.anvil"));
-        assert!(message.contains("exit code 23"));
+        assert!(err.is::<crate::output::AlreadyReported>());
         let stdout = String::from_utf8(stdout).unwrap();
         let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(document["action"], "failed");
@@ -1284,6 +1286,7 @@ mod tests {
         assert_eq!(document["manager_stdout"], "partial output\n");
         assert_eq!(document["manager_stderr"], "manager failure\n");
         assert_eq!(stdout.lines().count(), 1);
+        assert!(stderr.is_empty(), "JSON failure suppresses human stderr");
     }
 
     #[test]
@@ -1310,7 +1313,7 @@ mod tests {
         )
         .expect_err("missing executable must propagate");
 
-        assert!(err.to_string().contains("brew upgrade eddacraft/tap/anvil"));
+        assert!(err.is::<crate::output::AlreadyReported>());
         let stdout = String::from_utf8(stdout).unwrap();
         let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(document["action"], "failed");
@@ -1321,6 +1324,7 @@ mod tests {
                 .contains("executable not found")
         );
         assert_eq!(stdout.lines().count(), 1);
+        assert!(stderr.is_empty(), "JSON failure suppresses human stderr");
     }
 
     // ── Package-manager detection ───────────────────────────────────
