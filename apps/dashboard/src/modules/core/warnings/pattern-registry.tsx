@@ -8,6 +8,9 @@ import { EmptyState } from '@/components/primitives/empty-state';
 type Catalogue = components['schemas']['PatternCatalogue'];
 type Warning = components['schemas']['WarningSummary'];
 
+const docsPanelId = (patternId: string) =>
+  `pattern-docs-${patternId.replaceAll(/[^A-Za-z0-9_-]/g, '-')}`;
+
 export function PatternRegistry({
   catalogue,
   warnings = [],
@@ -51,6 +54,8 @@ export function PatternRegistry({
       header: 'Docs',
       cell: ({ row }) => (
         <button
+          aria-controls={docsPanelId(row.original.id)}
+          aria-expanded={expanded === row.original.id}
           className="table-select-button"
           onClick={() => setExpanded(expanded === row.original.id ? null : row.original.id)}
           type="button"
@@ -67,7 +72,7 @@ export function PatternRegistry({
     <div className="pattern-registry">
       <DataTable caption="Compiled anti-pattern registry" columns={columns} data={rows} />
       {selected ? (
-        <article className="panel">
+        <article className="panel" id={docsPanelId(selected.id)}>
           <h3>
             {selected.id}: {selected.title}
           </h3>
