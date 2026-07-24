@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                   |
-| ------- | ------------- | ----- | ------ | ------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Created 2026-05-29 from current command set |
+| Type    | Authority     | Owner | Status | Freshness                                                                  |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-07-24 against `crates/anvil-cli/src/commands/update.rs` |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -1643,12 +1643,19 @@ successfully without changing the installation. The allowlisted commands are:
 | WinGet   | `winget upgrade --id eddacraft.anvil` |
 | Scoop    | `scoop update anvil`                  |
 
+Scoop is PowerShell-based rather than a native `.exe`; anvil launches the fixed
+displayed command with `powershell.exe -NoProfile -Command`. The executable,
+arguments, and command text are static allowlist entries and never contain
+user-supplied shell text.
+
 Package-manager commands always select the manager's configured latest version.
 Use `--yes` for CI and other non-interactive callers. JSON mode never prompts
 and refuses package-manager execution without `--yes`; with consent it captures
-manager output and emits one JSON document on stdout. Human mode streams manager
-output directly. A missing executable or non-zero manager exit fails the command
-and names the attempted command.
+manager output and emits one JSON document on stdout, without additional human
+stderr. Human mode streams manager output directly, writes anvil-owned guidance
+and completion messages to stderr, and leaves anvil-owned stdout empty. A
+missing executable or non-zero manager exit fails the command and names the
+attempted command.
 
 **Exit codes:** 0 (success or already up to date), 1 (update available when
 `--check` is used, or install error)

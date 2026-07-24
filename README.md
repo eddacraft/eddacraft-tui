@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                         |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Operator cockpit 2026-07-13; agent-vault local secrets; product tag `v0.9.0-beta` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                   |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Update guidance reviewed 2026-07-24 against `crates/anvil-cli/src/commands/update.rs`; agent-vault local secrets; product tag `v0.9.0-beta` |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |
@@ -427,9 +427,10 @@ First value after install: `anvil welcome` (no login) or `anvil start` (daemon,
 beta auth). Details: [Quick Start](./docs/public/anvil/quickstart.md).
 
 On Windows, release the running binary first by quitting the IDE or stopping
-`anvil mcp serve`, then run `anvil update`. For a WinGet-owned install, anvil
-shows the exact WinGet command and invokes it only after `y`/`yes` consent (or
-`--yes`).
+`anvil mcp serve`. WinGet- and Scoop-owned installs can then run `anvil update`;
+anvil shows the exact manager command and invokes it only after `y`/`yes`
+consent (or `--yes`). For a cargo-dist/PowerShell install, re-run the PowerShell
+installer instead: `irm https://install.eddacraft.ai/windows | iex`.
 
 ---
 

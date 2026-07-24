@@ -87,16 +87,14 @@ pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 struct PackageManagerCommand {
     install_method: &'static str,
     display_name: &'static str,
+    display_command: &'static str,
     executable: &'static str,
     argv: &'static [&'static str],
 }
 
 impl PackageManagerCommand {
-    fn display(self) -> String {
-        std::iter::once(self.executable)
-            .chain(self.argv.iter().copied())
-            .collect::<Vec<_>>()
-            .join(" ")
+    fn display(self) -> &'static str {
+        self.display_command
     }
 }
 
@@ -125,20 +123,23 @@ fn package_manager_command_for(method: InstallMethod) -> Option<PackageManagerCo
         InstallMethod::Homebrew => Some(PackageManagerCommand {
             install_method: "homebrew",
             display_name: "Homebrew",
+            display_command: "brew upgrade eddacraft/tap/anvil",
             executable: "brew",
             argv: &["upgrade", "eddacraft/tap/anvil"],
         }),
         InstallMethod::Winget => Some(PackageManagerCommand {
             install_method: "winget",
             display_name: "WinGet",
+            display_command: "winget upgrade --id eddacraft.anvil",
             executable: "winget",
             argv: &["upgrade", "--id", "eddacraft.anvil"],
         }),
         InstallMethod::Scoop => Some(PackageManagerCommand {
             install_method: "scoop",
             display_name: "Scoop",
-            executable: "scoop",
-            argv: &["update", "anvil"],
+            display_command: "scoop update anvil",
+            executable: "powershell.exe",
+            argv: &["-NoProfile", "-Command", "scoop update anvil"],
         }),
         InstallMethod::CargoDist
         | InstallMethod::CargoInstall
@@ -230,11 +231,12 @@ fn validate_package_manager_options(
     Ok(())
 }
 
-fn write_package_manager_check<W: Write>(
+fn write_package_manager_check<W: Write, E: Write>(
     current: &str,
     json: bool,
     command: PackageManagerCommand,
     stdout: &mut W,
+    stderr: &mut E,
 ) -> std::io::Result<()> {
     if json {
         writeln!(
@@ -253,11 +255,11 @@ fn write_package_manager_check<W: Write>(
         )
     } else {
         writeln!(
-            stdout,
+            stderr,
             "Installed via {}. Updates are managed by the package manager.",
             command.display_name
         )?;
-        writeln!(stdout, "Upgrade command: {}", command.display())
+        writeln!(stderr, "Upgrade command: {}", command.display())
     }
 }
 
@@ -326,7 +328,7 @@ where
             write_package_manager_error_json(
                 current,
                 command,
-                &command.display(),
+                command.display(),
                 &error.to_string(),
                 stdout,
             )?;
@@ -335,18 +337,20 @@ where
     }
 
     if args.check {
-        write_package_manager_check(current, json, command, stdout)?;
+        write_package_manager_check(current, json, command, stdout, stderr)?;
         return Ok(());
     }
 
     if json && !args.yes {
         let error = "package-manager updates in JSON mode require explicit consent; rerun with `anvil update --yes --json`";
-        write_package_manager_error_json(current, command, &command.display(), error, stdout)?;
+        write_package_manager_error_json(current, command, command.display(), error, stdout)?;
         anyhow::bail!(error);
     }
 
-    writeln!(stderr, "Detected package manager: {}", command.display_name)?;
-    writeln!(stderr, "Command: {}", command.display())?;
+    if !json {
+        writeln!(stderr, "Detected package manager: {}", command.display_name)?;
+        writeln!(stderr, "Command: {}", command.display())?;
+    }
 
     if !args.yes {
         write!(stderr, "Run it now? [y/N] ")?;
@@ -367,7 +371,7 @@ where
                 write_package_manager_error_json(
                     current,
                     command,
-                    &attempted,
+                    attempted,
                     &error.to_string(),
                     stdout,
                 )?;
@@ -383,7 +387,7 @@ where
         );
         if json {
             write_package_manager_execution_json(
-                current, command, "failed", &attempted, &execution, stdout,
+                current, command, "failed", attempted, &execution, stdout,
             )?;
         }
         anyhow::bail!("package-manager command `{attempted}` failed with {code}");
@@ -391,11 +395,11 @@ where
 
     if json {
         write_package_manager_execution_json(
-            current, command, "updated", &attempted, &execution, stdout,
+            current, command, "updated", attempted, &execution, stdout,
         )?;
     } else {
         writeln!(
-            stdout,
+            stderr,
             "Update completed successfully via {}.",
             command.display_name
         )?;
@@ -864,27 +868,42 @@ mod tests {
                 "Homebrew",
                 "brew",
                 &["upgrade", "eddacraft/tap/anvil"][..],
+                "brew upgrade eddacraft/tap/anvil",
             ),
             (
                 InstallMethod::Winget,
                 "WinGet",
                 "winget",
                 &["upgrade", "--id", "eddacraft.anvil"][..],
+                "winget upgrade --id eddacraft.anvil",
             ),
             (
                 InstallMethod::Scoop,
                 "Scoop",
-                "scoop",
-                &["update", "anvil"][..],
+                "powershell.exe",
+                &["-NoProfile", "-Command", "scoop update anvil"][..],
+                "scoop update anvil",
             ),
         ];
 
-        for (method, display_name, executable, argv) in cases {
+        for (method, display_name, executable, argv, display_command) in cases {
             let command = package_manager_command_for(method).expect("supported manager");
             assert_eq!(command.display_name, display_name);
             assert_eq!(command.executable, executable);
             assert_eq!(command.argv, argv);
+            assert_eq!(command.display(), display_command);
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn scoop_powershell_launcher_resolves_on_windows() {
+        let command = package_manager_command_for(InstallMethod::Scoop).unwrap();
+        let status = Command::new(command.executable)
+            .args(["-NoProfile", "-Command", "exit 0"])
+            .status()
+            .expect("the selected Scoop PowerShell launcher must resolve");
+        assert!(status.success());
     }
 
     #[test]
@@ -941,11 +960,8 @@ mod tests {
         assert!(stderr.contains("Detected package manager: Homebrew"));
         assert!(stderr.contains("Command: brew upgrade eddacraft/tap/anvil"));
         assert!(stderr.contains("Run it now? [y/N]"));
-        assert!(
-            String::from_utf8(stdout)
-                .unwrap()
-                .contains("Update completed successfully via Homebrew.")
-        );
+        assert!(stderr.contains("Update completed successfully via Homebrew."));
+        assert!(stdout.is_empty(), "human results belong on stderr");
     }
 
     #[test]
@@ -1006,7 +1022,10 @@ mod tests {
         .unwrap();
 
         assert!(executed.get());
-        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+        let stderr = String::from_utf8(stderr).unwrap();
+        assert!(!stderr.contains("Run it now?"));
+        assert!(stderr.contains("Update completed successfully via Scoop."));
+        assert!(stdout.is_empty(), "human results belong on stderr");
     }
 
     #[test]
@@ -1038,10 +1057,11 @@ mod tests {
         .expect("check should report without executing");
 
         assert!(!executed.get(), "--check must never spawn");
-        let stdout = String::from_utf8(stdout).unwrap();
-        assert!(stdout.contains("Installed via WinGet"));
-        assert!(stdout.contains("winget upgrade --id eddacraft.anvil"));
-        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+        assert!(stdout.is_empty(), "human results belong on stderr");
+        let stderr = String::from_utf8(stderr).unwrap();
+        assert!(stderr.contains("Installed via WinGet"));
+        assert!(stderr.contains("winget upgrade --id eddacraft.anvil"));
+        assert!(!stderr.contains("Run it now?"));
     }
 
     #[test]
@@ -1113,7 +1133,37 @@ mod tests {
         assert_eq!(document["manager_stdout"], "manager stdout\n");
         assert_eq!(document["manager_stderr"], "manager stderr\n");
         assert_eq!(stdout.lines().count(), 1, "stdout must be one JSON line");
-        assert!(!String::from_utf8(stderr).unwrap().contains("Run it now?"));
+        assert!(stderr.is_empty(), "JSON success suppresses human stderr");
+    }
+
+    #[test]
+    fn json_check_emits_one_document_and_no_human_stderr() {
+        let command = package_manager_command_for(InstallMethod::Winget).unwrap();
+        let args = UpdateArgs {
+            check: true,
+            ..consent_test_args(false)
+        };
+        let mut input = "ignored\n".as_bytes();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        run_package_manager_update_with(
+            "0.9.0-beta",
+            &args,
+            true,
+            command,
+            &mut input,
+            &mut stdout,
+            &mut stderr,
+            |_, _| panic!("--check must not execute"),
+        )
+        .unwrap();
+
+        let stdout = String::from_utf8(stdout).unwrap();
+        let document: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(document["action"], "check");
+        assert_eq!(stdout.lines().count(), 1);
+        assert!(stderr.is_empty());
     }
 
     #[test]
