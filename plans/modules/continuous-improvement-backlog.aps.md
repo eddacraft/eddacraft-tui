@@ -3097,7 +3097,7 @@ archive.
 
 ### CIB-114: Authenticate Windows named-pipe peers across Anvil clients
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Close active Windows IPC findings where CLI, driver-client, or
   intercept clients can connect without proving the server is the Anvil daemon and
   where trusted config files can be writable by other principals.
