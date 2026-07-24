@@ -5192,7 +5192,7 @@ archive.
 
 ### CIB-200: Delegate package-manager-owned updates after explicit consent
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3405
 - **Intent:** Let `anvil update` complete an explicitly authorised update through
   the package manager that owns the running binary instead of stopping at a
   manual-command advisory.
