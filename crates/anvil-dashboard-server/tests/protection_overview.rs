@@ -110,3 +110,35 @@ fn clean_latest_gate_reports_empty_partial_collections() {
     assert_eq!(overview.warnings_state, DataState::Partial);
     assert_eq!(overview.affected_files_state, DataState::Partial);
 }
+
+#[test]
+fn expanded_antipattern_count_matches_the_visible_warning_set() {
+    let root = tempdir().expect("workspace");
+    fs::create_dir(root.path().join(".anvil")).expect(".anvil");
+    fs::write(
+        root.path().join(".anvil/gates.json"),
+        br#"{
+          "status": "fail",
+          "statusLabel": "FAILED - score 50/100",
+          "score": 50,
+          "warnings": "2",
+          "durationSeconds": "1.0",
+          "checksRun": "2",
+          "checkRows": [
+            ["secret-detection", "failed", "0", "Potential secret in src/config.ts:7"],
+            ["antipattern-scan", "failed", "0", "[PAT-001] src/a.rs:12 first\n[PAT-002] src/b.rs:24 second"]
+          ],
+          "warningList": [
+            {"severity":"error","message":"secret-detection: Potential secret in src/config.ts:7"},
+            {"severity":"error","message":"antipattern-scan: 2 matches"}
+          ]
+        }"#,
+    )
+    .expect("gate fixture");
+    let workspace = Workspace::new(root.path()).expect("workspace boundary");
+
+    let overview = load_persisted_protection_overview(&workspace);
+
+    assert_eq!(overview.warnings.len(), 3);
+    assert_eq!(overview.latest_run.expect("latest run").warning_count, 3);
+}

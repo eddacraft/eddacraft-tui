@@ -67,7 +67,7 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
 
     let warnings = map_gate_warnings(&gate);
     let checks = map_gate_checks(&gate);
-    let warning_count = gate.warnings.parse().unwrap_or(warnings.len());
+    let warning_count = warnings.len();
     let latest_run = GateRunSummary {
         id: "latest-gate".to_owned(),
         result: gate.status,
