@@ -1,8 +1,8 @@
 # APS Hooks Configuration
 
-Hooks reinforce APS planning behavior by triggering at key moments during
-a Claude Code session. They solve the **attention drift problem**: after many
-tool calls, agents forget their original goals.
+Hooks reinforce APS planning behavior by triggering at key moments during a
+Claude Code session. They solve the **attention drift problem**: after many tool
+calls, agents forget their original goals.
 
 ## Quick Install
 
@@ -92,8 +92,8 @@ Expected Outcome before writing code.
 
 **What it says:** "Re-read your current work item before making changes."
 
-The agent should then check it's still working toward the right work item
-before proceeding.
+The agent should then check it's still working toward the right work item before
+proceeding.
 
 ### PostToolUse (Write | Edit)
 
@@ -132,8 +132,8 @@ touched, the agent cannot stop until it updates the specs.
 2. At session end, `enforce-plan-update.sh` diffs all changes (committed and
    uncommitted) since that baseline.
 3. If non-plan files were modified but zero plan files were touched, it exits
-   with code 2 — blocking the session — and lists the changed files so the
-   agent knows what to account for.
+   with code 2 — blocking the session — and lists the changed files so the agent
+   knows what to account for.
 
 **What it catches:**
 
@@ -186,10 +186,10 @@ preventing goal drift:
 
 - Hooks only fire if a `plans/` directory exists, so they're silent in projects
   that don't use APS.
-- The PreToolUse and PostToolUse hooks output JSON with `additionalContext`
-  so their reminders reach Claude (plain stdout only shows in verbose mode).
-- The Stop hooks block by exiting with code 2 when work is incomplete.
-  Their stderr messages are fed back to Claude explaining what needs attention.
+- The PreToolUse and PostToolUse hooks output JSON with `additionalContext` so
+  their reminders reach Claude (plain stdout only shows in verbose mode).
+- The Stop hooks block by exiting with code 2 when work is incomplete. Their
+  stderr messages are fed back to Claude explaining what needs attention.
 - The plan update enforcer uses a session baseline file
   (`.claude/.aps-session-baseline`) written by the SessionStart hook to detect
   all changes — committed and uncommitted — during the session. The SessionStart
@@ -197,6 +197,6 @@ preventing goal drift:
   for any reason, checks fall back to uncommitted changes only. The install
   script adds `.claude/.aps-session-baseline` to `.gitignore` automatically. If
   you manage Claude settings manually, add it to `.gitignore` yourself. The
-  enforcer also filters out `.claude/` ephemeral files from change detection,
-  so even if the file isn't gitignored it won't cause spurious failures.
+  enforcer also filters out `.claude/` ephemeral files from change detection, so
+  even if the file isn't gitignored it won't cause spurious failures.
 - Scripts need execute permissions: `chmod +x aps-planning/scripts/*.sh`

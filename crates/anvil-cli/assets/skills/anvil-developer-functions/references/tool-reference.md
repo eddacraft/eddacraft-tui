@@ -17,8 +17,8 @@ anvil mcp install --client cursor        # install for Cursor explicitly
 ```
 
 Manual wiring — add the shim to the client's MCP config (`~/.claude.json` for
-Claude Code, which needs the `"type": "stdio"` discriminator; `~/.cursor/mcp.json`
-for Cursor, same entry without `type`):
+Claude Code, which needs the `"type": "stdio"` discriminator;
+`~/.cursor/mcp.json` for Cursor, same entry without `type`):
 
 ```json
 {
@@ -44,9 +44,9 @@ identities (name, kind, workspace-relative path, visibility) and edge topology �
 never source text, absolute paths, or secrets. Results are deterministic. The
 listing tools (`anvil_search_symbols`, `anvil_find_dependents`,
 `anvil_find_callers`) paginate with opaque cursors; the report tools
-(`anvil_impact_of_change`, `anvil_affected_tests`, `anvil_symbol_context`) return
-a single bounded report. The reverse-dependency walks cap at **2 hops**, matching
-the daemon's impact-depth limit.
+(`anvil_impact_of_change`, `anvil_affected_tests`, `anvil_symbol_context`)
+return a single bounded report. The reverse-dependency walks cap at **2 hops**,
+matching the daemon's impact-depth limit.
 
 | Tool                     | Key inputs                                                   | Returns                                                                                    |
 | ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
@@ -96,14 +96,15 @@ embedded fallback otherwise). Call it before applying a write.
 ```
 
 The `decision` is four-valued: `block` (authoritative — do not write), `warn`
-(findings detected but enforcement mode permits the write — surface and proceed),
-`gateUnavailable` (gate could not run — surface and proceed), `allow` (passed).
-The response also carries a `correlation` envelope whose `daemonStatus` reports
-whether the daemon-backed path ran (`available`), fell back to the embedded
-scanner (`unavailable`), or was not compiled in (`not-wired`).
+(findings detected but enforcement mode permits the write — surface and
+proceed), `gateUnavailable` (gate could not run — surface and proceed), `allow`
+(passed). The response also carries a `correlation` envelope whose
+`daemonStatus` reports whether the daemon-backed path ran (`available`), fell
+back to the embedded scanner (`unavailable`), or was not compiled in
+(`not-wired`).
 
-`anvil_status` is a read-only workspace-health summary (status, available checks,
-config, baseline presence, version) with path values redacted to
+`anvil_status` is a read-only workspace-health summary (status, available
+checks, config, baseline presence, version) with path values redacted to
 workspace-relative forms.
 
 > Team shorthand sometimes calls launch validation "RMCP validation" (the Rust
@@ -146,9 +147,9 @@ default is leaving it unset.
 
 When snippets are enabled they still pass a deny-by-default pipeline before any
 text is emitted: sensitive paths (`.env*`, `*.pem`/`*.key`, `.git/`, `secrets/`,
-`.ssh/`, …) are dropped, gitignored files are withheld, and a secret scan redacts
-matches in the emitted text. Counts of what was dropped or redacted are reported;
-the dropped content is not.
+`.ssh/`, …) are dropped, gitignored files are withheld, and a secret scan
+redacts matches in the emitted text. Counts of what was dropped or redacted are
+reported; the dropped content is not.
 
 ## Source docs (anvil repo — maintainers only)
 
@@ -158,5 +159,5 @@ them in the anvil repository if behaviour seems to have changed:
 
 - `docs/guides/ai-context-delivery.md` — the graph-context surface and egress
 - `docs/public/anvil/integrations/mcp.md` — client setup and tool reference
-- `docs/public/anvil/guides/save-time-validation.md` — the `anvil_validate_write`
-  enforcement path
+- `docs/public/anvil/guides/save-time-validation.md` — the
+  `anvil_validate_write` enforcement path

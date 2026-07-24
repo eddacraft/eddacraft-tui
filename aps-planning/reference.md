@@ -20,13 +20,13 @@ Index (non-executable overview)
 
 ## Template Picker
 
-| You need... | Use | File pattern |
-|-------------|-----|--------------|
-| Technical design for complex work | Design | `designs/YYYY-MM-DD-slug.design.md` |
-| Quick feature (1-3 items) | Simple | `feature.aps.md` |
-| Bounded area with interfaces | Module | `NN-name.aps.md` |
-| Multi-module initiative | Index + Modules | `index.aps.md` + `modules/` |
-| Break down complex work item | Action Plan | `execution/ID.actions.md` |
+| You need...                       | Use             | File pattern                        |
+| --------------------------------- | --------------- | ----------------------------------- |
+| Technical design for complex work | Design          | `designs/YYYY-MM-DD-slug.design.md` |
+| Quick feature (1-3 items)         | Simple          | `feature.aps.md`                    |
+| Bounded area with interfaces      | Module          | `NN-name.aps.md`                    |
+| Multi-module initiative           | Index + Modules | `index.aps.md` + `modules/`         |
+| Break down complex work item      | Action Plan     | `execution/ID.actions.md`           |
 
 ## Required Work Item Fields
 
@@ -53,30 +53,29 @@ Every work item **must** have:
 ## Module Metadata Table
 
 ```markdown
-| ID | Owner | Priority | Status | Packages |
-|----|-------|----------|--------|----------|
-| AUTH | @user | medium | Draft | *(monorepo only)* |
+| ID   | Owner | Priority | Status | Packages          |
+| ---- | ----- | -------- | ------ | ----------------- |
+| AUTH | @user | medium   | Draft  | _(monorepo only)_ |
 ```
 
 ## Status Values
 
-| Status | Meaning |
-|--------|---------|
-| Draft | Defining scope, not ready for work |
-| Ready | Approved, work items defined, can begin |
-| In Progress | Actively being worked on |
-| Blocked | Waiting on external dependency |
-| Complete | All work items validated and done |
+| Status      | Meaning                                 |
+| ----------- | --------------------------------------- |
+| Draft       | Defining scope, not ready for work      |
+| Ready       | Approved, work items defined, can begin |
+| In Progress | Actively being worked on                |
+| Blocked     | Waiting on external dependency          |
+| Complete    | All work items validated and done       |
 
 ## Action Plan Checkpoint Format
 
 ```markdown
 ### Action N — [Verb] [target]
 
-**Purpose:** [Why this action exists]
-**Produces:** [Concrete artefacts]
-**Checkpoint:** [Observable state — max 12 words]
-**Validate:** `[command]` *(optional)*
+**Purpose:** [Why this action exists] **Produces:** [Concrete artefacts]
+**Checkpoint:** [Observable state — max 12 words] **Validate:** `[command]`
+_(optional)_
 ```
 
 ## File Layout
@@ -103,16 +102,18 @@ Minimum fields for a design doc (warnings only — free-form is accepted):
 ```markdown
 # [Design Title]
 
-| Field | Value |
-|-------|-------|
-| Status | Draft / Approved / Superseded |
-| Created | YYYY-MM-DD |
+| Field   | Value                                     |
+| ------- | ----------------------------------------- |
+| Status  | Draft / Approved / Superseded             |
+| Created | YYYY-MM-DD                                |
 | Modules | [module-id](plans/modules/NN-name.aps.md) |
 
 ## Problem
+
 [What problem does this design address?]
 
 ## Design
+
 [Architecture, approach, data flow]
 ```
 
@@ -133,17 +134,17 @@ Minimum fields for a design doc (warnings only — free-form is accepted):
 
 ## Error Codes
 
-| Code | Rule |
-|------|------|
-| E001 | Missing `## Purpose` section |
-| E002 | Missing `## Work Items` section |
-| E003 | Missing ID/Status metadata table |
-| E004 | Missing `## Modules` section (index) |
+| Code | Rule                                                      |
+| ---- | --------------------------------------------------------- |
+| E001 | Missing `## Purpose` section                              |
+| E002 | Missing `## Work Items` section                           |
+| E003 | Missing ID/Status metadata table                          |
+| E004 | Missing `## Modules` section (index)                      |
 | E005 | Work item missing Intent, Expected Outcome, or Validation |
-| W001 | Work item ID format should be `PREFIX-NNN` |
-| W003 | Dependency references unknown work item ID |
-| W004 | Empty required section |
-| W005 | Status=Ready but no work items defined |
-| W014 | Design doc missing `## Problem` section |
-| W015 | Design doc missing `## Design` section |
-| W016 | Design doc missing metadata table with Status |
+| W001 | Work item ID format should be `PREFIX-NNN`                |
+| W003 | Dependency references unknown work item ID                |
+| W004 | Empty required section                                    |
+| W005 | Status=Ready but no work items defined                    |
+| W014 | Design doc missing `## Problem` section                   |
+| W015 | Design doc missing `## Design` section                    |
+| W016 | Design doc missing metadata table with Status             |

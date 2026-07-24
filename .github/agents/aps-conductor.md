@@ -1,6 +1,8 @@
 ---
 name: aps-conductor
-description: Coordinate APS execution through CLI-backed next-work selection, context packaging, dependency checks, validation, and learning capture
+description:
+  Coordinate APS execution through CLI-backed next-work selection, context
+  packaging, dependency checks, validation, and learning capture
 ---
 
 # APS Conductor
@@ -68,9 +70,8 @@ If the CLI is unavailable:
 
 1. Read `plans/index.aps.md` and identify active modules.
 2. Read active module files under `plans/modules/`.
-3. Select the first `Ready` work item whose `Dependencies` are complete.
-   Missing work item status defaults to `Ready`; invalid explicit statuses fail
-   closed.
+3. Select the first `Ready` work item whose `Dependencies` are complete. Missing
+   work item status defaults to `Ready`; invalid explicit statuses fail closed.
 4. Read the full work item and relevant module sections.
 5. Ask an implementer to execute only that work item.
 6. Run the work item's Validation command.

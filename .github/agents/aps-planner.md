@@ -1,6 +1,9 @@
 ---
 name: aps-planner
-description: Create, manage, execute, and review plans following the Anvil Plan Spec (APS) format, including initializing projects, modules, work items, action plans, validation, status tracking, and wave-based parallel execution
+description:
+  Create, manage, execute, and review plans following the Anvil Plan Spec (APS)
+  format, including initializing projects, modules, work items, action plans,
+  validation, status tracking, and wave-based parallel execution
 ---
 
 # APS Planner

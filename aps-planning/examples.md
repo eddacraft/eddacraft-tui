@@ -14,9 +14,9 @@ A small, self-contained dark mode toggle:
 ```markdown
 # Dark Mode Toggle
 
-| ID | Owner | Status |
-|----|-------|--------|
-| DARK | @sarah | Ready |
+| ID   | Owner  | Status |
+| ---- | ------ | ------ |
+| DARK | @sarah | Ready  |
 
 ## Purpose
 
@@ -51,9 +51,9 @@ An authentication module in a larger system:
 ```markdown
 # User Authentication
 
-| ID | Owner | Priority | Status |
-|----|-------|----------|--------|
-| AUTH | @josh | high | Ready |
+| ID   | Owner | Priority | Status |
+| ---- | ----- | -------- | ------ |
+| AUTH | @josh | high     | Ready  |
 
 ## Purpose
 
@@ -73,9 +73,11 @@ Users need to register, log in, and maintain authenticated sessions.
 ## Interfaces
 
 **Depends on:**
+
 - DATABASE — user table schema
 
 **Exposes:**
+
 - `registerUser(email, password)` → User
 - `verifyCredentials(email, password)` → boolean
 
@@ -90,13 +92,15 @@ Users need to register, log in, and maintain authenticated sessions.
 
 - **Intent:** New users can create accounts
 - **Expected Outcome:** POST /api/register creates user, returns 201
-- **Validation:** `curl -X POST localhost:3000/api/register -d '{"email":"test@test.com","password":"secret"}' | jq .status`
+- **Validation:**
+  `curl -X POST localhost:3000/api/register -d '{"email":"test@test.com","password":"secret"}' | jq .status`
 - **Confidence:** high
 
 ### AUTH-002: Create credential verification
 
 - **Intent:** Existing users can prove identity
-- **Expected Outcome:** Function returns true for valid credentials, false otherwise
+- **Expected Outcome:** Function returns true for valid credentials, false
+  otherwise
 - **Validation:** `npm test -- auth.verify.test.ts`
 - **Dependencies:** AUTH-001
 - **Confidence:** high
@@ -111,29 +115,30 @@ An initiative spanning multiple bounded areas:
 
 ## Overview
 
-Add authentication and session management to the application so users
-can register, log in, and maintain sessions.
+Add authentication and session management to the application so users can
+register, log in, and maintain sessions.
 
 ## Problem & Success Criteria
 
 **Problem:** All data is currently public. Users have no identity.
 
 **Success Criteria:**
+
 - [ ] Users can register and log in
 - [ ] Sessions persist across browser refresh
 - [ ] Unauthorized access returns 401
 
 ## Modules
 
-| Module | Purpose | Status |
-|--------|---------|--------|
-| [auth](./modules/01-auth.aps.md) | Registration and login | Ready |
-| [session](./modules/02-session.aps.md) | Token management | Draft |
+| Module                                 | Purpose                | Status |
+| -------------------------------------- | ---------------------- | ------ |
+| [auth](./modules/01-auth.aps.md)       | Registration and login | Ready  |
+| [session](./modules/02-session.aps.md) | Token management       | Draft  |
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                           | Mitigation                        |
+| ------------------------------ | --------------------------------- |
 | Password storage vulnerability | Use bcrypt, never store plaintext |
 ```
 
@@ -144,11 +149,11 @@ Breaking down a complex work item into checkpoints:
 ```markdown
 # Action Plan: AUTH-001
 
-| Field | Value |
-|-------|-------|
-| Source | [./modules/01-auth.aps.md](./modules/01-auth.aps.md) |
-| Work Item | AUTH-001 — Create user registration |
-| Status | In Progress |
+| Field     | Value                                                |
+| --------- | ---------------------------------------------------- |
+| Source    | [./modules/01-auth.aps.md](./modules/01-auth.aps.md) |
+| Work Item | AUTH-001 — Create user registration                  |
+| Status    | In Progress                                          |
 
 ## Prerequisites
 
@@ -158,24 +163,21 @@ Breaking down a complex work item into checkpoints:
 
 ### Action 1 — Create users table migration
 
-**Purpose:** Registration needs somewhere to store user data
-**Produces:** Migration file, users table in database
-**Checkpoint:** Users table exists with email and password_hash columns
-**Validate:** `psql -c '\d users'`
+**Purpose:** Registration needs somewhere to store user data **Produces:**
+Migration file, users table in database **Checkpoint:** Users table exists with
+email and password_hash columns **Validate:** `psql -c '\d users'`
 
 ### Action 2 — Implement registration endpoint
 
-**Purpose:** Users need an API to create accounts
-**Produces:** POST /api/register endpoint
-**Checkpoint:** Endpoint accepts email/password, returns 201 with user ID
-**Validate:** `npm test -- auth.register.test.ts`
+**Purpose:** Users need an API to create accounts **Produces:** POST
+/api/register endpoint **Checkpoint:** Endpoint accepts email/password, returns
+201 with user ID **Validate:** `npm test -- auth.register.test.ts`
 
 ### Action 3 — Add input validation
 
-**Purpose:** Prevent invalid registrations
-**Produces:** Validation middleware for registration
-**Checkpoint:** Invalid inputs return 400 with descriptive errors
-**Validate:** `npm test -- auth.validation.test.ts`
+**Purpose:** Prevent invalid registrations **Produces:** Validation middleware
+for registration **Checkpoint:** Invalid inputs return 400 with descriptive
+errors **Validate:** `npm test -- auth.validation.test.ts`
 
 ## Completion
 
