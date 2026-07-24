@@ -30,7 +30,7 @@ use super::cumulative::CumulativeValue;
 /// Honest empty-state line shared by the plain render and the `--share`
 /// refusal path: an absent aggregate is stated, never zero-filled.
 pub const NO_EVENTS_LINE: &str =
-    "No recorded events yet — Anvil has not observed any activity to report.";
+    "No recorded events yet — anvil has not observed any activity to report.";
 
 /// Render the scoreboard as plain terminal text.
 #[must_use]
@@ -122,7 +122,7 @@ pub fn render_html_card(value: &CumulativeValue) -> Option<String> {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Anvil value scorecard</title>
+<title>anvil value scorecard</title>
 <style>
   :root {{ color-scheme: light dark; }}
   body {{
@@ -153,10 +153,10 @@ pub fn render_html_card(value: &CumulativeValue) -> Option<String> {
 </head>
 <body>
   <main class="card">
-    <h1>Anvil</h1>
+    <h1>anvil</h1>
     <p class="tagline">Value caught, recorded locally</p>
     <p class="window">Evidence window: {since} to {as_of}</p>
-{witness_section}{save_section}    <footer>Counts only — no repository details. Recorded and rendered locally by Anvil.</footer>
+{witness_section}{save_section}    <footer>Counts only — no repository details. Recorded and rendered locally by anvil.</footer>
   </main>
 </body>
 </html>
