@@ -1908,7 +1908,6 @@ kbd {
 .activity-feed-item:hover,
 .activity-feed-item:focus-visible {
   border-color: var(--anvil, #c45);
-  outline: none;
 }
 
 .warning-filters,

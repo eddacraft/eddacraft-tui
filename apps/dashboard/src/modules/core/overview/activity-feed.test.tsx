@@ -42,6 +42,23 @@ describe('deriveActivityEvents', () => {
     expect(events).toHaveLength(2);
     expect(events[0]?.kind).toBe('gate');
     expect(events[1]?.kind).toBe('warning');
+    expect(events[1]?.targetId).toBe('w1');
     expect(events.every((event) => event.kind !== ('suppression' as never))).toBe(true);
+  });
+
+  it('prefers the bounded evidence id for warning deep links', () => {
+    const events = deriveActivityEvents({
+      ...protectionOverviewFixture,
+      recent_runs: [],
+      warnings: [
+        {
+          ...protectionOverviewFixture.warnings[0]!,
+          id: `warning-${'long-path-'.repeat(20)}`,
+          evidence_id: 'latest-gate-pattern-PAT-001-line-7',
+        },
+      ],
+    });
+
+    expect(events[0]?.targetId).toBe('latest-gate-pattern-PAT-001-line-7');
   });
 });

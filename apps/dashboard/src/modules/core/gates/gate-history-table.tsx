@@ -1,4 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table';
+import { Link } from '@tanstack/react-router';
 
 import type { components } from '@/api/generated/openapi';
 import { DataTable } from '@/components/primitives/data-table';
@@ -37,9 +38,9 @@ const columns: ColumnDef<GateRun>[] = [
   {
     header: 'Open',
     cell: ({ row }) => (
-      <a className="table-select-button" href={`/gates/${encodeURIComponent(row.original.id)}`}>
+      <Link className="table-select-button" params={{ id: row.original.id }} to="/gates/$id">
         Open
-      </a>
+      </Link>
     ),
   },
 ];

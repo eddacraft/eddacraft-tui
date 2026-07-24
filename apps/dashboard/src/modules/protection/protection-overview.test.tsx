@@ -1,6 +1,10 @@
-import { act, type ComponentProps } from 'react';
+import { act, type ComponentProps, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
+}));
 
 import { protectionOverviewFixture } from '@/api/fixtures';
 import { ProtectionOverviewContent } from '@/modules/protection/protection-overview';

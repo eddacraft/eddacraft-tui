@@ -10,14 +10,27 @@ import type { DashboardSeverity } from '@/lib/theme';
 type Warning = components['schemas']['WarningSummary'];
 type GroupBy = 'none' | 'file' | 'category' | 'severity' | 'pattern';
 
+export function filterWarnings(
+  warnings: readonly Warning[],
+  filters: { severity: string; category: string; query: string }
+) {
+  const { severity, category, query } = filters;
+  return warnings.filter((warning) => {
+    if (severity !== 'all' && warning.severity !== severity) return false;
+    if (category !== 'all' && warning.category !== category) return false;
+    if (query && !(warning.file_path ?? '').includes(query) && !warning.message.includes(query)) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export function WarningTable({
   warnings,
   onSelect,
-  selectedId,
 }: {
   warnings: readonly Warning[];
   onSelect?: (warning: Warning) => void;
-  selectedId?: string;
 }) {
   const [severity, setSeverity] = useState('all');
   const [category, setCategory] = useState('all');
@@ -30,14 +43,7 @@ export function WarningTable({
   );
 
   const filtered = useMemo(() => {
-    return warnings.filter((warning) => {
-      if (severity !== 'all' && warning.severity !== severity) return false;
-      if (category !== 'all' && warning.category !== category) return false;
-      if (query && !(warning.file_path ?? '').includes(query) && !warning.message.includes(query)) {
-        return false;
-      }
-      return true;
-    });
+    return filterWarnings(warnings, { severity, category, query });
   }, [warnings, severity, category, query]);
 
   const columns: ColumnDef<Warning>[] = [
@@ -133,9 +139,9 @@ export function WarningTable({
           </select>
         </label>
         <label>
-          File contains
+          File or message contains
           <input
-            aria-label="Filter warnings by file path"
+            aria-label="Filter warnings by file path or message"
             onChange={(event) => setQuery(event.currentTarget.value)}
             value={query}
           />
@@ -164,7 +170,7 @@ export function WarningTable({
             <DataTable
               caption={`Warnings grouped by ${groupBy}: ${key}`}
               columns={columns}
-              data={rows.map((row) => (row.id === selectedId ? row : row))}
+              data={rows}
             />
           </section>
         ))

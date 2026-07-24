@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearch } from '@tanstack/react-router';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { QueryBoundary } from '@/components/query-boundary';
 import { usePatternCatalogue } from '@/hooks/use-pattern-catalogue';
@@ -14,18 +14,24 @@ type Warning = components['schemas']['WarningSummary'];
 
 export function DashboardWarningsRoute() {
   const query = useProtectionOverview();
-  const search = useSearch({ strict: false }) as { evidence?: string };
+  const search = useSearch({ from: '/warnings' });
+  const navigate = useNavigate({ from: '/warnings' });
   const [selected, setSelected] = useState<Warning | undefined>();
-  const [open, setOpen] = useState(Boolean(search.evidence));
+  const [panelState, setPanelState] = useState({
+    evidence: search.evidence,
+    open: Boolean(search.evidence),
+  });
+  const open = panelState.evidence === search.evidence ? panelState.open : Boolean(search.evidence);
+  const setOpen = (nextOpen: boolean) =>
+    setPanelState({ evidence: search.evidence, open: nextOpen });
 
   return (
     <QueryBoundary query={query} loadingLabel="Warnings">
       {(overview) => {
         const initial =
-          selected ??
           overview.warnings.find(
             (warning) => warning.id === search.evidence || warning.evidence_id === search.evidence
-          );
+          ) ?? selected;
         return (
           <section className="warnings-page">
             <header className="protection-heading">
@@ -37,8 +43,13 @@ export function DashboardWarningsRoute() {
               onSelect={(warning) => {
                 setSelected(warning);
                 setOpen(true);
+                void navigate({
+                  search: (current) => ({
+                    ...current,
+                    evidence: warning.evidence_id || warning.id,
+                  }),
+                });
               }}
-              selectedId={initial?.id}
               warnings={overview.warnings}
             />
             <WarningDetailPanel onOpenChange={setOpen} open={open} warning={initial} />

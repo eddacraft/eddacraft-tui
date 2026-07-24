@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router';
+
 import type { components } from '@/api/generated/openapi';
 import { EmptyState } from '@/components/primitives/empty-state';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +12,7 @@ export interface ActivityEvent {
   timestamp: string;
   summary: string;
   badge: string;
-  href: string;
+  targetId: string;
 }
 
 export function deriveActivityEvents(overview: Overview, limit = 20): ActivityEvent[] {
@@ -23,7 +25,7 @@ export function deriveActivityEvents(overview: Overview, limit = 20): ActivityEv
       timestamp: run.started_at ?? 'Latest gate',
       summary: `${run.label} · ${run.warning_count} warnings`,
       badge: run.result,
-      href: `/gates/${encodeURIComponent(run.id)}`,
+      targetId: run.id,
     });
   }
 
@@ -34,7 +36,7 @@ export function deriveActivityEvents(overview: Overview, limit = 20): ActivityEv
       timestamp: warning.age_label,
       summary: warning.message,
       badge: warning.severity,
-      href: `/warnings?evidence=${encodeURIComponent(warning.id)}&severity=all&view=warnings`,
+      targetId: warning.evidence_id || warning.id,
     });
   }
 
@@ -65,16 +67,34 @@ export function ActivityFeed({ overview }: { overview: Overview }) {
       <ul className="activity-feed-list">
         {events.map((event) => (
           <li key={event.id}>
-            <a className="activity-feed-item" href={event.href}>
-              <div>
-                <strong>{event.summary}</strong>
-                <span className="muted-cell">{event.timestamp}</span>
-              </div>
-              <Badge variant="outline">{event.badge}</Badge>
-            </a>
+            {event.kind === 'gate' ? (
+              <Link className="activity-feed-item" params={{ id: event.targetId }} to="/gates/$id">
+                <ActivityEventContent event={event} />
+              </Link>
+            ) : (
+              <Link
+                className="activity-feed-item"
+                search={{ evidence: event.targetId, severity: 'all', view: 'warnings' }}
+                to="/warnings"
+              >
+                <ActivityEventContent event={event} />
+              </Link>
+            )}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function ActivityEventContent({ event }: { event: ActivityEvent }) {
+  return (
+    <>
+      <div>
+        <strong>{event.summary}</strong>
+        <span className="muted-cell">{event.timestamp}</span>
+      </div>
+      <Badge variant="outline">{event.badge}</Badge>
+    </>
   );
 }

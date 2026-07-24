@@ -318,7 +318,8 @@ fn warning_from_gate_attention(index: usize, severity: &str, message: &str) -> W
 fn parse_antipattern_lines(detail: &str) -> Vec<WarningSummary> {
     detail
         .lines()
-        .filter_map(|line| {
+        .enumerate()
+        .filter_map(|(index, line)| {
             let trimmed = line.trim();
             if trimmed.is_empty() || !trimmed.contains('[') {
                 return None;
@@ -326,22 +327,19 @@ fn parse_antipattern_lines(detail: &str) -> Vec<WarningSummary> {
             let pattern = extract_pattern_id(trimmed)?;
             let (file_path, line_no) = parse_location(trimmed);
             let severity = "medium".to_owned();
+            let id = format!(
+                "latest-gate-pattern-{}-{}",
+                pattern,
+                line_no.map_or_else(|| format!("entry-{}", index + 1), |n| format!("line-{n}"))
+            );
             Some(WarningSummary {
-                id: format!(
-                    "latest-gate-pattern-{}-{}",
-                    pattern,
-                    file_path.as_deref().unwrap_or("workspace")
-                ),
+                id: id.clone(),
                 severity,
                 category: "anti-pattern".to_owned(),
                 message: trimmed.to_owned(),
                 file_path,
                 age_label: "Latest gate".to_owned(),
-                evidence_id: format!(
-                    "latest-gate-pattern-{}-{}",
-                    pattern,
-                    line_no.map_or_else(|| "na".to_owned(), |n| n.to_string())
-                ),
+                evidence_id: id,
                 rule: pattern.clone(),
                 line: line_no,
                 explanation: format!("Anti-pattern {pattern} matched in the latest gate scan."),
@@ -492,5 +490,20 @@ mod tests {
                 .iter()
                 .all(|gap| gap.component != "live-protection")
         );
+    }
+
+    #[test]
+    fn parsed_antipattern_ids_are_short_unique_and_location_based() {
+        let warnings = parse_antipattern_lines(
+            "[PAT-001] src/very/long/path/that/does/not/belong/in/an/id.rs:12 first\n\
+             [PAT-001] src/very/long/path/that/does/not/belong/in/an/id.rs:24 second",
+        );
+
+        assert_eq!(warnings.len(), 2);
+        assert_eq!(warnings[0].id, "latest-gate-pattern-PAT-001-line-12");
+        assert_eq!(warnings[1].id, "latest-gate-pattern-PAT-001-line-24");
+        assert_eq!(warnings[0].evidence_id, warnings[0].id);
+        assert_ne!(warnings[0].id, warnings[1].id);
+        assert!(warnings.iter().all(|warning| warning.id.len() <= 128));
     }
 }
