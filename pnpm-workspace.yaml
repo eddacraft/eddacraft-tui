@@ -54,6 +54,7 @@ overrides:
   'yauzl': '>=3.2.1'
   'diff': '^4.0.4'
   'markdown-it': '^14.2.0'
+  'linkify-it@<=5.0.1': '5.0.2'
   '@isaacs/brace-expansion': '^5.0.1'
   'cross-spawn': '^7.0.6'
   '@eddacraft/kindling-core': '0.1.2'
