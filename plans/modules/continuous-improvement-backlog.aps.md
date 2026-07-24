@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 154/194  |
+| CIB | —     | In Progress | 156/197  |
 
 ## Purpose
 
@@ -5227,3 +5227,30 @@ archive.
 - **Confidence:** high — install-method detection and package-manager command
   mapping already exist; the remaining work is consent, typed process execution,
   output-mode discipline, and behavioural coverage.
+
+### CIB-201: Refresh repository-local APS package from canonical vending
+
+- **Status:** In Progress: 2026-07-24
+- **Intent:** Replace the legacy root APS skill and stale harness agents with the
+  current package emitted by the APS binary from canonical eddacraft assets.
+- **Expected Outcome:** The repository carries current Claude, Copilot, and
+  Codex APS agents plus managed `aps-planning` and `plan-doctor` skills under
+  their native discovery roots. Legacy commands, the root `aps-planning/`
+  tree, and the obsolete Codex configuration snippet are removed. All emitted
+  Markdown is normalised by this repository's pinned oxfmt configuration.
+- **Validation:** APS package update and doctor checks; `pnpm format:check`;
+  `pnpm docs:check`; `pnpm aps:active-lint`; `pnpm aps:index:check`;
+  `pnpm validate:changed`; `git diff --check`.
+- **Identified From:** Canonical packaging refresh in eddacraft/skills#51 and
+  eddacraft/anvil-plan-spec#131; follow-up to the inherited oxfmt failures in
+  the previous copied APS/anvil skill update.
+- **Confidence:** high
+- **Results:** Migrated away from the root skill and slash commands, installed
+  current APS agents for Claude, Copilot, Codex, and OpenCode, and installed
+  managed `aps-planning` plus `plan-doctor` in the Claude and AGENTS.md-native
+  roots. Added the required Git and formatter carve-outs for the new native
+  paths so managed skill hashes remain fresh while `.github` agents stay under
+  anvil's pinned formatter. APS doctor reports all four managed skill trees
+  fresh. Format, docs, active APS lint, CIB index counts, changed validation,
+  and diff checks pass; the pre-existing DASHCORE count mismatch remains an
+  advisory.

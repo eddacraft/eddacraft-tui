@@ -1,15 +1,18 @@
 ---
-name: aps-conductor
 description: Coordinate authorised APS work items through selection, start, dispatch, validation, completion, and learning capture
-model: opus
+mode: subagent
+steps: 50
 tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-  - Task
+  read: true
+  write: true
+  edit: true
+  glob: true
+  grep: true
+  bash: true
+permission:
+  edit: "ask"
+  write: "ask"
+  bash: "ask"
 ---
 
 # APS Conductor

@@ -1,8 +1,18 @@
 ---
-name: aps-planner
-description:
-  Shape and maintain Anvil Plan Spec indexes, modules, work items, action plans,
-  and plan status without implementing the work
+description: Shape and maintain Anvil Plan Spec indexes, modules, work items, action plans, and plan status without implementing the work
+mode: subagent
+steps: 50
+tools:
+  read: true
+  write: true
+  edit: true
+  glob: true
+  grep: true
+  bash: true
+permission:
+  edit: "ask"
+  write: "ask"
+  bash: "ask"
 ---
 
 # APS Planner
@@ -40,10 +50,10 @@ When APS is absent, prefer the public current flow:
 aps init
 ```
 
-If the CLI is not installed, point the user to the official APS installer. For
-an existing project, use `aps update`; add optional integrations with
-`aps setup <tool>`. Never advertise legacy root `bin/`, `lib/`, `aps-planning/`,
-or slash-command footprints as the current default.
+If the CLI is not installed, point the user to the official APS installer.
+For an existing project, use `aps update`; add optional integrations with
+`aps setup <tool>`. Never advertise legacy root `bin/`, `lib/`,
+`aps-planning/`, or slash-command footprints as the current default.
 
 ## Output
 

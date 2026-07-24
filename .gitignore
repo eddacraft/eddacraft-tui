@@ -64,6 +64,10 @@ Thumbs.db
 
 # OpenCode — ignore local state, keep tracked skills
 .opencode/*
+!.opencode/agent/
+!.opencode/agent/aps-conductor.md
+!.opencode/agent/aps-librarian.md
+!.opencode/agent/aps-planner.md
 !.opencode/agents/
 !.opencode/agents/anvil-plan-spec.md
 !.opencode/skills/
@@ -108,6 +112,7 @@ CLAUDE.local.md
 !.claude/skills/dev-workflow/
 !.claude/skills/planning-workflow/
 !.claude/skills/aps-planning/
+!.claude/skills/plan-doctor/
 !.claude/skills/test-driven-development/
 !.claude/skills/addressing-pr-reviews/
 !.claude/skills/dependabot/

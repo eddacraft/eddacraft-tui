@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "kind": "skill",
+  "name": "plan-doctor",
+  "cliVersion": "0.7.0",
+  "bundleDigest": "927ac71491a85c941f148a5eb26adfd91e225e38a1980b5e93d8ad9a7d25760d",
+  "files": {
+    "SKILL.md": "b100c2e42e2cc84da42d5e05f38af53cf8fa85eeb687d01aa1b3fdfe1a1369f0"
+  }
+}
