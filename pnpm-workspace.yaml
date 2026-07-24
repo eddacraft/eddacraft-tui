@@ -87,6 +87,7 @@ overrides:
   'next@>=16.0.0 <16.2.11': '16.2.11'
   'sharp@<0.35.0': '^0.35.0'
   'express-rate-limit@>=8.2.0 <8.2.2': '>=8.2.2 <9'
+  'body-parser@<1.20.6': '1.20.6'
   '@nx/azure-cache>@nx/devkit': '22.7.5'
   'tmp@<0.2.7': '0.2.7'
   '@nx/js>verdaccio': '-'
