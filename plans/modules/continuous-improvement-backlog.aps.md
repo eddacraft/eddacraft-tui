@@ -3097,7 +3097,7 @@ archive.
 
 ### CIB-114: Authenticate Windows named-pipe peers across Anvil clients
 
-- **Status:** In Progress
+- **Status:** Ready
 - **Intent:** Close active Windows IPC findings where CLI, driver-client, or
   intercept clients can connect without proving the server is the Anvil daemon and
   where trusted config files can be writable by other principals.
@@ -5192,7 +5192,7 @@ archive.
 
 ### CIB-200: Delegate package-manager-owned updates after explicit consent
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Let `anvil update` complete an explicitly authorised update through
   the package manager that owns the running binary instead of stopping at a
   manual-command advisory.
@@ -5213,7 +5213,7 @@ archive.
   paths.
 - **Files:** `crates/anvil-cli/src/commands/update.rs`,
   `crates/anvil-cli/tests/update_resolution_chain.rs`,
-  `docs/runbooks/cli-surface.md`, `plans/index.aps.md`, this module.
+  `README.md`, `docs/runbooks/cli-surface.md`, `plans/index.aps.md`, this module.
 - **Validation:** `cargo fmt --all -- --check`;
   `cargo test -p eddacraft-anvil commands::update::tests`;
   `cargo test -p eddacraft-anvil --test update_resolution_chain`;
