@@ -2,15 +2,17 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 6/14      |
+| ACTTUI | Josh  | In Progress | 7/14      |
 
 **Last reviewed:** 2026-07-25 — [ADR-103](../decisions/103-tty-default-activation-tui.md)
 **Accepted** by the owner, and the Release 2 TTY-default flip is filed as
 **ACTTUI-013 (Ready)**. Its named gates — ACTTUI-008 welcome convergence,
 ACTTUI-009 consent wiring, ACTTUI-010 contract/PTY matrix, ACTTUI-012 polish —
 are all Merged, so the 2026-07-09 council block on the flip is cleared and the
-phase-C decision JOURNEY-002 deferred now has an owning work item. `anvil start`
-remains opt-in (`--tui` / `ANVIL_ACTIVATION_TUI=1`) until ACTTUI-013 lands.
+phase-C decision JOURNEY-002 deferred now has an owning work item — **Merged
+via PR #3411**. A genuine interactive `anvil start` now opens the activation
+TUI with no flag; `--tui` / `ANVIL_ACTIVATION_TUI=1` survive as inert aliases
+and `--no-tui` / `ANVIL_NO_TUI=1` remain the permanent escape hatches.
 
 Earlier review (2026-07-11) — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
@@ -477,7 +479,13 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-013: TTY-default flip — activation TUI on the default interactive path
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-25 via PR #3411
+- **Shipped:** `start_render_mode` now derives from `activation_tui_allowed`
+  (pure argument/environment policy, unit-testable without a PTY) plus the
+  stdio terminal probe; the opt-in gate is gone. `--tui` is retained as a
+  hidden, accepted no-op and `ANVIL_ACTIVATION_TUI` is inert. New coverage:
+  flag-free PTY entry, `--no-tui` holding in a real PTY, and byte-identical
+  output with the retired aliases passed.
 - **Source:** [ADR-103](../decisions/103-tty-default-activation-tui.md) §4
   rollout ladder, Release 2 (Accepted 2026-07-25); JOURNEY-002 closed the
   just-works gate but deferred the flip itself as a phase-C decision

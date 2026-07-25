@@ -360,7 +360,7 @@ fn install_candidate_outcome(
     {
         return InstallOutcome::Failed {
             error: format!(
-                "consent offer changed before apply: approved {}, now {}; re-run `anvil start --tui`",
+                "consent offer changed before apply: approved {}, now {}; re-run `anvil start`",
                 expected.target_path.display(),
                 candidate.target_path.display(),
             ),

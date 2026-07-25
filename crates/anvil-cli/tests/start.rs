@@ -277,9 +277,10 @@ fn run_start_in_pty(
     ] {
         command.env_remove(variable);
     }
+    // ACTTUI-013: no `--tui` and no `ANVIL_ACTIVATION_TUI` — a real terminal
+    // enters the activation TUI on the bare `anvil start` default path.
     command
         .arg("start")
-        .arg("--tui")
         .args(extra_args)
         .stdin(std::process::Stdio::from(stdin))
         .stdout(std::process::Stdio::from(stdout))
@@ -332,7 +333,7 @@ fn run_start_in_pty(
             child.kill().expect("kill hung PTY child");
             child.wait().expect("reap hung PTY child");
             let transcript = String::from_utf8_lossy(&bytes);
-            panic!("`anvil start --tui` did not complete PTY interaction:\n{transcript}");
+            panic!("`anvil start` did not complete PTY interaction:\n{transcript}");
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
     };
@@ -348,6 +349,46 @@ fn run_start_in_pty(
         terminal_mode_before,
         terminal_mode_after: terminal_mode(&slave_monitor),
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn start_pty_no_tui_stays_on_the_plain_path() {
+    // ACTTUI-013: `--no-tui` is the permanent escape hatch, and it has to hold
+    // in a *real* terminal — the one context where the flip changed what the
+    // default does. Before the flip a missing opt-in made this unobservable.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("index.ts"), "export {};\n").unwrap();
+
+    let result = run_start_in_pty(
+        dir.path(),
+        home.path(),
+        &["--no-tui", "--no-daemon", "--no-mcp"],
+        PtyInteraction::Quit,
+    );
+
+    assert!(
+        result.status.success(),
+        "PTY start --no-tui failed:\n{}",
+        result.transcript
+    );
+    assert!(
+        !result.transcript.contains("\u{1b}[?1049h"),
+        "--no-tui entered the alternate screen in a PTY:\n{}",
+        result.transcript,
+    );
+    assert!(
+        result.transcript.contains("ACTIVATION"),
+        "--no-tui should print the plain activation dossier:\n{}",
+        result.transcript,
+    );
+    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -903,6 +944,67 @@ fn start_no_tui_and_env_no_tui_match_compact_fixture() {
         &flag_stdout,
         dir.path(),
         home.path(),
+    );
+}
+
+#[test]
+fn start_tui_flag_is_an_accepted_no_op_alias() {
+    // ACTTUI-013 / ADR-103: `--tui` and `ANVIL_ACTIVATION_TUI=1` are retired to
+    // accepted no-op aliases — they must still parse (no deprecation error) and
+    // must not change a single byte of output. Hidden from `--help` because
+    // they no longer do anything.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let baseline = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        baseline.status.success(),
+        "setup start failed: stderr={}",
+        String::from_utf8_lossy(&baseline.stderr)
+    );
+
+    let flag = run_start_with_home(dir.path(), home.path(), &["--no-daemon", "--tui"]);
+    assert!(
+        flag.status.success(),
+        "--tui must still parse: stderr={}",
+        String::from_utf8_lossy(&flag.stderr)
+    );
+
+    let mut cmd = start_command_env(dir.path(), home.path());
+    cmd.arg("--no-tui")
+        .arg("start")
+        .arg("--no-daemon")
+        .env("ANVIL_ACTIVATION_TUI", "1");
+    let env = cmd.output().expect("failed to invoke anvil binary");
+    assert!(
+        env.status.success(),
+        "ANVIL_ACTIVATION_TUI rerun failed: stderr={}",
+        String::from_utf8_lossy(&env.stderr)
+    );
+
+    let flag_stdout = normalise_start_activation_output(
+        &String::from_utf8_lossy(&flag.stdout),
+        dir.path(),
+        home.path(),
+    );
+    let env_stdout = normalise_start_activation_output(
+        &String::from_utf8_lossy(&env.stdout),
+        dir.path(),
+        home.path(),
+    );
+    assert_eq!(
+        flag_stdout, env_stdout,
+        "the retired aliases must produce identical output",
+    );
+
+    let help = Command::new(ANVIL_BIN)
+        .arg("start")
+        .arg("--help")
+        .output()
+        .expect("failed to invoke anvil binary");
+    assert!(
+        !String::from_utf8_lossy(&help.stdout).contains("--tui"),
+        "a retired no-op flag must not be advertised in start --help"
     );
 }
 

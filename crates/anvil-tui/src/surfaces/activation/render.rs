@@ -68,7 +68,7 @@ fn render_missing_consent_guard(frame: &mut Frame, area: Rect, theme: &EddaCraft
         ),
         Line::from("No project or editor changes have been applied."),
         Line::styled(
-            "Press q to leave, then re-run `anvil start --tui`.",
+            "Press q to leave, then re-run `anvil start`.",
             Style::default().fg(theme.muted()),
         ),
     ];

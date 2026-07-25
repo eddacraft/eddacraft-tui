@@ -89,12 +89,14 @@ pub struct StartArgs {
     /// validation.
     #[arg(long)]
     pub watch: bool,
-    /// Open the opt-in Activation TUI when the session is genuinely interactive.
+    /// Accepted no-op: the Activation TUI is now the default whenever the
+    /// session is genuinely interactive.
     ///
-    /// First-release rollout flag for the activation TUI. Machine and
-    /// non-interactive contracts still win: `--verify`, `--json`, `--watch`,
-    /// `--no-tui`, CI, and piped output stay on the plain path.
-    #[arg(long)]
+    /// Retained so scripts and muscle memory from the opt-in rollout keep
+    /// working. Pass `--no-tui` (or set `ANVIL_NO_TUI=1`) to force the plain
+    /// path; `--verify`, `--json`, `--watch`, CI, and piped output stay plain
+    /// regardless.
+    #[arg(long, hide = true)]
     pub tui: bool,
     /// Pick a config file format for first-run activation. When set,
     /// the orchestrator writes `.anvil.<ext>` (yaml / yml / json /
@@ -1942,32 +1944,37 @@ fn render_start_human_output(
     out
 }
 
-/// Whether the opt-in activation TUI rollout flag is active.
-fn activation_tui_requested(args: &StartArgs) -> bool {
-    args.tui || std::env::var_os("ANVIL_ACTIVATION_TUI").is_some_and(|value| !value.is_empty())
-}
-
 /// Whether the caller explicitly forced the plain path through the activation
 /// TUI-specific environment escape hatch.
 fn activation_tui_env_opt_out() -> bool {
     std::env::var_os("ANVIL_NO_TUI").is_some_and(|value| !value.is_empty())
 }
 
-/// Whether this invocation may enter the activation TUI.
+/// Whether the invocation itself permits the activation TUI, ignoring the
+/// terminal probe.
 ///
-/// ADR-103 requires the TUI to be additive on the genuinely interactive path
-/// only: read-only, JSON, watch fallback, `--no-tui`, CI, and piped output stay
-/// on the deterministic plain/machine contracts.
-fn activation_tui_eligible(args: &StartArgs, global: &GlobalArgs, read_only: bool) -> bool {
-    use std::io::IsTerminal as _;
-
-    activation_tui_requested(args)
-        && !read_only
+/// Split from [`activation_tui_eligible`] so the decision is testable without a
+/// PTY: this half is pure argument and environment policy, the other half asks
+/// the OS whether the three stdio handles are really a terminal.
+fn activation_tui_allowed(args: &StartArgs, global: &GlobalArgs, read_only: bool) -> bool {
+    !read_only
         && !args.watch
         && !global.no_tui
         && !activation_tui_env_opt_out()
         && !global.json
         && !crate::is_non_interactive_env()
+}
+
+/// Whether this invocation may enter the activation TUI.
+///
+/// ADR-103 makes the TUI the default on the genuinely interactive path, so no
+/// opt-in is consulted. The trust boundary is unchanged: read-only, JSON, the
+/// watch fallback, `--no-tui` / `ANVIL_NO_TUI`, CI, and piped output all stay on
+/// the deterministic plain/machine contracts.
+fn activation_tui_eligible(args: &StartArgs, global: &GlobalArgs, read_only: bool) -> bool {
+    use std::io::IsTerminal as _;
+
+    activation_tui_allowed(args, global, read_only)
         && std::io::stdin().is_terminal()
         && std::io::stdout().is_terminal()
         && std::io::stderr().is_terminal()
@@ -2668,17 +2675,149 @@ mod tests {
         )
     }
 
+    fn global_args_default() -> GlobalArgs {
+        GlobalArgs {
+            json: false,
+            no_tui: false,
+            verbose: false,
+            anvil_home: None,
+            touch_project_state: false,
+        }
+    }
+
+    /// Run `body` with every non-interactive signal and TUI env hatch cleared,
+    /// plus any extra variables the caller pins. Models the genuine
+    /// interactive shell the TUI default targets.
+    fn with_interactive_env<R>(extra: &[(&str, Option<&str>)], body: impl FnOnce() -> R) -> R {
+        let mut vars: Vec<(String, Option<String>)> = [
+            "CI",
+            "ANVIL_NO_PROMPT",
+            "NONINTERACTIVE",
+            "GIT_DIR",
+            "GIT_INDEX_FILE",
+            "ANVIL_NO_TUI",
+            "ANVIL_ACTIVATION_TUI",
+        ]
+        .into_iter()
+        .map(|key| (key.to_string(), None))
+        .collect();
+        for (key, value) in extra {
+            let value = value.map(ToString::to_string);
+            match vars.iter_mut().find(|(existing, _)| existing == key) {
+                Some(slot) => slot.1 = value,
+                None => vars.push(((*key).to_string(), value)),
+            }
+        }
+        temp_env::with_vars(vars, body)
+    }
+
     #[test]
-    fn activation_tui_requested_by_flag_or_env() {
+    fn activation_tui_is_the_interactive_default_without_any_opt_in() {
+        // ACTTUI-013 (ADR-103 Release 2): a genuine interactive session enters
+        // the TUI with no flag and no env var set. Release 1 required
+        // `--tui` / `ANVIL_ACTIVATION_TUI=1` here; that gate is gone.
+        with_interactive_env(&[], || {
+            assert!(activation_tui_allowed(
+                &start_args_default(),
+                &global_args_default(),
+                false
+            ));
+        });
+    }
+
+    #[test]
+    fn retired_tui_opt_in_aliases_are_inert() {
+        // `--tui` and `ANVIL_ACTIVATION_TUI=1` are accepted no-op aliases: they
+        // must not change the decision in either direction, and they must not
+        // override an explicit opt-out.
         let mut args = start_args_default();
-        assert!(!activation_tui_requested(&args));
-
         args.tui = true;
-        assert!(activation_tui_requested(&args));
 
-        args.tui = false;
-        temp_env::with_var("ANVIL_ACTIVATION_TUI", Some("1"), || {
-            assert!(activation_tui_requested(&args));
+        with_interactive_env(&[("ANVIL_ACTIVATION_TUI", Some("1"))], || {
+            assert!(activation_tui_allowed(&args, &global_args_default(), false));
+
+            let opted_out = GlobalArgs {
+                no_tui: true,
+                ..global_args_default()
+            };
+            assert!(
+                !activation_tui_allowed(&args, &opted_out, false),
+                "the retired opt-in must not resurrect the TUI past --no-tui"
+            );
+        });
+
+        with_interactive_env(
+            &[
+                ("ANVIL_ACTIVATION_TUI", Some("1")),
+                ("ANVIL_NO_TUI", Some("1")),
+            ],
+            || {
+                assert!(
+                    !activation_tui_allowed(&args, &global_args_default(), false),
+                    "the retired opt-in must not resurrect the TUI past ANVIL_NO_TUI"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn activation_tui_allowed_keeps_every_plain_path_contract() {
+        with_interactive_env(&[], || {
+            let args = start_args_default();
+            let global = global_args_default();
+
+            assert!(
+                !activation_tui_allowed(&args, &global, true),
+                "read-only (--verify / --json) stays on the plain contract"
+            );
+            assert!(
+                !activation_tui_allowed(
+                    &StartArgs {
+                        watch: true,
+                        ..start_args_default()
+                    },
+                    &global,
+                    false
+                ),
+                "the watch fallback streams events on stdout"
+            );
+            assert!(
+                !activation_tui_allowed(
+                    &args,
+                    &GlobalArgs {
+                        no_tui: true,
+                        ..global_args_default()
+                    },
+                    false
+                ),
+                "--no-tui is the permanent escape hatch"
+            );
+            assert!(
+                !activation_tui_allowed(
+                    &args,
+                    &GlobalArgs {
+                        json: true,
+                        ..global_args_default()
+                    },
+                    false
+                ),
+                "--json is a machine contract"
+            );
+        });
+
+        with_interactive_env(&[("ANVIL_NO_TUI", Some("1"))], || {
+            assert!(!activation_tui_allowed(
+                &start_args_default(),
+                &global_args_default(),
+                false
+            ));
+        });
+
+        with_interactive_env(&[("CI", Some("true"))], || {
+            assert!(
+                !activation_tui_allowed(&start_args_default(), &global_args_default(), false),
+                "CI is non-interactive"
+            );
         });
     }
 
@@ -2969,14 +3108,6 @@ mod tests {
                 && entry.message.contains("MCP installation disabled")
         }));
         assert!(!entries.iter().any(|entry| entry.source == "consent/mcp"));
-    }
-
-    #[test]
-    fn activation_tui_empty_env_value_does_not_request_tui() {
-        let args = start_args_default();
-        temp_env::with_var("ANVIL_ACTIVATION_TUI", Some(""), || {
-            assert!(!activation_tui_requested(&args));
-        });
     }
 
     #[test]

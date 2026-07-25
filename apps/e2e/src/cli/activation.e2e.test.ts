@@ -137,11 +137,12 @@ describeCli('Activation golden path', () => {
     expect(verify.stdout).not.toContain('state: protecting');
   });
 
-  // ACTTUI-001 (ADR-103): read-only probes must stay on the plain path even
-  // when the activation TUI rollout flag is set. `--verify` is the scripted
-  // health-check contract; it must emit the deterministic plain verdict and
-  // never switch to the alternate screen.
-  it('keeps --verify on the plain path even when the TUI opt-in is set', async () => {
+  // ACTTUI-001 (ADR-103): read-only probes must stay on the plain path.
+  // `--verify` is the scripted health-check contract; it must emit the
+  // deterministic plain verdict and never switch to the alternate screen.
+  // ACTTUI-013 retired `ANVIL_ACTIVATION_TUI` to a no-op alias — setting it
+  // here proves the retired alias cannot drag `--verify` off that contract.
+  it('keeps --verify on the plain path even when the retired TUI alias is set', async () => {
     const ws = workspace();
     const home = isolatedHome();
 
@@ -159,9 +160,9 @@ describeCli('Activation golden path', () => {
     expect(result.stdout).not.toContain('\x1b[?1049h');
   });
 
-  // ACTTUI-001: `--no-tui` is an explicit opt-out that wins over the rollout
-  // opt-in flag, mirroring the global plain-output contract.
-  it('honours --no-tui as an opt-out even with the TUI opt-in flag set', async () => {
+  // ACTTUI-001 / ACTTUI-013: `--no-tui` is the permanent escape hatch and wins
+  // over the retired opt-in alias, mirroring the global plain-output contract.
+  it('honours --no-tui as an opt-out even with the retired TUI alias set', async () => {
     const ws = workspace();
     const home = isolatedHome();
 
@@ -176,7 +177,10 @@ describeCli('Activation golden path', () => {
     expect(result.stdout).not.toContain('\u001b[?1049h');
   });
 
-  it('degrades to plain output when TUI opt-in is piped without an explicit opt-out', async () => {
+  // ACTTUI-013: the flip only reaches genuine terminals. Piped stdio with every
+  // non-interactive signal cleared — the most TUI-eligible-looking scripted
+  // context there is — must still land on the plain contract.
+  it('degrades to plain output when piped without an explicit opt-out', async () => {
     const ws = workspace();
     const home = isolatedHome();
     const { ANVIL_NO_PROMPT: _noPrompt, ...ttyEligibleEnv } = home.env;

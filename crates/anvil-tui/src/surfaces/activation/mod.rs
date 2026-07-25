@@ -1,4 +1,4 @@
-//! Activation surface (ACTTUI-001) — the opt-in `anvil start` TUI scaffold.
+//! Activation surface (ACTTUI-001) — the default `anvil start` TUI.
 //!
 //! This module is the foundation slice for the activation TUI (ADR-103). It
 //! introduces the phased state machine and a [`Surface`] implementation that
@@ -9,9 +9,11 @@
 //!
 //! ## Scope boundary (ACTTUI-001)
 //!
-//! - The surface is **opt-in** and additive: `anvil start` only enters it when
-//!   the caller passes `--tui` / sets `ANVIL_ACTIVATION_TUI` *and* the session
-//!   is genuinely interactive (see `crates/anvil-cli/src/commands/start.rs`).
+//! - The surface is the **default** interactive path (ACTTUI-013, ADR-103
+//!   Release 2): `anvil start` enters it whenever the session is genuinely
+//!   interactive, with no opt-in. `--no-tui` / `ANVIL_NO_TUI=1`, `--verify`,
+//!   `--json`, `--watch`, CI, and piped output stay on the deterministic plain
+//!   contracts (see `crates/anvil-cli/src/commands/start.rs`).
 //! - v1 renders the verdict text the plain path would have printed, so the TUI
 //!   never claims more (or less) than the byte-stable plain surface. The phased
 //!   enum exists now so downstream items have a stable seam to build on; v1
