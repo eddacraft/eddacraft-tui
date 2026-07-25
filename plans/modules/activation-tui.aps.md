@@ -2,9 +2,17 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 6/13      |
+| ACTTUI | Josh  | In Progress | 6/14      |
 
-**Last reviewed:** 2026-07-11 — the operator-approved
+**Last reviewed:** 2026-07-25 — [ADR-103](../decisions/103-tty-default-activation-tui.md)
+**Accepted** by the owner, and the Release 2 TTY-default flip is filed as
+**ACTTUI-013 (Ready)**. Its named gates — ACTTUI-008 welcome convergence,
+ACTTUI-009 consent wiring, ACTTUI-010 contract/PTY matrix, ACTTUI-012 polish —
+are all Merged, so the 2026-07-09 council block on the flip is cleared and the
+phase-C decision JOURNEY-002 deferred now has an owning work item. `anvil start`
+remains opt-in (`--tui` / `ANVIL_ACTIVATION_TUI=1`) until ACTTUI-013 lands.
+
+Earlier review (2026-07-11) — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
 and WOW-005 release-cut gates, while retaining celebration and richer diagnostics
 as coordinated enhancements. The 2026-07-10 ACTTUI-009..011 implementation
@@ -12,8 +20,8 @@ milestone is active on `feat/acttui-009-consent-wiring`. Consent now binds the
 exact selected targets and applies only after explicit submission; the contract matrix includes
 real PTY restoration and all-phase snapshots; verdict/evidence models are built
 from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
-e2e checks pass locally. ACTTUI-012 remains Proposed behind the readiness gate.
-The earlier post-ACTTUI first-run council review
+e2e checks pass locally. ACTTUI-012 has since Merged via PR #3284. The earlier
+post-ACTTUI first-run council review
 ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 blocked the TTY-default flip because the opt-in `--tui` consent path is still a
 dead end. ACTTUI-009..012 now track the remediation wave. ACTTUI-000 planning
@@ -21,7 +29,7 @@ gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002
 progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome,
 ACTTUI-005 verdict tree, ACTTUI-006 tier-evidence LogPanel, and ACTTUI-007
 fixture hardening are In Progress across the stacked ACTTUI branches. ADR-103
-proposed, fixture spec + fixture home created, public scripting contract
+Accepted 2026-07-25, fixture spec + fixture home created, public scripting contract
 documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally
 created via planning-workflow + planning-council direction-validate (four-lens
 stress test). Replaces the
@@ -467,6 +475,46 @@ tutorial story changes (WOW owns narrative).
   eddacraft-anvil start`; `pnpm docs:check` if public env semantics change
 - **Confidence:** medium
 
+### ACTTUI-013: TTY-default flip — activation TUI on the default interactive path
+
+- **Status:** Ready
+- **Source:** [ADR-103](../decisions/103-tty-default-activation-tui.md) §4
+  rollout ladder, Release 2 (Accepted 2026-07-25); JOURNEY-002 closed the
+  just-works gate but deferred the flip itself as a phase-C decision
+  ([`release-user-journeys.aps.md`](./release-user-journeys.aps.md))
+- **Dependencies:** ACTTUI-008, ACTTUI-009, ACTTUI-010, ACTTUI-012 (all Merged)
+- **Intent:** A genuinely interactive `anvil start` opens the activation TUI
+  with no flag, while every machine and non-interactive contract stays on the
+  deterministic plain path.
+- **Expected Outcome:** `start_render_mode` returns `Tui` whenever the
+  `activation_tui_eligible` trust boundary holds, without consulting
+  `activation_tui_requested`. The trust boundary itself is unchanged: read-only,
+  `--watch`, `--json`, `--verify`, `--no-tui`, `ANVIL_NO_TUI`, non-interactive
+  environments, and any non-TTY stdio handle still resolve to `Plain`. `--tui`
+  and `ANVIL_ACTIVATION_TUI=1` are retired to accepted no-op aliases per
+  ADR-103 — still parsed, no deprecation error, no behaviour change when passed.
+  `--no-tui` / `ANVIL_NO_TUI=1` remain the permanent escape hatches. `anvil
+  start --verify` and `--json` stdout stay byte-stable against the pinned
+  ACTTUI-010 fixtures, and the compact plain fixtures continue to describe the
+  piped/CI default. Fixtures and tests that assert the plain path only because
+  the opt-in flag was absent are re-pinned to the TUI path, and the PTY test
+  covers flag-free entry, clean `esc`/`q` exit, and raw-mode restoration. The
+  public start-output contract guide documents the default as TUI-on-TTY with
+  the escape hatches named.
+- **Non-scope:** Consent posture (unticked defaults, gated `ANVIL_HOME`
+  suppression), `ProtectionState` vocabulary and honesty pins, orchestrator or
+  daemon semantics, removal of the `--tui` flag or the `ANVIL_ACTIVATION_TUI`
+  env var, and `celebrate()`/`big-text` (deferred by ACTTUI-012).
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/tests/start.rs`,
+  `crates/anvil-cli/tests/fixtures/start-activation/`,
+  `apps/e2e/src/cli/activation.e2e.test.ts`,
+  `docs/public/anvil/guides/start-output-contracts.md`
+- **Validation:** `cargo test -p eddacraft-anvil start`; `cargo test -p
+  eddacraft-anvil-tui activation`; `pnpm --filter @eddacraft/anvil-e2e exec
+  vitest run src/cli/activation.e2e.test.ts`; `pnpm docs:check`
+- **Confidence:** medium
+
 ## Sequencing
 
 ```text
@@ -487,6 +535,9 @@ Review remediation (post council-d4c804e6):
   ACTTUI-009 → ACTTUI-010
   ACTTUI-011 may run after 009
   ACTTUI-012 blocks only the default flip
+
+Default flip (ADR-103 Release 2, unblocked 2026-07-25):
+  ACTTUI-008 ∧ 009 ∧ 010 ∧ 012 (all Merged) → ACTTUI-013
 ```
 
 **Release blocker (JOURNEY conductor, 2026-07-11):** ACTTUI-009 → ACTTUI-010 →

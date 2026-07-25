@@ -2,7 +2,11 @@
 
 ## Status
 
-Proposed
+**Accepted** — 2026-07-25 (owner). Release 1 of the §4 rollout ladder (opt-in
+`--tui` / `ANVIL_ACTIVATION_TUI=1`) shipped in v0.9.0-beta. The Release 2
+TTY-default flip is authorised and tracked by
+[`ACTTUI-013`](../modules/activation-tui.aps.md); its named gates
+(ACTTUI-008/-009/-010/-012) are all Merged.
 
 ## Date
 
