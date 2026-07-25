@@ -242,7 +242,16 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-008: Celebration and richer diagnostics
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-25 — the "richer diagnostics on demand" half
+  already shipped with ACTTUI-006 (the `LogPanel` `l`-toggle and in-surface
+  `--why`). This slice adds the remaining celebration half: a once-per-project
+  `BigBanner` beat on the **first** protecting activation only (the run that
+  writes the LAUNCH-010 baseline, signalled by `project:baseline` in the
+  post-consent apply set), silent on healthy repeat runs. The banner is a
+  decorative flourish above the honesty-pinned `StatusBadge` headline — never a
+  replacement — and reuses the fixed `protecting` vocabulary so it cannot
+  overclaim (reverses ACTTUI-012's removal of the earlier unused wiring, now
+  behind the once-per-project gate).
 - **Intent:** Add optional delight and operator depth after the core activation
   path is complete and trustworthy.
 - **Expected Outcome:** First success may use the shared celebration treatment;
@@ -250,7 +259,12 @@ the operator explicitly promotes them into the cut.
   noise to healthy repeat use.
 - **Dependencies:** JOURNEY-002
 - **Coordinates with:** ACTTUI-005, ACTTUI-006, ACTTUI-011
-- **Validation:** `cargo test -p eddacraft-anvil-tui activation`.
+- **Files:** `crates/anvil-tui/src/surfaces/activation/verdict.rs`,
+  `crates/anvil-tui/Cargo.toml` (`big-text` feature),
+  `crates/anvil-cli/src/commands/start.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-tui activation` (47 passed;
+  first-run celebrates, repeat/repair/watching do not, banner text stays
+  honest, banner sits above the headline).
 - **Confidence:** medium
 
 ### JOURNEY-009: Always-on confidence indicator

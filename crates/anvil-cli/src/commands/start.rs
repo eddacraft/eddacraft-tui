@@ -712,9 +712,15 @@ fn activation_post_consent_surface(
 ) -> anvil_tui::surfaces::activation::ActivationSurface {
     use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
 
+    // JOURNEY-008: celebrate only when this run established protection for the
+    // first time — i.e. the LAUNCH-010 baseline was written this run. The
+    // verdict view additionally gates on `protecting`, so a partial apply that
+    // wrote the baseline but did not reach protecting still shows no banner.
+    let first_success = applied.selected_ids.contains("project:baseline");
+
     ActivationSurface::from_typed_with_progress(
         human_output,
-        activation_verdict_model(diagnostic, install_report),
+        activation_verdict_model(diagnostic, install_report).with_first_success(first_success),
         activation_post_consent_evidence(diagnostic, install_report, run, applied),
         project_writes_gated,
         log_lines,

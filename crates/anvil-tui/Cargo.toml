@@ -13,7 +13,8 @@ name = "anvil_tui"
 animate = { workspace = true }
 # json-render: anvil-tui hosts the Anvil-domain catalogue, the .anvil/ data
 # context, and the spec-rendering dashboard surface (ADR-054, TUIDASH).
-eddacraft-tui = { workspace = true, features = ["json-render"] }
+# big-text: the JOURNEY-008 first-success celebration banner (BigBanner).
+eddacraft-tui = { workspace = true, features = ["big-text", "json-render"] }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 ratatui = { workspace = true }
 crossterm = { workspace = true }

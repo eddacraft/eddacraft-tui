@@ -4,12 +4,19 @@
 //! state label supplied by the CLI verbatim. It adds eddacraft-tui widgets around
 //! that fixed truth: `StatusBadge` for the headline, `Tree` for collapsible
 //! evidence, `Toast` for the smoke-test placeholder, and `HelpBar` for
-//! contextual keys. (The `BigBanner` celebration treatment was deferred with
-//! the first-run wow expansion; ACTTUI-012 removed the unused wiring.)
+//! contextual keys.
+//!
+//! JOURNEY-008 re-introduces a single-beat `BigBanner` celebration on the
+//! *first* protecting activation only (the run that establishes the LAUNCH-010
+//! baseline). It is a decorative flourish above — never a replacement for — the
+//! honesty-pinned `StatusBadge` headline, and it stays silent on healthy repeat
+//! runs so it never adds noise. (ACTTUI-012 had removed the earlier unused
+//! wiring; this reinstates it behind the once-per-project gate.)
 
 use eddacraft_tui::keyboard::{Action, Binding};
 use eddacraft_tui::prelude::{
-    BadgeStatus, HelpBar, StatusBadge, Toast, ToastPlacement, ToastStack, Tree, TreeNode, TreeState,
+    BadgeStatus, BigBanner, HelpBar, StatusBadge, Toast, ToastPlacement, ToastStack, Tree,
+    TreeNode, TreeState,
 };
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
@@ -79,12 +86,28 @@ impl VerdictSection {
     }
 }
 
+/// Short, honesty-pinned banner text for the first-success celebration.
+///
+/// It deliberately reuses the fixed `protecting` state word rather than a
+/// completion claim (`protected`, `secure`, `done`): the celebration must not
+/// upgrade the protection vocabulary. The full honesty-pinned headline still
+/// renders below via [`render_headline`].
+pub const CELEBRATION_BANNER_TEXT: &str = "Protecting";
+
+/// Rows the celebration banner occupies when shown (quadrant pixel glyphs are
+/// four cells tall).
+const CELEBRATION_BANNER_HEIGHT: u16 = 4;
+
 /// Structured verdict handed to the surface by the CLI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerdictModel {
     pub state_label: String,
     pub headline: String,
     pub sections: Vec<VerdictSection>,
+    /// True only when this run first established protection for the project
+    /// (the LAUNCH-010 baseline was written this run). Gates the JOURNEY-008
+    /// celebration so it fires once per project and never on repeat runs.
+    pub first_success: bool,
 }
 
 impl VerdictModel {
@@ -98,7 +121,25 @@ impl VerdictModel {
             state_label: state_label.into(),
             headline: headline.into(),
             sections,
+            first_success: false,
         }
+    }
+
+    /// Mark this verdict as the project's first successful activation. Callers
+    /// pass `true` only when the baseline was written this run; the default is
+    /// `false` so every existing call site stays a quiet repeat verdict.
+    #[must_use]
+    pub fn with_first_success(mut self, first_success: bool) -> Self {
+        self.first_success = first_success;
+        self
+    }
+
+    /// Whether to show the first-success celebration: the state must be
+    /// `protecting` (never a repair or partial state) *and* this must be the
+    /// first activation. Styling only — it never invents protection state.
+    #[must_use]
+    pub fn celebrates(&self) -> bool {
+        self.first_success && self.tone() == VerdictTone::Protecting
     }
 
     /// Conservative fallback for older call sites: parse the plain verdict into
@@ -204,6 +245,12 @@ impl VerdictView {
         &self.model
     }
 
+    /// Whether this view shows the first-success celebration banner.
+    #[must_use]
+    pub fn celebrates(&self) -> bool {
+        self.model.celebrates()
+    }
+
     #[must_use]
     pub fn toast(&self) -> Option<&str> {
         self.toast.as_deref()
@@ -273,12 +320,27 @@ impl VerdictView {
 }
 
 pub fn render(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCraftTheme) {
+    // JOURNEY-008: on the first protecting run only, a single celebration banner
+    // sits above the verdict body. Everywhere else the body fills the whole area
+    // exactly as before, so repeat runs are byte-for-byte unchanged.
+    let body = if view.celebrates() {
+        let split = Layout::vertical([
+            Constraint::Length(CELEBRATION_BANNER_HEIGHT),
+            Constraint::Min(3),
+        ])
+        .split(area);
+        render_celebration_banner(frame, split[0], theme);
+        split[1]
+    } else {
+        area
+    };
+
     let chunks = Layout::vertical([
         Constraint::Length(2),
         Constraint::Min(3),
         Constraint::Length(1),
     ])
-    .split(area);
+    .split(body);
 
     render_headline(frame, chunks[0], &view.model, theme);
     render_tree(frame, chunks[1], view, theme);
@@ -287,6 +349,19 @@ pub fn render(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCra
     if let Some(message) = view.toast() {
         render_toast(frame, area, message, theme);
     }
+}
+
+/// Render the first-success celebration banner. Short, accent-styled pixel text
+/// reusing the honesty-pinned protecting vocabulary; the fixed headline still
+/// renders below it via [`render_headline`].
+fn render_celebration_banner(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    frame.render_widget(
+        BigBanner::new(theme, CELEBRATION_BANNER_TEXT).centered(),
+        area,
+    );
 }
 
 fn render_headline(frame: &mut Frame, area: Rect, model: &VerdictModel, theme: &EddaCraftTheme) {
@@ -483,6 +558,100 @@ mod tests {
         let toast = view.toast().unwrap();
         assert!(toast.contains("Smoke test"));
         assert!(!toast.contains("finding detected"));
+    }
+
+    #[test]
+    fn first_protecting_run_celebrates() {
+        let model = VerdictModel::new("protecting", "Protecting — live.", sections())
+            .with_first_success(true);
+        assert!(model.celebrates());
+        assert!(VerdictView::new(model).celebrates());
+    }
+
+    #[test]
+    fn repeat_protecting_run_does_not_celebrate() {
+        // Default `first_success` is false, so every existing protecting call
+        // site stays a quiet repeat verdict.
+        let model = VerdictModel::new("protecting", "Protecting — live.", sections());
+        assert!(!model.celebrates());
+    }
+
+    #[test]
+    fn repair_and_watching_states_never_celebrate_even_on_first_run() {
+        for label in ["ready_restart_required", "watching", "error", "unsupported"] {
+            let model = VerdictModel::new(label, "headline", sections()).with_first_success(true);
+            assert!(
+                !model.celebrates(),
+                "only protecting may celebrate, got: {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn celebration_banner_text_stays_honest() {
+        // The big-text celebration must reuse the fixed `protecting` vocabulary
+        // and never upgrade it into a completion or guarantee claim.
+        assert_eq!(CELEBRATION_BANNER_TEXT, "Protecting");
+        let lower = CELEBRATION_BANNER_TEXT.to_ascii_lowercase();
+        for forbidden in [
+            "protected",
+            "secure",
+            "safe",
+            "guaranteed",
+            "done",
+            "complete",
+        ] {
+            assert!(
+                !lower.contains(forbidden),
+                "celebration banner overclaims protection: {CELEBRATION_BANNER_TEXT}"
+            );
+        }
+    }
+
+    #[test]
+    fn celebration_banner_sits_above_the_honesty_headline_only_on_first_run() {
+        let celebrate = VerdictView::new(
+            VerdictModel::new(
+                "protecting",
+                "Protecting — pre-write validation is live in this repo.",
+                sections(),
+            )
+            .with_first_success(true),
+        );
+        let repeat = VerdictView::new(VerdictModel::new(
+            "protecting",
+            "Protecting — pre-write validation is live in this repo.",
+            sections(),
+        ));
+
+        let out_celebrate = render_symbols(&celebrate, 100, 24);
+        let out_repeat = render_symbols(&repeat, 100, 24);
+
+        // The honesty-pinned headline renders in BOTH — the banner is additive,
+        // never a replacement.
+        assert!(out_celebrate.contains("state: protecting"));
+        assert!(out_repeat.contains("state: protecting"));
+        assert_ne!(out_celebrate, out_repeat);
+
+        // On the first run the top band carries the painted banner and the
+        // headline is pushed below it; the repeat run leads with the headline.
+        let top_band: String = out_celebrate.lines().take(4).collect::<Vec<_>>().join("\n");
+        assert!(
+            top_band.chars().any(|c| !c.is_whitespace()),
+            "celebration banner band should be painted"
+        );
+        assert!(
+            !top_band.contains("state:"),
+            "headline must sit below the celebration banner"
+        );
+        assert!(
+            out_repeat
+                .lines()
+                .next()
+                .unwrap_or_default()
+                .contains("state: protecting"),
+            "repeat run leads with the headline, no banner"
+        );
     }
 
     #[test]
