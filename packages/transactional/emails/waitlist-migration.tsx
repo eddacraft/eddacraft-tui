@@ -17,7 +17,7 @@ export function WaitlistMigration({
   return (
     <Html>
       <Head />
-      <Preview>Anvil has a new home &mdash; and you&apos;re on the beta waitlist</Preview>
+      <Preview>anvil has a new home &mdash; and you&apos;re on the beta waitlist</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={header}>
@@ -35,7 +35,7 @@ export function WaitlistMigration({
           <Section style={content}>
             <Text style={infoBadge}>[ INFO ] Platform update</Text>
             <Text style={bodyText}>
-              {greeting} signed up for early notifications on Anvil. A lot has changed since then
+              {greeting} signed up for early notifications on anvil. A lot has changed since then
               &mdash; we wanted to bring you up to speed.
             </Text>
 

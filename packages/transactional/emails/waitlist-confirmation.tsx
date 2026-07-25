@@ -13,7 +13,7 @@ export function WaitlistConfirmation({
   return (
     <Html>
       <Head />
-      <Preview>You&apos;re on the Anvil waitlist</Preview>
+      <Preview>You&apos;re on the anvil waitlist</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={header}>
@@ -31,7 +31,7 @@ export function WaitlistConfirmation({
           <Section style={content}>
             <Text style={okBadge}>[ OK ] Access request received</Text>
             <Text style={bodyText}>
-              Your email <strong style={emailHighlight}>{email}</strong> has been added to the Anvil
+              Your email <strong style={emailHighlight}>{email}</strong> has been added to the anvil
               waitlist.
             </Text>
             <Text style={muted}>

@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "Anvil Review Capsule v0 — anvil.capsule.v1 manifest + verification schema (ADR-074, GITGOV)"
+description = "anvil review capsule v0 — anvil.capsule.v1 manifest + verification schema (ADR-074, GITGOV)"
 
 [lib]
 name = "anvil_capsule"

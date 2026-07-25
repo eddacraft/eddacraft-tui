@@ -16,7 +16,7 @@ use clap::Command;
 /// matter on day one — `anvil welcome` for a tour, `anvil start` to activate —
 /// before that wall of commands, without touching parsing or exit codes. Kept
 /// free of internal identifiers so the CLIC-010 help lints stay green.
-pub const FIRST_RUN_POINTER: &str = "New to Anvil? Run `anvil welcome` for a guided tour, or `anvil start` to \
+pub const FIRST_RUN_POINTER: &str = "New to anvil? Run `anvil welcome` for a guided tour, or `anvil start` to \
 activate protection in this repository.";
 
 const CLI_SURFACE_RUNBOOK: &str = include_str!("../../../docs/runbooks/cli-surface.md");

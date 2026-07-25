@@ -270,7 +270,7 @@ fn verify_bundle(destination: &Path) -> Result<()> {
     let expected = expected_manifest();
     if actual != expected {
         bail!(
-            "managed skill at {} is valid but not the bundle shipped by this Anvil version",
+            "managed skill at {} is valid but not the bundle shipped by this anvil version",
             destination.display()
         );
     }

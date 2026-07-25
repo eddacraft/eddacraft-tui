@@ -3,7 +3,7 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Anvil Documentation',
+  title: 'anvil documentation',
   tagline: 'Governed AI-assisted development',
   favicon: 'img/favicon.svg',
 
@@ -67,7 +67,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Anvil',
+      title: 'anvil',
       items: [
         {
           label: 'Docs',

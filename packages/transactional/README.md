@@ -1,6 +1,6 @@
 # @eddacraft/transactional
 
-React Email templates for eddacraft transactional emails. Used by the Anvil API
+React Email templates for eddacraft transactional emails. Used by the anvil API
 to send authentication and waitlist communications.
 
 ## Status

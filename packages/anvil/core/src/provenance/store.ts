@@ -45,7 +45,7 @@ export class ProvenanceStore {
     try {
       writeFileSync(
         gitignorePath,
-        `# Anvil local data
+        `# anvil local data
 history/
 *.local.json
 `,

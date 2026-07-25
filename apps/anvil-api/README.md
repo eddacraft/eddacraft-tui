@@ -1,4 +1,4 @@
-# Anvil API
+# anvil API
 
 > **Status:** Beta access system (v1.0)
 

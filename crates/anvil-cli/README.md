@@ -1,6 +1,6 @@
 # anvil-cli
 
-The Anvil CLI binary — structural governance for AI-assisted development.
+The anvil CLI binary — structural governance for AI-assisted development.
 
 ## Supported Platforms
 

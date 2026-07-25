@@ -70,7 +70,7 @@ inject a second one. The install plan therefore has two parts:
    containing one stanza per hook kind:
 
    ```yaml
-   # Anvil-managed lefthook configuration.
+   # anvil-managed lefthook configuration.
    # Do not edit by hand — re-run `anvil hook bootstrap` to regenerate.
 
    pre-commit:
@@ -111,7 +111,7 @@ snippet file and requires a one-time manual merge:
    repo entry for each hook kind:
 
    ```yaml
-   # Anvil-managed snippet for `.pre-commit-config.yaml`.
+   # anvil-managed snippet for `.pre-commit-config.yaml`.
    # Do not edit by hand — re-run `anvil hook bootstrap` to regenerate.
    repos:
      - repo: local

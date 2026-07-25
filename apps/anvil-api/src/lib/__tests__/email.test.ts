@@ -8,7 +8,7 @@ const emailMocks = vi.hoisted(() => ({
   V070_DEFAULTS: {
     version: 'v0.7.0-beta',
     theme: 'Daemon-Working End-to-End Protection',
-    intro: 'A new Anvil release is live.',
+    intro: 'A new anvil release is live.',
     highlights: [],
     releaseUrl: 'https://example.com/v0.7.0',
     upgradeCommands: [],
@@ -94,7 +94,7 @@ describe('sendWaitlistConfirmation', () => {
     expect(emailMocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'person@example.com',
-        subject: "You're on the Anvil waitlist",
+        subject: "You're on the anvil waitlist",
         replyTo: 'josh@eddacraft.ai',
         tags: [{ name: 'category', value: 'waitlist-confirmation' }],
         headers: {
@@ -239,7 +239,7 @@ describe('sendReleaseAnnouncement', () => {
     expect(emailMocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'person@example.com',
-        subject: 'Anvil v0.7.0-beta — Daemon-Working End-to-End Protection',
+        subject: 'anvil v0.7.0-beta — Daemon-Working End-to-End Protection',
         replyTo: 'josh@eddacraft.ai',
         tags: [{ name: 'category', value: 'release-announcement' }],
         headers: {
@@ -263,7 +263,7 @@ describe('sendReleaseAnnouncement', () => {
 
     expect(emailMocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        subject: 'Anvil v0.8.0-beta — Boring Week Refinements',
+        subject: 'anvil v0.8.0-beta — Boring Week Refinements',
       })
     );
   });
@@ -277,7 +277,7 @@ describe('sendReleaseAnnouncement', () => {
 
     expect(emailMocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        subject: 'Anvil v0.8.0-beta — Daemon-Working End-to-End Protection',
+        subject: 'anvil v0.8.0-beta — Daemon-Working End-to-End Protection',
       })
     );
   });
@@ -291,7 +291,7 @@ describe('sendReleaseAnnouncement', () => {
 
     expect(emailMocks.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        subject: 'Anvil v0.7.0-beta — Custom Theme',
+        subject: 'anvil v0.7.0-beta — Custom Theme',
       })
     );
   });

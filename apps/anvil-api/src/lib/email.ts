@@ -64,7 +64,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<EmailDeli
       from: FROM_ADDRESS,
       replyTo: REPLY_TO,
       to: email,
-      subject: "You're on the Anvil waitlist",
+      subject: "You're on the anvil waitlist",
       headers: {
         'List-Unsubscribe': `<${unsubscribeMailto}>`,
       },
@@ -73,7 +73,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<EmailDeli
 
 [ OK ] Access request received
 
-Your email ${email} has been added to the Anvil waitlist.
+Your email ${email} has been added to the anvil waitlist.
 
 We're onboarding engineering teams in controlled cohorts. You'll hear from us when your slot opens.
 
@@ -122,8 +122,8 @@ export async function sendWaitlistAdminNotification(
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: adminEmail,
-      subject: `[Anvil Waitlist] ${label}: ${signupEmail}`,
-      text: `${label} on the Anvil waitlist.\n\nEmail: ${signupEmail}\nConfirmation: ${status}\nTime: ${new Date().toISOString()}`,
+      subject: `[anvil waitlist] ${label}: ${signupEmail}`,
+      text: `${label} on the anvil waitlist.\n\nEmail: ${signupEmail}\nConfirmation: ${status}\nTime: ${new Date().toISOString()}`,
       tags: [{ name: 'category', value: 'waitlist-admin-notification' }],
     });
     if (error) {
@@ -187,7 +187,7 @@ export async function sendWaitlistMigration(
       from: FROM_ADDRESS,
       replyTo: REPLY_TO,
       to: email,
-      subject: "Anvil has a new home — and you're on the early access waitlist",
+      subject: "anvil has a new home — and you're on the early access waitlist",
       headers: {
         'List-Unsubscribe': `<${unsubscribeMailto}>`,
       },
@@ -196,7 +196,7 @@ export async function sendWaitlistMigration(
 
 [ INFO ] Platform update
 
-${name ? `${name}, you` : 'You'} signed up for early notifications on Anvil. A lot has changed since then.
+${name ? `${name}, you` : 'You'} signed up for early notifications on anvil. A lot has changed since then.
 
 What's new:
 
@@ -322,12 +322,12 @@ export async function sendReleaseAnnouncement(
 
   // Subject derivation: fall back to V070_DEFAULTS per-field rather than
   // all-or-nothing. A partial supply (e.g. `version: 'v0.8.0-beta'` with no
-  // theme) previously produced `Anvil v0.8.0-beta — ` with an empty theme
+  // theme) previously produced `anvil v0.8.0-beta — ` with an empty theme
   // half. Per-field fallback keeps the subject readable when the operator
   // overrides only one identifier.
   const version = props.version ?? V070_DEFAULTS.version;
   const theme = props.theme ?? V070_DEFAULTS.theme;
-  const emailSubject = `Anvil ${version} — ${theme}`;
+  const emailSubject = `anvil ${version} — ${theme}`;
 
   try {
     const { error } = await resend.emails.send({
@@ -343,9 +343,9 @@ export async function sendReleaseAnnouncement(
       // templateProps. The email-registry strict schema rejects them at the
       // /admin/broadcast boundary; this is belt-and-braces at the sender.
       react: ReleaseAnnouncement({ ...props, email, unsubscribeMailto }),
-      text: `Anvil ${version} — ${theme}
+      text: `anvil ${version} — ${theme}
 
-A new Anvil release is live. Full notes and upgrade commands are in the rendered email body; if you can't see HTML, the release notes URL is:
+A new anvil release is live. Full notes and upgrade commands are in the rendered email body; if you can't see HTML, the release notes URL is:
 
 ${props.releaseUrl ?? V070_DEFAULTS.releaseUrl}
 

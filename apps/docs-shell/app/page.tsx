@@ -29,12 +29,12 @@ const sections: Array<{
     ariaLabel: 'Kindling documentation',
   },
   {
-    title: 'Anvil',
+    title: 'anvil',
     bracket: '[ = ]',
     description: 'Save-time trust and AI-assisted development workflows.',
     href: '/anvil/overview',
     accent: 'anvil',
-    ariaLabel: 'Anvil documentation',
+    ariaLabel: 'anvil documentation',
   },
 ];
 

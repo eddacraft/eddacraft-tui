@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 const BODY = `# eddacraft Documentation
-# Anvil is a commercial product in closed beta. Anvil documentation is private.
+# anvil is a commercial product in closed beta. anvil documentation is private.
 # Public sections: /kindling, /aps, /edda-stack, /blog
 
 User-agent: *

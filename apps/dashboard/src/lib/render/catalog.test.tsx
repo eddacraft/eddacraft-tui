@@ -66,7 +66,7 @@ describe('dashboard shared primitives', () => {
           <StatusBadge label="Protected" status="pass" />
           <SeverityBadge severity="high" />
           <CodeBlock code={'const safe = true;'} language="typescript" />
-          <EmptyState description="Run Anvil to collect evidence." title="No evidence" />
+          <EmptyState description="Run anvil to collect evidence." title="No evidence" />
           <LoadingSkeleton label="Loading protection evidence" rows={2} />
         </>
       );

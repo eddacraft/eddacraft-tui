@@ -209,7 +209,7 @@ fn lefthook_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
 fn lefthook_managed_initial(kinds: &[HookKind]) -> String {
     use std::fmt::Write as _;
     let mut out = String::from(
-        "# Anvil-managed lefthook configuration.\n# Do not edit by hand — re-run `anvil hook bootstrap` to regenerate.\n\n",
+        "# anvil-managed lefthook configuration.\n# Do not edit by hand — re-run `anvil hook bootstrap` to regenerate.\n\n",
     );
     for k in kinds {
         let _ = writeln!(
@@ -241,7 +241,7 @@ fn pre_commit_framework_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
 fn pre_commit_managed_initial(kinds: &[HookKind]) -> String {
     use std::fmt::Write as _;
     let mut out = String::from(
-        "# Anvil-managed snippet for `.pre-commit-config.yaml`.\n# Do not edit by hand — re-run `anvil hook bootstrap` to regenerate.\n# pre-commit framework does not support config inclusion, so the\n# `repos:` entry below must be merged into your existing\n# `.pre-commit-config.yaml` `repos:` list manually.\n\nrepos:\n  - repo: local\n    hooks:\n",
+        "# anvil-managed snippet for `.pre-commit-config.yaml`.\n# Do not edit by hand — re-run `anvil hook bootstrap` to regenerate.\n# pre-commit framework does not support config inclusion, so the\n# `repos:` entry below must be merged into your existing\n# `.pre-commit-config.yaml` `repos:` list manually.\n\nrepos:\n  - repo: local\n    hooks:\n",
     );
     for k in kinds {
         let _ = writeln!(
@@ -269,12 +269,12 @@ const HUSKY_INITIAL_HEADER: &str = "#!/usr/bin/env sh\n[ -f \"$(dirname -- \"$0\
 
 const LEFTHOOK_HOST_INITIAL: &str = "# Lefthook configuration — see https://lefthook.dev\n";
 
-const LEFTHOOK_HOST_BLOCK: &str = "# Lefthook supports a single top-level `extends:` key. The Anvil-\n# managed snippet lives in `.anvil-lefthook.yml`. Add it to your\n# existing `extends:` list (creating one if absent) so Lefthook\n# loads the Anvil hooks alongside your own.";
+const LEFTHOOK_HOST_BLOCK: &str = "# Lefthook supports a single top-level `extends:` key. The anvil-\n# managed snippet lives in `.anvil-lefthook.yml`. Add it to your\n# existing `extends:` list (creating one if absent) so Lefthook\n# loads the anvil hooks alongside your own.";
 
 const PRE_COMMIT_HOST_INITIAL: &str =
     "# pre-commit configuration — see https://pre-commit.com\nrepos: []\n";
 
-const PRE_COMMIT_HOST_BLOCK: &str = "# pre-commit framework does not support config inclusion. The\n# Anvil-managed snippet lives in `.anvil-pre-commit-config.local.yaml`.\n# Merge the `local` repo entry from that snippet into the top-level\n# repository list above to enable the Anvil hooks. Running\n# `anvil hook bootstrap` regenerates the snippet but cannot edit\n# your existing list for you.";
+const PRE_COMMIT_HOST_BLOCK: &str = "# pre-commit framework does not support config inclusion. The\n# anvil-managed snippet lives in `.anvil-pre-commit-config.local.yaml`.\n# Merge the `local` repo entry from that snippet into the top-level\n# repository list above to enable the anvil hooks. Running\n# `anvil hook bootstrap` regenerates the snippet but cannot edit\n# your existing list for you.";
 
 #[cfg(test)]
 mod tests {

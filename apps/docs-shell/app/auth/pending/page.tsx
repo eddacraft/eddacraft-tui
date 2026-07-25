@@ -21,7 +21,7 @@ export default function PendingPage() {
       <div style={{ textAlign: 'left', maxWidth: 560, padding: '2rem' }}>
         <h1 style={{ textAlign: 'center' }}>Access Pending</h1>
         <p>
-          Your GitHub sign-in didn&apos;t match an approved Anvil beta account. There are two common
+          Your GitHub sign-in didn&apos;t match an approved anvil beta account. There are two common
           causes:
         </p>
         <h2 style={{ fontSize: '1.05rem', marginTop: '1.5rem' }}>Waiting for an invite</h2>

@@ -52,7 +52,7 @@ export const V070_DEFAULTS: Omit<ReleaseAnnouncementProps, 'email' | 'unsubscrib
   version: 'v0.7.0-beta',
   theme: 'Daemon-Working End-to-End Protection',
   intro:
-    'A new Anvil release is live. Every protection layer now operates as a single verifiable claim — from file-save through commit, push, and wrapped agent launch.',
+    'A new anvil release is live. Every protection layer now operates as a single verifiable claim — from file-save through commit, push, and wrapped agent launch.',
   highlights: [
     {
       title: 'End-to-end daemon-backed protection',
@@ -72,7 +72,7 @@ export const V070_DEFAULTS: Omit<ReleaseAnnouncementProps, 'email' | 'unsubscrib
     },
     {
       title: 'Hook coexistence with lefthook, husky, and pre-commit-framework',
-      body: 'Anvil registers as a managed entry under your host hook manager instead of overwriting `.git/hooks/`.',
+      body: 'anvil registers as a managed entry under your host hook manager instead of overwriting `.git/hooks/`.',
     },
     {
       title: '`anvil insights` weekly summary',
@@ -136,7 +136,7 @@ export function ReleaseAnnouncement(propsIn: Partial<ReleaseAnnouncementProps>) 
   const feedbackEmail = merged.feedbackEmail;
   const unsubscribeMailto =
     merged.unsubscribeMailto ?? 'mailto:anvil@updates.eddacraft.ai?subject=Unsubscribe';
-  const preview = `Anvil ${version} — ${theme}`;
+  const preview = `anvil ${version} — ${theme}`;
   return (
     <Html>
       <Head />

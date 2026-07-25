@@ -26,7 +26,7 @@ const sections: Array<{
     accent: 'anvil',
   },
   {
-    title: 'Anvil',
+    title: 'anvil',
     bracket: '[ = ]',
     description: 'Save-time trust and AI-assisted development workflows.',
     href: 'https://docs.eddacraft.ai/anvil/overview',

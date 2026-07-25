@@ -350,7 +350,7 @@ fn render_readme(content: &CapsuleContent) -> String {
         .unwrap_or("absent (no .anvil.* config)");
     let witness = witness_coverage(&content.witness);
     format!(
-        "# Anvil Review Capsule\n\n\
+        "# anvil review capsule\n\n\
          Governance evidence for the commit range below, packaged per\n\
          ADR-074 (`anvil.capsule.v1`). Verify with `anvil capsule verify`;\n\
          every file's SHA-256 is recorded in `manifest.json`.\n\n\

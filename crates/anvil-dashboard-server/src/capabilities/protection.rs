@@ -43,7 +43,7 @@ pub fn load_persisted_protection_overview(workspace: &Workspace) -> ProtectionOv
         Ok(bytes) => bytes,
         Err(WorkspaceReadError::Missing { .. }) => {
             let mut overview = ProtectionOverview::unavailable(
-                "No local gate artefact is available yet. Run an Anvil gate to populate this view.",
+                "No local gate artefact is available yet. Run an anvil gate to populate this view.",
             );
             overview.gaps.extend(history_gaps());
             return overview;

@@ -52,7 +52,7 @@ Products dropdown entry:
   type: 'dropdown',
   label: 'Products',
   items: [
-    { label: 'Anvil', to: '/anvil/overview' },
+    { label: 'anvil', to: '/anvil/overview' },
     { label: 'APS', to: '/aps/overview' },
     // { label: 'Kindling', to: '/kindling/overview' },
     // { label: 'Edda Stack', to: '/edda-stack/overview' },
@@ -68,7 +68,7 @@ In `themeConfig.footer.links`, remove the footer entries:
 {
   title: 'Products',
   items: [
-    { label: 'Anvil', to: '/anvil/overview' },
+    { label: 'anvil', to: '/anvil/overview' },
     { label: 'APS', to: '/aps/overview' },
     // { label: 'Kindling', to: '/kindling/overview' },
     // { label: 'Edda Stack', to: '/edda-stack/overview' },

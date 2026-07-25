@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_or_else(|| PathBuf::from("."), PathBuf::from);
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 4217);
     let listener = TcpListener::bind(address).await?;
-    eprintln!("Anvil dashboard API listening on http://{address}");
+    eprintln!("anvil dashboard API listening on http://{address}");
     serve(listener, workspace).await?;
     Ok(())
 }

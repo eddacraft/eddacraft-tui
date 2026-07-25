@@ -4,7 +4,7 @@ pub fn openapi_document() -> Value {
     json!({
         "openapi": "3.1.0",
         "info": {
-            "title": "Anvil Local Dashboard API",
+            "title": "anvil local dashboard API",
             "version": env!("CARGO_PKG_VERSION"),
             "description": "Loopback-only, read-only dashboard data for one local workspace."
         },
