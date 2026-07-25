@@ -244,14 +244,15 @@ the operator explicitly promotes them into the cut.
 
 - **Status:** In Progress 2026-07-25 — the "richer diagnostics on demand" half
   already shipped with ACTTUI-006 (the `LogPanel` `l`-toggle and in-surface
-  `--why`). This slice adds the remaining celebration half: a once-per-project
-  `BigBanner` beat on the **first** protecting activation only (the run that
-  writes the LAUNCH-010 baseline, signalled by `project:baseline` in the
-  post-consent apply set), silent on healthy repeat runs. The banner is a
+  `--why`). This slice adds the remaining celebration half: a
+  once-per-local-environment `BigBanner` beat on the **first** protecting
+  activation only — the run that actually writes the LAUNCH-010 baseline
+  (`ActivationStep::BaselineSample` in the post-consent `project_applied` set,
+  not merely the ticked box), silent on healthy repeat runs. The banner is a
   decorative flourish above the honesty-pinned `StatusBadge` headline — never a
-  replacement — and reuses the fixed `protecting` vocabulary so it cannot
-  overclaim (reverses ACTTUI-012's removal of the earlier unused wiring, now
-  behind the once-per-project gate).
+  replacement, and suppressed on panes too short to hold both — and reuses the
+  fixed `protecting` vocabulary so it cannot overclaim (reverses ACTTUI-012's
+  removal of the earlier unused wiring).
 - **Intent:** Add optional delight and operator depth after the core activation
   path is complete and trustworthy.
 - **Expected Outcome:** First success may use the shared celebration treatment;

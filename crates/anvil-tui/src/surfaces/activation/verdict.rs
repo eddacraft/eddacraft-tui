@@ -11,7 +11,7 @@
 //! baseline). It is a decorative flourish above — never a replacement for — the
 //! honesty-pinned `StatusBadge` headline, and it stays silent on healthy repeat
 //! runs so it never adds noise. (ACTTUI-012 had removed the earlier unused
-//! wiring; this reinstates it behind the once-per-project gate.)
+//! wiring; this reinstates it behind the once-per-local-environment gate.)
 
 use eddacraft_tui::keyboard::{Action, Binding};
 use eddacraft_tui::prelude::{
@@ -98,15 +98,24 @@ pub const CELEBRATION_BANNER_TEXT: &str = "Protecting";
 /// four cells tall).
 const CELEBRATION_BANNER_HEIGHT: u16 = 4;
 
+/// Minimum verdict-area height before the banner is allowed to show. The body
+/// needs 6 rows (headline 2 + tree 3 + help 1); adding the banner needs 4 more.
+/// Below this the banner silently degrades to a full, uncompressed verdict so it
+/// can never squeeze the honesty-pinned headline off screen. Mirrors the
+/// `hint_min_height` guard convention used by the welcome/onboarding surfaces.
+const CELEBRATION_MIN_HEIGHT: u16 = CELEBRATION_BANNER_HEIGHT + 6;
+
 /// Structured verdict handed to the surface by the CLI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerdictModel {
     pub state_label: String,
     pub headline: String,
     pub sections: Vec<VerdictSection>,
-    /// True only when this run first established protection for the project
-    /// (the LAUNCH-010 baseline was written this run). Gates the JOURNEY-008
-    /// celebration so it fires once per project and never on repeat runs.
+    /// True only when this run first established protection (the LAUNCH-010
+    /// baseline was written this run). Gates the JOURNEY-008 celebration so it
+    /// fires once per local environment — the `.anvil/baseline.json` lifecycle,
+    /// not a durable per-repo flag; deleting `.anvil/` legitimately re-fires it
+    /// — and never on healthy repeat runs.
     pub first_success: bool,
 }
 
@@ -322,8 +331,10 @@ impl VerdictView {
 pub fn render(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCraftTheme) {
     // JOURNEY-008: on the first protecting run only, a single celebration banner
     // sits above the verdict body. Everywhere else the body fills the whole area
-    // exactly as before, so repeat runs are byte-for-byte unchanged.
-    let body = if view.celebrates() {
+    // exactly as before, so repeat runs are byte-for-byte unchanged. The banner
+    // is suppressed when the area is too short to hold it *and* an uncompressed
+    // verdict, so it never squeezes the honesty-pinned headline off screen.
+    let body = if view.celebrates() && area.height >= CELEBRATION_MIN_HEIGHT {
         let split = Layout::vertical([
             Constraint::Length(CELEBRATION_BANNER_HEIGHT),
             Constraint::Min(3),
@@ -652,6 +663,37 @@ mod tests {
                 .contains("state: protecting"),
             "repeat run leads with the headline, no banner"
         );
+    }
+
+    #[test]
+    fn celebration_degrades_on_short_terminals_preserving_the_headline() {
+        // On a pane too short to hold both the banner and an uncompressed
+        // verdict, the banner is suppressed so the honesty-pinned headline (and
+        // help bar) always survive — the banner never squeezes the state line
+        // off screen.
+        let celebrate = VerdictView::new(
+            VerdictModel::new(
+                "protecting",
+                "Protecting — pre-write validation is live in this repo.",
+                sections(),
+            )
+            .with_first_success(true),
+        );
+        assert!(celebrate.celebrates());
+
+        let out = render_symbols(&celebrate, 80, 8);
+        assert!(
+            out.contains("state: protecting"),
+            "headline must survive on a short terminal"
+        );
+        assert!(
+            out.lines()
+                .next()
+                .unwrap_or_default()
+                .contains("state: protecting"),
+            "short terminal leads with the headline; banner is suppressed"
+        );
+        assert!(out.contains("Quit"), "help bar must survive too");
     }
 
     #[test]

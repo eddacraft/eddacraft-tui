@@ -698,6 +698,22 @@ fn run_activation_surface_with(
         .map(|consent| consent_plan.apply(consent.selected_ids())))
 }
 
+/// Whether this run first established protection for the project, gating the
+/// JOURNEY-008 celebration banner.
+///
+/// Keyed on `project_applied` (the LAUNCH-010 baseline write actually
+/// happened), **not** `selected_ids` (the operator merely ticked the box). The
+/// baseline write is skipped when there are no analysable files to sample, yet
+/// `ProtectionState::Protecting` depends only on reaching live validation — so
+/// keying off the tick would re-fire the banner on every activation of such a
+/// project. The verdict view additionally gates on `protecting`, so a partial
+/// apply that wrote the baseline without reaching protecting shows no banner.
+fn baseline_written_this_run(applied: &activation::orchestrator::TuiConsentApplyOutcome) -> bool {
+    applied
+        .project_applied
+        .contains(&ActivationStep::BaselineSample)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn activation_post_consent_surface(
     human_output: String,
@@ -712,11 +728,8 @@ fn activation_post_consent_surface(
 ) -> anvil_tui::surfaces::activation::ActivationSurface {
     use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
 
-    // JOURNEY-008: celebrate only when this run established protection for the
-    // first time — i.e. the LAUNCH-010 baseline was written this run. The
-    // verdict view additionally gates on `protecting`, so a partial apply that
-    // wrote the baseline but did not reach protecting still shows no banner.
-    let first_success = applied.selected_ids.contains("project:baseline");
+    // JOURNEY-008: celebrate only when this run first established protection.
+    let first_success = baseline_written_this_run(applied);
 
     ActivationSurface::from_typed_with_progress(
         human_output,
@@ -2593,6 +2606,47 @@ mod tests {
     use eddacraft_tui::keyboard::Action;
     use eddacraft_tui::surface::Surface;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn baseline_written_this_run_true_when_applied() {
+        use activation::orchestrator::TuiConsentApplyOutcome;
+        use std::collections::BTreeSet;
+
+        // Ticked AND actually written this run -> first success.
+        let applied = TuiConsentApplyOutcome {
+            selected_ids: BTreeSet::from(["project:baseline".to_string()]),
+            project_applied: BTreeSet::from([ActivationStep::BaselineSample]),
+            ..Default::default()
+        };
+        assert!(baseline_written_this_run(&applied));
+    }
+
+    #[test]
+    fn baseline_written_this_run_false_when_ticked_but_skipped() {
+        use activation::orchestrator::TuiConsentApplyOutcome;
+        use std::collections::BTreeSet;
+
+        // JOURNEY-008 regression: the operator ticked the baseline box but the
+        // write was skipped (e.g. no analysable files). `selected_ids` still
+        // carries the tick, yet no baseline was written — this must NOT count
+        // as a first success, or the celebration banner re-fires on every
+        // activation of such a project. Key off `project_applied`, not the tick.
+        let mut project_skipped = BTreeMap::new();
+        project_skipped.insert(
+            ActivationStep::BaselineSample,
+            "no analysable files for baseline".to_string(),
+        );
+        let applied = TuiConsentApplyOutcome {
+            selected_ids: BTreeSet::from(["project:baseline".to_string()]),
+            project_applied: BTreeSet::new(),
+            project_skipped,
+            ..Default::default()
+        };
+        assert!(
+            !baseline_written_this_run(&applied),
+            "ticked-but-skipped baseline must not count as first success"
+        );
+    }
 
     fn test_tui_consent_plan(root: &Path, home: &Path) -> activation::orchestrator::TuiConsentPlan {
         activation::orchestrator::build_tui_consent_plan_with_home(
