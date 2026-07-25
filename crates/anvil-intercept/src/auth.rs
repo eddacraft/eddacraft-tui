@@ -738,7 +738,7 @@ mod tests {
         write_allowlist(
             &allowlist,
             &[
-                "# anvil drivers v1",
+                "# Anvil drivers v1",
                 "",
                 "   # comment with leading whitespace",
                 driver_bin.to_str().unwrap(),

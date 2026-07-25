@@ -126,8 +126,8 @@ pub enum ConfinementError {
     /// is newer than this binary understands — the lenient read dropped its
     /// unknown keys, so writing would silently lose them. Fail loud instead.
     #[error(
-        "confinement config is format version {version}, newer than this anvil understands ({current}) — \
-         refusing to write (it would drop keys); upgrade anvil to edit it"
+        "confinement config is format version {version}, newer than this Anvil understands ({current}) — \
+         refusing to write (it would drop keys); upgrade Anvil to edit it"
     )]
     FutureConfigVersion { version: u32, current: u32 },
     /// (ACTMO-019) A `register_on_start` entry is not an absolute path. The CLI
