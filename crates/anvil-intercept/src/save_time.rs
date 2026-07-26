@@ -660,13 +660,6 @@ impl SaveTimeState {
     /// verb handlers; an ACTMO-registered root at the re-route pass) — never from a
     /// wire value. A client therefore cannot make a worktree materialise an
     /// attacker-chosen base.
-    #[cfg_attr(
-        windows,
-        allow(
-            clippy::unused_self,
-            reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
-        )
-    )]
     pub(crate) fn spawn_route_restore(&self, key: &WorktreeKey, canonical_root: &Path) {
         #[cfg(unix)]
         {
