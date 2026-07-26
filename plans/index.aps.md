@@ -705,7 +705,7 @@ tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary
 
 | Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
 | ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 12/12 (all Wave 1 items Merged via PR #3321; pending release evidence) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 12/12 (Wave 1 DASH-001..011 Merged via PR #3261 and PR #3321; DASH-012 delivery slice Merged via PR #3421; pending release evidence) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | In Progress | 8/9      | 2    | dashboard-foundation                                                     |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |
