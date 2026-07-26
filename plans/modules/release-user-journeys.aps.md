@@ -229,7 +229,14 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-007: Sandboxed autoplay demonstration
 
-- **Status:** Proposed
+- **Status:** Ready 2026-07-26 — WOW-006's design gate is closed (operator
+  approved; design at
+  [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)):
+  fresh-tempdir offline fixture with RAII cleanup, real in-sandbox execution
+  behind a path-containment guard, `anvil tutorial --autoplay` + a picker
+  discovery row, session-scoped autoplay that survives the watch-demo
+  transition, and pacing that extends the WOW-002 reveal driver. Implementation
+  is a later pass (coordinates the WOW-006 build).
 - **Intent:** Preserve a hands-free, isolated demonstration for clean repos and
   demos without making animation a substitute for real repository value.
 - **Expected Outcome:** WOW-006 runs deterministically in a temporary fixture,
@@ -237,12 +244,15 @@ the operator explicitly promotes them into the cut.
   on input.
 - **Dependencies:** WOW-006, JOURNEY-001
 - **Coordinates with:** WOW-006, ACTTUI-005
-- **Validation:** Defined when WOW-006's design gate closes.
-- **Confidence:** low
+- **Validation:** Deterministic fixture yields an identical finding set offline;
+  autoplay runs `ProtectionLoop` to completion unattended; a keypress on each
+  surface converts to the interactive tutorial; the containment guard rejects an
+  out-of-sandbox target; the tempdir is removed on exit (per the design doc).
+- **Confidence:** medium
 
 ### JOURNEY-008: Celebration and richer diagnostics
 
-- **Status:** In Progress 2026-07-25 — the "richer diagnostics on demand" half
+- **Status:** Merged 2026-07-25 via PR #3408 — the "richer diagnostics on demand" half
   already shipped with ACTTUI-006 (the `LogPanel` `l`-toggle and in-surface
   `--why`). This slice adds the remaining celebration half: a
   once-per-local-environment `BigBanner` beat on the **first** protecting
@@ -270,7 +280,10 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-009: Always-on confidence indicator
 
-- **Status:** Proposed
+- **Status:** Proposed — **on hold 2026-07-26**: the operator has an alternate
+  app-side plan in progress. Do **not** build ACTMO-021 as specced (the scoped
+  local daemon-control app) without reconciling against that plan first. Left
+  Proposed deliberately to avoid pre-empting or racing it.
 - **Intent:** Explore a human-visible protection indicator without expanding it
   into a second findings or configuration product.
 - **Expected Outcome:** If promoted, a scoped local control surface reports
@@ -284,7 +297,14 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-010: Browser continuity
 
-- **Status:** Proposed
+- **Status:** Proposed — **blocked 2026-07-26** on the DASH view surfaces:
+  DASHCORE (0/9), DASHARCH (0/8), and DASHOPS (0/7) have not built the browser
+  views this item would carry continuity into, so a full design is premature.
+  Design intent is settled and recorded here: DASH must **consume existing typed
+  contracts** (activation, protection, finding, value) and must not redefine
+  that truth in the browser; terminal usefulness stays independent of the
+  browser. Promote to Ready once at least one DASH view wave lands and defines
+  its contract tests.
 - **Intent:** Carry the same protection and value vocabulary into the browser
   after the terminal journeys meet the release bar.
 - **Expected Outcome:** DASH consumes existing typed contracts and does not

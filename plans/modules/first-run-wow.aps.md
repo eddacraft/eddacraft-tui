@@ -170,30 +170,36 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-006: Autoplay demo mode on a sandboxed fixture
 
-- **Status:** Proposed (design-gated; coordinated post-cut by JOURNEY-007)
+- **Status:** Ready 2026-07-26 — design gate **closed** (operator approved;
+  design at
+  [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)).
+  Prerequisites are in place (ACTTUI-000 Done, ACTTUI-001 scaffold landed,
+  WOW-002 reveal driver Merged, shared ACTTUI widgets available). Ready for a
+  later implementation pass; coordinated by JOURNEY-007.
 - **Intent:** A "watch anvil work" mode plays the tutorial hands-free —
   commands, inline-editor ghost-typing, verification — against a scaffolded
   temp fixture repo, so the demo executes for real without touching the
   user's repo, and any keypress hands control back.
-- **Design gate:** Sandbox lifecycle (scaffold location, cleanup, offline
-  determinism); mutating-command policy (sandbox-only execution vs pausing on
-  mutating steps outside the sandbox); entry point (`anvil tutorial` flag vs
-  picker entry vs welcome hub row); watch-demo step interaction (autoplay flag
-  must survive or skip the surface transition); relationship to the WOW-002
-  reveal driver (shared pacing mechanism). Resolve via `brainstorming`;
-  likely wants a design doc under `designs/`.
-- **Depends on ACTTUI (added 2026-07-08):** the demo surface should reuse
-  ACTTUI's widget vocabulary (`ParallelProgress`, `OverlayStack`, `Toast`,
-  `BigBanner`, shared `HelpBar`) and the WOW-002 reveal driver instead of a
-  bespoke autoplay chrome, so the demo and the activation surface read as one
-  product. The design gate cannot close before ACTTUI's foundation
-  (ACTTUI-000/001) and the shared-widget extract land.
-- **Expected Outcome:** (provisional, refined at design close) A demo entry
-  runs the ProtectionLoop path end-to-end unattended in a fixture repo with
-  deterministic findings; interrupting at any point converts to the normal
-  interactive tutorial.
-- **Validation:** defined at design close
-- **Confidence:** low until design closes
+- **Design decisions (gate closed):** (1) fresh OS tempdir, pinned offline
+  fixture, RAII cleanup — never touches the user repo or `ANVIL_HOME`;
+  (2) steps execute for real in-sandbox behind a path-containment guard that
+  hard-aborts on any out-of-sandbox target; (3) `anvil tutorial --autoplay`
+  flag + a tutorial-picker discovery row, never auto-firing; (4) session-scoped
+  autoplay that survives the watch-demo transition, any keypress converts to
+  interactive; (5) pacing extends the WOW-002 `reveal_tick` driver (reveal →
+  dwell → auto-advance), no bespoke chrome. Full rationale in the design doc.
+- **Depends on ACTTUI (added 2026-07-08):** the demo surface reuses ACTTUI's
+  widget vocabulary (`ParallelProgress`, `OverlayStack`, `Toast`, `BigBanner`,
+  shared `HelpBar`) and the WOW-002 reveal driver instead of a bespoke autoplay
+  chrome, so the demo and the activation surface read as one product.
+- **Expected Outcome:** A demo entry runs the ProtectionLoop path end-to-end
+  unattended in a fixture repo with deterministic findings; interrupting at any
+  point converts to the normal interactive tutorial.
+- **Validation:** Deterministic fixture yields an identical offline finding set;
+  autoplay runs `ProtectionLoop` to completion unattended; a keypress on each
+  surface converts to interactive; the containment guard rejects an
+  out-of-sandbox target; the tempdir is removed on exit.
+- **Confidence:** medium
 
 ## Sequencing
 
