@@ -113,7 +113,9 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASHCORE-001..009 — dashboard core views (Wave 2) | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE-001 Merged; DASHCORE-003..009 product routes in flight on latest-gate evidence. DASHCORE-002 remains Proposed (retained-history). DASHARCH may run in parallel; DASHOPS Wave 3. | Land the DASHCORE finish PR; leave DASHCORE-002 Proposed until retained-history design. |
+| 1 | DASHCORE-002 — retained history and trends | Ready | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | Design approved 2026-07-26; gate-writer NDJSON + history API unblocks Overview trends. DASHCORE-003..009 product routes landed separately. | Implement DASHCORE-002 per design spec; validation commands on ReadyItem. |
+
+NBI review note (2026-07-26, DASHCORE-002 Ready): design grill approved; spec `plans/specs/2026-07-26-dashcore-002-retained-history.md`. Promoted **DASHCORE-002** to Ready for implementation.
 
 NBI review note (2026-07-22, DASHCORE finish wave): **DASHCORE-003..009**
 product routes implemented against honest latest-gate evidence + patterns

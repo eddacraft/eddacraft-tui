@@ -44,9 +44,10 @@ the minimum viable dashboard.
 - `patterns/compiled/registry.json`, loaded by
   `crates/anvil-checks/src/antipattern/registry_loader.rs` — canonical
   anti-pattern catalogue source for DASHCORE-009
-- an authoritative Rust retained-history read surface — required by
-  DASHCORE-002 before trends, drift history, or suppression history can be
-  claimed; no such dashboard capability exists yet
+- an authoritative Rust retained-history read surface — DASHCORE-002 design
+  approved (`plans/specs/2026-07-26-dashcore-002-retained-history.md`); v1 is
+  gate-derived series via `.anvil/gate-history.ndjson` +
+  `GET /api/v1/protection/history` (drift/suppression series remain gaps)
 
 **Exposes:**
 
@@ -111,31 +112,44 @@ DASHARCH.
 
 ### DASHCORE-002: Overview — retained history and trend charts
 
-- **Status:** Proposed — requires an authoritative Rust retained-history source;
-  the latest-run `GateSnapshot` is intentionally insufficient.
-- **Intent:** Add the authoritative historical health read model, then visualise
-  codebase-health trajectory without fixture-invented points.
-- **Expected Outcome:** The local Rust dashboard API exposes dated gate pass,
-  warning, drift, and suppression series from their owning evidence stores.
-  Overview cards and charts use every genuine retained point available: target
-  at least 30 days, include a longer retained range when present, show a shorter
-  actual range honestly, label the covered dates, and never pad missing days.
-  Warning-count trend and gate-pass-rate views provide daily/weekly controls.
-  Uses DASH-004 chart primitives.
+- **Status:** Ready
+- **Design:** [2026-07-26-dashcore-002-retained-history.md](../specs/2026-07-26-dashcore-002-retained-history.md)
+  (approved 2026-07-26)
+- **Intent:** Add the authoritative historical health read model from a
+  gate-writer NDJSON store, then visualise gate-score and warning-count
+  trajectory without fixture-invented points.
+- **Expected Outcome:** Gate persist best-effort appends
+  `.anvil/gate-history.ndjson` (90-day + ~500 line retention). Dashboard
+  `GET /api/v1/protection/history` returns ordered raw points + actual range +
+  honest `data_state`/gaps (drift/suppression unavailable in v1). Overview
+  charts/sparklines consume that resource; browser aggregates daily/weekly in
+  UTC; Wave 2 actual-range rules (no padding). Gate write never fails on
+  history I/O errors.
 - **Files:**
+  - `crates/anvil-cli/src/commands/gate.rs`
   - `crates/anvil-dashboard-server/src/api.rs`
-  - `crates/anvil-dashboard-server/src/capabilities/`
+  - `crates/anvil-dashboard-server/src/capabilities/history.rs` (or equivalent)
   - `crates/anvil-dashboard-server/src/openapi.rs`
+  - `crates/anvil-dashboard-server/src/server.rs`
   - `apps/dashboard/src/api/generated/openapi.json`
   - `apps/dashboard/src/api/generated/openapi.d.ts`
   - `apps/dashboard/src/api/client.ts`
+  - `apps/dashboard/src/hooks/use-protection-history.ts`
   - `apps/dashboard/src/modules/core/overview/trend-charts.tsx`
-- **Dependencies:** DASH-004, DASH-006; retained-history source design and
-  ownership validation
-- **Validation:** Rust contract tests pin source attribution and date ordering;
-  TypeScript tests prove actual-range labels, no padded samples, longer-than-30
-  retention, shorter available history, missing periods, and time aggregation
-- **Confidence:** low until the retained-history authority is selected
+  - `apps/dashboard/src/modules/core/overview/history-aggregation.ts`
+- **Dependencies:** DASH foundation Merged; design approved; DASHCORE-001 Merged
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-dashboard-server`
+  - `cargo test -p eddacraft-anvil -- gate` (or package filter covering
+    `commands::gate` history append unit tests)
+  - `pnpm nx run dashboard:test`
+  - `pnpm nx run dashboard:typecheck`
+  - `pnpm nx run dashboard:lint`
+  - `pnpm nx run dashboard:build`
+  - `pnpm --filter @eddacraft/anvil-dashboard generate:api` when OpenAPI changes
+    (or repo equivalent), then `check:api`
+- **Confidence:** high (design approved; write site known:
+  `persist_gate_snapshot` in `gate.rs`)
 
 ### DASHCORE-003: Overview — activity feed
 
