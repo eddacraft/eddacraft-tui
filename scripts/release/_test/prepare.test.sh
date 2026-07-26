@@ -8,6 +8,48 @@ PREPARE="$ROOT/scripts/release/prepare.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# CIB-196: a realistic changelog pair. The old fixture was a bare
+# `# Changelog`, which is precisely the shape that let the metadata-stub
+# behaviour pass its own tests — there was no draft for promotion to get wrong.
+write_changelogs() {
+  local repo="$1"
+  cat >"$repo/CHANGELOG.md" <<'CHANGELOG'
+# Changelog
+
+All notable changes to this product are documented here.
+
+## [Unreleased]
+
+> **Draft.** This section accumulates customer-relevant changes landed on
+> `main`; the version and date are set at the next release.
+
+### Added
+
+- A customer-facing capability that must survive promotion.
+
+### Fixed
+
+- A customer-facing fix that must survive promotion.
+
+## [0.6.1-beta] — 2026-01-02
+
+### Added
+
+- An older entry that must keep its place and spacing.
+CHANGELOG
+  cat >"$repo/docs/public/anvil/releases/changelog.md" <<'PUBLIC'
+# Current release notes
+
+This page summarises the current user-visible beta release.
+
+## 0.6.1-beta — 2 January 2026
+
+### Added
+
+- An older public entry.
+PUBLIC
+}
+
 assert_contains() {
   local haystack="$1"
   local needle="$2"
@@ -26,8 +68,7 @@ init_repo() {
   git -C "$repo" config user.email relorch@example.invalid
   git -C "$repo" config user.name "RELORCH Test"
   printf '%s\n' '{"version":"0.6.1-beta"}' >"$repo/package.json"
-  printf '%s\n' '# Changelog' >"$repo/CHANGELOG.md"
-  printf '%s\n' '# Public changelog' >"$repo/docs/public/anvil/releases/changelog.md"
+  write_changelogs "$repo"
   git -C "$repo" add .
   git -C "$repo" commit -q -m "chore: initial fixture"
 }
@@ -126,12 +167,33 @@ const fs = require('node:fs');
 const [repo, issuePath] = process.argv.slice(2);
 const pkg = JSON.parse(fs.readFileSync(`${repo}/package.json`, 'utf8'));
 if (pkg.version !== '0.7.0-beta') throw new Error(`wrong package version ${pkg.version}`);
+// CIB-196: the promoted section must carry the whole Unreleased draft, sit
+// where the newest release belongs, and leave no metadata stub behind.
 for (const path of ['CHANGELOG.md', 'docs/public/anvil/releases/changelog.md']) {
   const text = fs.readFileSync(`${repo}/${path}`, 'utf8');
-  if (!text.includes('## v0.7.0-beta')) throw new Error(`${path} missing release section`);
-  if (!text.includes('\n\n## v0.7.0-beta')) throw new Error(`${path} missing blank line before release heading`);
+  const heading = path === 'CHANGELOG.md' ? '## [0.7.0-beta] — ' : '## 0.7.0-beta — ';
+  if (!text.includes(heading)) throw new Error(`${path} missing release section: ${text}`);
+  if (!text.includes(`\n\n${heading}`)) throw new Error(`${path} missing blank line before release heading`);
+  if (text.includes('Release preparation metadata generated'))
+    throw new Error(`${path} still carries the metadata stub`);
+  for (const entry of ['A customer-facing capability that must survive promotion', 'A customer-facing fix that must survive promotion']) {
+    if (!text.includes(entry)) throw new Error(`${path} dropped a draft entry: ${entry}`);
+  }
+  // The new section leads; the previous release keeps its place below it.
+  if (text.indexOf(heading) > text.indexOf('0.6.1-beta'))
+    throw new Error(`${path} put the new release below the older one`);
+  if (!/\n## .*0\.6\.1-beta.*\n\n### Added/.test(text))
+    throw new Error(`${path} lost the blank line under the older heading`);
   if (text.endsWith('\n\n')) throw new Error(`${path} has trailing blank line; oxfmt --check will fail`);
   if (!text.endsWith('\n')) throw new Error(`${path} missing final newline`);
+}
+{
+  // Unreleased survives, emptied back to its standing note, ready for the next
+  // cycle — and it must not still hold the entries we just promoted.
+  const main = fs.readFileSync(`${repo}/CHANGELOG.md`, 'utf8');
+  const unreleased = main.slice(main.indexOf('## [Unreleased]'), main.indexOf('## [0.7.0-beta]'));
+  if (!unreleased.includes('> **Draft.**')) throw new Error('Unreleased lost its standing draft note');
+  if (unreleased.includes('must survive promotion')) throw new Error('Unreleased still holds promoted entries');
 }
 const state = JSON.parse(fs.readFileSync(issuePath, 'utf8'));
 if (state.issues.length !== 1) throw new Error(`expected one issue, got ${state.issues.length}`);
@@ -191,8 +253,7 @@ name = "anvil-cli"
 version.workspace = true
 edition.workspace = true
 CRATETOML
-printf '%s\n' '# Changelog' >"$repo_cargo/CHANGELOG.md"
-printf '%s\n' '# Public changelog' >"$repo_cargo/docs/public/anvil/releases/changelog.md"
+write_changelogs "$repo_cargo"
 git -C "$repo_cargo" add .
 git -C "$repo_cargo" commit -q -m "chore: cargo fixture"
 
@@ -217,5 +278,43 @@ for (const pkg of ['packages/anvil/core', 'packages/anvil/runtime']) {
 const unaligned = JSON.parse(fs.readFileSync(`${repo}/packages/anvil/runtime/sub.package.json`, 'utf8')).version;
 if (unaligned !== '0.5.0') throw new Error(`unaligned sub.package.json should be untouched (got ${unaligned})`);
 NODE
+
+# CIB-196: an empty Unreleased draft must stop the cut rather than quietly
+# emit a stub section. Shipping "Release preparation metadata generated." as a
+# release's customer-facing notes is the failure this replaces.
+repo_empty="$tmp/prepare-repo-empty"
+init_repo "$repo_empty"
+cat >"$repo_empty/CHANGELOG.md" <<'EMPTYLOG'
+# Changelog
+
+## [Unreleased]
+
+> **Draft.** Nothing has landed yet.
+
+## [0.6.1-beta] — 2026-01-02
+
+### Added
+
+- An older entry.
+EMPTYLOG
+git -C "$repo_empty" add . && git -C "$repo_empty" commit -q -m "chore: empty draft"
+
+set +e
+(cd "$repo_empty" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$tmp/empty-issues.json" bash "$PREPARE" --json --version v0.7.0-beta --release-type beta --strategy direct --repo eddacraft/anvil-001) >"$tmp/prepare-empty.json" 2>"$tmp/prepare-empty.err"
+empty_rc=$?
+set -e
+if [[ "$empty_rc" == "0" ]]; then
+  echo "expected prepare to fail on an empty Unreleased draft" >&2
+  exit 1
+fi
+assert_contains "$(cat "$tmp/prepare-empty.err")" 'no entries to promote'
+if grep -F 'Release preparation metadata generated' "$repo_empty/CHANGELOG.md" >/dev/null 2>&1; then
+  echo "empty draft must not produce a metadata stub" >&2
+  exit 1
+fi
+
+# The escape hatch stays explicit, for a genuinely internal-only patch.
+(cd "$repo_empty" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$tmp/empty-issues2.json" ANVIL_RELEASE_ALLOW_EMPTY_CHANGELOG=1 bash "$PREPARE" --json --version v0.7.0-beta --release-type beta --strategy direct --repo eddacraft/anvil-001) >/dev/null
+assert_contains "$(cat "$repo_empty/CHANGELOG.md")" '## [0.7.0-beta] — '
 
 echo "prepare.test.sh: ok"

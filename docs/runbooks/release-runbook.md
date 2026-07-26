@@ -150,6 +150,33 @@ This command owns:
 
 Do not manually edit these files if prepare fails.
 
+**Changelog promotion.** `prepare.sh` moves the whole `## [Unreleased]` draft
+from `CHANGELOG.md` into a `## [<version>] — <date>` section, seeds the public
+changelog with the same entries at the top, and leaves `[Unreleased]` empty but
+for its standing draft note. It **refuses to run** — before bumping any version,
+so the tree stays clean — when there is nothing to promote. If that happens,
+write the customer-facing entries first; use
+`ANVIL_RELEASE_ALLOW_EMPTY_CHANGELOG=1` only for a genuinely internal-only
+patch.
+
+Two things still need a human, so budget for them rather than discovering them
+at review:
+
+- **The section title.** Promotion emits `## [<version>] — <date>`; the window's
+  name (e.g. "First-Run Wins and the Assistant Graph") and any opening paragraph
+  are yours to add.
+- **The public changelog is a summary, not a copy.** It is seeded from the same
+  entries so you trim in place; cut anything internal and reduce the rest to
+  user-visible outcomes.
+
+**Review the curation diff.** Any hand-edit you make to either changelog after
+`prepare.sh` runs must get the same scrutiny as the generated content — review
+it as its own commit on the promotion PR, not folded into the generated one. At
+the `v0.9.0-beta` cut, hand-curation introduced a duplicated persistence bullet
+that only a reviewer caught (CIB-196). Check specifically that no entry is
+duplicated, that no entry was dropped from the draft, and that upgrade notes
+describe the behaviour _this_ release ships.
+
 **Manual step — bump the "latest tagged release" docs strings.** `prepare.sh`
 regenerates the changelog mirror but does **not** touch the hardcoded "latest
 tagged release" / "current version" claims in the public docs. After prepare,

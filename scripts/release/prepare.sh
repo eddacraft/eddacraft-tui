@@ -5,6 +5,10 @@ COMMAND="prepare"
 PHASE="prepare"
 SCHEMA_VERSION="1.0.0"
 DEFAULT_REPO="eddacraft/anvil-001"
+# Resolved from this script's own location so the changelog promoter is found
+# regardless of the caller's working directory (prepare runs from the repo root
+# of the release checkout, which is not necessarily this checkout).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 json=false
 dry_run=false
@@ -173,6 +177,20 @@ apply_release_edits() {
   local file_version
   file_version="$(release_version_without_prefix)"
 
+  # CIB-196: refuse a cut with nothing to promote BEFORE touching any version,
+  # so a rejected prepare leaves a clean tree and the retry is not blocked on
+  # half-bumped manifests.
+  [[ -e CHANGELOG.md ]] || printf '%s\n' '# Changelog' >CHANGELOG.md
+  local check_rc=0
+  node "$SCRIPT_DIR/promote-changelog.mjs" \
+    --check \
+    --version "$version" \
+    --date "$(date -u +%Y-%m-%d)" \
+    ${ANVIL_RELEASE_ALLOW_EMPTY_CHANGELOG:+--allow-empty} || check_rc=$?
+  if [[ "$check_rc" != "0" ]]; then
+    return "$check_rc"
+  fi
+
   # Bump root package.json + per-package.json files that share the pre-bump
   # root version. Writes the bumped path list to $tmp/version-bumps so the
   # caller can stage all of them.
@@ -245,19 +263,21 @@ NODE
     fi
   fi
 
+  # CIB-196: promote the `## [Unreleased]` draft into a real release section
+  # rather than appending a metadata stub to the bottom of the file. The
+  # promotion is idempotent and fails loudly when there is no draft to promote,
+  # so an empty changelog is a decision the operator makes rather than a stub
+  # that silently ships.
   mkdir -p docs/public/anvil/releases
-  for path in CHANGELOG.md docs/public/anvil/releases/changelog.md; do
-    [[ -e "$path" ]] || printf '%s\n' '# Changelog' >"$path"
-    if ! grep -F "## $version" "$path" >/dev/null 2>&1; then
-      node - "$path" "$version" <<'NODE'
-const fs = require('node:fs');
-const [path, version] = process.argv.slice(2);
-const existing = fs.readFileSync(path, 'utf8');
-const section = `\n\n## ${version}\n\n- Release preparation metadata generated.\n`;
-fs.writeFileSync(path, existing.replace(/\s*$/, '') + section);
-NODE
-    fi
-  done
+  [[ -e CHANGELOG.md ]] || printf '%s\n' '# Changelog' >CHANGELOG.md
+  local promote_rc=0
+  node "$SCRIPT_DIR/promote-changelog.mjs" \
+    --version "$version" \
+    --date "$(date -u +%Y-%m-%d)" \
+    ${ANVIL_RELEASE_ALLOW_EMPTY_CHANGELOG:+--allow-empty} || promote_rc=$?
+  if [[ "$promote_rc" != "0" ]]; then
+    return "$promote_rc"
+  fi
 }
 
 emit_envelope() {
