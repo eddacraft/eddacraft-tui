@@ -101,7 +101,7 @@ pub fn pid_starttime(pid: u32) -> Result<u64, ProcessInfoError> {
     {
         let _ = pid;
         Err(ProcessInfoError::Io {
-            path: format!("/proc/{}/stat", pid),
+            path: format!("/proc/{pid}/stat"),
             source: io::Error::new(
                 io::ErrorKind::Unsupported,
                 "pid_starttime is Linux-only in v1",
@@ -121,7 +121,7 @@ pub fn parent_pid(pid: u32) -> Result<Option<u32>, ProcessInfoError> {
     {
         let _ = pid;
         Err(ProcessInfoError::Io {
-            path: format!("/proc/{}/stat", pid),
+            path: format!("/proc/{pid}/stat"),
             source: io::Error::new(io::ErrorKind::Unsupported, "parent_pid is Linux-only in v1"),
         })
     }

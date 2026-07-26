@@ -456,10 +456,15 @@ fn path_to_file_uri(path: &std::path::Path) -> String {
         .to_string_lossy()
         .replace('\\', "/")
         .replace(' ', "%20");
+    // Windows paths carry a drive letter, so the URI needs the extra slash
+    // (`file:///C:/…`). Select the prefix rather than cfg'ing two tails: the
+    // Windows arm's `return` became the function's tail expression once the
+    // other was cfg-stripped, tripping `needless_return` on a Windows build.
     #[cfg(windows)]
-    return format!("file:///{encoded}");
+    let prefix = "file:///";
     #[cfg(not(windows))]
-    format!("file://{encoded}")
+    let prefix = "file://";
+    format!("{prefix}{encoded}")
 }
 
 fn read_message(reader: &mut impl BufRead) -> std::io::Result<Option<Value>> {
