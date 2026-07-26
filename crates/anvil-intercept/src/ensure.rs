@@ -689,6 +689,13 @@ impl PipeProbe {
 
 #[cfg(windows)]
 impl DaemonProbe for PipeProbe {
+    #[cfg_attr(
+        windows,
+        allow(
+            clippy::unnested_or_patterns,
+            reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
+        )
+    )]
     fn probe(&self) -> Liveness {
         use std::sync::mpsc;
         use std::thread;
@@ -752,6 +759,13 @@ impl DaemonProbe for PipeProbe {
 /// handled by the caller). Synchronous `ReadFile` has no native timeout, so the
 /// read runs on a worker thread with `recv_timeout`, matching the CLI client.
 #[cfg(windows)]
+#[cfg_attr(
+    windows,
+    allow(
+        clippy::manual_let_else,
+        reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
+    )
+)]
 fn pipe_status_query_round_trip(
     mut client: anvil_intercept_win32::OwnerOnlyPipeClient,
     timeout: Duration,

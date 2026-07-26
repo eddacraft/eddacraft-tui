@@ -1439,6 +1439,14 @@ impl<D: SessionDispatcher> IpcListener<D> {
     }
 
     /// Accept named-pipe clients until `token` fires, spawning one handler per client.
+    #[cfg_attr(
+        windows,
+        allow(
+            clippy::too_many_lines,
+            clippy::items_after_statements,
+            reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
+        )
+    )]
     pub async fn serve(self, mut token: ShutdownToken) -> Result<(), IpcError> {
         let mut server = self.inner;
         let pipe_name = self.pipe_name;
@@ -5019,6 +5027,13 @@ fn verify_lineage_claim(
 /// be read (e.g. the child exited between the launcher's spawn and
 /// the daemon's read — fail-closed: the index would otherwise be
 /// keyed on an attacker-chosen value).
+#[cfg_attr(
+    windows,
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
+    )
+)]
 fn verify_report_process_starttime(
     child_pid: u32,
     advisory_starttime: u64,

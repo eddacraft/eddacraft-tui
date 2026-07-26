@@ -452,6 +452,13 @@ pub mod windows_impl {
     /// the daemon owns; the registry lookup is out of scope for
     /// INTD-006 and lives behind the future
     /// `crate::registry::SessionRegistry::job_object_for_session`.
+    #[cfg_attr(
+        windows,
+        allow(
+            clippy::collapsible_if,
+            reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
+        )
+    )]
     pub fn run_windows_termination(record: &SessionRecord, job: &JobObject) -> InterruptOutcome {
         // PID-reuse defence is still required: the launcher records
         // `started_at_unix`, and we read it against the live

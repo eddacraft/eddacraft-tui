@@ -325,6 +325,13 @@ impl Eq for RegistryError {}
 /// itself. Treating "unknown" and "no record" identically here keeps
 /// the call sites linear: `match attribute_path { Owned(s) => ..., Unknown => ... }`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    windows,
+    allow(
+        clippy::large_enum_variant,
+        reason = "Windows-only clippy debt baselined by CIB-204; clearing it restructures named-pipe transport code that only a Windows runner can build and test."
+    )
+)]
 pub enum Attribution {
     /// The change lives under a registered session's worktree.
     Owned { session: SessionRecord },

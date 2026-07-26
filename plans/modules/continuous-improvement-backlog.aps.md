@@ -5393,9 +5393,11 @@ archive.
 - **Intent:** `anvil-intercept`'s Windows named-pipe transport must meet the
   same lint bar as the rest of the workspace, so the CIB-193 gate can cover it
   and the `--exclude` in `.github/workflows/rust.yml` can be deleted.
-- **Expected Outcome:** `cargo clippy --workspace --all-targets --target
-  x86_64-pc-windows-msvc -- -D warnings` passes with no `--exclude`, and the
-  flag is removed from the `Clippy (windows-msvc)` job.
+- **Expected Outcome:** every `#[cfg_attr(windows, allow(clippy::...))]`
+  marker in `crates/anvil-intercept/src/` naming this item is deleted, and
+  `cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc --
+  -D warnings` still passes. Find them with
+  `grep -rn 'cfg_attr(windows, allow(clippy' crates/anvil-intercept/src/`.
 - **Findings to clear** (from the gate's first run, job 89803096820):
   - `ipc.rs:1442` — `too_many_lines` (114/100) on the named-pipe `serve`
     accept loop
@@ -5406,6 +5408,12 @@ archive.
   - `interrupt.rs:463` — `collapsible_if`
   - `ensure.rs:783` — `manual_let_else`
   - `ensure.rs:713` — `unnested_or_patterns`
+- **Why allows rather than an `--exclude`:** `cargo clippy` sets
+  `RUSTC_WORKSPACE_WRAPPER`, which lints every workspace member built in the
+  graph — so `--exclude eddacraft-anvil-intercept` does NOT suppress it while
+  `anvil-cli` depends on it (verified: the findings still fired). Per-site
+  allows are also the honest shape: each is a greppable debt marker that dies
+  with the fix, rather than one flag hiding a whole crate.
 - **Why this is its own item:** these are not the cfg-gated dead-code class
   CIB-193 closed; they are structural lints in daemon transport code. Splitting
   the accept loop, reshaping a hot-path enum, and unwrapping a `Result` in IPC
