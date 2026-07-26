@@ -35,6 +35,7 @@ const sidebars: SidebarsConfig = {
         'guides/insights',
         'integrations/github',
         'integrations/mcp',
+        'integrations/agent-skills',
         'integrations/vscode',
         'operations/git-hooks',
         'operations/troubleshooting',

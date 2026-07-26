@@ -24,14 +24,21 @@ Run these journeys in order:
 
 1. Install with the method appropriate for your operating system.
 2. Verify the version and run `anvil welcome` without signing in.
-3. Sign in and run `anvil start`.
+3. Sign in and run `anvil start` (expect the interactive activation surface in a
+   real terminal).
 4. Confirm the reported protection state and follow any restart instruction.
 5. Complete the [ten-minute protection tutorial](first-gate.md).
 6. Run `anvil start --verify` after restarting a configured client.
 7. Exercise [save-time validation](guides/save-time-validation.md).
-8. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
-9. Run a CI-shaped gate with machine-readable output.
-10. Check that uninstall guidance removes only the state you selected.
+8. Open [the browser dashboard](guides/dashboard.md) with
+   `anvil dashboard --web` after at least one `anvil gate` run.
+9. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
+10. Run a CI-shaped gate with machine-readable output.
+11. Check that uninstall guidance removes only the state you selected.
+
+If you use AI clients beyond Cursor or Claude Code, also exercise
+`anvil mcp install --client <id> --verify` and, where supported,
+`anvil skill install --client <id> --verify`.
 
 ## Success criteria
 
@@ -53,11 +60,17 @@ is explicit, understandable, and repeatable.
 
 - `anvil welcome` is the account-free discovery path.
 - Ongoing activation requires beta authentication.
-- Guided pre-write configuration currently targets Cursor and Claude Code.
-- Other editors use terminal checks or save-time watching unless the
-  [generated support reference](reference/support.md) says otherwise.
+- Guided pre-write configuration in `anvil start` targets Cursor and Claude
+  Code; the wider client registry is available through
+  `anvil mcp install --client`.
+- Other editors can use terminal checks, save-time watching, or explicit MCP
+  install when the client is listed by `anvil mcp install --help`.
 - Language parsing and specialised rule depth are not identical; the support
   reference distinguishes them.
+- Warning-severity findings do not fail `anvil gate` by default; opt in with
+  `--fail-on-warnings` when you need that stricter posture.
+- The browser dashboard is loopback-only and read-only; it does not replace
+  gates or activation.
 - Beta command shapes and output may change before a stable release.
 - Do not assume a separate editor extension is installed.
 
@@ -73,6 +86,7 @@ Deliberately verify these safe paths:
 | The project is unsupported           | The output names the unsupported coverage rather than claiming protection |
 | A watcher must stop                  | Ctrl-C ends the foreground process                                        |
 | Hooks are no longer wanted           | `anvil hooks uninstall` removes anvil-managed hooks                       |
+| Managed skill is stale after upgrade | `anvil doctor`, then `anvil skill install`                                |
 
 ## Report feedback
 

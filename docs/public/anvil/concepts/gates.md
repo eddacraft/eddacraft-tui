@@ -47,6 +47,21 @@ continuous integration. List installed profiles with:
 anvil gate --list-profiles
 ```
 
+## Warnings and blocking findings
+
+A finding's severity is not the same as the gate's exit decision.
+
+- **Warning-severity** anti-pattern findings are reported but do **not** fail
+  `anvil gate` by default. Opt in to the stricter posture with
+  `--fail-on-warnings` or `ANVIL_FAIL_ON_WARNINGS`.
+- **Error-severity** findings fail the gate on their own merit. Broken ciphers /
+  ECB and JWT configured with the `none` algorithm stay in that set so they
+  block without the opt-in.
+- Other gate engines (secrets, architecture, policy, and similar) keep their own
+  thresholds; this warning default applies to the anti-pattern leg.
+
+Use a warning as evidence to review, not as a silent pass.
+
 ## Exit codes and automation
 
 Do not parse human-readable wording. Use `--format json` or `--format sarif`

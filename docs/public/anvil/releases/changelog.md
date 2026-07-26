@@ -7,10 +7,40 @@ description:
 
 # Current release notes
 
-This page summarises the current user-visible beta release. Internal work items,
-source paths, and implementation notes are deliberately excluded. For the full
+This page summarises user-visible beta changes. Internal work items, source
+paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
+
+## Unreleased — next beta after 0.9.0-beta
+
+Draft summary of customer-visible work already on the maintained branch. The
+version, date, and final scope are fixed when the next tag ships.
+
+### Added
+
+- `anvil dashboard --web` opens a read-only browser dashboard on loopback —
+  protection health, gate runs, warnings, and plans — bundled inside the anvil
+  binary.
+- `anvil mcp install --client` configures twelve AI clients (not only Cursor and
+  Claude Code), with `--verify` and `--dry-run`.
+- `anvil skill install` ships the managed `anvil-developer-functions` skill;
+  `anvil doctor` reports managed-skill freshness.
+- Package-manager-aware `anvil update` for Homebrew, Scoop, and WinGet installs.
+- `anvil lsp --stdio` exposes advisory graph context over Language Server
+  Protocol.
+- Anti-pattern scanning honours `linguist-generated` markers and
+  `antipattern.exclude` globs for generated trees.
+- Fragile-presentation check for UI content hidden with `opacity: 0` and gated
+  only on entrance animation.
+
+### Changed
+
+- On a real terminal, `anvil start` opens the consent-first activation surface
+  by default; use `--no-tui` or `ANVIL_NO_TUI=1` for plain text.
+- Warning-severity anti-pattern findings no longer fail `anvil gate` unless you
+  opt in with `--fail-on-warnings` or `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers /
+  ECB and JWT `none` remain blocking errors.
 
 ## 0.9.0-beta — 12 July 2026
 

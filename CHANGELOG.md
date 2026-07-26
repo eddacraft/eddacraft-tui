@@ -10,7 +10,8 @@ engineering maintenance are recorded in the
 
 > **Draft.** This section accumulates customer-relevant changes landed on `main`
 > since `v0.9.0-beta`; the version, date, and final scope are set at the next
-> release.
+> release. The active window is `v0.10.0-beta` (dashboard foundation plus
+> post-`v0.9.0-beta` carry-in).
 
 ### Added
 
@@ -27,6 +28,72 @@ engineering maintenance are recorded in the
   non-loopback address and rejects requests that did not come from the loopback
   address it bound. See
   [the local dashboard guide](./docs/guides/local-dashboard.md).
+
+- **MCP install for the harnesses you actually use.**
+  `anvil mcp install --client` now accepts twelve clients — Claude Code, Cursor,
+  Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot CLI,
+  Grok, Warp, and Zed — not only Claude Code and Cursor. Each installer writes
+  that client's documented config shape, supports `--verify` / `--dry-run`, and
+  keeps unmanaged third-party entries intact. `anvil start` still offers the
+  consent-first Cursor and Claude Code path by default; pass `--mcp-client <id>`
+  (repeatable), `--all-mcp-clients`, or set `ANVIL_ALL_MCP_CLIENTS` to reach the
+  wider registry, or `--no-mcp` to skip configuration.
+
+- **Managed agent skills.** `anvil skill install` ships the bundled
+  `anvil-developer-functions` skill into supported clients (global or project
+  scope), with `--verify` and `--dry-run` for safe checks. `anvil doctor` now
+  reports managed-skill freshness (fresh, stale, dirty, unmanaged, absent, or
+  broken) so an upgrade can be reconciled with a reinstall rather than leaving a
+  silent mismatch.
+
+- **Package-manager-aware `anvil update`.** When anvil was installed through
+  Homebrew, Scoop, or WinGet, `anvil update` offers that manager's allowlisted
+  upgrade command after explicit consent (`-y` for non-interactive scripts)
+  instead of downloading a sidecar binary that would fight the package database.
+  Direct and other installs keep the existing signed-artefact path.
+
+- **Graph capabilities over LSP.** `anvil lsp --stdio` exposes advisory graph
+  context to editors that speak Language Server Protocol — position-aware symbol
+  resolution, references, plus `anvil/impactOfChange` and `anvil/affectedTests`
+  extensions — so tools that prefer LSP over MCP can use the same resident graph
+  without a second protocol stack.
+
+- **Fragile-presentation check (FRAG-001).** Anti-pattern scanning flags UI
+  content authored invisible (`opacity: 0`) and gated only on an entrance
+  animation — a pattern that fails hard when motion is reduced or the animation
+  never runs. Enabled by default; same opt-out path as other anti-pattern rules.
+
+- **Declare generated files so scans stay quiet.** Anti-pattern scanning now
+  honours GitHub's `linguist-generated` marker in `.gitattributes` and
+  workspace-relative `antipattern.exclude` globs in project config, so
+  machine-generated trees the auto-detector does not recognise can be skipped
+  without baselining individual findings. Secret detection and other gate
+  engines still see those files.
+
+### Changed
+
+- **Activation TUI is the default interactive path.** On a real terminal,
+  `anvil start` now opens the consent-first activation TUI without `--tui` or
+  `ANVIL_ACTIVATION_TUI=1`. Read-only, `--watch`, `--json`, `--no-tui`,
+  `ANVIL_NO_TUI`, CI, and non-TTY sessions stay plain. `--tui` and
+  `ANVIL_ACTIVATION_TUI` remain accepted no-ops so old scripts do not break. The
+  first run that writes a protecting baseline also shows a once-per-project
+  celebration banner above the honest status headline; healthy repeat runs stay
+  quiet.
+
+- **Warnings no longer block by default; must-block crypto still does.** The
+  anti-pattern leg of `anvil gate` restores warnings-over-blocks:
+  warning-severity findings no longer fail the gate unless you opt in with
+  `--fail-on-warnings` or `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers / ECB
+  (WC-002) and JWT `none` (WC-003) are promoted to error severity so they block
+  on their own merit. WC-001 (MD5/SHA-1) and the unsafe-rendering family stay
+  warnings to avoid false blocks on legitimate non-crypto uses.
+
+### Fixed
+
+- **Brand casing in user-facing copy.** Remaining title-case "Anvil" strings in
+  insights, intercept-protected paths, and related surfaces are lowercase
+  `anvil`, matching the product brand.
 
 ## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
 

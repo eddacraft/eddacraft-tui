@@ -32,6 +32,11 @@ per machine.
 anvil update
 ```
 
+When anvil was installed through Homebrew, Scoop, or WinGet, the updater offers
+that manager's allowlisted upgrade command after explicit consent. Use `-y` only
+in non-interactive scripts you trust. Direct installs keep the signed-artefact
+path.
+
 ### Homebrew
 
 ```bash
@@ -93,6 +98,32 @@ anvil start --verify
 
 If authentication has expired, try `anvil auth refresh` and sign in again when
 asked.
+
+After upgrading, also refresh managed client assets when you use them:
+
+```text
+anvil doctor
+anvil skill install --client claude-code --verify
+anvil mcp install --client cursor --verify
+```
+
+## Behaviour changes after 0.9.0-beta
+
+These land with the next beta after 0.9.0-beta (draft on the maintained branch):
+
+- **Activation TUI by default.** On a real terminal, `anvil start` opens the
+  consent-first interactive surface without `--tui`. Use `--no-tui` or
+  `ANVIL_NO_TUI=1` for plain text. Read-only, `--json`, `--watch`, CI, and
+  non-TTY sessions stay plain. `--tui` remains accepted as a no-op.
+- **Warnings do not fail the gate by default.** Warning-severity anti-pattern
+  findings no longer fail `anvil gate` unless you set `--fail-on-warnings` or
+  `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers / ECB and JWT `none` stay error
+  severity and still block.
+- **More MCP clients via explicit install.** Guided activation still defaults to
+  Cursor and Claude Code. Use `anvil mcp install --client <id>` for the wider
+  registry.
+- **Browser dashboard.** `anvil dashboard --web` is the loopback browser
+  surface; bare `anvil dashboard` remains the terminal picker.
 
 ## 0.9.0-beta automation change
 

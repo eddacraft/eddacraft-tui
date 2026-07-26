@@ -6,7 +6,7 @@ description: Connect a supported AI client to local pre-write validation.
 
 # Protect AI-assisted writes
 
-**For:** Cursor or Claude Code users
+**For:** users of a supported AI coding client
 
 **Time:** about 10 minutes
 
@@ -20,18 +20,30 @@ local tool.
 
 Complete the [quickstart](../quickstart.md), including sign-in.
 
-## 1. Activate detected clients
+## 1. Activate guided clients
 
 ```text
 anvil start
 ```
 
-By default, anvil configures supported clients it detects. To prepare both
-supported clients even when one is not currently detected, use:
+On a real terminal this opens the consent-first activation surface. By default
+the guided path configures **Cursor** and **Claude Code** when they are
+detected. Nothing is written unless you select it.
+
+To prepare both guided clients even when one is not currently detected:
 
 ```text
 anvil start --all-mcp-clients
 ```
+
+To install a different supported client explicitly:
+
+```text
+anvil mcp install --client codex
+```
+
+See [Model Context Protocol integration](../integrations/mcp.md) for the full
+client list and verify options.
 
 ## 2. Restart when asked
 
@@ -55,6 +67,13 @@ anvil mcp --help
 
 The current CLI provides `install` and `serve`. Connection readiness is reported
 by `anvil start --verify`, not by a separate MCP status command.
+
+Optionally install the managed [agent skill](../integrations/skills.md) so the
+client has a maintained procedure for anvil's developer tools:
+
+```text
+anvil skill install --client claude-code
+```
 
 ## Corporate or restricted environments
 
