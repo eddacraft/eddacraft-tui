@@ -3,10 +3,23 @@
 // oxlint/eslint — those tools exit non-zero when every file passed in is
 // ignored by their own config.
 
+const { relative } = require('node:path');
+
 // Normalise Windows backslash separators so the vendored-output filter matches
 // regardless of how lint-staged hands paths in. lint-staged on Windows can
 // emit either form depending on git config (`core.autocrlf`, etc.).
 const normalisePath = (file) => file.replace(/\\/g, '/');
+
+// `.prettierignore` ignores `/plans` — root-anchored, so only the top-level
+// planning tree. Anchoring here has to match: `docs/archive/plans/` is NOT
+// prettierignored and must keep being formatted, so a bare `/plans/` substring
+// test would wrongly skip it. lint-staged hands absolute paths and runs with
+// cwd at the repository root, so resolve against cwd and require the result to
+// start at `plans/`.
+const isRootPlansDoc = (file) => {
+  const rel = normalisePath(relative(process.cwd(), file));
+  return rel === 'plans' || rel.startsWith('plans/');
+};
 
 const isVendoredOutput = (file) => {
   const normalised = normalisePath(file);
@@ -100,7 +113,17 @@ module.exports = {
     // as the TS/JSON globs (CIB-191 empty-target avoidance).
     const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
-    const list = toCommandList(kept);
-    return [`oxfmt --write ${list}`, `markdownlint --fix ${list}`];
+    const tasks = [];
+    // `/plans` is prettierignored wholesale, so a commit staging only planning
+    // markdown hands oxfmt an all-excluded target set and it exits non-zero
+    // with "Expected at least one target file", failing the whole pre-commit
+    // hook. markdownlint has no such exclusion and still covers plans/, so drop
+    // planning docs from the formatter only rather than from the glob.
+    const formatted = kept.filter((f) => !isRootPlansDoc(f));
+    if (formatted.length > 0) {
+      tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
+    }
+    tasks.push(`markdownlint --fix ${toCommandList(kept)}`);
+    return tasks;
   },
 };
