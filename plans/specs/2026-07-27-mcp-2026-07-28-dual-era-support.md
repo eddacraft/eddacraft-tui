@@ -1,15 +1,28 @@
-# MCP 2026-07-28 dual-era support
+# MCP 2026-07-28 Dual-Era Support — Design
 
 | Field | Value |
 | --- | --- |
-| Type | APS module specification |
-| Status | Draft for implementation |
-| Proposed ID | MCP26 |
+| Status | Draft — awaiting ratification gate (MCP26-001) |
+| Modules | [mcp-dual-era-support](../modules/mcp-dual-era-support.aps.md) (MCP26) |
 | Owner | anvil CLI / MCP |
 | Target | First anvil release after MCP `2026-07-28` ratification |
-| Current anvil baseline | `0.9.0-beta`, repository `main` at `b4b10cdc11aa968363cad63d91e74922618916e9` |
-| Upstream | MCP `2026-07-28` release candidate |
+| Upstream | MCP `2026-07-28` release candidate / final |
 | Compatibility posture | Dual-era stdio server |
+
+
+This document is the **design and assessment** for dual-era MCP support.
+Execution authority lives in the APS module linked above; do not treat this
+file as a work-item index.
+
+## Problem
+
+Anvil's Rust MCP server is still a legacy-only protocol shape (pinned near
+`2024-11-05` / initialise-era handshake) while the MCP `2026-07-28` revision
+removes that handshake for modern clients, requires `server/discover`,
+per-request protocol metadata, `resultType`, and cache fields. Maintaining a
+hand-written JSON dispatcher for that surface is no longer a good trade.
+
+## Design
 
 ## 1. Executive decision
 
@@ -363,7 +376,11 @@ If any item blocks adoption, record the exception in an ADR and implement the
 typed internal adapter. Do not silently return to a permanent hand-written
 dispatcher.
 
-## 9. Work items
+## 9. Work-item sketch (mirrored in APS module MCP26)
+
+These sketches are design intent. Authoritative status, validation, and
+dependencies live on the [MCP26 module](../modules/mcp-dual-era-support.aps.md).
+
 
 ### MCP26-001: Ratification and SDK readiness gate
 

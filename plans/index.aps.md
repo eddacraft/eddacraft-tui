@@ -721,12 +721,15 @@ Current-release Rust MCP launch shim plus next-release full parity port. The
 current release ships only the narrow A1 path: `anvil mcp install` writes client
 config, clients launch `anvil mcp serve --stdio`, and the Rust server validates
 proposed writes before they land. Full TS MCP server parity is next-release work.
+**MCP26** tracks dual-era protocol support for MCP `2026-07-28` (modern
+discovery + sealed legacy clients) once the upstream revision is ratified.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-mcp-launch-shim](./archive/modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete | 8/8 (A1 launch slice closed 2026-04-30 — RMCP-001..-008 shipped; RMCP-008 GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md` §8; follow-up gaps tracked as #1194/#1195/#1197) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | In Progress | 7/10 (RMCPF-001 inventory, RMCPF-002 architecture spec, RMCPF-003 Phase 1 readiness decisions, and RMCPF-010 check/gate/status MCP tool parity slice Complete; `anvil_check` ships as the daemon-RPC translator's correctness-equivalent embedded fallback and `anvil_gate` ships as MCP-driver-local composition with planless in-process and full subprocess modes. RMCPF-011 (fix/suppress/boundary tools) and RMCPF-012 (prompts retired) shipped via PR #1558 (merged 2026-05-14, commit `56d5fd89`); registry now exposes seven tools, `prompts` capability omitted, `prompts/list` returns -32601. **RMCPF-020 (resources port) Merged 2026-06-19 via #2809** — seven `anvil://` resources (baseline/boundaries/patterns/suppressions/config/constraints/drift) advertised in `resources/list` beside the GCTX `graph://` trio, each over its canonical Rust reader; `anvil://file/{path}/warnings` retired into the `anvil_check` tool.) | RMCP, DRVR, `anvil-archive/anvil-mcp-server` (archived per ADR-033 — frozen reference in sibling repo) |
 | [mcp-client-expansion](./modules/mcp-client-expansion.aps.md) | MCPX | Done | 6/6 (MCPX-001 verified first-wave contracts on 2026-07-14. Retain Claude Code/Cursor; add Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code/Copilot, Copilot CLI, Grok, Warp, and project-scoped Zed. Devin remains manual until it exposes a supported local mutation contract. All 6 first-wave items Done 2026-07-14 via PR #3328; Tier 2 clients unscheduled.) | RMCPF, RCLI3-016/-016b, ACTMO-012, SKPKG |
+| [mcp-dual-era-support](./modules/mcp-dual-era-support.aps.md) | MCP26 | Draft | 0/11 (dual-era stdio: MCP `2026-07-28` modern `server/discover` + sealed legacy initialise path; design in [`plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`](./specs/2026-07-27-mcp-2026-07-28-dual-era-support.md); rewritten from non-canonical design dump 2026-07-27) | RMCPF, RMCP, MCPX, ACTMO; official `rmcp` or typed temporary adapter (MCP26-001) |
 
 ### Future
 
