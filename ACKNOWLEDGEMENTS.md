@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 353 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 358 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -481,41 +481,41 @@ Used by 7 crates. See the inventory table at the bottom of this file for the com
 
 ## Licence: BSD 3-Clause "New" or "Revised" License
 
-Used by 3 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 4 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
 
 ```
-Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved.
-Copyright (c) 2016-2024 Isis Agora Lovecruft. All rights reserved.
+BSD 3-Clause License
+
+Copyright (c) 2013, Julien Schmidt
+All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+modification, are permitted provided that the following conditions are met:
 
-1. Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
 
-2. Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
 
 3. Neither the name of the copyright holder nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
@@ -1045,6 +1045,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `kindling-types` | 0.3.0 | Apache License 2.0 | https://github.com/eddacraft/kindling |
 | `ryu` | 1.0.23 | Apache License 2.0 | https://github.com/dtolnay/ryu |
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
+| `matchit` | 0.8.4 | BSD 3-Clause "New" or "Revised" License | https://github.com/ibraheemdev/matchit |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
 | `aws-lc-sys` | 0.41.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
 | `regorus` | 0.10.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
@@ -1127,6 +1128,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `hashbrown` | 0.15.5 | MIT License | https://github.com/rust-lang/hashbrown |
 | `hashbrown` | 0.16.1 | MIT License | https://github.com/rust-lang/hashbrown |
 | `hashbrown` | 0.17.1 | MIT License | https://github.com/rust-lang/hashbrown |
+| `serde_urlencoded` | 0.7.1 | MIT License | https://github.com/nox/serde_urlencoded |
 | `utf8parse` | 0.2.2 | MIT License | https://github.com/alacritty/vte |
 | `hyper-rustls` | 0.27.9 | MIT License | https://github.com/rustls/hyper-rustls |
 | `rustls-native-certs` | 0.8.3 | MIT License | https://github.com/rustls/rustls-native-certs |
@@ -1182,6 +1184,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tower-layer` | 0.3.3 | MIT License | https://github.com/tower-rs/tower |
 | `tower-service` | 0.3.3 | MIT License | https://github.com/tower-rs/tower |
 | `tower` | 0.5.3 | MIT License | https://github.com/tower-rs/tower |
+| `axum` | 0.8.9 | MIT License | https://github.com/tokio-rs/axum |
 | `tower-http` | 0.6.11 | MIT License | https://github.com/tower-rs/tower-http |
 | `http-body` | 1.0.1 | MIT License | https://github.com/hyperium/http-body |
 | `http-body-util` | 0.1.3 | MIT License | https://github.com/hyperium/http-body |
@@ -1254,12 +1257,14 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `strum_macros` | 0.28.0 | MIT License | https://github.com/Peternator7/strum |
 | `email_address` | 0.2.9 | MIT License | https://github.com/johnstonskj/rust-email_address.git |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
+| `axum-core` | 0.5.6 | MIT License | https://github.com/tokio-rs/axum |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
 | `jsonschema` | 0.46.10 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `referencing` | 0.46.10 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
+| `matchit` | 0.8.4 | MIT License | https://github.com/ibraheemdev/matchit |
 | `outref` | 0.5.2 | MIT License | https://github.com/Nugine/outref |
 | `demand` | 2.0.3 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
@@ -1350,6 +1355,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `serde_core` | 1.0.228 | MIT License | https://github.com/serde-rs/serde |
 | `serde_derive` | 1.0.228 | MIT License | https://github.com/serde-rs/serde |
 | `serde_json` | 1.0.151 | MIT License | https://github.com/serde-rs/json |
+| `serde_path_to_error` | 0.1.20 | MIT License | https://github.com/dtolnay/path-to-error |
 | `serde_yaml` | 0.9.34+deprecated | MIT License | https://github.com/dtolnay/serde-yaml |
 | `syn` | 2.0.118 | MIT License | https://github.com/dtolnay/syn |
 | `syn` | 3.0.3 | MIT License | https://github.com/dtolnay/syn |
