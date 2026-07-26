@@ -436,10 +436,30 @@ violation contains msg if {
 // and an empty stderr — including the permitted-builtins control — so the
 // executor's real-binary path is broken there wholesale (first exposed by the
 // v0.9.0-beta release gate; the suite postdates the previous release cut and
-// had never run on a Windows release-gate leg). The mock-binary tests above
-// still run on Windows; real-binary coverage stays on the unix legs until
-// CIB-195 lands the diagnosis/fix.
-describe.skipIf(!opaPath || process.platform === 'win32')(
+// had never run on a Windows release-gate leg).
+//
+// RESOLUTION: retired on Windows, not deferred. This is a decision, so that the
+// exclusion is not read as a fix someone still owes:
+//
+//   - Authority moved. The enforcing implementation is now
+//     `crates/anvil-policy-engine`, which builds `regorus` without the
+//     `full-opa` bundle and so drops the `http` / `net` / `opa-runtime`
+//     builtin groups at COMPILE time (see that crate's `determinism.rs`). A
+//     policy calling `http.send` fails to resolve rather than being filtered
+//     at runtime — strictly stronger than this executor's `--capabilities`
+//     approach, and identical on every platform because nothing is spawned.
+//   - This executor is legacy, in the retiring JS/TS workspace. Diagnosing a
+//     Windows-only spawn failure in it would harden a path already scheduled
+//     for removal.
+//
+// What still runs on Windows: the mock-binary suite above, which is what
+// actually asserts this executor's contract (the `--capabilities` flag is
+// passed, denied built-ins are filtered from the written profile, and
+// derivation failure fails closed). Only the leg that shells out to a real
+// `opa` is excluded, and only there.
+const REAL_BINARY_RETIRED_ON_WINDOWS = process.platform === 'win32';
+
+describe.skipIf(!opaPath || REAL_BINARY_RETIRED_ON_WINDOWS)(
   'OPAExecutor capabilities restriction — real opa binary (CIB-108)',
   () => {
     const deniedCases: Array<{ builtin: string; name: string; content: string }> = [
