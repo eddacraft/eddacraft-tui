@@ -95,6 +95,24 @@ For full confidence, run `pnpm validate:full`.
 
 For test selection and stack-specific commands, read `docs/guides/testing.md`.
 
+## Anvil Developer Functions
+
+This repository is anvil-enabled. When the anvil MCP tools are available, prefer
+them over blind file reads and unchecked writes:
+
+- Use the graph-context tools (`anvil_search_symbols`, `anvil_symbol_context`,
+  `anvil_find_callers`, `anvil_find_dependents`, `anvil_impact_of_change`,
+  `anvil_affected_tests`, `anvil_query_boundary`) to understand code before
+  reading whole files. They are bounded, deterministic, and never block.
+- Call `anvil_validate_write` before applying a file write, or
+  `anvil_apply_patch` when applying a unified diff. Honour a `block` decision;
+  surface `warn` diagnostics and continue.
+
+If the tools are not wired into your harness, fall back to ordinary file reads
+and note that anvil's developer functions were unavailable; do not stall. For
+procedure use the `anvil-developer-functions` skill; for setup, `anvil check`,
+`anvil gate`, watch mode, and CI use `using-anvil`.
+
 ## Agent Surfaces
 
 Repo-local and global skills, agents, and commands are inventoried in

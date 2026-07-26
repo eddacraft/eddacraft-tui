@@ -10,6 +10,17 @@ tools:
   - Grep
   - Bash
   - Task
+  - Skill
+  - mcp__anvil__anvil_status
+  - mcp__anvil__anvil_search_symbols
+  - mcp__anvil__anvil_symbol_context
+  - mcp__anvil__anvil_find_callers
+  - mcp__anvil__anvil_find_dependents
+  - mcp__anvil__anvil_impact_of_change
+  - mcp__anvil__anvil_affected_tests
+  - mcp__anvil__anvil_query_boundary
+  - mcp__anvil__anvil_validate_write
+  - mcp__anvil__anvil_apply_patch
 ---
 
 # APS Planner

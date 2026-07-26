@@ -7,6 +7,15 @@ tools:
   - Glob
   - Grep
   - Bash
+  - Skill
+  - mcp__anvil__anvil_status
+  - mcp__anvil__anvil_search_symbols
+  - mcp__anvil__anvil_symbol_context
+  - mcp__anvil__anvil_find_callers
+  - mcp__anvil__anvil_find_dependents
+  - mcp__anvil__anvil_impact_of_change
+  - mcp__anvil__anvil_affected_tests
+  - mcp__anvil__anvil_query_boundary
 ---
 
 # Pragmatic Lead
