@@ -92,6 +92,21 @@ async fn ui(uri: Uri) -> Response {
 }
 
 fn asset_response(asset: &Asset) -> Response {
+    // Vite fingerprints everything under `assets/` with a content hash, so a
+    // given URL's bytes can never change — cache it hard. Everything else,
+    // the app shell above all, stays `no-store`: `index.html` keeps a stable
+    // URL and is what points at the new hashes after an upgrade, so caching it
+    // would pin the browser to the previous build's assets.
+    if asset.path.starts_with("assets/") {
+        return (
+            [
+                (CONTENT_TYPE, asset.content_type),
+                (CACHE_CONTROL, "public, max-age=31536000, immutable"),
+            ],
+            asset.bytes,
+        )
+            .into_response();
+    }
     ([(CONTENT_TYPE, asset.content_type)], asset.bytes).into_response()
 }
 
@@ -165,7 +180,13 @@ async fn loopback_host_guard(request: Request, next: Next) -> Response {
         next.run(request).await
     };
     let headers = response.headers_mut();
-    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    // `no-store` is the default for everything — API payloads are workspace
+    // state and must never persist. A handler may opt out by setting its own
+    // `Cache-Control` first (only the content-hashed UI assets do), so this
+    // fills in rather than overwrites.
+    if !headers.contains_key(CACHE_CONTROL) {
+        headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
     headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     headers.insert(
         HeaderName::from_static("cross-origin-resource-policy"),

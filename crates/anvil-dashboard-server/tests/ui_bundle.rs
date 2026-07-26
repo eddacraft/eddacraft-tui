@@ -123,6 +123,46 @@ async fn serves_the_app_shell_when_bundled() {
     assert!(missing.starts_with("HTTP/1.1 404 Not Found"), "{missing}");
 }
 
+/// The shell must never be cached and the hashed assets must be, or an upgrade
+/// either serves a stale app or re-downloads the whole bundle every load.
+#[tokio::test]
+async fn caching_follows_content_hashing() {
+    if !is_bundled() {
+        return;
+    }
+    let workspace = tempdir().expect("workspace");
+
+    let shell = get(workspace.path(), "/").await;
+    assert!(
+        shell.to_lowercase().contains("cache-control: no-store"),
+        "the app shell keeps a stable URL and must not be cached: {shell}"
+    );
+
+    // Find a real hashed asset from the shell rather than guessing a name.
+    let asset = shell
+        .split_once("/assets/")
+        .and_then(|(_, rest)| rest.split(['"', '\'', '>', ' ']).next())
+        .map(|name| format!("/assets/{name}"))
+        .expect("shell references a hashed asset");
+    let response = get(workspace.path(), &asset).await;
+    let lower = response.to_lowercase();
+    assert!(
+        response.starts_with("HTTP/1.1 200 OK"),
+        "{asset}: {response}"
+    );
+    assert!(
+        lower.contains("cache-control: public, max-age=31536000, immutable"),
+        "{asset} is content-hashed and must be cacheable: {response}"
+    );
+
+    // The API is workspace state — it must stay uncached whatever the UI does.
+    let api = get(workspace.path(), "/healthz").await;
+    assert!(
+        api.to_lowercase().contains("cache-control: no-store"),
+        "API responses must not be cached: {api}"
+    );
+}
+
 #[tokio::test]
 async fn reports_an_absent_bundle_honestly() {
     if is_bundled() {

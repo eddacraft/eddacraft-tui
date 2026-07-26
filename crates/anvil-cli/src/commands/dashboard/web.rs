@@ -62,7 +62,11 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> Result<()> {
                 access: "read-only",
                 ui_bundled: bundled,
             };
-            println!("{}", serde_json::to_string_pretty(&envelope)?);
+            // One line, as the guide and `--help` promise: a caller waiting on
+            // this to learn the URL reads a line, and pretty-printing would
+            // make it block for a closing brace that arrives several lines
+            // later — or mis-parse the first line as the whole document.
+            println!("{}", serde_json::to_string(&envelope)?);
         } else {
             print_banner(&url, &root.display().to_string(), bundled, args.no_open);
         }
