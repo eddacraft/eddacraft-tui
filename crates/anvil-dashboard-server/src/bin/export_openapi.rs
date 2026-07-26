@@ -56,10 +56,13 @@ fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
     // rename fails if the destination exists — use backup-then-replace so a
     // failed install can restore the previous contract instead of deleting it
     // first (clawpatch high: data-loss on rename failure).
+    // No `return`: once the other arm is cfg-stripped this block is the
+    // function's tail expression, so `return` here trips `needless_return`
+    // on a Windows build (CIB-193).
     #[cfg(windows)]
     {
         let backup_path = dir.join(format!(".{file_name}.{attempt}.bak"));
-        return replace_existing_via_backup(&tmp_path, path, &backup_path);
+        replace_existing_via_backup(&tmp_path, path, &backup_path)
     }
 
     #[cfg(not(windows))]
