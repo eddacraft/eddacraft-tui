@@ -315,11 +315,10 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     // fails if the destination already exists. Remove the existing file first.
     #[cfg(windows)]
     {
-        if let Err(err) = std::fs::remove_file(path) {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                return Err(err)
-                    .with_context(|| format!("removing existing file {}", path.display()));
-            }
+        if let Err(err) = std::fs::remove_file(path)
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(err).with_context(|| format!("removing existing file {}", path.display()));
         }
     }
 

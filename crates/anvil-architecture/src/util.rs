@@ -44,10 +44,10 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), std::io::E
     // destination already exists. Remove the existing file first.
     #[cfg(windows)]
     {
-        if let Err(e) = std::fs::remove_file(path) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                return Err(e);
-            }
+        if let Err(e) = std::fs::remove_file(path)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(e);
         }
     }
 
