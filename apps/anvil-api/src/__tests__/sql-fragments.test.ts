@@ -4,7 +4,7 @@ import { neon, type NeonQueryPromise } from '@neondatabase/serverless';
 // The admin list queries (findWaitlistPaginated, findAuditEntries) compose
 // predicate fragments into an outer template like:
 //
-//   const statusPred = status === 'pending' ? sql`AND bu.id IS NULL` : sql``;
+//   const statusPred = status === 'pending' ? sql`AND w.approved_at IS NULL` : sql``;
 //   const sourcePred = source === 'all' ? sql`` : sql`AND w.source = ${source}`;
 //   await sql`... WHERE 1=1 ${statusPred} ${sourcePred} ...`;
 //
@@ -37,13 +37,13 @@ describe('neon tagged-template composition — admin list queries', () => {
   // may be empty.
 
   it('composes two non-empty fragments with bound params', () => {
-    const statusPred = sql`AND bu.id IS NULL`;
+    const statusPred = sql`AND w.approved_at IS NULL`;
     const sourcePred = sql`AND w.source = ${'manual'}`;
     const compiled = compile(
-      sql`SELECT 1 FROM waitlist w LEFT JOIN beta_users bu ON bu.email = w.email WHERE 1=1 ${statusPred} ${sourcePred} LIMIT ${50}`
+      sql`SELECT 1 FROM waitlist w WHERE 1=1 ${statusPred} ${sourcePred} LIMIT ${50}`
     );
 
-    expect(compiled.query).toContain('AND bu.id IS NULL');
+    expect(compiled.query).toContain('AND w.approved_at IS NULL');
     expect(compiled.query).toContain('AND w.source = ');
     // params preserved in order: source filter, then limit
     expect(compiled.params).toEqual(['manual', 50]);
@@ -62,13 +62,13 @@ describe('neon tagged-template composition — admin list queries', () => {
   });
 
   it('mixes empty and non-empty fragments (status=pending, source=all)', () => {
-    const statusPred = sql`AND bu.id IS NULL`;
+    const statusPred = sql`AND w.approved_at IS NULL`;
     const sourcePred = sql``;
     const compiled = compile(
       sql`SELECT 1 WHERE 1=1 ${statusPred} ${sourcePred} LIMIT ${10} OFFSET ${0}`
     );
 
-    expect(compiled.query).toContain('AND bu.id IS NULL');
+    expect(compiled.query).toContain('AND w.approved_at IS NULL');
     expect(compiled.query).not.toContain('w.source');
     // Empty fragment must not consume a parameter slot
     expect(compiled.params).toEqual([10, 0]);

@@ -1054,8 +1054,7 @@ export async function findUnapprovedWaitlistEntries(
   const r = rows(
     await sql`
     SELECT w.email FROM waitlist w
-    LEFT JOIN beta_users bu ON bu.email = w.email
-    WHERE bu.id IS NULL
+    WHERE w.approved_at IS NULL
     ORDER BY w.created_at ASC
     LIMIT ${limit}
   `
@@ -1331,14 +1330,10 @@ export interface WaitlistListEntry {
 /**
  * Paginated waitlist listing for the admin CLI.
  *
- * Approval is derived by LEFT JOIN against beta_users — an entry is
- * "approved" when a matching beta_users row exists. The join uses
- * citext equality so email casing is handled by the column type.
- *
- * `approved_at` is a proxy for the approval event: it is
- * `beta_users.created_at`, not an audit-log timestamp. A row directly
- * inserted into beta_users (outside the waitlist flow) will still
- * surface an `approved_at` in this listing.
+ * Approval is the durable `waitlist.approved_at` column (set by admin
+ * approve / invite). Pending = NULL; approved = NOT NULL. This is not
+ * "beta_users row exists" — pending GitHub OAuth signups stay pending
+ * until an operator grants access.
  *
  * Total and items are computed from a single query via `COUNT(*) OVER ()`
  * so pagination metadata matches the page contents under concurrent writes.
@@ -1354,9 +1349,9 @@ export async function findWaitlistPaginated(
   // SQL fragments are composed via nested template calls.
   const statusPred =
     status === 'pending'
-      ? sql`AND bu.id IS NULL`
+      ? sql`AND w.approved_at IS NULL`
       : status === 'approved'
-        ? sql`AND bu.id IS NOT NULL`
+        ? sql`AND w.approved_at IS NOT NULL`
         : sql``;
   const sourcePred = source === 'all' ? sql`` : sql`AND w.source = ${source}`;
 
@@ -1367,10 +1362,9 @@ export async function findWaitlistPaginated(
         w.name,
         w.source,
         w.created_at,
-        bu.created_at AS approved_at,
+        w.approved_at,
         COUNT(*) OVER () AS total
       FROM waitlist w
-      LEFT JOIN beta_users bu ON bu.email = w.email
       WHERE 1=1 ${statusPred} ${sourcePred}
       ORDER BY w.created_at ASC
       LIMIT ${limit} OFFSET ${offset}

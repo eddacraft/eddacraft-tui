@@ -201,8 +201,9 @@ describe('admin endpoints', () => {
     it('default flow sends invite email and does not return token', async () => {
       // Mock waitlist insert (tagged template call)
       mockSql.mockResolvedValueOnce([]);
-      // Mock transaction: [0] = upsert user, [1] = audit
+      // Mock transaction: [0] = stamp approved_at, [1] = upsert user, [2] = audit
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'audit-1' }],
       ]);
@@ -231,6 +232,7 @@ describe('admin endpoints', () => {
     it('default flow writes no device_codes row (GHCLIAUTH-007)', async () => {
       mockSql.mockResolvedValueOnce([]);
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'audit-1' }],
       ]);
@@ -251,8 +253,9 @@ describe('admin endpoints', () => {
     it('tokenOnly mode creates user and returns token', async () => {
       // Mock waitlist insert (tagged template call)
       mockSql.mockResolvedValueOnce([]);
-      // Mock transaction: [0] = upsert user, [1] = insert token, [2] = audit
+      // Mock transaction: [0] = stamp approved_at, [1] = user, [2] = token, [3] = audit
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -275,6 +278,7 @@ describe('admin endpoints', () => {
 
     it('edict mode records waitlist entry and marks access token as an edict', async () => {
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -797,6 +801,7 @@ describe('admin endpoints', () => {
     it('single-email mode succeeds and returns approved entry', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -818,6 +823,7 @@ describe('admin endpoints', () => {
     it('writes no device_codes row but keeps the scope-record token insert (GHCLIAUTH-007)', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -858,6 +864,7 @@ describe('admin endpoints', () => {
       });
       vi.mocked(findActiveScopesForUser).mockResolvedValue(['preview', 'beta']);
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -901,6 +908,7 @@ describe('admin endpoints', () => {
         },
       }));
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -922,8 +930,8 @@ describe('admin endpoints', () => {
       );
       expect(accessTokenCall).toContainEqual(['beta']);
       // The dropped-scopes audit is recorded inside the transaction (as the
-      // 4th statement, asserted below) — NOT via the standalone insertAuditLog
-      // helper, which is reserved for the zero-granted-scopes rejection path.
+      // 5th statement after waitlist stamp) — NOT via the standalone
+      // insertAuditLog helper (zero-granted-scopes rejection path only).
       expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalledWith(
         expect.anything(),
         'user.approve.scopes_dropped',
@@ -932,7 +940,7 @@ describe('admin endpoints', () => {
         expect.anything()
       );
       const transactionStatements = mockSql.transaction.mock.calls[0][0] as unknown[][];
-      expect(transactionStatements).toHaveLength(4);
+      expect(transactionStatements).toHaveLength(5);
       const droppedAuditCall = mockSql.mock.calls.find(
         (call) => call[1] === 'user.approve.scopes_dropped'
       );
@@ -1040,6 +1048,7 @@ describe('admin endpoints', () => {
       // First email succeeds, second fails on a database error
       mockSql.transaction
         .mockResolvedValueOnce([
+          [{ email: 'alice@example.com' }],
           [{ id: 'user-1', email: 'alice@example.com' }],
           [{ id: 'token-1' }],
           [{ id: 'audit-1' }],
@@ -1747,6 +1756,7 @@ describe('admin endpoints', () => {
 
       mockSql.mockResolvedValueOnce([]); // upsertWaitlistWithName
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'bob@example.com' }],
         [{ id: 'user-1', email: 'bob@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -1823,6 +1833,7 @@ describe('admin endpoints', () => {
       // Shared-key comparison will succeed because the bearer is the ADMIN_KEY.
       mockSql.mockResolvedValueOnce([]); // upsertWaitlistWithName
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'bob@example.com' }],
         [{ id: 'user-1', email: 'bob@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -1868,6 +1879,7 @@ describe('admin endpoints', () => {
       vi.mocked(findAdminKeyByHash).mockResolvedValue(null);
       mockSql.mockResolvedValueOnce([]);
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'bob@example.com' }],
         [{ id: 'user-1', email: 'bob@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -1894,6 +1906,7 @@ describe('admin endpoints', () => {
       vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
       mockSql.mockResolvedValueOnce([]);
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'bob@example.com' }],
         [{ id: 'user-1', email: 'bob@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
@@ -1917,6 +1930,7 @@ describe('admin endpoints', () => {
       vi.mocked(findAdminKeyByHash).mockResolvedValue(activeKey());
       mockSql.mockResolvedValueOnce([]);
       mockSql.transaction.mockResolvedValue([
+        [{ email: 'bob@example.com' }],
         [{ id: 'user-1', email: 'bob@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],

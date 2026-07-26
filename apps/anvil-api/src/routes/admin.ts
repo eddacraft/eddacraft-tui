@@ -172,6 +172,10 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
 
     // Neon batch transaction — statements are interdependent and must be atomic
     const txResult = await sql.transaction([
+      sql`UPDATE waitlist
+          SET approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
+          WHERE email = ${normalizedEmail}
+          RETURNING email`,
       sql`INSERT INTO beta_users (email, name, notes, status)
           VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
           ON CONFLICT (email) DO UPDATE SET
@@ -190,7 +194,8 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
           RETURNING *`,
     ]);
 
-    const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
+    // Index 0 is the waitlist stamp; beta_users INSERT is index 1.
+    const user = (txResult as unknown[][])[1]?.[0] as { email: string; id: string };
 
     return c.json(
       {
@@ -207,7 +212,13 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   // Default flow — mark the user active and send the invite email. The user
   // activates on first `anvil auth login` (GitHub device flow links
   // github_id, or --otp proves the invited email) — ADR-066 decision 7.
+  // Stamp waitlist.approved_at (first grant wins) so admin list/Neon filters
+  // show operator admission, not merely beta_users existence.
   const txResult = await sql.transaction([
+    sql`UPDATE waitlist
+        SET approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
+        WHERE email = ${normalizedEmail}
+        RETURNING email`,
     sql`INSERT INTO beta_users (email, name, notes, status)
         VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
         ON CONFLICT (email) DO UPDATE SET
@@ -220,7 +231,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
         RETURNING *`,
   ]);
 
-  const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
+  const user = (txResult as unknown[][])[1]?.[0] as { email: string; id: string };
 
   moveToApprovedAudience(normalizedEmail).catch((err) => {
     console.error('Failed to move audience (non-fatal):', err);
@@ -410,6 +421,10 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     const tokenExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
     const statements = [
+      sql`UPDATE waitlist
+          SET approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
+          WHERE email = ${normalizedEmail}
+          RETURNING email`,
       sql`INSERT INTO beta_users (email, status)
           VALUES (${normalizedEmail}, ${'active'})
           ON CONFLICT (email) DO UPDATE SET status = ${'active'}
@@ -500,8 +515,8 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
  * approved / all), signup source (manual / website / import / all),
  * with limit and offset for pagination.
  *
- * Approval is derived by join against beta_users — an entry is
- * "approved" when a matching beta_users row exists.
+ * Approval is waitlist.approved_at (operator grant via approve/invite).
+ * pending = NULL; approved = NOT NULL. Independent of beta_users existence.
  */
 admin.get('/waitlist', zValidator('query', waitlistListQuerySchema), async (c) => {
   const { status, source, limit, offset } = c.req.valid('query');

@@ -104,13 +104,13 @@ describe('resolveAudience', () => {
   });
 
   describe('waitlist:pending', () => {
-    it('returns waitlist rows with no matching beta_users row', async () => {
+    it('returns waitlist rows with approved_at still null', async () => {
       const sql = mockSql([]);
       await resolveAudience(sql, 'waitlist:pending', { limit: 100 });
       const q = lastQuery(sql);
       expect(q).toContain('FROM waitlist');
-      expect(q).toContain('LEFT JOIN beta_users');
-      expect(q).toContain('bu.id IS NULL');
+      expect(q).toContain('approved_at IS NULL');
+      expect(q).not.toContain('LEFT JOIN beta_users');
     });
 
     it('returns null user_id for waitlist-only rows', async () => {
@@ -121,7 +121,7 @@ describe('resolveAudience', () => {
   });
 
   describe('waitlist:source', () => {
-    it('requires params.source and excludes already-invited rows', async () => {
+    it('requires params.source and excludes already-approved rows', async () => {
       const sql = mockSql([]);
       await resolveAudience(sql, 'waitlist:source', {
         limit: 100,
@@ -129,7 +129,7 @@ describe('resolveAudience', () => {
       });
       const q = lastQuery(sql);
       expect(q).toContain('w.source =');
-      expect(q).toContain('bu.id IS NULL');
+      expect(q).toContain('approved_at IS NULL');
     });
 
     it('passes the source value as a bound parameter', async () => {
@@ -189,21 +189,21 @@ describe('resolveAudience', () => {
       }
     );
 
-    it('waitlist:pending excludes suspended/banned implicitly by requiring bu.id IS NULL', async () => {
+    it('waitlist:pending excludes admitted rows via approved_at IS NULL', async () => {
       const sql = mockSql([]);
       await resolveAudience(sql, 'waitlist:pending', { limit: 100 });
       const q = lastQuery(sql);
-      expect(q).toContain('bu.id IS NULL');
+      expect(q).toContain('approved_at IS NULL');
     });
 
-    it('waitlist:source excludes suspended/banned implicitly by requiring bu.id IS NULL', async () => {
+    it('waitlist:source excludes admitted rows via approved_at IS NULL', async () => {
       const sql = mockSql([]);
       await resolveAudience(sql, 'waitlist:source', {
         limit: 100,
         params: { source: 'import' },
       });
       const q = lastQuery(sql);
-      expect(q).toContain('bu.id IS NULL');
+      expect(q).toContain('approved_at IS NULL');
     });
   });
 

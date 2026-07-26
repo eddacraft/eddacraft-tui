@@ -1,8 +1,8 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner          | Status | Freshness                                                                                                                |
-| ------- | ------------- | -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Runbook | Authoritative | CIB, FLEET-007 | Live   | Last reviewed 2026-07-16 against `crates/anvil-cli/src/commands/admin.rs` and `apps/anvil-api/src/lib/fleet-overview.ts` |
+| Type    | Authority     | Owner          | Status | Freshness                                                                               |
+| ------- | ------------- | -------------- | ------ | --------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB, FLEET-007 | Live   | Last reviewed 2026-07-26 against waitlist.approved_at list semantics and admin list CLI |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -409,6 +409,36 @@ Flags:
 - `--limit <1-200>` (default `50`)
 - `--offset <n>` (default `0`)
 
+**Status is not a column on `waitlist`.** It is derived from the durable
+`approved_at` timestamp:
+
+| `--status` | Meaning                                                                |
+| ---------- | ---------------------------------------------------------------------- |
+| `pending`  | `approved_at IS NULL` — still in the queue                             |
+| `approved` | `approved_at IS NOT NULL` — operator admitted via `approve` / `invite` |
+| `all`      | full signup ledger (rows are kept after admission)                     |
+
+`approved_at` is set once on first admin grant (re-invite keeps the original
+timestamp). Revoke does **not** clear it — admission history stays. A matching
+`beta_users` row alone (for example a pending GitHub OAuth signup) does **not**
+count as approved.
+
+Neon equivalents:
+
+```sql
+-- Queue
+SELECT email, name, source, created_at
+FROM waitlist
+WHERE approved_at IS NULL
+ORDER BY created_at;
+
+-- Admitted
+SELECT email, name, source, created_at, approved_at
+FROM waitlist
+WHERE approved_at IS NOT NULL
+ORDER BY approved_at;
+```
+
 ### `fleet` — show the current fleet overview
 
 ```bash
@@ -715,4 +745,5 @@ logs request/response metadata in the Vercel logs for 7 days.
 - Historical Node admin CLI hardening plan:
   `plans/archive/modules/admin-cli-hardening.aps.md`
 - Waitlist email operations: `docs/runbooks/waitlist-email-operations.md`
+- Release announcement email: `docs/runbooks/release-announcement-email.md`
 - Observability triage: `docs/runbooks/observability-triage.md`

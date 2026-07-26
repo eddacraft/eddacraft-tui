@@ -94,8 +94,13 @@ module.exports = {
     return [`oxfmt --write ${toCommandList(kept)}`];
   },
   '*.md': (files) => {
-    const kept = filter(files);
+    // Align with CI `pnpm format:check` (oxfmt --check .), which formats
+    // Markdown under docs/ and similar. Agent-config dirs are prettierignored
+    // so their skill fences are not reflowed — skip them here the same way
+    // as the TS/JSON globs (CIB-191 empty-target avoidance).
+    const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
-    return [`markdownlint --fix ${toCommandList(kept)}`];
+    const list = toCommandList(kept);
+    return [`oxfmt --write ${list}`, `markdownlint --fix ${list}`];
   },
 };

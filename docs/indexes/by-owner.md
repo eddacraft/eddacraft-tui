@@ -60,9 +60,10 @@
 
 ## API
 
-| Document                                                                              | Path                                         | Type    | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------- | -------------------------------------------- | ------- | ------------- | ----- | ------ |
-| [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md) | `docs/runbooks/waitlist-email-operations.md` | Runbook | Authoritative | API   | Live   |
+| Document                                                                              | Path                                          | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------- | --------------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Release Announcement Email](../../docs/runbooks/release-announcement-email.md)       | `docs/runbooks/release-announcement-email.md` | Runbook | Authoritative | API   | Live   |
+| [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md) | `docs/runbooks/waitlist-email-operations.md`  | Runbook | Authoritative | API   | Live   |
 
 ## APSMD
 

@@ -127,11 +127,13 @@ async function resolveWaitlistPending(
   sql: NeonClient,
   { limit }: AudienceParams
 ): Promise<AudienceRow[]> {
+  // Operator-grant column: still queued until admin approve/invite stamps
+  // approved_at. Do not use beta_users existence — pending OAuth rows would
+  // incorrectly leave the waitlist audience.
   const r = await sql`
     SELECT w.email, w.name, NULL AS user_id
     FROM waitlist w
-    LEFT JOIN beta_users bu ON bu.email = w.email
-    WHERE bu.id IS NULL
+    WHERE w.approved_at IS NULL
     ORDER BY w.created_at ASC
     LIMIT ${limit}
   `;
@@ -149,9 +151,8 @@ async function resolveWaitlistSource(
   const r = await sql`
     SELECT w.email, w.name, NULL AS user_id
     FROM waitlist w
-    LEFT JOIN beta_users bu ON bu.email = w.email
     WHERE w.source = ${source}
-      AND bu.id IS NULL
+      AND w.approved_at IS NULL
     ORDER BY w.created_at ASC
     LIMIT ${limit}
   `;

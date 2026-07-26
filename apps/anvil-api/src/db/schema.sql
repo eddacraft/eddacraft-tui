@@ -47,16 +47,21 @@ CREATE TABLE audit_log (
 );
 
 -- Waitlist table
+-- approved_at: operator grant (admin approve/invite). NULL = still queued.
+-- Not cleared on revoke — admission history stays. Status for list filters is
+-- derived from this column (pending = NULL, approved = NOT NULL), not from a
+-- separate status enum and not from beta_users existence.
 CREATE TABLE waitlist (
-  id         serial PRIMARY KEY,
-  email      citext UNIQUE NOT NULL,
-  name       text,
-  company    text,
-  role       text,
-  use_case   text,
-  source     text NOT NULL DEFAULT 'website',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  id          serial PRIMARY KEY,
+  email       citext UNIQUE NOT NULL,
+  name        text,
+  company     text,
+  role        text,
+  use_case    text,
+  source      text NOT NULL DEFAULT 'website',
+  approved_at timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
 -- Device code flow state (BAUTH-001)
