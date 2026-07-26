@@ -5386,3 +5386,38 @@ archive.
   the fix (and whether the current output is already acceptable) wants an
   owner decision rather than an agent's judgement.
 - **Confidence:** high
+
+### CIB-204: Drain the Windows-only clippy backlog in anvil-intercept
+
+- **Status:** Ready
+- **Intent:** `anvil-intercept`'s Windows named-pipe transport must meet the
+  same lint bar as the rest of the workspace, so the CIB-193 gate can cover it
+  and the `--exclude` in `.github/workflows/rust.yml` can be deleted.
+- **Expected Outcome:** `cargo clippy --workspace --all-targets --target
+  x86_64-pc-windows-msvc -- -D warnings` passes with no `--exclude`, and the
+  flag is removed from the `Clippy (windows-msvc)` job.
+- **Findings to clear** (from the gate's first run, job 89803096820):
+  - `ipc.rs:1442` — `too_many_lines` (114/100) on the named-pipe `serve`
+    accept loop
+  - `ipc.rs:1508` — `items_after_statements` (x3)
+  - `ipc.rs:5022` — `unnecessary_wraps`
+  - `registry.rs:328` — `large_enum_variant`
+  - `save_time.rs:663` — `unused_self`
+  - `interrupt.rs:463` — `collapsible_if`
+  - `ensure.rs:783` — `manual_let_else`
+  - `ensure.rs:713` — `unnested_or_patterns`
+- **Why this is its own item:** these are not the cfg-gated dead-code class
+  CIB-193 closed; they are structural lints in daemon transport code. Splitting
+  the accept loop, reshaping a hot-path enum, and unwrapping a `Result` in IPC
+  cannot be compiled or tested anywhere but a Windows runner, so they want a
+  reviewed change with Windows evidence — not a rider on the gate that found
+  them. Landing them under CIB-193 would have meant refactoring daemon
+  transport blind.
+- **Validation:** the gate passes without `--exclude`; the six-leg cross matrix
+  stays green; daemon IPC behaviour is unchanged on Windows (named-pipe
+  connect, dispatch, shutdown).
+- **Identified From:** first run of the CIB-193 `Clippy (windows-msvc)` gate,
+  2026-07-26.
+- **Coordinates with:** CIB-193 (the gate), ACTMO (Windows daemon-ensure
+  chain), DSV-010/-011 (Windows save-time support).
+- **Confidence:** high

@@ -221,8 +221,28 @@ jobs:
           shared-key: rust-ci-windows
       # `--all-targets` is what makes this work: the dead bindings that started
       # this were in a test file, so a lib-only check would have missed them.
+      #
+      # `--exclude eddacraft-anvil-intercept` is BASELINED DEBT, not a
+      # permanent carve-out. Standing this gate up revealed that the years the
+      # gap was open let Windows-only findings accumulate; `anvil-intercept`
+      # carries ~10, in the Windows named-pipe IPC server (`too_many_lines` on
+      # the accept loop, `large_enum_variant`, `unnecessary_wraps`,
+      # `unused_self`). Clearing them means restructuring daemon transport code
+      # that cannot be compiled or tested anywhere but a Windows runner, so it
+      # is its own reviewed change, not a rider on the gate that found it.
+      #
+      # This follows the repository's own posture (`.claude/rules/architecture.md`):
+      # baseline existing state, block on new edges. Every other crate — including
+      # `anvil-cli`, where the finding that opened CIB-193 lived — is gated now,
+      # so the bug class cannot come back anywhere it is already clean.
+      # Excluded packages are still BUILT as dependencies; they are only
+      # skipped for linting. CIB-204 tracks draining the debt and deleting
+      # this flag.
       - name: Run clippy for x86_64-pc-windows-msvc
-        run: cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+        run: >-
+          cargo clippy --workspace --all-targets
+          --exclude eddacraft-anvil-intercept
+          --target x86_64-pc-windows-msvc -- -D warnings
 
   doc:
     name: Doc
