@@ -540,7 +540,7 @@ mod windows_tests {
             .lock()
             .expect("transport test lock");
         let runtime = runtime();
-        let pipe_name = format!(r"\\.\pipe\anvil-gctx-timeout-test-{}", std::process::id(),);
+        let pipe_name = format!(r"\\.\pipe\anvil-gctx-timeout-test-{}", std::process::id());
         let (server_task, accepted_rx) = non_responding_server(&runtime, &pipe_name);
 
         let started = Instant::now();

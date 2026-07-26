@@ -1046,11 +1046,13 @@ mod tests {
 
         use super::{DaemonValidationClient as _, LocalDaemonValidationClient};
 
-        let worktree = std::path::PathBuf::from(r"C:\tmp\mlp2-075-test-wt");
-
+        // Declared before the first statement: items are in scope from the
+        // start of the block regardless, so defining them after a `let` reads
+        // as sequencing that does not exist (`items_after_statements`).
         struct Fixture {
             worktree: std::path::PathBuf,
         }
+
         impl StatusProvider for Fixture {
             fn query_status(&self) -> DaemonStatus {
                 let session = anvil_intercept_proto::SessionRecord {
@@ -1081,6 +1083,7 @@ mod tests {
             }
         }
 
+        let worktree = std::path::PathBuf::from(r"C:\tmp\mlp2-075-test-wt");
         let pipe_name = format!(
             r"\\.\pipe\anvil-validation-protection-claim-test-{}",
             std::process::id(),
