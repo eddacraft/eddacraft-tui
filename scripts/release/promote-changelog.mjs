@@ -138,9 +138,15 @@ function promoteMain(root, version, date, allowEmpty, check) {
   const text = fs.readFileSync(file, 'utf8');
   const heading = `## [${version}] — ${date}`;
 
-  if (text.includes(`## [${version}]`)) return null; // already promoted
-
   const { preamble, sections } = splitSections(text);
+
+  // Already promoted. Return the entries from the existing release section
+  // rather than a bare "done" signal: a run that wrote CHANGELOG.md and then
+  // died before the public changelog has to be recoverable by rerunning, and
+  // the public promotion needs those entries as its source.
+  const already = sections.find((section) => section.heading.startsWith(`## [${version}]`));
+  if (already) return trimBlank(already.body);
+
   const unreleased = sections.find((section) => /^## \[Unreleased\]/i.test(section.heading));
   if (!unreleased) {
     fail(3, `${file} has no '## [Unreleased]' section to promote.`);
@@ -215,6 +221,9 @@ function promotePublic(root, version, date, promoted) {
 
 const args = parseArgs(process.argv.slice(2));
 const promoted = promoteMain(args.root, args.version, args.date, args.allowEmpty, args.check);
-if (promoted !== null && !args.check) {
+// Always attempt the public promotion outside --check, even when the main
+// changelog was already done: both writes are idempotent, so a rerun is how a
+// half-finished promotion is repaired.
+if (!args.check) {
   promotePublic(args.root, args.version, args.date, promoted);
 }

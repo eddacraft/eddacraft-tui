@@ -317,4 +317,25 @@ fi
 (cd "$repo_empty" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$tmp/empty-issues2.json" ANVIL_RELEASE_ALLOW_EMPTY_CHANGELOG=1 bash "$PREPARE" --json --version v0.7.0-beta --release-type beta --strategy direct --repo eddacraft/anvil-001) >/dev/null
 assert_contains "$(cat "$repo_empty/CHANGELOG.md")" '## [0.7.0-beta] — '
 
+# A promotion that wrote CHANGELOG.md and then died before the public changelog
+# must be repairable by rerunning. Both writes are idempotent, so the rerun has
+# to attempt the public one even though the main changelog is already done.
+repo_partial="$tmp/prepare-repo-partial"
+init_repo "$repo_partial"
+(cd "$repo_partial" && ANVIL_RELEASE_TEST_MODE=prepare-fake-gh ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE="$tmp/partial-issues.json" bash "$PREPARE" --json --version v0.7.0-beta --release-type beta --strategy direct --repo eddacraft/anvil-001) >/dev/null
+
+# Simulate the crash: roll the public changelog back to its pre-promotion state
+# while CHANGELOG.md keeps the promoted section.
+write_changelogs "$tmp/reset-scratch-dir" 2>/dev/null || mkdir -p "$tmp/reset-scratch-dir/docs/public/anvil/releases"
+write_changelogs "$tmp/reset-scratch-dir"
+cp "$tmp/reset-scratch-dir/docs/public/anvil/releases/changelog.md" "$repo_partial/docs/public/anvil/releases/changelog.md"
+if grep -F '0.7.0-beta' "$repo_partial/docs/public/anvil/releases/changelog.md" >/dev/null 2>&1; then
+  echo "fixture error: public changelog should be pre-promotion" >&2
+  exit 1
+fi
+
+node "$ROOT/scripts/release/promote-changelog.mjs" --version v0.7.0-beta --date 2026-07-26 --root "$repo_partial"
+assert_contains "$(cat "$repo_partial/docs/public/anvil/releases/changelog.md")" '## 0.7.0-beta — '
+assert_contains "$(cat "$repo_partial/docs/public/anvil/releases/changelog.md")" 'A customer-facing capability that must survive promotion'
+
 echo "prepare.test.sh: ok"
