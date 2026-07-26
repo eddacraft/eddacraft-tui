@@ -59,12 +59,17 @@ apps/dashboard
 ### Write path
 
 1. After a successful write of the latest `GateSnapshot`, append one NDJSON line.
-2. Minimum point fields (names illustrative; freeze in OpenAPI during build):
-   - `recorded_at` — RFC 3339 UTC wall time of the append
-   - `score` — from the gate snapshot
-   - `result` / status — from the gate snapshot
-   - `warning_count` — derived from the snapshot
-   - optional: `duration_seconds`, `checks_run` when present
+2. Minimum point fields (freeze names in OpenAPI during build). Align with
+   the existing `GateSnapshot` contract where possible:
+   - `recorded_at` — RFC 3339 UTC wall time of the append (history-only; not on
+     `GateSnapshot`)
+   - `score` — from `GateSnapshot.score`
+   - `status` — from `GateSnapshot.status` (`pass` | `warn` | `fail`)
+   - `status_label` — from `GateSnapshot.status_label` (display string)
+   - `warning_count` — `GateSnapshot.warning_list.len()` (prefer list length over
+     parsing the string `warnings` field)
+   - optional but preferred when present: `duration_seconds`, `checks_run`
+     (string forms as on `GateSnapshot`)
 3. Run retention: drop points older than 90 days; if still over ~500 lines, drop
    oldest until under the cap.
 4. On any history I/O or GC failure: log/diagnostic only; **gate command remains
@@ -92,8 +97,8 @@ apps/dashboard
   Overview trend regions.
 - Daily / weekly controls aggregate **in the browser** over raw points:
   - day/week boundaries: **UTC**
-  - gate pass-rate for a bucket: fraction of points in that bucket whose result
-    is a pass (pin exact pass predicate in tests against snapshot status values)
+  - gate pass-rate for a bucket: fraction of points in that bucket whose
+    `status` is `pass` (pin exact predicate in tests; `warn` is not a pass)
   - warning-count trend: aggregate warning counts per bucket (sum or last —
     prefer **last point in bucket** for “level” charts; document choice in
     implementation tests; default **last** to avoid double-counting multi-gate
