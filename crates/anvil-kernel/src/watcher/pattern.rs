@@ -66,20 +66,17 @@ impl WatchPatternFilter {
     /// separator.
     #[must_use]
     pub fn matches(&self, rel_path: &Path) -> bool {
+        // Shadow the argument on Windows rather than branching into two
+        // cfg'd blocks: with the blocks, the Windows arm's `return` was the
+        // function's tail expression once the other arm was cfg-stripped, so
+        // clippy's `needless_return` fired — but only on a Windows build,
+        // which no PR-triggered job compiled until CIB-193 added one.
         #[cfg(windows)]
-        {
-            let normalised: String = rel_path
-                .to_string_lossy()
-                .chars()
-                .map(|c| if c == '\\' { '/' } else { c })
-                .collect();
-            let candidate = Path::new(&normalised);
-            return self.matches_inner(candidate);
-        }
-        #[cfg(not(windows))]
-        {
-            self.matches_inner(rel_path)
-        }
+        let normalised = rel_path.to_string_lossy().replace('\\', "/");
+        #[cfg(windows)]
+        let rel_path = Path::new(&normalised);
+
+        self.matches_inner(rel_path)
     }
 
     fn matches_inner(&self, rel_path: &Path) -> bool {
