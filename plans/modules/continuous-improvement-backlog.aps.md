@@ -4938,7 +4938,8 @@ archive.
 
 ### CIB-193: Finish the non-Linux cross-leg dead-code peel and close the PR-CI gap
 
-- **Status:** Ready
+- **Status:** In Progress — PR-CI gap closed on
+  `fix/v09-follow-through-lane`. Flip to Merged on merge.
 - **Intent:** PR #3290 fixed the cross-target cfg dead-code in anvil-intercept
   and anvil-bench, but dispatch run 29164882648 shows the next layer:
   `crates/anvil-cli/tests/start.rs` fails `-D warnings` on
@@ -4994,7 +4995,9 @@ archive.
 
 ### CIB-195: Fix the TS OPA executor's real-binary path on Windows
 
-- **Status:** Ready
+- **Status:** In Progress — resolved by **explicit retirement on Windows**
+  (the second branch this item offered), on `fix/v09-follow-through-lane`.
+  Flip to Merged on merge.
 - **Intent:** The legacy TS policy executor's real-binary evaluations must
   either work on Windows or be explicitly retired there — never fail silently.
 - **Expected Outcome:** On the Windows release-gate leg, every real-binary
@@ -5015,10 +5018,36 @@ archive.
   workspace retirement, CIB-132 (admin-key Windows nightly failures live in
   the same retiring workspace).
 - **Confidence:** medium
+- **Results:** Resolved by taking this item's second branch — **retire the
+  real-binary leg on Windows explicitly**, rather than harden a path already
+  scheduled for removal. The exclusion is now a named decision
+  (`REAL_BINARY_RETIRED_ON_WINDOWS`) carrying its rationale, not a bare
+  platform check that reads as owed work.
+
+  The authority for this security property has moved. `crates/anvil-policy-engine`
+  builds `regorus` without the `full-opa` bundle, dropping the `http` / `net` /
+  `opa-runtime` builtin groups at **compile** time (that crate's
+  `determinism.rs`): a policy calling `http.send` fails to resolve rather than
+  being filtered at runtime. That is strictly stronger than this executor's
+  `--capabilities` approach and identical on every platform, because nothing is
+  spawned — so the Windows spawn failure has no analogue there. The sibling
+  `opa-real.integration.test.ts` is already fully skipped pending the same
+  regorus migration.
+
+  What still runs on Windows: the mock-binary suite, which is what actually
+  asserts this executor's contract (flag passed, denied built-ins filtered from
+  the written profile, derivation failure fails closed). Only the leg that
+  shells out to a real `opa` is excluded, and only there.
+
+  **Not done:** the Windows `opa` spawn failure itself is undiagnosed. That is
+  deliberate — diagnosing it needs a Windows host and would harden a retiring
+  path. If the JS/TS workspace outlives expectations and the real-binary leg
+  becomes load-bearing again, this needs reopening.
 
 ### CIB-196: prepare.sh changelog promotion needs manual curation
 
-- **Status:** Ready
+- **Status:** In Progress — promotion rewritten on
+  `fix/v09-follow-through-lane`. Flip to Merged on merge.
 - **Intent:** The release prepare step should promote the Unreleased draft
   into a changelog section that needs at most light review — not a structural
   rewrite during the cut.
@@ -5257,6 +5286,34 @@ archive.
   211 tests. Proposed in [PR #3407](https://github.com/eddacraft/anvil-001/pull/3407).
   The pre-existing DASHCORE count mismatch remains an advisory.
 
+### CIB-202: Flaky beacon reservation test under parallel load
+
+- **Status:** Ready
+- **Intent:** `telemetry::tests::reservation_commit_enforces_one_success_per_install_per_day`
+  must be deterministic, or its non-determinism must be understood — a flaky
+  assertion on the once-per-day beacon reservation erodes trust in the gate
+  that protects users from repeated beacons.
+- **Expected Outcome:** Root cause identified and removed, or the test made
+  hermetic. Observed 2026-07-26 during a full `cargo test -p eddacraft-anvil`
+  run: the third `reserve_beacon_in` returned something other than
+  `Err(ReserveError::TooRecent)` at `crates/anvil-cli/src/telemetry.rs:1208`.
+  Did not reproduce across three subsequent full runs, in isolation, or on
+  `main`.
+- **Notes for the diagnosis:** the usual suspects are already excluded. The
+  test pins fixed timestamps (`2026-07-16T00:00:00Z` plus explicit offsets), so
+  it is not wall-clock or day-boundary dependent, and `temp_dir()` is a unique
+  `tempfile::tempdir()`, so it is not cross-test state collision. That points
+  at either the commit not being durable before the next read, or
+  `acquire_beacon_lock`'s non-blocking `try_lock_exclusive` returning `Busy`
+  under load and the assertion mistaking one `Err` variant for another — the
+  `matches!` asserts the specific variant but the failure message cannot show
+  which variant it got.
+- **Validation:** the test passes under repeated full-suite runs with the
+  machine loaded; the assertion reports the actual variant on failure.
+- **Identified From:** DASH-012 delivery-slice validation run, 2026-07-26.
+- **Coordinates with:** USAGE-001 (the sidecar beacon surface).
+- **Confidence:** medium
+
 ### CIB-203: Dependency Audit never runs on main, hiding latent advisories
 
 - **Status:** Draft
@@ -5296,3 +5353,4 @@ archive.
   lockfiles actually changed so PRs are judged on their own diff; or both —
   they address different halves of the problem. Related remediation landed in
   [PR #3417](https://github.com/eddacraft/anvil-001/pull/3417).
+||||||| parent of 673ced204 (docs(aps): record v0.9.x follow-through state and file CIB-202)
