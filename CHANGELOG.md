@@ -12,6 +12,22 @@ engineering maintenance are recorded in the
 > since `v0.9.0-beta`; the version, date, and final scope are set at the next
 > release.
 
+### Added
+
+- **A local dashboard in your browser.** `anvil dashboard --web` opens a
+  read-only view of your project's protection state, gate runs, warnings, and
+  plans — current health, what needs attention, and the detail behind each
+  finding. anvil picks a free loopback port, prints the URL, and opens your
+  browser; `--port` pins a port for a bookmark and `--no-open` prints the URL
+  without launching anything. The whole surface ships inside the `anvil` binary
+  you already have: no separate download, no Node toolchain, no second process.
+  It reads only what anvil has already written to your project, so a workspace
+  with no `anvil gate` run yet opens on honest empty states rather than invented
+  numbers. Nothing is reachable from another machine — the server refuses any
+  non-loopback address and rejects requests that did not come from the loopback
+  address it bound. See
+  [the local dashboard guide](./docs/guides/local-dashboard.md).
+
 ## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
 
 This window has two centres of gravity. **Your first minute and your daily

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use axum::extract::{Path as AxumPath, Request, State};
 use axum::http::StatusCode;
 use axum::http::header::{
-    CACHE_CONTROL, HOST, HeaderName, HeaderValue, ORIGIN, X_CONTENT_TYPE_OPTIONS,
+    CACHE_CONTROL, CONTENT_TYPE, HOST, HeaderName, HeaderValue, ORIGIN, X_CONTENT_TYPE_OPTIONS,
 };
 use axum::http::uri::{Authority, Uri};
 use axum::middleware::Next;
@@ -16,6 +16,7 @@ use tokio::net::TcpListener;
 
 use crate::Workspace;
 use crate::api::{HealthResponse, PatternCatalogue, PlanDetail, PlanSummary, ProtectionOverview};
+use crate::assets::{self, Asset};
 use crate::capabilities::patterns::load_pattern_catalogue;
 use crate::capabilities::plans::{load_plan, load_plans};
 use crate::capabilities::protection::load_protection_overview;
@@ -38,8 +39,86 @@ fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
         .route("/api/v1/patterns", get(patterns))
         .route("/api/v1/plans", get(plans))
         .route("/api/v1/plans/{id}", get(plan))
+        // The UI is served from the same origin as the API so the loopback
+        // host/origin guard covers both, and the browser needs no CORS grant.
+        .fallback(ui)
         .layer(axum::middleware::from_fn(loopback_host_guard))
         .with_state(state))
+}
+
+/// Serve the embedded dashboard UI.
+///
+/// Runs only for paths no API route claimed.
+async fn ui(uri: Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+
+    // Unmatched API surface stays JSON. Answering a programmatic request with
+    // the HTML shell would turn "this endpoint does not exist" into a parse
+    // error somewhere else entirely. The discriminator is the first segment, so
+    // a near-miss like `/healthz/extra` is still answered as API.
+    let root_segment = path.split('/').next().unwrap_or_default();
+    if matches!(root_segment, "api" | "healthz" | "openapi.json") {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "code": "not-found",
+                "message": "no such dashboard endpoint"
+            })),
+        )
+            .into_response();
+    }
+
+    if let Some(asset) = assets::get(path) {
+        return asset_response(asset);
+    }
+    // Client-side routes resolve to the shell so the router can take over on
+    // a deep link or a refresh.
+    if assets::is_client_route(path)
+        && let Some(shell) = assets::get(assets::INDEX)
+    {
+        return asset_response(shell);
+    }
+    if assets::is_bundled() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "code": "asset-not-found",
+                "message": "no such dashboard asset"
+            })),
+        )
+            .into_response();
+    }
+    ui_not_bundled()
+}
+
+fn asset_response(asset: &Asset) -> Response {
+    ([(CONTENT_TYPE, asset.content_type)], asset.bytes).into_response()
+}
+
+/// The honest answer when this binary carries no UI bundle.
+///
+/// A development build made without `pnpm --filter @eddacraft/anvil-dashboard
+/// build` still serves the full API; only the UI is absent. Saying so beats a
+/// bare 404, which reads as a broken install.
+fn ui_not_bundled() -> Response {
+    const BODY: &str = concat!(
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
+        "<title>anvil dashboard</title></head><body>",
+        "<h1>Dashboard UI not bundled</h1>",
+        "<p>This build of <code>anvil</code> was compiled without the dashboard ",
+        "UI assets. The read-only API is still available at ",
+        "<code>/api/v1/protection</code>.</p>",
+        "<p>To bundle the UI from a repository checkout, build the app and then ",
+        "rebuild the binary:</p>",
+        "<pre>pnpm --filter @eddacraft/anvil-dashboard build\ncargo build -p eddacraft-anvil</pre>",
+        "</body></html>",
+    );
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        [(CONTENT_TYPE, "text/html; charset=utf-8")],
+        BODY,
+    )
+        .into_response()
 }
 
 async fn loopback_host_guard(request: Request, next: Next) -> Response {

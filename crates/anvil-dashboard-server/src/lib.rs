@@ -10,6 +10,7 @@
 compile_error!("anvil-dashboard-server supports Unix and Windows hosts only");
 
 mod api;
+mod assets;
 mod capabilities;
 mod error;
 mod openapi;
@@ -21,6 +22,7 @@ pub use api::{
     GateCheckSummary, GateRunSummary, HealthResponse, PatternCatalogue, PatternSummary, PlanDetail,
     PlanSummary, PlanTimelineEntry, ProtectionOverview, SaveTimeSummary, WarningSummary,
 };
+pub use assets::is_bundled;
 pub use capabilities::patterns::load_pattern_catalogue;
 pub use capabilities::plans::{
     MAX_PLAN_MODULES, MAX_PLAN_SOURCE_BYTES, MAX_PLAN_WORK_ITEMS, PlanReadError, load_plan,

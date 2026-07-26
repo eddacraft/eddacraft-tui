@@ -99,6 +99,47 @@ pub fn user_home_dir() -> Option<PathBuf> {
         .or_else(dirs::home_dir)
 }
 
+/// Hand a URL to the platform's default browser.
+///
+/// On failure returns the reason so callers can phrase their own line. A failed
+/// launch is never fatal: every caller also prints the URL for the reader to
+/// open themselves.
+///
+/// Spawning is skipped under `cfg(test)`: a test run must not open windows on
+/// the developer's desktop.
+pub fn open_in_browser(url: &str) -> std::result::Result<(), String> {
+    if cfg!(test) {
+        return Ok(());
+    }
+    let mut command = if cfg!(target_os = "macos") {
+        let mut command = std::process::Command::new("open");
+        command.arg(url);
+        command
+    } else if cfg!(target_os = "windows") {
+        let mut command = std::process::Command::new("cmd");
+        // The empty argument is `start`'s title parameter: without it a URL
+        // containing spaces or quotes would be read as the window title.
+        command.args(["/C", "start", "", url]);
+        command
+    } else {
+        let mut command = std::process::Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+    match command
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()
+    {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(stderr.lines().next().unwrap_or("unknown error").to_owned())
+        }
+        Err(err) => Err(err.to_string()),
+    }
+}
+
 /// Resolve the workspace root via `git rev-parse --show-toplevel`.
 ///
 /// Canonicalises the git result to collapse symlinks. Falls back to

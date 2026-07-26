@@ -21,12 +21,26 @@ use crate::{GlobalArgs, tui, util};
 mod architecture;
 mod drift;
 mod suppressions;
+mod web;
 
 #[derive(Debug, Args)]
 pub struct DashboardArgs {
     /// Dashboard to open (`architecture`, `drift`, `suppressions`). Omit to
     /// open the interactive picker.
     pub name: Option<String>,
+
+    /// Serve the browser dashboard on a loopback port instead of opening a
+    /// terminal dashboard. Read-only, and reachable only from this machine.
+    #[arg(long, conflicts_with = "name")]
+    pub web: bool,
+
+    /// Port for `--web`. Omit to let the operating system pick a free one.
+    #[arg(long, value_name = "PORT", requires = "web")]
+    pub port: Option<u16>,
+
+    /// Do not open a browser window for `--web`; just print the URL.
+    #[arg(long, requires = "web")]
+    pub no_open: bool,
 }
 
 /// A native dashboard known to the CLI. `available` stays `false` until the
@@ -136,6 +150,12 @@ fn resolve(name: Option<&str>, catalog: &[CatalogEntry]) -> Resolution {
 }
 
 pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    // The browser dashboard is a different surface from the terminal ones: it
+    // serves rather than renders, so it short-circuits the catalogue entirely.
+    if args.web {
+        return web::run(args, global);
+    }
+
     let catalog = catalog();
     // Saved spec dashboards live under `.anvil/dashboards/`. Discovery is
     // best-effort: outside a workspace (no root) there are simply none.

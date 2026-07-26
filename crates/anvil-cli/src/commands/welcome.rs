@@ -1531,38 +1531,15 @@ fn run_welcome_hub(
 fn open_docs_message() -> String {
     let url = "https://docs.eddacraft.ai";
 
-    // Skip spawning external processes during tests
+    // Under test the shared helper is a no-op, so keep the plain visit line
+    // rather than claiming a browser opened.
     if cfg!(test) {
         return format!("Visit: {url}");
     }
 
-    let result = if cfg!(target_os = "macos") {
-        std::process::Command::new("open")
-            .arg(url)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .output()
-    } else if cfg!(target_os = "windows") {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .output()
-    } else {
-        std::process::Command::new("xdg-open")
-            .arg(url)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .output()
-    };
-    match result {
-        Ok(output) if output.status.success() => format!("Opened {url} in your browser"),
-        Ok(output) => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let reason = stderr.lines().next().unwrap_or("unknown error");
-            format!("Could not open browser: {reason}  |  Visit: {url}")
-        }
-        Err(e) => format!("Could not open browser: {e}  |  Visit: {url}"),
+    match crate::util::open_in_browser(url) {
+        Ok(()) => format!("Opened {url} in your browser"),
+        Err(reason) => format!("Could not open browser: {reason}  |  Visit: {url}"),
     }
 }
 

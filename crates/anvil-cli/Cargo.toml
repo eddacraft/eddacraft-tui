@@ -17,6 +17,11 @@ path = "src/main.rs"
 [dependencies]
 animate = { workspace = true }
 anvil-tui = { path = "../anvil-tui", package = "eddacraft-anvil-tui" }
+# DASH-012: `anvil dashboard --web` serves the browser dashboard in-process, so
+# the read-only API and the embedded UI ship inside the one `anvil` binary the
+# installers already deliver. App-layer only — the resident daemon must never
+# link an HTTP server (`daemon_dep_boundary` enforces this).
+anvil-dashboard-server = { path = "../anvil-dashboard-server", package = "eddacraft-anvil-dashboard-server" }
 anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 anvil-plan-read-model = { path = "../anvil-plan-read-model", package = "eddacraft-anvil-plan-read-model" }

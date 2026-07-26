@@ -129,6 +129,12 @@
 | [Command Safety Configuration Reference](../../docs/guides/command-safety-configuration.md) | `docs/guides/command-safety-configuration.md` | Guide | Authoritative | CMDSH | Live   |
 | [Command Safety Validation](../../docs/guides/command-safety.md)                            | `docs/guides/command-safety.md`               | Guide | Authoritative | CMDSH | Live   |
 
+## DASH
+
+| Document                                                | Path                             | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------- | -------------------------------- | ----- | ------------- | ----- | ------ |
+| [Local Dashboard](../../docs/guides/local-dashboard.md) | `docs/guides/local-dashboard.md` | Guide | Authoritative | DASH  | Live   |
+
 ## DEVACC (plans/modules/dev-acceleration-benchmarks.aps.md)
 
 | Document                                                                                               | Path                                                   | Type | Authority | Owner                                                     | Status |

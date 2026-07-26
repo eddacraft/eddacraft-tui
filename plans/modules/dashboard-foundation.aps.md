@@ -436,3 +436,41 @@ Change status to **Ready** when:
   and over-budget inputs, label declarations as validation contracts, and prove
   disabled action affordances cannot mutate state
 - **Confidence:** medium
+
+### DASH-012: Ship the dashboard to users
+
+- **Status:** In Progress — delivery slice on
+  `feat/dash-012-local-dashboard-delivery`. Flip to Merged on merge.
+- **Intent:** Wave 1 built the dashboard but left it unreachable: the server was
+  a `publish = false` binary outside the dist manifest, the UI was a private
+  Vite app, and the API served JSON with no route to the app shell. Reaching it
+  meant a repository checkout, a Node toolchain, and two processes — a
+  contributor workflow, not a user one. A window themed on the team-lead surface
+  cannot ship a headline feature no user can open.
+- **Expected Outcome:** `anvil dashboard --web` serves the dashboard from the
+  `anvil` binary the installers already deliver — one command, one loopback URL,
+  no Node and no second process. The UI is embedded at build time; the release
+  build fails rather than shipping a binary without it; a locally built binary
+  without the bundle says so and still serves the API. Deep links and refreshes
+  resolve to the app shell, missing assets 404, and unmatched API paths stay
+  JSON. The command is documented and carries a CHANGELOG entry, so a user can
+  discover it without reading the source.
+- **Files:**
+  - `crates/anvil-dashboard-server/build.rs`
+  - `crates/anvil-dashboard-server/src/assets.rs`
+  - `crates/anvil-dashboard-server/src/server.rs`
+  - `crates/anvil-dashboard-server/tests/ui_bundle.rs`
+  - `crates/anvil-cli/src/commands/dashboard/web.rs`
+  - `crates/anvil-cli/src/commands/dashboard/mod.rs`
+  - `crates/anvil-cli/src/util.rs`
+  - `.github/workflows/release.yml`
+  - `docs/guides/local-dashboard.md`
+  - `CHANGELOG.md`
+- **Dependencies:** DASH-001..011
+- **Validation:** `cargo test -p eddacraft-anvil-dashboard-server` covers both
+  bundle states, the SPA fallback, the asset 404, and that the loopback guard
+  still applies to UI routes; a build with
+  `ANVIL_DASHBOARD_REQUIRE_BUNDLE=1` and no bundle fails with an actionable
+  message; `anvil dashboard --web` serves shell, assets, deep links, and API
+  from one port on a real workspace.
+- **Confidence:** high

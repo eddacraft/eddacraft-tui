@@ -1273,6 +1273,7 @@ dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-checks-ast",
  "eddacraft-anvil-config",
+ "eddacraft-anvil-dashboard-server",
  "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-hook",
  "eddacraft-anvil-intercept",
