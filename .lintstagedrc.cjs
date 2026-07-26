@@ -58,6 +58,14 @@ const isAgentConfig = (file) => {
   );
 };
 
+// plans/** is prettierignored (APS/plan truth must not be reflowed). Skip it in
+// the *.md lint-staged path so commits that only touch plans/*.md do not hand
+// oxfmt an empty target set ("Expected at least one target file").
+const isPlansPath = (file) => {
+  const normalised = normalisePath(file);
+  return normalised.includes('/plans/') || normalised.startsWith('plans/');
+};
+
 const filter = (files) => files.filter((f) => !isVendoredOutput(f));
 
 // Quote each file with JSON.stringify so paths containing spaces (common on
@@ -108,10 +116,11 @@ module.exports = {
   },
   '*.md': (files) => {
     // Align with CI `pnpm format:check` (oxfmt --check .), which formats
-    // Markdown under docs/ and similar. Agent-config dirs are prettierignored
-    // so their skill fences are not reflowed — skip them here the same way
-    // as the TS/JSON globs (CIB-191 empty-target avoidance).
-    const kept = filter(files).filter((f) => !isAgentConfig(f));
+    // Markdown under docs/ and similar. Agent-config dirs and plans/ are
+    // prettierignored so skill fences / APS truth are not reflowed — skip
+    // them here the same way as the TS/JSON globs (CIB-191 empty-target
+    // avoidance).
+    const kept = filter(files).filter((f) => !isAgentConfig(f) && !isPlansPath(f));
     if (kept.length === 0) return [];
     const tasks = [];
     // `/plans` is prettierignored wholesale, so a commit staging only planning
