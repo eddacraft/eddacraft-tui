@@ -5354,3 +5354,35 @@ archive.
   they address different halves of the problem. Related remediation landed in
   [PR #3417](https://github.com/eddacraft/anvil-001/pull/3417).
 ||||||| parent of 673ced204 (docs(aps): record v0.9.x follow-through state and file CIB-202)
+||||||| parent of b1db2ab82 (docs(aps): file CIB-203 for per-family licence-text attribution)
+
+### CIB-205: ACKNOWLEDGEMENTS prints one licence text per family, dropping the others' copyright notices
+
+- **Status:** Ready
+- **Intent:** Licence families whose members each carry their own copyright
+  line must have every notice retained, not just one representative's. BSD
+  3-Clause and MIT both condition redistribution on retaining "the above
+  copyright notice".
+- **Expected Outcome:** `ACKNOWLEDGEMENTS.md` carries each crate's own
+  copyright notice for licence families that require notice retention, rather
+  than a single representative text per family.
+- **Evidence:** The `BSD 3-Clause "New" or "Revised" License` block has four
+  members — `subtle`, `aws-lc-sys`, `regorus`, and now `matchit` — but prints
+  exactly one licence text. Before `matchit` entered the graph the block
+  carried `subtle`'s notice (Isis Agora Lovecruft, dalek-cryptography); after,
+  it carries matchit's (Julien Schmidt) and `subtle`'s no longer appears
+  anywhere in the file. The other two members' notices were already absent, so
+  the gap predates this and is a property of the generator, not of any one
+  dependency change. Surfaced by the DASH-012 regen
+  ([PR #3421](https://github.com/eddacraft/anvil-001/pull/3421)), which added
+  `matchit` and so changed which member is representative.
+- **Validation:** for a multi-member family, every member's copyright notice is
+  present in the generated file; adding a crate to an existing family does not
+  remove another crate's notice.
+- **Identified From:** DASH-012 ACKNOWLEDGEMENTS regeneration, 2026-07-26.
+- **Coordinates with:** ATTRIB-006/-007 (the attribution pipeline and its
+  freshness gate), `tools/starters/acknowledgements/`.
+- **Notes:** legal-adjacent — this is an attribution-completeness question, so
+  the fix (and whether the current output is already acceptable) wants an
+  owner decision rather than an agent's judgement.
+- **Confidence:** high
