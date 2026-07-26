@@ -27,13 +27,13 @@ prose.
 ## Interactive and plain output
 
 In a genuine terminal, `anvil start` opens the interactive activation surface.
-Everything else — including every scripted context — gets the same plain text
-as before:
+Everything else — including every scripted context — gets the same plain text as
+before:
 
-| Context                                            | Output                    |
-| -------------------------------------------------- | ------------------------- |
+| Context                                             | Output                    |
+| --------------------------------------------------- | ------------------------- |
 | A terminal (all of stdin, stdout, stderr are a TTY) | Interactive surface       |
-| `--no-tui`, or `ANVIL_NO_TUI=1`                    | Plain text                |
+| `--no-tui`, or `ANVIL_NO_TUI=1`                     | Plain text                |
 | `--verify` or `--json`                              | Plain text / JSON         |
 | `anvil start --watch`                               | Plain text + event stream |
 | Piped, redirected, or run under CI                  | Plain text                |
