@@ -5393,11 +5393,22 @@ archive.
 - **Intent:** `anvil-intercept`'s Windows named-pipe transport must meet the
   same lint bar as the rest of the workspace, so the CIB-193 gate can cover it
   and the `--exclude` in `.github/workflows/rust.yml` can be deleted.
-- **Expected Outcome:** every `#[cfg_attr(windows, allow(clippy::...))]`
-  marker in `crates/anvil-intercept/src/` naming this item is deleted, and
+- **Expected Outcome:** every `cfg_attr(windows, allow(clippy::...))` marker
+  in `crates/anvil-intercept/src/` naming this item is deleted, and
   `cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc --
   -D warnings` still passes. Find them with
-  `grep -rn 'cfg_attr(windows, allow(clippy' crates/anvil-intercept/src/`.
+  `grep -rn 'cfg_attr(\s*windows' crates/anvil-intercept/src/`.
+- **Where the baselines live:** deliberately split.
+  `ensure.rs` (`unnested_or_patterns`, `manual_let_else`) and `interrupt.rs`
+  (`collapsible_if`) carry per-site allows. The other five —
+  `unused_self`, `large_enum_variant`, `unnecessary_wraps`, `too_many_lines`,
+  `items_after_statements` — sit at the crate root in `lib.rs`, because their
+  sites (`ipc.rs`, `registry.rs`, `save_time.rs`) are on the council-gate
+  protected list: the same-uid save-time trust boundary. An inert `#[allow]`
+  is not a trust-boundary change, and spending a Council review on three no-op
+  attributes would train reviewers to wave through diffs on exactly the files
+  that list exists to slow down. Clearing this item touches those files for
+  real, so it *will* need the Council review — which is correct.
 - **Findings to clear** (from the gate's first run, job 89803096820):
   - `ipc.rs:1442` — `too_many_lines` (114/100) on the named-pipe `serve`
     accept loop
