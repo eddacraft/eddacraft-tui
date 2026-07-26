@@ -5256,3 +5256,43 @@ archive.
   contaminated by a live local daemon; the isolated MCP tool slice passed all
   211 tests. Proposed in [PR #3407](https://github.com/eddacraft/anvil-001/pull/3407).
   The pre-existing DASHCORE count mismatch remains an advisory.
+
+### CIB-203: Dependency Audit never runs on main, hiding latent advisories
+
+- **Status:** Draft
+- **Intent:** Make vulnerable dependencies on `main` visible when they land,
+  rather than when an unrelated pull request happens to touch a lockfile.
+- **Expected Outcome:** A HIGH or CRITICAL advisory affecting a dependency on
+  `main` surfaces on a scheduled or push-triggered run, attributable to the
+  commit or window that introduced it. Lockfile-touching pull requests stop
+  inheriting unrelated red from advisories that predate them.
+- **Validation:** Confirm `Dependency Audit` reports a non-skipped conclusion
+  on a `main` run; confirm a pull request that changes no dependency is
+  unaffected by a pre-existing advisory.
+- **Identified From:** Review of PRs #3401, #3402 and #3404. All three failed
+  `Dependency Audit` on packages absent from their diffs. The job in
+  `.github/workflows/security.yml` is gated on
+  `needs.detect-changes.outputs.dependency-audit-required == 'true'`, so on a
+  plain `main` push it is **skipped**, and the workflow still reports success.
+  Verified skipped on three consecutive `main` runs:
+
+  | Commit      | Run         | Dependency Audit |
+  | ----------- | ----------- | ---------------- |
+  | `69a4c2823` | 30199921119 | skipped          |
+  | `93b730d83` | 30194404983 | skipped          |
+  | `b4b10cdc1` | 30170369907 | skipped          |
+
+  Three HIGH advisories had accumulated unnoticed and only appeared because
+  those PRs changed a lockfile: postcss (GHSA-r28c-9q8g-f849), quinn-proto
+  (GHSA-4w2j-m93h-cj5j) and brace-expansion (GHSA-mh99-v99m-4gvg). Trivy scans
+  the whole tree (`scan-ref: '.'`), so a PR touching any lockfile inherits every
+  pre-existing finding — including `Cargo.lock` advisories for PRs that only
+  change npm dependencies.
+- **Confidence:** high
+- **Notes:** The `dependency-audit-required` gate is a deliberate cost control
+  (CIB-137 fails closed on classifier failure), so this is a scheduling
+  question, not a request to drop the gate. Options worth weighing: a nightly
+  or weekly unconditional audit on `main`; scoping the PR-triggered scan to the
+  lockfiles actually changed so PRs are judged on their own diff; or both —
+  they address different halves of the problem. Related remediation landed in
+  [PR #3417](https://github.com/eddacraft/anvil-001/pull/3417).
