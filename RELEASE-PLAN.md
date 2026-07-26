@@ -70,14 +70,14 @@ remain coordinated, non-blocking expansion.
 
 This window also carries **MCPX** and **SKPKG**, both merged to `main` in #3328
 on 2026-07-15 — three days after the `v0.9.0-beta` cut — and therefore in no
-tag. They need no further implementation, but they are named here because their
-user-visible capability is currently zero: `anvil mcp install --client` accepts
-twelve clients on `main` and two in the released binary, so every user's
-`anvil start` still wires at most Claude Code and Cursor. Untracked carry-in
-ships by accident of being on `main`; naming it makes the cut evidence real and
-gives the closeout a `Released/Shipped` transition to make. Module statuses are
-unchanged by this document — advancing them is the closeout step's job, once a
-tag exists.
+tag. They need no further implementation, but they are named here because
+nothing of them is reachable from the latest tagged release: as of
+`v0.9.0-beta`, `anvil mcp install --client` accepts two clients, against twelve
+on `main`, so every user on the released binary still wires at most Claude Code
+and Cursor. Untracked carry-in ships by accident of being on `main`; naming it
+makes the cut evidence real and gives the closeout a `Released/Shipped`
+transition to make. Module statuses are unchanged by this document — advancing
+them is the closeout step's job, once a tag exists.
 
 ### Phase plan
 
@@ -101,7 +101,7 @@ tag exists.
 - The MCPX carry-in is verified **from the release artefact, not from `main`**:
   `anvil mcp install --client <client> --verify` succeeds for a non-Cursor,
   non-Claude-Code client using the tagged binary. Reading `--help` on a stale
-  installed binary is what hid this for eleven days.
+  installed binary is what hid the gap across the whole `v0.9.0-beta` window.
 
 ---
 
@@ -122,12 +122,12 @@ Authoritative source:
 
 ## Risks (active window)
 
-| Risk                                                                                                                                                                | Mitigation                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Default-on graph persistence and the first-run surfaces reach every upgrader — field defects surface now.                                                           | The `v0.9.x` 48h-P0 patch lane; `ANVIL_PERSIST_GRAPH=0` and `ANVIL_WATCH_DAEMON=0` documented opt-outs; CIB intake from beta signal.              |
-| Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`) — the v0.9 cut stalled ~6h on its expiry.                                            | Publication-recovery hardening intake (#3309); rotation is called out in the release runbook; the failure mode is pre-publish (no partial state). |
-| The window accretes (this document rots back into a historical record).                                                                                             | "How this document works" + the closeout prune step keep it to one active window.                                                                 |
-| Work merged between a cut and the next window's scoping is invisible here, so a module can read `Done` while delivering nothing to users (MCPX/SKPKG, eleven days). | Name merged-but-untagged modules as explicit carry-in when a window is scoped; verify them from the release artefact at cut, not from `main`.     |
+| Risk                                                                                                                                                                                                            | Mitigation                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default-on graph persistence and the first-run surfaces reach every upgrader — field defects surface now.                                                                                                       | The `v0.9.x` 48h-P0 patch lane; `ANVIL_PERSIST_GRAPH=0` and `ANVIL_WATCH_DAEMON=0` documented opt-outs; CIB intake from beta signal.              |
+| Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`) — the v0.9 cut stalled ~6h on its expiry.                                                                                        | Publication-recovery hardening intake (#3309); rotation is called out in the release runbook; the failure mode is pre-publish (no partial state). |
+| The window accretes (this document rots back into a historical record).                                                                                                                                         | "How this document works" + the closeout prune step keep it to one active window.                                                                 |
+| Work merged between a cut and the next window's scoping is invisible here, so a module can read `Done` while delivering nothing to users (MCPX/SKPKG, merged 2026-07-15, untagged since the `v0.9.0-beta` cut). | Name merged-but-untagged modules as explicit carry-in when a window is scoped; verify them from the release artefact at cut, not from `main`.     |
 
 ## Records & roadmap
 
