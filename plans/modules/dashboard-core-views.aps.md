@@ -2,11 +2,14 @@
 
 | ID       | Owner      | Status | Progress |
 | -------- | ---------- | ------ | -------- |
-| DASHCORE | @eddacraft | In Progress | 0/9      |
+| DASHCORE | @eddacraft | In Progress | 8/9      |
 
-**Last reviewed:** 2026-07-22 — Wave 2 product routes implemented for
-DASHCORE-003..009 on honest latest-gate evidence; DASHCORE-001 Merged via
-PR #3363; DASHCORE-002 remains Proposed (retained-history design gate).
+**Last reviewed:** 2026-07-27 — DASHCORE-003..009 reconciled to Merged; their
+Wave 2 product routes landed on `main` via PR #3379 (2026-07-24) but the item
+statuses were never flipped, so the module read 1/9 while eight items were
+terminal. DASHCORE-001 Merged via PR #3363. Only **DASHCORE-002** (retained
+history and trends) remains: Ready since 2026-07-26 with an approved design
+spec. The module stays In Progress until it lands.
 
 ## Purpose
 
@@ -153,7 +156,7 @@ DASHARCH.
 
 ### DASHCORE-003: Overview — activity feed
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — activity feed over provenance events with detail navigation
 
 - **Intent:** Show recent events and provide navigation shortcuts
 - **Expected Outcome:** Last 20 events from provenance: gate runs, new warnings,
@@ -167,7 +170,7 @@ DASHARCH.
 
 ### DASHCORE-004: Gate history list
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — gate-run DataTable with sorting and `useFilterParams` filtering
 
 - **Intent:** Browse all gate runs with sorting and filtering
 - **Expected Outcome:** DataTable of gate runs: timestamp, status, score, checks
@@ -184,7 +187,7 @@ DASHARCH.
 
 ### DASHCORE-005: Gate detail with check tree
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — gate detail header plus expandable check tree
 
 - **Intent:** Deep dive into a single gate run's results
 - **Expected Outcome:** Header (status, score, timestamp, trigger), expandable
@@ -203,7 +206,7 @@ DASHARCH.
 
 ### DASHCORE-006: Warning list with grouping/filtering
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — warning DataTable with grouping, severity/category filtering
 
 - **Intent:** Browse and investigate all active warnings
 - **Expected Outcome:** DataTable: ID, severity badge, category, title, file,
@@ -221,7 +224,7 @@ DASHARCH.
 
 ### DASHCORE-007: Warning detail panel
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — warning detail panel
 
 - **Intent:** Understand a specific warning in full context
 - **Expected Outcome:** shadcn/ui Sheet with full message, explanation, fix
@@ -237,7 +240,7 @@ DASHARCH.
 
 ### DASHCORE-008: Warning breakdown visualisations
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — warning breakdown charts
 
 - **Intent:** Understand warning distribution and identify hotspots
 - **Expected Outcome:** Bar chart by pattern ID, hotspot file ranking, donut for
@@ -252,7 +255,7 @@ DASHARCH.
 
 ### DASHCORE-009: Anti-pattern registry reference
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-24 via PR #3379 — anti-pattern registry reference
 
 - **Intent:** Document all defined anti-patterns in an accessible reference
 - **Expected Outcome:** Table of all patterns (AP-001..007): ID, name, category,

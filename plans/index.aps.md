@@ -705,8 +705,8 @@ tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary
 
 | Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
 | ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 11/11 (all Wave 1 items Merged via PR #3321; pending release evidence) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | In Progress | 0/9      | 2    | dashboard-foundation                                                     |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 12/12 (all Wave 1 items Merged via PR #3321; pending release evidence) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | In Progress | 8/9      | 2    | dashboard-foundation                                                     |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)                 | DASHAI   | Draft  | 0/6      | 4    | dashboard-foundation                                                     |

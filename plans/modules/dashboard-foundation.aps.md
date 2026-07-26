@@ -2,12 +2,13 @@
 
 | ID   | Owner      | Status | Progress |
 | ---- | ---------- | ------ | -------- |
-| DASH | @eddacraft | In Progress | 11/11    |
+| DASH | @eddacraft | In Progress | 12/12    |
 
-**Last reviewed:** 2026-07-16 — DASH-002..008 and DASH-010/-011 reconciled to
-Merged after PR #3321 landed on `main` with green CI. All 11 Wave 1 items are
-terminal, unblocking DASHCORE and DASHARCH. The module remains In Progress
-until release evidence exists.
+**Last reviewed:** 2026-07-27 — DASH-012 reconciled to Merged (PR #3421,
+2026-07-26): the dashboard is now reachable as `anvil dashboard --web` from the
+installed binary, closing the gap where Wave 1 had built a surface no user could
+open. All 12 items are terminal. The module remains In Progress until release
+evidence exists — a deliberate hold, not drift.
 
 ## Purpose
 
@@ -439,8 +440,9 @@ Change status to **Ready** when:
 
 ### DASH-012: Ship the dashboard to users
 
-- **Status:** In Progress — delivery slice on
-  `feat/dash-012-local-dashboard-delivery`. Flip to Merged on merge.
+- **Status:** Merged 2026-07-26 via PR #3421 — `anvil dashboard --web` serves
+  the embedded UI from the installed binary; build-time bundle with a
+  release-build guard, SPA fallback, asset 404s, JSON-only unmatched API paths.
 - **Intent:** Wave 1 built the dashboard but left it unreachable: the server was
   a `publish = false` binary outside the dist manifest, the UI was a private
   Vite app, and the API served JSON with no route to the app shell. Reaching it

@@ -61,12 +61,24 @@ Implementation planning may treat this window as approved.
 The JOURNEY release accepted the browser surface as explicitly **post-cut**
 expansion; this window picks that thread up. The
 [`dashboard-foundation`](./plans/modules/dashboard-foundation.aps.md) wave
-(DASH-001..011, Ready; 1/11 done) builds `apps/dashboard/` (Vite 8 + React +
-TanStack Router/Query/Table + shadcn/ui + Tailwind v4) backed by
+(DASH-001..012, all Merged) built `apps/dashboard/` (Vite 8 + React + TanStack
+Router/Query/Table + shadcn/ui + Tailwind v4) backed by
 `crates/anvil-dashboard-server/`, unblocking **DASHCORE**, **DASHARCH**, and
-**DASHOPS**. JOURNEY's own post-cut items (JOURNEY-007..010: sandbox autoplay,
-celebration/diagnostics, always-on confidence indicator, browser continuity)
-remain coordinated, non-blocking expansion.
+**DASHOPS**. Wave 1 (PR #3261, PR #3321) left the surface unreachable — a repo
+checkout, a Node toolchain, and two processes — and **DASH-012** (PR #3421,
+2026-07-26) closed that: `anvil dashboard --web` now serves the embedded UI from
+the installed binary.
+
+[`dashboard-core-views`](./plans/modules/dashboard-core-views.aps.md) has landed
+eight of nine items (DASHCORE-001 via PR #3363, DASHCORE-003..009 via PR #3379),
+leaving **DASHCORE-002** (retained history and trends) as the only open item —
+Ready with an approved spec. Until it lands the dashboard reports current state
+only, because `.anvil/gates.json` is latest-run by design. No dashboard
+_product_ slice is named in the phase plan below; scoping one is an operator
+decision, not a fact this document can record on its own. JOURNEY's own post-cut
+items (JOURNEY-007..010: sandbox autoplay, celebration/diagnostics, always-on
+confidence indicator, browser continuity) remain coordinated, non-blocking
+expansion.
 
 This window also carries **MCPX** and **SKPKG**, both merged to `main` in #3328
 on 2026-07-15 — three days after the `v0.9.0-beta` cut — and therefore in no
@@ -81,14 +93,15 @@ them is the closeout step's job, once a tag exists.
 
 ### Phase plan
 
-| Phase                           | Scope                                                                                                                                                                | State                                                                                                                      |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Scope confirmation** (gate)   | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                  | **done 2026-07-13** — confirmed by the operator                                                                            |
-| **v0.9 closeout hygiene**       | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.            | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR |
-| **Dashboard foundation** (DASH) | DASH-001..011: scaffold, server crate, auth posture, core routing/data layer, first role views.                                                                      | Ready (1/11) — continue from DASH-001                                                                                      |
-| **JOURNEY post-cut expansion**  | JOURNEY-007..010 as coordinated, non-blocking enhancements alongside the DASH wave.                                                                                  | Proposed — non-blocking                                                                                                    |
-| **MCPX/SKPKG carry-in**         | Merged-but-untagged multi-harness MCP install (twelve `--client` targets) and skill packaging; no implementation left, verify at cut and advance at closeout.        | merged 2026-07-15 via #3328 — in no tag; rides this window                                                                 |
-| **v0.9 follow-through** (lane)  | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309). | open — `v0.9.x` patches remain the vehicle for anything urgent                                                             |
+| Phase                               | Scope                                                                                                                                                                           | State                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Scope confirmation** (gate)       | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                             | **done 2026-07-13** — confirmed by the operator                                                                            |
+| **v0.9 closeout hygiene**           | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.                       | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR |
+| **Dashboard foundation** (DASH)     | DASH-001..012: scaffold, server crate, auth posture, core routing/data layer, first role views, and `anvil dashboard --web` delivery from the installed binary.                 | all 12 Merged (PRs #3261, #3321, #3421) — module In Progress pending release evidence                                      |
+| **Dashboard core views** (DASHCORE) | DASHCORE-001 + -003..009 product routes on latest-gate evidence. DASHCORE-002 (retained history and trends) is Ready with an approved spec but **not scoped into this window**. | 8/9 Merged (PR #3363, PR #3379) — DASHCORE-002 open, awaiting a scope decision                                             |
+| **JOURNEY post-cut expansion**      | JOURNEY-007..010 as coordinated, non-blocking enhancements alongside the DASH wave.                                                                                             | Proposed — non-blocking                                                                                                    |
+| **MCPX/SKPKG carry-in**             | Merged-but-untagged multi-harness MCP install (twelve `--client` targets) and skill packaging; no implementation left, verify at cut and advance at closeout.                   | merged 2026-07-15 via #3328 — in no tag; rides this window                                                                 |
+| **v0.9 follow-through** (lane)      | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309).            | open — `v0.9.x` patches remain the vehicle for anything urgent                                                             |
 
 ### Cut criteria
 
