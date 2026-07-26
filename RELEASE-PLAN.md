@@ -45,8 +45,9 @@ nothing else.
   [release-cadence policy](./docs/policies/release-cadence.md).
 - **Active window:** `v0.10.0-beta` (below, **confirmed by the operator
   2026-07-13**): the DASH dashboard-foundation wave (the team-lead browser
-  surface, Horizon 2) plus the `v0.9.x` follow-through patch lane and the
-  residual v0.9 closeout hygiene. Records for `v0.6.x`–`v0.9.x` are in
+  surface, Horizon 2) plus the `v0.9.x` follow-through patch lane, the residual
+  v0.9 closeout hygiene, and the **MCPX/SKPKG carry-in** already merged to
+  `main` after the `v0.9.0-beta` cut. Records for `v0.6.x`–`v0.9.x` are in
   [`plans/releases/`](./plans/releases/).
 
 ---
@@ -67,6 +68,17 @@ TanStack Router/Query/Table + shadcn/ui + Tailwind v4) backed by
 celebration/diagnostics, always-on confidence indicator, browser continuity)
 remain coordinated, non-blocking expansion.
 
+This window also carries **MCPX** and **SKPKG**, both merged to `main` in #3328
+on 2026-07-15 — three days after the `v0.9.0-beta` cut — and therefore in no
+tag. They need no further implementation, but they are named here because their
+user-visible capability is currently zero: `anvil mcp install --client` accepts
+twelve clients on `main` and two in the released binary, so every user's
+`anvil start` still wires at most Claude Code and Cursor. Untracked carry-in
+ships by accident of being on `main`; naming it makes the cut evidence real and
+gives the closeout a `Released/Shipped` transition to make. Module statuses are
+unchanged by this document — advancing them is the closeout step's job, once a
+tag exists.
+
 ### Phase plan
 
 | Phase                           | Scope                                                                                                                                                                | State                                                                                                                      |
@@ -75,6 +87,7 @@ remain coordinated, non-blocking expansion.
 | **v0.9 closeout hygiene**       | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.            | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR |
 | **Dashboard foundation** (DASH) | DASH-001..011: scaffold, server crate, auth posture, core routing/data layer, first role views.                                                                      | Ready (1/11) — continue from DASH-001                                                                                      |
 | **JOURNEY post-cut expansion**  | JOURNEY-007..010 as coordinated, non-blocking enhancements alongside the DASH wave.                                                                                  | Proposed — non-blocking                                                                                                    |
+| **MCPX/SKPKG carry-in**         | Merged-but-untagged multi-harness MCP install (twelve `--client` targets) and skill packaging; no implementation left, verify at cut and advance at closeout.        | merged 2026-07-15 via #3328 — in no tag; rides this window                                                                 |
 | **v0.9 follow-through** (lane)  | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309). | open — `v0.9.x` patches remain the vehicle for anything urgent                                                             |
 
 ### Cut criteria
@@ -85,6 +98,10 @@ remain coordinated, non-blocking expansion.
   not regress the save-time budget.
 - DASH acceptance gates as defined by the owning modules once the wave is
   implementation-planned.
+- The MCPX carry-in is verified **from the release artefact, not from `main`**:
+  `anvil mcp install --client <client> --verify` succeeds for a non-Cursor,
+  non-Claude-Code client using the tagged binary. Reading `--help` on a stale
+  installed binary is what hid this for eleven days.
 
 ---
 
@@ -105,11 +122,12 @@ Authoritative source:
 
 ## Risks (active window)
 
-| Risk                                                                                                                     | Mitigation                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Default-on graph persistence and the first-run surfaces reach every upgrader — field defects surface now.                | The `v0.9.x` 48h-P0 patch lane; `ANVIL_PERSIST_GRAPH=0` and `ANVIL_WATCH_DAEMON=0` documented opt-outs; CIB intake from beta signal.              |
-| Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`) — the v0.9 cut stalled ~6h on its expiry. | Publication-recovery hardening intake (#3309); rotation is called out in the release runbook; the failure mode is pre-publish (no partial state). |
-| The window accretes (this document rots back into a historical record).                                                  | "How this document works" + the closeout prune step keep it to one active window.                                                                 |
+| Risk                                                                                                                                                                | Mitigation                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default-on graph persistence and the first-run surfaces reach every upgrader — field defects surface now.                                                           | The `v0.9.x` 48h-P0 patch lane; `ANVIL_PERSIST_GRAPH=0` and `ANVIL_WATCH_DAEMON=0` documented opt-outs; CIB intake from beta signal.              |
+| Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`) — the v0.9 cut stalled ~6h on its expiry.                                            | Publication-recovery hardening intake (#3309); rotation is called out in the release runbook; the failure mode is pre-publish (no partial state). |
+| The window accretes (this document rots back into a historical record).                                                                                             | "How this document works" + the closeout prune step keep it to one active window.                                                                 |
+| Work merged between a cut and the next window's scoping is invisible here, so a module can read `Done` while delivering nothing to users (MCPX/SKPKG, eleven days). | Name merged-but-untagged modules as explicit carry-in when a window is scoped; verify them from the release artefact at cut, not from `main`.     |
 
 ## Records & roadmap
 
