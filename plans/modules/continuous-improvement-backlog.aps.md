@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 156/197  |
+| CIB | —     | In Progress | 159/201  |
 
 ## Purpose
 
@@ -4938,8 +4938,10 @@ archive.
 
 ### CIB-193: Finish the non-Linux cross-leg dead-code peel and close the PR-CI gap
 
-- **Status:** In Progress — PR-CI gap closed on
-  `fix/v09-follow-through-lane`. Flip to Merged on merge.
+- **Status:** Merged 2026-07-26 via PR #3422 — `Clippy (windows-msvc)` runs on
+  every Rust-touching PR. Its first runs found twelve pre-existing findings
+  across eight crates, including a Windows test-compilation break from PR #3411
+  and a same-day `needless_return` regression from PR #3419.
 - **Intent:** PR #3290 fixed the cross-target cfg dead-code in anvil-intercept
   and anvil-bench, but dispatch run 29164882648 shows the next layer:
   `crates/anvil-cli/tests/start.rs` fails `-D warnings` on
@@ -4995,9 +4997,8 @@ archive.
 
 ### CIB-195: Fix the TS OPA executor's real-binary path on Windows
 
-- **Status:** In Progress — resolved by **explicit retirement on Windows**
-  (the second branch this item offered), on `fix/v09-follow-through-lane`.
-  Flip to Merged on merge.
+- **Status:** Merged 2026-07-26 via PR #3422 — resolved by **explicit
+  retirement on Windows**, the second branch this item offered. See Results.
 - **Intent:** The legacy TS policy executor's real-binary evaluations must
   either work on Windows or be explicitly retired there — never fail silently.
 - **Expected Outcome:** On the Windows release-gate leg, every real-binary
@@ -5046,8 +5047,10 @@ archive.
 
 ### CIB-196: prepare.sh changelog promotion needs manual curation
 
-- **Status:** In Progress — promotion rewritten on
-  `fix/v09-follow-through-lane`. Flip to Merged on merge.
+- **Status:** Merged 2026-07-26 via PR #3422 — `prepare.sh` promotes the whole
+  `## [Unreleased]` draft into a correctly-formatted section, refuses a cut with
+  nothing to promote before bumping any version, and a rerun repairs a
+  half-finished promotion.
 - **Intent:** The release prepare step should promote the Unreleased draft
   into a changelog section that needs at most light review — not a structural
   rewrite during the cut.
