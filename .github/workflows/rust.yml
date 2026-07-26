@@ -186,6 +186,44 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  # CIB-193: close the cross-target cfg gap. `clippy` above is Linux-only, the
+  # `cross-compile` matrix is release/hotfix/dispatch-gated, and the nightly
+  # cross job is build-only — so a binding that is dead under `cfg(windows)`
+  # (the PR #3290 / #3297 bug class) could not fail a normal PR. It surfaced a
+  # day later in a nightly, or at the release gate.
+  #
+  # This is deliberately ONE check-only job on ONE Windows target, not a second
+  # matrix: clippy emits metadata and never links, so it costs a fraction of
+  # `cross-compile` while catching the whole `-D warnings` cfg class. Per the
+  # CI-cost posture, it is gated on `detect-rust-changes` so JS-only PRs (e.g.
+  # lockfile bumps that the workflow `paths:` filter still admits) do not spin
+  # up a Windows runner.
+  clippy-windows:
+    name: Clippy (windows-msvc)
+    if: >-
+      always() && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' &&
+          needs.detect-rust-changes.result == 'success' &&
+          needs.detect-rust-changes.outputs.rust-changed == 'true')
+      )
+    needs: detect-rust-changes
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          components: clippy
+          target: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: rust-ci-windows
+      # `--all-targets` is what makes this work: the dead bindings that started
+      # this were in a test file, so a lib-only check would have missed them.
+      - name: Run clippy for x86_64-pc-windows-msvc
+        run: cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+
   doc:
     name: Doc
     runs-on:
