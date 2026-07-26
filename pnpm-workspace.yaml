@@ -69,9 +69,12 @@ overrides:
   'eslint>ajv': '6.14.0'
   '@eslint/eslintrc>ajv': '6.14.0'
   'serialize-javascript@<7.0.5': '>=7.0.5'
-  'brace-expansion@<1.1.16': '1.1.16'
-  'brace-expansion@>=2.0.0 <2.1.2': '2.1.2'
-  'brace-expansion@>=4.0.0 <5.0.7': '5.0.7'
+  # CVE-2026-14257 (GHSA-mh99-v99m-4gvg) affects <=5.0.7 across every line;
+  # 5.0.8 is the only patched release. The 1.x/2.x consumers reach it through
+  # minimatch 3.1.5 / 5.1.9, which call brace-expansion as a bare function —
+  # 5.x's CJS entry exports { expand } instead. Both are patched (see
+  # patchedDependencies) so this override can apply everywhere.
+  'brace-expansion@<5.0.8': '5.0.8'
   'hono@<4.12.7': '>=4.12.7'
   'http-proxy-middleware@<3.0.6': '>=3.0.6'
   'underscore@<=1.13.7': '>=1.13.8'
@@ -134,6 +137,8 @@ overrides:
 
 patchedDependencies:
   'gray-matter@4.0.3': 'patches/gray-matter@4.0.3.patch'
+  minimatch@3.1.5: patches/minimatch@3.1.5.patch
+  minimatch@5.1.9: patches/minimatch@5.1.9.patch
 
 # Single source of truth for dependency build-script approval under pnpm 11.
 # `allowBuilds` replaces the pre-11 `onlyBuiltDependencies` (-> true) and
