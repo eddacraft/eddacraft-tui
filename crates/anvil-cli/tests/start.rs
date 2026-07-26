@@ -947,6 +947,11 @@ fn start_no_tui_and_env_no_tui_match_compact_fixture() {
     );
 }
 
+// Gated like every other test that uses `normalise_start_activation_output`
+// and `assert_start_activation_fixture`: those helpers are
+// `cfg(not(target_os = "windows"))`, so without this the file does not compile
+// for Windows at all.
+#[cfg(not(target_os = "windows"))]
 #[test]
 fn start_tui_flag_is_an_accepted_no_op_alias() {
     // ACTTUI-013 / ADR-103: `--tui` and `ANVIL_ACTIVATION_TUI=1` are retired to

@@ -261,6 +261,14 @@ const WINDOWS_RESPONSE_LINE_CAP: u64 = 4 << 20;
 const WINDOWS_RPC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 
 #[cfg(windows)]
+// Taking the name by value keeps the three call sites (and the two tests)
+// simple; the body borrows it. Changing the signature would cascade through
+// call sites and the inner `connect_owner_only_overlapped_pipe_client(&..)`
+// borrow, none of which a Linux host can type-check. CIB-204.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Windows-only RPC helper; signature change is unverifiable from a Linux host — CIB-204"
+)]
 fn daemon_rpc_call_windows_at<Resp>(
     pipe_name: String,
     method: &str,

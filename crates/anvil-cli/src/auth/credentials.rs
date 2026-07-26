@@ -40,11 +40,13 @@ pub fn credentials_dir() -> Result<PathBuf> {
         return Ok(user_dir);
     }
 
+    // No `return`: once the other arm is cfg-stripped this block is the
+    // function's tail expression (CIB-193).
     #[cfg(windows)]
     {
-        return dirs::config_dir()
+        dirs::config_dir()
             .map(|d| d.join("anvil"))
-            .ok_or_else(|| anyhow::anyhow!("Cannot determine config directory"));
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine config directory"))
     }
 
     #[cfg(not(windows))]

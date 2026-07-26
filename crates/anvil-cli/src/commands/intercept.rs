@@ -722,7 +722,7 @@ pub(crate) fn query_daemon_status_windows_at_with_timeout(
         // distinct message rather than a generic IO error so the
         // operator can tell "daemon hung" from "daemon down".
         Err(err) if err.raw_os_error() == Some(231) => {
-            anyhow::bail!("anvil intercept daemon pipe {pipe_name} is busy; retry shortly",);
+            anyhow::bail!("anvil intercept daemon pipe {pipe_name} is busy; retry shortly");
         }
         Err(err) => {
             return Err(anyhow::Error::new(err).context(format!(

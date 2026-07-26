@@ -749,7 +749,7 @@ mod pipe {
 
     /// DSV-011: production [`SaveTimeTransport`] on Windows — JSON-RPC over the
     /// per-user named pipe. The owner-only pipe DACL (`anvil-intercept-win32`) is
-    /// the same-user boundary, the SO_PEERCRED analogue; the JSON-RPC framing is
+    /// the same-user boundary, the `SO_PEERCRED` analogue; the JSON-RPC framing is
     /// shared with the Unix socket transport via [`framing`].
     ///
     /// Until DSV-010b serves the save-time verbs on Windows the daemon replies
@@ -758,7 +758,7 @@ mod pipe {
     /// against an absent daemon.
     ///
     /// Hardened: the synchronous pipe client now bounds the entire connect+IO
-    /// with a 2 s wall-clock cap (worker thread + recv_timeout) so a wedged
+    /// with a 2 s wall-clock cap (worker thread + `recv_timeout`) so a wedged
     /// daemon cannot stall `watch` or `status`. Mirrors the established
     /// `query_daemon_status_windows_at_with_timeout` pattern; Unix uses
     /// `set_read_timeout` on the stream.
@@ -791,7 +791,7 @@ mod pipe {
         /// Connect and run one JSON-RPC round-trip over the pipe (bounded).
         /// Uses a worker thread because synchronous named-pipe ReadFile/WriteFile
         /// have no direct timeout setter; the framing (write + capped read) is
-        /// executed under the REQUEST_TIMEOUT cap. Timeouts and any IO error
+        /// executed under the `REQUEST_TIMEOUT` cap. Timeouts and any IO error
         /// fold to `Unavailable` (triggers the scoped fallback).
         fn round_trip(
             &self,
@@ -822,8 +822,9 @@ mod pipe {
                     let _ = worker.join();
                     outcome
                 }
-                Err(mpsc::RecvTimeoutError::Timeout) => Err(SaveTimeClientError::Unavailable),
-                Err(mpsc::RecvTimeoutError::Disconnected) => Err(SaveTimeClientError::Unavailable),
+                Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {
+                    Err(SaveTimeClientError::Unavailable)
+                }
             }
         }
     }
@@ -1504,7 +1505,7 @@ mod tests {
 
     /// DSV-011: end-to-end proof that the Windows named-pipe transport
     /// round-trips a `validate_paths` against a local in-process listener
-    /// (NoopDispatcher → method-not-found → Unavailable fallback). Mirrors
+    /// (`NoopDispatcher` → method-not-found → Unavailable fallback). Mirrors
     /// the Unix socket test immediately above and the MLP2-075 Windows
     /// pattern (per-PID pipe name so the fixture never collides with a
     /// real per-user daemon on the same runner).
