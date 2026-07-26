@@ -187,8 +187,18 @@ function promoteMain(root, version, date, allowEmpty, check) {
  */
 function promotePublic(root, version, date, promoted) {
   const file = path.join(root, PUBLIC_CHANGELOG);
-  if (!fs.existsSync(file)) return;
-  const text = fs.readFileSync(file, 'utf8');
+  // Read first and treat a missing file as "nothing to do", rather than
+  // testing for existence and then reading it. The check-then-use form is a
+  // time-of-check/time-of-use race (`js/file-system-race`): the file can
+  // vanish between the two calls, and the read is the operation that has to
+  // cope with that anyway.
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return; // no public changelog in this checkout
+    throw error;
+  }
   if (text.includes(`## ${version} —`) || text.includes(`## ${version}\n`)) return;
 
   const { preamble, sections } = splitSections(text);
