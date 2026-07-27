@@ -24,6 +24,14 @@ on:
   schedule:
     # Weekly full scan: Monday 06:30 UTC (offset from scorecard at 06:00)
     - cron: '30 6 * * 1'
+  # On-demand full scan, with identical semantics to the weekly cron:
+  # change detection is skipped and every language is analysed. Added
+  # because `Analyze (actions)` is not run by `push` or `pull_request`,
+  # so before this trigger existed a fix to a workflow-security finding
+  # could not be re-scanned — the alert stayed open until the next
+  # Monday even though the fix was already on `main`. Dispatch this
+  # after landing such a fix to close the alert.
+  workflow_dispatch:
 
 concurrency:
   group: codeql-${{ github.event.pull_request.number || github.ref }}
@@ -35,13 +43,13 @@ permissions:
   security-events: write
 
 jobs:
-  # ── Change detection (skipped on schedule → all languages run) ───
+  # ── Change detection (skipped on schedule/dispatch → all languages run) ──
   detect-changes:
     name: Detect Changes
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
     outputs:
       source-changed: ${{ steps.changes.outputs.source-changed }}
       rust-changed: ${{ steps.changes.outputs.rust-changed }}
@@ -70,7 +78,8 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    # Run when: schedule (detect-changes skipped) OR TS/JS source changed.
+    # Run when: schedule or manual dispatch (detect-changes skipped in
+    # both cases) OR TS/JS source changed.
     # CIB-137: `result != 'success'` also runs the analysis when the classifier
     # FAILED (fail closed) rather than skipping this required context.
     if: |
@@ -99,8 +108,11 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    # Run when: push to main with Rust changes, or schedule (detect-changes
-    # skipped). CI-cost 2026-07: `pull_request` no longer runs this job — the
+    # Run when: push to main with Rust changes, or schedule / manual
+    # dispatch (detect-changes skipped in both cases). A dispatched run
+    # therefore pays for a full `cargo build --workspace`, same as the
+    # weekly scan.
+    # CI-cost 2026-07: `pull_request` no longer runs this job — the
     # `cargo build --workspace` it needs is minutes of runner time per PR, and
     # every merge to `main` re-scans the same code moments later, so PR runs
     # only surfaced findings one merge earlier than the push scan does anyway.
@@ -137,13 +149,13 @@ jobs:
         with:
           category: '/language:rust'
 
-  # ── GitHub Actions (schedule only — low-value per-PR) ────────────
+  # ── GitHub Actions (schedule/dispatch only — low-value per-PR) ───
   analyze-actions:
     name: Analyze (actions)
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
