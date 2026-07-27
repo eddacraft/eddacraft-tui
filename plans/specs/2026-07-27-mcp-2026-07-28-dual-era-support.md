@@ -2,8 +2,13 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Draft — awaiting ratification gate (MCP26-001) |
-| Modules | [mcp-dual-era-support](../modules/mcp-dual-era-support.aps.md) (MCP26) |
+| Type | APS module specification |
+| Status | APS module In Progress (pre-ratification branch) |
+| Module | [mcp-2026-07-28-dual-era-support](../modules/mcp-2026-07-28-dual-era-support.aps.md) (MCP26) |
+| Branch | `feat/mcp26-dual-era-support` |
+| Gate audit | [2026-07-27-mcp26-001-ratification-gate](../audits/2026-07-27-mcp26-001-ratification-gate.md) |
+| ADR | [113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Proposed) |
+| Proposed ID | MCP26 |
 | Owner | anvil CLI / MCP |
 | Target | First anvil release after MCP `2026-07-28` ratification |
 | Upstream | MCP `2026-07-28` release candidate / final |
@@ -687,3 +692,5 @@ These are intentionally not part of MCP26:
 - `subscriptions/listen` if tool/resource catalogues become dynamic.
 - Typed `outputSchema` plus native `structuredContent` for anvil tool results.
 
+- `subscriptions/listen` if tool/resource catalogues become dynamic.
+- Typed `outputSchema` plus native `structuredContent` for anvil tool results.

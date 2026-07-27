@@ -33,6 +33,9 @@ and compatibility smoke coverage for additional clients.
 ## Out of Scope
 
 - Rust MCP server tool/resource parity — owned by RMCPF
+- MCP `2026-07-28` dual-era protocol support — owned by
+  [MCP26](mcp-2026-07-28-dual-era-support.aps.md); MCPX clients remain the
+  compatibility matrix MCP26 must not regress
 - New graph-context tools/resources — owned by GCTX
 - Skill packaging or `anvil skill install` targets — owned by SKPKG
 - Non-MCP editor-driver integrations — owned by DRVR/RTAI if revived

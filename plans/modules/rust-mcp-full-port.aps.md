@@ -64,6 +64,9 @@ runs against a frozen reference — not a moving sidecar.
 - Creating new graph-context tools beyond what GCTX explicitly owns
 - Replacing the daemon or driver framework
 - Adding non-MCP editor integrations
+- MCP `2026-07-28` dual-era protocol host, discovery, modern result envelopes,
+  and activation-probe changes — owned by
+  [MCP26](mcp-2026-07-28-dual-era-support.aps.md)
 
 ## Interfaces
 
