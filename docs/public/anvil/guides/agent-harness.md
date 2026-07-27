@@ -36,14 +36,19 @@ To prepare both guided clients even when one is not currently detected:
 anvil start --all-mcp-clients
 ```
 
-To install a different supported client explicitly:
+To install a guided client explicitly:
 
 ```text
-anvil mcp install --client codex
+anvil mcp install --client cursor
 ```
 
-See [Model Context Protocol integration](../integrations/mcp.md) for the full
-client list and verify options.
+See [Model Context Protocol integration](../integrations/mcp.md) for verify
+options and for how newer betas expand the client registry beyond the guided
+pair. Always confirm ids with:
+
+```text
+anvil mcp install --help
+```
 
 ## 2. Restart when asked
 
@@ -68,12 +73,9 @@ anvil mcp --help
 The current CLI provides `install` and `serve`. Connection readiness is reported
 by `anvil start --verify`, not by a separate MCP status command.
 
-Optionally install the managed [agent skill](../integrations/skills.md) so the
-client has a maintained procedure for anvil's developer tools:
-
-```text
-anvil skill install --client claude-code
-```
+Optionally install a managed [agent skill](../integrations/skills.md) when your
+binary exposes the skill surface (`anvil --help` lists `skill`). Skills are
+complementary to MCP and do not prove protection alone.
 
 ## Corporate or restricted environments
 

@@ -27,38 +27,39 @@ anvil watch
 
 ## Optional MCP configuration
 
-VS Code is in the MCP install registry. To write anvil's documented entry into
-the VS Code configuration shape:
+Guided activation in `anvil start` still defaults to Cursor and Claude Code. VS
+Code is not on that guided path in the current public release.
+
+Newer betas expand `anvil mcp install --client` so VS Code can be configured
+explicitly when your binary lists it. Discover support first:
 
 ```text
-anvil mcp install --client vscode
-anvil mcp install --client vscode --verify
+anvil mcp install --help
 ```
 
-Restart VS Code when the command asks, then run:
+If `vscode` appears among the client values, install once, restart VS Code when
+asked, then verify protection separately:
 
 ```text
 anvil start --verify
 ```
 
-Success is `protecting`. Configuration alone is not enough.
-
-Guided activation in `anvil start` still defaults to Cursor and Claude Code. Use
-the explicit `mcp install` command above for VS Code.
+Success is `protecting`. Configuration alone is not enough. Prefer a dedicated
+`--verify` pass on the MCP entry only when your help text documents that flag
+for the client you installed.
 
 ## Optional language server
 
-Editors that speak Language Server Protocol can attach to anvil's advisory graph
-surface:
+Newer betas can expose an advisory Language Server Protocol surface over the
+resident graph. Check top-level help first:
 
 ```text
-anvil lsp --stdio
+anvil --help
 ```
 
-This is an experimental, advisory-only frontend over the resident graph — it is
-not a full diagnostics product and does not replace MCP pre-write validation.
-Wire it through your editor's LSP client configuration only if you understand
-that boundary.
+If an `lsp` command is listed, use its help for transport flags (commonly
+stdio). It is experimental and advisory-only — not a full diagnostics product
+and not a substitute for MCP pre-write validation.
 
 ## Verify results
 

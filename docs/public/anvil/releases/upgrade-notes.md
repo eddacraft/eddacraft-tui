@@ -99,17 +99,21 @@ anvil start --verify
 If authentication has expired, try `anvil auth refresh` and sign in again when
 asked.
 
-After upgrading, also refresh managed client assets when you use them:
+After upgrading, refresh diagnostics and re-verify any guided client you use:
 
 ```text
 anvil doctor
-anvil skill install --client claude-code --verify
 anvil mcp install --client cursor --verify
+anvil start --verify
 ```
+
+When your binary lists additional MCP clients or a managed `skill` command, use
+installed help to re-verify those assets after the upgrade.
 
 ## Behaviour changes after 0.9.0-beta
 
-These land with the next beta after 0.9.0-beta (draft on the maintained branch):
+These land with the next beta after 0.9.0-beta (draft on the maintained branch).
+Confirm each surface with `anvil --help` on the binary you actually installed:
 
 - **Activation TUI by default.** On a real terminal, `anvil start` opens the
   consent-first interactive surface without `--tui`. Use `--no-tui` or
@@ -120,10 +124,11 @@ These land with the next beta after 0.9.0-beta (draft on the maintained branch):
   `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers / ECB and JWT `none` stay error
   severity and still block.
 - **More MCP clients via explicit install.** Guided activation still defaults to
-  Cursor and Claude Code. Use `anvil mcp install --client <id>` for the wider
-  registry.
-- **Browser dashboard.** `anvil dashboard --web` is the loopback browser
-  surface; bare `anvil dashboard` remains the terminal picker.
+  Cursor and Claude Code. Wider clients appear under `anvil mcp install --help`
+  when your binary includes them.
+- **Browser dashboard.** A loopback browser mode appears under
+  `anvil dashboard --help` when your binary includes it; bare `anvil dashboard`
+  remains the terminal picker.
 
 ## 0.9.0-beta automation change
 

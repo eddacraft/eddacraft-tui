@@ -30,15 +30,15 @@ Run these journeys in order:
 5. Complete the [ten-minute protection tutorial](first-gate.md).
 6. Run `anvil start --verify` after restarting a configured client.
 7. Exercise [save-time validation](guides/save-time-validation.md).
-8. Open [the browser dashboard](guides/dashboard.md) with
-   `anvil dashboard --web` after at least one `anvil gate` run.
+8. Open [local dashboards](guides/dashboard.md); after at least one `anvil gate`
+   run, check `anvil dashboard --help` for any browser mode your binary exposes.
 9. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
 10. Run a CI-shaped gate with machine-readable output.
 11. Check that uninstall guidance removes only the state you selected.
 
-If you use AI clients beyond Cursor or Claude Code, also exercise
-`anvil mcp install --client <id> --verify` and, where supported,
-`anvil skill install --client <id> --verify`.
+If you use AI clients beyond Cursor or Claude Code, check
+`anvil mcp install --help` for additional clients on your binary, and
+`anvil --help` for a managed skill surface when present.
 
 ## Success criteria
 
@@ -86,7 +86,7 @@ Deliberately verify these safe paths:
 | The project is unsupported           | The output names the unsupported coverage rather than claiming protection |
 | A watcher must stop                  | Ctrl-C ends the foreground process                                        |
 | Hooks are no longer wanted           | `anvil hooks uninstall` removes anvil-managed hooks                       |
-| Managed skill is stale after upgrade | `anvil doctor`, then `anvil skill install`                                |
+| Managed skill is stale after upgrade | `anvil doctor`, then the skill install path from installed help           |
 
 ## Report feedback
 

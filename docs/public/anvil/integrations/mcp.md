@@ -34,33 +34,34 @@ anvil start --no-mcp
 
 ## Install a specific client
 
-`anvil mcp install --client` writes that client's documented config shape and
-leaves unmanaged third-party entries intact. Supported client ids include:
-
-`claude-code`, `cursor`, `codex`, `opencode`, `gemini-cli`, `antigravity`,
-`openclaw`, `vscode`, `copilot-cli`, `grok`, `warp`, and `zed`.
+Write or verify the MCP entry for a guided client:
 
 ```text
-anvil mcp install --client codex
-anvil mcp install --client vscode --dry-run
-anvil mcp install --client zed --scope project --verify
+anvil mcp install --client cursor
+anvil mcp install --client claude-code --verify
 ```
 
-Useful flags:
-
-- `--verify` — check the existing entry without writing.
-- `--dry-run` — preview the path and entry without writing.
-- `--scope global|project` — choose install location (global is the beta
-  default; some clients are project-only).
-
-To reach the wider registry from activation instead of the guided pair, pass
-`--mcp-client <id>` (repeatable), `--all-mcp-clients`, or set
-`ANVIL_ALL_MCP_CLIENTS`. Prefer `anvil mcp install --client` when you want one
-explicit client.
+The first command installs; the second only verifies an existing entry. Prefer
+`--verify` after an upgrade rather than reinstalling blindly.
 
 The generated [support reference](../reference/support.md) documents the guided
-activation pair. Use `anvil mcp install --help` for the full client list on your
-installed binary.
+activation pair for the current public release.
+
+### Expanded client registry (newer betas)
+
+After 0.9.0-beta, `anvil mcp install --client` can accept a wider set of client
+ids (for example Codex, OpenCode, Gemini CLI, VS Code, Copilot CLI, Grok, Warp,
+and Zed, alongside Cursor and Claude Code). Each installer writes that client's
+documented config shape and leaves unmanaged third-party entries intact.
+
+Discover what **your** binary supports:
+
+```text
+anvil mcp install --help
+```
+
+Use only client ids and flags listed there. Do not assume a client from a newer
+release note is present in an older binary.
 
 ## Verify protection
 
@@ -97,5 +98,5 @@ snippet egress.
 ## Next step
 
 Use [save-time validation](../guides/save-time-validation.md) as fallback
-coverage, or install [managed agent skills](skills.md) for clients that support
+coverage, or check [managed agent skills](skills.md) when your binary exposes
 them.

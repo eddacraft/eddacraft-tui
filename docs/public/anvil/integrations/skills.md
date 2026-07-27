@@ -3,46 +3,42 @@ id: agent-skills
 title: Agent skills
 description:
   Install and verify the managed anvil developer-functions skill in supported
-  clients.
+  clients when your binary exposes it.
 ---
 
 # Agent skills
 
-anvil can install a managed **agent skill** into supported AI clients so those
-clients know how to call anvil's developer functions safely.
+Managed **agent skills** teach a supported AI client how to call anvil's
+developer functions safely. They do not replace MCP configuration or prove
+protection on their own.
 
-The bundled skill is `anvil-developer-functions`. It teaches the client when to
-use local graph and write-validation tools; it does not replace MCP
-configuration or prove protection on its own.
+The bundled skill name is `anvil-developer-functions`.
 
-## Install the managed skill
-
-```text
-anvil skill install
-```
-
-In an interactive terminal, anvil prompts for scope and detected clients. For
-scripts, name them explicitly:
+## Check whether your binary supports skills
 
 ```text
-anvil skill install --client claude-code --scope global
-anvil skill install --client cursor --client codex --scope project
+anvil --help
 ```
 
-Useful flags:
+If `skill` is not listed, the managed-skill surface is not in your installed
+version. The public 0.9.0-beta binary does not ship it; newer betas after that
+release add `anvil skill install`. Upgrade, then re-check help before following
+the rest of this page.
 
-- `--client <id>` — repeat to select more than one client.
-- `--scope global|project` — global is the interactive default.
-- `--verify` — check an existing managed install without writing.
-- `--dry-run` — preview destinations without writing.
+## Install the managed skill (when available)
 
-```text
-anvil skill install --client claude-code --dry-run
-anvil skill install --client cursor --verify
-```
+When `skill` appears in top-level help, open that subcommand's help on the same
+binary for client ids, scope, verify, and dry-run flags. Typical shape after the
+skill surface ships:
 
-If `skill` is not listed in `anvil --help`, your installed binary is older than
-this surface. Upgrade, then re-check.
+- interactive install prompts for scope and detected clients;
+- scripts pass explicit `--client` values (repeatable) and optional
+  `--scope global|project`;
+- `--verify` checks an existing managed install without writing;
+- `--dry-run` previews destinations without writing.
+
+Do not copy install flags from an older or newer release note without checking
+your binary.
 
 ## Check freshness
 
@@ -52,17 +48,18 @@ After upgrades, run:
 anvil doctor
 ```
 
-Doctor reports managed-skill state (for example fresh, stale, dirty, unmanaged,
-absent, or broken). Reinstall with `anvil skill install` when the report says
-the managed copy is stale or broken. Do not hand-edit managed skill directories
-if you want doctor to keep treating them as managed.
+When managed skills are present, doctor can report freshness (for example fresh,
+stale, dirty, unmanaged, absent, or broken). Reinstall through the skill command
+when the report says the managed copy is stale or broken. Do not hand-edit
+managed skill directories if you want doctor to keep treating them as managed.
 
 ## Relationship to MCP
 
 Skills and MCP are complementary:
 
 1. Configure the client with [MCP integration](mcp.md) so it can call anvil.
-2. Install the skill so the client has a maintained procedure for those tools.
+2. Install the skill (when available) so the client has a maintained procedure
+   for those tools.
 3. Verify protection with `anvil start --verify`.
 
 A skill alone does not activate pre-write protection.
