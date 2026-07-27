@@ -215,6 +215,22 @@ jobs:
           pnpm lint:md
           bash scripts/agent/_test/guidance.test.sh
           bash scripts/ci/classify-changes.test.sh
+          bash scripts/release/_test/validate-publication-token.test.sh
+
+      # The v0.9.0-beta cut stalled ~6h on an expired ANVIL_RELEASES_TOKEN,
+      # discovered at the cross-repo publish step after prep, tagging and
+      # artefact builds had all run. PR #3309 hardened recovery *after* a
+      # publication failure; this refuses to start.
+      #
+      # `readiness` mode only: `candidate-artifacts` is deliberately
+      # non-publishing and has no credentials, so the check would be both
+      # meaningless and a false blocker there.
+      - name: Validate publication credential
+        if: inputs.mode == 'readiness'
+        env:
+          ANVIL_RELEASES_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+        shell: bash
+        run: bash scripts/release/validate-publication-token.sh
 
   candidate-artifacts:
     name: Candidate Artefact Placeholder

@@ -112,6 +112,27 @@ bash scripts/release/preflight.sh \
   --version <candidate-version>
 ```
 
+**Publication credential.** Preflight does not see GitHub Actions secrets, so
+verify the publication credential separately before committing to a cut:
+
+```bash
+ANVIL_RELEASES_TOKEN=<token> bash scripts/release/validate-publication-token.sh
+```
+
+The readiness workflow runs the same check in `readiness` mode, which is the
+authoritative gate — this local run just lets you find the problem before you
+start. It fails when the token is absent, rejected, lacks write access to
+`eddacraft/anvil` or the tap, or expires within 14 days.
+
+Why it exists: the `v0.9.0-beta` cut stalled ~6h on an expired token, found at
+the cross-repo publish step after prep, tagging and artefact builds had already
+run. `release.yml` resolves the credential as
+`secrets.ANVIL_RELEASES_TOKEN || secrets.GITHUB_TOKEN`, so an absent secret does
+not fail loudly — it falls back to a token with no cross-repo write and dies
+late. Rotation scopes are in
+[`release-token-scope.md`](./release-token-scope.md); the schedule is in
+[`secret-rotation.md`](./secret-rotation.md).
+
 This must pass before release prep starts. `--pre-prepare` is required because
 `prepare.sh` owns the version bump; it checks the planned candidate version and
 all formatting, linting, typechecking, test, and release-tool pin gates without

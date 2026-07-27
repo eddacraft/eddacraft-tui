@@ -43,6 +43,7 @@
     "codemod:imports:dry": "tsx tools/codemods/src/cli.ts imports --dry-run",
     "ci:classify": "bash scripts/ci/classify-changes.sh",
     "test:ci-classify": "bash scripts/ci/classify-changes.test.sh",
+    "test:release-publication-token": "bash scripts/release/_test/validate-publication-token.test.sh",
     "test:release-readiness-workflow": "bash scripts/ci/release-readiness-workflow.test.sh",
     "test:ci-cost": "bash scripts/ci/cost-report.test.sh",
     "test:ci-fast-pr": "bash scripts/ci/fast-pr-validation.test.sh",
