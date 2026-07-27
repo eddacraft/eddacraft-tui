@@ -6,10 +6,13 @@
 | -- | ----- | ------ | -------- |
 | LSPNAV | @eddacraft | Proposed | 0/7 |
 
-**Last reviewed:** 2026-07-20 — scope and architecture approved through Planning
-Council `plan-33b005f5`; [ADR-111](../decisions/111-graph-backed-lsp-references.md)
-is Proposed. No implementation item is Ready until the production
-diagnostics-only RTAI-005 boundary lands and this module is reconciled to it.
+**Last reviewed:** 2026-07-28 — enrolled in
+[Graph Trust Surfaces](../specs/2026-07-28-graph-trust-surfaces.md) as the
+serial Wave 0/1 track (after RTAI-005). Scope and architecture remain as
+approved through Planning Council `plan-33b005f5`;
+[ADR-111](../decisions/111-graph-backed-lsp-references.md) is still Proposed.
+No implementation item is Ready until the production diagnostics-only RTAI-005
+boundary lands and this module is reconciled to it.
 
 ## Purpose
 

@@ -14,11 +14,19 @@ begin. **Re-evaluate scope first:** CGBDG may collapse to "council emits witness
 lines" over the now-stable witness chain rather than a separate attestation
 bridge — CGBDG-001 and CGBDG-004 own that call.
 
-**Last reviewed:** 2026-06-24 — unblocked: MLP-002 plus the witness-schema
-follow-ups MLP2-011/-012 are terminal, so the module moved Blocked → Ready.
-Discovery-only; attestation work still lives at
-`packages/anvil/core/src/provenance/`. If/when attestation moves to a Rust crate
-(e.g. `crates/anvil-checks`), update CGBDG-001 accordingly.
+**Programme (2026-07-28):** Active track of
+[Graph Trust Surfaces](../specs/2026-07-28-graph-trust-surfaces.md). Index hub
+row + NBI rank 2. Option B promotion: module stays **Ready** (already
+executable); discovery is authorised to start without further APS status
+change. Follow-on **implementation** still requires CGBDG-006's discovery
+report and a separate implement work-item set — this module remains
+discovery-only until then.
+
+**Last reviewed:** 2026-07-28 — Graph Trust Surfaces programme affiliation;
+unchanged Ready disposition from 2026-06-24 unblock. Discovery-only;
+attestation work still lives at `packages/anvil/core/src/provenance/`. If/when
+attestation moves to a Rust crate (e.g. `crates/anvil-checks`), update
+CGBDG-001 accordingly.
 
 ## Purpose
 

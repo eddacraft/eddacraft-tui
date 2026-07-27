@@ -38,6 +38,7 @@
 - [Test Quality](#test-quality)
 - [Language & Coverage](#language--coverage)
 - [Rust MCP Launch Path](#rust-mcp-launch-path)
+- [Graph Trust Surfaces](#graph-trust-surfaces)
 - [Future](#future)
 - [Dormant: Not Yet Scheduled](#dormant-not-yet-scheduled)
 
@@ -104,12 +105,12 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | JOURNEY-007 — sandboxed autoplay demonstration | Ready | [release-user-journeys](./modules/release-user-journeys.aps.md) | Highest-value Ready post-cut expansion in the active window; its operator-approved design closes the WOW-006 execution gate. | Execute JOURNEY-007 and coordinated WOW-006 through dev-loop. |
-
-NBI review note (2026-07-27, DASHCORE complete): **DASHCORE-002** Merged via
-[PR #3436](https://github.com/eddacraft/anvil-001/pull/3436), closing DASHCORE
-at 9/9 Merged items pending release evidence. Promoted **JOURNEY-007**, the
-highest-value Ready post-cut item named by the active release window.
+| 1 | JOURNEY-007 — sandboxed autoplay demonstration | Ready | [release-user-journeys](./modules/release-user-journeys.aps.md) | Highest-value Ready post-cut expansion in the active `v0.10.0-beta` window; its operator-approved design closes the WOW-006 execution gate. | Execute JOURNEY-007 and coordinated WOW-006 through dev-loop. |
+| 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Only fully cleared Graph Trust Surfaces track; witness schema terminal; discovery may begin without further promotion. | Execute CGBDG discovery; prefer thin "council emits witness lines" path; land discovery report under `plans/specs/`. |
+| 3 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
+| 4 | POLCAP-001 — capability-discovery ADR + Planning Council | Schedule | [policy-capability-discovery](./modules/policy-capability-discovery.aps.md), [design](./specs/2026-05-24-policy-capability-discovery.md) | Agent "what may I attempt?" surface; design exists; council is the hold gate. | Draft next-free POLCAP ADR; convene Planning Council; reconcile ADR-098 AD-3/AD-4. |
+| 5 | SCA-001 — one-ecosystem SBOM + new-edge design | Schedule | [supply-chain-attestation](./modules/supply-chain-attestation.aps.md) | Same Anvil new-edges shape applied to dependencies; strong team-lead story beside DASH. | Write SCA-001 design (cargo or npm); decide graph edge home; confirm ingest feasibility. |
+| 6 | RTAI-005 diagnostics-only → LSPNAV unpark | Schedule | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md), [lsp-graph-navigation](./modules/lsp-graph-navigation.aps.md), [ADR-111](./decisions/111-graph-backed-lsp-references.md) | Serial gate for graph-backed editor references; design already council-approved. | Land RTAI-005 diagnostics-only; accept ADR-111; then promote LSPNAV-001..005. |
 
 ## Release Plan
 
@@ -736,6 +737,32 @@ discovery + sealed legacy clients) once the upstream revision is ratified.
 | [mcp-client-expansion](./modules/mcp-client-expansion.aps.md) | MCPX | Done | 6/6 (MCPX-001 verified first-wave contracts on 2026-07-14. Retain Claude Code/Cursor; add Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code/Copilot, Copilot CLI, Grok, Warp, and project-scoped Zed. Devin remains manual until it exposes a supported local mutation contract. All 6 first-wave items Done 2026-07-14 via PR #3328; Tier 2 clients unscheduled.) | RMCPF, RCLI3-016/-016b, ACTMO-012, SKPKG |
 | [mcp-dual-era-support](./modules/mcp-dual-era-support.aps.md) | MCP26 | Draft | 0/11 (dual-era stdio: MCP `2026-07-28` modern `server/discover` + sealed legacy initialise path; design in [`plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`](./specs/2026-07-27-mcp-2026-07-28-dual-era-support.md); rewritten from non-canonical design dump 2026-07-27) | RMCPF, RMCP, MCPX, ACTMO; official `rmcp` or typed temporary adapter (MCP26-001) |
 
+### Graph Trust Surfaces
+
+Side programme (operator-approved shortlist, 2026-07-28): five tracks that turn
+the shipped graph into agent- and team-lead trust answers. Framing and clearance
+checklist:
+[`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
+**Not** a second `RELEASE-PLAN.md` window — do not stall `v0.10.0-beta`. Module
+rows below remain owned by their home sections where they already live; this
+band is the programme hub plus the one fully cleared track.
+
+| Track | Module | Scope | Status | Programme next |
+| ----- | ------ | ----- | ------ | -------------- |
+| Council → gate | [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | **Ready** | Execute discovery CGBDG-001..006 (NBI #2); prefer thin witness-lines path |
+| Intent conformance | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Proposed | Clear CONF-001 ADR + Tier-0 carve-out (NBI #3 Schedule) |
+| Capability discovery | [policy-capability-discovery](./modules/policy-capability-discovery.aps.md) | POLCAP | Proposed | POLCAP ADR + Planning Council (NBI #4 Schedule); design: [2026-05-24](./specs/2026-05-24-policy-capability-discovery.md) |
+| Supply-chain edges | [supply-chain-attestation](./modules/supply-chain-attestation.aps.md) | SCA | Proposed | SCA-001 one-ecosystem design (NBI #5 Schedule) |
+| Graph LSP refs | [lsp-graph-navigation](./modules/lsp-graph-navigation.aps.md) | LSPNAV | Proposed | After RTAI-005 diagnostics-only + ADR-111 Accept (NBI #6 Schedule) |
+
+**Cleared for Option B (executable):** CGBDG only. CONF / POLCAP / SCA / LSPNAV
+stay Proposed until the programme §6 checklist items pass; then promote work
+items to Ready in their owning modules.
+
+Sibling (not in the five-track shortlist; remains demand-pulled after CGBDG):
+[clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md)
+(CPTA) under Dormant.
+
 ### Future
 
 | Module | Scope | Description | Status |
@@ -746,9 +773,9 @@ discovery + sealed legacy clients) once the upstream revision is ratified.
 | [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Gateway integration with pocketflow | Draft |
 | [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Early access migration tooling — POLRESET reconciliation removed the obsolete Go OPA/bundle migration slice and left exception ownership with EXCEPT | In Progress |
 | [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Early access test infrastructure (6/38 complete) — POLRESET reconciliation removed tests for the deleted Go OPA/bundle/profile APIs; current runtime coverage stays with POLENG/OPAE/POLVAL/EXCEPT | In Progress |
-| [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters) | Proposed |
-| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model — reconciled 2026-07-17 with POLRESET/ADR-098: Rust ownership split across kernel types, CLI, architecture/kernel, and policy engine; remains Draft pending product timing and CONF-002 contract co-design | Draft |
-| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking | Ready |
+| [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters). **Graph Trust Surfaces** track; Wave 0 = CONF-001 ADR (see [programme](./specs/2026-07-28-graph-trust-surfaces.md)). | Proposed |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model — reconciled 2026-07-17 with POLRESET/ADR-098: Rust ownership split across kernel types, CLI, architecture/kernel, and policy engine; remains Draft pending product timing and CONF-002 contract co-design. Tier-1 for CONF; not Wave 1. | Draft |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking — **not** in the Graph Trust Surfaces five-track shortlist; validation commands still need Rust rescope before any execution claim. | Ready |
 | [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces | Proposed |
 
 ### Dormant: Not Yet Scheduled
@@ -760,13 +787,13 @@ work; promote a family back up when it gains scheduled, executable work.
 
 ### Dev Tooling Bridge
 
-Connect the LLM-powered council review flow to Anvil's deterministic attestation
-format. Discovery-first: understand the interface before building.
+CGBDG promoted to the active
+[Graph Trust Surfaces](#graph-trust-surfaces) band (2026-07-28). CPTA remains
+here as a post-CGBDG sibling.
 
 | Module                                                                          | Scope | Status   | Progress | Dependencies |
 | ------------------------------------------------------------------------------- | ----- | -------- | -------- | ------------ |
-| [council-gate-bridge](./modules/council-gate-bridge.aps.md)                     | CGBDG | Ready    | 0/6      | MLP-002 (met 2026-06-24 — MLP-002 Done + witness-schema follow-ups MLP2-011 Released/Shipped, MLP2-012 Merged); discovery CGBDG-001..006 Ready |
-| [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md) | CPTA  | Proposed | 0/7      | CGBDG (sibling — overlap check via CPTA-001) |
+| [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md) | CPTA  | Proposed | 0/7      | CGBDG (sibling — overlap check via CPTA-001); start only after CGBDG discovery disposition |
 
 ### Observability Foundation
 

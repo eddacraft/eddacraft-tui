@@ -7,7 +7,10 @@
 | --- | ---------- | -------- |
 | SCA | joshuaboys | Proposed |
 
-**Last reviewed:** 2026-05-25
+**Last reviewed:** 2026-07-28 — enrolled in
+[Graph Trust Surfaces](../specs/2026-07-28-graph-trust-surfaces.md) Wave 0
+(SCA-001 one-ecosystem design). Module remains **Proposed** until design
+accept and graph-ingest feasibility are confirmed.
 
 ## Purpose
 

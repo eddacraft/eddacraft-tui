@@ -5,12 +5,16 @@
 | POLCAP | —     | Proposed |
 
 **Created:** 2026-05-24
-**Last reviewed:** 2026-07-17 (post-POLRESET topology flow-down; POLCAP-009's
-remaining validation now targets `anvil-policy-engine` and kernel types rather
-than the deletion-slated support crate).
+**Last reviewed:** 2026-07-28 — enrolled in
+[Graph Trust Surfaces](../specs/2026-07-28-graph-trust-surfaces.md) Wave 0
+(POLCAP ADR + Planning Council). Module remains **Proposed** until that
+clearance passes; programme affiliation alone does not Ready any task.
 **Promotion gate:** Planning Council required before any task is marked
   Ready. Cross-boundary surface (policy + intercept daemon + witness chain
   + agent runtime + driver-client) — design needs multi-persona review.
+Prior review (2026-07-17): post-POLRESET topology flow-down; POLCAP-009's
+remaining validation targets `anvil-policy-engine` and kernel types rather
+than the deletion-slated support crate.
 
 > **Post-first-slice posture (2026-07-11):** POLCAP was not swept by
 > POLRESET-010; recording it here. The first policy-value slice has shipped

@@ -4,7 +4,10 @@
 | ---- | ------ | -------- | -------- |
 | CONF | @aneki | Proposed | 0/9      |
 
-**Last reviewed:** 2026-06-11
+**Last reviewed:** 2026-07-28 — enrolled in
+[Graph Trust Surfaces](../specs/2026-07-28-graph-trust-surfaces.md) Wave 0
+(CONF-001 ADR + Tier-0 carve-out). Module remains **Proposed** until that
+clearance checklist passes; do not mark Ready from programme affiliation alone.
 
 > **Origin (2026-06-11):** Product direction set during the graphify gap
 > analysis: plan gates return as a conformance lint — "did the agent build
