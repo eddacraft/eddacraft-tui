@@ -60,10 +60,16 @@ jobs:
             echo "::error::secrets.DEPENDABOT_AUTOFIX_TOKEN is required to push fixes back to Dependabot branches (a GITHUB_TOKEN push would not retrigger Rust's required checks)." >&2
             exit 1
           fi
+      # The PAT is deliberately NOT passed to `checkout`: `token:` implies
+      # `persist-credentials: true`, which writes a `Contents: write`
+      # credential into `.git/config` for the rest of the job — i.e. while
+      # the steps below run `npm ci` and the regen script out of the
+      # checked-out tree. The default `GITHUB_TOKEN` is enough to read the
+      # ref; the PAT is scoped to the single push step that needs it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          token: ${{ secrets.DEPENDABOT_AUTOFIX_TOKEN }}
+          persist-credentials: false
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
@@ -86,8 +92,16 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/tools/dev/node_modules/.bin:$PATH"
           tools/starters/acknowledgements/generate-acknowledgements.sh --config attribution/attribution.toml
+      # `head_branch` reaches the shell through the environment, never
+      # through `${{ }}` interpolation into the script body: git ref names
+      # permit `(`, `)` and backticks, so a branch name spliced into `run:`
+      # is a command-injection sink even behind the `startsWith` job gate.
       - name: Push fix if the regen changed anything
+        env:
+          AUTOFIX_TOKEN: ${{ secrets.DEPENDABOT_AUTOFIX_TOKEN }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
+          set -euo pipefail
           if git diff --quiet -- ACKNOWLEDGEMENTS.md; then
             echo "No drift after regen; the upstream failure wasn't ACKNOWLEDGEMENTS.md staleness."
             exit 0
@@ -96,4 +110,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ACKNOWLEDGEMENTS.md
           git commit -m "chore(attribution): regen ACKNOWLEDGEMENTS.md"
-          git push origin "HEAD:${{ github.event.workflow_run.head_branch }}"
+          # Auth via http.extraheader Basic auth — the URL-embedded
+          # `x-access-token:${TOKEN}@github.com` form is fragile to stray
+          # bytes in the credential (CURLE_URL_MALFORMAT). Matches the
+          # pattern already used by publish-eddacraft-tui.yml.
+          basic=$(printf '%s' "x-access-token:${AUTOFIX_TOKEN}" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
+              push \
+              "https://github.com/${GITHUB_REPOSITORY}.git" \
+              "HEAD:refs/heads/${HEAD_BRANCH}"
