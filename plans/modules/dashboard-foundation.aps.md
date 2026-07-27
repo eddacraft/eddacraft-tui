@@ -13,7 +13,9 @@ evidence exists — a deliberate hold, not drift.
 ## Purpose
 
 Establish the dedicated browser dashboard host, local Rust dashboard server,
-OpenAPI client seam, dashboard module model, and first proof modules. The
+OpenAPI client seam, dashboard module model, and first proof modules — and
+ship them: the wave is not done until a user can open the dashboard from an
+installed `anvil` without a repository checkout or a Node toolchain. The
 dashboard is no longer a route group inside `apps/website/`; it is a dedicated
 Vite app in `apps/dashboard/` backed by a loopback-bound read-only API in
 `crates/anvil-dashboard-server/`.
@@ -39,6 +41,10 @@ it must not decide whether that action is authorised.
 - Protection Overview proof module for user-facing save-time protection state
 - Plan Driver proof module for APS dogfood views
 - Removal of `apps/anvil-ui/` placeholder
+- Delivery to users (DASH-012): the built SPA embedded in the `anvil` binary,
+  an SPA fallback so client routes and deep links resolve, the
+  `anvil dashboard --web` entry point, and a release pipeline that fails
+  rather than shipping a binary without the UI
 
 ## Out of Scope
 

@@ -4,7 +4,12 @@
 | ------- | ---------- | ------ | -------- |
 | DASHOPS | @eddacraft | Ready  | 0/7      |
 
-**Last reviewed:** 2026-07-09
+**Last reviewed:** 2026-07-27 — resolved three `[REVIEW]` markers to their
+current Rust owners (`crates/anvil-witness/` for provenance, `DriftSnapshot`
+for drift, `parse_suppression` per ADR-029 for suppressions). Corrected the
+Exposes list: `/plans` and `/plans/$id` already shipped under DASH-011, so this
+module extends that surface rather than creating it. Work items unchanged at
+0/7.
 
 ## Purpose
 
@@ -41,14 +46,22 @@ the developer-focused core pages.
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   dashboard server, and OpenAPI client seam
 - `contracts` — `ProvenanceRecordSchema`, `APSPlanSchema` (see `schema-contracts` module)
-- `save-time-trust` — Provenance record format [REVIEW: archived module — provenance now emitted by Rust kernel/CLI; verify schema source]
-- `drift-reporting` — Plan/gate provenance data [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
-- `suppressions` — Suppression expiry for notifications [REVIEW: archived module — suppression parser is now Rust per ADR-029; verify schema source]
+- `crates/anvil-witness/` — the provenance record format: `WitnessLine` plus
+  the hash-chained manifest (`manifest.rs`), which `anvil audit-chain` reads
+  and verifies. (Replaces the archived `save-time-trust` module.)
+- `DriftSnapshot` in `crates/anvil-cli/src/commands/drift.rs` — plan/gate drift
+  data behind `anvil drift`. (Replaces the archived `drift-reporting` module.)
+- `parse_suppression` in `crates/anvil-checks/src/antipattern/scanner.rs` —
+  suppression records for expiry notifications, authoritative per
+  [ADR-029](../decisions/029-suppression-parser-authority.md). (Replaces the
+  archived `suppressions` module.)
 
 **Exposes:**
 
 - Audit pages at `/audit`, `/audit/users`, `/audit/ai-tools`
-- Plans pages at `/plans`, `/plans/:id`
+- Plans pages at `/plans`, `/plans/$id` — **already shipped** by DASH-011 as
+  the Wave 1 proof module (PR #3321, `apps/dashboard/src/routes/plans.tsx`).
+  This module extends them with operator affordances, it does not create them.
 - Configuration page at `/config`
 - Diagnostics page at `/diagnostics`
 - Role context provider consumed by all pages for conditional rendering

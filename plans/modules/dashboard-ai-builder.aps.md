@@ -4,7 +4,11 @@
 | ------ | ---------- | ------ | -------- |
 | DASHAI | @eddacraft | Draft  | 0/6      |
 
-**Last reviewed:** 2026-07-09
+**Last reviewed:** 2026-07-27 — still Draft and Wave 4; DASHCORE and DASHARCH
+have not both shipped, so its gate remains shut. Flagged one collision for
+whoever picks it up: `.anvil/dashboards/` already has a reader — the Ratatui
+saved-spec surface — so the schema has to stay compatible with it. Work items
+unchanged at 0/6.
 
 ## Purpose
 
@@ -51,7 +55,12 @@ renders progressively. The structured pages (DASHCORE, DASHARCH, DASHOPS) cover
 - Saved dashboards at `/dashboards`, `/dashboards/:id`
 - Template gallery at `/builder/templates`
 - `DashboardRenderer` component — Renders any saved dashboard JSON
-- Dashboard persistence to `.anvil/dashboards/`
+- Dashboard persistence to `.anvil/dashboards/` — **note the existing owner**:
+  the Ratatui surface already reads saved json-render specs from that directory
+  (`crates/anvil-tui/src/surfaces/dashboard/spec.rs`), and `anvil init` seeds
+  `gate-summary.dashboard.json` there. A shared directory is a feature, not an
+  accident — but the naming and schema must stay compatible with the TUI
+  reader, or one surface will shadow the other's specs.
 
 ## Decisions
 

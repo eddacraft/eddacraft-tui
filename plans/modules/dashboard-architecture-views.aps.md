@@ -4,7 +4,13 @@
 | -------- | ---------- | ------ | -------- |
 | DASHARCH | @eddacraft | Ready  | 0/8      |
 
-**Last reviewed:** 2026-07-09
+**Last reviewed:** 2026-07-27 — DASH is complete (12/12), so this module's
+Wave 2 gate is open and it is genuinely startable. Resolved five `[REVIEW]`
+markers left over from the module archive cascade: the dependencies now name
+the Rust owners that actually hold those schemas — `crates/anvil-architecture/`
+for boundary rules and the architecture YAML, `DriftSnapshot` for drift, and
+`parse_suppression` (ADR-029) for suppressions — instead of archived module
+names. Work items are unchanged and still 0/8.
 
 ## Purpose
 
@@ -26,7 +32,7 @@ making exceptions?"
 ## Out of Scope
 
 - Architecture definition editing (managed via `.anvil/architecture.yml` in code)
-- OPA policy authoring [REVIEW: original ref was `opa-architecture-integration` (archived); replacement owner TBD — possibly `opa-enhancements` or `opa-agent-orchestration`]
+- OPA policy authoring — owned by [`opa-enhancements`](./opa-enhancements.aps.md) (OPAE, In Progress), not by this module
 - Suppression creation or renewal through the UI — deferred to write API phase
 - Overview page metrics (see DASHCORE)
 
@@ -36,10 +42,26 @@ making exceptions?"
 
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   dashboard server, and OpenAPI client seam
-- `architecture-safety` — Boundary rules, layer definitions, violation schemas [REVIEW: archived module — logic now in `crates/anvil-architecture/`; verify schemas/artefact format]
-- `opa-architecture-integration` — Architecture YAML schema, template definitions [REVIEW: archived module — OPA hybrid covered by ADR-006; current ownership unclear]
-- `drift-reporting` — Snapshot schema, comparison logic, trend calculation [REVIEW: archived module — drift artefacts now produced by Rust kernel; verify schema source]
-- `suppressions` — Suppression record format, scope types, expiry rules [REVIEW: archived module — suppression parser is now Rust per ADR-029; verify schema source]
+- `crates/anvil-architecture/` — boundary rules, layer definitions, and
+  violation schemas. `definition.rs` parses `.anvil/architecture.yml` into
+  `ArchitectureDefinition`; `detection.rs` produces violations; `baseline.rs`
+  holds the baselined set. (Replaces the archived `architecture-safety`
+  module.)
+- `crates/anvil-architecture/src/definition.rs` — the architecture YAML schema
+  and its templates (`create_definition_from_template`,
+  `parse_architecture_definition_file`). The DC/OPA split is
+  [ADR-006](../decisions/006-hybrid-dc-opa.md). (Replaces the archived
+  `opa-architecture-integration` module.)
+- `DriftSnapshot` in `crates/anvil-cli/src/commands/drift.rs` — the snapshot
+  schema and comparison logic behind `anvil drift`; the TUI row shape is
+  `anvil-tui/src/surfaces/dashboard/drift.rs`. Trend calculation does not exist
+  yet — this module would add it. (Replaces the archived `drift-reporting`
+  module.)
+- `parse_suppression` in `crates/anvil-checks/src/antipattern/scanner.rs` — the
+  authoritative suppression parser per
+  [ADR-029](../decisions/029-suppression-parser-authority.md); per-surface
+  variants live under `crates/anvil-checks/src/surface/*/suppression.rs`.
+  (Replaces the archived `suppressions` module.)
 
 **Exposes:**
 
