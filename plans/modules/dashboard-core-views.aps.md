@@ -2,14 +2,12 @@
 
 | ID       | Owner      | Status | Progress |
 | -------- | ---------- | ------ | -------- |
-| DASHCORE | @eddacraft | In Progress | 8/9      |
+| DASHCORE | @eddacraft | In Progress | 9/9      |
 
-**Last reviewed:** 2026-07-27 — DASHCORE-003..009 reconciled to Merged; their
-Wave 2 product routes landed on `main` via PR #3379 (2026-07-24) but the item
-statuses were never flipped, so the module read 1/9 while eight items were
-terminal. DASHCORE-001 Merged via PR #3363. Only **DASHCORE-002** (retained
-history and trends) remains: Ready since 2026-07-26 with an approved design
-spec. The module stays In Progress until it lands.
+**Last reviewed:** 2026-07-27 — all nine work items are Merged. DASHCORE-001
+landed via PR #3363, DASHCORE-003..009 via PR #3379, and DASHCORE-002 retained
+history and trends via PR #3436. The module remains In Progress at 9/9 pending
+release evidence for the active `v0.10.0-beta` window.
 
 ## Purpose
 
@@ -115,7 +113,7 @@ DASHARCH.
 
 ### DASHCORE-002: Overview — retained history and trend charts
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-27 via PR #3436
 - **Pull Request:** [#3436](https://github.com/eddacraft/anvil-001/pull/3436)
 - **Design:** [2026-07-26-dashcore-002-retained-history.md](../specs/2026-07-26-dashcore-002-retained-history.md)
   (approved 2026-07-26)
@@ -174,7 +172,9 @@ DASHARCH.
   test/typecheck/lint/build and generated-API parity, Rust fmt/clippy, APS/docs
   checks, Council `council-62254fb8` (12 findings fixed; zero open), and fresh
   independent verify-loop `pass-with-advisories`; root evidence gates are green
-  on the feature worktree.
+  on the feature worktree. PR #3436's required CI matrix passed before merge,
+  including affected tests, Linux and Windows clippy, resource budgets,
+  CodeQL/security, docs, APS drift, and dashboard TypeScript gates.
 
 ### DASHCORE-003: Overview — activity feed
 

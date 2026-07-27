@@ -104,7 +104,12 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASHCORE-002 — retained history and trends | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | Implementation verified against the approved design: bounded gate-history persistence, typed history API, and honest Overview trends. | Review and land [PR #3436](https://github.com/eddacraft/anvil-001/pull/3436). |
+| 1 | JOURNEY-007 — sandboxed autoplay demonstration | Ready | [release-user-journeys](./modules/release-user-journeys.aps.md) | Highest-value Ready post-cut expansion in the active window; its operator-approved design closes the WOW-006 execution gate. | Execute JOURNEY-007 and coordinated WOW-006 through dev-loop. |
+
+NBI review note (2026-07-27, DASHCORE complete): **DASHCORE-002** Merged via
+[PR #3436](https://github.com/eddacraft/anvil-001/pull/3436), closing DASHCORE
+at 9/9 Merged items pending release evidence. Promoted **JOURNEY-007**, the
+highest-value Ready post-cut item named by the active release window.
 
 ## Release Plan
 
@@ -404,7 +409,7 @@ tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary
 | Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
 | ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
 | [dashboard-foundation](./modules/dashboard-foundation.aps.md)                 | DASH     | In Progress | 12/12 (Wave 1 DASH-001..011 Merged via PR #3261 and PR #3321; DASH-012 delivery slice Merged via PR #3421; pending release evidence) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | In Progress | 8/9      | 2    | dashboard-foundation                                                     |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md)                 | DASHCORE | In Progress | 9/9 (all items Merged; pending release evidence) | 2    | dashboard-foundation                                                     |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)                 | DASHAI   | Draft  | 0/6      | 4    | dashboard-foundation                                                     |
