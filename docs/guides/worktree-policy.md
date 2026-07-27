@@ -356,7 +356,15 @@ untouched.
 The heal serialises on a lock in the repository's common git dir
 (`$(git rev-parse --git-common-dir)/anvil-heal-primary-anchor.lock`), shared by
 every worktree and every agent working in the repo. If a heal is already
-running, a second one exits without touching the anchor.
+running, a second one exits without touching the anchor. Hosts without `flock`
+fall back to an atomic `mkdir` lock; set `HEAL_FORCE_MKDIR_LOCK=1` to exercise
+that branch anywhere (it selects the lock mechanism and nothing else).
+
+Staged changes are never treated as a strand. `git stash create` commits the
+working tree, so staging an edit and then restoring the file yields a snapshot
+whose tree matches `HEAD` while the index does not — indistinguishable from a
+healed anchor by tree alone. The proof therefore also requires the index to
+agree with the working tree, which a genuine strand always does.
 
 > **Do not move that lock under `$TMPDIR`.** Each agent process gets its own
 > `$TMPDIR`, so a `$TMPDIR`-derived path gives every agent a private lock and

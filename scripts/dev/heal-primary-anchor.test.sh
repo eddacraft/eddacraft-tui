@@ -100,15 +100,54 @@ check "lock: created in the git dir" \
 
 # ── Case 7: a second heal cannot pile on while one holds the lock ─────────────
 # The winner's exclusion must make the loser a clean no-op, not a stasher.
-repo=$(new_repo 7)
+# Skipped rather than silently vacuous where flock is absent — case 8 covers
+# the mkdir fallback that such a host would actually use.
+if command -v flock >/dev/null 2>&1; then
+  repo=$(new_repo 7)
+  printf 'REAL WORK\n' >"$repo/f.txt"
+  (
+    cd "$repo"
+    exec 8>"$repo/.git/anvil-heal-primary-anchor.lock"
+    flock -n 8 || exit 0                              # hold the lock, then heal
+    bash "$heal" >/dev/null 2>&1 || true
+  ) || true
+  check "lock held: loser created no stash" "$(stash_count "$repo")" "0"
+  check "lock held: work untouched"         "$(cat "$repo/f.txt")"   "REAL WORK"
+else
+  echo "skip: lock held (flock unavailable on this host)"
+fi
+
+# ── Case 8: the mkdir fallback lock excludes a second heal too ────────────────
+# HEAL_FORCE_MKDIR_LOCK exercises the no-flock branch on any host. Pre-creating
+# the lock directory simulates a heal already in flight.
+repo=$(new_repo 8)
 printf 'REAL WORK\n' >"$repo/f.txt"
-(
-  cd "$repo"
-  exec 8>"$repo/.git/anvil-heal-primary-anchor.lock"
-  flock -n 8 || exit 0                                # hold the lock, then heal
-  bash "$heal" >/dev/null 2>&1 || true
-) || true
-check "lock held: loser created no stash" "$(stash_count "$repo")" "0"
-check "lock held: work untouched"         "$(cat "$repo/f.txt")"   "REAL WORK"
+mkdir "$repo/.git/anvil-heal-primary-anchor.lock.d"
+( cd "$repo" && HEAL_FORCE_MKDIR_LOCK=1 bash "$heal" ) >/dev/null 2>&1 || true
+check "mkdir lock held: no stash created" "$(stash_count "$repo")" "0"
+check "mkdir lock held: work untouched"   "$(cat "$repo/f.txt")"   "REAL WORK"
+rmdir "$repo/.git/anvil-heal-primary-anchor.lock.d"
+# ...and releases the lock so the next heal proceeds normally.
+( cd "$repo" && HEAL_FORCE_MKDIR_LOCK=1 bash "$heal" ) >/dev/null 2>&1 || true
+check "mkdir lock free: work preserved"   "$(stash_count "$repo")" "1"
+check "mkdir lock: released on exit" \
+  "$([ -d "$repo/.git/anvil-heal-primary-anchor.lock.d" ] && echo present || echo gone)" "gone"
+
+# ── Case 9: staged-only work must never be reset away ─────────────────────────
+# `git stash create` commits the working tree, so staging a change and then
+# restoring the file leaves a snapshot whose tree matches HEAD while the index
+# does not. That mimics a healed anchor exactly; the strand proof must reject it
+# on the index, or `git reset --hard` destroys the staged work outright.
+repo=$(new_repo 9)
+printf 'STAGED WORK\n' >"$repo/f.txt"
+git -C "$repo" add f.txt
+printf 'v2\n' >"$repo/f.txt"                          # working tree back to HEAD
+( cd "$repo" && bash "$heal" ) >/dev/null 2>&1 || true
+check "staged-only: not reset away"  "$(git -C "$repo" stash list | wc -l | tr -d ' ')" "1"
+# `--index` restores the staged state too; a plain pop would bring the content
+# back only as an unstaged edit.
+git -C "$repo" stash pop --index -q >/dev/null 2>&1 || true
+check "staged-only: staged content recovered" \
+  "$(git -C "$repo" show :f.txt 2>/dev/null)" "STAGED WORK"
 
 if [ "$fail" = 0 ]; then echo "ALL PASS"; else echo "FAILURES"; exit 1; fi
