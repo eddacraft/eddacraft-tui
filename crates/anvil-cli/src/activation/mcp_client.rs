@@ -621,10 +621,60 @@ pub(crate) fn command_to_string(command: &Path) -> Result<String, RenderError> {
 /// renderer hardcoded `"stdio"` regardless of the entry's actual
 /// transport. v1 always reports `Stdio`; future hosted-MCP-server
 /// variants populate `RemoteSse` / `RemoteHttp` here.
+/// Protocol era observed by the spawn probe (MCP26-007 diagnostic evidence).
+///
+/// CamelCase JSON keys (`protocolEra`) are emitted via serde rename on
+/// [`McpProbeResult`]. The public tier label
+/// (`restart_handshake_verified`) is intentionally unchanged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolEraEvidence {
+    Modern,
+    Legacy,
+}
+
+/// How the spawn probe verified the installed anvil MCP entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VerificationMethod {
+    /// Modern `server/discover` succeeded.
+    ServerDiscover,
+    /// Legacy `initialize` handshake succeeded (fresh child after modern miss).
+    Initialize,
+}
+
+/// Evidence returned by a successful [`probe_startable`] attempt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeEvidence {
+    pub protocol_era: ProtocolEraEvidence,
+    pub protocol_version: String,
+    pub verification_method: VerificationMethod,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct McpProbeResult {
     pub tier: McpTier,
     pub transport: McpTransport,
+    /// Set after a successful spawn probe (MCP26-007). Omitted from JSON
+    /// when unset so existing consumers stay compatible.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "protocolEra"
+    )]
+    pub protocol_era: Option<ProtocolEraEvidence>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "protocolVersion"
+    )]
+    pub protocol_version: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "verificationMethod"
+    )]
+    pub verification_method: Option<VerificationMethod>,
 }
 
 impl McpProbeResult {
@@ -635,7 +685,18 @@ impl McpProbeResult {
         Self {
             tier,
             transport: McpTransport::Stdio,
+            protocol_era: None,
+            protocol_version: None,
+            verification_method: None,
         }
+    }
+
+    /// Attach MCP26-007 verification evidence without changing tier/transport.
+    pub fn with_probe_evidence(mut self, evidence: ProbeEvidence) -> Self {
+        self.protocol_era = Some(evidence.protocol_era);
+        self.protocol_version = Some(evidence.protocol_version);
+        self.verification_method = Some(evidence.verification_method);
+        self
     }
 }
 
@@ -673,6 +734,9 @@ pub fn probe_all(
         let result = McpProbeResult {
             tier: probe_one(*client, workspace, home, fresh),
             transport: fresh.transport(),
+            protocol_era: None,
+            protocol_version: None,
+            verification_method: None,
         };
         out.insert(client.id(), result);
     }
@@ -827,23 +891,23 @@ fn stdio_entry_from_value(v: &serde_json::Value) -> Option<AnvilEntry> {
     })
 }
 
-/// Wire-format protocol version the probe announces. Server echoes whatever
-/// the client supplies, so picking a published value is fine; mismatches do
-/// not error out at the protocol level.
-const PROBE_PROTOCOL_VERSION: &str = "2025-06-18";
+/// Legacy initialise protocol version the fallback probe announces.
+const PROBE_LEGACY_PROTOCOL_VERSION: &str = "2025-06-18";
+
+/// Modern protocol version the discovery probe requests (RC baseline).
+const PROBE_MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 
 /// Maximum wall-clock time the probe waits for the server's first response
-/// frame. The server's `initialize` handler is in-process and synchronous,
-/// so anything close to 1s indicates a stuck child or a binary that does
-/// not actually serve MCP. The orchestrator runs the probe per-client (with
-/// the v1 cache, once total), so this directly bounds the added latency on
+/// frame. Bound applies to each child attempt (modern discover, then legacy
+/// initialise). The orchestrator runs the probe per-client (with the v1
+/// cache, once total), so this directly bounds the added latency on
 /// `anvil status --verify` and `anvil start`.
 const PROBE_HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Why a [`probe_startable`] attempt did not promote the tier.
 ///
 /// Carried into `tracing::warn!` for SREs. Returned variants are not
-/// public: callers should treat the function as `Result<(), _>` and only
+/// public: callers should treat the function as `Result<_, _>` and only
 /// promote on `Ok`. Failure rendering goes through the renderer's
 /// per-client outcome strings, which never include this enum's payload.
 #[derive(Debug, Clone)]
@@ -853,7 +917,7 @@ pub enum ProbeError {
     Spawn(String),
     /// Couldn't take the child's stdin or stdout pipe (extremely rare).
     NoPipes,
-    /// Failed to write the initialize request to the child's stdin.
+    /// Failed to write a probe request to the child's stdin.
     Write(String),
     /// First-line read from stdout produced no bytes before the child
     /// closed the pipe (process exited before responding).
@@ -863,9 +927,8 @@ pub enum ProbeError {
     Timeout,
     /// Response was non-UTF-8 or could not be parsed as JSON.
     ParseResponse(String),
-    /// Response parsed as JSON but does not look like a JSON-RPC 2.0
-    /// success response to our initialize call (missing `jsonrpc`,
-    /// wrong `id`, missing `result`, or `error` field present).
+    /// Response parsed as JSON but does not look like a successful
+    /// modern discovery or legacy initialise result for anvil.
     BadResponse(String),
     /// `current_exe()` resolution or the entry's command is non-UTF-8 in
     /// a way that prevents spawning.
@@ -877,7 +940,7 @@ impl std::fmt::Display for ProbeError {
         match self {
             ProbeError::Spawn(s) => write!(f, "spawn: {s}"),
             ProbeError::NoPipes => write!(f, "child stdin/stdout pipes were not captured"),
-            ProbeError::Write(s) => write!(f, "write initialize request: {s}"),
+            ProbeError::Write(s) => write!(f, "write probe request: {s}"),
             ProbeError::EmptyResponse => write!(f, "child closed stdout before responding"),
             ProbeError::Timeout => write!(
                 f,
@@ -891,33 +954,26 @@ impl std::fmt::Display for ProbeError {
     }
 }
 
-/// Drive an MCP `initialize` handshake against the child the editor would
-/// spawn for `entry`, and return `Ok(())` if the server responds with a
-/// well-formed JSON-RPC 2.0 success frame within
-/// [`PROBE_HANDSHAKE_TIMEOUT`].
+/// Drive a dual-era MCP verification probe against the child the editor would
+/// spawn for `entry`, and return evidence when the server responds as anvil
+/// within [`PROBE_HANDSHAKE_TIMEOUT`] per attempt.
+///
+/// **Algorithm (MCP26-007):**
+/// 1. Spawn a **disposable** child and probe modern `server/discover`.
+/// 2. On valid modern discovery (anvil identity in result `_meta`), return
+///    modern evidence.
+/// 3. On non-modern failure (timeout, early exit, method-not-found, malformed
+///    frame, etc.), **reap** that child and spawn a **fresh** child for legacy
+///    `initialize`.
+/// 4. Never leave probe children behind.
 ///
 /// **Caller contract:** call this only when [`McpClient::verify_config_tier`]
-/// has already returned [`McpTier::RestartRequired`] for `entry`. A
-/// `ConfigAbsent` or `ConfigPresent` tier means a successful handshake
-/// would not yet imply the editor will pick up the entry, so spawning
-/// the probe would just burn CPU.
+/// has already returned [`McpTier::RestartRequired`] for `entry`.
 ///
-/// **Tier behaviour:** LAUNCH-009.6 maps `Ok(())` to
-/// `RestartHandshakeVerified`, not `ServerStartable`, preserving the
-/// distinction between "server can spawn" and "configured client entry
-/// can spawn".
-///
-/// **Process management:**
-/// - Stdio is piped; stderr is silenced (the server's `tracing` output
-///   would otherwise pollute logs).
-/// - A reader thread drains the first response frame so the main thread
-///   can `recv_timeout` cleanly without blocking on the child's writes.
-/// - Stdin is closed after the request so a graceful child can exit on
-///   EOF; if it doesn't, the function calls `child.kill()` before
-///   returning either way.
-/// - The reader thread is detached. When `child.kill()` closes stdout
-///   the thread sees EOF and exits, so it does not leak across calls.
-pub fn probe_startable(entry: &AnvilEntry) -> Result<(), ProbeError> {
+/// **Tier behaviour:** LAUNCH-009.6 maps `Ok(_)` to
+/// `RestartHandshakeVerified`, not `ServerStartable`. The public tier label
+/// is unchanged; era/method live on diagnostic evidence fields.
+pub fn probe_startable(entry: &AnvilEntry) -> Result<ProbeEvidence, ProbeError> {
     let AnvilEntry::Stdio { command, args, env } = entry;
     probe_stdio(command, args, env)
 }
@@ -926,7 +982,54 @@ fn probe_stdio(
     command: &Path,
     args: &[String],
     env: &BTreeMap<String, String>,
-) -> Result<(), ProbeError> {
+) -> Result<ProbeEvidence, ProbeError> {
+    // Attempt 1: modern discovery on a disposable child.
+    match probe_child_once(command, args, env, ProbeRequest::ModernDiscover) {
+        Ok(evidence) => return Ok(evidence),
+        Err(err) if modern_probe_should_fallback(&err) => {
+            tracing::debug!(
+                error = %err,
+                "mcp probe: modern discover did not verify; trying legacy initialise on a fresh child"
+            );
+        }
+        Err(err) => return Err(err),
+    }
+
+    // Attempt 2: fresh child for legacy initialise (never reuse the modern child).
+    probe_child_once(command, args, env, ProbeRequest::LegacyInitialize)
+}
+
+/// Whether a modern-discover failure should fall through to legacy initialise.
+fn modern_probe_should_fallback(err: &ProbeError) -> bool {
+    match err {
+        // Modern server answered but rejected our version — do not pretend
+        // a legacy initialise will fix a version mismatch on a modern binary.
+        ProbeError::BadResponse(s) if s.contains("unsupported protocol version") => false,
+        ProbeError::BadResponse(s) if s.contains("modern protocol error") => false,
+        // Everything else: timeout, empty, parse, method-not-found shaped
+        // bad responses, spawn issues on first attempt shouldn't fallback
+        // if we couldn't spawn at all.
+        ProbeError::Spawn(_) | ProbeError::InvalidCommand(_) | ProbeError::NoPipes => false,
+        ProbeError::Write(_)
+        | ProbeError::EmptyResponse
+        | ProbeError::Timeout
+        | ProbeError::ParseResponse(_)
+        | ProbeError::BadResponse(_) => true,
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ProbeRequest {
+    ModernDiscover,
+    LegacyInitialize,
+}
+
+fn probe_child_once(
+    command: &Path,
+    args: &[String],
+    env: &BTreeMap<String, String>,
+    request: ProbeRequest,
+) -> Result<ProbeEvidence, ProbeError> {
     use std::io::{BufRead, BufReader, Write};
     use std::process::{Command, Stdio};
 
@@ -939,14 +1042,21 @@ fn probe_stdio(
         .spawn()
         .map_err(|e| ProbeError::Spawn(e.to_string()))?;
 
-    let mut stdin = child.stdin.take().ok_or(ProbeError::NoPipes)?;
-    let stdout = child.stdout.take().ok_or(ProbeError::NoPipes)?;
+    let mut stdin = match child.stdin.take() {
+        Some(s) => s,
+        None => {
+            reap_child(&mut child);
+            return Err(ProbeError::NoPipes);
+        }
+    };
+    let stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => {
+            reap_child(&mut child);
+            return Err(ProbeError::NoPipes);
+        }
+    };
 
-    // Read raw bytes until newline so we can distinguish (a) child closed
-    // pipe with no output, (b) I/O error mid-read, and (c) non-UTF-8
-    // bytes that `read_line(&mut String)` would have silently lost. The
-    // channel carries an `io::Result<Vec<u8>>` so the caller maps each
-    // case to the right `ProbeError` variant.
     let (tx, rx) = std::sync::mpsc::channel::<std::io::Result<Vec<u8>>>();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
@@ -955,50 +1065,136 @@ fn probe_stdio(
         let _ = tx.send(result);
     });
 
-    let request = format!(
-        r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{"protocolVersion":"{ver}","capabilities":{{}},"clientInfo":{{"name":"anvil-probe","version":"{cli_version}"}}}}}}"#,
-        ver = PROBE_PROTOCOL_VERSION,
-        cli_version = env!("CARGO_PKG_VERSION"),
-    );
-    if let Err(e) = writeln!(stdin, "{request}") {
-        let _ = child.kill();
-        let _ = child.wait();
+    let request_line = match request {
+        ProbeRequest::ModernDiscover => format!(
+            r#"{{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{{"_meta":{{"io.modelcontextprotocol/protocolVersion":"{ver}","io.modelcontextprotocol/clientCapabilities":{{}},"io.modelcontextprotocol/clientInfo":{{"name":"anvil-probe","version":"{cli_version}"}}}}}}}}"#,
+            ver = PROBE_MODERN_PROTOCOL_VERSION,
+            cli_version = env!("CARGO_PKG_VERSION"),
+        ),
+        ProbeRequest::LegacyInitialize => format!(
+            r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{"protocolVersion":"{ver}","capabilities":{{}},"clientInfo":{{"name":"anvil-probe","version":"{cli_version}"}}}}}}"#,
+            ver = PROBE_LEGACY_PROTOCOL_VERSION,
+            cli_version = env!("CARGO_PKG_VERSION"),
+        ),
+    };
+
+    if let Err(e) = writeln!(stdin, "{request_line}") {
+        reap_child(&mut child);
         return Err(ProbeError::Write(e.to_string()));
     }
     drop(stdin);
 
     let response_bytes = match rx.recv_timeout(PROBE_HANDSHAKE_TIMEOUT) {
         Ok(Ok(bytes)) if bytes.iter().all(u8::is_ascii_whitespace) => {
-            let _ = child.kill();
-            let _ = child.wait();
+            reap_child(&mut child);
             return Err(ProbeError::EmptyResponse);
         }
         Ok(Ok(bytes)) => bytes,
         Ok(Err(io_err)) => {
-            let _ = child.kill();
-            let _ = child.wait();
+            reap_child(&mut child);
             return Err(ProbeError::ParseResponse(format!(
                 "I/O error reading stdout: {io_err}"
             )));
         }
         Err(_) => {
-            let _ = child.kill();
-            let _ = child.wait();
+            reap_child(&mut child);
             return Err(ProbeError::Timeout);
         }
     };
-    let _ = child.kill();
-    let _ = child.wait();
+    // Always reap — do not leave probe processes behind (MCP26-007).
+    reap_child(&mut child);
 
     let response = std::str::from_utf8(&response_bytes)
         .map_err(|e| ProbeError::ParseResponse(format!("response is not UTF-8: {e}")))?;
-    validate_initialize_response(response.trim())
+    match request {
+        ProbeRequest::ModernDiscover => validate_discover_response(response.trim()),
+        ProbeRequest::LegacyInitialize => validate_initialize_response(response.trim()),
+    }
 }
 
-/// Validate that `raw` is a JSON-RPC 2.0 success response to our
-/// initialize request. Split out so the unit tests can exercise the
-/// validator without spawning a child.
-fn validate_initialize_response(raw: &str) -> Result<(), ProbeError> {
+fn reap_child(child: &mut std::process::Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+/// Validate a modern `server/discover` success frame and extract anvil identity
+/// from result `_meta` (MCP26-007).
+fn validate_discover_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|e| ProbeError::ParseResponse(e.to_string()))?;
+    if value.get("jsonrpc").and_then(|v| v.as_str()) != Some("2.0") {
+        return Err(ProbeError::BadResponse("missing jsonrpc=2.0".to_string()));
+    }
+    if value.get("id").and_then(serde_json::Value::as_u64) != Some(1) {
+        return Err(ProbeError::BadResponse(format!(
+            "expected id=1, got {}",
+            value
+                .get("id")
+                .map_or_else(|| "<missing>".to_string(), serde_json::Value::to_string)
+        )));
+    }
+    if let Some(error) = value.get("error") {
+        let code = error.get("code").and_then(serde_json::Value::as_i64);
+        // Method not found → older anvil / non-modern; caller may fall back.
+        if code == Some(-32601) {
+            return Err(ProbeError::BadResponse(
+                "method not found (non-modern server)".to_string(),
+            ));
+        }
+        // Unsupported protocol version → modern server, wrong version.
+        if code == Some(-32022) {
+            return Err(ProbeError::BadResponse(format!(
+                "unsupported protocol version (modern protocol error): {error}"
+            )));
+        }
+        return Err(ProbeError::BadResponse(format!(
+            "server returned JSON-RPC error: {error}"
+        )));
+    }
+    let Some(result) = value.get("result") else {
+        return Err(ProbeError::BadResponse("missing result".to_string()));
+    };
+    // Prefer modern identity in _meta; accept legacy-shaped serverInfo only as
+    // failure so we do not mis-label a legacy response as modern discover.
+    let server_info = result
+        .get("_meta")
+        .and_then(|m| m.get("io.modelcontextprotocol/serverInfo"))
+        .or_else(|| result.get("serverInfo"));
+    let Some(server_info) = server_info else {
+        return Err(ProbeError::BadResponse(
+            "missing result._meta serverInfo (and no result.serverInfo)".to_string(),
+        ));
+    };
+    if server_info.get("name").and_then(|v| v.as_str()) != Some("anvil") {
+        return Err(ProbeError::BadResponse(format!(
+            "expected serverInfo.name=anvil, got {}",
+            server_info
+                .get("name")
+                .map_or_else(|| "<missing>".to_string(), serde_json::Value::to_string)
+        )));
+    }
+
+    let protocol_version = result
+        .get("supportedVersions")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|arr| {
+            arr.iter()
+                .find_map(|v| v.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| PROBE_MODERN_PROTOCOL_VERSION.to_string());
+
+    Ok(ProbeEvidence {
+        protocol_era: ProtocolEraEvidence::Modern,
+        protocol_version,
+        verification_method: VerificationMethod::ServerDiscover,
+    })
+}
+
+/// Validate that `raw` is a JSON-RPC 2.0 success response to our legacy
+/// initialize request. Split out so unit tests can exercise the validator
+/// without spawning a child.
+fn validate_initialize_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|e| ProbeError::ParseResponse(e.to_string()))?;
     if value.get("jsonrpc").and_then(|v| v.as_str()) != Some("2.0") {
@@ -1018,7 +1214,10 @@ fn validate_initialize_response(raw: &str) -> Result<(), ProbeError> {
             value["error"]
         )));
     }
-    let Some(server_info) = value.get("result").and_then(|r| r.get("serverInfo")) else {
+    let Some(result) = value.get("result") else {
+        return Err(ProbeError::BadResponse("missing result".to_string()));
+    };
+    let Some(server_info) = result.get("serverInfo") else {
         return Err(ProbeError::BadResponse(
             "missing result.serverInfo".to_string(),
         ));
@@ -1031,7 +1230,16 @@ fn validate_initialize_response(raw: &str) -> Result<(), ProbeError> {
                 .map_or_else(|| "<missing>".to_string(), serde_json::Value::to_string)
         )));
     }
-    Ok(())
+    let protocol_version = result
+        .get("protocolVersion")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(PROBE_LEGACY_PROTOCOL_VERSION)
+        .to_string();
+    Ok(ProbeEvidence {
+        protocol_era: ProtocolEraEvidence::Legacy,
+        protocol_version,
+        verification_method: VerificationMethod::Initialize,
+    })
 }
 
 #[cfg(test)]
@@ -1293,7 +1501,51 @@ mod tests {
     #[test]
     fn validate_initialize_accepts_a_well_formed_success_response() {
         let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"anvil","version":"0.5.1"}}}"#;
-        validate_initialize_response(raw).expect("well-formed response should validate");
+        let evidence =
+            validate_initialize_response(raw).expect("well-formed response should validate");
+        assert_eq!(evidence.protocol_era, ProtocolEraEvidence::Legacy);
+        assert_eq!(evidence.protocol_version, "2025-06-18");
+        assert_eq!(evidence.verification_method, VerificationMethod::Initialize);
+    }
+
+    #[test]
+    fn validate_discover_accepts_modern_anvil_discovery() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"capabilities":{"tools":{},"resources":{}},"ttlMs":3600000,"cacheScope":"private","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"anvil","version":"0.9.0-beta"}}}}"#;
+        let evidence = validate_discover_response(raw).expect("modern discover should validate");
+        assert_eq!(evidence.protocol_era, ProtocolEraEvidence::Modern);
+        assert_eq!(evidence.protocol_version, "2026-07-28");
+        assert_eq!(
+            evidence.verification_method,
+            VerificationMethod::ServerDiscover
+        );
+    }
+
+    #[test]
+    fn validate_discover_rejects_non_anvil_server() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"other","version":"1"}}}}"#;
+        let err = validate_discover_response(raw).expect_err("non-anvil must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("anvil")),
+            other => panic!("expected BadResponse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_discover_method_not_found_is_fallback_shaped() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let err = validate_discover_response(raw).expect_err("method not found must fail");
+        assert!(modern_probe_should_fallback(&err));
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("non-modern")),
+            other => panic!("expected BadResponse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_discover_unsupported_version_does_not_fallback() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2026-07-28"],"requested":"2099-01-01"}}}"#;
+        let err = validate_discover_response(raw).expect_err("unsupported must fail");
+        assert!(!modern_probe_should_fallback(&err));
     }
 
     #[test]
@@ -1439,5 +1691,32 @@ mod tests {
             matches!(err, ProbeError::Write(_) | ProbeError::EmptyResponse),
             "got {err:?}",
         );
+    }
+
+    /// MCP26-007: the current anvil binary must verify via modern discovery.
+    #[test]
+    fn probe_startable_succeeds_against_current_anvil_binary() {
+        let command = std::env::var_os("CARGO_BIN_EXE_anvil")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                // Unit tests inside the bin crate may not set CARGO_BIN_EXE_*;
+                // fall back to the test process's own path only when it looks
+                // like anvil (rare). Prefer explicit cargo bin path.
+                None
+            });
+        let Some(command) = command else {
+            // Integration coverage lives in tests/ when the env is absent.
+            eprintln!("skipping: CARGO_BIN_EXE_anvil not set in this harness");
+            return;
+        };
+        let entry = AnvilEntry::Stdio {
+            command,
+            args: vec!["mcp".into(), "serve".into(), "--stdio".into()],
+            env: BTreeMap::new(),
+        };
+        let evidence = probe_startable(&entry).expect("current anvil must probe successfully");
+        assert_eq!(evidence.protocol_era, ProtocolEraEvidence::Modern);
+        assert_eq!(evidence.verification_method, VerificationMethod::ServerDiscover);
+        assert_eq!(evidence.protocol_version, "2026-07-28");
     }
 }

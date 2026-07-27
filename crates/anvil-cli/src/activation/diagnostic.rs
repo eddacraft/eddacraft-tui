@@ -510,18 +510,23 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     }
 }
 
-/// Drive an MCP `initialize` handshake against the installed entry and
+/// Drive a dual-era MCP verification probe against the installed entry and
 /// promote `RestartRequired` clients to `RestartHandshakeVerified` when
-/// the exact command serves MCP (LAUNCH-009.6).
+/// the exact command serves MCP (LAUNCH-009.6 / MCP26-007).
+///
+/// Modern path: disposable `server/discover`. Legacy fallback: fresh child
+/// `initialize`. Public tier label stays `restart_handshake_verified`;
+/// `protocolEra` / `protocolVersion` / `verificationMethod` are additive
+/// diagnostic evidence.
 ///
 /// This intentionally does **not** promote to `ServerStartable`:
 /// `ServerStartable` means the server can spawn without confirmed client
 /// wiring, while `RestartHandshakeVerified` preserves both facts — the
-/// client config matches and the configured command handshakes.
+/// client config matches and the configured command verifies.
 ///
 /// The probe targets each `RestartRequired` client's installed entry
 /// (via [`super::mcp_client::installed_restart_required_entries`]) so
-/// the handshake reflects what the editor would really spawn — including
+/// verification reflects what the editor would really spawn — including
 /// bare `"anvil"` entries from `anvil mcp-config` that PATH-resolve to a
 /// different binary than `current_exe()`. If extraction fails for every
 /// restart-required client (config re-parse error, missing `command`
@@ -536,8 +541,8 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
 /// `RestartRequired` — fresh repos and already-protecting tiers add
 /// zero latency.
 ///
-/// **Cost:** at most one [`super::mcp_client::PROBE_HANDSHAKE_TIMEOUT`]
-/// (1s) per extracted `RestartRequired` client, only when at least one
+/// **Cost:** at most two probe attempts (modern then legacy) of one second
+/// each per extracted `RestartRequired` client, only when at least one
 /// client is at `RestartRequired`.
 fn promote_restart_required_after_handshake(
     root: &Path,
@@ -557,9 +562,12 @@ fn promote_restart_required_after_handshake(
                      fresh, not the editor's actual spawn target",
         );
         match super::mcp_client::probe_startable(fresh) {
-            Ok(()) => {
+            Ok(evidence) => {
                 tracing::info!(
-                    "mcp probe: handshake against fallback binary succeeded \
+                    protocol_era = ?evidence.protocol_era,
+                    protocol_version = %evidence.protocol_version,
+                    verification_method = ?evidence.verification_method,
+                    "mcp probe: verification against fallback binary succeeded \
                      (clients remain at RestartRequired because installed entry \
                      could not be extracted)",
                 );
@@ -567,7 +575,7 @@ fn promote_restart_required_after_handshake(
             Err(e) => {
                 tracing::warn!(
                     error = %e,
-                    "mcp probe: handshake against fallback binary failed \
+                    "mcp probe: verification against fallback binary failed \
                      (clients remain at RestartRequired because installed entry \
                      could not be extracted)",
                 );
@@ -578,15 +586,22 @@ fn promote_restart_required_after_handshake(
 
     for (client_id, probe_target) in installed {
         match super::mcp_client::probe_startable(&probe_target) {
-            Ok(()) => {
+            Ok(evidence) => {
                 if let Some(result) = map.get_mut(&client_id)
                     && result.tier == McpTier::RestartRequired
                 {
-                    result.tier = McpTier::RestartHandshakeVerified;
+                    let tier = McpTier::RestartHandshakeVerified;
+                    let transport = result.transport;
+                    *result = super::mcp_client::McpProbeResult::stdio(tier)
+                        .with_probe_evidence(evidence.clone());
+                    result.transport = transport;
                 }
                 tracing::info!(
                     client = %client_id.label(),
-                    "mcp probe: handshake against installed binary succeeded \
+                    protocol_era = ?evidence.protocol_era,
+                    protocol_version = %evidence.protocol_version,
+                    verification_method = ?evidence.verification_method,
+                    "mcp probe: verification against installed binary succeeded \
                      (client promoted to RestartHandshakeVerified)",
                 );
             }
@@ -594,7 +609,7 @@ fn promote_restart_required_after_handshake(
                 tracing::warn!(
                     client = %client_id.label(),
                     error = %e,
-                    "mcp probe: handshake against installed binary failed \
+                    "mcp probe: verification against installed binary failed \
                      (client remains at RestartRequired)",
                 );
             }

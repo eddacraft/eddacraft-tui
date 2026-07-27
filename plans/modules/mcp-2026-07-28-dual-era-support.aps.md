@@ -5,9 +5,9 @@
 | MCP26 | —     | In Progress | 0/11     |
 
 **Last reviewed:** 2026-07-27 — operator authorised **implementation against
-the locked RC** on `feat/mcp26-dual-era-support`. Dual-era host, domain
-extraction, `server/discover`, modern envelopes, and modern stdio tests
-landed against the RC contract. MCP26-001 remains open for final schema
+the locked RC** on `feat/mcp26-dual-era-support`. Dual-era host, domain extraction, `server/discover`, modern envelopes,
+modern stdio tests, and modern activation probe landed against the RC
+contract. MCP26-001 remains open for final schema
 diff + formal ADR Accept before merge to `main`. Release: first post-
 ratification cut or next+1.
 
@@ -286,7 +286,10 @@ legacy golden fixtures.
 
 ### MCP26-007: Modern activation verification
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — dual-era probe landed: disposable
+  `server/discover`, reap, fresh legacy `initialize`; diagnostic evidence
+  `protocolEra` / `protocolVersion` / `verificationMethod`; tier label
+  unchanged. Unit + integration tests green.
 - **Intent:** Verify the installed anvil MCP entry without assuming a legacy
   handshake.
 - **Expected Outcome:** Activation probes `server/discover` on a disposable
