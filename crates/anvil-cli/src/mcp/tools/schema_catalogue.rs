@@ -122,14 +122,18 @@ fn schema_depth(value: &Value, current: usize) -> usize {
     }
 }
 
+/// True when `$ref` is same-document only (`#…` or bare `#`).
+fn is_local_ref(uri: &str) -> bool {
+    uri == "#" || uri.starts_with("#/") || uri.starts_with("#")
+}
+
 fn first_external_ref(value: &Value) -> Option<String> {
     match value {
         Value::Object(map) => {
             if let Some(Value::String(uri)) = map.get("$ref")
-                && (uri.starts_with("http://")
-                    || uri.starts_with("https://")
-                    || uri.starts_with("//"))
+                && !is_local_ref(uri)
             {
+                // Any non-same-document ref is external (http, file, path, …).
                 return Some(uri.clone());
             }
             for child in map.values() {
@@ -175,14 +179,22 @@ mod tests {
 
     #[test]
     fn rejects_external_ref() {
-        let schema = json!({
-            "type": "object",
-            "properties": {
-                "x": { "$ref": "https://example.com/schema.json" }
-            }
-        });
-        let err = validate_input_schema("demo", &schema).unwrap_err();
-        assert!(err.contains("external $ref"), "{err}");
+        for uri in [
+            "https://example.com/schema.json",
+            "http://example.com/schema.json",
+            "file:///tmp/schema.json",
+            "/abs/path/schema.json",
+            "schema.json",
+        ] {
+            let schema = json!({
+                "type": "object",
+                "properties": {
+                    "x": { "$ref": uri }
+                }
+            });
+            let err = validate_input_schema("demo", &schema).unwrap_err();
+            assert!(err.contains("external $ref"), "uri={uri} err={err}");
+        }
     }
 
     #[test]

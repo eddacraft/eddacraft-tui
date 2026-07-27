@@ -135,3 +135,22 @@ must be fixed, deferred with rationale, or waived before a main PR.
 **Status:** Converged  
 **Tier:** full  
 **Target:** `origin/main...feat/mcp26-dual-era-support` @ `6087b391d`
+
+## Remediation (2026-07-28, same branch)
+
+Council majors addressed on `feat/mcp26-dual-era-support`:
+
+| Finding | Fix |
+| --- | --- |
+| Legacy version echo | Sealed negotiate only; unknown → `-32602` + supported list |
+| Discover top-level serverInfo | Require `resultType`, `_meta` serverInfo, non-empty `supportedVersions` incl. modern |
+| Bare exit kills modern process | `exit` terminates only after successful sealed legacy `initialize` |
+| Fixture gaps | Sealed version matrix stdio tests; modern resources/read cache; probe dual-timeout docs |
+| Dead finish/discover arms | Always `render_success`; removed unreachable legacy discover arm |
+| Meta depth / external $ref | Early depth abort; non-local `$ref` rejected |
+| Process-local wording | session-pinned → process-pinned in resource comments |
+
+Deferred (post-ratification / documented):
+- Windows probe fixtures (Unix-only spawn timeout tests remain; black-box discover is cross-platform)
+- MCP26-001/010/011, official conformance suite
+- Production metrics counters

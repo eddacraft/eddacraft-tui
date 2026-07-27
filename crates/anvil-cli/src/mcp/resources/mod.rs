@@ -8,7 +8,7 @@
 //! only `anvil-gctx-types` (graph-free), so it is structurally incapable of
 //! emitting a graph internal (CE-5).
 //!
-//! The workspace root is the **server's own cwd** — the session-pinned,
+//! The workspace root is the **server's own cwd** — the process-pinned,
 //! stdio-only root (GCTX-002 CE-8). There is no client-supplied root: a resource
 //! read names only a `uri`, and pagination/filter ride in the URI query string
 //! (`graph://edges?file=src/a.ts&cursor=…`). Daemon-required; degrades gracefully
@@ -411,7 +411,7 @@ fn validated_file_filter(query: &[(String, String)]) -> Result<Option<String>, R
     }
 }
 
-/// The session-pinned workspace root: the MCP server's own canonicalised cwd
+/// The process-pinned workspace root: the MCP server's own canonicalised cwd
 /// (GCTX-002 CE-8 — stdio-only, no client-supplied root).
 fn workspace_root() -> Result<String, ReadError> {
     let cwd = std::env::current_dir()

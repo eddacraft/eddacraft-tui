@@ -8,7 +8,7 @@
 //! `.anvil/suppressions.json`, the discovered config, drift snapshots, the
 //! anti-pattern catalogue). They mirror the existing MCP **tools** in
 //! `crate::mcp::tools`, which read the same sources, so they share that surface's
-//! workspace-root contract: the root is the MCP server's own session-pinned cwd
+//! workspace-root contract: the root is the MCP server's own process-pinned cwd
 //! (GCTX-002 CE-8), never a client-supplied path.
 //!
 //! Each resource is sourced from the canonical Rust reader, not re-implemented:
@@ -164,7 +164,7 @@ pub fn read(uri: &str) -> Result<Value, ReadError> {
     Ok(contents(uri, &payload))
 }
 
-/// The session-pinned workspace root: the MCP server's own canonicalised cwd
+/// The process-pinned workspace root: the MCP server's own canonicalised cwd
 /// (GCTX-002 CE-8 — stdio-only, no client-supplied root), mirroring the MCP
 /// tools' `std::env::current_dir()` contract.
 fn workspace_root_path() -> Result<PathBuf, ReadError> {
@@ -291,7 +291,7 @@ fn read_constraints() -> Result<Value, ReadError> {
     let data = crate::commands::export::collect_constraints(&root);
     let mut value = serde_json::to_value(&data).expect("constraint bundle serialises");
     // `collect_constraints` records the absolute workspace root in `metadata`;
-    // redact it to the session-relative `.` before egress (council ADV-2),
+    // redact it to the process-relative `.` before egress (council ADV-2),
     // matching the MCP tools' `redact_workspace_root` posture.
     if let Some(metadata) = value.get_mut("metadata").and_then(Value::as_object_mut) {
         metadata.insert("workspace_root".to_string(), json!("."));

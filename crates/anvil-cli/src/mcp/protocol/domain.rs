@@ -3,6 +3,7 @@
 //! Handlers return domain payloads and structured errors without knowing the
 //! negotiated protocol version. The protocol adapter owns envelopes.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -15,7 +16,6 @@ use crate::mcp::tools::{registry, validate_write};
 use super::render::{CachePolicy, error_response, error_response_with_data, server_info};
 use super::versions::{
     DEFAULT_LEGACY_PROTOCOL_VERSION, ERR_INTERNAL, ERR_INVALID_PARAMS,
-    is_legacy_version,
 };
 
 /// Shared server instructions text (initialize + discover).
@@ -77,6 +77,49 @@ pub fn ensure_warmed_once() {
     });
 }
 
+/// Set after a successful legacy `initialize` in this process. Used so bare
+/// `exit` notifications only terminate the stdio process for initialise-era
+/// clients (MCP26-003 / Council: modern processes stop on EOF only).
+static LEGACY_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
+/// Whether this stdio process completed a sealed legacy initialise.
+#[must_use]
+pub fn legacy_process_initialized() -> bool {
+    LEGACY_INITIALIZED.load(Ordering::Relaxed)
+}
+
+/// Test-only: serialise tests that touch the process-global legacy-init flag.
+#[cfg(test)]
+pub fn lock_legacy_init_for_test() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Test-only: reset the legacy-init flag between unit tests.
+#[cfg(test)]
+pub fn reset_legacy_initialized_for_test() {
+    LEGACY_INITIALIZED.store(false, Ordering::Relaxed);
+}
+
+/// Negotiate a sealed legacy protocol version (never echo arbitrary strings).
+fn negotiate_legacy_protocol_version(requested: Option<&Value>) -> Result<&'static str, ()> {
+    match requested {
+        None => Ok(DEFAULT_LEGACY_PROTOCOL_VERSION),
+        Some(Value::String(version)) => {
+            if super::versions::is_legacy_version(version) {
+                super::versions::LEGACY_PROTOCOL_VERSIONS
+                    .iter()
+                    .copied()
+                    .find(|v| *v == version.as_str())
+                    .ok_or(())
+            } else {
+                Err(())
+            }
+        }
+        Some(_) => Err(()),
+    }
+}
+
 pub fn legacy_initialize(id: &Value, message: &Value) -> DomainResult {
     warm_up_workspace();
 
@@ -84,20 +127,21 @@ pub fn legacy_initialize(id: &Value, message: &Value) -> DomainResult {
         return DomainResult::invalid_params(id);
     };
 
-    let protocol_version = match params.get("protocolVersion") {
-        Some(Value::String(version)) => {
-            // Prefer negotiated legacy versions when known; still echo unknown
-            // only if it is a string (pre-MCP26 behaviour was echo-any). Dual-era
-            // seals the modern path; legacy keeps echo for compatibility of
-            // in-flight clients while fixtures pin known versions.
-            version.as_str()
+    let protocol_version = match negotiate_legacy_protocol_version(params.get("protocolVersion")) {
+        Ok(v) => v,
+        Err(()) => {
+            return DomainResult::invalid_params_data(
+                id,
+                json!({
+                    "reason": "unsupported-legacy-protocol-version",
+                    "supported": super::versions::LEGACY_PROTOCOL_VERSIONS,
+                    "requested": params.get("protocolVersion"),
+                }),
+            );
         }
-        Some(_) => return DomainResult::invalid_params(id),
-        None => DEFAULT_LEGACY_PROTOCOL_VERSION,
     };
 
-    // Record that this process completed a legacy handshake (informational).
-    let _ = is_legacy_version(protocol_version);
+    LEGACY_INITIALIZED.store(true, Ordering::Relaxed);
 
     DomainResult::ok_body(
         json!({

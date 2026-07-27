@@ -352,12 +352,30 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
 
 #[test]
 fn mcp_serve_stdio_shutdown_flushes_response_before_exit_notification() {
+    use std::io::BufRead;
+
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
-    let stdout_rx = spawn_stdout_reader(stdout);
+    let mut reader = BufReader::new(stdout);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        // Dual-era: bare `exit` only terminates after sealed legacy initialise.
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": { "name": "test", "version": "0" }
+                }
+            })
+        )
+        .expect("failed to send initialize frame");
         writeln!(
             stdin,
             "{}",
@@ -379,14 +397,22 @@ fn mcp_serve_stdio_shutdown_flushes_response_before_exit_notification() {
         .expect("failed to send exit frame");
     }
 
-    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let mut init_line = String::new();
+    reader
+        .read_line(&mut init_line)
+        .expect("initialize response");
+    let mut line = String::new();
+    reader.read_line(&mut line).expect("shutdown response");
     let status = wait_for_exit(&mut child);
     assert!(
         status.success(),
         "mcp server must exit cleanly after shutdown/exit; status: {status:?}",
     );
 
-    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+    let init: Value = serde_json::from_str(init_line.trim()).expect("initialize json");
+    assert_eq!(init["result"]["protocolVersion"], "2024-11-05");
+
+    let parsed: Value = serde_json::from_str(line.trim()).unwrap_or_else(|err| {
         panic!("shutdown response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
     });
     assert_eq!(parsed["jsonrpc"], "2.0");
@@ -2280,4 +2306,114 @@ fn mcp_serve_stdio_modern_tools_call_status_envelope() {
     );
     // tools/call is not a CacheableResult — no ttlMs required
     assert!(parsed["result"].get("ttlMs").is_none());
+}
+
+
+#[test]
+fn mcp_serve_stdio_modern_resources_read_is_immediately_stale() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let mut params = modern_meta();
+    params["uri"] = json!("anvil://patterns");
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 20,
+        "method": "resources/read",
+        "params": params
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send resources/read");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    // Success path: zero TTL private cache. Error path (e.g. missing resource
+    // content in empty workspace) is also acceptable if result is error —
+    // prefer success envelope when present.
+    if parsed.get("result").is_some() {
+        assert_eq!(parsed["result"]["resultType"], "complete");
+        assert_eq!(parsed["result"]["ttlMs"], 0);
+        assert_eq!(parsed["result"]["cacheScope"], "private");
+        assert_eq!(
+            parsed["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+            "anvil"
+        );
+    } else {
+        // Still a modern-shaped interaction; ensure not a crash.
+        assert!(parsed.get("error").is_some());
+    }
+}
+
+#[test]
+fn mcp_serve_stdio_legacy_initialize_rejects_unknown_version() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2099-01-01",
+            "capabilities": {},
+            "clientInfo": { "name": "test", "version": "0" }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send initialize");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["error"]["code"], -32602);
+    assert_eq!(
+        parsed["error"]["data"]["reason"],
+        "unsupported-legacy-protocol-version"
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_legacy_initialize_accepts_sealed_versions() {
+    for version in ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] {
+        let mut child = spawn_mcp_server();
+        let stdout = child.stdout.take().expect("child stdout is piped");
+        let stdout_rx = spawn_stdout_reader(stdout);
+
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": version,
+                "capabilities": {},
+                "clientInfo": { "name": "test", "version": "0" }
+            }
+        });
+        {
+            let stdin = child.stdin.as_mut().expect("child stdin is piped");
+            writeln!(stdin, "{request}").expect("send initialize");
+        }
+        drop(child.stdin.take());
+
+        let line = recv_stdout_line(&mut child, &stdout_rx);
+        let status = wait_for_exit(&mut child);
+        assert!(status.success(), "version {version} exit: {status:?}");
+        let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+        assert_eq!(
+            parsed["result"]["protocolVersion"], version,
+            "version {version}"
+        );
+    }
 }

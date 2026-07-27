@@ -541,9 +541,10 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
 /// `RestartRequired` — fresh repos and already-protecting tiers add
 /// zero latency.
 ///
-/// **Cost:** at most two probe attempts (modern then legacy) of one second
-/// each per extracted `RestartRequired` client, only when at least one
-/// client is at `RestartRequired`.
+/// **Cost:** at most two probe attempts (modern then legacy) of
+/// [`super::mcp_client`]'s per-attempt handshake timeout (1s each → ~2s
+/// worst-case wall clock) per extracted `RestartRequired` client, only when
+/// at least one client is at `RestartRequired`.
 fn promote_restart_required_after_handshake(
     root: &Path,
     home: Option<&Path>,

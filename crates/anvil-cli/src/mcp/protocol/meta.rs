@@ -127,6 +127,9 @@ pub fn parse_modern_meta(params: Option<&Value>) -> Result<ModernRequestMeta, Me
 }
 
 fn depth(value: &Value, current: usize) -> usize {
+    if current > MAX_META_DEPTH {
+        return current;
+    }
     match value {
         Value::Object(map) => map
             .values()

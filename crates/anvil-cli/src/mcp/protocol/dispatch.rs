@@ -46,12 +46,11 @@ pub fn handle_message(message: &Value) -> Option<Value> {
 }
 
 fn handle_notification(method: Option<&str>) -> Option<Value> {
+    // Notifications never produce a JSON-RPC response body. Process exit for
+    // legacy `exit` is decided by [`is_exit_notification`] in the stdio host.
     match method {
-        Some("notifications/initialized") => None,
-        // Legacy exit notification: process exit is handled by the stdio host.
-        Some("exit") => None,
-        // Modern clients must not use legacy lifecycle notifications; ignore
-        // unknown notifications per JSON-RPC.
+        Some("notifications/initialized" | "exit") => None,
+        // Ignore unknown notifications per JSON-RPC.
         Some(_) | None => None,
     }
 }
@@ -80,11 +79,12 @@ fn handle_modern(id: &Value, method: Option<&str>, message: &Value, params: Opti
     match method {
         Some("server/discover") => {
             // Discovery must not wait on warm-up; warm is one-shot elsewhere.
+            // Always stamp via render_success (idempotent for pre-filled fields).
             render_success(
                 id,
                 ProtocolEra::Modern,
                 discover_body(SERVER_INSTRUCTIONS),
-                CachePolicy::None, // already stamped in discover_body
+                CachePolicy::StablePrivate,
             )
         }
         // Modern lifecycle: do not honour ping/shutdown/exit as successes.
@@ -120,17 +120,7 @@ fn handle_legacy(id: &Value, method: Option<&str>, message: &Value) -> Value {
         Some("resources/read") => {
             finish(id, ProtocolEra::Legacy, domain::resources_read(id, message))
         }
-        // Modern-only method on the legacy path without modern meta.
-        Some("server/discover") => error_response_with_data(
-            id,
-            ERR_UNSUPPORTED_PROTOCOL_VERSION,
-            "Unsupported protocol version",
-            &serde_json::json!({
-                "supported": [super::versions::MODERN_PROTOCOL_VERSION],
-                "requested": null,
-                "hint": "server/discover requires modern params._meta"
-            }),
-        ),
+        // server/discover always takes the modern branch in handle_message.
         Some(_) => error_response(id, ERR_METHOD_NOT_FOUND, "Method not found"),
         None => error_response(id, ERR_INVALID_REQUEST, "Invalid Request"),
     }
@@ -138,31 +128,24 @@ fn handle_legacy(id: &Value, method: Option<&str>, message: &Value) -> Value {
 
 fn finish(id: &Value, era: ProtocolEra, result: DomainResult) -> Value {
     match result {
-        DomainResult::Ok { body, cache } => {
-            // discover_body already includes modern stamps; skip double-stamp when
-            // cache is None and body already has resultType (modern discover path
-            // uses render_success with CachePolicy::None after pre-stamped body).
-            if era == ProtocolEra::Modern
-                && body.get("resultType").and_then(Value::as_str) == Some("complete")
-                && matches!(cache, CachePolicy::None)
-            {
-                return super::render::success_response(id, body);
-            }
-            render_success(id, era, body, cache)
-        }
+        // Always era-render: stamp_modern is idempotent for discover-shaped bodies.
+        DomainResult::Ok { body, cache } => render_success(id, era, body, cache),
         DomainResult::Rpc(value) => value,
     }
 }
 
-/// Whether this notification should terminate the stdio process (legacy exit).
+/// Whether this notification should terminate the stdio process.
+///
+/// Dual-era policy (Council / MCP26-003): only honour bare `exit` after a
+/// successful sealed legacy `initialize` in this process. Modern clients stop
+/// on EOF; modern `_meta` on exit never terminates; bare exit without prior
+/// legacy init is ignored (no process kill).
 pub fn is_exit_notification(message: &Value) -> bool {
     message.is_object()
         && message.get("method").and_then(Value::as_str) == Some("exit")
         && message.get("id").is_none()
-        // Modern clients may send exit as a notification; dual-era policy:
-        // only terminate on legacy-path exit (no modern meta). Modern exit
-        // notifications are ignored for process lifetime (MCP26-003).
         && !looks_like_modern_request(message.get("params"))
+        && domain::legacy_process_initialized()
 }
 
 #[cfg(test)]
@@ -247,6 +230,8 @@ mod tests {
 
     #[test]
     fn modern_exit_notification_does_not_signal_process_exit() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
         let message = json!({
             "jsonrpc": "2.0",
             "method": "exit",
@@ -256,16 +241,42 @@ mod tests {
     }
 
     #[test]
-    fn legacy_exit_notification_signals_process_exit() {
+    fn bare_exit_without_legacy_init_does_not_terminate() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
+        let message = json!({
+            "jsonrpc": "2.0",
+            "method": "exit"
+        });
+        assert!(!is_exit_notification(&message));
+    }
+
+    #[test]
+    fn legacy_exit_after_initialize_signals_process_exit() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
+        let _ = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": { "name": "test", "version": "0" }
+            }
+        }));
         let message = json!({
             "jsonrpc": "2.0",
             "method": "exit"
         });
         assert!(is_exit_notification(&message));
+        domain::reset_legacy_initialized_for_test();
     }
 
     #[test]
     fn legacy_initialize_still_works() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
         let response = handle_message(&json!({
             "jsonrpc": "2.0",
             "id": 1,
@@ -280,5 +291,50 @@ mod tests {
         assert_eq!(response["result"]["protocolVersion"], "2024-11-05");
         assert_eq!(response["result"]["serverInfo"]["name"], "anvil");
         assert!(response["result"].get("resultType").is_none());
+        domain::reset_legacy_initialized_for_test();
+    }
+
+    #[test]
+    fn legacy_initialize_rejects_unknown_protocol_version() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
+        let response = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2099-01-01",
+                "capabilities": {}
+            }
+        }))
+        .expect("response");
+        assert_eq!(response["error"]["code"], -32602);
+        assert_eq!(
+            response["error"]["data"]["reason"],
+            "unsupported-legacy-protocol-version"
+        );
+        assert!(!domain::legacy_process_initialized());
+    }
+
+    #[test]
+    fn legacy_initialize_accepts_all_sealed_versions() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
+        for version in ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] {
+            domain::reset_legacy_initialized_for_test();
+            let response = handle_message(&json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": version,
+                    "capabilities": {}
+                }
+            }))
+            .expect("response");
+            assert_eq!(response["result"]["protocolVersion"], version);
+            assert!(domain::legacy_process_initialized());
+        }
+        domain::reset_legacy_initialized_for_test();
     }
 }

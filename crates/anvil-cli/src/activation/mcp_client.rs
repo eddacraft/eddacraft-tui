@@ -897,11 +897,11 @@ const PROBE_LEGACY_PROTOCOL_VERSION: &str = "2025-06-18";
 /// Modern protocol version the discovery probe requests (RC baseline).
 const PROBE_MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 
-/// Maximum wall-clock time the probe waits for the server's first response
-/// frame. Bound applies to each child attempt (modern discover, then legacy
-/// initialise). The orchestrator runs the probe per-client (with the v1
-/// cache, once total), so this directly bounds the added latency on
-/// `anvil status --verify` and `anvil start`.
+/// Maximum wall-clock time the probe waits for one child's first response
+/// frame. Applies **per attempt**: modern discover, then (on fallback) a
+/// fresh legacy initialise child. Worst-case wall clock is therefore
+/// **2 × this timeout** (~2s) per `RestartRequired` client on
+/// `anvil status --verify` / `anvil start` when both attempts time out.
 const PROBE_HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Why a [`probe_startable`] attempt did not promote the tier.
@@ -1154,15 +1154,20 @@ fn validate_discover_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
     let Some(result) = value.get("result") else {
         return Err(ProbeError::BadResponse("missing result".to_string()));
     };
-    // Prefer modern identity in _meta; accept legacy-shaped serverInfo only as
-    // failure so we do not mis-label a legacy response as modern discover.
-    let server_info = result
+    // Modern identity lives only in result _meta. Do not accept top-level
+    // legacy `serverInfo` — that would false-promote stubs as modern discover
+    // (Council 2026-07-28 full review).
+    if result.get("resultType").and_then(serde_json::Value::as_str) != Some("complete") {
+        return Err(ProbeError::BadResponse(
+            "missing result.resultType=complete".to_string(),
+        ));
+    }
+    let Some(server_info) = result
         .get("_meta")
         .and_then(|m| m.get("io.modelcontextprotocol/serverInfo"))
-        .or_else(|| result.get("serverInfo"));
-    let Some(server_info) = server_info else {
+    else {
         return Err(ProbeError::BadResponse(
-            "missing result._meta serverInfo (and no result.serverInfo)".to_string(),
+            "missing result._meta io.modelcontextprotocol/serverInfo".to_string(),
         ));
     };
     if server_info.get("name").and_then(|v| v.as_str()) != Some("anvil") {
@@ -1174,15 +1179,29 @@ fn validate_discover_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
         )));
     }
 
-    let protocol_version = result
+    let supported = result
         .get("supportedVersions")
         .and_then(serde_json::Value::as_array)
-        .and_then(|arr| {
-            arr.iter()
-                .find_map(|v| v.as_str())
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| PROBE_MODERN_PROTOCOL_VERSION.to_string());
+        .filter(|arr| !arr.is_empty());
+    let Some(supported) = supported else {
+        return Err(ProbeError::BadResponse(
+            "missing non-empty result.supportedVersions".to_string(),
+        ));
+    };
+    let Some(protocol_version) = supported.iter().find_map(|v| v.as_str()).map(str::to_string)
+    else {
+        return Err(ProbeError::BadResponse(
+            "supportedVersions entries must be strings".to_string(),
+        ));
+    };
+    if !supported
+        .iter()
+        .any(|v| v.as_str() == Some(PROBE_MODERN_PROTOCOL_VERSION))
+    {
+        return Err(ProbeError::BadResponse(format!(
+            "supportedVersions must include {PROBE_MODERN_PROTOCOL_VERSION}"
+        )));
+    }
 
     Ok(ProbeEvidence {
         protocol_era: ProtocolEraEvidence::Modern,
@@ -1521,6 +1540,24 @@ mod tests {
     }
 
     #[test]
+    fn validate_discover_rejects_legacy_shaped_server_info_only() {
+        // Council: top-level serverInfo must not count as modern discover.
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"anvil","version":"0.9.0-beta"}}}"#;
+        let err = validate_discover_response(raw).expect_err("legacy-shaped body must fail");
+        match &err {
+            ProbeError::BadResponse(s) => {
+                assert!(
+                    s.contains("resultType") || s.contains("_meta"),
+                    "got {s}"
+                );
+            }
+            other => panic!("expected BadResponse, got {other:?}"),
+        }
+        // Non-modern shaped response should fall through to legacy initialise.
+        assert!(modern_probe_should_fallback(&err));
+    }
+
+    #[test]
     fn validate_discover_rejects_non_anvil_server() {
         let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"other","version":"1"}}}}"#;
         let err = validate_discover_response(raw).expect_err("non-anvil must fail");
@@ -1635,13 +1672,15 @@ mod tests {
         let err = probe_startable(&entry).expect_err("non-responsive child must fail");
         let elapsed = start.elapsed();
         assert!(matches!(err, ProbeError::Timeout), "got {err:?}");
-        // The timeout is 1s; allow generous slack for slow CI but
-        // fail if the call blocked far longer (suggests the kill
-        // didn't actually terminate the child or recv_timeout was
-        // ignored).
+        // Dual-era probe: modern timeout (1s) then fresh legacy timeout (1s).
+        // Allow slack for slow CI; fail if far longer (kill/recv stuck).
         assert!(
-            elapsed < std::time::Duration::from_secs(3),
-            "probe should return within ~1s timeout + slack, took {elapsed:?}",
+            elapsed < std::time::Duration::from_secs(4),
+            "probe should return within 2×1s timeout + slack, took {elapsed:?}",
+        );
+        assert!(
+            elapsed >= std::time::Duration::from_millis(1500),
+            "expected both modern and legacy attempts (~2s), took {elapsed:?}",
         );
     }
 
