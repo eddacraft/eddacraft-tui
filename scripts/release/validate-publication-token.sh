@@ -56,11 +56,27 @@ fail() {
 
 # --- pure decision logic (sourced by the tests) -----------------------------
 
-# Days between two ISO-8601 instants, truncated toward zero. Prints the count.
+# Parse an instant to a Unix epoch, GNU or BSD.
+#
+# GitHub sends the expiry as `2026-08-30 00:00:00 UTC`; callers may also pass
+# ISO-8601. Normalise both to `YYYY-MM-DD HH:MM:SS`, then try GNU `date -d`
+# and fall back to BSD `date -j -f` — the same fallback shape the repo already
+# uses for `stat -c` / `stat -f`. Operators run this locally on macOS.
+to_epoch() {
+  local normalised="$1"
+  normalised="${normalised% UTC}"
+  normalised="${normalised/T/ }"
+  normalised="${normalised%Z}"
+  date -u -d "${normalised} UTC" +%s 2>/dev/null && return 0
+  date -u -j -f '%Y-%m-%d %H:%M:%S' "$normalised" +%s 2>/dev/null && return 0
+  return 1
+}
+
+# Whole days between two instants, truncated toward zero. Prints the count.
 days_between() {
-  local from="$1" until="$2" from_s until_s
-  from_s="$(date -u -d "$from" +%s 2>/dev/null)" || return 1
-  until_s="$(date -u -d "$until" +%s 2>/dev/null)" || return 1
+  local from_s until_s
+  from_s="$(to_epoch "$1")" || return 1
+  until_s="$(to_epoch "$2")" || return 1
   echo $(((until_s - from_s) / 86400))
 }
 
@@ -127,10 +143,14 @@ main() {
   # shellcheck disable=SC2064
   trap "rm -f '$headers'" EXIT
 
+  # `/rate_limit`, not `/user`: a GitHub App installation token does not
+  # authenticate as a user and would 403 on `/user`, wrongly blocking a
+  # perfectly good credential. `/rate_limit` accepts both kinds and carries the
+  # same `github-authentication-token-expiration` header.
   status="$(curl -sS -o /dev/null -D "$headers" -w '%{http_code}' \
     -H "Authorization: Bearer ${token}" \
     -H 'Accept: application/vnd.github+json' \
-    "${api}/user" || echo '000')"
+    "${api}/rate_limit" || echo '000')"
 
   if [ "$status" = "401" ]; then
     fail "the credential was rejected (HTTP 401) — expired or revoked.
@@ -138,7 +158,7 @@ main() {
   for the required scopes and docs/runbooks/secret-rotation.md for the schedule."
   fi
   if [ "$status" != "200" ]; then
-    fail "could not verify the credential (HTTP ${status} from ${api}/user)."
+    fail "could not verify the credential (HTTP ${status} from ${api}/rate_limit)."
   fi
 
   # Header name is case-insensitive on the wire; normalise before matching.

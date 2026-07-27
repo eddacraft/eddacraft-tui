@@ -28,11 +28,21 @@ source "$SCRIPT"
 
 NOW="2026-07-27T00:00:00Z"
 
+# GitHub sends `YYYY-MM-DD HH:MM:SS UTC`, not ISO-8601. Exercise the real wire
+# format first — parsing only the shape we happen to generate ourselves is how
+# a validator passes its tests and fails in production.
+assert_eq "$(classify_expiry "2026-08-30 00:00:00 UTC" "$NOW" 14)" "ok 34" "real GitHub header format"
+assert_eq "$(classify_expiry "2026-07-20 00:00:00 UTC" "$NOW" 14)" "expired -7" "real header, expired"
+
 assert_eq "$(classify_expiry "2026-08-30T00:00:00Z" "$NOW" 14)" "ok 34" "comfortably valid"
 assert_eq "$(classify_expiry "2026-08-10T00:00:00Z" "$NOW" 14)" "ok 14" "exactly at the margin is not expiring"
 assert_eq "$(classify_expiry "2026-08-09T00:00:00Z" "$NOW" 14)" "expiring 13" "one day inside the margin"
 assert_eq "$(classify_expiry "2026-07-27T12:00:00Z" "$NOW" 14)" "expiring 0" "expires today"
 assert_eq "$(classify_expiry "2026-07-20T00:00:00Z" "$NOW" 14)" "expired -7" "already expired"
+
+# Both date implementations must agree; whichever one this host has, the
+# normalisation has to reach it.
+assert_eq "$(to_epoch "2026-08-30 00:00:00 UTC")" "$(to_epoch "2026-08-30T00:00:00Z")" "wire and ISO forms agree"
 
 # A credential that cannot expire advertises no header. That is the good case
 # and must not block a cut.

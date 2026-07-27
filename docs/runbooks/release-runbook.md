@@ -115,9 +115,21 @@ bash scripts/release/preflight.sh \
 **Publication credential.** Preflight does not see GitHub Actions secrets, so
 verify the publication credential separately before committing to a cut:
 
+Read the token into a subshell rather than putting it on the command line —
+an inline assignment lands in shell history and is visible to process
+inspection, the same hazard
+[`release-token-scope.md`](./release-token-scope.md) already warns about:
+
 ```bash
-ANVIL_RELEASES_TOKEN=<token> bash scripts/release/validate-publication-token.sh
+(
+  read -rsp 'ANVIL_RELEASES_TOKEN: ' ANVIL_RELEASES_TOKEN && echo
+  export ANVIL_RELEASES_TOKEN
+  bash scripts/release/validate-publication-token.sh
+)
 ```
+
+The subshell keeps the token out of the parent shell's environment once the
+check finishes.
 
 The readiness workflow runs the same check in `readiness` mode, which is the
 authoritative gate — this local run just lets you find the problem before you
