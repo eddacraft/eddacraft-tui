@@ -2108,3 +2108,111 @@ fn kill_child(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+
+fn modern_meta() -> Value {
+    json!({
+        "_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {}
+        }
+    })
+}
+
+#[test]
+fn mcp_serve_stdio_modern_discover_without_initialize() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "server/discover",
+        "params": modern_meta()
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send discover");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["result"]["resultType"], "complete");
+    assert_eq!(parsed["result"]["supportedVersions"], json!(["2026-07-28"]));
+    assert_eq!(parsed["result"]["ttlMs"], 3_600_000);
+    assert_eq!(parsed["result"]["cacheScope"], "private");
+    assert_eq!(
+        parsed["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "anvil"
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_modern_tools_list_without_initialize() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": modern_meta()
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send tools/list");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["result"]["resultType"], "complete");
+    assert!(
+        parsed["result"]["tools"]
+            .as_array()
+            .is_some_and(|tools| !tools.is_empty())
+    );
+    assert_eq!(parsed["result"]["ttlMs"], 3_600_000);
+}
+
+#[test]
+fn mcp_serve_stdio_modern_unsupported_version_returns_32022() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2099-01-01",
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send tools/list");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["error"]["code"], -32022);
+    assert_eq!(parsed["error"]["data"]["requested"], "2099-01-01");
+    assert_eq!(parsed["error"]["data"]["supported"], json!(["2026-07-28"]));
+}

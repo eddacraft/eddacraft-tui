@@ -147,6 +147,18 @@ older installed clients or probes still send `2024-11-05` / `2025-06-18`.
 Recommend **keep full set** unless a client inventory pass after ratification
 shows zero need for the older three.
 
+## 4c. RC implementation authorisation (2026-07-27)
+
+Operator authorised building dual-era support **against the locked RC /
+draft contract** on `feat/mcp26-dual-era-support` without waiting for final
+publication. Constraints:
+
+- Wire implementation may land on this branch and be tested against RC shapes.
+- **Merge to `main` still requires** MCP26-001 closeout (final schema diff,
+  formal ADR-113 Accept, sealed pins).
+- Temporary protocol path is the **typed internal dual-era adapter** under
+  `crates/anvil-cli/src/mcp/protocol/` (not `rmcp` beta product pin).
+
 ## 5. Branch and merge policy
 
 - Branch: `feat/mcp26-dual-era-support` (Worktrunk worktree).

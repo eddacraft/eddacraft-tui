@@ -1,7 +1,5 @@
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
@@ -9,14 +7,10 @@ use serde_json::{Value, json};
 
 use crate::GlobalArgs;
 use crate::activation::agent_registry::{AgentClientId, InstallScope};
-use crate::auth::credentials;
 use crate::commands::{mcp_config, mcp_installer};
-use crate::feature_flags;
-use crate::mcp::tools::{registry, validate_write};
+use crate::mcp::protocol::{self, handle_message};
 use crate::output::AlreadyReported;
 
-const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
-const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` is authoritative — do not write, do not bypass via alternate tools (the response carries either a `diagnostics` array of findings or an `error` describing why the gate refused). `warn` means findings were detected but the workspace enforcement mode lets the write proceed — surface the diagnostics and continue. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing or backend offline); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
 // Keep the stdio frame ceiling comfortably above the largest accepted tool
 // payload. validate-write caps `proposedContent` at 1 MiB of UTF-8 source.
 // JSON string escaping can grow that almost 2x in the worst case (every byte
@@ -247,7 +241,11 @@ fn run_stdio_server() -> Result<()> {
         let Frame::Message(frame) = frame else {
             write_message(
                 &mut stdout,
-                &error_response(&Value::Null, -32600, "Invalid Request"),
+                &protocol::render::error_response(
+                    &Value::Null,
+                    protocol::versions::ERR_INVALID_REQUEST,
+                    "Invalid Request",
+                ),
             )?;
             continue;
         };
@@ -257,7 +255,7 @@ fn run_stdio_server() -> Result<()> {
         }
 
         let Ok(message) = serde_json::from_slice::<Value>(&frame) else {
-            write_message(&mut stdout, &parse_error_response())?;
+            write_message(&mut stdout, &protocol::render::parse_error_response())?;
             continue;
         };
 
@@ -265,7 +263,7 @@ fn run_stdio_server() -> Result<()> {
             write_message(&mut stdout, &response)?;
         }
 
-        if is_exit_notification(&message) {
+        if protocol::dispatch::is_exit_notification(&message) {
             break;
         }
     }
@@ -273,38 +271,6 @@ fn run_stdio_server() -> Result<()> {
     Ok(())
 }
 
-fn handle_message(message: &Value) -> Option<Value> {
-    if !message.is_object() {
-        return Some(error_response(&Value::Null, -32600, "Invalid Request"));
-    }
-
-    let id = message.get("id");
-    let method = message.get("method").and_then(Value::as_str);
-
-    match method {
-        Some("initialize") => {
-            warm_up_session();
-            id.map(|id| initialize_response(id, message))
-        }
-        Some("notifications/initialized") => None,
-        Some("exit") if id.is_none() => None,
-        Some("exit") => id.map(|id| error_response(id, -32600, "Invalid Request")),
-        Some("shutdown") => id.map(|id| success_response(id, &Value::Null)),
-        Some("ping") => id.map(|id| success_response(id, &json!({}))),
-        Some("tools/list") => id.map(tools_list_response),
-        Some("tools/call") => id.map(|id| tools_call_response(id, message)),
-        Some("resources/list") => id.map(resources_list_response),
-        Some("resources/read") => id.map(|id| resources_read_response(id, message)),
-        Some(_) => id.map(|id| error_response(id, -32601, "Method not found")),
-        None => id.map(|id| error_response(id, -32600, "Invalid Request")),
-    }
-}
-
-fn is_exit_notification(message: &Value) -> bool {
-    message.is_object()
-        && message.get("method").and_then(Value::as_str) == Some("exit")
-        && message.get("id").is_none()
-}
 
 enum Frame {
     Message(Vec<u8>),
@@ -351,391 +317,6 @@ fn discard_line_tail(reader: &mut impl BufRead) -> io::Result<()> {
     }
 }
 
-/// GCTX-010 C1 (ADR-085) session-init warm-up: on `initialize`, proactively
-/// ask the daemon to warm this session's workspace graph so the assistant's
-/// first `anvil_search_symbols` query is less likely to hit a cold graph.
-///
-/// The root is the server's working directory — the same root the write tools
-/// derive their server-root from (`search_payload`), and the root the daemon
-/// re-validates against the connection's admitted-root set (ADR-084 C3) before
-/// scanning; this call does not itself enforce admission. The cwd may be a
-/// parent of the exact root a later query targets (a different worktree key); in
-/// that case this enqueue is merely a head start and the precise key is warmed
-/// by the on-demand re-warm in `search_symbols` instead.
-///
-/// Best-effort and fire-and-forget: the transport detaches the round-trip, so
-/// this never blocks or fails the MCP handshake; an absent daemon, the
-/// `ANVIL_WATCH_DAEMON=0` opt-out, and a per-session dedup are all handled in
-/// `warm_up_root`. On a very short session the detached thread may not complete,
-/// in which case the daemon's own first-contact auto-enqueue (DSV-045) warms it.
-fn warm_up_session() {
-    if let Ok(cwd) = std::env::current_dir() {
-        let _ = crate::commands::watch_save_time::warm_up_root(&cwd);
-    }
-}
-
-fn initialize_response(id: &Value, message: &Value) -> Value {
-    let Some(params) = message.get("params").and_then(Value::as_object) else {
-        return error_response(id, -32602, "Invalid params");
-    };
-
-    let protocol_version = match params.get("protocolVersion") {
-        Some(Value::String(version)) => version.as_str(),
-        Some(_) => return error_response(id, -32602, "Invalid params"),
-        None => DEFAULT_PROTOCOL_VERSION,
-    };
-
-    let result = json!({
-        "protocolVersion": protocol_version,
-        "capabilities": {
-            "tools": {},
-            "resources": {}
-        },
-        "instructions": SERVER_INSTRUCTIONS,
-        "serverInfo": {
-            "name": "anvil",
-            "version": env!("CARGO_PKG_VERSION")
-        }
-    });
-
-    success_response(id, &result)
-}
-
-fn tools_list_response(id: &Value) -> Value {
-    let tools = registry::all()
-        .iter()
-        .map(registry::ToolDefinition::descriptor)
-        .collect::<Vec<_>>();
-
-    success_response(
-        id,
-        &json!({
-            "tools": tools
-        }),
-    )
-}
-
-fn resources_list_response(id: &Value) -> Value {
-    success_response(
-        id,
-        &json!({
-            "resources": crate::mcp::resources::list()
-        }),
-    )
-}
-
-fn resources_read_response(id: &Value, message: &Value) -> Value {
-    let Some(params) = message.get("params").and_then(Value::as_object) else {
-        return error_response(id, -32602, "Invalid params");
-    };
-    let Some(uri) = params.get("uri").and_then(Value::as_str) else {
-        return error_response(id, -32602, "Invalid params");
-    };
-    match crate::mcp::resources::read(uri) {
-        Ok(result) => success_response(id, &result),
-        // A client mistake (unknown URI / malformed query) is -32602; a
-        // server-side daemon transport fault is -32603 (council CR-2).
-        Err(err @ crate::mcp::resources::ReadError::BadRequest(_)) => error_response_with_data(
-            id,
-            -32602,
-            "Invalid params",
-            &json!({ "reason": err.reason(), "uri": uri }),
-        ),
-        Err(err @ crate::mcp::resources::ReadError::Internal(_)) => error_response_with_data(
-            id,
-            -32603,
-            "Internal error",
-            &json!({ "reason": err.reason(), "uri": uri }),
-        ),
-        // CIB-091d: the per-session graph:// egress credit is exhausted — a
-        // structured `quota_exceeded` resource-exhaustion error.
-        Err(err @ crate::mcp::resources::ReadError::QuotaExceeded(_)) => error_response_with_data(
-            id,
-            -32603,
-            "Internal error",
-            &json!({ "reason": err.reason(), "uri": uri, "kind": "quota_exceeded" }),
-        ),
-    }
-}
-
-fn tools_call_response(id: &Value, message: &Value) -> Value {
-    let Some(params) = message.get("params").and_then(Value::as_object) else {
-        return error_response(id, -32602, "Invalid params");
-    };
-
-    let Some(name) = params.get("name").and_then(Value::as_str) else {
-        return error_response(id, -32602, "Invalid params");
-    };
-
-    let Some(tool) = registry::find(name) else {
-        return error_response_with_data(
-            id,
-            -32602,
-            "Invalid params",
-            &json!({
-                "reason": "unknown-tool",
-                "tool": name
-            }),
-        );
-    };
-
-    let empty_arguments = json!({});
-    let arguments = params.get("arguments").unwrap_or(&empty_arguments);
-
-    if tool.requires_auth && !mcp_tool_auth_ok() {
-        return success_response(id, &mcp_tool_auth_required_result(tool, arguments));
-    }
-
-    let result = tool.call(arguments);
-
-    // CIB-091d: a GCTX tool projects the same identity-only graph data as the
-    // `graph://` resources, so its successful payload is charged against the SAME
-    // per-session egress byte ceiling — otherwise `tools/call` would be an
-    // unbounded back door past the resource cap, letting an assistant reassemble
-    // the whole graph. The read that crosses the ceiling is refused (the payload
-    // is replaced with a structured `quota_exceeded` result), so the budget is a
-    // hard cap, not a soft one.
-    if tool.charges_graph_egress && !gctx_tool_result_is_error(&result) {
-        let payload_bytes = serde_json::to_vec(&result).map_or(0, |v| v.len() as u64);
-        if !crate::mcp::resources::try_charge_graph_egress(payload_bytes) {
-            return success_response(id, &gctx_quota_exceeded_result(tool.name));
-        }
-    }
-
-    success_response(id, &result)
-}
-
-/// A GCTX tool result is an error when its MCP envelope carries `isError: true`
-/// (a parse error, a daemon failure). A degraded `unavailable`/`not_ready`
-/// outcome is *not* an error (it is a successful, in-band degradation) but it
-/// carries no graph identity data, so it is harmless to charge — only a genuine
-/// error is excluded so a failed call never burns the egress budget.
-fn gctx_tool_result_is_error(result: &Value) -> bool {
-    result
-        .get("isError")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-}
-
-/// CIB-091d: the structured `quota_exceeded` MCP tool result returned once a
-/// session's shared `graph://` egress credit is exhausted. Mirrors the
-/// resource-surface `quota_exceeded` error so a client sees one vocabulary across
-/// both GCTX surfaces; `isError` is `true` so the assistant stops paging.
-fn gctx_quota_exceeded_result(tool_name: &str) -> Value {
-    let reason = crate::mcp::resources::graph_egress_quota_reason();
-    json!({
-        "content": [
-            {
-                "type": "text",
-                "text": serde_json::to_string(&json!({
-                    "error": reason,
-                    "kind": "quota_exceeded",
-                    "tool": tool_name,
-                })).expect("quota-exceeded payload serialises")
-            }
-        ],
-        "isError": true
-    })
-}
-
-fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Value) -> Value {
-    if tool.name == validate_write::TOOL_NAME {
-        return mcp_auth_required_result(arguments);
-    }
-
-    // MLP2-072 / #1796 — non-write tools also surface auth-required as
-    // `gateUnavailable` rather than `block`. The wire shape is now
-    // consistent with the write-validation path (same `decision` and
-    // `safeDefault` fields), so clients that branch on either field
-    // see the same vocabulary regardless of tool.
-    json!({
-        "content": [
-            {
-                "type": "text",
-                "text": serde_json::to_string(&json!({
-                    "schemaVersion": "anvil.mcp.auth-required.v1",
-                    "decision": "gateUnavailable",
-                    "safeDefault": "allow-with-warning",
-                    "reason": "anvil MCP credentials are required for this tool. Run `anvil auth login` or `anvil auth login --edict`.",
-                    "tool": tool.name,
-                    "correlation": {
-                        "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str(),
-                        "enforcementMode": "block",
-                        "gateState": "unavailable"
-                    }
-                })).expect("auth-required payload serialises")
-            }
-        ],
-        "isError": false
-    })
-}
-
-fn mcp_tool_auth_ok() -> bool {
-    if feature_flags::cli_dev_bypass_active().is_some() {
-        return true;
-    }
-
-    let Ok(Some(creds)) = credentials::load() else {
-        return false;
-    };
-
-    if credentials::is_expired(&creds) {
-        return false;
-    }
-
-    if credentials::is_edict(&creds) {
-        return cached_edict_auth_ok(&creds);
-    }
-
-    true
-}
-
-/// How long a successful edict `/auth/verify` result is honoured before we
-/// hit the network again. Short enough that revoked credentials lose access
-/// promptly, long enough that a steady stream of `tools/call` requests does
-/// not produce a verify request per call. Mirrored in the cache test below.
-const EDICT_VERIFY_CACHE_TTL: Duration = Duration::from_mins(1);
-
-#[derive(Clone)]
-struct EdictAuthCacheEntry {
-    /// License the result was recorded against. Used so a credential change
-    /// invalidates the cache even if it lands within the TTL window.
-    license: String,
-    checked_at: Instant,
-    ok: bool,
-}
-
-fn edict_auth_cache() -> &'static Mutex<Option<EdictAuthCacheEntry>> {
-    static CACHE: OnceLock<Mutex<Option<EdictAuthCacheEntry>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(None))
-}
-
-/// Shared single-thread Tokio runtime for the per-tool-call edict verify.
-/// Building a fresh runtime per call (the previous behaviour) cost an extra
-/// thread-spawn + reactor init per `tools/call`, which is enough to be felt
-/// at write-validation cadence in editor MCP clients.
-fn edict_verify_runtime() -> Option<&'static tokio::runtime::Runtime> {
-    static RT: OnceLock<Option<tokio::runtime::Runtime>> = OnceLock::new();
-    RT.get_or_init(|| {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .ok()
-    })
-    .as_ref()
-}
-
-fn cached_edict_auth_ok(creds: &credentials::Credentials) -> bool {
-    if let Ok(guard) = edict_auth_cache().lock()
-        && let Some(entry) = guard.as_ref()
-        && entry.license == creds.license
-        && entry.checked_at.elapsed() < EDICT_VERIFY_CACHE_TTL
-    {
-        return entry.ok;
-    }
-
-    let ok = verify_mcp_edict_auth(creds);
-
-    if let Ok(mut guard) = edict_auth_cache().lock() {
-        *guard = Some(EdictAuthCacheEntry {
-            license: creds.license.clone(),
-            checked_at: Instant::now(),
-            ok,
-        });
-    }
-    ok
-}
-
-fn verify_mcp_edict_auth(creds: &credentials::Credentials) -> bool {
-    let Some(rt) = edict_verify_runtime() else {
-        return false;
-    };
-
-    let Ok(client) = crate::auth::client::AnvilClient::with_token(creds.license.clone()) else {
-        return false;
-    };
-
-    rt.block_on(client.verify_edict()).is_ok()
-}
-
-fn mcp_auth_required_result(arguments: &Value) -> Value {
-    // MLP2-072 / #1796 — the pre-write gate distinguishes
-    // *gate-unavailable* (auth missing; the gate could not run) from
-    // *content-veto* (the gate ran and the content failed). A
-    // well-behaved agent following SERVER_INSTRUCTIONS honours `block`
-    // for content-vetoes and proceeds-with-warning on `gateUnavailable`.
-    // Pre-MLP2-072 this path returned `block` and `isError: true`,
-    // which made agents refuse to write any file pre-login — including
-    // the bootstrap files needed to onboard.
-    let path = arguments
-        .get("path")
-        .and_then(Value::as_str)
-        .unwrap_or("<unknown>");
-    let payload = json!({
-        "schema": "anvil.mcp.validate-write.v1",
-        "decision": "gateUnavailable",
-        "error": {
-            "code": "authentication-required",
-            "message": "Pre-write gate unavailable: authentication required. Run `anvil auth login` or `anvil auth login --edict`. The write may proceed; the gate could not validate it.",
-            "retriable": true
-        },
-        "safeDefault": "allow-with-warning",
-        "correlation": {
-            "id": "corr_mcp_auth_required",
-            "surface": "mcp",
-            "mode": "preWrite",
-            "backend": "embedded",
-            "daemonStatus": "not-wired",
-            "path": path,
-            "enforcementMode": "block",
-            "gateState": "unavailable"
-        }
-    });
-    let text = serde_json::to_string(&payload).expect("auth-required payload serialises");
-    json!({
-        "content": [{"type": "text", "text": text}],
-        // MLP2-072 — `isError: false` because the tool itself succeeded;
-        // the gate just could not run. Setting this `true` is what
-        // caused agents to abort writes pre-login.
-        "isError": false
-    })
-}
-
-fn success_response(id: &Value, result: &Value) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": result
-    })
-}
-
-fn parse_error_response() -> Value {
-    error_response(&Value::Null, -32700, "Parse error")
-}
-
-fn error_response(id: &Value, code: i64, message: &str) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": {
-            "code": code,
-            "message": message
-        }
-    })
-}
-
-fn error_response_with_data(id: &Value, code: i64, message: &str, data: &Value) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": {
-            "code": code,
-            "message": message,
-            "data": data
-        }
-    })
-}
-
 fn write_message(stdout: &mut impl Write, message: &Value) -> Result<()> {
     serde_json::to_writer(&mut *stdout, &message)?;
     stdout.write_all(b"\n")?;
@@ -749,11 +330,12 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{
-        EDICT_VERIFY_CACHE_TTL, EdictAuthCacheEntry, Frame, MAX_STDIO_FRAME_BYTES,
-        edict_auth_cache, gctx_quota_exceeded_result, gctx_tool_result_is_error, handle_message,
-        read_frame,
+    use super::{Frame, MAX_STDIO_FRAME_BYTES, read_frame};
+    use crate::mcp::protocol::domain::{
+        EdictAuthCacheEntry, edict_auth_cache, edict_verify_cache_ttl, gctx_quota_exceeded_result,
+        gctx_tool_result_is_error, mcp_auth_required_result,
     };
+    use crate::mcp::protocol::handle_message;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -786,7 +368,7 @@ mod tests {
     fn edict_auth_cache_ttl_is_short_enough_to_drop_revoked_creds() {
         // Sanity guard: if someone bumps the TTL very high, revoked edict
         // tokens would keep working for that whole window. Keep it ≤ 5 min.
-        let ttl = EDICT_VERIFY_CACHE_TTL;
+        let ttl = edict_verify_cache_ttl();
         assert!(
             ttl <= Duration::from_mins(5),
             "edict verify cache TTL is too long: {ttl:?}"
@@ -806,7 +388,7 @@ mod tests {
         };
         // Same license + within TTL → hit.
         assert_eq!(entry.license, "lic-a");
-        assert!(entry.checked_at.elapsed() < EDICT_VERIFY_CACHE_TTL);
+        assert!(entry.checked_at.elapsed() < edict_verify_cache_ttl());
         // Different license must not be served from this entry. The
         // production path enforces this via the `entry.license == creds.license`
         // check in `cached_edict_auth_ok`; this test pins the field so a
@@ -941,7 +523,7 @@ mod tests {
         // that branch on `decision` will see a previously-unknown
         // value (`gateUnavailable`); per SERVER_INSTRUCTIONS this is
         // documented as proceed-with-warning.
-        let payload = super::mcp_auth_required_result(&json!({"path": "src/x.ts"}));
+        let payload = mcp_auth_required_result(&json!({"path": "src/x.ts"}));
         let text = payload["content"][0]["text"].as_str().expect("text");
         let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
         assert_eq!(parsed["schema"], "anvil.mcp.validate-write.v1");
@@ -959,7 +541,7 @@ mod tests {
         // as authoritative with diagnostics, `gateUnavailable` MUST be
         // called out as informational so agents do not honour it as a
         // hard stop.
-        let s = super::SERVER_INSTRUCTIONS;
+        let s = crate::mcp::protocol::domain::SERVER_INSTRUCTIONS;
         assert!(s.contains("`block`"), "instructions must name `block`");
         assert!(
             s.contains("`gateUnavailable`"),

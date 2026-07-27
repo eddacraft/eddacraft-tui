@@ -4,13 +4,12 @@
 | ----- | ----- | ----------- | -------- |
 | MCP26 | —     | In Progress | 0/11     |
 
-**Last reviewed:** 2026-07-27 — module filed and MCP26-001 started on
-`feat/mcp26-dual-era-support` (pre-ratification branch). Operator ratified
-ADR-113 direction, modern version, cache policy, non-goals, behaviour
-posture, and release window (next post-ratification release or next+1).
-Legacy default remains the full set; optional latest-only open. Final MCP
-`2026-07-28` publication is scheduled 2026-07-28; no dual-era wire work
-merges until MCP26-001 seals the final schema and SDK/adapter ADR.
+**Last reviewed:** 2026-07-27 — operator authorised **implementation against
+the locked RC** on `feat/mcp26-dual-era-support`. Dual-era host, domain
+extraction, `server/discover`, modern envelopes, and modern stdio tests
+landed against the RC contract. MCP26-001 remains open for final schema
+diff + formal ADR Accept before merge to `main`. Release: first post-
+ratification cut or next+1.
 
 ## Purpose
 
@@ -172,19 +171,18 @@ legacy golden fixtures.
   evaluation evidence
 - **Validation:** ADR accepted and linked from this module; sealed version
   matrix recorded; no implementation PR merges citing only the prerelease schema
-- **Evidence (pre-ratification, 2026-07-27):** RC lock, draft-changelog
-  inventory, provisional legacy matrix, and `rmcp` status recorded in
-  `plans/audits/2026-07-27-mcp26-001-ratification-gate.md`. ADR-113 Proposed
-  with **operator direction ratified 2026-07-27** (A–F, modern, cache,
-  non-goals, behaviour, release window; legacy default full set with optional
-  latest-only; error code hold). Still open: final schema publish,
-  final-vs-RC diff, sealed legacy choice, stable `rmcp` 3.0.0 pin or
-  temporary-adapter closeout, formal ADR Accept.
+- **Evidence (2026-07-27):** RC lock + operator direction ratified; operator
+  authorised **build against RC** on the feature branch. Gate audit and
+  ADR-113 Proposed remain. Still open for Done: final schema publish,
+  final-vs-RC diff, sealed legacy choice, stable `rmcp` pin or temporary-
+  adapter closeout, formal ADR Accept. **No merge to main until closeout.**
 - **Confidence:** medium
 
 ### MCP26-002: Extract anvil MCP domain handlers
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — domain handlers live under
+  `crates/anvil-cli/src/mcp/protocol/domain.rs`; `commands/mcp.rs` is the thin
+  stdio host. Golden era-neutral fixtures covered by protocol unit tests.
 - **Intent:** Separate protocol concerns from anvil behaviour before changing
   the wire format.
 - **Expected Outcome:** Domain dispatch and invocation live outside the thin
@@ -204,7 +202,9 @@ legacy golden fixtures.
 
 ### MCP26-003: Dual-era stdio protocol host
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — dual-era dispatch against RC in
+  `mcp/protocol/dispatch.rs` + `meta.rs`; legacy lifecycle gated; modern
+  `-32022`; modern exit does not terminate process.
 - **Intent:** Serve modern and legacy clients from one binary without mixing
   lifecycle rules.
 - **Expected Outcome:** Modern per-request `_meta` is parsed and validated;
@@ -224,7 +224,9 @@ legacy golden fixtures.
 
 ### MCP26-004: Discovery and capability declaration
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — `server/discover` RC shape with
+  supportedVersions, tools/resources capabilities, instructions, cache,
+  serverInfo. Integration test green.
 - **Intent:** Implement mandatory modern `server/discover` with honest
   capability claims.
 - **Expected Outcome:** `server/discover` returns supported modern versions,
@@ -241,7 +243,9 @@ legacy golden fixtures.
 
 ### MCP26-005: Modern result envelopes and caching
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — modern `resultType` + serverInfo +
+  cache policy on list/discover/read via `mcp/protocol/render.rs`; legacy
+  wire unchanged.
 - **Intent:** Make every modern successful result conforming and cache-safe.
 - **Expected Outcome:** Modern successes include `resultType: "complete"` and
   server identity in result `_meta`; discovery, list, and resource-read results
