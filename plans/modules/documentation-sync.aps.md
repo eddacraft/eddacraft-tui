@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 16/22    |
+| DOCSYNC | —     | In Progress | 16/23    |
 
 ## Purpose
 
@@ -108,6 +108,8 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 - DOCSYNC-029: Rebuild the APS public docs around a first-time-user journey,
   public-only language, and the current anvil-plan-spec command and scaffold
   contracts
+- DOCSYNC-030: Repair the beta onboarding brief for update checks, GitHub or
+  OTP authentication, executable test steps, and private feedback
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -125,9 +127,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |    11 |    7 |           2 |     2 |
+| Future                          |    12 |    7 |           3 |     2 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    22 |   16 |           2 |     4 |
+| **Total**                       |    23 |   16 |           3 |     4 |
 
 ### Item Detail
 
@@ -156,6 +158,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-027 | Done   | README + `docs/public/anvil/**` + beta quickstart audited against `v0.9.0-beta`; obsolete runtime and roadmap guidance removed; 216 fenced command examples parse against the shipped Rust CLI; docs and site validation pass |
 | DOCSYNC-028 | Merged 2026-07-20 via PR #3366 | Structured new-user rebuild delivered with one canonical journey, generated references, public-only validation, and complete navigation. |
 | DOCSYNC-029 | In Progress | APS equivalent of DOCSYNC-028: code-truth audit completed against anvil-plan-spec `origin/main` at `53e6278`; implementation plan: [`plans/execution/DOCSYNC-029.actions.md`](../execution/DOCSYNC-029.actions.md). |
+| DOCSYNC-030 | In Progress | Beta testing brief: add a current-version/update check, GitHub-device and OTP sign-in evidence, explicit CI and cleanup checks, and a private feedback route. |
 
 ## Approved New-User Rebuild
 

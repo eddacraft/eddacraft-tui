@@ -16,16 +16,32 @@ description:
 and recovery
 
 This guide is a test brief, not a second setup manual. Complete the canonical
-[quickstart](quickstart.md) before using it.
+[quickstart](quickstart.md) first. If you arrived from a beta invitation, use
+the quickstart to install or update anvil, sign in, and confirm your identity;
+then return here to test the current beta.
+
+**Current beta:**
+[v0.9.0-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.0-beta). A
+newer beta reported by `anvil version` is also valid.
+
+## Before you test
+
+- **First-time tester:** follow the [quickstart](quickstart.md).
+- **Returning tester:** run `anvil version`. If it reports an update, use the
+  recommended command for your installation method before testing.
+- **Approved access:** run `anvil auth login`, complete the GitHub device
+  sign-in, then run `anvil auth whoami`. If you do not use GitHub, run
+  `anvil auth login --otp`; this verifies your invited email but does not bypass
+  beta approval.
 
 ## What to test first
 
 Run these journeys in order:
 
-1. Install with the method appropriate for your operating system.
-2. Verify the version and run `anvil welcome` without signing in.
-3. Sign in and run `anvil start` (expect the interactive activation surface in a
-   real terminal).
+1. Install or update with the method appropriate for your operating system.
+2. Run `anvil version`, then run `anvil welcome` without relying on sign-in.
+3. Sign in, confirm `anvil auth whoami`, and run `anvil start` (expect the
+   interactive activation surface in a real terminal).
 4. Confirm the reported protection state and follow any restart instruction.
 5. Complete the [ten-minute protection tutorial](first-gate.md).
 6. Run `anvil start --verify` after restarting a configured client.
@@ -33,8 +49,10 @@ Run these journeys in order:
 8. Open [local dashboards](guides/dashboard.md); after at least one `anvil gate`
    run, check `anvil dashboard --help` for any browser mode your binary exposes.
 9. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
-10. Run a CI-shaped gate with machine-readable output.
-11. Check that uninstall guidance removes only the state you selected.
+10. Run `anvil gate --profile ci --json` and inspect the machine-readable
+    output.
+11. Run `anvil uninstall --dry-run` and confirm that the proposed scope matches
+    the [uninstall guide](operations/uninstall.md).
 
 If you use AI clients beyond Cursor or Claude Code, check
 `anvil mcp install --help` for additional clients on your binary, and
@@ -47,6 +65,9 @@ Record:
 - operating system and CPU architecture;
 - installation method;
 - `anvil --version` output;
+- whether `anvil version` reported the current beta or an available update;
+- sign-in method (GitHub device sign-in or email OTP), plus whether
+  `anvil auth whoami` confirmed the expected identity;
 - project languages;
 - AI client, if any;
 - the final protection state;
@@ -60,6 +81,8 @@ is explicit, understandable, and repeatable.
 
 - `anvil welcome` is the account-free discovery path.
 - Ongoing activation requires beta authentication.
+- GitHub device sign-in is the default authentication path. Email OTP is the
+  fallback for an approved tester who does not use GitHub.
 - Guided pre-write configuration in `anvil start` targets Cursor and Claude
   Code; the wider client registry is available through
   `anvil mcp install --client`.
@@ -91,8 +114,11 @@ Deliberately verify these safe paths:
 ## Report feedback
 
 Open a [public issue](https://github.com/eddacraft/anvil/issues/new/choose) with
-the evidence above. Remove tokens, source code, private repository names, and
-personal paths before posting.
+the evidence above when a redacted public report is appropriate. Remove tokens,
+source code, private repository names, and personal paths before posting.
+
+For installation, sign-in, or project details that should stay private — or if
+you do not use GitHub — reply to your beta invitation with the same evidence.
 
 For a suspected false positive, use `anvil report-fp --help` and review the
 displayed data boundary before including a source snippet.
