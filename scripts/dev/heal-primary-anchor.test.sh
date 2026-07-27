@@ -60,4 +60,55 @@ repo=$(new_repo 3)
 check "clean: still clean"           "$(git -C "$repo" status --porcelain)"        ""
 check "clean: no stash created"      "$(stash_count "$repo")"    "0"
 
+# ── Case 4: untracked-only anchor is not a strand ─────────────────────────────
+# Regression: this used to stash the untracked file under a "preserved for
+# review" label. Nothing here is at risk — `git reset --hard` never touches
+# untracked files — so the heal must leave them alone and create no stash.
+repo=$(new_repo 4)
+printf 'generated\n' >"$repo/baseline.json"          # regenerable state, untracked
+( cd "$repo" && bash "$heal" ) >/dev/null 2>&1 || true
+check "untracked-only: no stash created"   "$(stash_count "$repo")"           "0"
+check "untracked-only: file left in place" "$(cat "$repo/baseline.json")"     "generated"
+
+# ── Case 5: a strand is still healed when untracked files sit alongside it ────
+# Regression: untracked files used to block the strand proof outright, forcing
+# a provable strand down the stash path. `git reset --hard` leaves untracked
+# files alone, so the strand must heal AND the untracked file must survive.
+repo=$(new_repo 5)
+c1=$(git -C "$repo" rev-parse HEAD~1)
+c2=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" reset -q --hard "$c1"
+git -C "$repo" update-ref refs/heads/main "$c2"
+printf 'scratch\n' >"$repo/scratch.txt"              # untracked, alongside the strand
+( cd "$repo" && bash "$heal" ) >/dev/null 2>&1 || true
+check "strand+untracked: tree resynced"     "$(cat "$repo/f.txt")"            "v2"
+check "strand+untracked: no stash created"  "$(stash_count "$repo")"          "0"
+check "strand+untracked: untracked kept"    "$(cat "$repo/scratch.txt")"      "scratch"
+
+# ── Case 6: the lock is repo-scoped, not $TMPDIR-scoped ───────────────────────
+# Regression: the lock path was "${TMPDIR:-/tmp}/anvil-heal-primary-anchor.lock".
+# Every agent has its own $TMPDIR, so each took a private lock and concurrent
+# heals raced — the losers stashed a tree the winner had already cleaned.
+repo=$(new_repo 6)
+fake_tmp="$tmp/faketmp"; mkdir -p "$fake_tmp"
+printf 'REAL WORK\n' >"$repo/f.txt"
+( cd "$repo" && TMPDIR="$fake_tmp" bash "$heal" ) >/dev/null 2>&1 || true
+check "lock: none created under \$TMPDIR" \
+  "$(find "$fake_tmp" -name 'anvil-heal-primary-anchor.lock*' | wc -l | tr -d ' ')" "0"
+check "lock: created in the git dir" \
+  "$(find "$repo/.git" -maxdepth 1 -name 'anvil-heal-primary-anchor.lock*' | wc -l | tr -d ' ')" "1"
+
+# ── Case 7: a second heal cannot pile on while one holds the lock ─────────────
+# The winner's exclusion must make the loser a clean no-op, not a stasher.
+repo=$(new_repo 7)
+printf 'REAL WORK\n' >"$repo/f.txt"
+(
+  cd "$repo"
+  exec 8>"$repo/.git/anvil-heal-primary-anchor.lock"
+  flock -n 8 || exit 0                                # hold the lock, then heal
+  bash "$heal" >/dev/null 2>&1 || true
+) || true
+check "lock held: loser created no stash" "$(stash_count "$repo")" "0"
+check "lock held: work untouched"         "$(cat "$repo/f.txt")"   "REAL WORK"
+
 if [ "$fail" = 0 ]; then echo "ALL PASS"; else echo "FAILURES"; exit 1; fi

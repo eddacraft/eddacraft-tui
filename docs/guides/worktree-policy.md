@@ -342,12 +342,27 @@ bash scripts/dev/heal-primary-anchor.sh
 ```
 
 It is a no-op when the anchor is clean. It only ever hard-resets when it can
-**prove** the anchor holds a pure strand (its tracked working state is
-byte-identical to a committed ancestor of `HEAD`, with no untracked files).
-Anything it cannot prove is a strand — genuine uncommitted work — is preserved
-with `git stash`, never discarded. Recover any such stash with
-`git -C <anchor> stash list`. Covered by
+**prove** the anchor holds a pure strand — its tracked working state is
+byte-identical to a committed ancestor of `HEAD`. Anything it cannot prove is a
+strand — genuine uncommitted work — is preserved with `git stash`, never
+discarded. Recover any such stash with `git -C <anchor> stash list`. Covered by
 `scripts/dev/heal-primary-anchor.test.sh`.
+
+Untracked files do not affect that proof and are never stashed on their own:
+`git reset --hard` leaves untracked files alone, so they are never at risk. An
+anchor holding only untracked files is not a strand, and the heal leaves it
+untouched.
+
+The heal serialises on a lock in the repository's common git dir
+(`$(git rev-parse --git-common-dir)/anvil-heal-primary-anchor.lock`), shared by
+every worktree and every agent working in the repo. If a heal is already
+running, a second one exits without touching the anchor.
+
+> **Do not move that lock under `$TMPDIR`.** Each agent process gets its own
+> `$TMPDIR`, so a `$TMPDIR`-derived path gives every agent a private lock and
+> serialises nothing. Concurrent heals then race, and a loser stashes a working
+> tree the winner has already cleaned — which is how ~50 empty "preserved for
+> review" stashes accumulated before 2026-07-28.
 
 ## Related Docs
 
