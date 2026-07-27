@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import type { components } from '@/api/generated/openapi';
 import { QueryBoundary } from '@/components/query-boundary';
@@ -15,13 +15,16 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProtectionOverview } from '@/hooks/use-protection-overview';
+import { useProtectionHistory } from '@/hooks/use-protection-history';
 import type { DashboardSearch } from '@/lib/search-params';
 import { ActivityFeed } from '@/modules/core/overview/activity-feed';
 import { CurrentHealthCards } from '@/modules/core/overview/current-health-cards';
+import { TrendCharts } from '@/modules/core/overview/trend-charts';
 import { EvidenceInspector } from '@/modules/protection/evidence-inspector';
 import { ProtectionSummary } from '@/modules/protection/protection-summary';
 
 type Overview = components['schemas']['ProtectionOverview'];
+type History = components['schemas']['ProtectionHistory'];
 type DataState = components['schemas']['DataState'];
 type ProtectionView = DashboardSearch['view'];
 type SeverityFilter = DashboardSearch['severity'];
@@ -60,6 +63,8 @@ function ResourceStateNotice({
 
 export function ProtectionOverviewContent({
   overview,
+  history,
+  historyRegion,
   initialEvidence,
   onEvidenceChange,
   onSeverityChange,
@@ -68,6 +73,8 @@ export function ProtectionOverviewContent({
   view = 'runs',
 }: {
   overview: Overview;
+  history?: History;
+  historyRegion?: ReactNode;
   initialEvidence?: string;
   onEvidenceChange?: (id: string) => void;
   onSeverityChange?: (severity: SeverityFilter) => void;
@@ -132,6 +139,7 @@ export function ProtectionOverviewContent({
           description={overview.source_message}
           title="No local protection evidence yet"
         />
+        {historyRegion ?? (history ? <TrendCharts history={history} /> : null)}
       </section>
     );
   }
@@ -161,6 +169,7 @@ export function ProtectionOverviewContent({
         warning={selected}
       />
       <CurrentHealthCards overview={overview} />
+      {historyRegion ?? (history ? <TrendCharts history={history} /> : null)}
       <ActivityFeed overview={overview} />
       <div className="protection-grid">
         <Tabs
@@ -360,6 +369,17 @@ export function ProtectionOverviewContent({
   );
 }
 
+export function ProtectionHistoryRegion() {
+  const query = useProtectionHistory();
+  return (
+    <div className="history-region">
+      <QueryBoundary loadingLabel="Loading retained gate history" query={query}>
+        {(history) => <TrendCharts history={history} />}
+      </QueryBoundary>
+    </div>
+  );
+}
+
 export function ProtectionOverview() {
   const query = useProtectionOverview();
   const search = useSearch({ from: '/' });
@@ -368,9 +388,12 @@ export function ProtectionOverview() {
     <QueryBoundary loadingLabel="Loading protection overview" query={query}>
       {(overview) => (
         <ProtectionOverviewContent
+          historyRegion={<ProtectionHistoryRegion />}
           initialEvidence={search.evidence}
           onEvidenceChange={(evidence) =>
-            void navigate({ search: (previous) => ({ ...previous, evidence, view: 'warnings' }) })
+            void navigate({
+              search: (previous) => ({ ...previous, evidence, view: 'warnings' }),
+            })
           }
           onSeverityChange={(severity) =>
             void navigate({ search: (previous) => ({ ...previous, severity }) })

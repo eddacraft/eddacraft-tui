@@ -16,6 +16,9 @@ pub fn openapi_document() -> Value {
             "/api/v1/protection": {
                 "get": operation("Protection", "ProtectionOverview", "Current local protection evidence", true)
             },
+            "/api/v1/protection/history": {
+                "get": operation("Protection", "ProtectionHistory", "Retained local gate history", true)
+            },
             "/api/v1/patterns": {
                 "get": operation("Patterns", "PatternCatalogue", "Compiled anti-pattern catalogue", true)
             },
@@ -88,6 +91,7 @@ fn operation(tag: &str, schema: &str, summary: &str, worker_failure: bool) -> Va
     let operation_id = match schema {
         "HealthResponse" => "getHealth",
         "ProtectionOverview" => "getProtectionOverview",
+        "ProtectionHistory" => "getProtectionHistory",
         "PatternCatalogue" => "getPatternCatalogue",
         _ => "getResource",
     };
@@ -145,6 +149,42 @@ fn schemas() -> Value {
         "DataState": {
             "type": "string",
             "enum": ["complete", "partial", "unavailable"]
+        },
+        "ProtectionHistoryPoint": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["recorded_at", "score", "status", "status_label", "warning_count", "duration_seconds", "checks_run"],
+            "properties": {
+                "recorded_at": { "type": "string", "format": "date-time" },
+                "score": { "type": "number", "minimum": 0, "maximum": 100 },
+                "status": { "type": "string", "enum": ["pass", "warn", "fail"] },
+                "status_label": { "type": "string" },
+                "warning_count": { "type": "integer", "minimum": 0 },
+                "duration_seconds": { "type": ["string", "null"] },
+                "checks_run": { "type": ["string", "null"] }
+            }
+        },
+        "ProtectionHistoryRange": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["first_recorded_at", "last_recorded_at"],
+            "properties": {
+                "first_recorded_at": { "type": "string", "format": "date-time" },
+                "last_recorded_at": { "type": "string", "format": "date-time" }
+            }
+        },
+        "ProtectionHistory": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schema_version", "data_state", "source_message", "actual_range", "points", "gaps"],
+            "properties": {
+                "schema_version": { "type": "string", "const": "anvil.dashboard.protection-history.v1" },
+                "data_state": { "$ref": "#/components/schemas/DataState" },
+                "source_message": { "type": "string" },
+                "actual_range": { "oneOf": [{ "$ref": "#/components/schemas/ProtectionHistoryRange" }, { "type": "null" }] },
+                "points": { "type": "array", "items": { "$ref": "#/components/schemas/ProtectionHistoryPoint" } },
+                "gaps": { "type": "array", "items": { "$ref": "#/components/schemas/DataGap" } }
+            }
         },
         "ProtectionClaim": {
             "type": "object",

@@ -2,6 +2,7 @@ use anvil_kernel_types::protection_claim::ProtectionClaim;
 use serde::{Deserialize, Serialize};
 
 pub const PROTECTION_OVERVIEW_SCHEMA: &str = "anvil.dashboard.protection.v1";
+pub const PROTECTION_HISTORY_SCHEMA: &str = "anvil.dashboard.protection-history.v1";
 pub const PLAN_DRIVER_SCHEMA: &str = "anvil.dashboard.plans.v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +113,33 @@ pub struct SaveTimeSummary {
 pub struct DataGap {
     pub component: String,
     pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProtectionHistoryPoint {
+    pub recorded_at: String,
+    pub score: f64,
+    pub status: String,
+    pub status_label: String,
+    pub warning_count: usize,
+    pub duration_seconds: Option<String>,
+    pub checks_run: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProtectionHistoryRange {
+    pub first_recorded_at: String,
+    pub last_recorded_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProtectionHistory {
+    pub schema_version: String,
+    pub data_state: DataState,
+    pub source_message: String,
+    pub actual_range: Option<ProtectionHistoryRange>,
+    pub points: Vec<ProtectionHistoryPoint>,
+    pub gaps: Vec<DataGap>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

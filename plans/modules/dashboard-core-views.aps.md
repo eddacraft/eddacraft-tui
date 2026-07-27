@@ -115,7 +115,7 @@ DASHARCH.
 
 ### DASHCORE-002: Overview — retained history and trend charts
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Design:** [2026-07-26-dashcore-002-retained-history.md](../specs/2026-07-26-dashcore-002-retained-history.md)
   (approved 2026-07-26)
 - **Intent:** Add the authoritative historical health read model from a
@@ -131,15 +131,29 @@ DASHARCH.
 - **Files:**
   - `crates/anvil-cli/src/commands/gate.rs`
   - `crates/anvil-dashboard-server/src/api.rs`
-  - `crates/anvil-dashboard-server/src/capabilities/history.rs` (or equivalent)
+  - `crates/anvil-dashboard-server/src/capabilities/history.rs`
+  - `crates/anvil-dashboard-server/src/capabilities/mod.rs`
+  - `crates/anvil-dashboard-server/src/lib.rs`
   - `crates/anvil-dashboard-server/src/openapi.rs`
   - `crates/anvil-dashboard-server/src/server.rs`
+  - `crates/anvil-dashboard-server/tests/openapi_snapshot.rs`
+  - `crates/anvil-dashboard-server/tests/protection_history.rs`
+  - `crates/anvil-dashboard-server/tests/server_smoke.rs`
   - `apps/dashboard/src/api/generated/openapi.json`
   - `apps/dashboard/src/api/generated/openapi.d.ts`
+  - `apps/dashboard/src/api/client.test.ts`
   - `apps/dashboard/src/api/client.ts`
+  - `apps/dashboard/src/api/query-client.tsx`
+  - `apps/dashboard/src/api/query-keys.ts`
+  - `apps/dashboard/src/api/query-layer.test.tsx`
   - `apps/dashboard/src/hooks/use-protection-history.ts`
-  - `apps/dashboard/src/modules/core/overview/trend-charts.tsx`
+  - `apps/dashboard/src/modules/core/overview/history-aggregation.test.ts`
   - `apps/dashboard/src/modules/core/overview/history-aggregation.ts`
+  - `apps/dashboard/src/modules/core/overview/trend-charts.test.tsx`
+  - `apps/dashboard/src/modules/core/overview/trend-charts.tsx`
+  - `apps/dashboard/src/modules/protection/protection-overview.test.tsx`
+  - `apps/dashboard/src/modules/protection/protection-overview.tsx`
+  - `apps/dashboard/src/styles.css`
 - **Dependencies:** DASH foundation Merged; design approved; DASHCORE-001 Merged
 - **Validation:**
   - `cargo test -p eddacraft-anvil-dashboard-server`
@@ -153,6 +167,11 @@ DASHARCH.
     (or repo equivalent), then `check:api`
 - **Confidence:** high (design approved; write site known:
   `persist_gate_snapshot` in `gate.rs`)
+- **Evidence:** CLI gate/history tests, dashboard-server tests, dashboard
+  test/typecheck/lint/build and generated-API parity, Rust fmt/clippy, APS/docs
+  checks, Council `council-62254fb8` (12 findings fixed; zero open), and fresh
+  independent verify-loop `pass-with-advisories`; root evidence gates are green
+  on the feature worktree.
 
 ### DASHCORE-003: Overview — activity feed
 

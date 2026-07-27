@@ -22,8 +22,18 @@ const patternCatalogueFixture = {
   ],
 };
 
+const protectionHistoryFixture = {
+  schema_version: 'anvil.dashboard.protection-history.v1' as const,
+  data_state: 'unavailable' as const,
+  source_message: 'No retained gate history fixture is available.',
+  actual_range: null,
+  points: [],
+  gaps: [],
+};
+
 const fixtureApi: DashboardApi = {
   getProtectionOverview: async () => protectionOverviewFixture,
+  getProtectionHistory: async () => protectionHistoryFixture,
   getPatternCatalogue: async () => patternCatalogueFixture,
   listPlans: async () => [],
   getPlan: async () => {
@@ -52,6 +62,7 @@ export function DashboardQueryProvider({
     });
     if (import.meta.env.MODE === 'test' && api === defaultApi) {
       client.setQueryData(dashboardQueryKeys.protection.overview(), protectionOverviewFixture);
+      client.setQueryData(dashboardQueryKeys.protection.history(), protectionHistoryFixture);
     }
     return client;
   });

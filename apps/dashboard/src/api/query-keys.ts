@@ -1,6 +1,7 @@
 export const dashboardQueryKeys = {
   protection: {
     overview: () => ['dashboard', 'protection', 'overview'] as const,
+    history: () => ['dashboard', 'protection', 'history'] as const,
   },
   patterns: {
     catalogue: () => ['dashboard', 'patterns', 'catalogue'] as const,

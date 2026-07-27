@@ -15,8 +15,12 @@ use axum::{Json, Router};
 use tokio::net::TcpListener;
 
 use crate::Workspace;
-use crate::api::{HealthResponse, PatternCatalogue, PlanDetail, PlanSummary, ProtectionOverview};
+use crate::api::{
+    HealthResponse, PatternCatalogue, PlanDetail, PlanSummary, ProtectionHistory,
+    ProtectionOverview,
+};
 use crate::assets::{self, Asset};
+use crate::capabilities::history::load_protection_history;
 use crate::capabilities::patterns::load_pattern_catalogue;
 use crate::capabilities::plans::{load_plan, load_plans};
 use crate::capabilities::protection::load_protection_overview;
@@ -36,6 +40,7 @@ fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
         .route("/healthz", get(health))
         .route("/openapi.json", get(openapi))
         .route("/api/v1/protection", get(protection))
+        .route("/api/v1/protection/history", get(protection_history))
         .route("/api/v1/patterns", get(patterns))
         .route("/api/v1/plans", get(plans))
         .route("/api/v1/plans/{id}", get(plan))
@@ -239,6 +244,16 @@ async fn protection(State(state): State<AppState>) -> Result<Json<ProtectionOver
         .await
         .map_err(|_| ApiError::Worker)?;
     Ok(Json(overview))
+}
+
+async fn protection_history(
+    State(state): State<AppState>,
+) -> Result<Json<ProtectionHistory>, ApiError> {
+    let workspace = state.workspace;
+    let history = tokio::task::spawn_blocking(move || load_protection_history(&workspace))
+        .await
+        .map_err(|_| ApiError::Worker)?;
+    Ok(Json(history))
 }
 
 async fn plans(State(state): State<AppState>) -> Result<Json<Vec<PlanSummary>>, ApiError> {

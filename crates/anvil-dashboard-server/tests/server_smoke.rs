@@ -58,7 +58,19 @@ async fn health_and_openapi_are_read_only() {
     let document: serde_json::Value = serde_json::from_str(body).expect("openapi json");
     assert_eq!(document["openapi"], "3.1.0");
     assert!(document["paths"]["/api/v1/protection"]["get"].is_object());
+    assert!(document["paths"]["/api/v1/protection/history"]["get"].is_object());
     assert!(document["paths"]["/api/v1/plans"]["get"].is_object());
+
+    let history = request(
+        workspace.path(),
+        "GET /api/v1/protection/history HTTP/1.1\r\nHost: localhost:{port}\r\nConnection: close\r\n\r\n",
+    )
+    .await;
+    assert!(history.starts_with("HTTP/1.1 200 OK"), "{history}");
+    let (_, body) = history.split_once("\r\n\r\n").expect("history body");
+    let history: serde_json::Value = serde_json::from_str(body).expect("history json");
+    assert_eq!(history["data_state"], "unavailable");
+    assert_eq!(history["points"], serde_json::json!([]));
 
     let mutation = request(
         workspace.path(),

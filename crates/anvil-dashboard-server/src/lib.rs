@@ -20,9 +20,11 @@ mod workspace;
 pub use api::{
     AffectedFile, AssuranceSummary, AttentionItem, DataGap, DataState, EvidenceLine,
     GateCheckSummary, GateRunSummary, HealthResponse, PatternCatalogue, PatternSummary, PlanDetail,
-    PlanSummary, PlanTimelineEntry, ProtectionOverview, SaveTimeSummary, WarningSummary,
+    PlanSummary, PlanTimelineEntry, ProtectionHistory, ProtectionHistoryPoint,
+    ProtectionHistoryRange, ProtectionOverview, SaveTimeSummary, WarningSummary,
 };
 pub use assets::is_bundled;
+pub use capabilities::history::load_protection_history;
 pub use capabilities::patterns::load_pattern_catalogue;
 pub use capabilities::plans::{
     MAX_PLAN_MODULES, MAX_PLAN_SOURCE_BYTES, MAX_PLAN_WORK_ITEMS, PlanReadError, load_plan,

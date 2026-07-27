@@ -14,4 +14,12 @@ describe('dashboard API transport failures', () => {
 
     await expect(api.getProtectionOverview()).rejects.toThrow('network offline');
   });
+
+  it('requests retained protection history through the generated endpoint', async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { points: [] } });
+    const api = createDashboardApi({ GET });
+
+    await expect(api.getProtectionHistory()).resolves.toEqual({ points: [] });
+    expect(GET).toHaveBeenCalledWith('/api/v1/protection/history');
+  });
 });

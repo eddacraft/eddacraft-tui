@@ -11,7 +11,7 @@ use anvil_policy_engine::{Engine, EngineConfig, PolicyInput};
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::{
@@ -228,6 +228,63 @@ fn aggregate_gate_outcome(checks: &[CheckResult]) -> GateAggregate {
 
 /// Filename of the persisted last-gate-run snapshot under `.anvil/`.
 const GATE_SNAPSHOT_FILE: &str = "gates.json";
+const GATE_HISTORY_FILE: &str = "gate-history.ndjson";
+const GATE_HISTORY_LOCK_FILE: &str = ".gate-history.lock";
+const GATE_HISTORY_LINE_CAP: usize = 500;
+const GATE_HISTORY_MAX_BYTES: usize = GATE_HISTORY_LINE_CAP * 2048;
+const GATE_HISTORY_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
+const GATE_HISTORY_LOCK_RETRY: std::time::Duration = std::time::Duration::from_millis(10);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GateHistoryPoint {
+    recorded_at: String,
+    score: f64,
+    status: String,
+    status_label: String,
+    warning_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    duration_seconds: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    checks_run: Option<String>,
+}
+
+fn gate_history_point(
+    snapshot: &GateSnapshot,
+    recorded_at: chrono::DateTime<chrono::Utc>,
+) -> GateHistoryPoint {
+    GateHistoryPoint {
+        recorded_at: recorded_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        score: snapshot.score,
+        status: snapshot.status.clone(),
+        status_label: snapshot.status_label.clone(),
+        warning_count: snapshot.warning_list.len(),
+        duration_seconds: Some(snapshot.duration_seconds.clone()),
+        checks_run: Some(snapshot.checks_run.clone()),
+    }
+}
+
+fn retain_gate_history_lines(
+    lines: Vec<Vec<u8>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Vec<Vec<u8>> {
+    let cutoff = now - chrono::Duration::days(90);
+    let mut retained = lines
+        .into_iter()
+        .filter(|line| {
+            serde_json::from_slice::<GateHistoryPoint>(line).map_or(true, |point| {
+                chrono::DateTime::parse_from_rfc3339(&point.recorded_at)
+                    .map_or(true, |recorded_at| {
+                        recorded_at.with_timezone(&chrono::Utc) >= cutoff
+                    })
+            })
+        })
+        .collect::<Vec<_>>();
+    if retained.len() > GATE_HISTORY_LINE_CAP {
+        let excess = retained.len() - GATE_HISTORY_LINE_CAP;
+        retained.drain(..excess);
+    }
+    retained
+}
 
 /// A display-ready view of the last gate run, persisted to `.anvil/gates.json`
 /// for the `gate-summary` TUI dashboard to bind against (#2242).
@@ -324,6 +381,10 @@ fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
         return;
     };
     let snapshot = gate_snapshot_from_result(result, aggregate);
+    persist_gate_snapshot_at_root(&root, &snapshot);
+}
+
+fn persist_gate_snapshot_at_root(root: &Path, snapshot: &GateSnapshot) {
     let json = match serde_json::to_vec_pretty(&snapshot) {
         Ok(json) => json,
         Err(e) => {
@@ -331,13 +392,215 @@ fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
             return;
         }
     };
-    if let Err(e) = persist_gate_snapshot_json(&root, &json) {
-        tracing::debug!(error = %e, "gate snapshot: write to .anvil/gates.json failed");
+    match persist_gate_snapshot_json(root, &json) {
+        Ok(()) => {
+            if let Err(e) = append_gate_history(root, snapshot, chrono::Utc::now()) {
+                tracing::debug!(error = %e, "gate history: best-effort append failed");
+            }
+        }
+        Err(e) => {
+            tracing::debug!(error = %e, "gate snapshot: write to .anvil/gates.json failed");
+        }
+    }
+}
+
+fn append_gate_history(
+    root: &Path,
+    snapshot: &GateSnapshot,
+    recorded_at: chrono::DateTime<chrono::Utc>,
+) -> Result<()> {
+    let _lock = lock_gate_history(root).context("locking gate history transaction")?;
+    let existing = match read_gate_history(root) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error).context("reading held gate history"),
+    };
+    let mut lines = existing
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(<[u8]>::to_vec)
+        .collect::<Vec<_>>();
+    lines.push(serde_json::to_vec(&gate_history_point(
+        snapshot,
+        recorded_at,
+    ))?);
+    let lines = retain_gate_history_lines(lines, recorded_at);
+    let mut bytes = lines.join(&b'\n');
+    bytes.push(b'\n');
+    persist_gate_named_json(root, GATE_HISTORY_FILE, &bytes)
+}
+
+fn read_gate_history_file(mut file: std::fs::File) -> std::io::Result<Vec<u8>> {
+    use std::io::{Read as _, Seek as _, SeekFrom};
+
+    let file_len = file.metadata()?.len();
+    let max_bytes = u64::try_from(GATE_HISTORY_MAX_BYTES).unwrap_or(u64::MAX);
+    let suffix_start = file_len.saturating_sub(max_bytes);
+    file.seek(SeekFrom::Start(suffix_start))?;
+    let mut bytes = Vec::with_capacity(GATE_HISTORY_MAX_BYTES.min(16 * 1024));
+    file.by_ref().take(max_bytes).read_to_end(&mut bytes)?;
+
+    if suffix_start > 0 {
+        let leading_partial_len = bytes
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(bytes.len(), |newline| newline + 1);
+        bytes.drain(..leading_partial_len);
+    }
+    Ok(bytes)
+}
+
+fn acquire_gate_history_lock(lock: std::fs::File) -> std::io::Result<std::fs::File> {
+    use fs2::FileExt as _;
+
+    let deadline = std::time::Instant::now() + GATE_HISTORY_LOCK_TIMEOUT;
+    loop {
+        match lock.try_lock_exclusive() {
+            Ok(()) => return Ok(lock),
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                let Some(remaining) = deadline.checked_duration_since(std::time::Instant::now())
+                else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "timed out waiting for gate history transaction lock",
+                    ));
+                };
+                std::thread::sleep(GATE_HISTORY_LOCK_RETRY.min(remaining));
+            }
+            Err(error) => return Err(error),
+        }
     }
 }
 
 #[cfg(unix)]
+fn lock_gate_history(root: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::fd::AsFd as _;
+
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::Mode;
+
+    let canonical_root = root.canonicalize()?;
+    let root_fd = nix::fcntl::open(
+        &canonical_root,
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
+    let anvil_fd = openat(
+        root_fd.as_fd(),
+        ".anvil",
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
+    let lock_fd = openat(
+        anvil_fd.as_fd(),
+        GATE_HISTORY_LOCK_FILE,
+        OFlag::O_CREAT | OFlag::O_RDWR | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::S_IRUSR | Mode::S_IWUSR,
+    )?;
+    let lock = std::fs::File::from(lock_fd);
+    acquire_gate_history_lock(lock)
+}
+
+#[cfg(windows)]
+fn lock_gate_history(root: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::windows::fs::{MetadataExt as _, OpenOptionsExt as _};
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+
+    let canonical_root = root.canonicalize()?;
+    let directory = canonical_root.join(".anvil");
+    validate_gate_snapshot_parent(&canonical_root, &directory)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    let path = directory.join(GATE_HISTORY_LOCK_FILE);
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    let metadata = lock.metadata()?;
+    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(std::io::Error::other(
+            "gate history lock is a symlink or reparse point",
+        ));
+    }
+    acquire_gate_history_lock(lock)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn lock_gate_history(root: &Path) -> std::io::Result<std::fs::File> {
+    let canonical_root = root.canonicalize()?;
+    let directory = canonical_root.join(".anvil");
+    validate_gate_snapshot_parent(&canonical_root, &directory)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    let path = directory.join(GATE_HISTORY_LOCK_FILE);
+    if let Ok(metadata) = std::fs::symlink_metadata(&path)
+        && gate_snapshot_parent_is_redirect(metadata.file_type().is_symlink(), &metadata)
+    {
+        return Err(std::io::Error::other("gate history lock is a symlink"));
+    }
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    acquire_gate_history_lock(lock)
+}
+
+#[cfg(unix)]
+fn read_gate_history(root: &Path) -> std::io::Result<Vec<u8>> {
+    use std::fs::File;
+    use std::os::fd::AsFd as _;
+
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::Mode;
+
+    let canonical_root = root.canonicalize()?;
+    let root_fd = nix::fcntl::open(
+        &canonical_root,
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
+    let anvil_fd = openat(
+        root_fd.as_fd(),
+        ".anvil",
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
+    let history_fd = openat(
+        anvil_fd.as_fd(),
+        GATE_HISTORY_FILE,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )?;
+    read_gate_history_file(File::from(history_fd))
+}
+
+#[cfg(not(unix))]
+fn read_gate_history(root: &Path) -> std::io::Result<Vec<u8>> {
+    let canonical_root = root.canonicalize()?;
+    let directory = canonical_root.join(".anvil");
+    validate_gate_snapshot_parent(&canonical_root, &directory)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    let history = directory.join(GATE_HISTORY_FILE);
+    if let Ok(metadata) = std::fs::symlink_metadata(&history)
+        && gate_snapshot_parent_is_redirect(metadata.file_type().is_symlink(), &metadata)
+    {
+        return Err(std::io::Error::other(
+            "gate history is a symlink or reparse point",
+        ));
+    }
+    read_gate_history_file(std::fs::File::open(history)?)
+}
+
+#[cfg(unix)]
 fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
+    persist_gate_named_json(root, GATE_SNAPSHOT_FILE, json)
+}
+
+#[cfg(unix)]
+fn persist_gate_named_json(root: &Path, filename: &str, json: &[u8]) -> Result<()> {
     use std::fs::File;
     use std::io::Write as _;
     use std::os::fd::AsFd as _;
@@ -369,7 +632,7 @@ fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
     )
     .context("opening .anvil without following symlinks")?;
 
-    let temporary = format!(".{GATE_SNAPSHOT_FILE}.{}.tmp", uuid::Uuid::new_v4());
+    let temporary = format!(".{filename}.{}.tmp", uuid::Uuid::new_v4());
     let flags =
         OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
     let file_fd = openat(
@@ -393,7 +656,7 @@ fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
         anvil_fd.as_fd(),
         temporary.as_str(),
         anvil_fd.as_fd(),
-        GATE_SNAPSHOT_FILE,
+        filename,
     ) {
         let _ = unlinkat(
             anvil_fd.as_fd(),
@@ -407,6 +670,11 @@ fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
 
 #[cfg(not(unix))]
 fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
+    persist_gate_named_json(root, GATE_SNAPSHOT_FILE, json)
+}
+
+#[cfg(not(unix))]
+fn persist_gate_named_json(root: &Path, filename: &str, json: &[u8]) -> Result<()> {
     let canonical_root = root
         .canonicalize()
         .with_context(|| format!("canonicalising gate workspace {}", root.display()))?;
@@ -421,7 +689,7 @@ fn persist_gate_snapshot_json(root: &Path, json: &[u8]) -> Result<()> {
     // rejects both symlinks and junction/reparse points and proves the resolved
     // parent is still beneath the canonical workspace.
     validate_gate_snapshot_parent(&canonical_root, &directory)?;
-    crate::util::atomic_write(&directory.join(GATE_SNAPSHOT_FILE), json)
+    crate::util::atomic_write(&directory.join(filename), json)
 }
 
 #[cfg(not(unix))]
@@ -4116,6 +4384,302 @@ mod tests {
             std::fs::read(workspace.path().join(".anvil/gates.json")).expect("gate snapshot"),
             br#"{"status":"pass"}"#
         );
+    }
+
+    #[test]
+    fn gate_history_retention_drops_strictly_older_points_then_caps_at_500() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-27T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let mut lines = vec![
+            br#"{"recorded_at":"2026-04-28T11:59:59Z","score":1,"status":"fail","status_label":"old","warning_count":1}"#.to_vec(),
+            br#"{"recorded_at":"2026-04-28T12:00:00Z","score":2,"status":"warn","status_label":"boundary","warning_count":1}"#.to_vec(),
+            b"{corrupt-but-visible".to_vec(),
+        ];
+        for second in 0..501 {
+            lines.push(
+                format!(
+                    "{{\"recorded_at\":\"2026-07-27T11:{:02}:{:02}Z\",\"score\":3,\"status\":\"pass\",\"status_label\":\"ok\",\"warning_count\":0}}",
+                    (second / 60) % 60,
+                    second % 60
+                )
+                .into_bytes(),
+            );
+        }
+
+        let retained = retain_gate_history_lines(lines, now);
+        assert_eq!(retained.len(), 500);
+        assert!(
+            !retained
+                .iter()
+                .any(|line| line.windows(3).any(|w| w == b"old"))
+        );
+        assert!(!retained.iter().any(|line| line == b"{corrupt-but-visible"));
+    }
+
+    #[test]
+    fn gate_history_point_uses_warning_list_length_and_utc_timestamp() {
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "warn",
+            "statusLabel": "PASSED — score 90/100",
+            "score": 90.0,
+            "checksRun": "4",
+            "warnings": "wrong",
+            "durationSeconds": "0.5",
+            "checkRows": [],
+            "warningList": [{"severity":"warn", "message":"gap"}]
+        }))
+        .unwrap();
+        let recorded_at = chrono::DateTime::parse_from_rfc3339("2026-07-27T12:34:56Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        let point = gate_history_point(&snapshot, recorded_at);
+        assert_eq!(point.recorded_at, "2026-07-27T12:34:56Z");
+        assert_eq!(point.warning_count, 1);
+        assert_eq!(point.checks_run.as_deref(), Some("4"));
+    }
+
+    #[test]
+    fn gate_history_append_preserves_existing_corruption_visibly() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        std::fs::write(
+            workspace.path().join(".anvil/gate-history.ndjson"),
+            b"{corrupt-but-visible\n",
+        )
+        .unwrap();
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass", "statusLabel": "PASSED", "score": 100.0,
+            "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+            "checkRows": [], "warningList": []
+        }))
+        .unwrap();
+        let recorded_at = chrono::DateTime::parse_from_rfc3339("2026-07-27T12:34:56Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        append_gate_history(workspace.path(), &snapshot, recorded_at).unwrap();
+
+        let history =
+            std::fs::read_to_string(workspace.path().join(".anvil/gate-history.ndjson")).unwrap();
+        assert!(history.starts_with("{corrupt-but-visible\n"));
+        assert!(history.contains("\"recorded_at\":\"2026-07-27T12:34:56Z\""));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gate_history_refuses_a_symlinked_history_file() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::NamedTempFile::new().expect("outside");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        symlink(
+            outside.path(),
+            workspace.path().join(".anvil/gate-history.ndjson"),
+        )
+        .unwrap();
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass", "statusLabel": "PASSED", "score": 100.0,
+            "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+            "checkRows": [], "warningList": []
+        }))
+        .unwrap();
+
+        let error = append_gate_history(workspace.path(), &snapshot, chrono::Utc::now())
+            .expect_err("history link must fail closed");
+        assert!(format!("{error:#}").contains("held gate history"));
+        assert!(std::fs::read(outside.path()).unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gate_history_refuses_a_symlinked_transaction_lock() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::NamedTempFile::new().expect("outside");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        symlink(
+            outside.path(),
+            workspace.path().join(".anvil/.gate-history.lock"),
+        )
+        .unwrap();
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass", "statusLabel": "PASSED", "score": 100.0,
+            "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+            "checkRows": [], "warningList": []
+        }))
+        .unwrap();
+
+        let error = append_gate_history(workspace.path(), &snapshot, chrono::Utc::now())
+            .expect_err("history transaction lock link must fail closed");
+        assert!(format!("{error:#}").contains("locking gate history"));
+        assert!(std::fs::read(outside.path()).unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn history_io_failure_never_prevents_the_latest_snapshot_write() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::NamedTempFile::new().expect("outside");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        symlink(
+            outside.path(),
+            workspace.path().join(".anvil/gate-history.ndjson"),
+        )
+        .unwrap();
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass", "statusLabel": "PASSED", "score": 100.0,
+            "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+            "checkRows": [], "warningList": []
+        }))
+        .unwrap();
+
+        persist_gate_snapshot_at_root(workspace.path(), &snapshot);
+
+        let latest = std::fs::read_to_string(workspace.path().join(".anvil/gates.json")).unwrap();
+        assert!(latest.contains("\"status\": \"pass\""));
+        assert!(std::fs::read(outside.path()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn concurrent_gate_history_writers_preserve_both_points() {
+        use std::sync::{Arc, Barrier};
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        let root = Arc::new(workspace.path().to_path_buf());
+        let barrier = Arc::new(Barrier::new(2));
+        let handles = [1, 2].map(|second| {
+            let root = Arc::clone(&root);
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+                    "status": "pass", "statusLabel": format!("point-{second}"), "score": 100.0,
+                    "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+                    "checkRows": [], "warningList": []
+                }))
+                .unwrap();
+                let recorded_at =
+                    chrono::DateTime::parse_from_rfc3339(&format!("2026-07-27T12:34:{second:02}Z"))
+                        .unwrap()
+                        .with_timezone(&chrono::Utc);
+                barrier.wait();
+                append_gate_history(&root, &snapshot, recorded_at).unwrap();
+            })
+        });
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let history = std::fs::read_to_string(root.join(".anvil/gate-history.ndjson")).unwrap();
+        assert!(history.contains("point-1"));
+        assert!(history.contains("point-2"));
+        assert_eq!(history.lines().count(), 2);
+    }
+
+    #[test]
+    fn cap_evicts_oldest_physical_corrupt_line_for_a_new_valid_point() {
+        let mut lines = (0..GATE_HISTORY_LINE_CAP)
+            .map(|index| format!("corrupt-{index}").into_bytes())
+            .collect::<Vec<_>>();
+        lines.push(
+            br#"{"recorded_at":"2026-07-27T12:34:56Z","score":100,"status":"pass","status_label":"new-valid","warning_count":0}"#.to_vec(),
+        );
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-27T12:34:56Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        let retained = retain_gate_history_lines(lines, now);
+
+        assert_eq!(retained.len(), GATE_HISTORY_LINE_CAP);
+        assert!(!retained.iter().any(|line| line == b"corrupt-0"));
+        assert!(
+            retained
+                .iter()
+                .any(|line| line.windows(9).any(|part| part == b"new-valid"))
+        );
+    }
+
+    #[test]
+    fn oversized_history_is_non_fatal_to_latest_snapshot() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        let oversized = (0..600)
+            .map(|index| format!("corrupt-{index:04}-{}", "x".repeat(2035)))
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(
+            workspace.path().join(".anvil/gate-history.ndjson"),
+            oversized,
+        )
+        .unwrap();
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass", "statusLabel": "PASSED", "score": 100.0,
+            "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+            "checkRows": [], "warningList": []
+        }))
+        .unwrap();
+
+        persist_gate_snapshot_at_root(workspace.path(), &snapshot);
+
+        assert!(workspace.path().join(".anvil/gates.json").is_file());
+        let history = std::fs::read(workspace.path().join(".anvil/gate-history.ndjson")).unwrap();
+        assert!(history.len() <= GATE_HISTORY_MAX_BYTES);
+        assert_eq!(
+            history
+                .split(|byte| *byte == b'\n')
+                .filter(|line| !line.is_empty())
+                .count(),
+            500
+        );
+        assert!(
+            String::from_utf8(history)
+                .unwrap()
+                .contains("\"status_label\":\"PASSED\"")
+        );
+    }
+
+    #[test]
+    fn contended_history_lock_is_prompt_and_latest_snapshot_still_persists() {
+        use fs2::FileExt as _;
+
+        let workspace = tempfile::tempdir().expect("workspace");
+        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(workspace.path().join(".anvil/.gate-history.lock"))
+            .unwrap();
+        lock.lock_exclusive().unwrap();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(800));
+            drop(lock);
+        });
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass", "statusLabel": "PASSED", "score": 100.0,
+            "checksRun": "4", "warnings": "0", "durationSeconds": "0.5",
+            "checkRows": [], "warningList": []
+        }))
+        .unwrap();
+
+        let started = std::time::Instant::now();
+        persist_gate_snapshot_at_root(workspace.path(), &snapshot);
+        let elapsed = started.elapsed();
+        release.join().unwrap();
+
+        assert!(
+            elapsed < std::time::Duration::from_millis(600),
+            "{elapsed:?}"
+        );
+        assert!(workspace.path().join(".anvil/gates.json").is_file());
+        assert!(!workspace.path().join(".anvil/gate-history.ndjson").exists());
     }
 
     #[cfg(unix)]

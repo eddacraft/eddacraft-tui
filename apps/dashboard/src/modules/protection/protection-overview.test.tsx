@@ -1,5 +1,6 @@
 import { act, type ComponentProps, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tanstack/react-router', () => ({
@@ -7,7 +8,12 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 import { protectionOverviewFixture } from '@/api/fixtures';
-import { ProtectionOverviewContent } from '@/modules/protection/protection-overview';
+import type { DashboardApi } from '@/api/client';
+import { DashboardQueryProvider } from '@/api/query-client';
+import {
+  ProtectionHistoryRegion,
+  ProtectionOverviewContent,
+} from '@/modules/protection/protection-overview';
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
@@ -39,6 +45,51 @@ async function render(
 }
 
 describe('Protection Overview typed resource', () => {
+  it('keeps current protection evidence visible when retained history fails', async () => {
+    const api: DashboardApi = {
+      getProtectionOverview: async () => protectionOverviewFixture,
+      getProtectionHistory: async () => {
+        throw new Error('history transport failed');
+      },
+      getPatternCatalogue: async () => ({
+        schema_version: 'anvil.dashboard.patterns.v1',
+        data_state: 'unavailable',
+        source_message: 'unused',
+        patterns: [],
+      }),
+      listPlans: async () => [],
+      getPlan: async () => {
+        throw new Error('unused');
+      },
+    };
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        <DashboardQueryProvider
+          api={api}
+          queryClient={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <ProtectionOverviewContent
+            historyRegion={<ProtectionHistoryRegion />}
+            overview={protectionOverviewFixture}
+          />
+        </DashboardQueryProvider>
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(container.textContent).toContain('Latest gate');
+    expect(container.textContent).toContain('Evidence inspector');
+    expect(container.textContent).toContain('history transport failed');
+    expect(container.querySelector('.history-region .query-error button')?.textContent).toContain(
+      'Retry'
+    );
+  });
+
   it('places current health cards after the protection summary and before detail tables', async () => {
     await render();
 

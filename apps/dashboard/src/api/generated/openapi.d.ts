@@ -38,6 +38,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/protection/history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Retained local gate history */
+    get: operations['getProtectionHistory'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/patterns': {
     parameters: {
       query?: never;
@@ -118,6 +135,32 @@ export interface components {
     };
     /** @enum {string} */
     DataState: 'complete' | 'partial' | 'unavailable';
+    ProtectionHistoryPoint: {
+      /** Format: date-time */
+      recorded_at: string;
+      score: number;
+      /** @enum {string} */
+      status: 'pass' | 'warn' | 'fail';
+      status_label: string;
+      warning_count: number;
+      duration_seconds: string | null;
+      checks_run: string | null;
+    };
+    ProtectionHistoryRange: {
+      /** Format: date-time */
+      first_recorded_at: string;
+      /** Format: date-time */
+      last_recorded_at: string;
+    };
+    ProtectionHistory: {
+      /** @constant */
+      schema_version: 'anvil.dashboard.protection-history.v1';
+      data_state: components['schemas']['DataState'];
+      source_message: string;
+      actual_range: components['schemas']['ProtectionHistoryRange'] | null;
+      points: components['schemas']['ProtectionHistoryPoint'][];
+      gaps: components['schemas']['DataGap'][];
+    };
     ProtectionClaim: {
       /** @constant */
       schema_version: 'anvil.protection-claim.v1';
@@ -342,6 +385,53 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ProtectionOverview'];
+        };
+      };
+      /** @description Cross-origin request rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Loopback Host required */
+      421: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Dashboard worker failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  getProtectionHistory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProtectionHistory'];
         };
       };
       /** @description Cross-origin request rejected */

@@ -2,8 +2,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use anvil_dashboard_server::{
-    ApiError, GateRunSummary, HealthResponse, PlanDetail, PlanReadError, PlanSummary,
-    PlanTimelineEntry, ProtectionOverview, openapi_document,
+    ApiError, DataGap, DataState, GateRunSummary, HealthResponse, PlanDetail, PlanReadError,
+    PlanSummary, PlanTimelineEntry, ProtectionHistory, ProtectionHistoryPoint,
+    ProtectionHistoryRange, ProtectionOverview, openapi_document,
 };
 use anvil_kernel_types::{ProtectionClaim, SurfaceClaim, SurfaceClaimState, WorktreeClaimState};
 use axum::body::to_bytes;
@@ -29,6 +30,10 @@ fn contract_exposes_protection_and_plan_driver_reads() {
     assert_eq!(
         paths["/api/v1/protection"]["get"]["operationId"],
         "getProtectionOverview"
+    );
+    assert_eq!(
+        paths["/api/v1/protection/history"]["get"]["operationId"],
+        "getProtectionHistory"
     );
     assert_eq!(paths["/api/v1/plans"]["get"]["operationId"], "listPlans");
     assert_eq!(paths["/api/v1/plans/{id}"]["get"]["operationId"], "getPlan");
@@ -90,6 +95,32 @@ fn serialised_handler_dtos_conform_to_the_committed_schemas() {
     let protection = serde_json::to_value(protection).expect("protection DTO");
     assert!(schema_validator("ProtectionOverview").is_valid(&protection));
 
+    let history = ProtectionHistory {
+        schema_version: "anvil.dashboard.protection-history.v1".to_owned(),
+        data_state: DataState::Complete,
+        source_message: "one point".to_owned(),
+        actual_range: Some(ProtectionHistoryRange {
+            first_recorded_at: "2026-07-27T12:00:00Z".to_owned(),
+            last_recorded_at: "2026-07-27T12:00:00Z".to_owned(),
+        }),
+        points: vec![ProtectionHistoryPoint {
+            recorded_at: "2026-07-27T12:00:00Z".to_owned(),
+            score: 100.0,
+            status: "pass".to_owned(),
+            status_label: "PASSED".to_owned(),
+            warning_count: 0,
+            duration_seconds: Some("0.5".to_owned()),
+            checks_run: Some("4".to_owned()),
+        }],
+        gaps: vec![DataGap {
+            component: "drift-history".to_owned(),
+            reason: "not produced".to_owned(),
+        }],
+    };
+    assert!(
+        schema_validator("ProtectionHistory").is_valid(&serde_json::to_value(history).unwrap())
+    );
+
     let summary = PlanSummary {
         id: "dashboard".to_owned(),
         scope: "DASH".to_owned(),
@@ -120,6 +151,26 @@ fn protection_surface_state_is_a_closed_contract() {
         assert!(validator.is_valid(&json!(state.as_str())));
     }
     assert!(!validator.is_valid(&json!("future-state")));
+}
+
+#[test]
+fn protection_history_score_contract_is_bounded() {
+    let validator = schema_validator("ProtectionHistoryPoint");
+    let point = |score| {
+        json!({
+            "recorded_at": "2026-07-27T12:00:00Z",
+            "score": score,
+            "status": "pass",
+            "status_label": "PASSED",
+            "warning_count": 0,
+            "duration_seconds": null,
+            "checks_run": null
+        })
+    };
+    assert!(validator.is_valid(&point(0)));
+    assert!(validator.is_valid(&point(100)));
+    assert!(!validator.is_valid(&point(-1)));
+    assert!(!validator.is_valid(&point(101)));
 }
 
 #[tokio::test]
