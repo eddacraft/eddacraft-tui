@@ -2,7 +2,7 @@ use std::io;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
 use animate::is_animating;
@@ -306,6 +306,9 @@ fn tutorial_loop(
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
+            if state.hand_back_autoplay() {
+                continue;
+            }
             // While the inline editor is open, letters must be typed as text
             // rather than consumed as navigation/quit commands. The default
             // KeyHandler maps j/k/h/l→arrows, q→quit and space→toggle, so it
@@ -329,7 +332,13 @@ fn tutorial_loop(
             next_reveal_tick = now + REVEAL_TICK;
         }
 
-        if state.should_quit() || state.should_back() || state.wants_watch_demo {
+        if state.should_quit()
+            || state.should_back()
+            || state.wants_watch_demo
+            || state.wants_autoplay_setup
+            || state.autoplay_failure().is_some()
+            || state.autoplay_teardown_requested()
+        {
             return Ok(());
         }
     }
@@ -385,10 +394,31 @@ pub fn run_watch_demo(
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
-    let result = watch_demo_loop(&mut terminal, &mut state, event_rx, &theme);
+    let result = watch_demo_loop(&mut terminal, &mut state, event_rx, &theme, None).map(|_| ());
 
     guard.leave()?;
 
+    result
+}
+
+pub fn run_watch_demo_autoplay(
+    mut state: anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
+    event_rx: &Receiver<EngineEvent>,
+    tutorial: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    scripted_edit: &mut dyn FnMut() -> anyhow::Result<()>,
+) -> anyhow::Result<anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome> {
+    let guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend)?;
+    let theme = EddaCraftTheme;
+    let result = watch_demo_loop(
+        &mut terminal,
+        &mut state,
+        event_rx,
+        &theme,
+        Some((tutorial, scripted_edit)),
+    );
+    guard.leave()?;
     result
 }
 
@@ -397,13 +427,54 @@ fn watch_demo_loop(
     state: &mut anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
     event_rx: &Receiver<EngineEvent>,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+    mut autoplay: Option<(
+        &mut anvil_tui::surfaces::tutorial::TutorialState,
+        &mut dyn FnMut() -> anyhow::Result<()>,
+    )>,
+) -> anyhow::Result<anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome> {
+    const AUTOPLAY_WATCH_TIMEOUT: Duration = Duration::from_secs(30);
+    const MAX_EVENTS_PER_TICK: usize = 256;
     let mut last_tick = Instant::now();
+    let mut scripted_edit_done = false;
+    let autoplay_deadline = autoplay
+        .as_ref()
+        .map(|_| Instant::now() + AUTOPLAY_WATCH_TIMEOUT);
 
     loop {
+        if autoplay_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            anyhow::bail!(
+                "autoplay watch timed out after 30 seconds (snapshots={}, scripted_edit={scripted_edit_done})",
+                state.snapshot_count
+            );
+        }
         // Drain engine events.
-        while let Ok(engine_event) = event_rx.try_recv() {
-            state.handle_engine_event(&engine_event);
+        for _ in 0..MAX_EVENTS_PER_TICK {
+            match event_rx.try_recv() {
+                Ok(engine_event) => {
+                    if let Some((tutorial, edit)) = autoplay.as_mut() {
+                        let outcome = state.autoplay_engine_event(&engine_event);
+                        if state.snapshot_count == 1 && !scripted_edit_done {
+                            edit()?;
+                            scripted_edit_done = true;
+                        }
+                        tutorial.apply_watch_demo_outcome(outcome);
+                        if outcome
+                            == anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::CycleComplete
+                        {
+                            return Ok(outcome);
+                        }
+                    } else {
+                        state.handle_engine_event(&engine_event);
+                    }
+                }
+                Err(TryRecvError::Disconnected) if autoplay.is_some() => {
+                    anyhow::bail!(
+                        "autoplay watch event channel disconnected (snapshots={}, scripted_edit={scripted_edit_done})",
+                        state.snapshot_count
+                    );
+                }
+                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+            }
         }
 
         // Advance time-based overlay hints.
@@ -414,7 +485,7 @@ fn watch_demo_loop(
         });
 
         // While animating, cap to ~60 fps to avoid a busy-spin between frames.
-        let poll_timeout = if state.is_dirty() {
+        let mut poll_timeout = if state.is_dirty() {
             if is_animating() {
                 Duration::from_millis(16)
             } else {
@@ -423,10 +494,20 @@ fn watch_demo_loop(
         } else {
             Duration::from_millis(50)
         };
+        if let Some(deadline) = autoplay_deadline {
+            poll_timeout = poll_timeout.min(deadline.saturating_duration_since(Instant::now()));
+        }
 
         if event::poll(poll_timeout)? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    if let Some((tutorial, _)) = autoplay.as_mut()
+                        && tutorial.hand_back_autoplay()
+                    {
+                        return Ok(
+                            anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::HandBack,
+                        );
+                    }
                     let action = KeyHandler::map(key);
                     state.handle_key(action);
                 }
@@ -452,7 +533,7 @@ fn watch_demo_loop(
         }
     }
 
-    Ok(())
+    Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue)
 }
 
 /// Run the tutorial surface inside an already-initialised terminal session,
@@ -475,7 +556,24 @@ pub fn run_watch_demo_in(
     event_rx: &Receiver<EngineEvent>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
-    watch_demo_loop(terminal, &mut state, event_rx, theme)
+    watch_demo_loop(terminal, &mut state, event_rx, theme, None).map(|_| ())
+}
+
+pub fn run_watch_demo_autoplay_in(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    mut state: anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState,
+    event_rx: &Receiver<EngineEvent>,
+    theme: &EddaCraftTheme,
+    tutorial: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    scripted_edit: &mut dyn FnMut() -> anyhow::Result<()>,
+) -> anyhow::Result<anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome> {
+    watch_demo_loop(
+        terminal,
+        &mut state,
+        event_rx,
+        theme,
+        Some((tutorial, scripted_edit)),
+    )
 }
 
 /// Run the watch dashboard, draining kernel events from the given channel.

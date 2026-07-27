@@ -281,17 +281,20 @@ fn picker_count_suffix(count: usize) -> String {
 /// Render width (display columns) of a single path's line in the
 /// selector. Mirrors the spans built in `render_path_select` so the
 /// height calculation stays in sync with what is actually drawn.
-fn path_line_width(path: TutorialPath, done: bool, finding_count: Option<usize>) -> u16 {
+fn path_line_width(state: &TutorialState, index: usize) -> u16 {
+    let path = state.picker_path(index);
+    let done = path.is_some_and(|path| state.completed_paths.contains(&path));
+    let finding_count = path.and_then(|path| state.picker_finding_count(path));
     // ">> " or "   " indicator
     let mut width: usize = 3;
     if done {
         // "\u{2713} " — checkmark + space
         width += 2;
     }
-    width += UnicodeWidthStr::width(path.label());
+    width += UnicodeWidthStr::width(state.picker_label(index).unwrap_or_default());
     // "  " gap between label and description
     width += 2;
-    width += UnicodeWidthStr::width(path.description());
+    width += UnicodeWidthStr::width(state.picker_description(index).unwrap_or_default());
     if let Some(count) = finding_count {
         width += UnicodeWidthStr::width(picker_count_suffix(count).as_str());
     }
@@ -307,12 +310,11 @@ fn path_line_width(path: TutorialPath, done: bool, finding_count: Option<usize>)
 /// available column count. Each path always claims at least one row.
 fn path_select_inner_rows(state: &TutorialState, inner_width: u16) -> u16 {
     if inner_width == 0 {
-        return u16::try_from(state.paths.len()).unwrap_or(u16::MAX);
+        return u16::try_from(state.picker_len()).unwrap_or(u16::MAX);
     }
     let mut rows: u32 = 0;
-    for path in &state.paths {
-        let done = state.completed_paths.contains(path);
-        let width = path_line_width(*path, done, state.picker_finding_count(*path));
+    for index in 0..state.picker_len() {
+        let width = path_line_width(state, index);
         let wraps = width.saturating_sub(1) / inner_width + 1;
         rows = rows.saturating_add(u32::from(wraps));
     }
@@ -357,13 +359,11 @@ fn render_path_select(
     let inner = block.inner(box_area);
     frame.render_widget(block, box_area);
 
-    let items: Vec<Line> = state
-        .paths
-        .iter()
-        .enumerate()
-        .map(|(i, path)| {
+    let items: Vec<Line> = (0..state.picker_len())
+        .map(|i| {
+            let path = state.picker_path(i);
             let selected = i == state.path_selected;
-            let done = state.completed_paths.contains(path);
+            let done = path.is_some_and(|path| state.completed_paths.contains(&path));
             let indicator = if selected { ">> " } else { "   " };
             let name_style = if selected {
                 Style::default()
@@ -381,14 +381,17 @@ fn render_path_select(
                     Style::default().fg(theme.success()),
                 ));
             }
-            spans.push(Span::styled(path.label(), name_style));
             spans.push(Span::styled(
-                format!("  {}", path.description()),
+                state.picker_label(i).unwrap_or_default(),
+                name_style,
+            ));
+            spans.push(Span::styled(
+                format!("  {}", state.picker_description(i).unwrap_or_default()),
                 Style::default().fg(theme.muted()),
             ));
             // WOW-003: show what this path is worth on the user's own repo.
             // Absent for no-scan, zero-finding, and showcase results.
-            if let Some(count) = state.picker_finding_count(*path) {
+            if let Some(count) = path.and_then(|path| state.picker_finding_count(path)) {
                 spans.push(Span::styled(
                     picker_count_suffix(count),
                     Style::default().fg(theme.accent()),
@@ -410,7 +413,7 @@ fn render_path_select(
     // Helpful hint beneath the list to give the negative space purpose.
     // Skip it when no paths are registered — promising a 5-minute tutorial
     // while the picker is empty is worse than showing nothing.
-    if below.height >= 2 && !state.paths.is_empty() {
+    if below.height >= 2 && state.picker_len() > 0 {
         let hint_chunks = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
@@ -1636,8 +1639,8 @@ mod tests {
         let rows = path_select_inner_rows(&state, 200);
         assert_eq!(
             rows,
-            u16::try_from(state.paths.len()).unwrap_or(u16::MAX),
-            "unwrapped layout: one row per path"
+            u16::try_from(state.picker_len()).unwrap_or(u16::MAX),
+            "unwrapped layout: one row per picker entry"
         );
     }
 

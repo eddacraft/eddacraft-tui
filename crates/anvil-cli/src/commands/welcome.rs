@@ -3,6 +3,7 @@ use std::io::IsTerminal;
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::fix_request::FixRequest;
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
+use anyhow::Context;
 use eddacraft_tui::theme::EddaCraftTheme;
 
 use crate::GlobalArgs;
@@ -1132,10 +1133,13 @@ fn run_tutorial_with_fix(
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
     verbose: bool,
 ) -> anyhow::Result<SurfaceExit> {
+    use crate::commands::tutorial::autoplay::AutoplaySandbox;
+
     // Try to start a file watcher for live verification (WELCOME-013).
     // If unavailable, the tutorial enters static mode (all steps become
     // informational press-enter-to-continue, commands are not executed).
     let mut watcher = try_start_tutorial_watcher();
+    let mut autoplay_sandbox: Option<AutoplaySandbox> = None;
 
     if watcher.is_none() {
         tutorial_state.enable_static_mode_with_reason(
@@ -1148,14 +1152,45 @@ fn run_tutorial_with_fix(
 
         // Use the tutorial-specific loop that drains file-change events
         // and checks for wants_watch_demo exit.
-        crate::tui::run_tutorial_in(terminal, tutorial_state, file_rx, theme)?;
+        if let Err(error) = crate::tui::run_tutorial_in(terminal, tutorial_state, file_rx, theme) {
+            tutorial_state.abort_autoplay_session();
+            return Err(error);
+        }
+
+        if let Some(failure) = tutorial_state.take_autoplay_failure() {
+            tutorial_state.abort_autoplay_session();
+            drop(watcher.take());
+            drop(autoplay_sandbox.take());
+            return Err(anyhow::anyhow!(failure));
+        }
+
+        if tutorial_state.take_autoplay_teardown_requested() {
+            drop(autoplay_sandbox.take());
+            watcher = try_start_tutorial_watcher();
+            if watcher.is_none() {
+                tutorial_state.enable_static_mode_with_reason(
+                    anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
+                );
+            }
+            continue;
+        }
 
         // Reset transient exit flags to prevent stale state from causing
         // immediate re-exit on the next loop iteration.
         tutorial_state.wants_back = false;
 
+        if tutorial_state.wants_autoplay_setup {
+            drop(watcher.take());
+            autoplay_sandbox = Some(AutoplaySandbox::new()?);
+            let sandbox = autoplay_sandbox.as_ref().expect("sandbox inserted above");
+            tutorial_state.start_autoplay_in(sandbox.root())?;
+            continue;
+        }
+
         if tutorial_state.wants_watch_demo {
             tutorial_state.wants_watch_demo = false;
+            let active_demo = crate::commands::tutorial::watch_demo_mode(tutorial_state)
+                == crate::commands::tutorial::WatchDemoMode::Autoplay;
 
             // Drop the tutorial watcher before launching the watch demo
             // to avoid two concurrent watchers over the same root, which
@@ -1166,18 +1201,35 @@ fn run_tutorial_with_fix(
             // resumes instead of aborting. Routes through format_user_error
             // so wrapped notify::Error paths only leak when --verbose is
             // explicit (see #1017).
-            if let Err(err) = run_watch_demo_from_tutorial(terminal, theme) {
-                eprintln!(
+            match run_watch_demo_from_tutorial(
+                terminal,
+                theme,
+                tutorial_state,
+                autoplay_sandbox.as_ref(),
+            ) {
+                Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue) => {
+                    tutorial_state.advance_step();
+                }
+                Ok(
+                    anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::HandBack
+                    | anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::CycleComplete,
+                ) => {}
+                Err(err) if active_demo => {
+                    tutorial_state.abort_autoplay_session();
+                    return Err(err);
+                }
+                Err(err) => eprintln!(
                     "Watch demo unavailable: {}",
                     crate::util::format_user_error(&err, verbose)
-                );
+                ),
             }
 
-            // Advance past the watch demo step and resume.
-            tutorial_state.advance_step();
-
             // Restart the tutorial watcher for remaining steps.
-            watcher = try_start_tutorial_watcher();
+            watcher = if tutorial_state.autoplay_session_active() {
+                None
+            } else {
+                try_start_tutorial_watcher()
+            };
             continue;
         }
 
@@ -1212,20 +1264,32 @@ fn run_tutorial_with_fix(
 fn run_watch_demo_from_tutorial(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+    tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    sandbox: Option<&crate::commands::tutorial::autoplay::AutoplaySandbox>,
+) -> anyhow::Result<anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome> {
     use anvil_tui::surfaces::watch::{WatchData, WatchStats, WatchStatus};
 
     crate::tui::draw_loading(terminal, "Watch Demo", "Starting watch mode\u{2026}", theme)?;
 
-    let Ok(workspace_root) = crate::util::workspace_root() else {
-        timed_loading(
-            terminal,
-            "Watch Demo",
-            "Could not determine project root \u{2014} skipping demo.",
-            theme,
-            std::time::Duration::from_secs(1),
-        )?;
-        return Ok(());
+    let active_demo = crate::commands::tutorial::watch_demo_mode(tutorial_state)
+        == crate::commands::tutorial::WatchDemoMode::Autoplay;
+    let workspace_root = match crate::commands::tutorial::watch_demo_root(
+        tutorial_state,
+        sandbox,
+        crate::util::workspace_root,
+    ) {
+        Ok(root) => root,
+        Err(error) if active_demo => return Err(error),
+        Err(_) => {
+            timed_loading(
+                terminal,
+                "Watch Demo",
+                "Could not determine project root \u{2014} skipping demo.",
+                theme,
+                std::time::Duration::from_secs(1),
+            )?;
+            return Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue);
+        }
     };
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
@@ -1246,15 +1310,21 @@ fn run_watch_demo_from_tutorial(
 
     let (event_tx, event_rx) = std::sync::mpsc::channel();
 
-    let Ok(handle) = anvil_kernel::watch::run_watch(&watch_config, event_tx) else {
-        timed_loading(
-            terminal,
-            "Watch Demo",
-            "File watcher unavailable \u{2014} skipping demo.",
-            theme,
-            std::time::Duration::from_secs(1),
-        )?;
-        return Ok(());
+    let handle = match anvil_kernel::watch::run_watch(&watch_config, event_tx) {
+        Ok(handle) => handle,
+        Err(error) if active_demo => {
+            return Err(error).context("starting autoplay watch demo");
+        }
+        Err(_) => {
+            timed_loading(
+                terminal,
+                "Watch Demo",
+                "File watcher unavailable \u{2014} skipping demo.",
+                theme,
+                std::time::Duration::from_secs(1),
+            )?;
+            return Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue);
+        }
     };
 
     let data = WatchData {
@@ -1275,12 +1345,39 @@ fn run_watch_demo_from_tutorial(
     };
 
     let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);
-    crate::tui::run_watch_demo_in(terminal, state, &event_rx, theme)?;
+    let outcome = if active_demo {
+        let sandbox = sandbox.context("active autoplay session has no sandbox")?;
+        let mut edit = || sandbox.script_second_edit();
+        crate::tui::run_watch_demo_autoplay_in(
+            terminal,
+            state,
+            &event_rx,
+            theme,
+            tutorial_state,
+            &mut edit,
+        )
+    } else {
+        crate::tui::run_watch_demo_in(terminal, state, &event_rx, theme)
+            .map(|()| anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue)
+    };
 
-    if let Err(error) = handle.stop() {
-        eprintln!("Failed to stop watch demo watcher: {error}");
+    let stop_result = handle.stop().context("stopping watch demo watcher");
+    match outcome {
+        Err(primary) => {
+            if !active_demo && let Err(error) = stop_result {
+                eprintln!("Failed to stop watch demo watcher: {error}");
+            }
+            Err(primary)
+        }
+        Ok(outcome) => {
+            if active_demo {
+                stop_result?;
+            } else if let Err(error) = stop_result {
+                eprintln!("Failed to stop watch demo watcher: {error}");
+            }
+            Ok(outcome)
+        }
     }
-    Ok(())
 }
 
 /// Start watch mode from the welcome hub. Sets up the kernel watcher,

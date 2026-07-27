@@ -26,6 +26,10 @@ use crate::surfaces::notifications::{NotificationSource, surface_notification};
 pub const STATIC_MODE_WATCHER_UNAVAILABLE: &str =
     "Live file watcher unavailable \u{2014} file saves won't retrigger checks.";
 
+pub const AUTOPLAY_DEMO_LABEL: &str = "Watch anvil work (demo)";
+const AUTOPLAY_DEMO_DESCRIPTION: &str =
+    "A hands-free sandbox demonstration of anvil's protection loop";
+
 /// Available tutorial paths.
 ///
 /// LAUNCH-014 introduced [`TutorialPath::ProtectionLoop`] as the
@@ -119,6 +123,77 @@ pub enum CommandEffect {
 /// N ticks always show the same prefix — and snapshot-testable.
 pub const REVEAL_CHARS_PER_TICK: usize = 3;
 
+/// Resolve a tutorial-owned target beneath a canonical session root.
+pub fn resolve_working_path(
+    root: &std::path::Path,
+    target: &std::path::Path,
+) -> std::io::Result<std::path::PathBuf> {
+    let root = root.canonicalize()?;
+    if !root.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "tutorial working root is not a directory",
+        ));
+    }
+    if target.is_absolute()
+        || target.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "tutorial target resolves outside working root",
+        ));
+    }
+    let candidate = root.join(target);
+    let mut probe = root.clone();
+    for component in target.components() {
+        if let std::path::Component::Normal(component) = component {
+            probe.push(component);
+            if let Ok(metadata) = std::fs::symlink_metadata(&probe)
+                && metadata.file_type().is_symlink()
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "tutorial target contains a symlink",
+                ));
+            }
+        }
+    }
+    let mut existing = candidate.as_path();
+    while !existing.exists() {
+        existing = existing.parent().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "tutorial target resolves outside working root",
+            )
+        })?;
+    }
+    let canonical_existing = existing.canonicalize()?;
+    if !canonical_existing.starts_with(&root) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "tutorial target resolves outside working root",
+        ));
+    }
+    let suffix = candidate.strip_prefix(existing).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "tutorial target resolves outside working root",
+        )
+    })?;
+    if suffix.as_os_str().is_empty() {
+        Ok(canonical_existing)
+    } else {
+        Ok(canonical_existing.join(suffix))
+    }
+}
+
 /// WOW-002: an in-flight typed-command reveal on the current step. On Enter
 /// the command is "typed" into the step's prompt line at a fixed interval
 /// before it executes, so running-for-real is unmistakable at the moment it
@@ -209,12 +284,35 @@ pub struct TutorialStep {
     pub seed_template: Option<String>,
 }
 
+struct AutoplaySavedContext {
+    scan_results: Option<ScanResults>,
+    domain_findings: Option<ScanResults>,
+    completion_rescan: Option<Box<dyn Fn() -> Option<ScanResults>>>,
+    completion_baseline: Option<usize>,
+    completion_delta: Option<FindingsDelta>,
+}
+
 /// State for the tutorial orchestrator surface.
 #[allow(clippy::struct_excessive_bools)]
 pub struct TutorialState {
     pub phase: TutorialPhase,
     pub paths: Vec<TutorialPath>,
     pub path_selected: usize,
+    /// Session-scoped autoplay mode. This is deliberately separate from
+    /// `TutorialPath`: the demo must never masquerade as persisted path
+    /// completion.
+    pub autoplay: bool,
+    autoplay_session: bool,
+    pub wants_autoplay_setup: bool,
+    working_root: Option<std::path::PathBuf>,
+    autoplay_ghost_offset: usize,
+    autoplay_result_dwell: bool,
+    autoplay_watch_dwell: bool,
+    autoplay_command: Option<executor::AutoplayCommand>,
+    autoplay_command_advance: bool,
+    autoplay_failure: Option<String>,
+    autoplay_teardown_requested: bool,
+    autoplay_saved_context: Option<AutoplaySavedContext>,
     pub chosen_path: Option<TutorialPath>,
     pub steps: Vec<TutorialStep>,
     pub current_step: usize,
@@ -290,6 +388,18 @@ impl TutorialState {
                 TutorialPath::CI,
             ],
             path_selected: 0,
+            autoplay: false,
+            autoplay_session: false,
+            wants_autoplay_setup: false,
+            working_root: None,
+            autoplay_ghost_offset: 0,
+            autoplay_result_dwell: false,
+            autoplay_watch_dwell: false,
+            autoplay_command: None,
+            autoplay_command_advance: false,
+            autoplay_failure: None,
+            autoplay_teardown_requested: false,
+            autoplay_saved_context: None,
             chosen_path: None,
             steps: Vec::new(),
             current_step: 0,
@@ -312,6 +422,18 @@ impl TutorialState {
             edit_error: None,
             editor_viewport: std::cell::Cell::new(0),
         }
+    }
+
+    pub fn new_autoplay() -> Self {
+        let mut state = Self::new();
+        state.start_autoplay();
+        state
+    }
+
+    pub fn new_autoplay_in(root: impl AsRef<std::path::Path>) -> std::io::Result<Self> {
+        let mut state = Self::new();
+        state.start_autoplay_in(root)?;
+        Ok(state)
     }
 
     /// Whether an inline editor is currently open. The CLI loop reads this to
@@ -337,13 +459,25 @@ impl TutorialState {
         let Some(target) = step.edit_target.clone() else {
             return;
         };
+        if self.autoplay_session && self.working_root.is_none() {
+            self.edit_error = Some("autoplay working root is unavailable".to_string());
+            return;
+        }
         let seed = step.seed_template.clone().unwrap_or_default();
+        let declared_target = target.clone();
+        let target = match self.resolve_session_target(&target) {
+            Ok(target) => target,
+            Err(error) => {
+                self.edit_error = Some(error.to_string());
+                return;
+            }
+        };
         let existing = std::fs::read_to_string(&target).ok();
         let content = existing.unwrap_or(seed);
         self.editor = Some(eddacraft_tui::widgets::editor::EditorState::from_string(
             &content,
         ));
-        self.edit_path = Some(target);
+        self.edit_path = Some(declared_target);
         self.edit_error = None;
     }
 
@@ -359,11 +493,16 @@ impl TutorialState {
     /// error (if any) so the caller/renderer can surface it; the editor stays
     /// open on write failure so the user does not lose their work.
     pub fn save_step_editor(&mut self) -> std::io::Result<()> {
+        self.save_step_editor_with_advance(true)
+    }
+
+    fn save_step_editor_with_advance(&mut self, advance: bool) -> std::io::Result<()> {
         let (Some(editor), Some(path)) = (self.editor.as_ref(), self.edit_path.clone()) else {
             return Ok(());
         };
         let content = editor.content();
-        if let Some(parent) = std::path::Path::new(&path).parent()
+        let path = self.resolve_session_target(&path)?;
+        if let Some(parent) = path.parent()
             && !parent.as_os_str().is_empty()
         {
             std::fs::create_dir_all(parent)?;
@@ -385,7 +524,7 @@ impl TutorialState {
         {
             step.output = Some(placeholder);
         }
-        if self.run_verify_current() {
+        if self.run_verify_current() && advance {
             self.advance_step();
         }
         Ok(())
@@ -441,6 +580,28 @@ impl TutorialState {
         self.scan_results = Some(results);
     }
 
+    pub fn picker_len(&self) -> usize {
+        self.paths.len() + 1
+    }
+
+    pub fn picker_label(&self, index: usize) -> Option<&'static str> {
+        self.paths
+            .get(index)
+            .map(|path| path.label())
+            .or((index == self.paths.len()).then_some(AUTOPLAY_DEMO_LABEL))
+    }
+
+    pub(crate) fn picker_description(&self, index: usize) -> Option<&'static str> {
+        self.paths
+            .get(index)
+            .map(|path| path.description())
+            .or((index == self.paths.len()).then_some(AUTOPLAY_DEMO_DESCRIPTION))
+    }
+
+    pub(crate) fn picker_path(&self, index: usize) -> Option<TutorialPath> {
+        self.paths.get(index).copied()
+    }
+
     /// WOW-003: per-domain finding count for the path picker. `Some(n)` only
     /// when real scan results are present and the domain has at least one
     /// finding. Zero-finding and no-scan cases fall back to the standard
@@ -472,6 +633,14 @@ impl TutorialState {
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
+        if self.autoplay_session {
+            self.abort_autoplay_session();
+            self.restore_autoplay_context();
+            self.autoplay_teardown_requested = true;
+        }
+        self.autoplay = false;
+        self.wants_autoplay_setup = false;
+        self.working_root = None;
         self.steps = match path {
             TutorialPath::ProtectionLoop => paths::protection_loop_steps(),
             TutorialPath::DeveloperAcceleration => paths::developer_acceleration_steps(),
@@ -492,6 +661,141 @@ impl TutorialState {
             .filter(|r| !r.is_showcase)
             .map(|r| r.count_by_domain(path));
         self.phase = TutorialPhase::Running;
+    }
+
+    /// Start the isolated demonstration while retaining the real
+    /// `ProtectionLoop` identity for session flow and completion semantics.
+    pub fn start_autoplay(&mut self) {
+        if self.autoplay_session {
+            self.abort_autoplay_session();
+            self.restore_autoplay_context();
+            self.autoplay_teardown_requested = true;
+        }
+        self.stash_autoplay_context();
+        self.load_steps(TutorialPath::ProtectionLoop);
+        self.steps = paths::autoplay_protection_loop_steps();
+        self.autoplay_failure = None;
+        self.autoplay_session = true;
+        self.wants_autoplay_setup = true;
+    }
+
+    fn stash_autoplay_context(&mut self) {
+        self.autoplay_saved_context = Some(AutoplaySavedContext {
+            scan_results: self.scan_results.take(),
+            domain_findings: self.domain_findings.take(),
+            completion_rescan: self.completion_rescan.take(),
+            completion_baseline: self.completion_baseline.take(),
+            completion_delta: self.completion_delta.take(),
+        });
+    }
+
+    fn restore_autoplay_context(&mut self) {
+        let Some(saved) = self.autoplay_saved_context.take() else {
+            return;
+        };
+        self.scan_results = saved.scan_results;
+        self.domain_findings = saved.domain_findings;
+        self.completion_rescan = saved.completion_rescan;
+        self.completion_baseline = saved.completion_baseline;
+        self.completion_delta = saved.completion_delta;
+    }
+
+    pub fn start_autoplay_in(&mut self, root: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        let root = root.as_ref().canonicalize()?;
+        if !root.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "tutorial working root is not a directory",
+            ));
+        }
+        if !self.autoplay_session || !self.wants_autoplay_setup {
+            self.start_autoplay();
+        }
+        self.working_root = Some(root);
+        self.wants_autoplay_setup = false;
+        self.autoplay = true;
+        Ok(())
+    }
+
+    pub fn hand_back_autoplay(&mut self) -> bool {
+        if self.autoplay {
+            if let Some(command) = self.autoplay_command.take() {
+                command.cancel();
+            }
+            self.autoplay = false;
+            self.reveal = None;
+            self.autoplay_result_dwell = false;
+            self.autoplay_watch_dwell = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn abort_autoplay_session(&mut self) {
+        if let Some(command) = self.autoplay_command.take() {
+            command.cancel();
+        }
+        self.autoplay = false;
+        self.autoplay_session = false;
+        self.working_root = None;
+        self.wants_watch_demo = false;
+        self.reveal = None;
+        self.editor = None;
+    }
+
+    pub fn autoplay_session_active(&self) -> bool {
+        self.autoplay_session
+    }
+
+    pub fn autoplay_driver_active(&self) -> bool {
+        self.autoplay
+    }
+
+    pub fn autoplay_failure(&self) -> Option<&str> {
+        self.autoplay_failure.as_deref()
+    }
+
+    pub fn take_autoplay_failure(&mut self) -> Option<String> {
+        self.autoplay_failure.take()
+    }
+
+    pub fn take_autoplay_teardown_requested(&mut self) -> bool {
+        std::mem::take(&mut self.autoplay_teardown_requested)
+    }
+
+    pub fn autoplay_teardown_requested(&self) -> bool {
+        self.autoplay_teardown_requested
+    }
+
+    fn fail_autoplay(&mut self, message: String) {
+        if self.autoplay_failure.is_some() {
+            return;
+        }
+        if let Some(command) = self.autoplay_command.take() {
+            command.cancel();
+        }
+        self.autoplay_failure = Some(message);
+        self.autoplay = false;
+        self.wants_watch_demo = false;
+        self.reveal = None;
+        self.editor = None;
+    }
+
+    fn resolve_session_target(
+        &self,
+        target: impl AsRef<std::path::Path>,
+    ) -> std::io::Result<std::path::PathBuf> {
+        if self.autoplay_session && self.working_root.is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "autoplay working root is unavailable",
+            ));
+        }
+        match self.working_root.as_deref() {
+            Some(root) => resolve_working_path(root, target.as_ref()),
+            None => Ok(target.as_ref().to_path_buf()),
+        }
     }
 
     /// Called by the TUI loop when the file watcher detects changes.
@@ -545,7 +849,7 @@ impl TutorialState {
                 success: true,
                 exit_code: Some(0),
             };
-            let result = verify.check(&placeholder);
+            let result = verify.check_in_root(&placeholder, self.working_root.as_deref());
             let passed = result == VerifyResult::Pass;
             self.steps[self.current_step].verify_result = Some(result);
             if passed {
@@ -558,6 +862,14 @@ impl TutorialState {
     }
 
     pub fn handle_key(&mut self, action: Action) {
+        // WOW-006 hands-back invariant: the first routed action only converts
+        // autoplay into the ordinary interactive session. It must not also
+        // execute, advance, navigate, quit, or cancel any in-flight state.
+        if self.autoplay {
+            self.hand_back_autoplay();
+            return;
+        }
+
         match self.phase {
             TutorialPhase::PathSelect => self.handle_path_select(action),
             TutorialPhase::Running => self.handle_running(action),
@@ -570,12 +882,14 @@ impl TutorialState {
             Action::Up if self.path_selected > 0 => {
                 self.path_selected -= 1;
             }
-            Action::Down if self.path_selected < self.paths.len().saturating_sub(1) => {
+            Action::Down if self.path_selected < self.picker_len().saturating_sub(1) => {
                 self.path_selected += 1;
             }
             Action::Select => {
-                if let Some(&path) = self.paths.get(self.path_selected) {
+                if let Some(path) = self.picker_path(self.path_selected) {
                     self.load_steps(path);
+                } else if self.path_selected == self.paths.len() {
+                    self.start_autoplay();
                 }
             }
             Action::Back => self.wants_back = true,
@@ -587,6 +901,9 @@ impl TutorialState {
     pub fn advance_step(&mut self) {
         // Clear the resume notice on first interaction.
         self.resuming_notice = None;
+        self.autoplay_ghost_offset = 0;
+        self.autoplay_result_dwell = false;
+        self.autoplay_watch_dwell = false;
         if self.current_step < self.steps.len() {
             self.steps[self.current_step].completed = true;
             if self.current_step + 1 < self.steps.len() {
@@ -596,6 +913,25 @@ impl TutorialState {
                 // WOW-004: re-scan once, at the moment the walk completes.
                 self.compute_completion_delta();
             }
+        }
+    }
+
+    /// Apply the terminal result returned by the watch-demo surface.
+    ///
+    /// This is the cross-crate state-transition boundary used by the CLI watch
+    /// loop. Only a completed cycle may finish the active autoplay watch step;
+    /// hand-back/continue results and repeated completion reports are no-ops.
+    #[doc(hidden)]
+    pub fn apply_watch_demo_outcome(&mut self, outcome: watch_demo::WatchDemoOutcome) {
+        if outcome == watch_demo::WatchDemoOutcome::CycleComplete
+            && self.phase == TutorialPhase::Running
+            && self.autoplay_session
+            && self
+                .steps
+                .get(self.current_step)
+                .is_some_and(|step| step.watch_demo)
+        {
+            self.advance_step();
         }
     }
 
@@ -654,7 +990,7 @@ impl TutorialState {
             return true;
         };
         if let Some(ref verify) = step.verify {
-            let result = verify.check(output);
+            let result = verify.check_in_root(output, self.working_root.as_deref());
             let passed = result == VerifyResult::Pass;
             step.verify_result = Some(result);
             passed
@@ -823,6 +1159,16 @@ impl TutorialState {
     /// the TUI loop on its existing poll tick; executes the command once the
     /// full command is visible. No-op when no reveal is active.
     pub fn reveal_tick(&mut self) {
+        if self.autoplay_failure.is_some() || self.phase != TutorialPhase::Running {
+            return;
+        }
+        if self.poll_autoplay_command() {
+            return;
+        }
+        if self.autoplay {
+            self.autoplay_tick();
+            return;
+        }
         let Some(reveal) = self.reveal.as_mut() else {
             return;
         };
@@ -833,13 +1179,147 @@ impl TutorialState {
         }
     }
 
+    fn poll_autoplay_command(&mut self) -> bool {
+        let Some(command) = self.autoplay_command.as_mut() else {
+            return false;
+        };
+        match command.is_finished() {
+            Ok(false) => true,
+            Ok(true) => {
+                let output = self
+                    .autoplay_command
+                    .take()
+                    .expect("checked above")
+                    .finish();
+                self.consume_autoplay_output(output);
+                true
+            }
+            Err(error) => {
+                let message = format!("autoplay command failed: {error}");
+                if self.autoplay {
+                    self.fail_autoplay(message);
+                } else if let Some(step) = self.steps.get_mut(self.current_step) {
+                    step.output = Some(CommandOutput {
+                        stdout: String::new(),
+                        stderr: message,
+                        success: false,
+                        exit_code: None,
+                    });
+                }
+                true
+            }
+        }
+    }
+
+    fn consume_autoplay_output(&mut self, output: CommandOutput) {
+        let accepted = output.success
+            || self
+                .steps
+                .get(self.current_step)
+                .is_some_and(|step| step.verify.is_some());
+        if let Some(step) = self.steps.get_mut(self.current_step) {
+            step.output = Some(output);
+        }
+        if accepted && self.run_verify_current() {
+            if self.autoplay {
+                self.autoplay_result_dwell = true;
+            } else if self.autoplay_command_advance {
+                self.advance_step();
+            }
+        } else if self.autoplay {
+            let detail = self
+                .steps
+                .get(self.current_step)
+                .and_then(|step| step.output.as_ref())
+                .map(|output| output.stderr.trim())
+                .filter(|message| !message.is_empty())
+                .unwrap_or("verification failed");
+            self.fail_autoplay(format!("autoplay command failed: {detail}"));
+        }
+    }
+
+    fn autoplay_tick(&mut self) {
+        if self.working_root.is_none() {
+            self.fail_autoplay("autoplay working root is unavailable".to_string());
+            return;
+        }
+
+        if self.autoplay_result_dwell {
+            self.autoplay_result_dwell = false;
+            self.advance_step();
+            return;
+        }
+
+        if let Some(reveal) = self.reveal.as_mut() {
+            let total = reveal.command.chars().count();
+            reveal.shown = (reveal.shown + REVEAL_CHARS_PER_TICK).min(total);
+            if reveal.is_complete() {
+                self.finish_reveal();
+            }
+            return;
+        }
+
+        if self.editor.is_some() {
+            let chars: Vec<char> = paths::AUTOPLAY_APP_REPAIRED.chars().collect();
+            let end = (self.autoplay_ghost_offset + REVEAL_CHARS_PER_TICK).min(chars.len());
+            if let Some(editor) = self.editor.as_mut() {
+                for character in &chars[self.autoplay_ghost_offset..end] {
+                    editor.insert(*character);
+                }
+            }
+            self.autoplay_ghost_offset = end;
+            if end == chars.len() {
+                match self.save_step_editor_with_advance(false) {
+                    Ok(())
+                        if self.steps[self.current_step].verify_result
+                            == Some(VerifyResult::Pass) =>
+                    {
+                        self.autoplay_result_dwell = true;
+                    }
+                    Ok(()) => self.fail_autoplay(
+                        "autoplay fixture verification failed after edit".to_string(),
+                    ),
+                    Err(error) => {
+                        self.fail_autoplay(format!("autoplay fixture edit failed: {error}"));
+                    }
+                }
+            }
+            return;
+        }
+
+        let Some(step) = self.steps.get(self.current_step) else {
+            return;
+        };
+        if let Some(command) = step.command.clone() {
+            self.reveal = Some(CommandReveal::new(command));
+        } else if step.edit_target.is_some() {
+            self.open_step_editor();
+            if self.editor.is_some() {
+                self.editor = Some(eddacraft_tui::widgets::editor::EditorState::from_string(""));
+                self.autoplay_ghost_offset = 0;
+            }
+        } else if step.watch_demo {
+            if self.autoplay_watch_dwell {
+                self.wants_watch_demo = true;
+            } else {
+                self.autoplay_watch_dwell = true;
+            }
+        }
+    }
+
     /// Complete the reveal and execute the revealed command — the same
     /// execute → verify → advance sequence Enter performed before WOW-002.
     fn finish_reveal(&mut self) {
         let Some(reveal) = self.reveal.take() else {
             return;
         };
-        self.execute_current_command(&reveal.command);
+        if self.autoplay {
+            if self.execute_current_command_with_advance(&reveal.command, false) {
+                self.autoplay_result_dwell = true;
+            }
+        } else {
+            self.execute_current_command(&reveal.command);
+        }
     }
 
     /// Execute `cmd` for the current step, store its output, verify, and
@@ -847,13 +1327,60 @@ impl TutorialState {
     /// reveal completion, failed-step retry, and watch-triggered re-runs so
     /// the execution contract lives in one place.
     fn execute_current_command(&mut self, cmd: &str) -> bool {
+        self.execute_current_command_with_advance(cmd, true)
+    }
+
+    fn execute_current_command_with_advance(&mut self, cmd: &str, advance: bool) -> bool {
+        if self.autoplay_session && self.working_root.is_none() {
+            if let Some(step) = self.steps.get_mut(self.current_step) {
+                step.output = Some(CommandOutput {
+                    stdout: String::new(),
+                    stderr: "autoplay working root is unavailable".to_string(),
+                    success: false,
+                    exit_code: None,
+                });
+            }
+            return false;
+        }
+        if self.autoplay_session {
+            let Some(root) = self.working_root.as_deref() else {
+                return false;
+            };
+            match executor::AutoplayCommand::spawn(cmd, root) {
+                Ok(command) => {
+                    self.autoplay_command = Some(command);
+                    self.autoplay_command_advance = advance;
+                }
+                Err(error) => {
+                    let message = format!("autoplay command failed: {error}");
+                    if self.autoplay {
+                        self.fail_autoplay(message);
+                    } else if let Some(step) = self.steps.get_mut(self.current_step) {
+                        step.output = Some(CommandOutput {
+                            stdout: String::new(),
+                            stderr: message,
+                            success: false,
+                            exit_code: None,
+                        });
+                    }
+                }
+            }
+            return false;
+        }
         let result = executor::execute_command(cmd);
-        let succeeded = result.success;
+        let succeeded = result.success
+            || (self.autoplay_session
+                && self
+                    .steps
+                    .get(self.current_step)
+                    .is_some_and(|step| step.verify.is_some()));
         if let Some(step) = self.steps.get_mut(self.current_step) {
             step.output = Some(result);
         }
         if succeeded && self.run_verify_current() {
-            self.advance_step();
+            if advance {
+                self.advance_step();
+            }
             return true;
         }
         // On command failure we stay on the same step (retry/skip take over).
@@ -878,13 +1405,21 @@ impl TutorialState {
     fn handle_complete(&mut self, action: Action) {
         match action {
             Action::Select => {
+                let leaving_autoplay = self.autoplay_session;
+                if leaving_autoplay {
+                    self.abort_autoplay_session();
+                    self.restore_autoplay_context();
+                    self.autoplay_teardown_requested = true;
+                }
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
                 self.current_step = 0;
                 self.chosen_path = None;
-                self.domain_findings = None;
-                self.completion_baseline = None;
-                self.completion_delta = None;
+                if !leaving_autoplay {
+                    self.domain_findings = None;
+                    self.completion_baseline = None;
+                    self.completion_delta = None;
+                }
             }
             Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
@@ -946,6 +1481,20 @@ impl crate::surface::Surface for TutorialState {
         self.should_quit = false;
         self.wants_back = false;
         self.reveal = None;
+        self.autoplay = false;
+        self.autoplay_session = false;
+        self.wants_autoplay_setup = false;
+        self.working_root = None;
+        self.autoplay_ghost_offset = 0;
+        self.autoplay_result_dwell = false;
+        self.autoplay_watch_dwell = false;
+        if let Some(command) = self.autoplay_command.take() {
+            command.cancel();
+        }
+        self.autoplay_command_advance = false;
+        self.autoplay_failure = None;
+        self.autoplay_teardown_requested = false;
+        self.autoplay_saved_context = None;
         self.pending_fix = None;
         self.editor = None;
         self.edit_path = None;
@@ -1149,6 +1698,579 @@ mod tests {
         assert_eq!(state.chosen_path, Some(TutorialPath::ProtectionLoop));
         assert!(!state.steps.is_empty());
         assert_eq!(state.current_step, 0);
+    }
+
+    #[test]
+    fn picker_adds_one_distinct_autoplay_entry_without_changing_paths() {
+        let mut state = TutorialState::new();
+        state.set_completed_paths(vec![TutorialPath::Policy]);
+
+        assert_eq!(state.paths.len(), 6);
+        assert_eq!(state.picker_len(), state.paths.len() + 1);
+        assert_eq!(
+            state.picker_label(state.paths.len()),
+            Some("Watch anvil work (demo)")
+        );
+        assert_eq!(state.completed_paths, vec![TutorialPath::Policy]);
+        assert!(!state.autoplay);
+    }
+
+    #[test]
+    fn selecting_demo_starts_autoplay_protection_loop_session() {
+        let mut state = TutorialState::new();
+        for _ in 0..state.paths.len() {
+            state.handle_key(Action::Down);
+        }
+        assert_eq!(state.path_selected, state.paths.len());
+
+        state.handle_key(Action::Select);
+
+        assert!(!state.autoplay);
+        assert!(state.wants_autoplay_setup);
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert_eq!(state.chosen_path, Some(TutorialPath::ProtectionLoop));
+    }
+
+    #[test]
+    fn autoplay_initialisers_load_only_the_authorised_demo_beats() {
+        let direct = TutorialState::new_autoplay();
+        let mut picker = TutorialState::new();
+        for _ in 0..picker.paths.len() {
+            picker.handle_key(Action::Down);
+        }
+        picker.handle_key(Action::Select);
+
+        let signature = |state: &TutorialState| {
+            state
+                .steps
+                .iter()
+                .map(|step| {
+                    (
+                        step.title.clone(),
+                        step.command.is_some(),
+                        step.edit_target.is_some(),
+                        step.verify.is_some(),
+                        step.watch_demo,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(signature(&direct), signature(&picker));
+        assert!(!direct.autoplay);
+        assert!(direct.wants_autoplay_setup);
+        assert_eq!(direct.chosen_path, Some(TutorialPath::ProtectionLoop));
+        assert!(direct.steps.iter().any(|step| step.command.is_some()));
+        assert!(direct.steps.iter().any(|step| step.edit_target.is_some()));
+        assert!(direct.steps.iter().any(|step| step.verify.is_some()));
+        assert!(direct.steps.iter().any(|step| step.watch_demo));
+
+        let body = direct
+            .steps
+            .iter()
+            .map(|step| format!("{}\n{}", step.title, step.description))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(body.contains("AP-003"));
+        assert!(body.contains("AP-004"));
+
+        let ordinary = paths::protection_loop_steps();
+        assert_eq!(ordinary.len(), 5);
+        assert!(!ordinary.iter().any(|step| step.edit_target.is_some()));
+        assert!(!ordinary.iter().any(|step| step.watch_demo));
+    }
+
+    #[test]
+    fn binding_prepared_autoplay_to_root_does_not_request_teardown() {
+        let root = tempfile::tempdir().expect("root");
+        let mut state = TutorialState::new();
+        state.start_autoplay();
+
+        state
+            .start_autoplay_in(root.path())
+            .expect("bind autoplay root");
+
+        assert!(state.autoplay_driver_active());
+        assert!(state.autoplay_session_active());
+        assert!(!state.autoplay_teardown_requested());
+    }
+
+    #[test]
+    fn first_routed_action_hands_back_without_other_state_changes() {
+        let mut path_select = TutorialState::new();
+        path_select.autoplay = true;
+        path_select.handle_key(Action::Down);
+        assert!(!path_select.autoplay);
+        assert_eq!(path_select.path_selected, 0);
+
+        let running_root = tempfile::tempdir().expect("root");
+        let mut running = TutorialState::new_autoplay_in(running_root.path()).expect("autoplay");
+        running.reveal = Some(CommandReveal::new("echo must-not-run".to_string()));
+        running.handle_key(Action::Character('x'));
+        assert!(!running.autoplay);
+        assert!(!running.is_revealing());
+        assert!(running.steps[0].output.is_none());
+        assert_eq!(running.current_step, 0);
+        for _ in 0..8 {
+            running.reveal_tick();
+        }
+        assert!(running.steps[0].output.is_none());
+
+        let complete_root = tempfile::tempdir().expect("root");
+        let mut complete = TutorialState::new_autoplay_in(complete_root.path()).expect("autoplay");
+        complete.phase = TutorialPhase::Complete;
+        complete.handle_key(Action::Select);
+        assert!(!complete.autoplay);
+        assert_eq!(complete.phase, TutorialPhase::Complete);
+        assert_eq!(complete.chosen_path, Some(TutorialPath::ProtectionLoop));
+
+        let quit_root = tempfile::tempdir().expect("root");
+        let mut quit = TutorialState::new_autoplay_in(quit_root.path()).expect("autoplay");
+        quit.handle_key(Action::Quit);
+        assert!(!quit.autoplay);
+        assert!(!quit.should_quit);
+        assert!(!quit.wants_back);
+
+        let back_root = tempfile::tempdir().expect("root");
+        let mut back = TutorialState::new_autoplay_in(back_root.path()).expect("autoplay");
+        back.handle_key(Action::Back);
+        assert!(!back.autoplay);
+        assert!(!back.wants_back);
+        assert!(!back.should_quit);
+    }
+
+    #[test]
+    fn autoplay_commands_and_editor_are_confined_to_working_root() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::write(root.path().join("marker.txt"), "sandbox").expect("fixture");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.steps[0].command = Some("cat marker.txt".to_string());
+        state.steps[0].verify = None;
+        assert!(!state.execute_current_command("cat marker.txt"));
+        assert!(
+            state
+                .autoplay_failure()
+                .is_some_and(|failure| failure.contains("must be exactly"))
+        );
+
+        state.phase = TutorialPhase::Running;
+        state.current_step = 0;
+        state.steps[0] = TutorialStep {
+            edit_target: Some("../escape.txt".to_string()),
+            seed_template: Some("must not escape".to_string()),
+            ..TutorialStep::default()
+        };
+        state.open_step_editor();
+
+        assert!(!state.is_editing());
+        assert!(
+            state
+                .edit_error
+                .as_deref()
+                .is_some_and(|error| error.contains("outside"))
+        );
+        assert!(!root.path().parent().unwrap().join("escape.txt").exists());
+        assert!(
+            resolve_working_path(
+                root.path(),
+                std::path::Path::new("missing/../../outside.ts")
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rootless_autoplay_cannot_execute_or_open_editor_in_process_cwd() {
+        let marker = format!("wow006-rootless-{}", std::process::id());
+        let mut state = TutorialState::new_autoplay();
+        assert!(!state.execute_current_command(&format!("touch {marker}")));
+        assert!(!std::path::Path::new(&marker).exists());
+        assert!(
+            state.steps[0]
+                .output
+                .as_ref()
+                .is_some_and(|output| output.stderr.contains("working root"))
+        );
+
+        state.handle_key(Action::Down);
+        state.steps[0].output = None;
+        assert!(!state.execute_current_command(&format!("touch {marker}")));
+        assert!(!std::path::Path::new(&marker).exists());
+
+        state.current_step = 1;
+        state.open_step_editor();
+        assert!(!state.is_editing());
+        assert!(
+            state
+                .edit_error
+                .as_deref()
+                .is_some_and(|error| error.contains("working root"))
+        );
+    }
+
+    #[test]
+    fn autoplay_command_result_dwells_once_before_advancing() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.steps = vec![TutorialStep::default()];
+        state.autoplay_command = Some(executor::AutoplayCommand::successful_for_test());
+
+        for _ in 0..500 {
+            state.reveal_tick();
+            if state.steps[0].output.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(state.reveal.is_none());
+        let output = state.steps[0].output.as_ref().expect("child output");
+        assert!(output.success, "stderr: {}", output.stderr);
+        assert_eq!(state.current_step, 0);
+        assert_eq!(state.phase, TutorialPhase::Running);
+
+        state.reveal_tick(); // advance after the explicit result dwell
+        assert_eq!(state.phase, TutorialPhase::Complete);
+    }
+
+    #[test]
+    fn autoplay_watch_beat_requests_existing_transition() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.current_step = state.steps.len() - 1;
+
+        state.reveal_tick();
+
+        assert!(!state.wants_watch_demo);
+        state.reveal_tick();
+
+        assert!(state.wants_watch_demo);
+        assert_eq!(state.phase, TutorialPhase::Running);
+    }
+
+    #[test]
+    fn autoplay_cycle_complete_is_terminal_and_runs_completion_once() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = std::sync::Arc::clone(&calls);
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.current_step = state.steps.len() - 1;
+        state.completion_baseline = Some(0);
+        state.set_completion_rescan(move || {
+            observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Some(ScanResults::default())
+        });
+        state.wants_watch_demo = false;
+
+        state.advance_step();
+        for _ in 0..8 {
+            state.reveal_tick();
+        }
+
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(!state.wants_watch_demo);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn starting_autoplay_discards_user_scan_and_completion_state() {
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = std::sync::Arc::clone(&calls);
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        state.load_steps(TutorialPath::Policy);
+        state.completion_delta = Some(FindingsDelta {
+            before: 2,
+            after: 1,
+        });
+        state.set_completion_rescan(move || {
+            observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Some(ScanResults::default())
+        });
+
+        state.start_autoplay();
+        assert!(state.scan_results.is_none());
+        assert!(state.domain_findings.is_none());
+        assert!(state.completion_baseline.is_none());
+        assert!(state.completion_delta.is_none());
+        assert!(state.completion_rescan.is_none());
+
+        state.current_step = state.steps.len() - 1;
+        state.advance_step();
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn leaving_demo_restores_discovery_and_completion_context() {
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = std::sync::Arc::clone(&calls);
+        let mut state = TutorialState::new();
+        state.set_scan_results(make_scan_results());
+        state.load_steps(TutorialPath::Policy);
+        let baseline = state.completion_baseline;
+        state.completion_delta = Some(FindingsDelta {
+            before: 2,
+            after: 1,
+        });
+        state.set_completion_rescan(move || {
+            observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Some(ScanResults::default())
+        });
+        state.start_autoplay();
+        state.hand_back_autoplay();
+        state.current_step = state.steps.len() - 1;
+        state.advance_step();
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(state.scan_results.is_some());
+        assert!(state.domain_findings.is_some());
+        assert_eq!(state.completion_baseline, baseline);
+        assert_eq!(
+            state.completion_delta,
+            Some(FindingsDelta {
+                before: 2,
+                after: 1
+            })
+        );
+        state.completion_rescan.as_ref().expect("rescan")();
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn failed_autoplay_command_is_terminal_and_taken_once() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.steps = vec![TutorialStep {
+            command: Some("anvil check ../outside.ts".to_string()),
+            effect: Some(CommandEffect::ReadOnly),
+            ..TutorialStep::default()
+        }];
+
+        for _ in 0..32 {
+            state.reveal_tick();
+        }
+
+        assert!(!state.autoplay);
+        assert!(state.autoplay_failure().is_some());
+        assert!(state.autoplay_command.is_none());
+        let first = state.take_autoplay_failure().expect("terminal failure");
+        assert!(first.contains("autoplay command failed"));
+        assert!(state.take_autoplay_failure().is_none());
+        for _ in 0..8 {
+            state.reveal_tick();
+        }
+        assert!(state.autoplay_command.is_none());
+        assert!(state.reveal.is_none());
+    }
+
+    #[test]
+    fn ordinary_path_selection_ends_handed_back_demo_session() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        assert!(state.autoplay_session_active());
+        assert!(state.hand_back_autoplay());
+        state.current_step = state.steps.len() - 1;
+        state.advance_step();
+        state.handle_key(Action::Select);
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.chosen_path, Some(TutorialPath::ProtectionLoop));
+        assert!(!state.autoplay_session_active());
+        assert!(state.take_autoplay_teardown_requested());
+        assert!(!state.take_autoplay_teardown_requested());
+    }
+
+    #[test]
+    fn handed_back_autoplay_uses_ordinary_failure_semantics() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        assert!(state.hand_back_autoplay());
+        assert!(!state.autoplay_driver_active());
+        assert!(state.autoplay_session_active());
+        state.steps = vec![TutorialStep {
+            command: Some("anvil check ../outside.ts".to_string()),
+            effect: Some(CommandEffect::ReadOnly),
+            ..TutorialStep::default()
+        }];
+
+        assert!(!state.execute_current_command("anvil check ../outside.ts"));
+
+        assert!(state.autoplay_failure().is_none());
+        assert!(state.current_step_failed());
+    }
+
+    fn autoplay_check_output(root: &std::path::Path, command: &str) -> CommandOutput {
+        let target = command
+            .strip_prefix("anvil check ")
+            .expect("structured check command");
+        assert!(!target.contains(char::is_whitespace));
+        let target = resolve_working_path(root, std::path::Path::new(target))
+            .expect("contained check target");
+        let source = std::fs::read_to_string(target).expect("check target");
+        let mut findings = Vec::new();
+        if source.contains(": any") {
+            findings.push("AP-003");
+        }
+        if source.contains("@ts-ignore") {
+            findings.push("AP-004");
+        }
+        CommandOutput {
+            stdout: findings.join("\n"),
+            stderr: String::new(),
+            success: true,
+            exit_code: Some(0),
+        }
+    }
+
+    fn autoplay_snapshot(seq: u64) -> anvil_kernel_types::EngineEvent {
+        anvil_kernel_types::EngineEvent {
+            event_type: anvil_kernel_types::EventType::Snapshot,
+            seq,
+            timestamp: "now".to_string(),
+            engine: anvil_kernel_types::EngineId::Rust,
+            payload: anvil_kernel_types::EventPayload::Snapshot {
+                node_count: 1,
+                edge_count: 0,
+                files_watched: 1,
+                changed_path: None,
+            },
+        }
+    }
+
+    #[test]
+    fn autoplay_full_state_executes_checks_edits_watches_and_completes() {
+        use std::collections::VecDeque;
+
+        let root = tempfile::tempdir().expect("root");
+        std::fs::create_dir(root.path().join("src")).expect("src");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay");
+        let fixture = state.steps[1]
+            .seed_template
+            .as_deref()
+            .expect("pinned fixture seed");
+        std::fs::write(root.path().join("src/app.ts"), fixture).expect("fixture");
+        let mut commands = Vec::new();
+
+        for expected_step in [0, 2] {
+            assert_eq!(state.current_step, expected_step);
+            let command = state.steps[state.current_step]
+                .command
+                .clone()
+                .expect("structured check step");
+            commands.push(command.clone());
+            state.consume_autoplay_output(autoplay_check_output(root.path(), &command));
+            state.reveal_tick();
+            if expected_step == 0 {
+                while state.current_step == 1 {
+                    state.reveal_tick();
+                }
+                let repaired =
+                    std::fs::read_to_string(root.path().join("src/app.ts")).expect("repair");
+                assert!(!repaired.contains(": any"));
+                assert!(!repaired.contains("@ts-ignore"));
+            }
+        }
+
+        assert_eq!(state.current_step, 3);
+        state.reveal_tick();
+        state.reveal_tick();
+        assert!(state.wants_watch_demo);
+
+        let data = crate::surfaces::watch::WatchData {
+            status: crate::surfaces::watch::WatchStatus::Idle,
+            queue: VecDeque::new(),
+            history: Vec::new(),
+            stats: crate::surfaces::watch::WatchStats {
+                total_runs: 0,
+                pass_rate: 0.0,
+                avg_duration_ms: 0,
+                files_watched: 0,
+            },
+            warmup: None,
+            last_action: None,
+            update_hint: None,
+            insights_hint: None,
+            daemon_fallback_notice: None,
+        };
+        let mut watch = watch_demo::WatchDemoState::new(data);
+        let initial = watch.autoplay_engine_event(&autoplay_snapshot(1));
+        assert_eq!(initial, watch_demo::WatchDemoOutcome::Continue);
+        state.apply_watch_demo_outcome(initial);
+        assert_eq!(state.current_step, 3);
+        state.apply_watch_demo_outcome(watch_demo::WatchDemoOutcome::HandBack);
+        assert_eq!(state.current_step, 3);
+        let target = root.path().join("src/app.ts");
+        let mut edited = std::fs::read_to_string(&target).expect("post-repair source");
+        edited.push_str("\n// watch cycle edit\n");
+        std::fs::write(&target, edited).expect("watch edit");
+        let outcome = watch.autoplay_engine_event(&autoplay_snapshot(2));
+        state.apply_watch_demo_outcome(outcome);
+        state.apply_watch_demo_outcome(outcome);
+
+        assert_eq!(
+            commands,
+            ["anvil check src/app.ts", "anvil check src/app.ts"]
+        );
+        assert_eq!(watch.snapshot_count, 2);
+        assert!(
+            std::fs::read_to_string(target)
+                .expect("watched source")
+                .contains("watch cycle edit")
+        );
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps.iter().all(|step| step.completed));
+    }
+
+    #[test]
+    fn autoplay_editor_ghost_types_repaired_fixture_then_advances() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.current_step = 1;
+
+        for _ in 0..100 {
+            state.reveal_tick();
+            if state.current_step > 1 {
+                break;
+            }
+        }
+
+        let repaired = std::fs::read_to_string(root.path().join("src/app.ts")).expect("repair");
+        assert!(
+            !repaired.contains(": any"),
+            "AP-003 must be repaired: {repaired}"
+        );
+        assert!(
+            !repaired.contains("@ts-ignore"),
+            "AP-004 must be repaired: {repaired}"
+        );
+        assert!(repaired.contains("name: string"));
+        assert!(state.current_step > 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn editor_save_rejects_parent_symlink_swap() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("root");
+        let outside = tempfile::tempdir().expect("outside");
+        std::fs::create_dir(root.path().join("nested")).expect("nested");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.steps[0] = TutorialStep {
+            edit_target: Some("nested/file.ts".to_string()),
+            seed_template: Some("safe".to_string()),
+            ..TutorialStep::default()
+        };
+        state.open_step_editor();
+        std::fs::rename(root.path().join("nested"), root.path().join("old")).expect("rename");
+        symlink(outside.path(), root.path().join("nested")).expect("swap");
+
+        let error = state
+            .save_step_editor()
+            .expect_err("escape must fail closed");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+        assert!(!outside.path().join("file.ts").exists());
     }
 
     #[test]

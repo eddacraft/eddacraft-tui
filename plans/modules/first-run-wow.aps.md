@@ -4,7 +4,7 @@
 | --- | ----- | ----------- | -------- |
 | WOW | Josh  | In Progress | 5/6      |
 
-**Last reviewed:** 2026-07-11 — the operator-approved
+**Last reviewed:** 2026-07-27 — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) promotes WOW-005 into the
 release cut and retains WOW-006 as a coordinated post-cut enhancement. The
 module was created 2026-07-08 via planning-workflow from the
@@ -13,8 +13,8 @@ Enter-executes-a-real-command behaviour is not evident before the keypress, and
 the first-run journey underuses the discovery scan's real findings. WOW-001..004
 are Merged. WOW-005's first-win direction and consent boundary are accepted by
 the JOURNEY design, while its execution depends on ACTTUI-009's production
-consent wiring. WOW-006 remains Proposed pending its sandbox-lifecycle design
-gate.
+consent wiring. WOW-006 is In Progress: implementation and Council repair are
+complete locally, with PR publication and review still pending.
 
 ## Purpose
 
@@ -170,12 +170,13 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-006: Autoplay demo mode on a sandboxed fixture
 
-- **Status:** Ready 2026-07-26 — design gate **closed** (operator approved;
+- **Status:** In Progress 2026-07-27 — design gate **closed** (operator approved;
   design at
   [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)).
   Prerequisites are in place (ACTTUI-000 Done, ACTTUI-001 scaffold landed,
-  WOW-002 reveal driver Merged, shared ACTTUI widgets available). Ready for a
-  later implementation pass; coordinated by JOURNEY-007.
+  WOW-002 reveal driver Merged, shared ACTTUI widgets available). The local
+  implementation passed Council and independent verification; draft PR
+  publication is pending. Coordinated by JOURNEY-007.
 - **Intent:** A "watch anvil work" mode plays the tutorial hands-free —
   commands, inline-editor ghost-typing, verification — against a scaffolded
   temp fixture repo, so the demo executes for real without touching the
@@ -196,9 +197,20 @@ evidence affordances and personalization on top of the repaired baseline.
   unattended in a fixture repo with deterministic findings; interrupting at any
   point converts to the normal interactive tutorial.
 - **Validation:** Deterministic fixture yields an identical offline finding set;
-  autoplay runs `ProtectionLoop` to completion unattended; a keypress on each
-  surface converts to interactive; the containment guard rejects an
-  out-of-sandbox target; the tempdir is removed on exit.
+  each run owns a fresh tempdir; autoplay runs `ProtectionLoop` to completion
+  unattended behind bounded command and watch deadlines; a keypress cancels
+  latent automation and converts each surface to interactive; discovery and
+  completion context is restored on teardown; containment rejects an
+  out-of-sandbox target; child, watcher, terminal, and tempdir cleanup is
+  exercised on success and error paths.
+- **Files:** `crates/anvil-cli/src/commands/{tutorial.rs,tutorial/autoplay.rs,welcome.rs}`,
+  `crates/anvil-cli/src/tui.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/{executor,mod,paths,render,verify,watch_demo}.rs`,
+  and the three updated tutorial picker snapshots.
+- **Evidence (2026-07-28):** Council `council-4da7ba79` converged with eight
+  findings fixed and none open; independent verify-loop passed; CLI tutorial
+  30/30, TUI tutorial 370/370, and welcome 40/40 passed; strict Clippy,
+  `pnpm validate:changed`, docs 9/9, APS lint, and APS index checks passed.
 - **Confidence:** medium
 
 ## Sequencing

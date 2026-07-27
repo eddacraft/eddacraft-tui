@@ -37,6 +37,22 @@ pub enum OverlayPhase {
     Dismissed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WatchDemoOutcome {
+    Continue,
+    HandBack,
+    CycleComplete,
+}
+
+pub fn autoplay_raw_keypress(autoplay: &mut bool) -> WatchDemoOutcome {
+    if *autoplay {
+        *autoplay = false;
+        WatchDemoOutcome::HandBack
+    } else {
+        WatchDemoOutcome::Continue
+    }
+}
+
 /// State for the watch mode demo with guided overlay (WELCOME-014).
 ///
 /// Wraps a `WatchData` (the same data the real watch dashboard uses)
@@ -102,6 +118,15 @@ impl WatchDemoState {
         }
 
         self.sync_overlay_animation();
+    }
+
+    pub fn autoplay_engine_event(&mut self, event: &EngineEvent) -> WatchDemoOutcome {
+        self.handle_engine_event(event);
+        if self.cycle_seen {
+            WatchDemoOutcome::CycleComplete
+        } else {
+            WatchDemoOutcome::Continue
+        }
     }
 
     /// Advance overlay hints based on elapsed time.
@@ -221,6 +246,7 @@ impl WatchDemoState {
 mod tests {
     use super::*;
     use crate::surfaces::watch::{WatchStats, WatchStatus};
+    use anvil_kernel_types::{EngineId, EventPayload, EventType};
     use std::collections::VecDeque;
 
     fn empty_data() -> WatchData {
@@ -316,5 +342,42 @@ mod tests {
         assert!(!state.is_dirty());
         state.mark_dirty();
         assert!(state.is_dirty());
+    }
+
+    #[test]
+    fn autoplay_raw_key_hands_back_before_action_mapping() {
+        let mut autoplay = true;
+
+        assert_eq!(
+            autoplay_raw_keypress(&mut autoplay),
+            WatchDemoOutcome::HandBack
+        );
+        assert!(!autoplay);
+    }
+
+    #[test]
+    fn autoplay_second_snapshot_returns_cycle_complete() {
+        let snapshot = |seq| EngineEvent {
+            event_type: EventType::Snapshot,
+            seq,
+            timestamp: "now".to_string(),
+            engine: EngineId::Rust,
+            payload: EventPayload::Snapshot {
+                node_count: 1,
+                edge_count: 0,
+                files_watched: 1,
+                changed_path: None,
+            },
+        };
+        let mut state = WatchDemoState::new(empty_data());
+
+        assert_eq!(
+            state.autoplay_engine_event(&snapshot(1)),
+            WatchDemoOutcome::Continue
+        );
+        assert_eq!(
+            state.autoplay_engine_event(&snapshot(2)),
+            WatchDemoOutcome::CycleComplete
+        );
     }
 }

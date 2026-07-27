@@ -1,19 +1,26 @@
+pub(crate) mod autoplay;
+
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use anvil_tui::surfaces::tutorial::{
     STATIC_MODE_WATCHER_UNAVAILABLE, TutorialPath, TutorialPhase, TutorialState,
+    watch_demo::WatchDemoOutcome,
 };
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
+use autoplay::AutoplaySandbox;
 
 #[derive(Debug, clap::Args)]
 pub struct TutorialArgs {
     /// Reset tutorial progress
-    #[arg(long)]
+    #[arg(long, conflicts_with = "autoplay")]
     reset: bool,
+    /// Run the hands-free tutorial in an isolated temporary sandbox
+    #[arg(long, conflicts_with = "reset")]
+    autoplay: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -31,10 +38,23 @@ struct InProgressSession {
     steps_completed: Vec<bool>,
 }
 
-pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
-    let progress_path = progress_file_path()?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WatchDemoMode {
+    Autoplay,
+    Interactive,
+}
 
+pub(crate) fn watch_demo_mode(state: &TutorialState) -> WatchDemoMode {
+    if state.autoplay_driver_active() {
+        WatchDemoMode::Autoplay
+    } else {
+        WatchDemoMode::Interactive
+    }
+}
+
+pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if args.reset {
+        let progress_path = progress_file_path()?;
         return reset_progress(&progress_path);
     }
 
@@ -42,6 +62,12 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         println!("Tutorial requires an interactive terminal. Run without --no-tui.");
         return Ok(());
     }
+
+    if args.autoplay {
+        return run_explicit_autoplay();
+    }
+
+    let progress_path = progress_file_path()?;
 
     let progress = load_progress(&progress_path);
     let mut state = TutorialState::new();
@@ -68,34 +94,123 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // cannot start (e.g. inotify limit reached). The in-TUI notice
     // surfaces the specific cause so users aren't left wondering why
     // file saves stop retriggering checks.
-    let (file_rx, _watcher_handle) = if let Ok((rx, handle)) = try_start_watcher() {
+    let (file_rx, watcher_handle) = if let Ok((rx, handle)) = try_start_watcher() {
         (Some(rx), Some(handle))
     } else {
         state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
         (None, None)
     };
 
-    let mut state = crate::tui::run_tutorial(state, file_rx.as_ref())?;
+    let autoplay_sandbox = None;
+    let state = run_tutorial_session(
+        state,
+        file_rx,
+        watcher_handle,
+        autoplay_sandbox,
+        |state, file_rx, _sandbox| crate::tui::run_tutorial(state, file_rx),
+        run_watch_demo_for_tutorial,
+        try_start_watcher,
+    )?;
 
-    // Handle watch demo requests (WELCOME-014). The tutorial exits when a
-    // watch_demo step is activated. We launch the demo, then resume.
-    while state.wants_watch_demo {
-        state.wants_watch_demo = false;
-        if run_watch_demo_for_tutorial().is_ok() {
-            state.advance_step();
-        }
-        state = crate::tui::run_tutorial(state, file_rx.as_ref())?;
+    if should_persist_progress(&state) {
+        save_progress_from_state(&progress_path, &progress, &state)?;
     }
 
-    save_progress_from_state(&progress_path, &progress, &state)?;
+    Ok(())
+}
 
+fn ensure_autoplay_setup(
+    state: &mut TutorialState,
+    sandbox: &mut Option<AutoplaySandbox>,
+) -> anyhow::Result<()> {
+    *sandbox = Some(AutoplaySandbox::new()?);
+    let sandbox = sandbox.as_ref().expect("sandbox inserted above");
+    state.start_autoplay_in(sandbox.root())?;
+    Ok(())
+}
+
+fn run_tutorial_session<R, W>(
+    mut state: TutorialState,
+    mut file_rx: Option<R>,
+    mut watcher_handle: Option<W>,
+    mut autoplay_sandbox: Option<AutoplaySandbox>,
+    mut run_surface: impl FnMut(
+        TutorialState,
+        Option<&R>,
+        Option<&AutoplaySandbox>,
+    ) -> anyhow::Result<TutorialState>,
+    mut run_watch_demo: impl FnMut(
+        &mut TutorialState,
+        Option<&AutoplaySandbox>,
+    ) -> anyhow::Result<WatchDemoOutcome>,
+    mut start_watcher: impl FnMut() -> anyhow::Result<(R, W)>,
+) -> anyhow::Result<TutorialState> {
+    loop {
+        state = run_surface(state, file_rx.as_ref(), autoplay_sandbox.as_ref())?;
+        if let Some(failure) = state.take_autoplay_failure() {
+            state.abort_autoplay_session();
+            return Err(anyhow::anyhow!(failure));
+        }
+        if state.take_autoplay_teardown_requested() {
+            drop(autoplay_sandbox.take());
+            if let Ok((rx, handle)) = start_watcher() {
+                file_rx = Some(rx);
+                watcher_handle = Some(handle);
+            } else {
+                file_rx = None;
+                watcher_handle = None;
+                state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
+            }
+            continue;
+        }
+        if state.wants_autoplay_setup {
+            drop(watcher_handle.take());
+            file_rx = None;
+            ensure_autoplay_setup(&mut state, &mut autoplay_sandbox)?;
+            continue;
+        }
+        if state.wants_watch_demo {
+            state.wants_watch_demo = false;
+            let active_demo = watch_demo_mode(&state) == WatchDemoMode::Autoplay;
+            match run_watch_demo(&mut state, autoplay_sandbox.as_ref()) {
+                Ok(WatchDemoOutcome::Continue) => state.advance_step(),
+                Err(error) if active_demo => {
+                    state.abort_autoplay_session();
+                    return Err(error);
+                }
+                Ok(WatchDemoOutcome::HandBack | WatchDemoOutcome::CycleComplete) | Err(_) => {}
+            }
+            continue;
+        }
+        return Ok(state);
+    }
+}
+
+fn run_explicit_autoplay() -> anyhow::Result<()> {
+    let mut state = TutorialState::new();
+    state.start_autoplay();
+    let mut sandbox = None;
+    ensure_autoplay_setup(&mut state, &mut sandbox)?;
+
+    run_tutorial_session(
+        state,
+        None,
+        None,
+        sandbox,
+        |state, file_rx, _sandbox| crate::tui::run_tutorial(state, file_rx),
+        run_watch_demo_for_tutorial,
+        try_start_watcher,
+    )?;
     Ok(())
 }
 
 /// Launch the watch mode demo (WELCOME-014). Starts the kernel engine
 /// watcher, runs the demo surface, and returns when the user exits.
-fn run_watch_demo_for_tutorial() -> anyhow::Result<()> {
-    let workspace_root = crate::util::workspace_root()?;
+fn run_watch_demo_for_tutorial(
+    tutorial: &mut TutorialState,
+    sandbox: Option<&AutoplaySandbox>,
+) -> anyhow::Result<WatchDemoOutcome> {
+    let workspace_root = watch_demo_root(tutorial, sandbox, crate::util::workspace_root)?;
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
         root: workspace_root.clone(),
@@ -135,11 +250,45 @@ fn run_watch_demo_for_tutorial() -> anyhow::Result<()> {
     };
 
     let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);
-    let demo_result = crate::tui::run_watch_demo(state, &event_rx);
+    let demo_result = if watch_demo_mode(tutorial) == WatchDemoMode::Autoplay {
+        let sandbox = sandbox.context("active autoplay session has no sandbox")?;
+        let mut edit = || sandbox.script_second_edit();
+        crate::tui::run_watch_demo_autoplay(state, &event_rx, tutorial, &mut edit)
+    } else {
+        crate::tui::run_watch_demo(state, &event_rx).map(|()| WatchDemoOutcome::Continue)
+    };
 
     // Always stop the watcher, regardless of whether the demo succeeded.
-    handle.stop().context("stopping demo watcher")?;
-    demo_result
+    let stop_result = handle.stop().context("stopping demo watcher");
+    match demo_result {
+        Err(primary) => {
+            let _ = stop_result;
+            Err(primary)
+        }
+        Ok(outcome) => {
+            stop_result?;
+            Ok(outcome)
+        }
+    }
+}
+
+fn should_persist_progress(state: &TutorialState) -> bool {
+    !state.autoplay_session_active()
+}
+
+pub(crate) fn watch_demo_root(
+    state: &TutorialState,
+    sandbox: Option<&AutoplaySandbox>,
+    repo_root: impl FnOnce() -> anyhow::Result<PathBuf>,
+) -> anyhow::Result<PathBuf> {
+    if state.autoplay_session_active() {
+        return sandbox
+            .context("active autoplay session has no sandbox")?
+            .root()
+            .canonicalize()
+            .context("resolving autoplay sandbox");
+    }
+    repo_root()
 }
 
 /// Try to start a file watcher on the current working directory.
@@ -257,7 +406,164 @@ fn is_path_completed(state: &TutorialState, path: TutorialPath) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use eddacraft_tui::keyboard::Action;
+
+    #[derive(Parser)]
+    struct TutorialParser {
+        #[command(flatten)]
+        tutorial: TutorialArgs,
+    }
+
+    #[test]
+    fn autoplay_flag_parses_and_conflicts_with_reset() {
+        let parsed = TutorialParser::try_parse_from(["test", "--autoplay"]).expect("autoplay");
+        assert!(parsed.tutorial.autoplay);
+        assert!(TutorialParser::try_parse_from(["test", "--autoplay", "--reset"]).is_err());
+    }
+
+    #[test]
+    fn picker_and_flag_requests_share_rooted_setup_path() {
+        for mut state in [TutorialState::new_autoplay(), {
+            let mut picker = TutorialState::new();
+            picker.path_selected = picker.paths.len();
+            picker.handle_key(Action::Select);
+            picker
+        }] {
+            let mut sandbox = None;
+            assert!(state.wants_autoplay_setup);
+            ensure_autoplay_setup(&mut state, &mut sandbox).expect("setup");
+            assert!(state.autoplay);
+            assert!(!state.wants_autoplay_setup);
+            assert!(sandbox.as_ref().unwrap().root().join("src/app.ts").exists());
+        }
+    }
+
+    #[test]
+    fn repeated_setup_replaces_mutated_sandbox_with_pristine_fixture() {
+        let mut state = TutorialState::new_autoplay();
+        let mut sandbox = None;
+        ensure_autoplay_setup(&mut state, &mut sandbox).expect("first setup");
+        let first_root = sandbox.as_ref().unwrap().root().to_path_buf();
+        std::fs::write(first_root.join("src/app.ts"), "mutated").expect("mutation");
+
+        state.start_autoplay();
+        ensure_autoplay_setup(&mut state, &mut sandbox).expect("second setup");
+        let second = sandbox.as_ref().unwrap();
+        assert_ne!(first_root, second.root());
+        assert!(!first_root.exists());
+        assert!(
+            std::fs::read_to_string(second.root().join("src/app.ts"))
+                .expect("fresh fixture")
+                .contains("@ts-ignore")
+        );
+    }
+
+    #[test]
+    fn explicit_handback_completion_returns_to_picker_and_restarts_pristine_demo() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+
+        struct DropMarker(Arc<AtomicBool>);
+        impl Drop for DropMarker {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let mut state = TutorialState::new_autoplay();
+        let mut sandbox = None;
+        ensure_autoplay_setup(&mut state, &mut sandbox).expect("explicit setup");
+        let old_root = sandbox.as_ref().unwrap().root().to_path_buf();
+        std::fs::write(old_root.join("src/app.ts"), "mutated").expect("mutate old fixture");
+        let watcher_dropped = Arc::new(AtomicBool::new(false));
+        let watcher_drop = Arc::clone(&watcher_dropped);
+        let mut surface_run = 0;
+        let mut new_root = None;
+
+        let state = run_tutorial_session(
+            state,
+            None::<()>,
+            None::<DropMarker>,
+            sandbox,
+            |mut state, _file_rx, active_sandbox| {
+                surface_run += 1;
+                match surface_run {
+                    1 => {
+                        assert_eq!(active_sandbox.unwrap().root(), old_root);
+                        assert!(state.hand_back_autoplay());
+                        while state.phase == TutorialPhase::Running {
+                            state.advance_step();
+                        }
+                        state.handle_key(Action::Select);
+                    }
+                    2 => {
+                        assert_eq!(state.phase, TutorialPhase::PathSelect);
+                        assert!(!old_root.exists());
+                        state.path_selected = state.paths.len();
+                        state.handle_key(Action::Select);
+                    }
+                    3 => {
+                        let fresh = active_sandbox.unwrap().root().to_path_buf();
+                        assert_ne!(fresh, old_root);
+                        assert!(
+                            std::fs::read_to_string(fresh.join("src/app.ts"))
+                                .expect("fresh fixture")
+                                .contains("@ts-ignore")
+                        );
+                        new_root = Some(fresh);
+                    }
+                    _ => panic!("unexpected surface run {surface_run}"),
+                }
+                Ok(state)
+            },
+            |_state, _sandbox| unreachable!("watch is not entered"),
+            || Ok(((), DropMarker(Arc::clone(&watcher_drop)))),
+        )
+        .expect("session");
+
+        assert!(state.autoplay_session_active());
+        assert!(watcher_dropped.load(Ordering::SeqCst));
+        assert!(!new_root.expect("new sandbox root").exists());
+    }
+
+    #[test]
+    fn active_demo_mode_requires_its_sandbox_and_ordinary_mode_ignores_stale_one() {
+        let active = TutorialState::new_autoplay();
+        assert!(
+            watch_demo_root(&active, None, || {
+                anyhow::bail!("repo lookup must not run")
+            })
+            .is_err()
+        );
+
+        let stale = AutoplaySandbox::new().expect("stale sandbox");
+        let repo = tempfile::tempdir().expect("repo");
+        let ordinary = TutorialState::new();
+        let resolved = watch_demo_root(&ordinary, Some(&stale), || Ok(repo.path().to_path_buf()))
+            .expect("ordinary root");
+        assert_eq!(resolved, repo.path());
+    }
+
+    #[test]
+    fn progress_persistence_follows_demo_session_state_not_sandbox_presence() {
+        let mut state = TutorialState::new_autoplay();
+        assert!(!should_persist_progress(&state));
+        state.abort_autoplay_session();
+        assert!(should_persist_progress(&state));
+    }
+
+    #[test]
+    fn handed_back_demo_routes_watch_interactively() {
+        let root = tempfile::tempdir().expect("root");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay");
+        assert_eq!(watch_demo_mode(&state), WatchDemoMode::Autoplay);
+        assert!(state.hand_back_autoplay());
+        assert!(state.autoplay_session_active());
+        assert_eq!(watch_demo_mode(&state), WatchDemoMode::Interactive);
+    }
 
     #[test]
     fn progress_file_under_home() {

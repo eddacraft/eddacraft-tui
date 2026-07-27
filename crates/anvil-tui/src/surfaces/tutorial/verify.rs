@@ -27,9 +27,25 @@ pub enum VerifyResult {
 impl Verify {
     /// Run this verification check against captured command output.
     pub fn check(&self, output: &CommandOutput) -> VerifyResult {
+        self.check_in_root(output, None)
+    }
+
+    pub(crate) fn check_in_root(
+        &self,
+        output: &CommandOutput,
+        working_root: Option<&std::path::Path>,
+    ) -> VerifyResult {
         match self {
             Verify::FileExists(path) => {
-                if std::path::Path::new(path).exists() {
+                let target = if let Some(root) = working_root {
+                    match super::resolve_working_path(root, std::path::Path::new(path)) {
+                        Ok(target) => target,
+                        Err(error) => return VerifyResult::Fail(error.to_string()),
+                    }
+                } else {
+                    std::path::PathBuf::from(path)
+                };
+                if target.exists() {
                     VerifyResult::Pass
                 } else {
                     VerifyResult::Fail(format!("Expected file not found: {path}"))
@@ -105,6 +121,23 @@ mod tests {
             verify.check(&output),
             VerifyResult::Fail(format!("Expected file not found: {path}")),
         );
+    }
+
+    #[test]
+    fn file_exists_is_scoped_to_working_root() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::write(root.path().join("marker.txt"), "ok").expect("fixture");
+        let output = make_output("", "", true, Some(0));
+
+        assert_eq!(
+            Verify::FileExists("marker.txt".to_string()).check_in_root(&output, Some(root.path())),
+            VerifyResult::Pass
+        );
+        assert!(matches!(
+            Verify::FileExists("../escape.txt".to_string())
+                .check_in_root(&output, Some(root.path())),
+            VerifyResult::Fail(message) if message.contains("outside")
+        ));
     }
 
     // --- ExitCode ---

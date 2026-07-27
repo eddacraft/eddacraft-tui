@@ -37,6 +37,21 @@ layers:
     depends_on: []
 ";
 
+const AUTOPLAY_APP_SEED: &str = r"export function greet(name: any): string {
+  return `Hello, ${name}!`;
+}
+
+// @ts-ignore
+greet(42);
+";
+
+pub(super) const AUTOPLAY_APP_REPAIRED: &str = r#"export function greet(name: string): string {
+  return `Hello, ${name}!`;
+}
+
+greet("anvil");
+"#;
+
 fn step(title: &str, description: &str, instruction: &str) -> TutorialStep {
     TutorialStep {
         title: title.to_string(),
@@ -179,6 +194,50 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
             "anvil start --verify",
             CommandEffect::ReadOnly,
         ),
+    ]
+}
+
+/// WOW-006: sandbox-only demonstration beats. Kept separate from
+/// [`protection_loop_steps`] so the ordinary interactive tutorial retains its
+/// existing commands, copy, and consent posture byte-for-byte.
+pub fn autoplay_protection_loop_steps() -> Vec<TutorialStep> {
+    vec![
+        step_with_verify(
+            "Watch anvil check the pinned fixture",
+            "The isolated offline fixture deliberately contains AP-003 explicit any and AP-004 @ts-ignore findings.",
+            "Run: anvil check src/app.ts",
+            "anvil check src/app.ts",
+            CommandEffect::ReadOnly,
+            Verify::OutputContains("AP-003".to_string()),
+            "The pinned fixture did not report its expected AP-003 finding.",
+        ),
+        step_with_editor(
+            "Repair the fixture inline",
+            "Watch the inline editor remove the two deliberate escape hatches.",
+            "Edit src/app.ts in the sandbox.",
+            "src/app.ts",
+            AUTOPLAY_APP_SEED,
+            Verify::FileExists("src/app.ts".to_string()),
+            "The sandbox fixture source must remain present.",
+            "src/app.ts",
+        ),
+        step_with_verify(
+            "Verify the repaired fixture",
+            "Run the real offline check again to verify the fixture.",
+            "Run: anvil check src/app.ts",
+            "anvil check src/app.ts",
+            CommandEffect::ReadOnly,
+            Verify::ExitCode(0),
+            "The sandbox verification command failed.",
+        ),
+        TutorialStep {
+            watch_demo: true,
+            ..step(
+                "Watch the save-time loop react",
+                "The watch demo carries the same autoplay session across the surface transition.",
+                "Launch the sandbox watch demo.",
+            )
+        },
     ]
 }
 
