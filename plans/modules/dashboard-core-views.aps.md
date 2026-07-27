@@ -123,7 +123,8 @@ DASHARCH.
   gate-writer NDJSON store, then visualise gate-score and warning-count
   trajectory without fixture-invented points.
 - **Expected Outcome:** Gate persist best-effort appends
-  `.anvil/gate-history.ndjson` (90-day + ~500 line retention). Dashboard
+  `.anvil/gate-history.ndjson` (90-day valid-point + exact 500 physical-line
+  retention; malformed lines remain visible within the cap). Dashboard
   `GET /api/v1/protection/history` returns ordered raw points + actual range +
   honest `data_state`/gaps (drift/suppression unavailable in v1). Overview
   charts/sparklines consume that resource; browser aggregates daily/weekly in
@@ -155,6 +156,7 @@ DASHARCH.
   - `apps/dashboard/src/modules/protection/protection-overview.test.tsx`
   - `apps/dashboard/src/modules/protection/protection-overview.tsx`
   - `apps/dashboard/src/styles.css`
+  - `plans/specs/2026-07-26-dashcore-002-retained-history.md`
 - **Dependencies:** DASH foundation Merged; design approved; DASHCORE-001 Merged
 - **Validation:**
   - `cargo test -p eddacraft-anvil-dashboard-server`

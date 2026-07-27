@@ -32,7 +32,7 @@ without depending on Kindling.
 | 1 | Producer | Gate writer appends history when it persists a gate result |
 | 2 | Storage | Append-only NDJSON under `.anvil/` (default path `.anvil/gate-history.ndjson`) |
 | 3 | Series scope (v1) | Gate-derived fields only |
-| 4 | Retention | 90 calendar days, then soft line cap (~500); drop oldest |
+| 4 | Retention | Valid points: 90 calendar days; all physical lines: exact 500-line cap, dropping oldest. Preserve malformed lines within that cap so reads can report corruption honestly. |
 | 5 | API | Separate `GET /api/v1/protection/history` |
 | 6 | Append failure | Best-effort; must not fail the gate write |
 | 7 | Aggregation | Server returns raw ordered points; browser buckets daily/weekly |
@@ -70,8 +70,9 @@ apps/dashboard
      parsing the string `warnings` field)
    - optional but preferred when present: `duration_seconds`, `checks_run`
      (string forms as on `GateSnapshot`)
-3. Run retention: drop points older than 90 days; if still over ~500 lines, drop
-   oldest until under the cap.
+3. Run retention: drop valid points older than 90 days. Preserve malformed lines
+   so the read path can report corruption as `partial`; bound the complete file
+   to 500 physical lines by dropping the oldest lines.
 4. On any history I/O or GC failure: log/diagnostic only; **gate command remains
    successful**. That run may be absent from history (honest shorter range).
 

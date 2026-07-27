@@ -271,6 +271,9 @@ fn retain_gate_history_lines(
     let mut retained = lines
         .into_iter()
         .filter(|line| {
+            // Preserve malformed physical lines so the read path can report
+            // corruption as partial. They are not dated points, and remain
+            // bounded by the physical-line cap below.
             serde_json::from_slice::<GateHistoryPoint>(line).map_or(true, |point| {
                 chrono::DateTime::parse_from_rfc3339(&point.recorded_at)
                     .map_or(true, |recorded_at| {
