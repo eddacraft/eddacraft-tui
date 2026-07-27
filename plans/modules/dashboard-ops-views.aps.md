@@ -46,9 +46,11 @@ the developer-focused core pages.
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   dashboard server, and OpenAPI client seam
 - `contracts` — `ProvenanceRecordSchema`, `APSPlanSchema` (see `schema-contracts` module)
-- `crates/anvil-witness/` — the provenance record format: `WitnessLine` plus
-  the hash-chained manifest (`manifest.rs`), which `anvil audit-chain` reads
-  and verifies. (Replaces the archived `save-time-trust` module.)
+- `crates/anvil-witness/` — the provenance record format. `WitnessLine` is the
+  hash-chained ndjson record (each line carries the previous line's
+  `compute_line_hash`); `manifest.rs` indexes the archive files.
+  `anvil audit-chain` verifies chain integrity via `verify_chain_dag`.
+  (Replaces the archived `save-time-trust` module.)
 - `DriftSnapshot` in `crates/anvil-cli/src/commands/drift.rs` — plan/gate drift
   data behind `anvil drift`. (Replaces the archived `drift-reporting` module.)
 - `parse_suppression` in `crates/anvil-checks/src/antipattern/scanner.rs` —
@@ -60,8 +62,10 @@ the developer-focused core pages.
 
 - Audit pages at `/audit`, `/audit/users`, `/audit/ai-tools`
 - Plans pages at `/plans`, `/plans/$id` — **already shipped** by DASH-011 as
-  the Wave 1 proof module (PR #3321, `apps/dashboard/src/routes/plans.tsx`).
-  This module extends them with operator affordances, it does not create them.
+  the Wave 1 proof module (PR #3321). The path strings are declared in
+  `apps/dashboard/src/router.tsx` (`plansRoute`, `planDetailRoute`); the
+  components they render live in `apps/dashboard/src/routes/plans.tsx`. This
+  module extends them with operator affordances, it does not create them.
 - Configuration page at `/config`
 - Diagnostics page at `/diagnostics`
 - Role context provider consumed by all pages for conditional rendering

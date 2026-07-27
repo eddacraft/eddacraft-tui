@@ -31,7 +31,7 @@ making exceptions?"
 
 ## Out of Scope
 
-- Architecture definition editing (managed via `.anvil/architecture.yml` in code)
+- Architecture definition editing (managed via `.anvil/architecture.yaml` in code)
 - OPA policy authoring — owned by [`opa-enhancements`](./opa-enhancements.aps.md) (OPAE, In Progress), not by this module
 - Suppression creation or renewal through the UI — deferred to write API phase
 - Overview page metrics (see DASHCORE)
@@ -43,7 +43,7 @@ making exceptions?"
 - `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   dashboard server, and OpenAPI client seam
 - `crates/anvil-architecture/` — boundary rules, layer definitions, and
-  violation schemas. `definition.rs` parses `.anvil/architecture.yml` into
+  violation schemas. `definition.rs` parses `.anvil/architecture.yaml` into
   `ArchitectureDefinition`; `detection.rs` produces violations; `baseline.rs`
   holds the baselined set. (Replaces the archived `architecture-safety`
   module.)
@@ -53,10 +53,11 @@ making exceptions?"
   [ADR-006](../decisions/006-hybrid-dc-opa.md). (Replaces the archived
   `opa-architecture-integration` module.)
 - `DriftSnapshot` in `crates/anvil-cli/src/commands/drift.rs` — the snapshot
-  schema and comparison logic behind `anvil drift`; the TUI row shape is
-  `anvil-tui/src/surfaces/dashboard/drift.rs`. Trend calculation does not exist
-  yet — this module would add it. (Replaces the archived `drift-reporting`
-  module.)
+  schema and comparison logic behind `anvil drift`, including trend
+  (`overall_trend`, rendered by `trend_icon`). The TUI row shape is
+  `crates/anvil-tui/src/surfaces/dashboard/drift.rs`, whose `DriftDelta::trend()`
+  classifies net change. This module consumes those, it does not invent them.
+  (Replaces the archived `drift-reporting` module.)
 - `parse_suppression` in `crates/anvil-checks/src/antipattern/scanner.rs` — the
   authoritative suppression parser per
   [ADR-029](../decisions/029-suppression-parser-authority.md); per-surface
