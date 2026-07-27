@@ -79,30 +79,32 @@ pub fn list() -> Vec<Value> {
     resources
 }
 
-/// CIB-091d (CE-6): per-session byte ceiling for `graph://` resource reads.
+/// CIB-091d (CE-6) / MCP26-006: **process-local** MCP egress byte ceiling for
+/// `graph://` resource reads.
 ///
 /// `resources/read` page sizes are individually capped ([`MAX_PAGE_LIMIT`] = 200),
-/// but nothing bounded the *aggregate* bytes a single assistant session could
-/// pull, so an assistant could reassemble the whole graph across many
-/// round-trips. The stdio MCP server is **one process per client session**
-/// (`mcp_serve_stdio` runs a single synchronous loop over the session's stdio),
-/// so a process-global credit is naturally per-session: this counter accumulates
-/// the serialised byte size of every `graph://` payload served and refuses once
-/// the credit is spent.
+/// but nothing bounded the *aggregate* bytes a single MCP process could pull, so
+/// an assistant could reassemble the whole graph across many round-trips. The
+/// stdio MCP server is **one process per client connection** (`mcp_serve_stdio`
+/// runs a single synchronous loop over that process's stdio), so a process-global
+/// credit is the right accounting primitive: this counter accumulates the
+/// serialised byte size of every `graph://` payload served and refuses once the
+/// credit is spent. Modern MCP has no protocol session; restart the local MCP
+/// process to reset the budget.
 ///
 /// 8 MiB comfortably covers any honest interactive use (each identity-only page
 /// is small — a few KiB) while bounding bulk reassembly; the assistant can still
 /// page until the ceiling, then receives a structured `quota_exceeded`.
 const GRAPH_EGRESS_CREDIT_BYTES: u64 = 8 << 20;
 
-/// Bytes of `graph://` payload already served this session (process). Charged
-/// with a wrapping `fetch_add` (the only `AtomicU64` add primitive), but the
-/// ceiling check uses a `saturating_add` on the returned prior total so a
-/// pathological u64 wrap can never read as "under budget"; never reset for the
-/// life of the process (= the session).
+/// Bytes of `graph://` payload already served in this MCP process. Charged with
+/// a wrapping `fetch_add` (the only `AtomicU64` add primitive), but the ceiling
+/// check uses a `saturating_add` on the returned prior total so a pathological
+/// u64 wrap can never read as "under budget"; never reset for the life of the
+/// process.
 static GRAPH_EGRESS_SPENT: AtomicU64 = AtomicU64::new(0);
 
-/// CIB-091d: deduct `payload_bytes` from this session's `graph://` egress credit.
+/// CIB-091d: deduct `payload_bytes` from this process's `graph://` egress credit.
 /// Returns [`ReadError::QuotaExceeded`] once the cumulative total exceeds
 /// [`GRAPH_EGRESS_CREDIT_BYTES`] — the read that crosses the ceiling is refused
 /// (the page is not served), so the budget is a hard cap, not a soft one. Only
@@ -115,13 +117,14 @@ fn charge_graph_egress(payload_bytes: u64) -> Result<(), ReadError> {
     }
 }
 
-/// CIB-091d: the same per-session `graph://` egress credit, shared with the GCTX
-/// **tool-call** surface (`anvil_search_symbols`, `find_dependents`,
-/// `find_callers`, `impact_of_change`, `affected_tests`). The tool handlers carry
-/// the same identity data as the `graph://` resources, so without this they would
-/// be an unbounded back door past the resource byte ceiling — an assistant could
-/// reassemble the graph via `tools/call` instead of `resources/read`. Both paths
-/// charge the **same** [`GRAPH_EGRESS_SPENT`] accumulator.
+/// CIB-091d / MCP26-006: the same process-local `graph://` egress credit, shared
+/// with the GCTX **tool-call** surface (`anvil_search_symbols`,
+/// `find_dependents`, `find_callers`, `impact_of_change`, `affected_tests`). The
+/// tool handlers carry the same identity data as the `graph://` resources, so
+/// without this they would be an unbounded back door past the resource byte
+/// ceiling — an assistant could reassemble the graph via `tools/call` instead of
+/// `resources/read`. Both paths charge the **same** [`GRAPH_EGRESS_SPENT`]
+/// accumulator.
 ///
 /// Returns `true` when the read is within budget (and the bytes have been
 /// charged), `false` once the cumulative total would exceed
@@ -133,13 +136,13 @@ pub fn try_charge_graph_egress(payload_bytes: u64) -> bool {
     total <= GRAPH_EGRESS_CREDIT_BYTES
 }
 
-/// The structured reason text for an exhausted per-session `graph://` egress
+/// The structured reason text for an exhausted process-local `graph://` egress
 /// credit (shared by the resource and tool-call surfaces).
 #[must_use]
 pub fn graph_egress_quota_reason() -> String {
     format!(
-        "graph:// egress quota exhausted for this session ({GRAPH_EGRESS_CREDIT_BYTES} bytes); \
-         reconnect to reset"
+        "graph:// egress quota exhausted for this local MCP process \
+         ({GRAPH_EGRESS_CREDIT_BYTES} bytes); restart the local MCP process to reset"
     )
 }
 
@@ -179,7 +182,7 @@ pub enum ReadError {
     /// Daemon transport/protocol failure or an inaccessible server cwd →
     /// JSON-RPC `-32603`.
     Internal(String),
-    /// CIB-091d: the session's cumulative `graph://` egress credit is exhausted →
+    /// CIB-091d: the process's cumulative `graph://` egress credit is exhausted →
     /// JSON-RPC `-32603` with a `quota_exceeded` reason.
     QuotaExceeded(String),
 }
@@ -222,7 +225,7 @@ pub fn read(uri: &str) -> Result<Value, ReadError> {
             )));
         }
     };
-    // CIB-091d (CE-6): charge this session's per-session graph:// egress credit by
+    // CIB-091d (CE-6): charge this process's graph:// egress credit by
     // the serialised payload size; refuse the read that crosses the ceiling so a
     // session cannot reassemble the whole graph across many round-trips.
     let payload_bytes = serde_json::to_vec(&payload).map_or(0, |v| v.len() as u64);

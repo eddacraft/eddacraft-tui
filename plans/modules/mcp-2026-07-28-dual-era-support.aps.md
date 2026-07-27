@@ -266,7 +266,9 @@ legacy golden fixtures.
 
 ### MCP26-006: Lifecycle, warm-up and state terminology
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — lazy warm-up already era-neutral;
+  user-facing graph egress copy and code comments reworded to process-local
+  MCP budget (restart process, not reconnect session).
 - **Intent:** Remove modern dependence on initialise-era lifecycle and session
   wording.
 - **Expected Outcome:** Graph warm-up moves to server start or one-time lazy
@@ -286,10 +288,9 @@ legacy golden fixtures.
 
 ### MCP26-007: Modern activation verification
 
-- **Status:** In Progress 2026-07-27 — dual-era probe landed: disposable
-  `server/discover`, reap, fresh legacy `initialize`; diagnostic evidence
-  `protocolEra` / `protocolVersion` / `verificationMethod`; tier label
-  unchanged. Unit + integration tests green.
+- **Status:** In Progress 2026-07-27 — dual-era probe landed and tested
+  (modern discover success against built anvil; legacy fallback paths;
+  diagnostic evidence fields). Closeout pending final schema only.
 - **Intent:** Verify the installed anvil MCP entry without assuming a legacy
   handshake.
 - **Expected Outcome:** Activation probes `server/discover` on a disposable
@@ -310,7 +311,9 @@ legacy golden fixtures.
 
 ### MCP26-008: JSON Schema 2020-12 verification
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — `mcp/tools/schema_catalogue.rs`
+  validates all 14 `inputSchema` values as Draft 2020-12 with object root,
+  depth bound, no external `$ref`. Catalogue test green.
 - **Intent:** Confirm every published tool descriptor is valid under the modern
   schema contract.
 - **Expected Outcome:** All published tool `inputSchema` values validate as

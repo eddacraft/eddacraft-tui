@@ -379,7 +379,7 @@ mod tests {
     fn edict_auth_cache_entry_invalidates_on_license_change() {
         // Cache is keyed on (license, checked_at). A different license must
         // be treated as a miss even within the TTL window — credential
-        // changes during a long-lived MCP session must not be served stale.
+        // changes during a long-lived MCP process must not be served stale.
         let now = Instant::now();
         let entry = EdictAuthCacheEntry {
             license: "lic-a".to_string(),
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn gctx_tool_call_is_refused_once_the_shared_egress_credit_is_exhausted() {
-        // CIB-091d: a GCTX `tools/call` charges the SAME per-session graph://
+        // CIB-091d: a GCTX `tools/call` charges the SAME process-local graph://
         // egress credit as `resources/read`, closing the reassembly back door.
         // The credit is a process-global static; the shared test guard serialises
         // the credit-touching tests and zeroes the counter, so this starts fresh

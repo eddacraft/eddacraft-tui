@@ -8,10 +8,11 @@ use super::{
 pub struct ToolDefinition {
     pub name: &'static str,
     pub requires_auth: bool,
-    /// CIB-091d: this tool projects identity-only graph data (the GCTX read
-    /// surface), so its successful payload is charged against the per-session
-    /// `graph://` egress byte ceiling — the same credit `resources/read` spends —
-    /// closing the `tools/call` reassembly back door past the resource cap.
+    /// CIB-091d / MCP26-006: this tool projects identity-only graph data (the
+    /// GCTX read surface), so its successful payload is charged against the
+    /// process-local `graph://` egress byte ceiling — the same credit
+    /// `resources/read` spends — closing the `tools/call` reassembly back door
+    /// past the resource cap.
     pub charges_graph_egress: bool,
     descriptor: fn() -> Value,
     call: fn(&Value) -> Value,
