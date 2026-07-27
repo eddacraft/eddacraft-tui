@@ -5,7 +5,10 @@
 | MCP26 | —     | In Progress | 0/11     |
 
 **Last reviewed:** 2026-07-27 — module filed and MCP26-001 started on
-`feat/mcp26-dual-era-support` (pre-ratification branch). Final MCP
+`feat/mcp26-dual-era-support` (pre-ratification branch). Operator ratified
+ADR-113 direction, modern version, cache policy, non-goals, behaviour
+posture, and release window (next post-ratification release or next+1).
+Legacy default remains the full set; optional latest-only open. Final MCP
 `2026-07-28` publication is scheduled 2026-07-28; no dual-era wire work
 merges until MCP26-001 seals the final schema and SDK/adapter ADR.
 
@@ -171,9 +174,12 @@ legacy golden fixtures.
   matrix recorded; no implementation PR merges citing only the prerelease schema
 - **Evidence (pre-ratification, 2026-07-27):** RC lock, draft-changelog
   inventory, provisional legacy matrix, and `rmcp` status recorded in
-  `plans/audits/2026-07-27-mcp26-001-ratification-gate.md`. ADR-113 Proposed.
-  Still open: final schema publish, final-vs-RC diff, stable `rmcp` 3.0.0 pin
-  or accepted temporary-adapter closeout.
+  `plans/audits/2026-07-27-mcp26-001-ratification-gate.md`. ADR-113 Proposed
+  with **operator direction ratified 2026-07-27** (A–F, modern, cache,
+  non-goals, behaviour, release window; legacy default full set with optional
+  latest-only; error code hold). Still open: final schema publish,
+  final-vs-RC diff, sealed legacy choice, stable `rmcp` 3.0.0 pin or
+  temporary-adapter closeout, formal ADR Accept.
 - **Confidence:** medium
 
 ### MCP26-002: Extract anvil MCP domain handlers
@@ -384,22 +390,37 @@ legacy golden fixtures.
 
 1. **Dual-era, not modern-only** — retain initialise-era stdio for the sealed
    legacy client set until the support matrix no longer needs it.
+   Operator-ratified 2026-07-27.
 2. **SDK-first protocol layer** — prefer stable `rmcp` v3; temporary typed
    adapter only under MCP26-001 / ADR-113 with an explicit removal condition.
+   Operator-ratified 2026-07-27.
 3. **Domain handlers stay anvil-owned** — tools, resources, auth, redaction,
    containment, and egress accounting never move into the protocol SDK.
+   Operator-ratified 2026-07-27.
 4. **Era-neutral results, era-specific envelopes** — handlers must not inject
    protocol fields; the adapter owns `resultType`, server identity, and cache
    metadata.
 5. **Conservative private caching** — fixed catalogues may cache for one hour
    privately; workspace resource reads are immediately stale.
+   Operator-ratified 2026-07-27.
 6. **Process-local egress, not protocol sessions** — modern MCP has no session
    concept; existing byte budgets remain process-local security accounting.
+   Operator-ratified 2026-07-27.
 7. **Activation probes modern first** — discovery on a disposable child, then a
    fresh legacy child; never leave probe processes behind.
+   Operator-ratified 2026-07-27.
 8. **Branch until ratification** — keep MCP26 implementation and plan closeout
    on a feature branch until the final specification is ratified and MCP26-001
-   completes.
+   completes. Operator-ratified 2026-07-27.
+9. **Legacy matrix default** — keep
+   `2025-11-25` / `2025-06-18` / `2025-03-26` / `2024-11-05`. Optional narrow
+   to latest legacy only (`2025-11-25`) remains open if MCP26-001 evidence
+   supports it (operator open to being convinced).
+10. **Unsupported-version error** — hold exact code/shape until final schema
+    (draft points at `-32022`).
+11. **Release window** — ship in the first anvil release after MCP
+    `2026-07-28` ratification, or at latest that release + 1.
+    Operator-ratified 2026-07-27.
 
 ## Notes
 

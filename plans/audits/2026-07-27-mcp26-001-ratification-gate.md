@@ -6,8 +6,8 @@
 | Work item | MCP26-001 |
 | Branch | `feat/mcp26-dual-era-support` |
 | Date | 2026-07-27 |
-| Status | In Progress — pre-ratification |
-| ADR | [ADR-113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Proposed) |
+| Status | In Progress — pre-ratification; operator direction ratified 2026-07-27 |
+| ADR | [ADR-113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Proposed; direction operator-ratified) |
 
 ## Purpose
 
@@ -75,7 +75,8 @@ MCP26-001 closeout must re-diff the final schema and note deltas.
 | Era | Versions | Behaviour | Evidence |
 | --- | --- | --- | --- |
 | Modern | `2026-07-28` | Stateless dual-era modern path | Spec + draft |
-| Legacy | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` | Initialise-era stdio | Spec intent; MCPX clients all stdio launch |
+| Legacy (default) | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` | Initialise-era stdio | Operator default: keep all |
+| Legacy (optional narrow) | `2025-11-25` only | Smaller surface if MCPX evidence allows | Operator open; decide at closeout |
 
 ### Current anvil pins (pre-MCP26)
 
@@ -121,6 +122,31 @@ until then dual-era is mandatory.
 | Startup / memory budgets | **Open** — requires spike |
 | Licence / dependency review | **Partial** — Apache-2.0; full transitive review at pin time |
 
+## 4b. Operator ratification (2026-07-27)
+
+| Item | Decision |
+| ---- | -------- |
+| Direction A–F (dual-era, SDK-first, temporary typed adapter, no product beta pin, anvil domain ownership, branch until gate) | **Approved** |
+| Modern `2026-07-28` | **Yes** |
+| Legacy matrix | **Keep all** by default; open to latest-only (`2025-11-25`) if convinced by evidence |
+| Unsupported-version error | **Hold** for final schema |
+| Cache policy | **Approved** (`ttlMs`/`private` as in spec) |
+| Non-goals | **Approved** |
+| Egress/session wording, warm-up, activation probe | **OK** |
+| Release window | **First anvil release after ratification, or next+1** |
+
+### Legacy full-set vs latest-only (decision still open)
+
+**Default:** keep the full provisional legacy set (matches current anvil
+default `2024-11-05` fixtures and probe `2025-06-18`).
+
+**Optional narrow (operator open):** support only `2025-11-25` as legacy if
+MCP26-001/MCPX evidence shows promoted clients do not need older pins.
+Trade-off: less golden-fixture surface and simpler negotiation vs risk that
+older installed clients or probes still send `2024-11-05` / `2025-06-18`.
+Recommend **keep full set** unless a client inventory pass after ratification
+shows zero need for the older three.
+
 ## 5. Branch and merge policy
 
 - Branch: `feat/mcp26-dual-era-support` (Worktrunk worktree).
@@ -142,6 +168,9 @@ until then dual-era is mandatory.
 - [ ] ADR-113 Accepted (or Amended) and DECISION-LOG updated
 - [ ] Module MCP26-001 Status closed with validation evidence
 - [ ] Operator/release note: branch may open MCP26-002+ PRs
+- [ ] Release target named: first post-ratification anvil release, or that
+      release + 1 (operator-approved window)
+- [ ] Legacy matrix sealed as **full set** or **latest-only `2025-11-25`**
 
 ## 7. Final vs RC diff (fill after 2026-07-28)
 
