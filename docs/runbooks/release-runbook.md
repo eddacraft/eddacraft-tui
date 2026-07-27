@@ -115,10 +115,10 @@ bash scripts/release/preflight.sh \
 **Publication credential.** Preflight does not see GitHub Actions secrets, so
 verify the publication credential separately before committing to a cut:
 
-Read the token into a subshell rather than putting it on the command line —
-an inline assignment lands in shell history and is visible to process
-inspection, the same hazard
-[`release-token-scope.md`](./release-token-scope.md) already warns about:
+Read the token into a subshell rather than putting it on the command line — an
+inline assignment lands in shell history and is visible to process inspection,
+the same hazard [`release-token-scope.md`](./release-token-scope.md) already
+warns about:
 
 ```bash
 (
