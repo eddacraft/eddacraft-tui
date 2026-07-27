@@ -17,8 +17,7 @@ const MAX_META_DEPTH: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct ModernRequestMeta {
-    /// Retained for observability (MCP26-009) and future version branching.
-    #[allow(dead_code)]
+    /// Negotiated modern protocol version (MCP26-009 records this on spans).
     pub protocol_version: String,
     /// Present client info object is accepted but never trusted for auth.
     #[allow(dead_code)]

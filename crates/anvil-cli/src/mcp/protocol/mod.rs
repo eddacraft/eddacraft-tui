@@ -9,6 +9,7 @@ pub mod dispatch;
 pub mod domain;
 pub mod meta;
 pub mod render;
+pub mod trace;
 pub mod versions;
 
 pub use dispatch::handle_message;

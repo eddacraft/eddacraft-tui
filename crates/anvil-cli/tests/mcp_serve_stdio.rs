@@ -2216,3 +2216,68 @@ fn mcp_serve_stdio_modern_unsupported_version_returns_32022() {
     assert_eq!(parsed["error"]["data"]["requested"], "2099-01-01");
     assert_eq!(parsed["error"]["data"]["supported"], json!(["2026-07-28"]));
 }
+
+
+#[test]
+fn mcp_serve_stdio_modern_resources_list_cache_fields() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 10,
+        "method": "resources/list",
+        "params": modern_meta()
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send resources/list");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["result"]["resultType"], "complete");
+    assert_eq!(parsed["result"]["ttlMs"], 3_600_000);
+    assert_eq!(parsed["result"]["cacheScope"], "private");
+    assert!(parsed["result"]["resources"].as_array().is_some());
+}
+
+#[test]
+fn mcp_serve_stdio_modern_tools_call_status_envelope() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let mut params = modern_meta();
+    params["name"] = json!("anvil_status");
+    params["arguments"] = json!({});
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/call",
+        "params": params
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send tools/call");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["result"]["resultType"], "complete");
+    assert_eq!(
+        parsed["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "anvil"
+    );
+    // tools/call is not a CacheableResult — no ttlMs required
+    assert!(parsed["result"].get("ttlMs").is_none());
+}

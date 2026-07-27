@@ -4,12 +4,12 @@
 | ----- | ----- | ----------- | -------- |
 | MCP26 | —     | In Progress | 0/11     |
 
-**Last reviewed:** 2026-07-27 — operator authorised **implementation against
-the locked RC** on `feat/mcp26-dual-era-support`. Dual-era host, domain extraction, `server/discover`, modern envelopes,
-modern stdio tests, and modern activation probe landed against the RC
-contract. MCP26-001 remains open for final schema
-diff + formal ADR Accept before merge to `main`. Release: first post-
-ratification cut or next+1.
+**Last reviewed:** 2026-07-27 — RC implementation advanced on
+`feat/mcp26-dual-era-support` (**pushed; no PR to main until final MCP
+`2026-07-28` ratification**). Dual-era host, discover, envelopes, activation
+probe, schema catalogue, process-local egress copy, and W3C trace-context
+binding landed against the RC. MCP26-001 remains open for final schema seal
++ formal ADR Accept. Release: first post-ratification cut or next+1.
 
 ## Purpose
 
@@ -180,9 +180,9 @@ legacy golden fixtures.
 
 ### MCP26-002: Extract anvil MCP domain handlers
 
-- **Status:** In Progress 2026-07-27 — domain handlers live under
-  `crates/anvil-cli/src/mcp/protocol/domain.rs`; `commands/mcp.rs` is the thin
-  stdio host. Golden era-neutral fixtures covered by protocol unit tests.
+- **Status:** In Progress 2026-07-27 — domain handlers under
+  `mcp/protocol/domain.rs`; thin stdio host. **RC complete on branch**;
+  formal Done deferred until MCP26-001 final seal (no main merge).
 - **Intent:** Separate protocol concerns from anvil behaviour before changing
   the wire format.
 - **Expected Outcome:** Domain dispatch and invocation live outside the thin
@@ -202,9 +202,9 @@ legacy golden fixtures.
 
 ### MCP26-003: Dual-era stdio protocol host
 
-- **Status:** In Progress 2026-07-27 — dual-era dispatch against RC in
-  `mcp/protocol/dispatch.rs` + `meta.rs`; legacy lifecycle gated; modern
-  `-32022`; modern exit does not terminate process.
+- **Status:** In Progress 2026-07-27 — dual-era dispatch against RC;
+  modern/legacy golden + integration tests green. **RC complete on branch**;
+  formal Done deferred until MCP26-001 final seal.
 - **Intent:** Serve modern and legacy clients from one binary without mixing
   lifecycle rules.
 - **Expected Outcome:** Modern per-request `_meta` is parsed and validated;
@@ -224,9 +224,8 @@ legacy golden fixtures.
 
 ### MCP26-004: Discovery and capability declaration
 
-- **Status:** In Progress 2026-07-27 — `server/discover` RC shape with
-  supportedVersions, tools/resources capabilities, instructions, cache,
-  serverInfo. Integration test green.
+- **Status:** In Progress 2026-07-27 — `server/discover` RC shape tested.
+  **RC complete on branch**; formal Done deferred until MCP26-001 final seal.
 - **Intent:** Implement mandatory modern `server/discover` with honest
   capability claims.
 - **Expected Outcome:** `server/discover` returns supported modern versions,
@@ -243,9 +242,9 @@ legacy golden fixtures.
 
 ### MCP26-005: Modern result envelopes and caching
 
-- **Status:** In Progress 2026-07-27 — modern `resultType` + serverInfo +
-  cache policy on list/discover/read via `mcp/protocol/render.rs`; legacy
-  wire unchanged.
+- **Status:** In Progress 2026-07-27 — modern envelopes + cache policy on
+  discover/list/read; tools/call stamps resultType without cache fields.
+  **RC complete on branch**; formal Done deferred until MCP26-001 final seal.
 - **Intent:** Make every modern successful result conforming and cache-safe.
 - **Expected Outcome:** Modern successes include `resultType: "complete"` and
   server identity in result `_meta`; discovery, list, and resource-read results
@@ -266,9 +265,9 @@ legacy golden fixtures.
 
 ### MCP26-006: Lifecycle, warm-up and state terminology
 
-- **Status:** In Progress 2026-07-27 — lazy warm-up already era-neutral;
-  user-facing graph egress copy and code comments reworded to process-local
-  MCP budget (restart process, not reconnect session).
+- **Status:** In Progress 2026-07-27 — lazy warm-up era-neutral; egress
+  copy process-local. **RC complete on branch** (docs wave MCP26-011 will
+  finish architecture doc pass); formal Done after MCP26-001 + docs.
 - **Intent:** Remove modern dependence on initialise-era lifecycle and session
   wording.
 - **Expected Outcome:** Graph warm-up moves to server start or one-time lazy
@@ -288,9 +287,9 @@ legacy golden fixtures.
 
 ### MCP26-007: Modern activation verification
 
-- **Status:** In Progress 2026-07-27 — dual-era probe landed and tested
-  (modern discover success against built anvil; legacy fallback paths;
-  diagnostic evidence fields). Closeout pending final schema only.
+- **Status:** In Progress 2026-07-27 — dual-era probe + evidence fields
+  tested. **RC complete on branch**; formal Done deferred until MCP26-001
+  final seal.
 - **Intent:** Verify the installed anvil MCP entry without assuming a legacy
   handshake.
 - **Expected Outcome:** Activation probes `server/discover` on a disposable
@@ -311,9 +310,9 @@ legacy golden fixtures.
 
 ### MCP26-008: JSON Schema 2020-12 verification
 
-- **Status:** In Progress 2026-07-27 — `mcp/tools/schema_catalogue.rs`
-  validates all 14 `inputSchema` values as Draft 2020-12 with object root,
-  depth bound, no external `$ref`. Catalogue test green.
+- **Status:** In Progress 2026-07-27 — catalogue Draft 2020-12 tests green
+  (test-only module; `jsonschema` remains a dev-dep). **RC complete on
+  branch**; official conformance suite still MCP26-010.
 - **Intent:** Confirm every published tool descriptor is valid under the modern
   schema contract.
 - **Expected Outcome:** All published tool `inputSchema` values validate as
@@ -330,7 +329,10 @@ legacy golden fixtures.
 
 ### MCP26-009: Trace context and observability
 
-- **Status:** Proposed
+- **Status:** In Progress 2026-07-27 — `mcp/protocol/trace.rs` extracts
+  valid W3C `traceparent` from request `_meta`, binds to the current span,
+  records protocol era/version/method; malformed values ignored (no panic).
+  **RC complete on branch**.
 - **Intent:** Correlate MCP requests without treating client metadata as
   trusted.
 - **Expected Outcome:** Valid W3C `traceparent` / `tracestate` / `baggage` from
@@ -433,6 +435,11 @@ legacy golden fixtures.
     Operator-ratified 2026-07-27.
 
 ## Notes
+
+- **Branch policy (operator):** keep all dual-era work on
+  `feat/mcp26-dual-era-support` until the MCP `2026-07-28` standard is
+  ratified and MCP26-001 closes. Do **not** open a PR targeting `main`
+  for this module until then.
 
 - Spec non-goals (HTTP, Apps, Tasks, MRTR, subscriptions) remain follow-on
   opportunities outside MCP26.

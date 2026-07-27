@@ -8,6 +8,7 @@ use super::render::{
     CachePolicy, ProtocolEra, discover_body, error_response, error_response_with_data,
     render_success,
 };
+use super::trace::enter_request_span;
 use super::versions::{
     ERR_INVALID_REQUEST, ERR_METHOD_NOT_FOUND, ERR_UNSUPPORTED_PROTOCOL_VERSION,
 };
@@ -60,13 +61,21 @@ fn handle_modern(id: &Value, method: Option<&str>, message: &Value, params: Opti
     let meta = match parse_modern_meta(params) {
         Ok(m) => m,
         Err(err) => {
+            // Still enter a span so malformed meta is observable; version unknown.
+            let _span = enter_request_span(method, ProtocolEra::Modern, None, params);
             return match err.data() {
                 Some(data) => error_response_with_data(id, err.code(), err.message(), &data),
                 None => error_response(id, err.code(), err.message()),
             };
         }
     };
-    let _ = meta; // retained for future span/trace correlation (MCP26-009)
+
+    let _span = enter_request_span(
+        method,
+        ProtocolEra::Modern,
+        Some(meta.protocol_version.as_str()),
+        params,
+    );
 
     match method {
         Some("server/discover") => {
@@ -94,6 +103,12 @@ fn handle_modern(id: &Value, method: Option<&str>, message: &Value, params: Opti
 }
 
 fn handle_legacy(id: &Value, method: Option<&str>, message: &Value) -> Value {
+    let params = message.get("params");
+    let protocol_version = params
+        .and_then(|p| p.get("protocolVersion"))
+        .and_then(Value::as_str);
+    let _span = enter_request_span(method, ProtocolEra::Legacy, protocol_version, params);
+
     match method {
         Some("initialize") => finish(id, ProtocolEra::Legacy, domain::legacy_initialize(id, message)),
         Some("exit") => error_response(id, ERR_INVALID_REQUEST, "Invalid Request"),
