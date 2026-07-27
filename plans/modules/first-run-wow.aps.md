@@ -14,7 +14,8 @@ the first-run journey underuses the discovery scan's real findings. WOW-001..004
 are Merged. WOW-005's first-win direction and consent boundary are accepted by
 the JOURNEY design, while its execution depends on ACTTUI-009's production
 consent wiring. WOW-006 is In Progress: implementation and Council repair are
-complete locally, with PR publication and review still pending.
+complete, with draft PR
+[#3441](https://github.com/eddacraft/anvil-001/pull/3441) open for review.
 
 ## Purpose
 
@@ -176,7 +177,8 @@ evidence affordances and personalization on top of the repaired baseline.
   Prerequisites are in place (ACTTUI-000 Done, ACTTUI-001 scaffold landed,
   WOW-002 reveal driver Merged, shared ACTTUI widgets available). The local
   implementation passed Council and independent verification; draft PR
-  publication is pending. Coordinated by JOURNEY-007.
+  [#3441](https://github.com/eddacraft/anvil-001/pull/3441) is open against
+  `main`. Coordinated by JOURNEY-007.
 - **Intent:** A "watch anvil work" mode plays the tutorial hands-free —
   commands, inline-editor ghost-typing, verification — against a scaffolded
   temp fixture repo, so the demo executes for real without touching the
