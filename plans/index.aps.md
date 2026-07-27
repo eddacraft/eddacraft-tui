@@ -102,7 +102,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | DASHCORE-002 — retained history and trends | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | Implementation verified against the approved design: bounded gate-history persistence, typed history API, and honest Overview trends. | Review and land the verified DASHCORE-002 pull request. |
+| 1 | DASHCORE-002 — retained history and trends | In Progress | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | Implementation verified against the approved design: bounded gate-history persistence, typed history API, and honest Overview trends. | Review and land [PR #3436](https://github.com/eddacraft/anvil-001/pull/3436). |
 
 NBI review note (2026-07-26, DASHCORE-002 Ready): design grill approved; spec `plans/specs/2026-07-26-dashcore-002-retained-history.md`. Promoted **DASHCORE-002** to Ready for implementation.
 

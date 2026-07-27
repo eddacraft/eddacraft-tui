@@ -116,6 +116,7 @@ DASHARCH.
 ### DASHCORE-002: Overview — retained history and trend charts
 
 - **Status:** In Progress
+- **Pull Request:** [#3436](https://github.com/eddacraft/anvil-001/pull/3436)
 - **Design:** [2026-07-26-dashcore-002-retained-history.md](../specs/2026-07-26-dashcore-002-retained-history.md)
   (approved 2026-07-26)
 - **Intent:** Add the authoritative historical health read model from a
