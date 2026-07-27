@@ -5356,8 +5356,6 @@ archive.
   lockfiles actually changed so PRs are judged on their own diff; or both —
   they address different halves of the problem. Related remediation landed in
   [PR #3417](https://github.com/eddacraft/anvil-001/pull/3417).
-||||||| parent of 673ced204 (docs(aps): record v0.9.x follow-through state and file CIB-202)
-||||||| parent of b1db2ab82 (docs(aps): file CIB-203 for per-family licence-text attribution)
 
 ### CIB-205: ACKNOWLEDGEMENTS prints one licence text per family, dropping the others' copyright notices
 
