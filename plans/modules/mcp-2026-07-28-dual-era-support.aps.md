@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| MCP26 | —     | In Progress | 0/11     |
+| MCP26 | —     | In Progress | 0/12     |
 
 **Last reviewed:** 2026-07-27 — RC implementation advanced on
 `feat/mcp26-dual-era-support` (**pushed; no PR to main until final MCP
@@ -130,7 +130,7 @@ Change module status to **Ready** when:
 
 - [x] Purpose and scope are clear
 - [x] Dependencies and non-goals identified
-- [x] Work items MCP26-001..011 defined with intent, outcome, validation
+- [x] Work items MCP26-001..012 defined with intent, outcome, validation
 - [ ] MCP26-001 seals the final schema, legacy matrix, and SDK/adapter ADR
 - [ ] No dual-era implementation PR merges before MCP26-001 closes
 
@@ -145,9 +145,11 @@ Change module status to **Ready** when:
 | 4 | MCP26-008, MCP26-009 | Schema 2020-12 and trace correlation |
 | 5 | MCP26-010 | Official conformance + client/platform matrix |
 | 6 | MCP26-011 | Docs and release notes |
+| 7 | MCP26-012 | Official `rmcp` product pin and temporary-adapter removal |
 
 MCP26-003..005 may develop together but must not merge without both modern and
-legacy golden fixtures.
+legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
+(or after a stable `rmcp` release exists if 001 closed on the temporary adapter).
 
 ## Work Items
 
@@ -398,6 +400,65 @@ legacy golden fixtures.
   compatibility claim
 - **Confidence:** high
 
+### MCP26-012: Adopt official Rust MCP SDK (`rmcp`) for protocol framing
+
+- **Status:** Ready
+- **Intent:** Replace the temporary dual-era protocol adapter with the official
+  Rust MCP SDK (`rmcp`) once a stable release targets final MCP `2026-07-28`
+  and passes the adoption gate, so protocol framing is not permanently owned
+  by hand-written anvil code.
+- **Expected Outcome:**
+  - Product `Cargo.toml` / `crates/anvil-cli/Cargo.toml` pin a **stable**
+    `rmcp` (and any required companion crates) that implements final
+    `2026-07-28` dual-era stdio behaviour.
+  - Spec §8.2 adoption gate is evidenced: final wire match; four MiB frame
+    ceiling; stdout purity; clean EOF exit; Windows process behaviour;
+    anvil synchronous domain handlers without blocking the runtime; startup
+    and resident-memory budgets; licence review.
+  - Temporary adapter under `crates/anvil-cli/src/mcp/protocol/` is removed or
+    reduced to a thin `rmcp` integration seam; dual-era golden fixtures and
+    `mcp_serve_stdio` / activation probe contracts stay green.
+  - Domain ownership remains anvil-only (tools, resources, auth, redaction,
+    workspace containment, graph egress, daemon/embedded fallbacks).
+  - ADR-113 is **Accepted** or **Amended** with exact `rmcp` and conformance
+    suite pins and the adapter removal record.
+- **Out of item:**
+  - Shipping a **product** pin of `rmcp` `3.0.0-beta.*` (or other pre-release)
+    without operator exception — betas may be used only for non-shipped
+    evaluation spikes on the feature branch (ADR-113).
+  - Tier-1 SDK betas (Python / TypeScript / Go / C#) — wrong stack for anvil
+    stdio host.
+  - Streamable HTTP, OAuth, Apps, Tasks, MRTR (remain MCP26 non-goals).
+- **Files:**
+  - `Cargo.toml` / `crates/anvil-cli/Cargo.toml` / `Cargo.lock`
+  - `crates/anvil-cli/src/mcp/protocol/**` (adapter removal or `rmcp` seam)
+  - `crates/anvil-cli/src/commands/mcp.rs` (host wiring)
+  - `crates/anvil-cli/src/mcp/**` domain modules (unchanged contracts)
+  - `crates/anvil-cli/tests/mcp_serve_stdio.rs`
+  - `crates/anvil-cli/tests/mcp_activation_probe.rs`
+  - `plans/decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md`
+  - `plans/audits/` (adoption-gate evidence note)
+- **Dependencies:**
+  - MCP26-001 (final schema seal + SDK path authorised, or reopen if 001 closed
+    on temporary adapter only)
+  - MCP26-002..005 dual-era contracts and fixtures already on branch
+  - crates.io stable `rmcp` ≥ target major targeting final `2026-07-28`
+  - Prefer after or in parallel with MCP26-010 conformance so official suite
+    evidence binds the pin (MCP26-010 may remain Partially Complete if SDK
+    suite version is recorded here)
+- **Validation:**
+  - `cargo test -p eddacraft-anvil --test mcp_serve_stdio`
+  - `cargo test -p eddacraft-anvil --test mcp_activation_probe`
+  - `cargo test -p eddacraft-anvil --bin anvil protocol::`
+  - Oversize-frame / EOF / dual-era golden fixtures remain green under `rmcp`
+  - Adoption-gate checklist in audit note all checked or ADR exception recorded
+  - `pnpm docs:check` if architecture wording changes for SDK boundary
+- **Confidence:** medium
+- **Notes:** Temporary adapter path already delivered RC dual-era behaviour on
+  `feat/mcp26-dual-era-support`. This item is the ADR-113 **removal condition**
+  for that adapter. Evaluation spikes against `rmcp` betas are allowed on the
+  feature branch only and must not merge as the permanent product pin.
+
 ## Decisions
 
 1. **Dual-era, not modern-only** — retain initialise-era stdio for the sealed
@@ -446,5 +507,7 @@ legacy golden fixtures.
 - RMCPF still owns remaining full-port leftovers (RMCPF-021 transport decision,
   RMCPF-030 compatibility harness vs archived TS, RMCPF-031 archive closeout).
   MCP26 owns the protocol-version dual-era cut, not tool/resource parity.
-- Stored progress `0/11` is advisory (ADR-053). Item `Status:` lines are
+- Stored progress `0/12` is advisory (ADR-053). Item `Status:` lines are
   authoritative.
+- MCP26-012 filed 2026-07-28 after clawpatch dual-era pass: product still on
+  temporary typed adapter; official `rmcp` adoption is the follow-on SDK item.
