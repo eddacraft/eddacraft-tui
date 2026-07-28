@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 159/201  |
+| CIB | —     | In Progress | 160/202  |
 
 ## Purpose
 
@@ -5441,3 +5441,44 @@ archive.
 - **Coordinates with:** CIB-193 (the gate), ACTMO (Windows daemon-ensure
   chain), DSV-010/-011 (Windows save-time support).
 - **Confidence:** high
+
+### CIB-206: Worktree-anchor auto-heal generated stash debris and could reset staged work away
+
+- **Status:** Merged 2026-07-27 via PR #3440
+- **Intent:** `scripts/dev/heal-primary-anchor.sh` runs as a `wt` post-switch /
+  post-merge / post-remove hook on every worktree mutation. A hook that silently
+  accumulates artefacts, or that can discard uncommitted work, undermines the
+  anchor-strand protection it exists to provide.
+- **Expected Outcome:** the heal serialises correctly across concurrent agents,
+  never leaves a stash that captured nothing, and never resets away work that is
+  not provably a strand.
+- **Evidence:** 50 `primary-anchor: ... preserved for review` stashes had
+  accumulated in the `anvil-001` clone; 27 captured nothing at all — working
+  tree, index and untracked trees byte-identical to `HEAD`. Three defects:
+  1. The `flock` file was `"${TMPDIR:-/tmp}/anvil-heal-primary-anchor.lock"`.
+     Each agent process has its own `$TMPDIR`, so every agent took a private
+     lock and nothing was excluded. Concurrent heals raced and a loser stashed a
+     tree the winner had already reset. 21 stashes were created on 2026-07-27
+     alone, 15 of them inside one minute (16:37:38–16:38:04).
+  2. `git stash create` never includes untracked files, so an anchor holding
+     only untracked files could never be proven a strand and was always stashed
+     — hiding regenerable state such as `anvil/baseline.json`. `git reset
+     --hard` does not touch untracked files, so they were never at risk.
+  3. **Data loss:** `git stash create` commits the *working tree*, so staging an
+     edit and then restoring the file yields a snapshot whose tree matches
+     `HEAD` while the index does not — indistinguishable from a healed anchor.
+     The strand proof matched it and `git reset --hard` destroyed the staged
+     change outright, with no stash involved. Reproduced against the script as
+     it stood on `main`. Surfaced by review on PR #3440, not by the original
+     diagnosis.
+- **Validation:** `scripts/dev/heal-primary-anchor.test.sh` covers 9 cases; the
+  assertions added for each defect fail against the previous script and pass
+  against the repaired one.
+- **Identified From:** branch/stash cleanup sweep, 2026-07-27.
+- **Coordinates with:** `docs/guides/worktree-policy.md` § "Default-branch
+  anchor auto-heal", `.config/wt.toml` hook wiring.
+- **Confidence:** high
+- **Notes:** the 50 stashes were preserved as `refs/stash-backup/00..49` before
+  clearing, and remain recoverable with `git stash apply refs/stash-backup/NN`
+  until deliberately deleted. Defect 3 is the reason this is filed rather than
+  left as a small-fix: the class of bug was live data loss, not just debris.
