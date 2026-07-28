@@ -2,9 +2,7 @@
 
 use serde_json::Value;
 
-use super::versions::{
-    ERR_INVALID_PARAMS, ERR_UNSUPPORTED_PROTOCOL_VERSION, is_modern_version,
-};
+use super::versions::{ERR_INVALID_PARAMS, ERR_UNSUPPORTED_PROTOCOL_VERSION, is_modern_version};
 
 /// Keys under `params._meta` for the modern era (RC).
 pub const META_PROTOCOL_VERSION: &str = "io.modelcontextprotocol/protocolVersion";
@@ -70,12 +68,12 @@ impl MetaError {
     }
 }
 
-/// True when `params._meta` carries a modern protocol-version key (string or not).
+/// True when `params` carries a `_meta` field (modern intent).
+///
+/// Presence alone selects the modern era so malformed metadata is rejected by
+/// [`parse_modern_meta`] rather than falling through to the legacy dispatcher.
 pub fn looks_like_modern_request(params: Option<&Value>) -> bool {
-    params
-        .and_then(|p| p.get("_meta"))
-        .and_then(Value::as_object)
-        .is_some_and(|meta| meta.contains_key(META_PROTOCOL_VERSION))
+    params.is_some_and(|p| p.get("_meta").is_some())
 }
 
 pub fn parse_modern_meta(params: Option<&Value>) -> Result<ModernRequestMeta, MetaError> {
@@ -190,5 +188,19 @@ mod tests {
         .expect("valid modern meta");
         assert_eq!(meta.protocol_version, "2026-07-28");
         assert!(meta.client_info.is_none());
+    }
+
+    #[test]
+    fn presence_of_meta_is_modern_intent() {
+        assert!(looks_like_modern_request(Some(&json!({
+            "_meta": {}
+        }))));
+        assert!(looks_like_modern_request(Some(&json!({
+            "_meta": "not-an-object"
+        }))));
+        assert!(!looks_like_modern_request(Some(&json!({
+            "protocolVersion": "2024-11-05"
+        }))));
+        assert!(!looks_like_modern_request(None));
     }
 }

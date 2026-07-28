@@ -14,9 +14,7 @@ use crate::feature_flags;
 use crate::mcp::tools::{registry, validate_write};
 
 use super::render::{CachePolicy, error_response, error_response_with_data, server_info};
-use super::versions::{
-    DEFAULT_LEGACY_PROTOCOL_VERSION, ERR_INTERNAL, ERR_INVALID_PARAMS,
-};
+use super::versions::{DEFAULT_LEGACY_PROTOCOL_VERSION, ERR_INTERNAL, ERR_INVALID_PARAMS};
 
 /// Shared server instructions text (initialize + discover).
 pub const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation tools: anvil_validate_write and anvil_apply_patch. Before applying any file write - Write, Edit, MultiEdit, fs.write, apply_edit, or equivalent - call anvil_validate_write with the proposed content (or a preview of the first lines) and respect the response decision. When applying a unified diff to an existing file, prefer anvil_apply_patch instead; it accepts a unifiedDiff and scans only the added lines, producing a smaller, more readable approval prompt. Decision vocabulary: `block` is authoritative — do not write, do not bypass via alternate tools (the response carries either a `diagnostics` array of findings or an `error` describing why the gate refused). `warn` means findings were detected but the workspace enforcement mode lets the write proceed — surface the diagnostics and continue. `gateUnavailable` is informational — the gate could not run (e.g. credentials missing or backend offline); surface the warning to the user and proceed with the write. `allow` means the proposed content passed validation.";
@@ -25,10 +23,7 @@ pub const SERVER_INSTRUCTIONS: &str = "This server provides two write-validation
 #[derive(Debug)]
 pub enum DomainResult {
     /// Success body (era-neutral object).
-    Ok {
-        body: Value,
-        cache: CachePolicy,
-    },
+    Ok { body: Value, cache: CachePolicy },
     /// JSON-RPC error already fully shaped (rare paths that bypass render).
     Rpc(Value),
 }
@@ -92,7 +87,8 @@ pub fn legacy_process_initialized() -> bool {
 #[cfg(test)]
 pub fn lock_legacy_init_for_test() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: Mutex<()> = Mutex::new(());
-    LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    LOCK.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Test-only: reset the legacy-init flag between unit tests.
@@ -186,15 +182,11 @@ pub fn resources_read(id: &Value, message: &Value) -> DomainResult {
     match crate::mcp::resources::read(uri) {
         Ok(result) => DomainResult::ok_body(result, CachePolicy::ImmediatePrivate),
         Err(err @ crate::mcp::resources::ReadError::BadRequest(_)) => {
-            DomainResult::invalid_params_data(
-                id,
-                json!({ "reason": err.reason(), "uri": uri }),
-            )
+            DomainResult::invalid_params_data(id, json!({ "reason": err.reason(), "uri": uri }))
         }
-        Err(err @ crate::mcp::resources::ReadError::Internal(_)) => DomainResult::internal_data(
-            id,
-            json!({ "reason": err.reason(), "uri": uri }),
-        ),
+        Err(err @ crate::mcp::resources::ReadError::Internal(_)) => {
+            DomainResult::internal_data(id, json!({ "reason": err.reason(), "uri": uri }))
+        }
         Err(err @ crate::mcp::resources::ReadError::QuotaExceeded(_)) => {
             DomainResult::internal_data(
                 id,
@@ -253,7 +245,6 @@ pub fn legacy_ping() -> DomainResult {
 pub fn legacy_shutdown() -> DomainResult {
     DomainResult::ok_body(Value::Null, CachePolicy::None)
 }
-
 
 /// A GCTX tool result is an error when its MCP envelope carries `isError: true`.
 pub fn gctx_tool_result_is_error(result: &Value) -> bool {

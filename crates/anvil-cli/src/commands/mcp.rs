@@ -271,7 +271,6 @@ fn run_stdio_server() -> Result<()> {
     Ok(())
 }
 
-
 enum Frame {
     Message(Vec<u8>),
     Oversize,

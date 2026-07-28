@@ -7,12 +7,8 @@ pub const MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 pub const DEFAULT_LEGACY_PROTOCOL_VERSION: &str = "2024-11-05";
 
 /// Sealed legacy initialise-era set (operator default: keep all).
-pub const LEGACY_PROTOCOL_VERSIONS: &[&str] = &[
-    "2025-11-25",
-    "2025-06-18",
-    "2025-03-26",
-    "2024-11-05",
-];
+pub const LEGACY_PROTOCOL_VERSIONS: &[&str] =
+    &["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 /// JSON-RPC / MCP error: unsupported modern protocol version (draft renumber).
 pub const ERR_UNSUPPORTED_PROTOCOL_VERSION: i64 = -32022;

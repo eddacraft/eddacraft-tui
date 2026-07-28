@@ -92,9 +92,7 @@ fn stamp_modern(body: &mut Value, cache: CachePolicy) {
 
     map.insert("resultType".into(), json!("complete"));
 
-    let meta = map
-        .entry("_meta".to_string())
-        .or_insert_with(|| json!({}));
+    let meta = map.entry("_meta".to_string()).or_insert_with(|| json!({}));
     if let Value::Object(meta_map) = meta {
         meta_map
             .entry(META_SERVER_INFO.to_string())
@@ -149,21 +147,28 @@ mod tests {
     #[test]
     fn modern_success_stamps_result_type_and_server_info() {
         let body = json!({ "tools": [] });
-        let response = render_success(&json!(1), ProtocolEra::Modern, body, CachePolicy::StablePrivate);
+        let response = render_success(
+            &json!(1),
+            ProtocolEra::Modern,
+            body,
+            CachePolicy::StablePrivate,
+        );
         let result = &response["result"];
         assert_eq!(result["resultType"], "complete");
         assert_eq!(result["ttlMs"], TTL_STABLE_MS);
         assert_eq!(result["cacheScope"], "private");
-        assert_eq!(
-            result["_meta"][META_SERVER_INFO]["name"],
-            "anvil"
-        );
+        assert_eq!(result["_meta"][META_SERVER_INFO]["name"], "anvil");
     }
 
     #[test]
     fn legacy_success_does_not_add_modern_fields() {
         let body = json!({ "tools": [] });
-        let response = render_success(&json!(1), ProtocolEra::Legacy, body, CachePolicy::StablePrivate);
+        let response = render_success(
+            &json!(1),
+            ProtocolEra::Legacy,
+            body,
+            CachePolicy::StablePrivate,
+        );
         let result = &response["result"];
         assert!(result.get("resultType").is_none());
         assert!(result.get("ttlMs").is_none());

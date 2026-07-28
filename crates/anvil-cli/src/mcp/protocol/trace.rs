@@ -38,7 +38,10 @@ pub fn enter_request_span(
     );
     let entered = span.entered();
 
-    if let Some(meta) = params.and_then(|p| p.get("_meta")).and_then(Value::as_object) {
+    if let Some(meta) = params
+        .and_then(|p| p.get("_meta"))
+        .and_then(Value::as_object)
+    {
         if let Some(raw) = meta.get(META_TRACEPARENT).and_then(Value::as_str) {
             match TraceContext::parse(raw.trim()) {
                 Ok(ctx) => {
@@ -52,7 +55,11 @@ pub fn enter_request_span(
         }
         // Record presence only — do not trust or forward baggage/tracestate as
         // authority. Values are not copied into env or policy.
-        if meta.get(META_TRACESTATE).and_then(Value::as_str).is_some_and(|s| !s.is_empty()) {
+        if meta
+            .get(META_TRACESTATE)
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty())
+        {
             tracing::Span::current().record("mcp.tracestate_present", true);
         }
         if meta.contains_key(META_BAGGAGE) {
@@ -73,10 +80,7 @@ fn era_label(era: ProtocolEra) -> &'static str {
 /// Pure helper for tests: try to parse a traceparent string from `_meta`.
 #[cfg(test)]
 pub fn extract_traceparent(params: Option<&Value>) -> Option<TraceContext> {
-    let raw = params?
-        .get("_meta")?
-        .get(META_TRACEPARENT)?
-        .as_str()?;
+    let raw = params?.get("_meta")?.get(META_TRACEPARENT)?.as_str()?;
     TraceContext::parse(raw.trim()).ok()
 }
 

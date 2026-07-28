@@ -89,6 +89,7 @@ fn mcp_serve_stdio_tools_call_status_rejects_workspace_outside_server_root() {
     let mut child = spawn_mcp_server_in(server_root.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -135,6 +136,7 @@ fn mcp_serve_stdio_ready_notification_does_not_emit_response() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -181,6 +183,7 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -448,7 +451,10 @@ fn mcp_serve_stdio_malformed_json_returns_protocol_error() {
 }
 
 #[test]
-fn mcp_serve_stdio_initialize_invalid_params_returns_invalid_params_error() {
+fn mcp_serve_stdio_initialize_invalid_params_returns_invalid_request() {
+    // JSON-RPC 2.0 requires params (when present) to be an object or array.
+    // A scalar params value is an Invalid Request, not a method-level
+    // Invalid Params failure.
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
@@ -481,7 +487,7 @@ fn mcp_serve_stdio_initialize_invalid_params_returns_invalid_params_error() {
     });
     assert_eq!(parsed["jsonrpc"], "2.0");
     assert_eq!(parsed["id"], 4);
-    assert_eq!(parsed["error"]["code"], -32602);
+    assert_eq!(parsed["error"]["code"], -32600);
 }
 
 #[test]
@@ -489,6 +495,7 @@ fn mcp_serve_stdio_unsupported_method_returns_method_not_found() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -525,6 +532,7 @@ fn mcp_serve_stdio_resources_list_advertises_graph_resources() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -562,6 +570,7 @@ fn mcp_serve_stdio_resources_read_stats_returns_contents() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -601,9 +610,9 @@ fn mcp_serve_stdio_resources_read_stats_returns_contents() {
         .as_str()
         .expect("contents text is a string");
     let outcome: Value = serde_json::from_str(text).expect("contents text is JSON");
-    assert!(
-        outcome.get("outcome").is_some(),
-        "carries a sealed outcome: {outcome}"
+    assert_eq!(
+        outcome["outcome"]["status"], "unavailable",
+        "without a daemon, graph://stats must seal as unavailable: {outcome}"
     );
 }
 
@@ -616,6 +625,7 @@ fn mcp_serve_stdio_resources_read_symbols_and_edges_return_contents() {
         let mut child = spawn_mcp_server();
         let stdout = child.stdout.take().expect("child stdout is piped");
         let stdout_rx = spawn_stdout_reader(stdout);
+        send_legacy_initialize(&mut child, &stdout_rx, 0);
         {
             let stdin = child.stdin.as_mut().expect("child stdin is piped");
             writeln!(
@@ -662,6 +672,7 @@ fn mcp_serve_stdio_tools_call_rejects_unknown_tool() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -702,6 +713,7 @@ fn mcp_serve_stdio_tools_call_missing_arguments_blocks_write() {
     let mut child = spawn_mcp_server_with_dev_bypass();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -749,6 +761,7 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content_via_embedded_fallb
         spawn_mcp_server_with_dev_bypass_without_daemon(runtime_dir.path(), home_dir.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -810,6 +823,7 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
     let mut child = spawn_mcp_server_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -877,6 +891,7 @@ fn mcp_serve_stdio_tools_call_check_returns_clean_payload_for_clean_files() {
     let mut child = spawn_mcp_server_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -932,6 +947,7 @@ fn mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root() {
     let mut child = spawn_mcp_server_in(server_root.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -985,6 +1001,7 @@ fn mcp_serve_stdio_tools_call_gate_planless_mode_scans_target_files() {
     let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1039,6 +1056,7 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content_via_embedded_fallback() {
         spawn_mcp_server_with_dev_bypass_without_daemon(runtime_dir.path(), home_dir.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1093,6 +1111,7 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content() {
     let mut child = spawn_mcp_server_with_dev_bypass_and_daemon(daemon.xdg_runtime_dir());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1149,6 +1168,7 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content() {
     let mut child = spawn_mcp_server_with_dev_bypass_and_daemon(daemon.xdg_runtime_dir());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1211,6 +1231,7 @@ fn mcp_serve_stdio_tools_call_query_boundary_returns_no_baseline_for_clean_works
     let mut child = spawn_mcp_server_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1266,6 +1287,7 @@ fn mcp_serve_stdio_tools_call_suppress_inserts_comment_in_workspace_file() {
     let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1334,6 +1356,7 @@ fn mcp_serve_stdio_tools_call_suppress_rejects_workspace_outside_server_root() {
     let mut child = spawn_mcp_server_with_dev_bypass_in(server_root.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1397,6 +1420,7 @@ fn mcp_serve_stdio_tools_call_fix_replaces_any_with_unknown() {
     let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1463,6 +1487,7 @@ fn mcp_serve_stdio_tools_call_fix_requires_auth_without_credentials() {
     let mut child = spawn_mcp_server_unauthenticated_in(workspace.path(), empty_home.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1539,6 +1564,7 @@ fn mcp_serve_stdio_tools_call_fix_rejects_workspace_outside_server_root() {
     let mut child = spawn_mcp_server_with_dev_bypass_in(server_root.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1661,6 +1687,7 @@ fn mcp_serve_stdio_prompts_list_returns_method_not_found() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -1733,6 +1760,7 @@ fn read_anvil_resource(cwd: &Path, id: i64, uri: &str) -> Value {
     let mut child = spawn_mcp_server_in(cwd);
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
         writeln!(
@@ -1778,6 +1806,7 @@ fn mcp_serve_stdio_resources_list_advertises_anvil_resources() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
         writeln!(
@@ -2085,9 +2114,21 @@ fn spawn_stdout_reader(stdout: ChildStdout) -> Receiver<std::io::Result<String>>
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        let result = reader.read_line(&mut line).map(|_| line);
-        let _ = tx.send(result);
+        loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if tx.send(Ok(line)).is_err() {
+                        break;
+                    }
+                }
+                Err(err) => {
+                    let _ = tx.send(Err(err));
+                    break;
+                }
+            }
+        }
     });
     rx
 }
@@ -2101,6 +2142,37 @@ fn recv_stdout_line(child: &mut Child, rx: &Receiver<std::io::Result<String>>) -
             panic!("timed out waiting for child stdout: {err}");
         }
     }
+}
+
+/// Sealed legacy initialise frame (MCP26 dual-era: required before tools/resources).
+fn legacy_initialize_frame(id: u64) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "rmcp-test-client",
+                "version": "0.0.0"
+            }
+        }
+    })
+}
+
+/// Write a sealed legacy initialise and drain its response line.
+fn send_legacy_initialize(child: &mut Child, rx: &Receiver<std::io::Result<String>>, id: u64) {
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{}", legacy_initialize_frame(id)).expect("send initialize");
+    }
+    let line = recv_stdout_line(child, rx);
+    let parsed: Value = serde_json::from_str(line.trim()).expect("initialize response is JSON");
+    assert_eq!(
+        parsed["result"]["protocolVersion"], "2024-11-05",
+        "legacy initialise must succeed before subsequent requests: {parsed}"
+    );
 }
 
 fn parse_tool_payload(parsed: &Value) -> Value {
@@ -2134,7 +2206,6 @@ fn kill_child(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();
 }
-
 
 fn modern_meta() -> Value {
     json!({
@@ -2243,7 +2314,6 @@ fn mcp_serve_stdio_modern_unsupported_version_returns_32022() {
     assert_eq!(parsed["error"]["data"]["supported"], json!(["2026-07-28"]));
 }
 
-
 #[test]
 fn mcp_serve_stdio_modern_resources_list_cache_fields() {
     let mut child = spawn_mcp_server();
@@ -2307,7 +2377,6 @@ fn mcp_serve_stdio_modern_tools_call_status_envelope() {
     // tools/call is not a CacheableResult — no ttlMs required
     assert!(parsed["result"].get("ttlMs").is_none());
 }
-
 
 #[test]
 fn mcp_serve_stdio_modern_resources_read_is_immediately_stale() {

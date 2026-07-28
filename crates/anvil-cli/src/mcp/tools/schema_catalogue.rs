@@ -163,10 +163,7 @@ mod tests {
     #[test]
     fn entire_published_catalogue_validates_as_draft_2020_12() {
         validate_catalogue_schemas().unwrap_or_else(|errs| {
-            panic!(
-                "catalogue schema validation failed:\n{}",
-                errs.join("\n")
-            );
+            panic!("catalogue schema validation failed:\n{}", errs.join("\n"));
         });
     }
 

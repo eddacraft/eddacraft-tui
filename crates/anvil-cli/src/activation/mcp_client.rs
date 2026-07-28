@@ -1188,7 +1188,10 @@ fn validate_discover_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
             "missing non-empty result.supportedVersions".to_string(),
         ));
     };
-    let Some(protocol_version) = supported.iter().find_map(|v| v.as_str()).map(str::to_string)
+    let Some(protocol_version) = supported
+        .iter()
+        .find_map(|v| v.as_str())
+        .map(str::to_string)
     else {
         return Err(ProbeError::BadResponse(
             "supportedVersions entries must be strings".to_string(),
@@ -1546,10 +1549,7 @@ mod tests {
         let err = validate_discover_response(raw).expect_err("legacy-shaped body must fail");
         match &err {
             ProbeError::BadResponse(s) => {
-                assert!(
-                    s.contains("resultType") || s.contains("_meta"),
-                    "got {s}"
-                );
+                assert!(s.contains("resultType") || s.contains("_meta"), "got {s}");
             }
             other => panic!("expected BadResponse, got {other:?}"),
         }
@@ -1569,7 +1569,8 @@ mod tests {
 
     #[test]
     fn validate_discover_method_not_found_is_fallback_shaped() {
-        let raw = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let raw =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
         let err = validate_discover_response(raw).expect_err("method not found must fail");
         assert!(modern_probe_should_fallback(&err));
         match err {
@@ -1755,7 +1756,10 @@ mod tests {
         };
         let evidence = probe_startable(&entry).expect("current anvil must probe successfully");
         assert_eq!(evidence.protocol_era, ProtocolEraEvidence::Modern);
-        assert_eq!(evidence.verification_method, VerificationMethod::ServerDiscover);
+        assert_eq!(
+            evidence.verification_method,
+            VerificationMethod::ServerDiscover
+        );
         assert_eq!(evidence.protocol_version, "2026-07-28");
     }
 }
