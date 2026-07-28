@@ -366,18 +366,22 @@ whose tree matches `HEAD` while the index does not — indistinguishable from a
 healed anchor by tree alone. The proof therefore also requires the index to
 agree with the working tree, which a genuine strand always does.
 
-The heal exits non-zero in two cases, both of which leave the anchor untouched
-and need a human:
+The heal exits non-zero in two cases. **Nothing is discarded in either one** —
+the anchor is left exactly as it was, with its changes still in the working
+tree. What failed is the heal, not your work:
 
 - `git stash push` itself failed — permissions, a corrupt object store, or an
-  `index.lock` held by another process. The anchor's changes are **not**
-  preserved.
+  `index.lock` held by another process. The changes were never copied into a
+  stash, so they are still in the working tree; `git stash list` will not show
+  them.
 - The anchor still holds changes but no stash was created.
 
 Both fail the `wt` hook chain deliberately. Every other early exit returns 0,
-but these two mean work is sitting unpreserved, and a silent hook is precisely
-what let the stash debris accumulate unnoticed. If a `wt` command reports a
-failing `heal-anchor` hook, read the logged message before re-running anything.
+but these two mean the anchor was left un-healed with work still in it, and a
+silent hook is precisely what let the stash debris accumulate unnoticed. If a
+`wt` command reports a failing `heal-anchor` hook, read the logged message and
+inspect the anchor with `git -C <anchor> status` before re-running anything —
+the changes are there to be committed or moved to a branch.
 
 > **Do not move that lock under `$TMPDIR`.** Each agent process gets its own
 > `$TMPDIR`, so a `$TMPDIR`-derived path gives every agent a private lock and
