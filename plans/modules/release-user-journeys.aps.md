@@ -229,14 +229,16 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-007: Sandboxed autoplay demonstration
 
-- **Status:** Ready 2026-07-26 — WOW-006's design gate is closed (operator
+- **Status:** In Progress 2026-07-30 — WOW-006's design gate is closed (operator
   approved; design at
   [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)):
   fresh-tempdir offline fixture with RAII cleanup, real in-sandbox execution
   behind a path-containment guard, `anvil tutorial --autoplay` + a picker
   discovery row, session-scoped autoplay that survives the watch-demo
-  transition, and pacing that extends the WOW-002 reveal driver. Implementation
-  is a later pass (coordinates the WOW-006 build).
+  transition, and pacing that extends the WOW-002 reveal driver. The coordinated
+  WOW-006 build is open as PR #3441 (`feat/wow-006-sandbox-autoplay`), which
+  reconciles WOW-006 in its own diff. Flip to
+  `Merged YYYY-MM-DD via PR #3441` when it lands.
 - **Intent:** Preserve a hands-free, isolated demonstration for clean repos and
   demos without making animation a substitute for real repository value.
 - **Expected Outcome:** WOW-006 runs deterministically in a temporary fixture,

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 160/202  |
+| CIB | —     | In Progress | 162/203  |
 
 ## Purpose
 
@@ -5164,8 +5164,14 @@ archive.
 
 ### CIB-199: Anti-pattern gate false-positives on committed generated files
 
-- **Status:** In Progress — Safe A generated-file exclusion proposed in PR #3373
-  (open); severity/baseline follow-ups tracked below.
+- **Status:** Merged 2026-07-22 via PR #3373, #3375 — Safe A generated-file
+  exclusion Merged 2026-07-21 via PR #3373 (ADR-112 recorded in #3374), and the
+  severity reconciliation Merged 2026-07-22 via PR #3375: `gate.rs` no longer
+  hardcodes the `Warning` threshold and now derives it from the opt-in
+  `--fail-on-warnings` / `ANVIL_FAIL_ON_WARNINGS`, restoring ADR-002
+  warnings-over-blocks. The third disposition — generalising the finding-baseline
+  to the anti-pattern family — was always scoped as its own ADR-gated module and
+  is spun out as **CIB-207**; it does not hold this item open.
 - **Intent:** A beta tester's `anvil gate` failed CI on `routeTree.gen.ts`
   (TanStack Router Vite plugin output). Generated files ship blanket
   `/* eslint-disable */` + `// @ts-nocheck` headers by construction, tripping
@@ -5199,12 +5205,12 @@ archive.
     must-block security rules to `error`, drop the `Warning` override so
     warnings-over-blocks holds per ADR-002, and expose `fail-on-warnings` opt-in
     with a migration note. Separate follow-up PR; must not ship as a silent
-    default flip.
-  - **Baselining (deferred):** generalise the SQL-drift finding-baseline to the
-    anti-pattern family as its own ADR-gated module — the durable "new edges
-    only" answer, and the spoof-resistant alternative to content-trust. Design
-    around grandfathering, regenerated-file fingerprint churn, and CI-runner
-    snapshot persistence.
+    default flip. **Merged 2026-07-22 via PR #3375.**
+  - **Baselining (spun out as CIB-207):** generalise the SQL-drift
+    finding-baseline to the anti-pattern family as its own ADR-gated module —
+    the durable "new edges only" answer, and the spoof-resistant alternative to
+    content-trust. Design around grandfathering, regenerated-file fingerprint
+    churn, and CI-runner snapshot persistence.
 - **Non-scope:** Public reference docs (`rules.md`, `cli.md`) are
   generator-output; the `rules.md` "a warning does not automatically mean a
   command failed" line becomes true once the severity reconciliation lands, and
@@ -5220,7 +5226,7 @@ archive.
 - **Coordinates with:** ADR-112 (severity reconciliation), ADR-002
   (warnings-over-blocks).
 - **Confidence:** high — F1/F2/F3 verified in-repo by all five reviewers;
-  Safe A implemented in PR #3373 and green in CI.
+  Safe A implemented in PR #3373 and green in CI; F1 discharged by PR #3375.
 
 ### CIB-200: Delegate package-manager-owned updates after explicit consent
 
@@ -5262,7 +5268,7 @@ archive.
 
 ### CIB-201: Refresh repository-local APS package from canonical vending
 
-- **Status:** In Progress: 2026-07-24
+- **Status:** Merged 2026-07-26 via PR #3407
 - **Intent:** Replace the legacy root APS skill and stale harness agents with the
   current package emitted by the APS binary from canonical eddacraft assets.
 - **Expected Outcome:** The repository carries current Claude, Copilot, and
@@ -5286,7 +5292,8 @@ archive.
   fresh. Format, docs, active APS lint, CIB index counts, and diff checks pass.
   Changed-scope validation passed except for nine daemon-absence assertions
   contaminated by a live local daemon; the isolated MCP tool slice passed all
-  211 tests. Proposed in [PR #3407](https://github.com/eddacraft/anvil-001/pull/3407).
+  211 tests. Merged 2026-07-26 via
+  [PR #3407](https://github.com/eddacraft/anvil-001/pull/3407).
   The pre-existing DASHCORE count mismatch remains an advisory.
 
 ### CIB-202: Flaky beacon reservation test under parallel load
@@ -5482,3 +5489,37 @@ archive.
   clearing, and remain recoverable with `git stash apply refs/stash-backup/NN`
   until deliberately deleted. Defect 3 is the reason this is filed rather than
   left as a small-fix: the class of bug was live data loss, not just debris.
+
+### CIB-207: Generalise the finding-baseline to the anti-pattern family
+
+- **Status:** Draft
+- **Intent:** Anti-pattern findings are never baselined — the baseline and
+  new-edges machinery is SQL-drift-only — so `anvil gate` fires on pre-existing
+  files rather than on what the current change introduced. That contradicts the
+  "new edges only" architecture principle, and it is the durable answer to the
+  generated-file false-positive class that CIB-199 could only address by path
+  convention.
+- **Expected Outcome:** an ADR-gated design (and, on acceptance, its own module)
+  for extending the finding-baseline to the anti-pattern family, so a gate
+  warns on newly introduced anti-patterns and stays quiet on grandfathered
+  ones. Baselining is also the spoof-resistant alternative to content-trust:
+  unlike an in-file marker, a developer cannot opt their own new code out of the
+  gate by writing a banner into it.
+- **Design questions:** grandfathering semantics on first adoption;
+  fingerprint churn when a generated file is regenerated; how a CI runner
+  obtains and persists the baseline snapshot; interaction with the CIB-199
+  generated-file exclusion once both exist.
+- **Non-scope:** re-litigating the CIB-199 path-convention exclusion or the
+  ADR-112 severity reconciliation — both shipped and stand on their own.
+- **Validation:** ADR accepted and recorded in
+  `plans/decisions/DECISION-LOG.md`; `pnpm docs:check`; `pnpm aps:active-lint`.
+  Implementation validation belongs to the module this ADR spawns, not to the
+  design item.
+- **Identified From:** spun out of CIB-199's third disposition during the
+  2026-07-30 reconciliation sweep; scoped there as its own ADR-gated module from
+  the outset, so it was holding a fully-shipped item open.
+- **Coordinates with:** CIB-199, ADR-112, ADR-002 (warnings-over-blocks), the
+  existing SQL-drift baseline.
+- **Confidence:** medium — the shape is clear and the precedent exists in the
+  SQL-drift baseline, but grandfathering and CI snapshot persistence are
+  genuinely open.

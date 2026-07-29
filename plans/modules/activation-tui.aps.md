@@ -2,36 +2,40 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 6/14      |
+| ACTTUI | Josh  | Done | 14/14      |
 
-**Last reviewed:** 2026-07-25 — [ADR-103](../decisions/103-tty-default-activation-tui.md)
-**Accepted** by the owner, and the Release 2 TTY-default flip is filed as
-**ACTTUI-013**. Its named gates — ACTTUI-008 welcome convergence,
-ACTTUI-009 consent wiring, ACTTUI-010 contract/PTY matrix, ACTTUI-012 polish —
-are all Merged, so the 2026-07-09 council block on the flip is cleared and the
-phase-C decision JOURNEY-002 deferred now has an owning work item. On `main`,
-`anvil start` remains opt-in behind `--tui` / `ANVIL_ACTIVATION_TUI=1`; the flip
-itself is in flight as ACTTUI-013 (In Progress, PR #3411), which retires those
-two to inert aliases and keeps `--no-tui` / `ANVIL_NO_TUI=1` as the permanent
-escape hatches.
+**Last reviewed:** 2026-07-30 — reconciliation sweep. All fourteen items are
+Merged-or-Done and the module is **Done**. The Release 2 TTY-default flip
+(**ACTTUI-013**) Merged 2026-07-26 via PR #3411: on `main`, a genuinely
+interactive `anvil start` now enters the activation TUI with **no flag**.
+`--tui` is a hidden accepted no-op and `ANVIL_ACTIVATION_TUI` is inert; the
+permanent escape hatches are `--no-tui` / `ANVIL_NO_TUI=1`. Its named gates —
+ACTTUI-008 welcome convergence, ACTTUI-009 consent wiring, ACTTUI-010
+contract/PTY matrix, ACTTUI-012 polish — had already cleared the 2026-07-09
+council block, and the phase-C decision JOURNEY-002 deferred is now discharged.
+
+The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
+remains the governing rollout ladder. Post-flip celebration and richer
+diagnostic depth are not tracked here; new work needs a new item or module.
 
 Earlier review (2026-07-11) — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
 and WOW-005 release-cut gates, while retaining celebration and richer diagnostics
 as coordinated enhancements. The 2026-07-10 ACTTUI-009..011 implementation
-milestone is active on `feat/acttui-009-consent-wiring`. Consent now binds the
+milestone Merged via PR #3263. Consent now binds the
 exact selected targets and applies only after explicit submission; the contract matrix includes
 real PTY restoration and all-phase snapshots; verdict/evidence models are built
 from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
 e2e checks pass locally. ACTTUI-012 has since Merged via PR #3284. The earlier
 post-ACTTUI first-run council review
 ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
-blocked the TTY-default flip because the opt-in `--tui` consent path is still a
-dead end. ACTTUI-009..012 now track the remediation wave. ACTTUI-000 planning
-gate merged (PR #3232); ACTTUI-001 activation-surface scaffold, ACTTUI-002
-progress events, ACTTUI-003 working progress, ACTTUI-004 consent chrome,
-ACTTUI-005 verdict tree, ACTTUI-006 tier-evidence LogPanel, and ACTTUI-007
-fixture hardening are In Progress across the stacked ACTTUI branches. ADR-103
+blocked the TTY-default flip because the opt-in `--tui` consent path was then a
+dead end; ACTTUI-009..012 tracked that remediation wave and all Merged.
+ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface
+scaffold (#3234), ACTTUI-002 progress events (#3236), ACTTUI-003 working
+progress (#3237), ACTTUI-004 consent chrome (#3238), ACTTUI-005 verdict tree
+(#3254), ACTTUI-006 tier-evidence LogPanel (#3256), and ACTTUI-007 fixture
+hardening (#3257) all Merged across the stacked ACTTUI branches. ADR-103
 Accepted 2026-07-25, fixture spec + fixture home created, public scripting contract
 documented, and PR #3231 WOW-005/006 dependency acknowledged. Module originally
 created via planning-workflow + planning-council direction-validate (four-lens
@@ -168,8 +172,8 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-001: Activation surface scaffold + plain fallback contract
 
-- **Status:** In Progress 2026-07-08 — surface scaffold + opt-in dispatch landed
-  on `feat/acttui-001-scaffold`. New
+- **Status:** Merged 2026-07-08 via PR #3234 — surface scaffold + opt-in
+  dispatch. New
   `crates/anvil-tui/src/surfaces/activation/` (`ActivationPhase` enum +
   `ActivationSurface` + renderer with gated-`ANVIL_HOME` banner); `anvil start`
   gains `--tui` and honours `ANVIL_ACTIVATION_TUI`, gated behind genuine
@@ -197,8 +201,8 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-002: Orchestrator progress events (decouple presentation)
 
-- **Status:** In Progress 2026-07-08 — activation progress event contract implemented
-  on `feat/acttui-002-events` (stacked on ACTTUI-001). Added typed
+- **Status:** Merged 2026-07-08 via PR #3236 — activation progress event
+  contract implemented (stacked on ACTTUI-001). Added typed
   `ActivationStep`/`ActivationStepEvent`/`ActivationRun` primitives,
   `StartRenderMode`, TUI-mode lifecycle/log buffering, and a consent deferral
   seam so `demand` pickers are not invoked on the TUI path. Full in-surface
@@ -222,9 +226,9 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-003: Working phase — `ParallelProgress` + `Spinner`
 
-- **Status:** In Progress 2026-07-08 — activation surface renders orchestrator
-  progress rows via shared `eddacraft-tui` `ParallelProgress` and shows an Anvil
-  spinner for daemon ensure on `feat/acttui-003-working-phase` (stacked on
+- **Status:** Merged 2026-07-08 via PR #3237 — activation surface renders
+  orchestrator progress rows via shared `eddacraft-tui` `ParallelProgress` and
+  shows an Anvil spinner for daemon ensure (stacked on
   ACTTUI-002). Progress is fed from `ActivationRun` events; deferred TUI consent
   transitions the surface to `Consent`, otherwise it lands on `Verdict`.
 - **Dependencies:** ACTTUI-002
@@ -242,18 +246,15 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-004: Consent phase — `Select`, `Confirm`, `OverlayStack`
 
-- **Status:** In Progress 2026-07-08 — consent model and renderer in
+- **Status:** Merged 2026-07-09 via PR #3238 — consent model and renderer in
   `crates/anvil-tui/src/surfaces/activation/consent.rs` use `Select`,
   `Confirm`, and `OverlayStack`; rows default unticked, gated `ANVIL_HOME`
   disables repo-scoped writes, and unsafe drift opens an acknowledgement overlay
   without implicit selection. Orchestrator handoff remains through the
-  ACTTUI-002 deferral seam. **Remaining gap (flagged by Copilot review on
-  #3238):** `commands/start.rs` never constructs a `ConsentState` or calls
-  `ActivationSurface::with_consent(...)`, so even though the deferred
-  MCP/workflow progress rows correctly drive `phase == Consent`, the surface
-  still falls through to the verdict renderer — the consent picker is not yet
-  reachable, and there is no apply-selection path to actually install after
-  the picker interaction. That wiring is the remaining scope for this item.
+  ACTTUI-002 deferral seam. The end-to-end wiring gap flagged by Copilot review
+  on #3238 — `commands/start.rs` never constructing a `ConsentState`, so the
+  picker was unreachable and had no apply-selection path — was reparented to
+  **ACTTUI-009**, Merged 2026-07-10 via PR #3263.
 - **Dependencies:** ACTTUI-003
 - **Intent:** MCP, workflow, and hook consent use the shared picker chrome with
   descriptions, drift badges, and explicit tick-to-install — replacing `demand`.
@@ -275,7 +276,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-005: Verdict phase — `Tree`, `StatusBadge`, `BigBanner`, `Toast`, smoke test
 
-- **Status:** In Progress 2026-07-08 — structured verdict model/view in
+- **Status:** Merged 2026-07-09 via PR #3254 — structured verdict model/view in
   `crates/anvil-tui/src/surfaces/activation/verdict.rs` renders state labels
   through `StatusBadge`, collapsible evidence through `Tree`, contextual keys
   through `HelpBar`, optional `BigBanner`, and a thin-v1 honest `Toast` for the
@@ -302,7 +303,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-006: Tier evidence — `LogPanel` + optional `json_render` catalogue
 
-- **Status:** In Progress 2026-07-09 — ACTTUI evidence rows now feed an
+- **Status:** Merged 2026-07-09 via PR #3256 — ACTTUI evidence rows now feed an
   in-surface `LogPanel`: compact verdict rows, orchestrator lifecycle lines, and
   `render_human_verbose` (`--why`) text are parsed into `LogEntry` rows. The
   `l` key toggles tier evidence in the activation surface, and TUI `--why`
@@ -325,12 +326,11 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-007: Contract hardening — verify/json/CI matrix
 
-- **Status:** In Progress 2026-07-09 — fixture-backed read-only/JSON/no-TUI
+- **Status:** Merged 2026-07-09 via PR #3257 — fixture-backed read-only/JSON/no-TUI
   contract tests now pin the reachable `ready_restart_required` path in
   `crates/anvil-cli/tests/fixtures/start-activation/`, with e2e parity coverage
   for `--no-tui` and `ANVIL_NO_TUI=1`. The `protecting` and PTY transcript
-  matrix remains gated on a harness that can synthesise live MCP/daemon
-  attestation without over-claiming.
+  matrix was reparented to **ACTTUI-010**, Merged 2026-07-10 via PR #3263.
 - **Dependencies:** ACTTUI-005
 - **Intent:** Scripted and CI consumers never regress when TUI becomes default.
 - **Expected Outcome:** `anvil start --verify` and `--json` byte-stable against
@@ -480,14 +480,13 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-013: TTY-default flip — activation TUI on the default interactive path
 
-- **Status:** In Progress
-- **Progress:** Implementation open as PR #3411 — `start_render_mode` derives
+- **Status:** Merged 2026-07-26 via PR #3411
+- **Progress:** `start_render_mode` derives
   from `activation_tui_allowed` (pure argument/environment policy, unit-testable
   without a PTY) plus the stdio terminal probe, with the opt-in gate removed.
   `--tui` is retained as a hidden, accepted no-op and `ANVIL_ACTIVATION_TUI` is
   inert. New coverage: flag-free PTY entry, `--no-tui` holding in a real PTY,
-  and byte-identical output with the retired aliases passed. Flip to
-  `Merged YYYY-MM-DD via PR #3411` on merge.
+  and byte-identical output with the retired aliases passed.
 - **Source:** [ADR-103](../decisions/103-tty-default-activation-tui.md) §4
   rollout ladder, Release 2 (Accepted 2026-07-25); JOURNEY-002 closed the
   just-works gate but deferred the flip itself as a phase-C decision
