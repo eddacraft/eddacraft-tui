@@ -124,7 +124,7 @@ fn schema_depth(value: &Value, current: usize) -> usize {
 
 /// True when `$ref` is same-document only (`#…` or bare `#`).
 fn is_local_ref(uri: &str) -> bool {
-    uri == "#" || uri.starts_with("#/") || uri.starts_with("#")
+    uri.starts_with('#')
 }
 
 fn first_external_ref(value: &Value) -> Option<String> {

@@ -48,10 +48,9 @@ fn installed_anvil_answers_modern_discover_for_activation_probe() {
     writeln!(stdin, "{request}").expect("write discover");
     drop(stdin);
 
-    let line = match rx.recv_timeout(Duration::from_secs(2)) {
-        Ok(line) => line,
-        Err(_) => panic!("discover response within timeout"),
-    };
+    let line = rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("discover response within timeout");
 
     let value: serde_json::Value = serde_json::from_str(line.trim()).expect("json");
     assert_eq!(

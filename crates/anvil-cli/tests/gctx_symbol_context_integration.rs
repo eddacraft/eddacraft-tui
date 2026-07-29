@@ -35,6 +35,13 @@ const DAEMON_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 const GREET_SOURCE: &[u8] = b"export function greet() { return 1; }\n";
 
+fn modern_meta() -> Value {
+    json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {}
+    })
+}
+
 #[derive(Debug)]
 struct SnippetStubParser;
 
@@ -114,21 +121,35 @@ fn warm_graph_over_daemon_socket(socket: &Path, root: &Path) {
         "validate_paths must warm the graph: {validate}",
     );
 
-    for i in 0..300 {
-        let status = daemon_jsonrpc(
+    for _ in 0..300 {
+        let context = daemon_jsonrpc(
             socket,
-            "anvil/workspace_status",
-            &json!({ "workspace_root": root, "id": format!("warm-{i}") }),
+            "anvil/gctx/symbol_context",
+            &json!({
+                "workspace_root": root,
+                "query": {
+                    "selector": {
+                        "symbol": {
+                            "file": "src/greet.ts",
+                            "kind": "Function",
+                            "name": "greet",
+                            "ordinal": 0
+                        }
+                    },
+                    "include_source": false,
+                    "token_budget": 500
+                }
+            }),
         );
-        let state = status
-            .pointer("/result/workspace_assurance/state")
+        let status = context
+            .pointer("/result/outcome/status")
             .and_then(Value::as_str);
-        if matches!(state, Some("stale" | "clean" | "bounded")) {
+        if matches!(status, Some("ready" | "bounded" | "budget_exceeded")) {
             return;
         }
         thread::sleep(Duration::from_millis(10));
     }
-    panic!("graph never became readable after validate_paths");
+    panic!("graph context never became readable after validate_paths");
 }
 
 struct GctxDaemon {
@@ -212,10 +233,12 @@ fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
 fn spawn_stdout_reader(stdout: ChildStdout) -> Receiver<std::io::Result<String>> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        let result = reader.read_line(&mut line).map(|_| line);
-        let _ = tx.send(result);
+        let reader = BufReader::new(stdout);
+        for line in reader.lines() {
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
     });
     rx
 }
@@ -264,16 +287,37 @@ fn call_symbol_context(
     workspace_root: &Path,
     xdg_runtime_dir: &Path,
     include_source: bool,
+    wait_for_warm_graph: bool,
 ) -> Value {
     let mut child = spawn_mcp_server(workspace_root, xdg_runtime_dir);
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
+
+    if wait_for_warm_graph {
+        // The first modern lifecycle request deliberately starts a one-shot
+        // graph warm-up. Keep the request in this process, then wait for that
+        // warm-up before asserting a ready context response.
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": 22,
+            "method": "tools/list",
+            "params": { "_meta": modern_meta() }
+        });
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send tools/list frame");
+        let response = recv_stdout_line(&mut child, &stdout_rx);
+        let response: Value = serde_json::from_str(response.trim())
+            .expect("tools/list response must be JSON-RPC JSON");
+        assert!(response["result"]["tools"].is_array());
+        warm_graph_over_daemon_socket(&daemon_socket_path(xdg_runtime_dir), workspace_root);
+    }
 
     let request = json!({
         "jsonrpc": "2.0",
         "id": 23,
         "method": "tools/call",
         "params": {
+            "_meta": modern_meta(),
             "name": "anvil_symbol_context",
             "arguments": {
                 "workspaceRoot": workspace_root,
@@ -324,7 +368,7 @@ fn mcp_symbol_context_not_ready_on_cold_graph() {
         let state = Arc::new(save_time_state());
         let daemon = GctxDaemon::start(state);
 
-        let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), false);
+        let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), false, false);
         assert_eq!(parsed["result"]["isError"], false);
         let payload = parse_tool_payload(&parsed);
         assert_eq!(payload["outcome"]["status"], "not_ready");
@@ -342,7 +386,7 @@ fn mcp_symbol_context_identity_only_without_snippet_egress() {
         let daemon = GctxDaemon::start(state);
         warm_graph_over_daemon_socket(&daemon.socket_path(), &canonical);
 
-        let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), true);
+        let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), true, true);
         assert_eq!(parsed["result"]["isError"], false);
         let payload = parse_tool_payload(&parsed);
         let outcome = &payload["outcome"];
@@ -379,7 +423,7 @@ fn mcp_symbol_context_emits_text_with_egress_and_capability() {
         let daemon = GctxDaemon::start(state);
         warm_graph_over_daemon_socket(&daemon.socket_path(), &canonical);
 
-        let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), true);
+        let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), true, true);
         assert_eq!(parsed["result"]["isError"], false);
         let payload = parse_tool_payload(&parsed);
         let outcome = &payload["outcome"];
@@ -416,10 +460,12 @@ fn mcp_symbol_context_is_deterministic_across_calls() {
             &canonical,
             daemon.xdg_runtime_dir(),
             true,
+            true,
         ));
         let second = parse_tool_payload(&call_symbol_context(
             &canonical,
             daemon.xdg_runtime_dir(),
+            true,
             true,
         ));
 

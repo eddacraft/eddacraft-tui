@@ -184,6 +184,10 @@ fn run_validate_write_with_daemon(
         "id": 51,
         "method": "tools/call",
         "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {}
+            },
             "name": "anvil_validate_write",
             "arguments": {
                 "path": "src/clean.ts",

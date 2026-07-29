@@ -337,6 +337,13 @@ mod tests {
     use crate::mcp::protocol::handle_message;
     use std::time::{Duration, Instant};
 
+    fn modern_meta() -> serde_json::Value {
+        json!({
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {}
+        })
+    }
+
     #[test]
     fn read_frame_rejects_oversize_line_without_returning_payload() {
         let oversize_len =
@@ -422,6 +429,7 @@ mod tests {
                     "id": 1,
                     "method": "tools/call",
                     "params": {
+                        "_meta": modern_meta(),
                         "name": "anvil_validate_write",
                         "arguments": {
                             "path": "src/example.ts",
@@ -478,6 +486,7 @@ mod tests {
                     "id": 1,
                     "method": "tools/call",
                     "params": {
+                        "_meta": modern_meta(),
                         "name": "anvil_apply_patch",
                         "arguments": {
                             "path": "src/example.ts",
@@ -607,6 +616,7 @@ mod tests {
             "id": 6,
             "method": "tools/call",
             "params": {
+                "_meta": modern_meta(),
                 "name": "anvil_search_symbols",
                 "arguments": { "workspaceRoot": workspace.path() }
             }
@@ -626,6 +636,7 @@ mod tests {
             "id": 7,
             "method": "tools/call",
             "params": {
+                "_meta": modern_meta(),
                 "name": "anvil_search_symbols",
                 "arguments": { "workspaceRoot": workspace.path() }
             }
@@ -700,6 +711,7 @@ mod tests {
                     "id": 1,
                     "method": "tools/call",
                     "params": {
+                        "_meta": modern_meta(),
                         "name": "anvil_fix",
                         "arguments": {
                             "filePath": "src/a.ts",
@@ -745,6 +757,7 @@ mod tests {
                     "id": 1,
                     "method": "tools/call",
                     "params": {
+                        "_meta": modern_meta(),
                         "name": "anvil_suppress",
                         "arguments": {
                             "filePath": "src/a.ts",
@@ -793,6 +806,7 @@ mod tests {
                     "id": 1,
                     "method": "tools/call",
                     "params": {
+                        "_meta": modern_meta(),
                         "name": "anvil_gate",
                         "arguments": {
                             "workspaceRoot": workspace.path(),

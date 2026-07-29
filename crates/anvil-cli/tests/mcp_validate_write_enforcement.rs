@@ -155,6 +155,10 @@ fn run_validate_write_against(workspace_root: &Path, proposed_content: &str) -> 
         "id": 42,
         "method": "tools/call",
         "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {}
+            },
             "name": "anvil_validate_write",
             "arguments": {
                 "path": "src/secret.ts",

@@ -1760,14 +1760,7 @@ mod tests {
     /// MCP26-007: the current anvil binary must verify via modern discovery.
     #[test]
     fn probe_startable_succeeds_against_current_anvil_binary() {
-        let command = std::env::var_os("CARGO_BIN_EXE_anvil")
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                // Unit tests inside the bin crate may not set CARGO_BIN_EXE_*;
-                // fall back to the test process's own path only when it looks
-                // like anvil (rare). Prefer explicit cargo bin path.
-                None
-            });
+        let command = std::env::var_os("CARGO_BIN_EXE_anvil").map(std::path::PathBuf::from);
         let Some(command) = command else {
             // Integration coverage lives in tests/ when the env is absent.
             eprintln!("skipping: CARGO_BIN_EXE_anvil not set in this harness");
