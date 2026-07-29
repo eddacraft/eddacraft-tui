@@ -36,42 +36,42 @@ until MCP26-001 (process critical for production, not a code defect).
 
 ### Major (fix before treating dual-era wire as done / before main PR)
 
-1. **Legacy `initialize` still echoes any `protocolVersion` string**  
-   - Roles: general, adversarial, pragmatic, operations  
+1. **Legacy `initialize` still echoes any `protocolVersion` string**
+   - Roles: general, adversarial, pragmatic, operations
    - `crates/anvil-cli/src/mcp/protocol/domain.rs` (~87–100): `is_legacy_version`
-     discarded; violates “never echo arbitrary version” / sealed matrix claim.  
+     discarded; violates “never echo arbitrary version” / sealed matrix claim.
    - **Fix:** accept only `LEGACY_PROTOCOL_VERSIONS` (or clamp to default); add
      fixtures for all four sealed versions.
 
-2. **Activation discover probe accepts top-level `serverInfo` as modern**  
-   - Roles: general, adversarial, security, operations (nit)  
+2. **Activation discover probe accepts top-level `serverInfo` as modern**
+   - Roles: general, adversarial, security, operations (nit)
    - `crates/anvil-cli/src/activation/mcp_client.rs` (~1157–1166): comment says
-     reject legacy-shaped identity; code `or_else`s to `result.serverInfo`.  
+     reject legacy-shaped identity; code `or_else`s to `result.serverInfo`.
    - **Exploit:** stub returns initialise-shaped body →
      `RestartHandshakeVerified` + `protocolEra=modern` + invented
-     `protocolVersion=2026-07-28`.  
+     `protocolVersion=2026-07-28`.
    - **Fix:** require `_meta["io.modelcontextprotocol/serverInfo"]` only;
      require `resultType` / `supportedVersions` when feasible; unit-test stub.
 
-3. **Modern process lifetime vs bare `exit`**  
-   - Role: adversarial  
+3. **Modern process lifetime vs bare `exit`**
+   - Role: adversarial
    - Bare `{"method":"exit"}` without modern `_meta` still terminates the
-     process after modern-only traffic.  
+     process after modern-only traffic.
    - **Fix:** honour exit only after legacy initialise completed, or EOF-only
      process stop; golden tests.
 
-4. **Test / platform gaps vs claimed matrix**  
-   - Roles: general, operations  
+4. **Test / platform gaps vs claimed matrix**
+   - Roles: general, operations
    - Legacy goldens effectively pin `2024-11-05` only; no modern
      `resources/read` `ttlMs: 0` fixture; Windows timeout/exit probe tests are
-     Unix-only.  
+     Unix-only.
    - **Fix:** parametrise legacy versions; add resources/read cache test;
      Windows-safe probe fixture or explicit platform exception.
 
-5. **Ship gates still open (expected)**  
-   - Roles: operations, pragmatic  
+5. **Ship gates still open (expected)**
+   - Roles: operations, pragmatic
    - MCP26-001 (final seal + ADR Accept), MCP26-010 (conformance/client matrix),
-     MCP26-011 (docs) required before production claim / main merge.  
+     MCP26-011 (docs) required before production claim / main merge.
    - Architecture docs still describe initialise-era-only server.
 
 ### Minor
@@ -96,14 +96,14 @@ RC still unsealed (process), clientInfo dead_code (correct non-trust).
 
 ## Solid (all roles)
 
-- Typed temporary adapter under `mcp/protocol/`; host thinned; four MiB frame kept  
-- Modern routing, `-32022`, lifecycle gating, era-specific rendering  
-- Discover does not wait on warm-up; process-local egress user copy  
-- Activation: modern-first, reap, fresh legacy child; tier label unchanged  
-- `clientInfo` / baggage not authority; redaction/auth paths preserved  
-- Traceparent bind non-authoritative; no panic on garbage  
-- Scope control: no HTTP/Apps/Tasks/tool renames; no `rmcp` beta pin  
-- Branch-until-ratification discipline honest  
+- Typed temporary adapter under `mcp/protocol/`; host thinned; four MiB frame kept
+- Modern routing, `-32022`, lifecycle gating, era-specific rendering
+- Discover does not wait on warm-up; process-local egress user copy
+- Activation: modern-first, reap, fresh legacy child; tier label unchanged
+- `clientInfo` / baggage not authority; redaction/auth paths preserved
+- Traceparent bind non-authoritative; no panic on garbage
+- Scope control: no HTTP/Apps/Tasks/tool renames; no `rmcp` beta pin
+- Branch-until-ratification discipline honest
 
 ## Validation evidence (2026-07-28)
 
@@ -121,19 +121,19 @@ surface).
 
 ## Recommended fix order (on branch, before main)
 
-1. Tighten **discover probe** identity (major #2)  
-2. **Seal or reword** legacy version negotiation (major #1)  
-3. **Exit lifecycle** policy for modern processes (major #3)  
-4. Add **legacy version + modern resources/read** fixtures; probe latency docs  
-5. After final publish: MCP26-001 closeout → 010 minimum evidence → 011 docs → PR  
+1. Tighten **discover probe** identity (major #2)
+2. **Seal or reword** legacy version negotiation (major #1)
+3. **Exit lifecycle** policy for modern processes (major #3)
+4. Add **legacy version + modern resources/read** fixtures; probe latency docs
+5. After final publish: MCP26-001 closeout → 010 minimum evidence → 011 docs → PR
 
 ## Publish note
 
 Council findings are review evidence, not CI proof. Critical/major findings
 must be fixed, deferred with rationale, or waived before a main PR.
 
-**Status:** Converged  
-**Tier:** full  
+**Status:** Converged
+**Tier:** full
 **Target:** `origin/main...feat/mcp26-dual-era-support` @ `6087b391d`
 
 ## Remediation (2026-07-28, same branch)
@@ -154,3 +154,31 @@ Deferred (post-ratification / documented):
 - Windows probe fixtures (Unix-only spawn timeout tests remain; black-box discover is cross-platform)
 - MCP26-001/010/011, official conformance suite
 - Production metrics counters
+
+## Ratification closeout (2026-07-29)
+
+The final MCP `2026-07-28` specification is ratified and its upstream schema
+seal is recorded in the ratification audit. A targeted final Council reviewed
+the ratified delta, bounded activation transport, operations evidence, and
+public claims.
+
+Initial final-review findings were resolved on this branch:
+
+- activation now enforces the same four MiB frame ceiling as the stdio server;
+- conformance applicability distinguishes the official HTTP-only runner from
+  the anvil stdio transport;
+- benchmark results and pre-merge platform/client gates are recorded; and
+- public documentation and changelog claims are version-gated and limited to
+  tested behaviour.
+
+The code and operations/documentation reviewers returned no remaining findings.
+Independent verification passed the final local test, lint, formatting,
+documentation, and APS gates recorded in the conformance audit.
+
+**PR verdict:** ready to open. **Merge verdict:** blocked until required PR CI,
+manual macOS Arm/Windows x64 Rust workflow evidence, and actual-client evidence
+or an explicit operator deferral are recorded.
+
+Advisory follow-up remains outside this closeout: richer trace-state metrics and
+portable malformed/timeout probe fixtures. These do not weaken the bounded
+production path or the cross-platform success fixture.

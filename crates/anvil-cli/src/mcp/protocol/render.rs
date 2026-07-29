@@ -1,11 +1,11 @@
-//! Era-specific MCP result envelope rendering (RC baseline).
+//! Era-specific MCP result envelope rendering.
 
 use serde_json::{Value, json};
 
 use super::meta::META_SERVER_INFO;
 use super::versions::MODERN_PROTOCOL_VERSION;
 
-/// Cache policy approved for RC dual-era support.
+/// Cache policy for ratified dual-era support.
 pub const TTL_STABLE_MS: u64 = 3_600_000;
 pub const TTL_STALE_MS: u64 = 0;
 pub const CACHE_SCOPE_PRIVATE: &str = "private";
@@ -30,7 +30,7 @@ pub fn server_info() -> Value {
     })
 }
 
-pub fn success_response(id: &Value, result: Value) -> Value {
+pub fn success_response(id: &Value, result: &Value) -> Value {
     json!({
         "jsonrpc": "2.0",
         "id": id,
@@ -68,10 +68,10 @@ pub fn parse_error_response() -> Value {
 /// Render an era-neutral domain success body into a JSON-RPC response.
 pub fn render_success(id: &Value, era: ProtocolEra, mut body: Value, cache: CachePolicy) -> Value {
     match era {
-        ProtocolEra::Legacy => success_response(id, body),
+        ProtocolEra::Legacy => success_response(id, &body),
         ProtocolEra::Modern => {
             stamp_modern(&mut body, cache);
-            success_response(id, body)
+            success_response(id, &body)
         }
     }
 }
@@ -122,7 +122,7 @@ fn apply_cache_map(map: &mut serde_json::Map<String, Value>, cache: CachePolicy)
     }
 }
 
-/// Build the modern `server/discover` result body (RC shape).
+/// Build the modern `server/discover` result body.
 pub fn discover_body(instructions: &str) -> Value {
     json!({
         "resultType": "complete",

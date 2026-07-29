@@ -37,21 +37,21 @@ impl DomainResult {
         Self::Rpc(error_response(id, ERR_INVALID_PARAMS, "Invalid params"))
     }
 
-    pub fn invalid_params_data(id: &Value, data: Value) -> Self {
+    pub fn invalid_params_data(id: &Value, data: &Value) -> Self {
         Self::Rpc(error_response_with_data(
             id,
             ERR_INVALID_PARAMS,
             "Invalid params",
-            &data,
+            data,
         ))
     }
 
-    pub fn internal_data(id: &Value, data: Value) -> Self {
+    pub fn internal_data(id: &Value, data: &Value) -> Self {
         Self::Rpc(error_response_with_data(
             id,
             ERR_INTERNAL,
             "Internal error",
-            &data,
+            data,
         ))
     }
 }
@@ -123,18 +123,16 @@ pub fn legacy_initialize(id: &Value, message: &Value) -> DomainResult {
         return DomainResult::invalid_params(id);
     };
 
-    let protocol_version = match negotiate_legacy_protocol_version(params.get("protocolVersion")) {
-        Ok(v) => v,
-        Err(()) => {
-            return DomainResult::invalid_params_data(
-                id,
-                json!({
-                    "reason": "unsupported-legacy-protocol-version",
-                    "supported": super::versions::LEGACY_PROTOCOL_VERSIONS,
-                    "requested": params.get("protocolVersion"),
-                }),
-            );
-        }
+    let Ok(protocol_version) = negotiate_legacy_protocol_version(params.get("protocolVersion"))
+    else {
+        return DomainResult::invalid_params_data(
+            id,
+            &json!({
+                "reason": "unsupported-legacy-protocol-version",
+                "supported": super::versions::LEGACY_PROTOCOL_VERSIONS,
+                "requested": params.get("protocolVersion"),
+            }),
+        );
     };
 
     LEGACY_INITIALIZED.store(true, Ordering::Relaxed);
@@ -182,15 +180,15 @@ pub fn resources_read(id: &Value, message: &Value) -> DomainResult {
     match crate::mcp::resources::read(uri) {
         Ok(result) => DomainResult::ok_body(result, CachePolicy::ImmediatePrivate),
         Err(err @ crate::mcp::resources::ReadError::BadRequest(_)) => {
-            DomainResult::invalid_params_data(id, json!({ "reason": err.reason(), "uri": uri }))
+            DomainResult::invalid_params_data(id, &json!({ "reason": err.reason(), "uri": uri }))
         }
         Err(err @ crate::mcp::resources::ReadError::Internal(_)) => {
-            DomainResult::internal_data(id, json!({ "reason": err.reason(), "uri": uri }))
+            DomainResult::internal_data(id, &json!({ "reason": err.reason(), "uri": uri }))
         }
         Err(err @ crate::mcp::resources::ReadError::QuotaExceeded(_)) => {
             DomainResult::internal_data(
                 id,
-                json!({ "reason": err.reason(), "uri": uri, "kind": "quota_exceeded" }),
+                &json!({ "reason": err.reason(), "uri": uri, "kind": "quota_exceeded" }),
             )
         }
     }
@@ -209,7 +207,7 @@ pub fn tools_call(id: &Value, message: &Value) -> DomainResult {
     let Some(tool) = registry::find(name) else {
         return DomainResult::invalid_params_data(
             id,
-            json!({
+            &json!({
                 "reason": "unknown-tool",
                 "tool": name
             }),

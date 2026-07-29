@@ -2282,6 +2282,76 @@ fn mcp_serve_stdio_modern_tools_list_without_initialize() {
 }
 
 #[test]
+fn mcp_serve_stdio_modern_rejects_malformed_present_client_info() {
+    for (case, client_info) in [
+        ("missing name", json!({ "version": "0.0.0" })),
+        ("missing version", json!({ "name": "mcp26-test-client" })),
+        (
+            "wrong field type",
+            json!({ "name": "mcp26-test-client", "version": 1 }),
+        ),
+        ("wrong container type", json!("mcp26-test-client")),
+    ] {
+        let mut child = spawn_mcp_server();
+        let stdout = child.stdout.take().expect("child stdout is piped");
+        let stdout_rx = spawn_stdout_reader(stdout);
+
+        let mut params = modern_meta();
+        params["_meta"]["io.modelcontextprotocol/clientInfo"] = client_info;
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "tools/list",
+            "params": params
+        });
+        {
+            let stdin = child.stdin.as_mut().expect("child stdin is piped");
+            writeln!(stdin, "{request}").expect("send malformed clientInfo request");
+        }
+        drop(child.stdin.take());
+
+        let line = recv_stdout_line(&mut child, &stdout_rx);
+        let status = wait_for_exit(&mut child);
+        assert!(status.success(), "{case} exit: {status:?}");
+
+        let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+        assert_eq!(parsed["id"], 21, "{case}: {parsed}");
+        assert_eq!(parsed["error"]["code"], -32602, "{case}: {parsed}");
+        assert_eq!(
+            parsed["error"]["message"], "Invalid params",
+            "{case}: {parsed}"
+        );
+    }
+}
+
+#[test]
+fn mcp_serve_stdio_request_without_era_selection_is_rejected() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 22,
+        "method": "tools/list"
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send uninitialised tools/list");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["id"], 22);
+    assert_eq!(parsed["error"]["code"], -32600);
+    assert_eq!(parsed["error"]["message"], "Server not initialized");
+}
+
+#[test]
 fn mcp_serve_stdio_modern_unsupported_version_returns_32022() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
@@ -2403,21 +2473,14 @@ fn mcp_serve_stdio_modern_resources_read_is_immediately_stale() {
     assert!(status.success(), "clean exit: {status:?}");
 
     let parsed: Value = serde_json::from_str(line.trim()).expect("json");
-    // Success path: zero TTL private cache. Error path (e.g. missing resource
-    // content in empty workspace) is also acceptable if result is error —
-    // prefer success envelope when present.
-    if parsed.get("result").is_some() {
-        assert_eq!(parsed["result"]["resultType"], "complete");
-        assert_eq!(parsed["result"]["ttlMs"], 0);
-        assert_eq!(parsed["result"]["cacheScope"], "private");
-        assert_eq!(
-            parsed["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
-            "anvil"
-        );
-    } else {
-        // Still a modern-shaped interaction; ensure not a crash.
-        assert!(parsed.get("error").is_some());
-    }
+    assert_eq!(parsed["result"]["resultType"], "complete");
+    assert_eq!(parsed["result"]["ttlMs"], 0);
+    assert_eq!(parsed["result"]["cacheScope"], "private");
+    assert_eq!(
+        parsed["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "anvil"
+    );
+    assert!(parsed["result"]["contents"].as_array().is_some());
 }
 
 #[test]

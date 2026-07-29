@@ -1,16 +1,17 @@
 # Activation Orchestrator — As-Built
 
-| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                       |
-| -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-07-14 (targeted delta review: MCPX first-wave registry and optional client configuration); prior activation-spine review 2026-07-02 against main `d1fded280` |
+| Type     | Authority | Owner        | Status | Freshness                                                                                                                                                                                                      |
+| -------- | --------- | ------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | LAUNCH/MCP26 | Live   | Last reviewed 2026-07-29 against the dual-era MCP verification probe and additive diagnostic evidence; prior client-registry review 2026-07-14 and activation-spine review 2026-07-02 against main `d1fded280` |
 
-| Upstream                                                                           | Downstream                                                                                   |
-| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001, ADR-092 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
+| Upstream                                                                                    | Downstream                                                                                   |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001, ADR-092, ADR-113 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-14 (targeted delta review:
-> MCPX first-wave registry and optional client configuration); prior targeted
-> review 2026-07-02 against main `d1fded280`; full review 2026-05-07 against
+> **Status:** Live (beta) **Last reviewed:** 2026-07-29 (targeted delta review:
+> MCP26 dual-era verification); prior 2026-07-14 review covered the MCPX
+> first-wave registry and optional client configuration; prior targeted review
+> 2026-07-02 against main `d1fded280`; full review 2026-05-07 against
 > `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Module:**
 > `crates/anvil-cli/src/activation/` **Module owner (APS):** LAUNCH
 > (`launch-flow-readiness.aps.md`, 18/18 complete) **Used by:** `anvil start`,
@@ -43,7 +44,7 @@ The first-wave agent registry supplements this diagnostic. `anvil start` may
 offer strongly detected MCP clients, and explicit `--mcp-client` selections can
 install their documented config shapes. Those writes are reported separately;
 they do not promote the Cursor/Claude-specific diagnostic to `protecting` or
-claim that another client completed a live handshake.
+claim that another client completed live pre-write validation.
 
 DSV-051 adds the operator runbook for the headless save-time driver:
 [`docs/runbooks/save-time-background-driver.md`](../runbooks/save-time-background-driver.md).
@@ -241,10 +242,14 @@ What `--verify` still does (the read-only probes inside `verify_with_home`,
 
 - Probes `.anvilrc` parse status (JSON / TOML / YAML) via `probe_config_status`
   (`diagnostic.rs:525-565`).
-- Reads each registered editor's MCP config via `mcp_client::probe_all`
-  (`mcp_client.rs:636-649`); promotes `RestartRequired` clients to
-  `RestartHandshakeVerified` after a 1s MCP `initialize` handshake against the
-  installed entry (`diagnostic.rs:462-523`, `mcp_client.rs:890-966`).
+- Reads each registered editor's MCP config via `mcp_client::probe_all`. For a
+  `RestartRequired` entry, it first starts a disposable child and requests
+  modern discovery. A non-modern response triggers a fresh-child legacy
+  initialise fallback; the first child is never reused across eras. Each attempt
+  has a one-second timeout, so the worst-case diagnostic window is about two
+  seconds per entry when both attempts time out. Every probe child is reaped.
+  Success promotes the existing public tier to `RestartHandshakeVerified` and
+  attaches era, version, and method evidence.
 - Reads `.anvil/baseline.json` if present (`diagnostic.rs:608-634`).
 - Walks the working tree for the language profile via
   `language_profile::profile_repo` (`language_profile.rs:330-375`).
@@ -448,10 +453,13 @@ Fields:
 - `config: ConfigStatus` — `Absent` / `Valid` / `Invalid`
   (`diagnostic.rs:127-134`).
 - `mcp: BTreeMap<McpClientId, McpProbeResult>` — one row per registered client
-  (Cursor + ClaudeCode in v1); `McpProbeResult` carries `tier: McpTier`
-  (`diagnostic.rs:62-84`) and `transport: McpTransport`
-  (`mcp_client.rs:115-129`). The tier ladder runs
-  `NotDetected → ConfigAbsent → ConfigPresent → ServerStartable → RestartRequired → RestartHandshakeVerified → LiveValidation`.
+  (Cursor + ClaudeCode in v1); `McpProbeResult` carries `tier: McpTier` and
+  `transport: McpTransport`. After successful spawn verification it also carries
+  additive `protocolEra`, `protocolVersion`, and `verificationMethod` evidence.
+  `verificationMethod` is `server_discover` for modern discovery or `initialize`
+  for the fresh-child legacy fallback. The tier ladder remains
+  `NotDetected → ConfigAbsent → ConfigPresent → ServerStartable → RestartRequired → RestartHandshakeVerified → LiveValidation`;
+  existing consumers can continue to key on that public tier.
 - `watch: WatchTier` — `NotRequested` / `Offered` / `Running`
   (`diagnostic.rs:103-122`). `Offered` is informational and does not change
   `protection_state()`; `Running` is what the watcher synthesis sets.
@@ -470,7 +478,14 @@ JSON output shape (`render.rs:294-351`) is stable contract. Keys are pinned at
   "state": "ready_restart_required",
   "headline": "Ready, restart required …",
   "config": "valid",
-  "mcp": [{"client": "cursor", "tier": "restart_required", "transport": "stdio"}, …],
+  "mcp": [{
+    "client": "cursor",
+    "tier": "restart_handshake_verified",
+    "transport": "stdio",
+    "protocolEra": "modern",
+    "protocolVersion": "2026-07-28",
+    "verificationMethod": "server_discover"
+  }, …],
   "watch": "not_requested",
   "baseline_present": true,
   "baseline": {"total": 4, "antipattern": 3, "secret": 1, "created_at": "…"},
@@ -661,8 +676,8 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
 - `baseline.rs` — `.anvil/baseline.json` schema (LAUNCH-010), atomic writer,
   `read_baseline` / `baseline_exists`.
 - `mcp_client.rs` — `McpClient` trait, `AnvilEntry`, `DriftClass`, `probe_all`,
-  `probe_startable` (1s MCP `initialize` handshake), `entries_equivalent`,
-  `looks_like_anvil`.
+  `probe_startable` (modern discovery, then a fresh-child legacy fallback;
+  one-second timeout per attempt), `entries_equivalent`, `looks_like_anvil`.
 - `mcp_client/cursor.rs` — Cursor impl (`.cursor/mcp.json`).
 - `mcp_client/claude_code.rs` — Claude Code impl (`.claude.json`).
 - `orchestrator/mod.rs` — composed `run` / `run_with_home`; init, baseline,

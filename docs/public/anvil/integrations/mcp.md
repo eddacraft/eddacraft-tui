@@ -74,6 +74,38 @@ anvil start --verify
 Only `protecting` proves the current pre-write path. A configured file or
 running daemon alone is not enough.
 
+The next beta after `0.9.0-beta` understands both ratified MCP `2026-07-28` and
+the initialise-era protocol used by existing clients. Generated client entries
+do not change: upgrades continue to run `anvil mcp serve --stdio`.
+
+Verification tries modern discovery first. If the installed client entry does
+not support it, anvil closes that disposable child and retries legacy
+initialisation in a fresh child. Each attempt has a one-second response limit,
+so a client that answers neither path can add about two seconds to the
+diagnostic. Probe children are always reaped.
+
+For machine-readable evidence, run:
+
+```text
+anvil start --verify --json
+```
+
+A successfully probed MCP row can include `protocolEra`, `protocolVersion`, and
+`verificationMethod`. These fields explain how anvil verified the local entry;
+they do not change the protection-state vocabulary or require you to edit the
+client configuration.
+
+### Verification troubleshooting
+
+- If the result is `ready_restart_required`, restart the named client and run
+  verification again. A successful spawn probe proves the configured command
+  starts, not that the client has attached to it.
+- If verification pauses briefly and does not promote the client, run
+  `anvil mcp install --client <client> --verify` and check that the configured
+  command still resolves to your current anvil binary.
+- If an upgrade leaves an entry in unsafe drift, inspect it before replacing it.
+  anvil does not overwrite an unrecognised third-party entry.
+
 ## Inspect MCP commands
 
 ```text

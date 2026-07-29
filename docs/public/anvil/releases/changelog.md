@@ -24,6 +24,9 @@ version, date, and final scope are fixed when the next tag ships.
   binary.
 - `anvil mcp install --client` configures twelve AI clients (not only Cursor and
   Claude Code), with `--verify` and `--dry-run`.
+- The MCP stdio server supports ratified MCP `2026-07-28` discovery and keeps
+  all four supported initialise-era versions. Client configuration shapes are
+  unchanged; modern and legacy stdio flows are regression-tested.
 - `anvil skill install` ships the managed `anvil-developer-functions` skill;
   `anvil doctor` reports managed-skill freshness.
 - Package-manager-aware `anvil update` for Homebrew, Scoop, and WinGet installs.

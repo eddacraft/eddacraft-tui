@@ -2,12 +2,11 @@
 
 ## Status
 
-Proposed (direction operator-ratified 2026-07-27; formal Accept deferred to
-MCP26-001 closeout after final schema publication and pin seal)
+Accepted 2026-07-29
 
 ## Date
 
-2026-07-27
+2026-07-29
 
 ## Context
 
@@ -19,16 +18,15 @@ client-requested version without a supported-version set, and has no
 Activation verification drives a legacy `initialize` probe with protocol
 `2025-06-18`.
 
-MCP `2026-07-28` (release candidate locked 2026-05-21; final publication
-scheduled 2026-07-28) removes the modern `initialize` / `initialized`
+MCP `2026-07-28` was ratified on 2026-07-28. It removes the modern
+`initialize` / `initialized`
 handshake and protocol-level sessions, requires `server/discover`, requires
 protocol version and client capabilities in `params._meta` on every modern
 request, requires `resultType` on successful results, adds cache hints, and
-lifts tool schemas to JSON Schema 2020-12. The official Rust SDK
-(`rmcp`) tracks this work toward a **v3.0.0** release; as of 2026-07-27 the
-crates.io stable max is **2.2.0**, with **3.0.0-beta.2** published. The SDK
-roadmap reports 2026-07-28 server conformance **39/40** (outstanding
-`json-schema-2020-12`) on suite `0.2.0-alpha.9`.
+lifts tool schemas to JSON Schema 2020-12. The official Rust SDK (`rmcp`) has
+released **v3.0.0**. Its built-in async read transport is not adopted here
+because it uses unbounded `read_until`, which cannot preserve anvil's
+mandatory four-MiB frame ceiling.
 
 anvil must keep supporting existing MCPX clients that still speak the
 initialise-era protocol over stdio, while accepting modern clients. The
@@ -46,29 +44,25 @@ an explicit fallback.
 1. **Dual-era stdio server.** anvil supports:
    - **Modern:** protocol version `2026-07-28` only (stateless, per-request
      `_meta`, `server/discover`, modern result envelopes). Operator-confirmed.
-   - **Legacy (default):** full initialise-era set until MCP26-001 closeout:
+   - **Legacy:** full initialise-era set:
      `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`. Operator
-     confirmed default **keep all**, with optional narrowing to **latest legacy
-     only** (`2025-11-25`) if MCP26-001 evidence shows MCPX clients do not need
-     older pins (operator open to that trade-off).
+     confirmed and now sealed as **keep all four**.
    Unsupported modern versions return `UnsupportedProtocolVersion` with code
-   **`-32022`** (per draft renumber; **hold exact code/shape until final
-   schema**) and `supported` / `requested` data. Never echo an arbitrary
+   **`-32022`** with `supported` / `requested` data. Never echo an arbitrary
    requested version.
 
-2. **SDK-first protocol layer, temporary typed adapter authorised.** Prefer
-   the official `rmcp` crate once a **stable** crates.io release (expected
-   **v3.0.0**) targets final MCP `2026-07-28` and passes the adoption gate in
+2. **SDK-first protocol layer, temporary typed adapter selected.** Prefer
+   the official `rmcp` crate once a stable release passes the adoption gate in
    the module specification §8.2 (frame ceiling, stdout purity, EOF exit,
    Windows behaviour, sync domain handlers, startup/memory budgets, licence
    review). Until that gate passes, MCP26 may implement a **temporary typed
    internal dual-era adapter** that uses protocol DTOs and the same
-   conformance fixtures planned for the SDK path. It must **not** add further
+   conformance fixtures used by the SDK path. It must **not** add further
    ad hoc `serde_json::Value` branching in `commands/mcp.rs`.
 
-3. **Do not pin `rmcp` 3.0.0-beta.* into the product dependency graph** as the
-   permanent path without operator acceptance. Betas may be used only for
-   non-shipped evaluation spikes on this feature branch.
+3. **Do not pin `rmcp 3.0.0` into the product yet.** Stable release is
+   necessary but not sufficient: the evaluated transport fails the frame
+   ceiling. MCP26-012 owns a bounded custom transport or upstream remediation.
 
 4. **Domain ownership stays with anvil.** Tool registry, tool calls, resources,
    credential enforcement, workspace containment, redaction, graph egress
@@ -80,9 +74,8 @@ an explicit fallback.
    passes the §8.2 gate and dual-era golden fixtures remain green. Record the
    pin versions and conformance suite versions in MCP26-001 closeout.
 
-6. **Branch posture.** Dual-era implementation and MCP26-001 closeout stay on
-   a feature branch until the final specification is ratified and this ADR is
-   Accepted (or Amended with final pins).
+6. **Branch posture.** Ratification and this Accepted ADR lift the publication
+   hold. Normal review, CI, merge, and release gates still apply.
 
 7. **Cache policy (operator-approved).** Conservative private cache:
    `server/discover`, `tools/list`, and `resources/list` use `ttlMs=3600000`
@@ -112,15 +105,15 @@ an explicit fallback.
 | ---- | -------- |
 | ADR direction A–F (dual-era, SDK-first, temporary typed adapter, no product beta pin, anvil domain ownership, branch until gate) | **Approved** |
 | Modern version `2026-07-28` | **Yes** |
-| Legacy matrix | **Default keep all four**; open to latest-only (`2025-11-25`) if evidence supports |
-| Unsupported-version error code/shape | **Hold** for final schema |
+| Legacy matrix | **Sealed: keep all four** |
+| Unsupported-version error code/shape | **Sealed: `-32022` with requested/supported data** |
 | Cache policy | **Approved** |
 | Non-goals | **Approved** |
 | Session wording / warm-up / activation | **OK** |
 | Release | **Next release after ratification, or next+1** |
 
-Formal **Accepted** status still requires MCP26-001 closeout (final schema
-diff, sealed matrix, SDK/adapter pin).
+The final schema diff, full legacy matrix, conformance pins, and typed-adapter
+decision were sealed by MCP26-001 on 2026-07-29.
 
 ## Rationale
 
@@ -137,8 +130,8 @@ ratification, without normalising permanent protocol ownership inside anvil.
 | **Chosen:** dual-era + SDK-first + temporary typed adapter | Conformance leverage; schedule insurance; domain isolation | Two-phase migration if adapter ships first |
 | Permanent hand-written dual-era host | Full control; no new dependency | High maintenance; diverges from official wire; already at scale limit |
 | Modern-only (drop legacy) | Smaller surface | Breaks MCPX clients that still initialise |
-| Pin `rmcp` 3.0.0-beta.2 now | Early integration | Pre-release; final schema not sealed; not acceptable as permanent product pin without operator exception |
-| Wait for stable `rmcp` v3 with no adapter | Cleanest long-term | Blocks all dual-era progress if v3 slips |
+| Pin `rmcp 3.0.0` now | Official stable SDK | Built-in transport violates four-MiB frame ceiling |
+| Wait for a bounded `rmcp` transport | Cleanest long-term | Unnecessarily blocks ratified dual-era support |
 
 ## Consequences
 
@@ -146,25 +139,24 @@ ratification, without normalising permanent protocol ownership inside anvil.
   JSON dispatch; dual-era compatibility preserved for MCPX clients.
 - **Negative:** Temporary dual maintenance if the adapter ships before stable
   `rmcp` v3; ADR must be amended with exact pins at closeout.
-- **Risks:** Final schema renames (e.g. `resultType` string values, error code
-  numbers); SDK frame-limit or sync-handler mismatches; beta API churn.
-- **Mitigations:** MCP26-001 final-vs-RC diff before wire merge; adoption spike
-  before pin; golden fixtures for both eras; branch held until ratification.
+- **Risks:** SDK frame-limit, runtime, Windows, or sync-handler mismatches.
+- **Mitigations:** Keep the bounded typed adapter; retain golden fixtures for
+  both eras; adopt `rmcp` only after MCP26-012 closes the full gate.
 
-## Provisional pins (amend at MCP26-001 closeout)
+## Sealed pins and boundaries
 
-| Artefact | Provisional value (2026-07-27) | Seal condition |
-| -------- | ------------------------------ | -------------- |
-| Modern protocol | `2026-07-28` | Final schema published |
-| Legacy protocols | Full set default; optional narrow to `2025-11-25` only | Confirm against MCPX clients at MCP26-001 closeout |
-| Unsupported modern error | `-32022` `UnsupportedProtocolVersion` | Confirm in final schema |
-| `rmcp` product pin | *none yet* (stable max `2.2.0`; newest `3.0.0-beta.2`) | Stable ≥3.0.0 targeting final + §8.2 gate |
-| Conformance suite (modern) | roadmap baseline `0.2.0-alpha.9` (39/40 server) | Final suite version for `2026-07-28` |
-| Conformance suite (legacy) | roadmap `0.1.16` for `2025-11-25` | Selected legacy suite for sealed matrix |
+| Artefact | Sealed value |
+| -------- | ------------ |
+| Modern protocol | `2026-07-28` |
+| Legacy protocols | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` |
+| Unsupported modern error | `-32022` `UnsupportedProtocolVersion` |
+| `rmcp` product pin | None; `3.0.0` evaluated and deferred to MCP26-012 |
+| Conformance suite (modern) | `0.2.0-alpha.10`, source `49103de6ed70804e940637bf3e9e29e4a3f54e64` |
+| Conformance suite (legacy) | `0.1.16` |
 
 ## References
 
-- APS module: [MCP26](../modules/mcp-2026-07-28-dual-era-support.aps.md)
+- APS module: [MCP26](../modules/mcp-dual-era-support.aps.md)
 - Spec: [2026-07-27 dual-era support](../specs/2026-07-27-mcp-2026-07-28-dual-era-support.md)
 - Gate audit: [2026-07-27 MCP26-001](../audits/2026-07-27-mcp26-001-ratification-gate.md)
 - Related ADRs: [033](033-park-ide-mcp-retire-ts-scanner.md),

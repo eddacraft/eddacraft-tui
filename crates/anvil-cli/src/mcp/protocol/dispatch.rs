@@ -1,4 +1,4 @@
-//! Dual-era request dispatch against the MCP `2026-07-28` RC.
+//! Dual-era request dispatch against ratified MCP `2026-07-28`.
 
 use serde_json::Value;
 
@@ -36,17 +36,18 @@ pub fn handle_message(message: &Value) -> Option<Value> {
     let params = message.get("params");
 
     // When present, params must be structured (object or array) per JSON-RPC 2.0.
-    if let Some(params) = params {
-        if !params.is_object() && !params.is_array() {
-            let response_id = id
-                .filter(|v| is_valid_jsonrpc_id(v))
-                .unwrap_or(&Value::Null);
-            return Some(error_response(
-                response_id,
-                ERR_INVALID_REQUEST,
-                "Invalid Request",
-            ));
-        }
+    if let Some(params) = params
+        && !params.is_object()
+        && !params.is_array()
+    {
+        let response_id = id
+            .filter(|v| is_valid_jsonrpc_id(v))
+            .unwrap_or(&Value::Null);
+        return Some(error_response(
+            response_id,
+            ERR_INVALID_REQUEST,
+            "Invalid Request",
+        ));
     }
 
     // Notifications (no id)
@@ -79,14 +80,11 @@ fn is_valid_jsonrpc_id(id: &Value) -> bool {
     matches!(id, Value::String(_) | Value::Number(_) | Value::Null)
 }
 
-fn handle_notification(method: Option<&str>) -> Option<Value> {
+fn handle_notification(_method: Option<&str>) -> Option<Value> {
     // Notifications never produce a JSON-RPC response body. Process exit for
     // legacy `exit` is decided by [`is_exit_notification`] in the stdio host.
-    match method {
-        Some("notifications/initialized" | "exit") => None,
-        // Ignore unknown notifications per JSON-RPC.
-        Some(_) | None => None,
-    }
+    // Unknown notifications are ignored per JSON-RPC.
+    None
 }
 
 fn handle_modern(
@@ -159,7 +157,7 @@ fn handle_legacy(id: &Value, method: Option<&str>, message: &Value) -> Value {
             ProtocolEra::Legacy,
             domain::legacy_initialize(id, message),
         ),
-        Some("exit") => error_response(id, ERR_INVALID_REQUEST, "Invalid Request"),
+        Some("exit") | None => error_response(id, ERR_INVALID_REQUEST, "Invalid Request"),
         Some("shutdown") => finish(id, ProtocolEra::Legacy, domain::legacy_shutdown()),
         Some("ping") => finish(id, ProtocolEra::Legacy, domain::legacy_ping()),
         Some("tools/list") => finish(id, ProtocolEra::Legacy, domain::tools_list(id)),
@@ -170,7 +168,6 @@ fn handle_legacy(id: &Value, method: Option<&str>, message: &Value) -> Value {
         }
         // server/discover always takes the modern branch in handle_message.
         Some(_) => error_response(id, ERR_METHOD_NOT_FOUND, "Method not found"),
-        None => error_response(id, ERR_INVALID_REQUEST, "Invalid Request"),
     }
 }
 

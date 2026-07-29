@@ -23,6 +23,8 @@ import { createE2EWorkspace } from '../helpers/workspace.js';
 type JsonRpcResponse = {
   id?: number | string | null;
   result?: {
+    resultType?: string;
+    supportedVersions?: string[];
     tools?: Array<{ name?: string }>;
     content?: Array<{ type?: string; text?: string }>;
     isError?: boolean;
@@ -52,6 +54,19 @@ function parseToolPayload(response: JsonRpcResponse): ValidateWritePayload {
     throw new Error(`Missing MCP tool text payload. Got: ${JSON.stringify(response)}`);
   }
   return JSON.parse(text) as ValidateWritePayload;
+}
+
+function modernMeta() {
+  return {
+    _meta: {
+      'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+      'io.modelcontextprotocol/clientCapabilities': {},
+      'io.modelcontextprotocol/clientInfo': {
+        name: 'anvil-e2e-smoke',
+        version: '0.0.0',
+      },
+    },
+  };
 }
 
 async function runMcpLaunchShim(
@@ -281,7 +296,7 @@ describe('Smoke › CLI binary', () => {
 describe('Smoke › Rust MCP launch shim', () => {
   const maybeIt = cliBinaryAvailable() ? it : it.skip;
 
-  maybeIt('lists tools and validates safe and blocked proposed writes over stdio', async () => {
+  maybeIt('discovers and calls tools directly with modern metadata over stdio', async () => {
     const workspace = createE2EWorkspace({
       files: {
         'src/existing.ts': 'export const existing = true;\n',
@@ -293,27 +308,21 @@ describe('Smoke › Rust MCP launch shim', () => {
         {
           jsonrpc: '2.0',
           id: 100,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2024-11-05',
-            capabilities: {},
-            clientInfo: { name: 'anvil-e2e-smoke', version: '0.0.0' },
-          },
-        },
-        {
-          jsonrpc: '2.0',
-          method: 'notifications/initialized',
+          method: 'server/discover',
+          params: modernMeta(),
         },
         {
           jsonrpc: '2.0',
           id: 101,
           method: 'tools/list',
+          params: modernMeta(),
         },
         {
           jsonrpc: '2.0',
           id: 102,
           method: 'tools/call',
           params: {
+            ...modernMeta(),
             name: 'anvil_validate_write',
             arguments: {
               workspaceRoot: workspace.root,
@@ -323,32 +332,11 @@ describe('Smoke › Rust MCP launch shim', () => {
             },
           },
         },
-        {
-          jsonrpc: '2.0',
-          id: 103,
-          method: 'tools/call',
-          params: {
-            name: 'anvil_validate_write',
-            arguments: {
-              workspaceRoot: workspace.root,
-              path: 'config/credentials.example',
-              operation: 'create',
-              proposedContent: "export const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
-            },
-          },
-        },
-        {
-          jsonrpc: '2.0',
-          id: 104,
-          method: 'shutdown',
-        },
-        {
-          jsonrpc: '2.0',
-          method: 'exit',
-        },
       ]);
 
-      expect(responseById(responses, 100).result).toBeDefined();
+      const discover = responseById(responses, 100).result;
+      expect(discover?.resultType).toBe('complete');
+      expect(discover?.supportedVersions).toContain('2026-07-28');
 
       const tools = responseById(responses, 101).result?.tools ?? [];
       expect(tools.some((tool) => tool.name === 'anvil_validate_write')).toBe(true);
@@ -358,16 +346,50 @@ describe('Smoke › Rust MCP launch shim', () => {
       expect(safePayload.summary?.total).toBe(0);
       expect(safePayload.correlation?.surface).toBe('mcp');
       expect(safePayload.correlation?.mode).toBe('preWrite');
+    } finally {
+      workspace.cleanup();
+    }
+  });
 
-      const blockedResponse = responseById(responses, 103);
-      expect(blockedResponse.result?.isError).toBe(true);
+  maybeIt('retains the legacy initialize path over stdio', async () => {
+    const workspace = createE2EWorkspace();
 
-      const blockedPayload = parseToolPayload(blockedResponse);
-      expect(blockedPayload.decision).toBe('block');
-      expect(blockedPayload.safeDefault).toBe('do-not-write');
-      expect(blockedPayload.summary?.bySeverity?.error).toBe(1);
-      expect(blockedPayload.diagnostics?.[0]?.category).toBe('secret');
-      expect(blockedPayload.diagnostics?.[0]?.source?.rule_id).toBe('secret-detection');
+    try {
+      const responses = await runMcpLaunchShim(workspace.root, [
+        {
+          jsonrpc: '2.0',
+          id: 200,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'anvil-e2e-legacy-smoke', version: '0.0.0' },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        },
+        {
+          jsonrpc: '2.0',
+          id: 201,
+          method: 'tools/list',
+        },
+        {
+          jsonrpc: '2.0',
+          id: 202,
+          method: 'shutdown',
+        },
+        {
+          jsonrpc: '2.0',
+          method: 'exit',
+        },
+      ]);
+
+      expect(responseById(responses, 200).result).toBeDefined();
+      const tools = responseById(responses, 201).result?.tools ?? [];
+      expect(tools.some((tool) => tool.name === 'anvil_validate_write')).toBe(true);
+      expect(responseById(responses, 202).error).toBeUndefined();
     } finally {
       workspace.cleanup();
     }

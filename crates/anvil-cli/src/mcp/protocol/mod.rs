@@ -1,6 +1,6 @@
 //! Dual-era MCP protocol host (MCP26 / ADR-113).
 //!
-//! Builds against the locked MCP `2026-07-28` **release candidate** until
+//! Implements the ratified MCP `2026-07-28` protocol while
 //! MCP26-001 seals the final schema. Modern clients use per-request `_meta`
 //! and `server/discover`; legacy initialise-era clients keep the existing
 //! handshake path.

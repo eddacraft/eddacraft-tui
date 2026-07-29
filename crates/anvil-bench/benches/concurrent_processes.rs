@@ -110,7 +110,7 @@ mod unix_bench {
         let mut mcp_stdin = mcp_child.stdin.take().ok_or("mcp stdin not piped")?;
         let mut mcp_reader = BufReader::new(mcp_child.stdout.take().ok_or("mcp stdout not piped")?);
         let mut mcp = ManagedChild::new(mcp_child, "anvil mcp serve");
-        mcp_handshake(&mut mcp_stdin, &mut mcp_reader)?;
+        mcp_discover(&mut mcp_stdin, &mut mcp_reader)?;
 
         // --- watch (cwd = repo, default check action) ---
         let mut watch_cmd = Command::new(&bin);
@@ -198,22 +198,26 @@ mod unix_bench {
         Ok(())
     }
 
-    fn mcp_handshake(stdin: &mut impl Write, reader: &mut impl BufRead) -> Result<()> {
+    fn mcp_discover(stdin: &mut impl Write, reader: &mut impl BufRead) -> Result<()> {
         send(
             stdin,
             &serde_json::json!({
-                "jsonrpc": "2.0", "id": "init", "method": "initialize",
-                "params": { "protocolVersion": "2024-11-05", "capabilities": {} }
+                "jsonrpc": "2.0", "id": "discover", "method": "server/discover",
+                "params": { "_meta": modern_meta() }
             }),
         )?;
-        let init = read_line(reader)?;
-        if !response_has_result(&init) {
-            return Err(format!("mcp initialize did not return a result: {init}").into());
+        let discovery = read_line(reader)?;
+        if !response_has_result(&discovery) {
+            return Err(format!("mcp server/discover did not return a result: {discovery}").into());
         }
-        send(
-            stdin,
-            &serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
-        )
+        Ok(())
+    }
+
+    fn modern_meta() -> serde_json::Value {
+        serde_json::json!({
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {}
+        })
     }
 
     fn mcp_tool_call(stdin: &mut impl Write, reader: &mut impl BufRead, seq: u64) -> Result<()> {
@@ -222,6 +226,7 @@ mod unix_bench {
             &serde_json::json!({
                 "jsonrpc": "2.0", "id": seq, "method": "tools/call",
                 "params": {
+                    "_meta": modern_meta(),
                     "name": "anvil_validate_write",
                     "arguments": {
                         "path": format!("src/bench_{seq}.ts"),

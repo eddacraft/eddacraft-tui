@@ -17,7 +17,7 @@ use crate::output::AlreadyReported;
 // is `"` or `\\`), and the JSON-RPC / MCP envelope adds further overhead, so
 // allow up to 4 MiB on the wire to keep valid requests from being rejected
 // at the framing layer before tool-level validation runs.
-const MAX_STDIO_FRAME_BYTES: u64 = 4 * 1024 * 1024;
+pub(crate) const MAX_STDIO_FRAME_BYTES: u64 = 4 * 1024 * 1024;
 
 #[derive(Debug, Args)]
 pub struct McpArgs {

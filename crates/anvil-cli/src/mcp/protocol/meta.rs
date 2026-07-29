@@ -1,10 +1,10 @@
-//! Modern per-request `_meta` parsing (MCP `2026-07-28` RC).
+//! Modern per-request `_meta` parsing (MCP `2026-07-28`).
 
 use serde_json::Value;
 
 use super::versions::{ERR_INVALID_PARAMS, ERR_UNSUPPORTED_PROTOCOL_VERSION, is_modern_version};
 
-/// Keys under `params._meta` for the modern era (RC).
+/// Keys under `params._meta` for the modern era.
 pub const META_PROTOCOL_VERSION: &str = "io.modelcontextprotocol/protocolVersion";
 pub const META_CLIENT_CAPABILITIES: &str = "io.modelcontextprotocol/clientCapabilities";
 pub const META_CLIENT_INFO: &str = "io.modelcontextprotocol/clientInfo";
@@ -113,7 +113,12 @@ pub fn parse_modern_meta(params: Option<&Value>) -> Result<ModernRequestMeta, Me
 
     let client_info = match meta_obj.get(META_CLIENT_INFO) {
         None => None,
-        Some(Value::Object(_)) => meta_obj.get(META_CLIENT_INFO).cloned(),
+        Some(Value::Object(info))
+            if info.get("name").is_some_and(Value::is_string)
+                && info.get("version").is_some_and(Value::is_string) =>
+        {
+            meta_obj.get(META_CLIENT_INFO).cloned()
+        }
         Some(_) => return Err(MetaError::InvalidClientInfoType),
     };
 
@@ -188,6 +193,20 @@ mod tests {
         .expect("valid modern meta");
         assert_eq!(meta.protocol_version, "2026-07-28");
         assert!(meta.client_info.is_none());
+    }
+
+    #[test]
+    fn rejects_present_client_info_without_required_identity_fields() {
+        let err = parse_modern_meta(Some(&json!({
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {}
+            }
+        })))
+        .unwrap_err();
+
+        assert!(matches!(err, MetaError::InvalidClientInfoType));
     }
 
     #[test]

@@ -1,12 +1,12 @@
 # anvil MCP Shim — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                       |
-| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-07-14 against ADR-106, `crates/anvil-cli/src/activation/agent_registry.rs`, and `crates/anvil-cli/src/commands/mcp*.rs`; prior enforcement review 2026-07-04 against ADR-098 |
+| Type     | Authority | Owner      | Status | Freshness                                                                                                                                                                                                |
+| -------- | --------- | ---------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RMCP/MCP26 | Live   | Last reviewed 2026-07-29 against ADR-113 and the dual-era adapter under `crates/anvil-cli/src/mcp/protocol/`; prior client-registry review 2026-07-14 against ADR-106 and `activation/agent_registry.rs` |
 
-| Upstream                                                                                       | Downstream                                                                |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033, ADR-106 | First-wave MCP registry, activation orchestrator, public integration docs |
+| Upstream                                                                                                | Downstream                                                            |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033, ADR-106, ADR-113 | MCP client registry, activation orchestrator, public integration docs |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-07-04 (ADR-098 AD-3:
 > enforcement vocabulary unified on the shared `EnforcementMode`; decision
@@ -28,16 +28,16 @@
 ## 1. Overview
 
 The MCP shim is the MCP server bundled with the `anvil` binary that exposes
-Anvil's MCP tools (headlined by `anvil_validate_write`) over stdio for Cursor
-and Claude Code, routing validation through the local intercept daemon when
-available and a correctness-equivalent embedded scanner when not. It is the
+anvil's MCP tools (headlined by `anvil_validate_write`) over stdio for supported
+editor and agent clients, routing validation through the local intercept daemon
+when available and a correctness-equivalent embedded scanner when not. It is the
 validation-write surface that AI editors call **before** AI-generated writes hit
 disk; honouring a `block` decision is what turns the editor's write tool from
 "AI guesses" into "AI guesses that the daemon already vetted".
 
 The shim's registry ships **14 tools**
-(`crates/anvil-cli/src/mcp/tools/registry.rs:30-148`; the count is pinned by
-`assert_eq!(tools.len(), 14)` at `registry.rs:166`). The original eight are
+(`crates/anvil-cli/src/mcp/tools/registry.rs`; the count is pinned by the
+`registry_lists_registered_tools` test). The original eight are
 `anvil_validate_write`, `anvil_apply_patch`, `anvil_status`, `anvil_check`,
 `anvil_gate`, `anvil_query_boundary`, `anvil_suppress`, and `anvil_fix` — the
 RMCPF-010 / -011 / -012 port of the catalogue whose prior home was the legacy
@@ -45,23 +45,21 @@ Node MCP server (`@eddacraft/anvil-mcp-server`), now superseded in-shim. Six
 read-only **GCTX graph-context tools** were added under GCTX-010..023 / ADR-084:
 `anvil_search_symbols`, `anvil_find_dependents`, `anvil_find_callers`,
 `anvil_impact_of_change`, `anvil_affected_tests`, and `anvil_symbol_context`
-(registry rows at `registry.rs:96-147`). The six GCTX tools set
-`charges_graph_egress: true` (`ToolDefinition` field at `registry.rs:15`) — a
-successful payload is charged against the per-session `graph://` egress byte
-ceiling, the same credit `resources/read` spends (CIB-091d). Auth is data-driven
-via `ToolDefinition.requires_auth` (`registry.rs:10`), gated at
-`commands/mcp.rs:365-367`; `anvil_suppress` and `anvil_fix` keep
-`requires_auth: false` for parity with the archived TS server pending the
-RMCPF-011 authority review (`registry.rs:73-91`), and the six GCTX tools keep
-`requires_auth: false` because their real authority gate is the daemon-side
-workspace-root admission (ADR-084 C3 / CE-8), not the MCP auth cache
-(`registry.rs:92-95`). See `docs/public/anvil/integrations/mcp.md` for the
-public-side comparison.
+(the GCTX rows in `registry.rs`). The six GCTX tools set
+`charges_graph_egress: true` — a successful payload is charged against the
+process-local `graph://` egress byte ceiling, the same credit `resources/read`
+spends (CIB-091d). Auth is data-driven via `ToolDefinition.requires_auth`,
+enforced by `mcp/protocol/domain.rs::tools_call`; `anvil_gate`,
+`anvil_suppress`, and `anvil_fix` require authentication because they execute or
+mutate state. The six GCTX tools keep `requires_auth: false` because their real
+authority gate is the daemon-side workspace-root admission (ADR-084 C3 / CE-8),
+not the MCP auth cache (`registry.rs`). See
+`docs/public/anvil/integrations/mcp.md` for the public-side comparison.
 
 The shim sits at the trust boundary between the editor and the daemon:
 
 - The editor speaks JSON-RPC over stdin/stdout to the shim
-  (`crates/anvil-cli/src/commands/mcp.rs:193-226`).
+  (`commands/mcp.rs::run_stdio_server` and `mcp/protocol/dispatch.rs`).
 - The shim either talks UDS to the daemon
   (`crates/anvil-cli/src/mcp/validation.rs:131-141`) or runs the embedded
   scanner in-process (`validation.rs:385-405`).
@@ -72,8 +70,8 @@ The shim sits at the trust boundary between the editor and the daemon:
 
 ```text
    ┌─────────────────────┐         ┌─────────────────────┐
-   │  Cursor / Claude    │         │  anvil start         │
-   │  Code (MCP client)  │         │  (activation)        │
+   │  Supported editor   │         │  anvil start         │
+   │  or agent client    │         │  (activation)        │
    └─────────┬───────────┘         └──────────┬──────────┘
              │ stdio JSON-RPC                  │ writes editor config
              │                                 ▼
@@ -86,10 +84,10 @@ The shim sits at the trust boundary between the editor and the daemon:
              ▼                            ▼
    ┌──────────────────────────────────────────────────────┐
    │ anvil mcp serve --stdio                               │
-   │ commands/mcp.rs::run_stdio_server (193-226)            │
-   │  • initialize / tools/list / tools/call               │
-   │  • auth gate (commands/mcp.rs:364-368)                │
-   │  • dispatch to validate_write::call (mcp.rs:368)      │
+   │ commands/mcp.rs::run_stdio_server                       │
+   │  • four-MiB newline-delimited frame boundary           │
+   │  • protocol::dispatch dual-era adapter                 │
+   │  • anvil-owned tools, resources and auth boundary      │
    └────────────────────┬─────────────────────────────────┘
                         │
                         ▼
@@ -138,12 +136,15 @@ The shim is a **child of the editor**. Each editor restart spawns a fresh
 That role belongs to `anvil-intercept` (see
 `docs/architecture/intercept-as-built.md` §3 Process model).
 
-The shim's lifetime is one editor session. It blocks on stdin reading
-NDJSON-framed JSON-RPC frames (`commands/mcp.rs:198-223`); on EOF or an `exit`
-notification (`commands/mcp.rs:220-222, 250-254`) it exits. There is no PID
-file, no socket, no fence state — the shim owns no persistent state of its own.
-All persistent state lives on the other side of the IPC boundary (the daemon
-owns it; see intercept-as-built §7 fence persistence and §10 registry).
+The shim's lifetime is one client child process. It blocks on stdin reading
+newline-delimited JSON-RPC frames. EOF ends both eras. A bare `exit`
+notification ends the process only after a successful sealed legacy
+`initialize`; modern clients have no protocol lifecycle session and stop the
+child by closing stdin. There is no PID file, socket, or protocol session. The
+only in-process state is compatibility and bounded operational accounting,
+including the process-local graph-egress budget. Persistent authority remains on
+the other side of the IPC boundary (the daemon owns it; see intercept-as-built
+§7 fence persistence and §10 registry).
 
 **Trust boundary:** the shim runs as the editor's user. The peer-cred check that
 the daemon enforces (`crates/anvil-intercept/src/ipc.rs:251-295`) sees the
@@ -157,14 +158,35 @@ larger frame budget covers worst-case JSON string escaping and the JSON-RPC
 envelope. Oversize lines are discarded with the rest of the line
 (`commands/mcp.rs:261-299`) so the next frame is parsed cleanly.
 
+### 3.1 Dual-era protocol boundary
+
+The stdio host accepts two deliberately separate protocol eras:
+
+| Era    | Versions                                               | Request and lifecycle model                                                                                                                                                                        |
+| ------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Modern | `2026-07-28`                                           | Every request carries protocol version and client capabilities in `params._meta`; `server/discover` reports the server surface; there is no `initialize`, `ping`, `shutdown`, or `exit` lifecycle. |
+| Legacy | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` | A successful `initialize` selects one sealed version for the child process; `notifications/initialized`, `ping`, `shutdown`, and legacy `exit` retain initialise-era behaviour.                    |
+
+The server never echoes an arbitrary legacy version. Modern successful results
+are stamped with `resultType`, server identity metadata, and method-appropriate
+private cache hints; legacy success bodies keep their established shape.
+Unsupported modern versions are rejected with the ratified protocol error.
+
+`crates/anvil-cli/src/mcp/protocol/` is the typed adapter boundary. It parses
+request metadata, selects the era, calls era-neutral domain handlers, and
+renders the matching response envelope. Tool registry, resource access,
+credentials, workspace containment, redaction, daemon calls, and graph-egress
+accounting remain anvil-owned domain concerns. This prevents protocol fields
+from leaking into tool and resource payloads and keeps the adapter replaceable
+by the official Rust SDK after ADR-113's adoption gate passes.
+
 ## 4. Tool surface
 
-The shim exposes MCP tools through the registry at
-`crates/anvil-cli/src/mcp/tools/registry.rs` (`registry.rs:30-148`). Each tool
-supplies its descriptor, dispatch function, and auth policy
-(`ToolDefinition.requires_auth`, `registry.rs:10`) plus a graph-egress flag
-(`ToolDefinition.charges_graph_egress`, `registry.rs:15`). Pins below are
-relative to `crates/anvil-cli/src/mcp/tools/`. The six GCTX rows (from
+The shim exposes MCP tools through `crates/anvil-cli/src/mcp/tools/registry.rs`.
+Each tool supplies its descriptor, dispatch function, auth policy
+(`ToolDefinition.requires_auth`), and a graph-egress flag
+(`ToolDefinition.charges_graph_egress`). Pins below are relative to
+`crates/anvil-cli/src/mcp/tools/`. The six GCTX rows (from
 `anvil_search_symbols` down) set `charges_graph_egress: true`; the original
 eight set it `false`:
 
@@ -174,10 +196,10 @@ eight set it `false`:
 | `anvil_apply_patch`      | `apply_patch.rs:16`      | yes  | Validate a unified diff before applying it                                 |
 | `anvil_status`           | `status.rs:9`            | no   | Read-only workspace-health summary                                         |
 | `anvil_check`            | `check.rs:14`            | no   | Antipattern validation; architecture-check parity deferred (`check.rs:21`) |
-| `anvil_gate`             | `gate.rs:15`             | no   | Quality gate / planless antipattern scan                                   |
+| `anvil_gate`             | `gate.rs:15`             | yes  | Quality gate / planless antipattern scan                                   |
 | `anvil_query_boundary`   | `query_boundary.rs:38`   | no   | Can-file-import-file boundary query                                        |
-| `anvil_suppress`         | `suppress.rs:37`         | no   | Time-boxed suppression comment (default 30 days, max 365)                  |
-| `anvil_fix`              | `fix.rs:33`              | no   | Deterministic auto-fixes for AP-001 / AP-003 / AP-004                      |
+| `anvil_suppress`         | `suppress.rs:37`         | yes  | Time-boxed suppression comment (default 30 days, max 365)                  |
+| `anvil_fix`              | `fix.rs:33`              | yes  | Deterministic auto-fixes for AP-001 / AP-003 / AP-004                      |
 | `anvil_search_symbols`   | `search_symbols.rs:26`   | no   | GCTX identity-only symbol search (charges `graph://` egress; GCTX-010)     |
 | `anvil_find_dependents`  | `find_dependents.rs:29`  | no   | GCTX file-keyed dependents traversal (charges `graph://` egress; GCTX-011) |
 | `anvil_find_callers`     | `find_callers.rs:30`     | no   | GCTX symbol-keyed caller traversal (charges `graph://` egress; GCTX-014)   |
@@ -267,22 +289,20 @@ MCP transport wraps this payload in the standard
 `{ content: [{type: "text", text: <json>}], isError }` shell at
 `validate_write.rs:185-197`.
 
-### 4.3 JSON-RPC method names (editor → shim)
+### 4.3 JSON-RPC method names (client → shim)
 
-The shim implements a narrow MCP subset over JSON-RPC 2.0
-(`commands/mcp.rs:228-248`):
+The shim implements a bounded dual-era MCP subset over JSON-RPC 2.0:
 
-| Method                      | Action                                                                                                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `initialize`                | Returns `protocolVersion`, capabilities `{ tools: {} }`, instructions, and `serverInfo` (`mcp.rs:301-325`). Default protocol version is `2024-11-05` (`mcp.rs:16`). |
-| `notifications/initialized` | No-op.                                                                                                                                                              |
-| tools/list                  | Returns descriptors from the MCP tool registry (`mcp.rs:327-338`).                                                                                                  |
-| tools/call                  | Looks up the named registry tool, applies the tool-specific auth gate when required, then dispatches to the registered handler (`mcp.rs:340-369`).                  |
-| `ping`                      | Returns `{}`.                                                                                                                                                       |
-| `shutdown`                  | Returns null result; does not exit.                                                                                                                                 |
-| `exit`                      | If sent as a notification (no `id`), the loop breaks and the shim exits. Sent as a request, returns Invalid Request.                                                |
+| Method                                     | Modern `2026-07-28`                                                                                  | Sealed legacy versions                                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `server/discover`                          | Required discovery result with tools/resources capability, server identity, and private cache hints. | Not part of the initialise-era lifecycle.                                                               |
+| `initialize` / `notifications/initialized` | Rejected or ignored as appropriate; modern requests do not initialise a process session.             | Negotiates a sealed version; the notification is a no-op.                                               |
+| **tools/list**, **tools/call**             | Dispatched through era-neutral handlers and rendered with modern result metadata.                    | Available after successful `initialize`, with legacy response bodies.                                   |
+| `resources/list`, `resources/read`         | Dispatched through the same domain handlers; list and read use the ratified cache policy.            | Available after successful `initialize`, with legacy response bodies.                                   |
+| `ping`, `shutdown`, `exit`                 | Not modern lifecycle methods. Modern processes stop on EOF.                                          | `ping` and `shutdown` retain legacy responses; bare `exit` terminates only an initialised legacy child. |
 
-Anything else returns `-32601 Method not found` (`mcp.rs:245`).
+Unknown request methods return `-32601 Method not found`. Notifications do not
+produce response frames.
 
 ### 4.4 JSON-RPC method name (shim → daemon)
 
@@ -486,9 +506,9 @@ literal `[REDACTED]` rather than a hash.
 ## 10. Installation surface (`anvil mcp install`)
 
 The shim is the same binary as the rest of the CLI, so install is just writing
-the editor config to point at `anvil mcp serve --stdio`. The install command
-lives in the same file as the serve loop:
-`crates/anvil-cli/src/commands/mcp.rs:88-167`.
+the editor config to point at `anvil mcp serve --stdio`. The install and serve
+commands share `crates/anvil-cli/src/commands/mcp.rs`; client-specific merge and
+write logic lives in `commands/mcp_installer.rs`.
 
 ```bash
 anvil mcp install --client cursor          # writes ~/.cursor/mcp.json
@@ -561,18 +581,16 @@ When an MCP client calls `anvil_validate_write`:
 
 1. **Editor frames a JSON-RPC request** — newline-delimited JSON over stdin to
    the shim child process.
-2. **Shim reads frame** — `read_frame` at `commands/mcp.rs:261-282` enforces the
-   4 MiB stdio frame budget; oversize lines are discarded.
-3. **Shim parses JSON-RPC** — `handle_message` at `commands/mcp.rs:228-248`. Bad
+2. **Shim reads frame** — `commands/mcp.rs::read_frame` enforces the 4 MiB stdio
+   frame budget; oversize lines are discarded.
+3. **Shim parses JSON-RPC** — `mcp/protocol/dispatch.rs::handle_message`. Bad
    requests return `-32600`; bad JSON returns `-32700`.
-4. **Shim auth-gates the call** — `mcp_tool_auth_ok` at
-   `commands/mcp.rs:371-389` checks credentials and (for edict credentials) a
-   1-minute-TTL verify cache (`mcp.rs:395-457`). On failure, returns
-   `mcp_auth_required_result` at `mcp.rs:459-488` — a `block` decision with
-   `error.code = "authentication-required"`.
-5. **Shim dispatches to validate_write** — `tools_call_response`
-   (`commands/mcp.rs:340-369`) verifies the tool name and calls
-   `validate_write::call(arguments)` (`mcp.rs:368`).
+4. **Shim auth-gates the call** — `mcp/protocol/domain.rs::mcp_tool_auth_ok`
+   checks credentials and (for edict credentials) a 1-minute-TTL verify cache.
+   On failure, the domain returns the shared auth-required result — a `block`
+   decision with `error.code = "authentication-required"`.
+5. **Shim dispatches to validate_write** — `mcp/protocol/domain.rs::tools_call`
+   verifies the tool name and calls the registered `validate_write` handler.
 6. **validate_write parses + validates input** — `ValidateWriteRequest::parse`
    (`validate_write.rs:476-527`). Workspace-escape (`reject_symlink_escape` at
    `validate_write.rs:732-748`), oversize content, NUL bytes, and non-UTF-8
@@ -589,8 +607,8 @@ When an MCP client calls `anvil_validate_write`:
     `validation_payload_with_decision` (`validate_write.rs:285-349`).
     `decision_for` evaluates the diagnostics against the resolved enforcement
     mode (`enforcement.rs:96-119`).
-11. **Shim writes response to stdout** — `write_message`
-    (`commands/mcp.rs:525-530`) serialises and flushes.
+11. **Shim writes response to stdout** — `commands/mcp.rs::write_message`
+    serialises and flushes.
 
 `isError` is set when the decision is a veto — `ControlDecision::is_veto()`
 (`block | fence | interrupt`), not a `decision == "block"` string compare — or
@@ -632,7 +650,7 @@ The shim's failure semantics are explicit:
 - Daemon-wired-but-failed (`OperationalFailure`) → `block`, no fallback
   (`validate_write.rs:225-257`, `validation.rs:381`).
 - Auth missing/expired → `block` with `authentication-required`
-  (`commands/mcp.rs:459-488`).
+  (`mcp/protocol/domain.rs`).
 - Daemon unavailable on Unix or `cfg(not(unix))` → silent demote to embedded,
   decision still computed (`validation.rs:371-380`).
 
@@ -641,9 +659,9 @@ state for an MCP-only deployment.
 
 ### No telemetry to Anvil servers from the MCP path
 
-The shim does not call `anvil-api`. The auth gate (`mcp.rs:371-457`) does call
-`client.verify_edict()` for edict credentials — that is a licence verify, not
-telemetry, and it is cached for 1 minute (`EDICT_VERIFY_CACHE_TTL`,
+The shim does not call `anvil-api`. The auth gate in `mcp/protocol/domain.rs`
+calls `client.verify_edict()` for edict credentials — that is a licence verify,
+not telemetry, and it is cached for 1 minute (`EDICT_VERIFY_CACHE_TTL`,
 `mcp.rs:395`). No `validate_write` call itself produces an outbound HTTP request
 from the shim.
 
@@ -725,7 +743,7 @@ documented in `docs/public/anvil/integrations/mcp.md`.
 server (`@eddacraft/anvil-mcp-server`,
 `docs/public/anvil/integrations/mcp.md:140-164`). The Rust shim does not serve
 HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
-(`commands/mcp.rs:185-191` bails without `--stdio`).
+(`commands/mcp.rs::run_serve` rejects a missing `--stdio`).
 
 **Risk:** Low — the surface works; it just routes to a different binary.
 **Fix:** Tracked alongside RMCPF parity (G-04 above).
@@ -736,7 +754,8 @@ HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
 
 | File                                               | Role                                                                                                                                                                                                                                  |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mod.rs`                                           | Module surface — re-exports `enforcement`, `tools`, `validation`.                                                                                                                                                                     |
+| `mod.rs`                                           | Module surface — re-exports protocol, resources, tools and validation.                                                                                                                                                                |
+| `protocol/`                                        | MCP26 typed dual-era adapter: version and metadata parsing, era selection, era-neutral domain dispatch, trace extraction, and response rendering.                                                                                     |
 | `crates/anvil-cli/src/mcp/tools/mod.rs`            | Tool registry — re-exports `validate_write`.                                                                                                                                                                                          |
 | `crates/anvil-cli/src/mcp/tools/validate_write.rs` | RMCP-004: the `anvil_validate_write` tool. Descriptor, request parser, workspace-escape guard, redaction filter, response builder, correlation envelope.                                                                              |
 | `validation.rs`                                    | RMCP-005: `DaemonValidationClient` trait, `LocalDaemonValidationClient`, `SocketDaemonValidationClient`, `request_daemon_diagnostics` (Unix), embedded fallback, `DaemonStatus` enum, `ValidationBackend` enum, `validate_pre_write`. |
@@ -746,7 +765,7 @@ HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
 
 | File            | Role                                                                                                                                                                                                                                                             |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp.rs`        | RMCP-002 / RMCP-003 / RMCP-007: `anvil mcp serve --stdio` stdio loop, JSON-RPC dispatcher, MCP `initialize` / tools/list / tools/call methods, auth gate, `anvil mcp install --client cursor\|claude-code` wrapper.                                              |
+| `mcp.rs`        | `anvil mcp serve --stdio` transport host: four-MiB framing, stdout purity, EOF/legacy-exit process control, and delegation into the typed protocol adapter.                                                                                                      |
 | `mcp_config.rs` | RCLI3-016 / LAUNCH-009.5: `anvil mcp-config` advanced surface — emit, write, verify editor configs for Cursor / Claude Code with stdio or HTTP transport. Shared `install_rust_stdio_target` helper used by `anvil mcp install` and the activation orchestrator. |
 
 ### Cross-crate

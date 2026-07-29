@@ -894,7 +894,7 @@ fn stdio_entry_from_value(v: &serde_json::Value) -> Option<AnvilEntry> {
 /// Legacy initialise protocol version the fallback probe announces.
 const PROBE_LEGACY_PROTOCOL_VERSION: &str = "2025-06-18";
 
-/// Modern protocol version the discovery probe requests (RC baseline).
+/// Modern protocol version the discovery probe requests.
 const PROBE_MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 
 /// Maximum wall-clock time the probe waits for one child's first response
@@ -925,6 +925,8 @@ pub enum ProbeError {
     /// First-line read did not arrive within
     /// [`PROBE_HANDSHAKE_TIMEOUT`].
     Timeout,
+    /// Child response exceeded the MCP stdio frame ceiling.
+    OversizedFrame,
     /// Response was non-UTF-8 or could not be parsed as JSON.
     ParseResponse(String),
     /// Response parsed as JSON but does not look like a successful
@@ -946,6 +948,11 @@ impl std::fmt::Display for ProbeError {
                 f,
                 "no response within {}s",
                 PROBE_HANDSHAKE_TIMEOUT.as_secs_f32()
+            ),
+            ProbeError::OversizedFrame => write!(
+                f,
+                "response exceeded {} byte MCP stdio frame limit",
+                crate::commands::mcp::MAX_STDIO_FRAME_BYTES
             ),
             ProbeError::ParseResponse(s) => write!(f, "parse response: {s}"),
             ProbeError::BadResponse(s) => write!(f, "bad response: {s}"),
@@ -1013,6 +1020,7 @@ fn modern_probe_should_fallback(err: &ProbeError) -> bool {
         ProbeError::Write(_)
         | ProbeError::EmptyResponse
         | ProbeError::Timeout
+        | ProbeError::OversizedFrame
         | ProbeError::ParseResponse(_)
         | ProbeError::BadResponse(_) => true,
     }
@@ -1024,13 +1032,27 @@ enum ProbeRequest {
     LegacyInitialize,
 }
 
+fn read_probe_frame<R: std::io::BufRead>(reader: &mut R) -> Result<Vec<u8>, ProbeError> {
+    let mut buf = Vec::new();
+    {
+        let mut limited =
+            std::io::Read::take(reader, crate::commands::mcp::MAX_STDIO_FRAME_BYTES + 1);
+        std::io::BufRead::read_until(&mut limited, b'\n', &mut buf)
+            .map_err(|err| ProbeError::ParseResponse(format!("I/O error reading stdout: {err}")))?;
+    }
+    if u64::try_from(buf.len()).unwrap_or(u64::MAX) > crate::commands::mcp::MAX_STDIO_FRAME_BYTES {
+        return Err(ProbeError::OversizedFrame);
+    }
+    Ok(buf)
+}
+
 fn probe_child_once(
     command: &Path,
     args: &[String],
     env: &BTreeMap<String, String>,
     request: ProbeRequest,
 ) -> Result<ProbeEvidence, ProbeError> {
-    use std::io::{BufRead, BufReader, Write};
+    use std::io::{BufReader, Write};
     use std::process::{Command, Stdio};
 
     let mut child = Command::new(command)
@@ -1042,26 +1064,19 @@ fn probe_child_once(
         .spawn()
         .map_err(|e| ProbeError::Spawn(e.to_string()))?;
 
-    let mut stdin = match child.stdin.take() {
-        Some(s) => s,
-        None => {
-            reap_child(&mut child);
-            return Err(ProbeError::NoPipes);
-        }
+    let Some(mut stdin) = child.stdin.take() else {
+        reap_child(&mut child);
+        return Err(ProbeError::NoPipes);
     };
-    let stdout = match child.stdout.take() {
-        Some(s) => s,
-        None => {
-            reap_child(&mut child);
-            return Err(ProbeError::NoPipes);
-        }
+    let Some(stdout) = child.stdout.take() else {
+        reap_child(&mut child);
+        return Err(ProbeError::NoPipes);
     };
 
-    let (tx, rx) = std::sync::mpsc::channel::<std::io::Result<Vec<u8>>>();
+    let (tx, rx) = std::sync::mpsc::channel::<std::result::Result<Vec<u8>, ProbeError>>();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
-        let mut buf = Vec::new();
-        let result = reader.read_until(b'\n', &mut buf).map(|_| buf);
+        let result = read_probe_frame(&mut reader);
         let _ = tx.send(result);
     });
 
@@ -1090,11 +1105,9 @@ fn probe_child_once(
             return Err(ProbeError::EmptyResponse);
         }
         Ok(Ok(bytes)) => bytes,
-        Ok(Err(io_err)) => {
+        Ok(Err(err)) => {
             reap_child(&mut child);
-            return Err(ProbeError::ParseResponse(format!(
-                "I/O error reading stdout: {io_err}"
-            )));
+            return Err(err);
         }
         Err(_) => {
             reap_child(&mut child);
@@ -1641,6 +1654,17 @@ mod tests {
             ProbeError::BadResponse(s) => assert!(s.contains("serverInfo.name=anvil")),
             other => panic!("expected BadResponse(serverInfo.name), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn probe_frame_reader_rejects_frames_over_stdio_limit() {
+        let oversized_len = usize::try_from(crate::commands::mcp::MAX_STDIO_FRAME_BYTES + 1)
+            .expect("frame limit fits usize");
+        let mut reader = std::io::Cursor::new(vec![b'x'; oversized_len]);
+
+        let err = read_probe_frame(&mut reader).expect_err("oversized frame must fail closed");
+
+        assert!(matches!(err, ProbeError::OversizedFrame));
     }
 
     #[cfg(unix)]

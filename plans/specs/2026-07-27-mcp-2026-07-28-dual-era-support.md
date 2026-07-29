@@ -3,15 +3,15 @@
 | Field | Value |
 | --- | --- |
 | Type | APS module specification |
-| Status | APS module In Progress (pre-ratification branch) |
-| Module | [mcp-2026-07-28-dual-era-support](../modules/mcp-2026-07-28-dual-era-support.aps.md) (MCP26) |
+| Status | APS module In Progress (ratified implementation review-ready locally) |
+| Module | [mcp-dual-era-support](../modules/mcp-dual-era-support.aps.md) (MCP26) |
 | Branch | `feat/mcp26-dual-era-support` |
 | Gate audit | [2026-07-27-mcp26-001-ratification-gate](../audits/2026-07-27-mcp26-001-ratification-gate.md) |
-| ADR | [113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Proposed) |
+| ADR | [113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Accepted) |
 | Proposed ID | MCP26 |
 | Owner | anvil CLI / MCP |
 | Target | First anvil release after MCP `2026-07-28` ratification |
-| Upstream | MCP `2026-07-28` release candidate / final |
+| Upstream | Ratified MCP `2026-07-28` |
 | Compatibility posture | Dual-era stdio server |
 
 
@@ -21,11 +21,9 @@ file as a work-item index.
 
 ## Problem
 
-Anvil's Rust MCP server is still a legacy-only protocol shape (pinned near
-`2024-11-05` / initialise-era handshake) while the MCP `2026-07-28` revision
-removes that handshake for modern clients, requires `server/discover`,
-per-request protocol metadata, `resultType`, and cache fields. Maintaining a
-hand-written JSON dispatcher for that surface is no longer a good trade.
+The Rust MCP server needed to add ratified MCP `2026-07-28` without breaking
+supported initialise-era clients. The branch now implements that dual-era
+boundary; this document records the design and the final contract seal.
 
 ## Design
 
@@ -43,8 +41,9 @@ anvil should support MCP `2026-07-28` as a **dual-era server**:
   module.
 
 The protocol and transport layer should move to the official Rust SDK,
-`rmcp` v3, once its stable release is available and its remaining server
-conformance gap is either closed or shown not to affect anvil. anvil's tool,
+`rmcp` v3, once a bounded transport passes anvil's adoption gate. Stable
+`rmcp 3.0.0` was evaluated and deferred because its built-in reader cannot
+enforce the four-MiB frame ceiling. anvil's tool,
 resource, validation, redaction, authentication and workspace logic remain
 anvil-owned handlers behind that SDK boundary.
 
@@ -55,15 +54,14 @@ graph egress controls. The 2026 revision adds enough versioning, result-envelope
 caching and compatibility rules that maintaining a separate protocol
 implementation is no longer a good trade.
 
-If stable `rmcp` v3 is not available when the MCP specification is ratified,
-MCP26-001 may authorise a short-lived internal compatibility adapter. It must
+MCP26-001 authorises the current typed internal compatibility adapter. It must
 use typed protocol DTOs and the same conformance fixtures planned for the SDK
 migration. It must not add more ad hoc `serde_json::Value` branching to
 `commands/mcp.rs`.
 
 ## 2. Upstream facts
 
-The release candidate makes these relevant changes:
+The ratified specification makes these relevant changes:
 
 1. Removes the `initialize` and `notifications/initialized` handshake for
    modern clients.
@@ -86,25 +84,25 @@ The release candidate makes these relevant changes:
 12. Deprecates Roots, Sampling and Logging. anvil does not currently advertise
     them.
 
-The final specification is scheduled for 28 July 2026. Before implementation
-is merged, the ratified schema and changelog must be compared with the locked
-release candidate.
+The final schema and changelog were compared with the locked release candidate
+on 29 July 2026. The material anvil delta was optional `clientInfo` with
+required string `name` and `version` when present; the parser and black-box
+fixtures enforce that final shape.
 
 Authoritative references:
 
 - [Release candidate announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
-- [Draft changelog](https://modelcontextprotocol.io/specification/draft/changelog)
-- [Versioning and compatibility](https://modelcontextprotocol.io/specification/draft/basic/versioning)
-- [Server discovery](https://modelcontextprotocol.io/specification/draft/server/discover)
-- [Tools](https://modelcontextprotocol.io/specification/draft/server/tools)
+- [Final specification](https://modelcontextprotocol.io/specification/2026-07-28)
+- [Final changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+- [Versioning and compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
 - [Official Rust SDK](https://github.com/modelcontextprotocol/rust-sdk)
 - [Rust SDK conformance roadmap](https://github.com/modelcontextprotocol/rust-sdk/blob/main/ROADMAP.md)
 
-## 3. Current repository assessment
+## 3. Repository baseline at design time
 
 ### 3.1 Protocol implementation
 
-`crates/anvil-cli/src/commands/mcp.rs` currently:
+`crates/anvil-cli/src/commands/mcp.rs` at the design baseline:
 
 - pins `DEFAULT_PROTOCOL_VERSION` to `2024-11-05`;
 - accepts `initialize`, echoes the client's requested version without checking

@@ -1,18 +1,17 @@
 # Rust MCP Server Parity Spec
 
-| Type | Authority     | Owner     | Status | Freshness                                                                                                                                                                                            |
-| ---- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | RMCPF-002 | Ready  | Last reviewed 2026-05-14 against `plans/modules/rust-mcp-full-port.aps.md`, `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3-4.4, and `anvil-archive/anvil-mcp-server/src/` |
+| Type | Authority     | Owner       | Status | Freshness                                                                                                                                                                                       |
+| ---- | ------------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | RMCPF/MCP26 | Live   | Last reviewed 2026-07-29 against ADR-113, the MCP26 dual-era design, and `crates/anvil-cli/src/mcp/protocol/`; prior parity review 2026-05-14 against `plans/modules/rust-mcp-full-port.aps.md` |
 
-| Upstream                                                                                                    | Downstream                                                                  |
-| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| ADR-033, DRVR-006/DRVR-007, `docs/architecture/mcp-shim-as-built.md`, `anvil-archive/anvil-mcp-server/src/` | RMCPF-010, RMCPF-011, RMCPF-012, RMCPF-020, RMCPF-021, RMCPF-030, RMCPF-031 |
+| Upstream                                                                                                             | Downstream                                                                    |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| ADR-033, ADR-113, DRVR-006/DRVR-007, `docs/architecture/mcp-shim-as-built.md`, `anvil-archive/anvil-mcp-server/src/` | RMCPF parity, MCP26 dual-era conformance, eventual official Rust SDK adoption |
 
-This spec defines the target architecture for porting the archived TypeScript
-MCP server into the Rust `anvil` binary. It does not change the shipped narrow
-MCP shim: `anvil mcp serve --stdio` continues to expose `anvil_validate_write`
-for save-time validation, as documented in
-`docs/architecture/mcp-shim-as-built.md`.
+This spec defines the architecture of the Rust MCP server in the `anvil` binary.
+The parity port is complete enough to expose the anvil-owned tool and resource
+catalogue, and MCP26 adds a typed dual-era stdio protocol boundary. The current
+runtime is documented in `docs/architecture/mcp-shim-as-built.md`.
 
 ## Goals
 
@@ -39,11 +38,11 @@ for save-time validation, as documented in
 
 The Rust MCP server remains under `anvil mcp`:
 
-| Command                   | Purpose                                                                                                                                                                             | Owner              |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `anvil mcp serve --stdio` | Default MCP server for editor/agent clients. Initially exposes `anvil_validate_write`; RMCPF ports parity tools/resources/prompts into this process.                                | RMCP + RMCPF       |
-| `anvil mcp serve --http`  | Optional Streamable HTTP mode only if RMCPF-021 keeps HTTP support. It must be localhost-bound by default and retain explicit auth/rate-limit controls if exposed beyond localhost. | RMCPF-021          |
-| `anvil mcp config`        | Client configuration helper; continues to point generated configs at the Rust binary.                                                                                               | RMCP/RMCPF cutover |
+| Command                   | Purpose                                                                                                                                                                             | Owner                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `anvil mcp serve --stdio` | Default MCP server for editor/agent clients. Exposes the Rust-owned tools and resources through the dual-era protocol adapter.                                                      | RMCP + RMCPF + MCP26 |
+| `anvil mcp serve --http`  | Optional Streamable HTTP mode only if RMCPF-021 keeps HTTP support. It must be localhost-bound by default and retain explicit auth/rate-limit controls if exposed beyond localhost. | RMCPF-021            |
+| `anvil mcp config`        | Client configuration helper; continues to point generated configs at the Rust binary.                                                                                               | RMCP/RMCPF cutover   |
 
 Parity work adds modules under `crates/anvil-cli/src/mcp/` rather than creating
 a new package. The expected shape is:
@@ -64,18 +63,40 @@ state logic lives in the Rust crates that already own that domain.
 
 ## Protocol Support
 
-The Rust server keeps the MCP JSON-RPC handshake used by the current stdio shim:
-`initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `ping`,
-`shutdown`, and `exit`.
+The Rust server supports two stdio eras over the same anvil-owned domain
+handlers. The versions are sealed rather than negotiated by echoing arbitrary
+client input:
 
-RMCPF extends that subset only where parity requires it:
+| Era    | Versions                                               | Required behaviour                                                                                                                                                                                                         |
+| ------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Modern | `2026-07-28`                                           | `server/discover`; protocol version and client capabilities in `params._meta` on every request; `resultType` and server identity on successful results; private cache hints on discovery, list, and resource-read results. |
+| Legacy | `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05` | `initialize` selects a supported version for the child process; `notifications/initialized`, `ping`, `shutdown`, and `exit` retain initialise-era behaviour.                                                               |
 
-| Capability      | Required for parity | Methods / support decision                                                      | Notes                                                                                                 |
-| --------------- | ------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Tools           | Yes                 | `tools/list`, `tools/call`                                                      | Ports the six archived TypeScript tools plus the existing `anvil_validate_write`.                     |
-| Resources       | Yes                 | `resources/list`, `resources/read`                                              | Ports or retires the eight archived resource families.                                                |
-| Prompts         | Decision required   | `prompts/list`, `prompts/get` if retained; explicit no-prompt capability if not | RMCPF-012 decides whether to port the four archived prompts or retire them with migration notes.      |
-| Streamable HTTP | Deferred            | MCP Streamable HTTP only if retained by RMCPF-021                               | Retire unless a supported client proves HTTP demand before implementation. Stdio remains the default. |
+Modern requests do not use `initialize` and do not create a protocol session.
+They are independently versioned and end when the client closes stdin. Legacy
+non-lifecycle methods require a successful `initialize`, and a legacy `exit`
+notification is honoured only in such a process. The transport applies a four
+MiB limit to each newline-delimited frame and discards the remainder of an
+oversize line before reading the next frame.
+
+The supported method surface is:
+
+| Capability      | Modern                             | Legacy                     | Notes                                                                                           |
+| --------------- | ---------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| Discovery       | `server/discover`                  | `initialize`               | Both declare tools and resources; only modern discovery carries modern result and cache fields. |
+| Tools           | `tools/list`, `tools/call`         | Same, after initialisation | One shared registry and handler set.                                                            |
+| Resources       | `resources/list`, `resources/read` | Same, after initialisation | One shared resource implementation and process-local egress accounting.                         |
+| Prompts         | Not advertised                     | Not advertised             | Prompt policy remains explicit; no hidden prompt source of architecture authority.              |
+| Streamable HTTP | Out of scope                       | Out of scope               | Stdio remains the supported Rust transport.                                                     |
+
+`crates/anvil-cli/src/mcp/protocol/` owns typed request metadata, era selection,
+wire errors, lifecycle differences, result envelopes, and trace extraction. It
+returns to era-neutral domain handlers for tool and resource work. Those
+handlers retain anvil's authority over credentials, workspace containment,
+redaction, daemon calls, validation, and the process-local graph-egress budget.
+This adapter boundary is temporary under ADR-113: the official Rust MCP SDK may
+replace protocol framing after its stable release passes anvil's adoption gate,
+without moving domain policy into the SDK layer.
 
 All agent-visible schemas are versioned and fixture-backed. Where Rust changes a
 shape intentionally, the compatibility matrix and migration docs must name the
@@ -175,9 +196,8 @@ policy remains in ADRs, APS, docs, schemas, and code.
 
 ## Transport Strategy
 
-Stdio is the default and required transport. It matches current Cursor and
-Claude Code activation and keeps the MCP server as a child of the editor/agent
-process.
+Stdio is the default and required transport. It matches the supported client
+registry and keeps the MCP server as a child of the editor or agent process.
 
 Streamable HTTP is deferred and gated by RMCPF-021. Phase 0 found no active
 supported-client demand, so the default decision is retirement with migration

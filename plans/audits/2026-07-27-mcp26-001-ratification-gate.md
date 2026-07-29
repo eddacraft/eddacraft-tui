@@ -5,16 +5,15 @@
 | Type | APS gate evidence |
 | Work item | MCP26-001 |
 | Branch | `feat/mcp26-dual-era-support` |
-| Date | 2026-07-27 |
-| Status | In Progress — pre-ratification; operator direction ratified 2026-07-27 |
-| ADR | [ADR-113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Proposed; direction operator-ratified) |
+| Date | 2026-07-27; sealed 2026-07-29 |
+| Status | Gate passed — final contract sealed; branch review and CI pending |
+| ADR | [ADR-113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Accepted 2026-07-29) |
 
 ## Purpose
 
-Record the evidence collected for MCP26-001 before the final MCP
-`2026-07-28` specification is published. This file is the living gate log:
-nothing in MCP26-002+ may merge to `main` until the **Closeout checklist**
-below is complete.
+Record the prerelease baseline and the evidence that sealed the final MCP
+`2026-07-28` contract. The ratification hold is lifted; normal review, CI,
+merge, release, and APS lifecycle gates still apply.
 
 ## 1. Upstream timeline
 
@@ -23,10 +22,12 @@ below is complete.
 | RC locked | 2026-05-21 | [RC blog](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/) |
 | Final specification scheduled | 2026-07-28 | Same |
 | This gate audit started | 2026-07-27 | anvil MCP26-001 |
+| Final specification ratified | 2026-07-28 | [MCP `2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28) |
+| Final seal completed | 2026-07-29 | anvil MCP26-001 |
 
-**Ratification state as of 2026-07-27:** final not yet published. Working
-baseline is the locked RC / draft specification tree. Implementation wire
-changes stay on the feature branch.
+**Ratification state as of 2026-07-29:** final is published. The branch may
+proceed to PR after its implementation, evidence, documentation, and review
+gates pass.
 
 ## 2. RC / draft contract inventory (locked baseline)
 
@@ -95,32 +96,35 @@ supported install path. **Seal condition:** after ratification, confirm no
 promoted client already requires modern-only discover without legacy fallback;
 until then dual-era is mandatory.
 
-## 4. `rmcp` evaluation (2026-07-27)
+## 4. `rmcp` evaluation (sealed 2026-07-29)
 
 | Fact | Value |
 | --- | --- |
-| crates.io stable max | `2.2.0` (2026-07-08) |
-| crates.io newest | `3.0.0-beta.2` (2026-07-24) |
+| crates.io stable | `3.0.0` |
 | Licence | Apache-2.0 |
 | Repository | https://github.com/modelcontextprotocol/rust-sdk |
-| ROADMAP target | v3.0.0 for 2026-07-28 features |
-| Conformance (ROADMAP) | Server 39/40 on suite `0.2.0-alpha.9`; outstanding `json-schema-2020-12` |
-| Legacy suite (ROADMAP) | Spec `2025-11-25` suite `0.1.16` — 30/30 server |
-| Product pin decision | **Do not pin beta into product** until stable + §8.2 gate |
-| Fallback | Temporary typed internal adapter (ADR-113) |
+| Evaluated source | tag `rmcp-v3.0.0`, commit `4e361b715fc70b8a09f0a8aeaedc160712a3472d` |
+| Modern conformance pin | `@modelcontextprotocol/conformance@0.2.0-alpha.10`, source `49103de6ed70804e940637bf3e9e29e4a3f54e64` |
+| Legacy conformance pin | `@modelcontextprotocol/conformance@0.1.16` |
+| Product decision | Keep the temporary typed adapter for this ship |
+| Removal condition | MCP26-012 after a bounded `rmcp` transport passes §8.2 |
 
 ### §8.2 adoption gate status
 
 | Criterion | Status |
 | --- | --- |
-| Stable crates.io release targets final `2026-07-28` | **Open** — no stable v3 yet |
-| SDK wire matches ratified schema | **Open** — final not published |
-| Conformance roadmap reviewed | **Done** — 39/40 server; JSON Schema outstanding |
-| Four MiB frame ceiling | **Open** — requires spike on chosen pin |
+| Stable crates.io release targets final `2026-07-28` | **Done** — `rmcp 3.0.0` |
+| SDK wire matches ratified schema | **Done for schema target** |
+| Conformance runner reviewed | **Done** — official server runner is HTTP-only; stdio applicability recorded under MCP26-010 |
+| Four MiB frame ceiling | **Failed** — built-in async read transport uses unbounded `read_until` |
 | Stdout protocol purity / EOF / Windows | **Open** — requires spike |
 | Sync domain handlers without blocking runtime | **Open** — requires spike |
 | Startup / memory budgets | **Open** — requires spike |
-| Licence / dependency review | **Partial** — Apache-2.0; full transitive review at pin time |
+| Licence / dependency review | **Partial** — Apache-2.0; full transitive review when adopted |
+
+Stable availability alone is insufficient. The frame-ceiling failure is a
+release-blocking mismatch with anvil's transport contract, so ADR-113 accepts
+the typed adapter and leaves SDK removal work in MCP26-012.
 
 ## 4b. Operator ratification (2026-07-27)
 
@@ -167,40 +171,49 @@ publication. Constraints:
   1. Final MCP `2026-07-28` is published,
   2. Final-vs-RC (or final-vs-this-audit) diff is recorded in §7,
   3. ADR-113 is Accepted (or Amended with final pins),
-  4. MCP26-001 status advances to Done / Merged with closeout evidence.
+  4. This audit records the ratification seal as passed; APS lifecycle status
+     may remain In Progress until review and merge evidence exists.
 
-## 6. Closeout checklist (MCP26-001 Done)
+## 6. Closeout checklist (MCP26-001 ratification seal)
 
-- [ ] Final specification URL and schema artefact recorded
-- [ ] Final vs locked-RC / draft diff completed; open questions in §2 resolved
-- [ ] Legacy matrix sealed (confirm or amend provisional set)
-- [ ] Decision path sealed: stable `rmcp` pin **or** temporary adapter
+- [x] Final specification URL and schema artefact recorded
+- [x] Final vs locked-RC / draft diff completed; open questions in §2 resolved
+- [x] Legacy matrix sealed as the full four-version set
+- [x] Decision path sealed: temporary adapter
       authorised with removal condition
-- [ ] Conformance suite versions pinned for modern and selected legacy
-- [ ] ADR-113 Accepted (or Amended) and DECISION-LOG updated
-- [ ] Module MCP26-001 Status closed with validation evidence
-- [ ] Operator/release note: branch may open MCP26-002+ PRs
-- [ ] Release target named: first post-ratification anvil release, or that
+- [x] Conformance suite versions pinned for modern and selected legacy
+- [x] ADR-113 Accepted and DECISION-LOG updated
+- [x] Module MCP26-001 records final seal evidence
+- [x] Operator/release note: branch may open MCP26-002+ PRs
+- [x] Release target named: first post-ratification anvil release, or that
       release + 1 (operator-approved window)
-- [ ] Legacy matrix sealed as **full set** or **latest-only `2025-11-25`**
+- [x] Legacy matrix sealed as **full set**
 
-## 7. Final vs RC diff (fill after 2026-07-28)
+## 7. Final vs RC diff
 
 | Area | RC/draft baseline | Final | Delta for anvil |
 | --- | --- | --- | --- |
-| Protocol version string | `2026-07-28` | _TBD_ | |
-| `server/discover` schema | draft | _TBD_ | |
-| `resultType` enum | draft (`complete` / input-required form) | _TBD_ | |
-| Unsupported version error code | `-32022` (draft renumber) | _TBD_ | |
-| Cache field requirements | draft `CacheableResult` | _TBD_ | |
-| Other | | | |
+| Protocol version string | `2026-07-28` | `2026-07-28` | None |
+| `clientInfo` | Required when modern metadata is present | Optional; when present, `name` and `version` are required strings | Parser and black-box fixtures tightened |
+| `server/discover` | Cacheable result with identity in result `_meta` | Same | None |
+| `resultType` | `complete`, `input_required`, or extension string | Same | None |
+| Unsupported version error | `-32004` in literal RC artefact | `-32022` with `supported` and `requested` | Existing branch implementation matches final |
+| Cache fields | `ttlMs` and `cacheScope` required on `CacheableResult` | Same | None |
+
+Artefact SHA-256 pins:
+
+- RC `schema.json`: `bd19a7a9e6ee3a7394aec816cd0660a0156864e828a348129baccdb83457d234`
+- Final `schema.json`: `ef70b61f99b6d2e5e3b46863822eab08dff6a45bedc7a08914e0e5b133f40203`
+- RC `schema.ts`: `0ab5accf367ddd1405ccb738c544e259c40dd2b03a7d8f921f289a43c1fbcb7a`
+- Final `schema.ts`: `742750af0bb8c716e7030c4977c992b55d1adc4407e9e66997db5846baedc2cd`
 
 ## 8. References
 
 - Spec: [`plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`](../specs/2026-07-27-mcp-2026-07-28-dual-era-support.md)
-- Module: [`plans/modules/mcp-2026-07-28-dual-era-support.aps.md`](../modules/mcp-2026-07-28-dual-era-support.aps.md)
+- Module: [`plans/modules/mcp-dual-era-support.aps.md`](../modules/mcp-dual-era-support.aps.md)
 - ADR-113: [`plans/decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md`](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md)
 - [RC blog](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/)
-- [Draft changelog](https://modelcontextprotocol.io/specification/draft/changelog)
+- [Final specification](https://modelcontextprotocol.io/specification/2026-07-28)
+- [Final changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
 - [rust-sdk ROADMAP](https://github.com/modelcontextprotocol/rust-sdk/blob/main/ROADMAP.md)
 - [crates.io rmcp](https://crates.io/crates/rmcp)

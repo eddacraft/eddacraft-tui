@@ -39,6 +39,11 @@ engineering maintenance are recorded in the
   (repeatable), `--all-mcp-clients`, or set `ANVIL_ALL_MCP_CLIENTS` to reach the
   wider registry, or `--no-mcp` to skip configuration.
 
+- **Ratified MCP `2026-07-28` alongside sealed legacy protocol fixtures.** The
+  stdio server accepts modern discovery and per-request protocol metadata while
+  retaining all four supported initialise-era versions. Client configuration
+  shapes are unchanged; modern and legacy stdio flows are regression-tested.
+
 - **Managed agent skills.** `anvil skill install` ships the bundled
   `anvil-developer-functions` skill into supported clients (global or project
   scope), with `--verify` and `--dry-run` for safe checks. `anvil doctor` now

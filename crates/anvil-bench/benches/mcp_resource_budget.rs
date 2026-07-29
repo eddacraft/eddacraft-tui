@@ -18,7 +18,7 @@ use std::fmt::Write as _;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anvil_bench::budget::{ResourceBudget, evaluate};
 use anvil_bench::fixture::{RepoSpec, generate_repo};
@@ -76,14 +76,19 @@ fn run() -> Result<anvil_bench::budget::BudgetVerdict> {
     let mut server = ManagedChild::new(child, "anvil mcp serve");
     let pid = server.id();
 
-    // MCP handshake: initialize → read result → initialized notification.
-    send(&mut stdin, &initialize_request())?;
-    let init = read_line(&mut reader)?;
-    if !response_has_result(&init) {
-        server.ensure_running("after initialize")?;
-        return Err(format!("mcp initialize did not return a result: {init}").into());
+    // Modern MCP is request-scoped: discover is the first response and does
+    // not require an initialise-era handshake.
+    let first_response_started = Instant::now();
+    send(&mut stdin, &discover_request())?;
+    let discovery = read_line(&mut reader)?;
+    if !response_has_result(&discovery) {
+        server.ensure_running("after server/discover")?;
+        return Err(format!("mcp server/discover did not return a result: {discovery}").into());
     }
-    send(&mut stdin, &initialized_notification())?;
+    eprintln!(
+        "mcp_resource_budget: first modern response in {:?}",
+        first_response_started.elapsed()
+    );
 
     // One real tool call before measuring, so a broken tool path is a loud
     // error rather than a misleadingly-idle measurement.
@@ -168,17 +173,20 @@ fn response_has_result(line: &str) -> bool {
         .is_some_and(|v| v.get("result").is_some() && v.get("error").is_none())
 }
 
-fn initialize_request() -> serde_json::Value {
+fn discover_request() -> serde_json::Value {
     serde_json::json!({
         "jsonrpc": "2.0",
-        "id": "init",
-        "method": "initialize",
-        "params": { "protocolVersion": "2024-11-05", "capabilities": {} }
+        "id": "discover",
+        "method": "server/discover",
+        "params": { "_meta": modern_meta() }
     })
 }
 
-fn initialized_notification() -> serde_json::Value {
-    serde_json::json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })
+fn modern_meta() -> serde_json::Value {
+    serde_json::json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {}
+    })
 }
 
 /// A realistic `anvil_validate_write` call. The path varies per request (so the
@@ -197,6 +205,7 @@ fn tools_call_request(seq: u64) -> serde_json::Value {
         "id": seq,
         "method": "tools/call",
         "params": {
+            "_meta": modern_meta(),
             "name": "anvil_validate_write",
             "arguments": {
                 "path": format!("src/bench_{seq}.ts"),

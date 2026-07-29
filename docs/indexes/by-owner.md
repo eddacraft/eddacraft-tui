@@ -286,10 +286,15 @@
 
 ## LAUNCH
 
-| Document                                                                             | Path                                       | Type     | Authority | Owner  | Status |
-| ------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | --------- | ------ | ------ |
-| [Activation Orchestrator — As-Built](../../docs/architecture/activation-as-built.md) | `docs/architecture/activation-as-built.md` | As-built | Derived   | LAUNCH | Live   |
-| [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md)        | `docs/architecture/tutorial-as-built.md`   | As-built | Derived   | LAUNCH | Live   |
+| Document                                                                      | Path                                     | Type     | Authority | Owner  | Status |
+| ----------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ------ | ------ |
+| [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md) | `docs/architecture/tutorial-as-built.md` | As-built | Derived   | LAUNCH | Live   |
+
+## LAUNCH/MCP26
+
+| Document                                                                             | Path                                       | Type     | Authority | Owner        | Status |
+| ------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | --------- | ------------ | ------ |
+| [Activation Orchestrator — As-Built](../../docs/architecture/activation-as-built.md) | `docs/architecture/activation-as-built.md` | As-built | Derived   | LAUNCH/MCP26 | Live   |
 
 ## MODULE-CODE
 
@@ -394,17 +399,17 @@
 | [Benchmark Results](../../docs/testing/benchmark-results.md)                              | `docs/testing/benchmark-results.md` | Guide | Advisory      | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
 | [Resource Budgets — long-running Anvil processes](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`  | Guide | Authoritative | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
 
-## RMCP
+## RMCP/MCP26
 
-| Document                                                                  | Path                                     | Type     | Authority | Owner | Status |
-| ------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ----- | ------ |
-| [anvil MCP Shim — As-Built](../../docs/architecture/mcp-shim-as-built.md) | `docs/architecture/mcp-shim-as-built.md` | As-built | Derived   | RMCP  | Live   |
+| Document                                                                  | Path                                     | Type     | Authority | Owner      | Status |
+| ------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ---------- | ------ |
+| [anvil MCP Shim — As-Built](../../docs/architecture/mcp-shim-as-built.md) | `docs/architecture/mcp-shim-as-built.md` | As-built | Derived   | RMCP/MCP26 | Live   |
 
-## RMCPF-002
+## RMCPF/MCP26
 
-| Document                                                                       | Path                                        | Type | Authority     | Owner     | Status |
-| ------------------------------------------------------------------------------ | ------------------------------------------- | ---- | ------------- | --------- | ------ |
-| [Rust MCP Server Parity Spec](../../docs/architecture/rust-mcp-server-spec.md) | `docs/architecture/rust-mcp-server-spec.md` | Spec | Authoritative | RMCPF-002 | Ready  |
+| Document                                                                       | Path                                        | Type | Authority     | Owner       | Status |
+| ------------------------------------------------------------------------------ | ------------------------------------------- | ---- | ------------- | ----------- | ------ |
+| [Rust MCP Server Parity Spec](../../docs/architecture/rust-mcp-server-spec.md) | `docs/architecture/rust-mcp-server-spec.md` | Spec | Authoritative | RMCPF/MCP26 | Live   |
 
 ## Release council
 
