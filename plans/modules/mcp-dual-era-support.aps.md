@@ -4,12 +4,19 @@
 | ----- | ----- | ----------- | -------- |
 | MCP26 | —     | In Progress | 0/12     |
 
-**Last reviewed:** 2026-07-29 — final MCP `2026-07-28` contract sealed on
+**Last reviewed:** 2026-07-30 — final MCP `2026-07-28` contract sealed on
 `feat/mcp26-dual-era-support`. Dual-era host, discovery, envelopes, activation
 probe, schema catalogue, process-local egress copy, W3C trace-context binding,
-modern benchmark/E2E drivers, and documentation are review-ready locally.
-ADR-113 is Accepted; normal PR, CI, merge, and release gates remain. Release:
-first post-ratification cut or next+1.
+modern benchmark/E2E drivers, and documentation are published for review in
+draft PR #3444. ADR-113 is Accepted; CI, merge, and release gates remain.
+Release: first post-ratification cut or next+1.
+
+**Publication:** Draft PR
+[#3444](https://github.com/eddacraft/anvil-001/pull/3444) targets `main` from
+`feat/mcp26-dual-era-support` with no stack dependencies; opening head
+`ee40ee0c9`. It covers MCP26-001..011. Required PR CI, the manual macOS
+Arm/Windows x64 Rust workflow, and actual-client evidence or an explicit
+operator deferral remain pre-merge gates, so all work items stay In Progress.
 
 ## Purpose
 
