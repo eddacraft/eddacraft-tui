@@ -9,8 +9,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, ExitStatus, Stdio};
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -75,6 +75,38 @@ impl SymbolParser for SnippetStubParser {
     }
 }
 
+#[derive(Debug)]
+struct BlockingStubParser {
+    release: Arc<(Mutex<bool>, Condvar)>,
+}
+
+impl SymbolParser for BlockingStubParser {
+    fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
+        let (released, wake) = &*self.release;
+        let released = released.lock().expect("cold scan release lock");
+        let _released = wake
+            .wait_while(released, |released| !*released)
+            .expect("cold scan release wait");
+        SnippetStubParser.parse(path, bytes)
+    }
+}
+
+struct ColdScanRelease(Arc<(Mutex<bool>, Condvar)>);
+
+impl ColdScanRelease {
+    fn release(&self) {
+        let (released, wake) = &*self.0;
+        *released.lock().expect("cold scan release lock") = true;
+        wake.notify_all();
+    }
+}
+
+impl Drop for ColdScanRelease {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
 fn save_time_state() -> SaveTimeState {
     SaveTimeState::new(
         WorkScheduler::new().expect("scheduler"),
@@ -82,6 +114,19 @@ fn save_time_state() -> SaveTimeState {
         Confinement::open_default(),
     )
     .with_parser(Arc::new(SnippetStubParser))
+}
+
+fn cold_save_time_state() -> (SaveTimeState, ColdScanRelease) {
+    let release = Arc::new((Mutex::new(false), Condvar::new()));
+    let state = SaveTimeState::new(
+        WorkScheduler::new().expect("scheduler"),
+        AntipatternCheckConfig::default(),
+        Confinement::open_default(),
+    )
+    .with_parser(Arc::new(BlockingStubParser {
+        release: Arc::clone(&release),
+    }));
+    (state, ColdScanRelease(release))
 }
 
 fn prepare_workspace(tmp: &TempDir) -> PathBuf {
@@ -365,10 +410,12 @@ fn mcp_symbol_context_not_ready_on_cold_graph() {
     temp_env::with_var_unset(GCTX_EGRESS_ENV, || {
         let workspace = tempfile::tempdir().expect("workspace");
         let canonical = prepare_workspace(&workspace);
-        let state = Arc::new(save_time_state());
+        let (state, scan_release) = cold_save_time_state();
+        let state = Arc::new(state);
         let daemon = GctxDaemon::start(state);
 
         let parsed = call_symbol_context(&canonical, daemon.xdg_runtime_dir(), false, false);
+        scan_release.release();
         assert_eq!(parsed["result"]["isError"], false);
         let payload = parse_tool_payload(&parsed);
         assert_eq!(payload["outcome"]["status"], "not_ready");
