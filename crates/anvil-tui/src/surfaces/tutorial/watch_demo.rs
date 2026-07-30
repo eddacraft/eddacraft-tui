@@ -44,7 +44,8 @@ pub enum WatchDemoOutcome {
     CycleComplete,
 }
 
-pub fn autoplay_raw_keypress(autoplay: &mut bool) -> WatchDemoOutcome {
+#[cfg(test)]
+fn autoplay_raw_keypress(autoplay: &mut bool) -> WatchDemoOutcome {
     if *autoplay {
         *autoplay = false;
         WatchDemoOutcome::HandBack
