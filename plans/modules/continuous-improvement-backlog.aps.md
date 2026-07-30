@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 162/203  |
+| CIB | —     | In Progress | 166/206  |
 
 ## Purpose
 
@@ -4207,7 +4207,9 @@ archive.
 
 ### CIB-157: Consolidate the three MCP path-safety implementations
 
-- **Status:** In Progress
+- **Status:** In Progress — shared `collect_relative_files` exists in
+  `shared.rs`; local `normalise_relative_path` copies remain in
+  `apply_patch.rs` and `validate_write.rs`.
 - **Intent:** `crates/anvil-cli/src/mcp/tools/` now has three independent
   "is this a safe workspace-relative path" checks: `shared.rs`'s
   `Component`-based `collect_relative_files`, `suppress.rs`'s
@@ -4342,8 +4344,7 @@ archive.
 
 ### CIB-161: Reconcile the allowlist doc/CLI/diagnostic surface with fail-closed CIB-149
 
-- **Status:** In Progress — fix in flight on branch
-  `fix/cib-161-allowlist-doc-cli-reconcile` (PR #3120).
+- **Status:** Merged 2026-07-03 via PR #3120
 - **Intent:** CIB-149 (PR #3117) removed the implicit "primary check-in root"
   admission from `Allowlist` mode — the daemon now admits exactly the operator's
   configured allow entries (empty ⇒ nothing, fail-closed). The admission code is
@@ -4401,7 +4402,7 @@ archive.
 
 ### CIB-163: Stop `anvil start` printing init's "Next: run `anvil start`"
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-03 via PR #3125
 - **Intent:** When config is absent the orchestrator runs init inline
   (`orchestrator/mod.rs:170-173`) and init's success block ends with "Next:
   run `anvil start` to activate protection." (`init.rs:440-451`) — printed by
@@ -4898,7 +4899,8 @@ archive.
 
 ### CIB-191: Durable continuous-improvement pending queue and harvest
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-11 via PR #3285 — `scripts/ci-log/*`,
+  `pnpm ci-log:*`, and `docs/guides/continuous-improvement-log.md` on main.
 - **Intent:** Stop session CI-log notes from being lost when agents omit the
   tracked log from single-purpose feature PRs or when worktrees are removed
   before the note is committed.
@@ -4920,7 +4922,11 @@ archive.
 
 ### CIB-192: CI-log triage watermark and weekly disposition workflow
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-30 — tooling shipped with CIB-191 (PR #3285);
+  Wave C triage completed (harvest, promote/absorb/leave, closeout note,
+  watermark advanced). Weekly ops must continue: harvest pending, disposition
+  entries since watermark, re-set watermark after each triage — do not treat
+  this merge as "triage is done forever".
 - **Intent:** Make the read→promote loop as real as the write path so pending
   and tracked evidence become CIB items (or deliberate leave/absorb decisions)
   instead of an unbounded append-only archive.
@@ -5568,3 +5574,80 @@ archive.
 - **Confidence:** medium — the shape is clear and the precedent exists in the
   SQL-drift baseline, but grandfathering and CI snapshot persistence are
   genuinely open.
+
+### CIB-208: APS lint missing work-item Status and taskless Ready modules
+
+- **Status:** Draft
+- **Intent:** APS validators currently accept modules marked Ready (and similar
+  non-draft states) when individual work items omit required `Status` fields,
+  and cannot flag modules that claim readiness without any work items. That
+  lets stale or incomplete plans pass `aps:active-lint` while dashboard and
+  release reconciles discover the gap by hand.
+- **Expected Outcome:** `pnpm aps:active-lint` (or plan-doctor) fails or warns
+  on (1) non-terminal work items missing a `Status` line, and (2) modules in
+  Ready/In Progress with zero work items or only terminal items that cannot
+  support the module status. Message names the file, item heading, and the
+  missing field so operators can fix without grepping.
+- **Validation:** Fixture modules covering missing Status, present Status,
+  empty Ready module, and a healthy Ready module; active-lint green on the
+  live corpus after any corpus fixes required by tightening the rule.
+- **Identified From:** 2026-07-27 CI-log — "Reconcile current dashboard
+  situation" (`promote: CIB`); APS validators accepted Ready modules whose
+  work items omitted Status and could not detect impossible data-source claims.
+- **Coordinates with:** CIB-036/037 (structural APS lint already Done), CIB-023
+  (implemented-but-unreconciled — different drift class).
+- **Confidence:** high — defect class observed in production reconcile; lint
+  surface and validation path already exist.
+
+### CIB-209: Worktree-safe local validation path selection
+
+- **Status:** Draft
+- **Intent:** `pnpm validate:changed` and agent-driven Rust/Nx checks repeatedly
+  fail in Worktrunk worktrees for path-environment reasons that are not product
+  defects: long Nx daemon sockets, read-only shared Cargo targets, `/tmp` as a
+  nested Git worktree or full tmpfs, and `TMPDIR` paths long enough to break
+  Unix sockets. Agents reinvent ad-hoc `CARGO_TARGET_DIR` / short-TMPDIR / store
+  overrides every session.
+- **Expected Outcome:** A repository-owned, documented validation entry (script
+  and/or `validate:changed` behaviour) that selects writable, short cache and
+  temp paths appropriate to Worktrunk + sandbox hosts; prefers disk-backed Cargo
+  targets when tmpfs is constrained; reports inherited base (main) format/lint
+  failures distinctly from task-local path failures; ignores task-local
+  review/build debris that is not part of the change under test.
+- **Validation:** In a Worktrunk worktree under a constrained sandbox, the
+  wrapper completes a no-op or docs-only `validate:changed` without manual
+  env surgery; fixture or documented dry-run proves short TMPDIR and non-tmpfs
+  target selection when those conditions are simulated.
+- **Identified From:** CI-log themes `theme:sandbox-safe-local-validation`
+  (2026-07-24 PR #3379), `theme:worktree-validation-paths` (2026-07-27 WOW-006),
+  `theme:rust-validation-storage` (2026-07-30 PR #3444) — three independent
+  sessions, same class.
+- **Coordinates with:** CIB-032 (stale global oxfmt on fresh worktrees),
+  CIB-048 (shared Cargo target disk oversubscription — related but about
+  capacity sharing, not path selection / sandbox writability).
+- **Confidence:** high — recurring, multi-session, clear observable failures.
+
+### CIB-210: Multi-worktree-safe PR merge cleanup
+
+- **Status:** Draft
+- **Intent:** `gh pr merge --delete-branch` can complete the remote merge and
+  still exit non-zero when `main` (or the base branch) is already checked out in
+  another local worktree, so agents report merge failure after a successful
+  GitHub merge. Cleanup of the remote branch is blocked by the same local
+  constraint.
+- **Expected Outcome:** Dev-workflow / finishing-a-branch guidance (and any thin
+  helper used at merge time) treats remote merge state as authoritative: if the
+  PR is merged on GitHub, report success; delete the remote branch via API when
+  local multi-worktree checkout constraints block `gh`'s local cleanup; never
+  require checking out `main` in the task worktree to finish the loop.
+- **Validation:** Documented procedure dry-run with base branch checked out in a
+  second worktree; merge reports success when remote is merged; remote branch
+  deletion succeeds without local base checkout.
+- **Identified From:** CI-log `theme:multi-worktree merge cleanup` (2026-07-27
+  DASHCORE-002) and CIB-200 closeout (2026-07-24) — same `gh pr merge` vs
+  multi-worktree collision twice in three days.
+- **Coordinates with:** CIB-028 (post-merge worktree cleanup sweep — removes
+  worktrees after merge; this item is the merge command itself).
+- **Confidence:** high — clear recurrence and an already-proven workaround
+  (GitHub merge API path used in CIB-200).
+

@@ -55,7 +55,7 @@ TSRET work items themselves.
 
 - [x] **APS item: DRVR-006** ("Pin MCP daemon-RPC surface — resolve
       translation-table scope"), filed in #1065
-      (`plans/modules/surface-drivers.aps.md`). Blocks DRVR-002
+      (`plans/archive/modules/surface-drivers.aps.md`). Blocks DRVR-002
       sign-off. Three paths recorded (shrink / scope-local / expand
       INTD); choose before DRVR-002 freezes.
 
@@ -111,7 +111,7 @@ TSRET work items themselves.
       sign-off prerequisite (#1065). correlationId retention
       window + Kindling bridge shape.
 - [x] **M13.** **Landed** — DRVR-001 Expected Outcome amended in
-      #1065 (`plans/modules/surface-drivers.aps.md`) with explicit
+      #1065 (`plans/archive/modules/surface-drivers.aps.md`) with explicit
       partial-failure surface: NDJSON framer on parse error
       preserves connection, per-request timeout with structured
       retriable error, in-flight cancellation on transport drop
@@ -119,7 +119,7 @@ TSRET work items themselves.
       refusal.
 - [x] **M14.** → **APS: TSRET-006** (engine-version diagnostic
       field + transition-window divergence canary). Filed in #1065
-      (`plans/modules/anvil-ts-scanner-retirement.aps.md`).
+      (`plans/archive/modules/anvil-ts-scanner-retirement.aps.md`).
 - [ ] **M15.** `napi.yml` per-job `timeout-minutes`. Still open.
       Hygiene fix — suitable for a small chore PR bundled with X2 /
       X3 / X4. *(Location: `.github/workflows/napi.yml`)*
@@ -140,7 +140,7 @@ TSRET work items themselves.
 - [x] **S2.** **Landed** — TSRET Risks section amended in #1065.
       Napi-overhead and Windows arm64 risks marked vacated; only
       transitive-consumers risk remains live.
-      *(`plans/modules/anvil-ts-scanner-retirement.aps.md`)*
+      *(`plans/archive/modules/anvil-ts-scanner-retirement.aps.md`)*
 - [x] **S3.** **Landed** — TSRET Milestones re-pointed in #1065.
       M2 now attributed to TSRET-006; old TSRET-003/-004 M2 marked
       superseded.
@@ -202,10 +202,10 @@ TSRET work items themselves.
 | INTD | [INTD-014](../archive/modules/intercept-daemon.aps.md) JSON-RPC conformance + latency bench | M1 |
 | INTD | [INTD-015](../archive/modules/intercept-daemon.aps.md) daemon-enforced telemetry scoping | M5 |
 | INTD | [INTD-016](../archive/modules/intercept-daemon.aps.md) DoS protection budgets | M9 |
-| DRVR | [DRVR-006](../modules/surface-drivers.aps.md) Pin MCP daemon-RPC surface | C2 |
-| DRVR | [DRVR-007](../modules/surface-drivers.aps.md) Driver trust + enforcement contract | M5 / M6 / M7 / M11 |
-| DRVR | [DRVR-008](../modules/surface-drivers.aps.md) Non-VSCode LSP capability negotiation | M10 |
-| TSRET | [TSRET-006](../modules/anvil-ts-scanner-retirement.aps.md) Engine-version + divergence canary | M14 |
+| DRVR | [DRVR-006](../archive/modules/surface-drivers.aps.md) Pin MCP daemon-RPC surface | C2 |
+| DRVR | [DRVR-007](../archive/modules/surface-drivers.aps.md) Driver trust + enforcement contract | M5 / M6 / M7 / M11 |
+| DRVR | [DRVR-008](../archive/modules/surface-drivers.aps.md) Non-VSCode LSP capability negotiation | M10 |
+| TSRET | [TSRET-006](../archive/modules/anvil-ts-scanner-retirement.aps.md) Engine-version + divergence canary | M14 |
 
 Six more findings are baked into existing work-item expected outcomes rather than new items:
 

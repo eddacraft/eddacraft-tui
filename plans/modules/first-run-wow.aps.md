@@ -2,20 +2,15 @@
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| WOW | Josh  | In Progress | 5/6      |
+| WOW | Josh  | Done | 6/6      |
 
-**Last reviewed:** 2026-07-27 — the operator-approved
-[`JOURNEY` conductor](./release-user-journeys.aps.md) promotes WOW-005 into the
-release cut and retains WOW-006 as a coordinated post-cut enhancement. The
-module was created 2026-07-08 via planning-workflow from the
+**Last reviewed:** 2026-07-30 — WOW-001..006 all Merged. WOW-006 sandboxed
+autoplay landed via PR [#3441](https://github.com/eddacraft/anvil-001/pull/3441)
+with JOURNEY-007. Progress 6/6; module **Done** pending release evidence for
+`v0.10.0-beta`. Module created 2026-07-08 via planning-workflow from the
 operator's first-run-experience review (interactive session): the tutorial's
 Enter-executes-a-real-command behaviour is not evident before the keypress, and
-the first-run journey underuses the discovery scan's real findings. WOW-001..004
-are Merged. WOW-005's first-win direction and consent boundary are accepted by
-the JOURNEY design, while its execution depends on ACTTUI-009's production
-consent wiring. WOW-006 is In Progress: implementation and Council repair are
-complete, with draft PR
-[#3441](https://github.com/eddacraft/anvil-001/pull/3441) open for review.
+the first-run journey underuses the discovery scan's real findings.
 
 ## Purpose
 
@@ -171,14 +166,11 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-006: Autoplay demo mode on a sandboxed fixture
 
-- **Status:** In Progress 2026-07-27 — design gate **closed** (operator approved;
+- **Status:** Merged 2026-07-30 via PR #3441 — design gate closed (operator;
   design at
   [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)).
-  Prerequisites are in place (ACTTUI-000 Done, ACTTUI-001 scaffold landed,
-  WOW-002 reveal driver Merged, shared ACTTUI widgets available). The local
-  implementation passed Council and independent verification; draft PR
-  [#3441](https://github.com/eddacraft/anvil-001/pull/3441) is open against
-  `main`. Coordinated by JOURNEY-007.
+  Sandboxed autoplay shipped with JOURNEY-007 on
+  `feat/wow-006-sandbox-autoplay`.
 - **Intent:** A "watch anvil work" mode plays the tutorial hands-free —
   commands, inline-editor ghost-typing, verification — against a scaffolded
   temp fixture repo, so the demo executes for real without touching the
@@ -238,9 +230,9 @@ enhancement unless the operator explicitly promotes it.
   unticked posture, `project_writes_gated` gating) and the `eddacraft-tui`
   widget vocabulary. WOW-001..004 shipped in ACTTUI's phase-B cohort.
   WOW-005 execution is gated on ACTTUI-009's working production consent path;
-  WOW-006 consumes the shared widget foundation when its post-cut design closes.
+  WOW-006 consumed the shared widget foundation for sandboxed autoplay (#3441).
 - **JOURNEY (release-user-journeys):** conductor for the release outcome.
-  JOURNEY-001 requires WOW-005; JOURNEY-007 retains WOW-006 as visible post-cut
-  expansion without making it a release blocker.
+  JOURNEY-001 requires WOW-005; JOURNEY-007 / WOW-006 Merged via PR #3441 as
+  post-cut expansion (non-blocking for the original v0.9 cut).
 - **LAUNCH-014 / ADR-080**: tutorial honesty pins and the ungated welcome
   demo posture are load-bearing and unchanged.

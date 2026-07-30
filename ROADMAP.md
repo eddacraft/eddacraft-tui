@@ -1,9 +1,10 @@
 # anvil Roadmap
 
-**Last updated:** 2026-06-05 (fact-refresh — Horizon 0 and Horizon 1 marked
-shipped through `v0.7.4-beta`; `v0.8.0-beta` "The Save-Time Daemon" is the
-active window; thematic framing and next-window selection are unchanged, pending
-a strategic pass)
+**Last updated:** 2026-07-30 (fact-refresh — latest shipped headline is
+`v0.9.0-beta` "First-Run Wins and the Assistant Graph" (2026-07-12); active
+window is `v0.10.0-beta` "Team-Lead Surface Foundations", operator-confirmed
+2026-07-13. Module status and the pickable release menu live in the SOT files
+below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -91,7 +92,22 @@ match.
 `v0.7.4-beta` (2026-06-01). Detailed sequencing, waves, and parallelisation in
 the [v0.7.0 release record](./plans/releases/v0.7.0-beta.md).
 
-### Horizon 2 — Team-Lead Surface
+### Between Horizon 1 and Horizon 2 — Shipped minors
+
+These minors land capability between the always-on daemon loop and the team-lead
+browser surface. Immutable records live under
+[`plans/releases/`](./plans/releases/).
+
+| Tag           | Theme                                  | Headline capability                                                                                                                                               |
+| ------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.8.0-beta` | The Save-Time Daemon                   | Persistent intercept daemon validates save-time deltas (ADR-061); save-time governance no longer cold-spawns per save. Shipped 2026-06-11.                        |
+| `v0.8.1-beta` | Headless GitHub Login                  | Headless auth/login path patch on the v0.8 line.                                                                                                                  |
+| `v0.9.0-beta` | First-Run Wins and the Assistant Graph | Assistant-facing graph over MCP (GCTX), warm-start persistence, MCP-optional useful daemon, USAGE analytics, JOURNEY-conducted first-run cut. Shipped 2026-07-12. |
+
+**Latest shipped headline:** `v0.9.0-beta` (2026-07-12). Release record:
+[`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
+
+### Horizon 2 — Team-Lead Surface — active window `v0.10.0-beta`
 
 **Theme:** The persona that funds the tool gets a credible browser surface.
 
@@ -104,6 +120,13 @@ file/line + severity grouping and a detail panel.
 The CLI ↔ dashboard bridge is `anvil export` — canonical
 `.anvil/{warnings,gates,provenance,config}.json` written from the latest run
 state.
+
+**Active window:** `v0.10.0-beta` "Team-Lead Surface Foundations"
+(operator-confirmed 2026-07-13). Scope, waves, and cut criteria live in
+[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module-level status lives in
+[`plans/index.aps.md`](./plans/index.aps.md). This horizon names the capability
+theme only — do not treat the paragraphs above as a claim that every surface has
+already shipped.
 
 ### Horizon 3 — Enterprise Readiness
 

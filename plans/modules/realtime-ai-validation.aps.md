@@ -103,7 +103,7 @@ shape of the problem:
 ## Cross-cutting convention
 
 This module follows the **cross-cutting module convention** trialled
-by [LAUNCH](./launch-flow-readiness.aps.md) (see its "Cross-cutting
+by [LAUNCH](../archive/modules/launch-flow-readiness.aps.md) (see its "Cross-cutting
 convention" section). Concretely:
 
 1. **Owns its own work items.** Every `RTAI-NNN` task is owned and
@@ -214,21 +214,21 @@ convention" section). Concretely:
   (telemetry mirror), [INTD-014](../archive/modules/intercept-daemon.aps.md)
   (JSON-RPC conformance + latency benchmark — RTAI's mid-edit
   benchmark extends it).
-- **Blocks on for editor-driver tasks only:** [DRVR-001](./surface-drivers.aps.md)
-  (`DriverClient`) and [DRVR-002](./surface-drivers.aps.md)
+- **Blocks on for editor-driver tasks only:** [DRVR-001](../archive/modules/surface-drivers.aps.md)
+  (`DriverClient`) and [DRVR-002](../archive/modules/surface-drivers.aps.md)
   (editor-driver protocol — RTAI extends the method table with
   the mid-edit RPC). The A1 RMCP path does not block on these.
-- **Coordinates with:** [DRVR-003](./surface-drivers.aps.md) (VSCode
+- **Coordinates with:** [DRVR-003](../archive/modules/surface-drivers.aps.md) (VSCode
   extension cutover) — the editor-driver mid-edit path is most
   cheaply built once DRVR-003 is in flight, but RTAI's spike
   (RTAI-001) does not need to wait for DRVR-003 to complete.
-- **Coordinates with:** [rust-mcp-launch-shim](./rust-mcp-launch-shim.aps.md)
+- **Coordinates with:** [rust-mcp-launch-shim](../archive/modules/rust-mcp-launch-shim.aps.md)
   (RMCP) — current-release MCP path for pre-write validation in the
   single Rust binary.
 - **Coordinates with:** [rust-mcp-full-port](./rust-mcp-full-port.aps.md)
   (RMCPF) and DRVR — next-release full MCP parity and driver-framework
   alignment.
-- **Coordinates with:** [LAUNCH](./launch-flow-readiness.aps.md)
+- **Coordinates with:** [LAUNCH](../archive/modules/launch-flow-readiness.aps.md)
   (save-time watch flow) — RTAI is the in-flight sibling. The two
   must produce diagnostics that look the same on the wire so
   consumers don't branch.

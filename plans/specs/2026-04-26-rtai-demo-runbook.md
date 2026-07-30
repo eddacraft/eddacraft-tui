@@ -1,18 +1,18 @@
 # RTAI Launch Demo Runbook
 
 **Last updated:** 2026-04-30
-**Owner:** TBD (see [Owner & cadence](#owner--cadence))
+**Owner:** TBD (see [Owner & cadence](#6-owner-cadence))
 **Status:** Draft — pending RTAI-001 spike numbers (latency rubric pinned in [ADR-031](../decisions/031-validation-latency-rubric.md)).
 
 > **Scope.** This is a runbook for the "first-touch wow" launch demo: a developer
 > opens Cursor (or Claude Code) with the Rust MCP launch shim attached, asks the AI for a
 > confident-but-wrong rewrite, and Anvil refuses the write **before it hits
 > disk**. It owns the *user journey* — the integrated path that
-> [LAUNCH](../modules/launch-flow-readiness.aps.md) (save-time polish),
+> [LAUNCH](../archive/modules/launch-flow-readiness.aps.md) (save-time polish),
 > [RTAI](../modules/realtime-ai-validation.aps.md) (mid-edit engine),
 > [INTD](../archive/modules/intercept-daemon.aps.md) (daemon),
-> [RMCP](../modules/rust-mcp-launch-shim.aps.md) (Rust MCP stdio launch path),
-> and [DRVR](../modules/surface-drivers.aps.md) (broader drivers) each cover
+> [RMCP](../archive/modules/rust-mcp-launch-shim.aps.md) (Rust MCP stdio launch path),
+> and [DRVR](../archive/modules/surface-drivers.aps.md) (broader drivers) each cover
 > only in part.
 >
 > **Not in scope.** This document does not specify the implementation of RTAI,
@@ -137,7 +137,7 @@ Expected: the `Smoke › Rust MCP launch shim` case starts
 `anvil_validate_write` on one safe proposed write and one blocked secret
 fixture, and exits cleanly. This proves the Rust launch shim without opening a
 GUI client; it does **not** replace the Cursor / Claude Code dry-run required by
-[Cadence](#owner--cadence).
+[Cadence](#6-owner-cadence).
 
 **LSP path (VSCode, fallback / advisory-only demo):**
 
@@ -175,7 +175,7 @@ The latency line is the demo's quiet trust signal — it is sourced from
 real `validation.service` measurements (INTD-011), not pre-seeded
 estimates. Numbers must be inside the budget pinned by ADR-031. If
 they are not, jump to
-[Failure modes — latency exceeds budget](#latency-exceeds-budget).
+[Failure modes — latency exceeds budget](#44-latency-exceeds-budget).
 
 The exact rendered text is a contract pin: any change to the
 `latency: p50 <X>ms p95 <Y>ms (mid-edit)` line MUST land in the same
@@ -206,7 +206,7 @@ Show the audience the rolling decision log; close.
 > message the audience sees. Scenarios are run **with the Rust MCP launch shim
 > attached** so Anvil can refuse the write. Operator MUST run a dry-run of
 > each scenario on the demo machine before any customer call (see
-> [Cadence](#owner--cadence)).
+> [Cadence](#6-owner-cadence)).
 >
 > **MCP cooperation requirement.** The Rust shim can only refuse writes when
 > the agent consults it. Modern aligned MCP clients may not call advisory
@@ -466,7 +466,7 @@ Triage:
 
 1. `anvil intercept status` — is a session registered for this worktree?
    If `sessions: 0`, the Rust MCP shim is connected but did not register. File
-   under [RMCP feedback](#feedback-to-rtai--intd--rmcp--drvr).
+   under [RMCP feedback](#7-feedback-to-rtai-intd-rmcp-drvr).
 2. Check the rule is enabled for this worktree: `anvil config show`
    prints the merged config. If the rule is suppressed or set to
    `severity: info` in `.anvil.yaml`, the demo will see no block.
@@ -650,15 +650,15 @@ blocker.
 
 ## Appendix A — Cross-references
 
-- [LAUNCH module](../modules/launch-flow-readiness.aps.md) — save-time
+- [LAUNCH module](../archive/modules/launch-flow-readiness.aps.md) — save-time
   watch flow; this runbook degrades into LAUNCH territory in §4.4
 - [RTAI module](../modules/realtime-ai-validation.aps.md) — mid-edit
   engine; RTAI-001 spike informs §1.5 latency expectations
 - [INTD module](../archive/modules/intercept-daemon.aps.md) — daemon authority;
   INTD-011 owns `anvil intercept status` shape
-- [RMCP module](../modules/rust-mcp-launch-shim.aps.md) — Rust MCP
+- [RMCP module](../archive/modules/rust-mcp-launch-shim.aps.md) — Rust MCP
   stdio launch path that Scenarios A–C ride on
-- [DRVR module](../modules/surface-drivers.aps.md) — broader driver
+- [DRVR module](../archive/modules/surface-drivers.aps.md) — broader driver
   framework; full MCP parity moves to RMCPF after the launch shim
 - [RELEASE-PLAN.md](../../RELEASE-PLAN.md) — current release context;
   this runbook closes the `Demo runbook` prerequisite under A1

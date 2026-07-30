@@ -2,21 +2,17 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 7/10 |
+| JOURNEY | Conductor | Josh | high | In Progress | 8/10 |
 
-**Last reviewed:** 2026-07-12 — **`v0.9.0-beta` shipped** under JOURNEY-006:
-tag at source `6b0ed1d1d`, published on both repos 2026-07-12T17:06Z
-(release run 29190475570 attempt 3; verification and closeout on
-[#3305](https://github.com/eddacraft/anvil-001/issues/3305); record:
-[`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md)). The release
-cut chain (JOURNEY-001..006) is complete — all six coordinated code items
-Merged (CIB-184 #3279, WOW-005 #3280, CIB-073 #3282, CIB-183 #3283,
-ACTTUI-012 #3284, CIB-190 #3286), outcomes verified on the candidate, Linux
-rehearsal recorded
-([audit](../audits/2026-07-12-journey-005-linux-rehearsal.md)), escalation
-queue cleared (ESC-001 accept-CI, ESC-002 approve). JOURNEY-007..010 remain
-Proposed post-cut expansion. Created 2026-07-11 from the operator's release
-goal and the accepted
+**Last reviewed:** 2026-07-30 — post-cut expansion refresh. The `v0.9.0-beta`
+cut chain (JOURNEY-001..006) remains complete and shipped (record:
+[`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); closeout
+[#3305](https://github.com/eddacraft/anvil-001/issues/3305)). Post-cut:
+JOURNEY-007 Merged 2026-07-30 via PR #3441 (sandboxed autoplay with WOW-006);
+JOURNEY-008 Merged 2026-07-25 via PR #3408; JOURNEY-009 Proposed on hold;
+JOURNEY-010 Proposed blocked on DASHARCH/DASHOPS view waves. Progress 8/10
+counts Merged items only. Created 2026-07-11 from the operator's release goal
+and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
 ## Purpose
@@ -229,16 +225,13 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-007: Sandboxed autoplay demonstration
 
-- **Status:** In Progress 2026-07-30 — WOW-006's design gate is closed (operator
-  approved; design at
-  [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)):
+- **Status:** Merged 2026-07-30 via PR #3441 — WOW-006 sandboxed autoplay landed
+  on `main` (`feat/wow-006-sandbox-autoplay`). Design at
+  [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md):
   fresh-tempdir offline fixture with RAII cleanup, real in-sandbox execution
   behind a path-containment guard, `anvil tutorial --autoplay` + a picker
   discovery row, session-scoped autoplay that survives the watch-demo
-  transition, and pacing that extends the WOW-002 reveal driver. The coordinated
-  WOW-006 build is open as PR #3441 (`feat/wow-006-sandbox-autoplay`), which
-  reconciles WOW-006 in its own diff. Flip to
-  `Merged YYYY-MM-DD via PR #3441` when it lands.
+  transition, and pacing that extends the WOW-002 reveal driver.
 - **Intent:** Preserve a hands-free, isolated demonstration for clean repos and
   demos without making animation a substitute for real repository value.
 - **Expected Outcome:** WOW-006 runs deterministically in a temporary fixture,
@@ -299,9 +292,10 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-010: Browser continuity
 
-- **Status:** Proposed — **blocked 2026-07-26** on the DASH view surfaces:
-  DASHCORE (0/9), DASHARCH (0/8), and DASHOPS (0/7) have not built the browser
-  views this item would carry continuity into, so a full design is premature.
+- **Status:** Proposed — **blocked 2026-07-26** on remaining DASH view waves:
+  DASHCORE is 9/9 Merged (pending release evidence), but DASHARCH and DASHOPS
+  have not yet built the browser views this item would carry continuity into,
+  so a full design remains premature.
   Design intent is settled and recorded here: DASH must **consume existing typed
   contracts** (activation, protection, finding, value) and must not redefine
   that truth in the browser; terminal usefulness stays independent of the

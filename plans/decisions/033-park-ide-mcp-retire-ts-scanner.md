@@ -305,10 +305,10 @@ which scanner consumers exist.
 - APS modules:
   - [anvil-ts-scanner-retirement](../modules/anvil-ts-scanner-retirement.aps.md)
     (TSRET — TSRET-005 unblocks under this ADR; TSRET-006 dropped)
-  - [surface-drivers](../modules/surface-drivers.aps.md) (DRVR —
+  - [surface-drivers](../archive/modules/surface-drivers.aps.md) (DRVR —
     DRVR-003/-004 deferred until surfaces resume; remainder
     unaffected)
-  - [rust-mcp-launch-shim](../modules/rust-mcp-launch-shim.aps.md)
+  - [rust-mcp-launch-shim](../archive/modules/rust-mcp-launch-shim.aps.md)
     (RMCP — owns the launch MCP path during the pause)
   - [rust-mcp-full-port](../modules/rust-mcp-full-port.aps.md)
     (RMCPF — re-pointed: starts from "TS MCP server is paused"

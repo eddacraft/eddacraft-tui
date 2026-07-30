@@ -10,7 +10,7 @@
 
 > **MCP sequencing amendment (2026-04-28):** The current release does not build
 > the TS `DriverClient` bridge for MCP. A1 uses
-> [`RMCP`](../../modules/rust-mcp-launch-shim.aps.md), a narrow Rust
+> [`RMCP`](../../archive/modules/rust-mcp-launch-shim.aps.md), a narrow Rust
 > `anvil mcp serve --stdio` launch shim for pre-write validation. Full existing
 > MCP server parity moves to [`RMCPF`](../../modules/rust-mcp-full-port.aps.md)
 > next release. The MCP-driver design below remains useful as the broader
@@ -521,7 +521,7 @@ What the mcp-driver *cannot* do:
 ### 4.3 Translation model
 
 > **DRVR-006 resolution (2026-05-06, A2 Wave 1):** The current release
-> ships [RMCP](../../modules/rust-mcp-launch-shim.aps.md) (the narrow
+> ships [RMCP](../../archive/modules/rust-mcp-launch-shim.aps.md) (the narrow
 > Rust MCP launch shim) as the agent-facing MCP path. Full TS-MCP parity
 > moves to [RMCPF](../../modules/rust-mcp-full-port.aps.md) and is
 > tracked under RMCPF-002 / RMCPF-010. DRVR-006's scope-resolution

@@ -2,21 +2,22 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| MCP26 | —     | In Progress | 0/12     |
+| MCP26 | —     | In Progress | 11/12    |
 
-**Last reviewed:** 2026-07-30 — final MCP `2026-07-28` contract sealed on
-`feat/mcp26-dual-era-support`. Dual-era host, discovery, envelopes, activation
-probe, schema catalogue, process-local egress copy, W3C trace-context binding,
-modern benchmark/E2E drivers, and documentation are published for review in
-draft PR #3444. ADR-113 is Accepted; CI, merge, and release gates remain.
-Release: first post-ratification cut or next+1.
+**Last reviewed:** 2026-07-30 — dual-era MCP `2026-07-28` support (MCP26-001
+through MCP26-011) merged to `main` via PR #3444. Code lands under
+`crates/anvil-cli/src/mcp/protocol/` (dispatch, domain, versions, trace, and
+related). ADR-113 is Accepted. MCP26-012 remains Ready for product adoption of
+stable `rmcp` (temporary typed adapter still in use). Release: first
+post-ratification cut or next+1.
 
-**Publication:** Draft PR
-[#3444](https://github.com/eddacraft/anvil-001/pull/3444) targets `main` from
-`feat/mcp26-dual-era-support` with no stack dependencies; opening head
-`ee40ee0c9`. It covers MCP26-001..011. Required PR CI, the manual macOS
-Arm/Windows x64 Rust workflow, and actual-client evidence or an explicit
-operator deferral remain pre-merge gates, so all work items stay In Progress.
+**Publication:** Merged via PR
+[#3444](https://github.com/eddacraft/anvil-001/pull/3444) on 2026-07-30
+(merge commit `41de26aaa` and related dual-era commits on `main`). Covers
+MCP26-001..011. Actual-client matrix evidence was deferred as residual operator
+work; official stdio conformance remains locally evidenced (HTTP-only official
+runner not applicable). MCP26-012 (rmcp product pin / adapter removal) is not
+in this PR and stays Ready.
 
 ## Purpose
 
@@ -162,8 +163,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-001: Ratification and SDK readiness gate
 
-- **Status:** In Progress 2026-07-29 — final seal complete on branch; review and
-  CI pending
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Seal the final upstream contract and choose the protocol
   implementation path before any dual-era wire lands.
 - **Expected Outcome:** Final `2026-07-28` schema and changelog are diffed
@@ -190,9 +190,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-002: Extract anvil MCP domain handlers
 
-- **Status:** In Progress 2026-07-29 — domain handlers under
-  `mcp/protocol/domain.rs`; thin stdio host; ratified implementation complete
-  on branch; review and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Separate protocol concerns from anvil behaviour before changing
   the wire format.
 - **Expected Outcome:** Domain dispatch and invocation live outside the thin
@@ -208,13 +206,13 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 - **Validation:** `cargo test -p eddacraft-anvil --test mcp_serve_stdio` plus
   new domain-result fixture tests; handlers do not observe negotiated protocol
   version
+- **Evidence:** Domain handlers under `mcp/protocol/domain.rs`; thin stdio host;
+  merged with dual-era support on `main`.
 - **Confidence:** high
 
 ### MCP26-003: Dual-era stdio protocol host
 
-- **Status:** In Progress 2026-07-29 — dual-era dispatch against final schema;
-  modern/legacy golden + integration tests green. **Ratified implementation
-  complete on branch**; review and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Serve modern and legacy clients from one binary without mixing
   lifecycle rules.
 - **Expected Outcome:** Modern per-request `_meta` is parsed and validated;
@@ -234,8 +232,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-004: Discovery and capability declaration
 
-- **Status:** In Progress 2026-07-29 — final `server/discover` shape tested.
-  **Ratified implementation complete on branch**; review and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Implement mandatory modern `server/discover` with honest
   capability claims.
 - **Expected Outcome:** `server/discover` returns supported modern versions,
@@ -252,9 +249,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-005: Modern result envelopes and caching
 
-- **Status:** In Progress 2026-07-27 — modern envelopes + cache policy on
-  discover/list/read; tools/call stamps resultType without cache fields.
-  **Ratified implementation complete on branch**; review and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Make every modern successful result conforming and cache-safe.
 - **Expected Outcome:** Modern successes include `resultType: "complete"` and
   server identity in result `_meta`; discovery, list, and resource-read results
@@ -275,9 +270,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-006: Lifecycle, warm-up and state terminology
 
-- **Status:** In Progress 2026-07-27 — lazy warm-up era-neutral; egress
-  copy process-local. **Ratified implementation complete on branch**; review
-  and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Remove modern dependence on initialise-era lifecycle and session
   wording.
 - **Expected Outcome:** Graph warm-up moves to server start or one-time lazy
@@ -297,8 +290,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-007: Modern activation verification
 
-- **Status:** In Progress 2026-07-27 — dual-era probe + evidence fields
-  tested. **Ratified implementation complete on branch**; review and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Verify the installed anvil MCP entry without assuming a legacy
   handshake.
 - **Expected Outcome:** Activation probes `server/discover` on a disposable
@@ -319,9 +311,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ### MCP26-008: JSON Schema 2020-12 verification
 
-- **Status:** In Progress 2026-07-27 — catalogue Draft 2020-12 tests green
-  (test-only module; `jsonschema` remains a dev-dep). **Ratified implementation
-  complete on branch**; official runner applicability is recorded in MCP26-010.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Confirm every published tool descriptor is valid under the modern
   schema contract.
 - **Expected Outcome:** All published tool `inputSchema` values validate as
@@ -334,14 +324,14 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 - **Dependencies:** MCP26-001, MCP26-002
 - **Validation:** Catalogue validation passes for every tool; official
   conformance scenario passes or a blocking upstream SDK issue is recorded
+- **Evidence:** Catalogue Draft 2020-12 tests green (test-only module;
+  `jsonschema` remains a dev-dep); official runner applicability recorded in
+  MCP26-010.
 - **Confidence:** medium
 
 ### MCP26-009: Trace context and observability
 
-- **Status:** In Progress 2026-07-27 — `mcp/protocol/trace.rs` extracts
-  valid W3C `traceparent` from request `_meta`, binds to the current span,
-  records protocol era/version/method; malformed values ignored (no panic).
-  **Ratified implementation complete on branch**; review and CI pending.
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Correlate MCP requests without treating client metadata as
   trusted.
 - **Expected Outcome:** Valid W3C `traceparent` / `tracestate` / `baggage` from
@@ -356,14 +346,14 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 - **Validation:** Valid `traceparent` joins the expected trace; invalid
   metadata is ignored or recorded as a validation event without panic or auth
   change
+- **Evidence:** `mcp/protocol/trace.rs` extracts valid W3C `traceparent` from
+  request `_meta`, binds to the current span, records protocol era/version/method;
+  malformed values ignored (no panic).
 - **Confidence:** medium
 
 ### MCP26-010: Conformance and client matrix
 
-- **Status:** In Progress 2026-07-29 — local modern/legacy stdio and E2E
-  evidence green; official runner is HTTP-only and documented as not applicable
-  to anvil's stdio transport; local resource budgets pass; manual platform
-  workflow and actual-client evidence pending before merge
+- **Status:** Merged 2026-07-30 via PR #3444 — actual-client matrix deferred
 - **Intent:** Prove protocol correctness and real-client compatibility before
   shipping.
 - **Expected Outcome:** Applicable official `2026-07-28` server scenarios and
@@ -385,12 +375,15 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
   MCP26-008, MCP26-009
 - **Validation:** Official applicable server scenarios pass; no open supported
   legacy client regression; platform CI green; budget gate recorded
+- **Evidence:** Local modern/legacy stdio and E2E evidence green; official
+  runner is HTTP-only and documented as not applicable to anvil's stdio
+  transport; local resource budgets pass. Actual-client matrix evidence deferred
+  as residual operator work after merge.
 - **Confidence:** medium
 
 ### MCP26-011: Documentation and release
 
-- **Status:** In Progress 2026-07-29 — authoritative architecture, activation,
-  public MCP, and Unreleased changelog surfaces updated; review/CI pending
+- **Status:** Merged 2026-07-30 via PR #3444
 - **Intent:** Make the dual-era posture clear without over-exposing protocol
   detail to ordinary users.
 - **Expected Outcome:** Architecture as-built and Rust MCP server specs describe
@@ -437,7 +430,7 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 - **Out of item:**
   - Shipping a **product** pin of `rmcp` `3.0.0-beta.*` (or other pre-release)
     without operator exception — betas may be used only for non-shipped
-    evaluation spikes on the feature branch (ADR-113).
+    evaluation spikes on a work branch (ADR-113).
   - Tier-1 SDK betas (Python / TypeScript / Go / C#) — wrong stack for anvil
     stdio host.
   - Streamable HTTP, OAuth, Apps, Tasks, MRTR (remain MCP26 non-goals).
@@ -451,13 +444,13 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
   - `plans/decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md`
   - `plans/audits/` (adoption-gate evidence note)
 - **Dependencies:**
-  - MCP26-001 (final schema seal + SDK path authorised, or reopen if 001 closed
-    on temporary adapter only)
-  - MCP26-002..005 dual-era contracts and fixtures already on branch
+  - MCP26-001 (final schema seal + SDK path authorised; closed on temporary
+    adapter — product `rmcp` pin still required here)
+  - MCP26-002..011 dual-era contracts and fixtures merged via PR #3444
   - crates.io stable `rmcp` ≥ target major targeting final `2026-07-28`
-  - Prefer after or in parallel with MCP26-010 conformance so official suite
-    evidence binds the pin (MCP26-010 may remain Partially Complete if SDK
-    suite version is recorded here)
+  - Prefer with conformance evidence from MCP26-010 so official suite version
+    binds the pin (stdio local evidence already recorded; HTTP-only official
+    runner remains not applicable)
 - **Validation:**
   - `cargo test -p eddacraft-anvil --test mcp_serve_stdio`
   - `cargo test -p eddacraft-anvil --test mcp_activation_probe`
@@ -466,10 +459,11 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
   - Adoption-gate checklist in audit note all checked or ADR exception recorded
   - `pnpm docs:check` if architecture wording changes for SDK boundary
 - **Confidence:** medium
-- **Notes:** Temporary adapter path already delivered RC dual-era behaviour on
-  `feat/mcp26-dual-era-support`. This item is the ADR-113 **removal condition**
-  for that adapter. Evaluation spikes against `rmcp` betas are allowed on the
-  feature branch only and must not merge as the permanent product pin.
+- **Notes:** Temporary adapter path is merged to `main` (PR #3444) and delivers
+  dual-era behaviour under `crates/anvil-cli/src/mcp/protocol/`. This item is
+  the ADR-113 **removal condition** for that adapter. Evaluation spikes against
+  `rmcp` betas are allowed on a work branch only and must not merge as the
+  permanent product pin.
 
 ## Decisions
 
@@ -494,8 +488,9 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 7. **Activation probes modern first** — discovery on a disposable child, then a
    fresh legacy child; never leave probe processes behind.
    Operator-ratified 2026-07-27.
-8. **Branch until ratification** — satisfied 2026-07-29; the ratification hold
-   is lifted, while normal review, CI, merge, and release gates remain.
+8. **Branch until ratification** — satisfied 2026-07-29; dual-era implementation
+   (MCP26-001..011) merged 2026-07-30 via PR #3444; MCP26-012 remains open for
+   product `rmcp` adoption.
 9. **Legacy matrix sealed** — keep `2025-11-25`, `2025-06-18`,
    `2025-03-26`, and `2024-11-05`.
 10. **Unsupported-version error sealed** — `-32022` with `requested` and
@@ -506,15 +501,16 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 
 ## Notes
 
-- **Branch policy (operator):** the final standard is ratified and MCP26-001's
-  seal is complete, so the branch may proceed through Council and PR.
+- Dual-era host (MCP26-001..011) is on `main` via PR #3444. MCP26-012 (rmcp
+  product adoption / temporary-adapter removal) remains the open follow-on.
 
 - Spec non-goals (HTTP, Apps, Tasks, MRTR, subscriptions) remain follow-on
   opportunities outside MCP26.
 - RMCPF still owns remaining full-port leftovers (RMCPF-021 transport decision,
   RMCPF-030 compatibility harness vs archived TS, RMCPF-031 archive closeout).
   MCP26 owns the protocol-version dual-era cut, not tool/resource parity.
-- Stored progress `0/12` is advisory (ADR-053). Item `Status:` lines are
+- Stored progress `11/12` is advisory (ADR-053). Item `Status:` lines are
   authoritative.
 - MCP26-012 filed 2026-07-28 after clawpatch dual-era pass: product still on
-  temporary typed adapter; official `rmcp` adoption is the follow-on SDK item.
+  temporary typed adapter after PR #3444; official `rmcp` adoption is the
+  follow-on SDK item.

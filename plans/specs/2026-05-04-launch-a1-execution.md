@@ -6,7 +6,7 @@
 
 - [`plans/index.aps.md`](../index.aps.md)
 - [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) — Tier A1
-- [`plans/modules/launch-flow-readiness.aps.md`](../modules/launch-flow-readiness.aps.md)
+- [`plans/archive/modules/launch-flow-readiness.aps.md`](../archive/modules/launch-flow-readiness.aps.md)
 
 This document records the chosen sequence for delivering LAUNCH items
 `-002, -006, -008, -009, -010, -011, -012, -013, -014, -015, -016` as

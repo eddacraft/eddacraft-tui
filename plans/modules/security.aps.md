@@ -11,7 +11,7 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-05-21
+**Last reviewed:** 2026-07-30
 
 ## Purpose
 
@@ -22,6 +22,12 @@ supply chain security, and security hardening as the project grows.
 **Replaces:** `security-ci-pipeline` (archived), `security-review-backlog`
 (archived). Both were 0.1.x scope; this module covers forward-looking
 security concerns.
+
+> **ID namespace note:** the archived `security-ci-pipeline` module historically
+> reused **SEC-001..008** for CI-pipeline work items (workflow, Semgrep, audit,
+> secret scan, licence check, custom rules, Scorecard, reporting). Those IDs
+> are **not** the live backlog. This live SEC module is authoritative for
+> forward work; do not renumber either set without an explicit APS decision.
 
 ## In Scope
 
@@ -96,9 +102,9 @@ security concerns.
 >   header config + policy lives in APGOV's API-surface governance or here in
 >   SEC. It is not fleshable to Ready until that boundary is set.
 
-### SEC-001: Reconcile and document the dependency-audit posture — In Progress
+### SEC-001: Reconcile and document the dependency-audit posture — Ready
 
-- **Status:** In Progress
+- **Status:** Ready
 - **Intent:** Make the already-shipped dependency-audit automation legible and
   close the one real Rust-update gap, rather than rebuilding it.
 - **Reality on `main` (2026-05-28):** the original bullet ("pnpm + cargo audit
@@ -131,9 +137,9 @@ security concerns.
   and the new posture doc passes `pnpm docs:check`.
 - **Confidence:** high
 
-### SEC-002: Secret rotation runbook — In Progress
+### SEC-002: Secret rotation runbook — Ready
 
-- **Status:** In Progress
+- **Status:** Ready
 - **Intent:** Document how each long-lived secret is rotated, on what cadence,
   and through which channel (Pulumi ESC), so rotation is a runbook step rather
   than tribal knowledge.
@@ -152,9 +158,9 @@ security concerns.
 - **Confidence:** medium — the secret inventory is grounded but the Pulumi ESC
   rotation path needs confirmation against the live infra.
 
-### SEC-003: Vulnerability response and coordinated disclosure policy — In Progress
+### SEC-003: Vulnerability response and coordinated disclosure policy — Ready
 
-- **Status:** In Progress
+- **Status:** Ready
 - **Intent:** Define how externally-reported and internally-found
   vulnerabilities are received, triaged, and patched, and publish a disclosure
   contact — the root policy file does not exist today (`apps/anvil-api/` has a
@@ -173,9 +179,9 @@ security concerns.
   review that the SLA table maps severity → response time.
 - **Confidence:** high
 
-### SEC-004: Supply-chain policy documentation — In Progress
+### SEC-004: Supply-chain policy documentation — Ready
 
-- **Status:** In Progress
+- **Status:** Ready
 - **Intent:** Write down the supply-chain policy that the `deny.toml` config
   already enforces, plus the lockfile/registry rules, so the enforcement is
   documented and changes to `deny.toml` have a referenced rationale.

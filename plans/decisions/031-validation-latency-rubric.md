@@ -250,7 +250,7 @@ not taste.
 - APS modules:
   - [intercept-daemon](../archive/modules/intercept-daemon.aps.md) — INTD-014 owns the
     daemon JSON-RPC conformance and latency benchmark implementation.
-  - [surface-drivers](../modules/surface-drivers.aps.md) — DRVR-002 owns the
+  - [surface-drivers](../archive/modules/surface-drivers.aps.md) — DRVR-002 owns the
     editor-driver protocol and should cite this ADR for save-time latency
     vocabulary.
   - [realtime-ai-validation](../modules/realtime-ai-validation.aps.md) —
