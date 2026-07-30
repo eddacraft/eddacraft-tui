@@ -1201,15 +1201,11 @@ fn validate_discover_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
             "missing non-empty result.supportedVersions".to_string(),
         ));
     };
-    let Some(protocol_version) = supported
-        .iter()
-        .find_map(|v| v.as_str())
-        .map(str::to_string)
-    else {
+    if !supported.iter().all(serde_json::Value::is_string) {
         return Err(ProbeError::BadResponse(
             "supportedVersions entries must be strings".to_string(),
         ));
-    };
+    }
     if !supported
         .iter()
         .any(|v| v.as_str() == Some(PROBE_MODERN_PROTOCOL_VERSION))
@@ -1221,7 +1217,7 @@ fn validate_discover_response(raw: &str) -> Result<ProbeEvidence, ProbeError> {
 
     Ok(ProbeEvidence {
         protocol_era: ProtocolEraEvidence::Modern,
-        protocol_version,
+        protocol_version: PROBE_MODERN_PROTOCOL_VERSION.to_string(),
         verification_method: VerificationMethod::ServerDiscover,
     })
 }
@@ -1553,6 +1549,23 @@ mod tests {
             evidence.verification_method,
             VerificationMethod::ServerDiscover
         );
+    }
+
+    #[test]
+    fn validate_discover_reports_the_requested_supported_version() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2099-01-01","2026-07-28"],"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"anvil","version":"0.9.0-beta"}}}}"#;
+        let evidence = validate_discover_response(raw).expect("modern discover should validate");
+        assert_eq!(evidence.protocol_version, PROBE_MODERN_PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn validate_discover_rejects_mixed_type_supported_versions() {
+        let raw = r#"{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28",7],"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"anvil","version":"0.9.0-beta"}}}}"#;
+        let err = validate_discover_response(raw).expect_err("mixed types must fail");
+        match err {
+            ProbeError::BadResponse(s) => assert!(s.contains("entries must be strings")),
+            other => panic!("expected BadResponse, got {other:?}"),
+        }
     }
 
     #[test]

@@ -146,8 +146,12 @@ fn handle_legacy(id: &Value, method: Option<&str>, message: &Value) -> Value {
         .and_then(Value::as_str);
     let _span = enter_request_span(method, ProtocolEra::Legacy, protocol_version, params);
 
-    // Spec §6.2: legacy non-lifecycle methods require a prior sealed initialize.
-    if !matches!(method, Some("initialize")) && !domain::legacy_process_initialized() {
+    // Spec §6.2: only legacy tool/resource methods require a prior sealed initialize.
+    if matches!(
+        method,
+        Some("tools/list" | "tools/call" | "resources/list" | "resources/read")
+    ) && !domain::legacy_process_initialized()
+    {
         return error_response(id, ERR_INVALID_REQUEST, "Server not initialized");
     }
 
@@ -484,6 +488,41 @@ mod tests {
         .expect("response");
         assert_eq!(response["error"]["code"], -32600);
         assert_eq!(response["error"]["message"], "Server not initialized");
+    }
+
+    #[test]
+    fn legacy_lifecycle_requests_before_initialize_are_allowed() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
+
+        let ping = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "ping"
+        }))
+        .expect("ping response");
+        assert_eq!(ping["result"], json!({}));
+
+        let shutdown = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "shutdown"
+        }))
+        .expect("shutdown response");
+        assert_eq!(shutdown["result"], Value::Null);
+    }
+
+    #[test]
+    fn missing_method_before_initialize_is_invalid_request() {
+        let _guard = domain::lock_legacy_init_for_test();
+        domain::reset_legacy_initialized_for_test();
+        let response = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1
+        }))
+        .expect("response");
+        assert_eq!(response["error"]["code"], -32600);
+        assert_eq!(response["error"]["message"], "Invalid Request");
     }
 
     #[test]

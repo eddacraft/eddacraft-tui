@@ -689,6 +689,3 @@ These are intentionally not part of MCP26:
 - MRTR for explicit human approval flows.
 - `subscriptions/listen` if tool/resource catalogues become dynamic.
 - Typed `outputSchema` plus native `structuredContent` for anvil tool results.
-
-- `subscriptions/listen` if tool/resource catalogues become dynamic.
-- Typed `outputSchema` plus native `structuredContent` for anvil tool results.
