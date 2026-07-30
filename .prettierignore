@@ -27,6 +27,11 @@ pnpm-lock.yaml
 # Cross-harness skills — APS-managed byte inventories shared by Codex and other
 # AGENTS.md-native runtimes. Formatting would invalidate their managed markers.
 .agents/
+# GitHub Copilot dev tooling — vendored APS agents, parallel to .claude/ and
+# .agents/. Vendored verbatim from the canonical agent package, so formatting
+# only churns: oxfmt folds the single-line frontmatter `description:` into a
+# multi-line scalar and rewraps prose, and the next vendoring reverts it.
+.github/agents/
 archive/
 # cargo-about Handlebars template — oxfmt parses .hbs as Glimmer and rejects
 # handlebars parent-scope access like {{../name}}. Template is authoritative.
