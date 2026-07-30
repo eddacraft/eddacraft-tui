@@ -5532,8 +5532,7 @@ archive.
     cause. A concurrent agent operating directly in the shared main checkout is
     at least as plausible. Reproducing the ref write is the first task for the
     follow-up item — this observation is evidence, not a diagnosis.
-  - **Reinforces the standing rule** in `docs/guides/worktree-policy.md`: never
-    use the shared main checkout for branch operations. Both the reconciliation
+  - **Reinforces the standing rule** in `docs/guides/worktree-policy.md` ("Default-branch anchor auto-heal"): treat the default-branch `main` anchor worktree as read-only and do not do branch work in it. Both the reconciliation
     work and this repair were done from a separate worktree cut from
     `origin/main`, which is why the merged content was never at risk.
 
