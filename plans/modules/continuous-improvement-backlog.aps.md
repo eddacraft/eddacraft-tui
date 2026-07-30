@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 169/206  |
+| CIB | —     | In Progress | 169/211  |
 
 ## Purpose
 
@@ -3097,26 +3097,26 @@ archive.
 
 ### CIB-114: Authenticate Windows named-pipe peers across Anvil clients
 
-- **Status:** Done 2026-07-30 — superseded by owner disposition of this
-  mixed-surface batch after retirement of the unsupported Node CLI.
-- **Summary:** This closure does not retire the release-blocking Rust or
-  driver-client surfaces, change their current Windows guarantees, or claim that
-  the proposed peer-hardening work was implemented.
+- **Status:** Done 2026-07-30 — superseded by CIB-211 and MLP2-028 after
+  retirement of the unsupported Node CLI framing.
+- **Summary:** CIB-211 now owns supported driver-client authentication and
+  trusted-config ACL work; MLP2-028 already owns Windows peer-PID lineage. This
+  closure does not claim those gaps were implemented.
 
 ### CIB-115: Centralise workspace path containment for TS adapters and APS loaders
 
-- **Status:** Done 2026-07-30 — superseded after the owner chose retirement over
-  decomposition for the obsolete Node CLI framing.
-- **Summary:** Closed as an over-broad legacy batch rather than split into child
-  items. This disposition does not retire the listed release surfaces or claim
-  that the proposed containment work was implemented.
+- **Status:** Done 2026-07-30 — superseded by CIB-212 and CIB-213 after the
+  owner retired the obsolete Node CLI framing.
+- **Summary:** CIB-212 owns APS-loader containment and CIB-213 owns runtime-cache
+  index containment. This closure does not retire the listed release surfaces
+  or claim that their hardening was implemented.
 
 ### CIB-116: Redact provenance and debug secrets before persistence or logs
 
-- **Status:** Done 2026-07-30 — superseded by archival of the unsupported Node
-  admin CLI and owner disposition of the remaining mixed-surface batch.
-- **Summary:** This closure does not retire the live API or core surfaces and
-  does not claim that their bundled provenance or debug-hardening proposals were
+- **Status:** Done 2026-07-30 — superseded by CIB-214 and CIB-215 after archival
+  of the unsupported Node admin CLI.
+- **Summary:** CIB-214 owns live API debug redaction and CIB-215 owns provenance
+  credential redaction. This closure does not claim those proposals were
   implemented.
 
 ### CIB-117: Fence TS runtime and APS state transitions against lost updates
@@ -3233,7 +3233,8 @@ archive.
   tracking reference.
 - **Identified From:** Deepsec P2/untriaged/skip clusters, run
   `20260629190245-caf2a4b60b2715fe`.
-- **Coordinates with:** CIB-111 for shared API primitives.
+- **Coordinates with:** CIB-111 for shared API primitives; CIB-214 for
+  structured debug redaction.
 - **Confidence:** medium — this is a disposition sweep; some findings may collapse
   into existing items after closer review.
 
@@ -4068,7 +4069,8 @@ archive.
   pre-existing same-uid-socket authorization boundary — this covers durable
   worktree memberships (`anvil workspace register`/`unregister`, separate
   one-shot CLI processes with no single owner pid, per ADR-094 decision-3) and
-  Windows sessions (which have no `SO_PEERCRED` equivalent). Dispatch-level
+  Windows sessions (whose peer is same-SID authenticated, but whose client PID
+  is not yet threaded into lifecycle ownership; MLP2-028). Dispatch-level
   tests inject peer A/B credentials to prove cross-peer denial and same-peer
   acceptance for lineage-bearing sessions, and prove no-lineage durable
   memberships remain heartbeat/unregisterable from any same-uid peer
@@ -5585,3 +5587,96 @@ archive.
   worktrees after merge; this item is the merge command itself).
 - **Confidence:** high — clear recurrence and an already-proven workaround
   (GitHub merge API path used in CIB-200).
+
+### CIB-211: Authenticate supported Windows clients and trusted config ACLs
+
+- **Status:** Ready
+- **Intent:** Preserve the supported-surface security work split from CIB-114
+  after retirement of the unsupported Node CLI framing.
+- **Expected Outcome:** The TypeScript driver-client authenticates the named-pipe
+  server identity before sending document traffic, and trusted Windows config
+  reads reject files whose DACL grants write access to other principals.
+- **Files:** `packages/anvil-driver-client/src/transport/windows.ts`,
+  `crates/anvil-intercept-win32/src/lib.rs`.
+- **Validation:** Windows tests reject a correctly named squatted pipe and an
+  owner-matched but foreign-writable config file while preserving valid
+  same-SID/SQOS connections and owner-only config reads.
+- **Identified From:** supported-surface split from CIB-114 during PR #3464
+  Council review (`council-891d78ba`).
+- **Coordinates with:** CIB-100, CIB-106, MLP2-028 (peer-PID lineage).
+- **Confidence:** medium — gaps and boundaries are concrete; Windows execution
+  evidence remains the gating risk.
+
+### CIB-212: Enforce real containment for exported APS loader paths
+
+- **Status:** Ready
+- **Intent:** Preserve the live APS-loader containment work split from CIB-115
+  after retirement of the obsolete Node CLI framing.
+- **Expected Outcome:** Module paths remain inside the plan base after symlink
+  resolution; lexical prefixes, dot segments, alternate separators, and
+  committed symlinks cannot escape the authorised plan directory.
+- **Files:** `packages/aps/src/loader/index.ts`, focused loader tests.
+- **Validation:** POSIX and Windows-path tests reject symlink and separator
+  escapes while valid multi-module plans continue to load.
+- **Identified From:** supported-surface split from CIB-115 during PR #3464
+  Council review (`council-891d78ba`).
+- **Confidence:** high — the exported loader and lexical-only containment path
+  are directly testable.
+
+### CIB-213: Contain runtime cache index paths before read or deletion
+
+- **Status:** Ready
+- **Intent:** Prevent a repository or restored cache index from steering the
+  exported file-cache provider outside its cache directory.
+- **Expected Outcome:** Every index filename is validated as a safe cache-local
+  name and resolved containment is enforced before reads or `unlinkSync`;
+  malformed entries fail closed without deleting unrelated files.
+- **Files:** `packages/anvil/runtime/src/cache/providers/file-cache.ts`,
+  focused file-cache tests.
+- **Validation:** A malicious expired index entry such as
+  `../../../../target` cannot read or delete outside the cache root; valid
+  expiry cleanup and HMAC-protected entries remain stable.
+- **Identified From:** supported-surface split from CIB-115 during PR #3464
+  Council review (`council-891d78ba`).
+- **Confidence:** high — the cleanup-to-invalidate path and containment
+  invariant are local and deterministic.
+
+### CIB-214: Redact structured debug payloads in the live API
+
+- **Status:** Ready
+- **Intent:** Preserve the live API redaction work split from CIB-116 after the
+  unsupported Node admin CLI was archived.
+- **Expected Outcome:** Structured debug values use the same recursive redaction
+  boundary as scalar logs, so device codes, emails, tokens, and nested
+  credential-shaped fields never reach console output.
+- **Files:** `apps/anvil-api/src/lib/debug.ts`,
+  `apps/anvil-api/src/routes/auth-device.ts`, focused logging tests.
+- **Validation:** Captured console output proves nested device codes, emails, and
+  token-shaped fields are redacted with `ANVIL_DEBUG` enabled; ordinary debug
+  context remains useful.
+- **Identified From:** supported-surface split from CIB-116 during PR #3464
+  Council review (`council-891d78ba`).
+- **Coordinates with:** CIB-121.
+- **Confidence:** high — the raw structured logging path is directly reachable
+  and testable.
+
+### CIB-215: Remove credential material from provenance persistence
+
+- **Status:** Ready
+- **Intent:** Preserve the supported provenance work split from CIB-116 after
+  the unsupported Node admin CLI was archived.
+- **Expected Outcome:** Credential environment variables are never used as
+  session identifiers, token-shaped agent ids are rejected or redacted before
+  serialisation, and Git remote userinfo is stripped before provenance records
+  or Git notes are persisted or published.
+- **Files:** `packages/anvil/core/src/provenance/git-ai-standard/session.ts`,
+  `packages/anvil/core/src/provenance/collector.ts`,
+  `packages/anvil/core/src/provenance/git-notes.ts`,
+  `packages/anvil/core/src/utils/git-operations.ts`.
+- **Validation:** Regression tests prove Copilot-like tokens and
+  credential-bearing HTTPS remotes never appear in stored records or Git notes;
+  non-secret provenance remains stable.
+- **Identified From:** supported-surface split from CIB-116 during PR #3464
+  Council review (`council-891d78ba`).
+- **Confidence:** high — the credential sources and persistence sinks are
+  concrete.

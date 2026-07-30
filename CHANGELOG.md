@@ -257,8 +257,9 @@ continued beta-reliability polish.
   verified lineage claim are unaffected and keep the existing same-uid-socket
   authorization boundary: durable worktree memberships
   (`anvil workspace register`/`unregister`, separate one-shot CLI processes) and
-  Windows sessions (CIB-114 was superseded without changing the absent
-  peer-credential behaviour) continue to work exactly as before (CIB-153).
+  Windows sessions (same-SID authenticated, but with client PID not yet threaded
+  into lifecycle ownership; MLP2-028) continue to work exactly as before
+  (CIB-153).
 
 ### Upgrade notes
 
