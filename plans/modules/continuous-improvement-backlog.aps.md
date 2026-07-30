@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 166/206  |
+| CIB | —     | In Progress | 169/206  |
 
 ## Purpose
 
@@ -3097,90 +3097,27 @@ archive.
 
 ### CIB-114: Authenticate Windows named-pipe peers across Anvil clients
 
-- **Status:** Ready
-- **Intent:** Close active Windows IPC findings where CLI, driver-client, or
-  intercept clients can connect without proving the server is the Anvil daemon and
-  where trusted config files can be writable by other principals.
-- **Expected Outcome:** Windows named-pipe clients authenticate the daemon peer and
-  preserve local-only/SQOS expectations; driver-client validation no longer
-  accepts an attacker-controlled pipe as the daemon; trusted config reads reject
-  files writable by non-owner principals; Windows lineage/registration semantics
-  match daemon expectations.
-- **Files:** `crates/anvil-intercept-win32/src/lib.rs`,
-  `packages/anvil-driver-client/src/transport/windows.ts`,
-  `packages/anvil-driver-client/src/midedit/validate-mid-edit.ts`,
-  `crates/anvil-run/src/ipc.rs`.
-- **Validation:** Windows matrix tests or platform-specific unit tests proving pipe
-  peer authentication, rejected writable config ACLs, spoof-block propagation, and
-  valid registration lineage on Windows.
-- **Identified From:** Deepsec P1/P2/skip clusters, run
-  `20260629190245-caf2a4b60b2715fe`, across IPC impersonation, ACL, spoof-block
-  suppression, and Windows registration findings.
-- **Coordinates with:** CIB-100 and CIB-106 Windows named-pipe work.
-- **Confidence:** medium — behaviour is clear, but reliable Windows validation is
-  the gating risk.
+- **Status:** Done 2026-07-30 — superseded by owner disposition of this
+  mixed-surface batch after retirement of the unsupported Node CLI.
+- **Summary:** This closure does not retire the release-blocking Rust or
+  driver-client surfaces, change their current Windows guarantees, or claim that
+  the proposed peer-hardening work was implemented.
 
 ### CIB-115: Centralise workspace path containment for TS adapters and APS loaders
 
-- **Status:** Ready
-- **Decomposition note (2026-07-02):** held back from the
-  oversized-item split on purpose — every target directory sits in the
-  retiring JS/TS `packages/` tree, so filing per-consumer children before
-  the owner decides invest-vs-retire would allocate ids for work that may
-  never run. Decide the retirement posture first, then split (suggested
-  children: adapters, aps loader+validator, architecture scanner,
-  policy-loader, file-cache — each routing through the existing
-  `path-safety.ts` helper).
-- **Intent:** Close the deepsec P1 path-traversal cluster caused by copied,
-  inconsistent path validation across APS, SpecKit, BMAD, architecture, policy,
-  and cache code.
-- **Expected Outcome:** A single containment helper rejects dot segments,
-  backslash traversal, absolute paths, symlink escapes, and untrusted task/scenario
-  identifiers before they become filesystem paths. APS adapters/importers,
-  architecture scanners, policy discovery, runtime cache, and APS state helpers use
-  the shared helper or prove equivalent behaviour.
-- **Files:** `packages/anvil/core/src/utils/path-safety.ts`,
-  `packages/adapters/src/**`, `packages/aps/src/{loader,state,validator}/**`,
-  `packages/anvil/core/src/architecture/**`,
-  `packages/anvil/policy/src/policy-loader.ts`,
-  `packages/anvil/runtime/src/cache/providers/file-cache.ts`.
-- **Validation:** Cross-package tests covering POSIX and Windows separators,
-  symlinked directories, generated scenario/task IDs, duplicate basename handling,
-  and cache-entry names; existing adapter and APS validator tests still pass.
-- **Identified From:** Deepsec P1/P2 true-positive clusters, run
-  `20260629190245-caf2a4b60b2715fe`, dominated by path-traversal findings in
-  adapters, APS state/loader, architecture analysis, policy loading, and cache
-  providers.
-- **Coordinates with:** CIB-108 (policy eval trust boundary), APS parser/validator
-  governance.
-- **Confidence:** high — root cause is duplicated validation; broad file touch
-  warrants careful staged tests.
+- **Status:** Done 2026-07-30 — superseded after the owner chose retirement over
+  decomposition for the obsolete Node CLI framing.
+- **Summary:** Closed as an over-broad legacy batch rather than split into child
+  items. This disposition does not retire the listed release surfaces or claim
+  that the proposed containment work was implemented.
 
 ### CIB-116: Redact provenance and debug secrets before persistence or logs
 
-- **Status:** Ready
-- **Intent:** Prevent Copilot tokens, credential-bearing Git remotes, raw debug
-  payloads, and admin secrets from being persisted to notes, provenance records,
-  logs, or command histories.
-- **Expected Outcome:** Git remote URLs and AI session identifiers are redacted or
-  rejected before persistence; Copilot tokens are never treated as session IDs;
-  structured debug payloads pass through the same redaction path as string logs;
-  admin and revoke tokens are not accepted through command-line arguments where
-  process listings can expose them.
-- **Files:** `packages/anvil/core/src/provenance/**`,
-  `apps/anvil-api/src/lib/debug.ts`, `apps/admin-cli/src/index.ts`,
-  `apps/admin-cli/src/commands/revoke.ts`.
-- **Validation:** Tests proving credential-bearing remotes, Copilot-like tokens,
-  structured debug payloads, and CLI argument secrets are redacted, rejected, or
-  moved to safer input channels; existing provenance output remains stable for
-  non-secret values.
-- **Identified From:** Deepsec P1/P2 true-positive clusters, run
-  `20260629190245-caf2a4b60b2715fe`, across secret-in-log, secrets-exposure,
-  info-disclosure, and secret CLI argument findings.
-- **Coordinates with:** provenance/Git AI standard outputs, admin CLI operator
-  runbook.
-- **Confidence:** high — secret shapes are concrete; compatibility risk is limited
-  to documented input channels and provenance schema expectations.
+- **Status:** Done 2026-07-30 — superseded by archival of the unsupported Node
+  admin CLI and owner disposition of the remaining mixed-surface batch.
+- **Summary:** This closure does not retire the live API or core surfaces and
+  does not claim that their bundled provenance or debug-hardening proposals were
+  implemented.
 
 ### CIB-117: Fence TS runtime and APS state transitions against lost updates
 
@@ -3296,8 +3233,7 @@ archive.
   tracking reference.
 - **Identified From:** Deepsec P2/untriaged/skip clusters, run
   `20260629190245-caf2a4b60b2715fe`.
-- **Coordinates with:** CIB-111 and CIB-116 where fixes share API or secret-handling
-  primitives.
+- **Coordinates with:** CIB-111 for shared API primitives.
 - **Confidence:** medium — this is a disposition sweep; some findings may collapse
   into existing items after closer review.
 
@@ -4016,8 +3952,7 @@ archive.
 - **Identified From:** Split from CIB-112 (deepsec sweep 20260629190245);
   decomposition readiness pass 2026-07-02.
 - **Coordinates with:** CIB-113 (session-owner-peer binding — check for
-  overlap before scoping work), CIB-114 (Windows named-pipe peer
-  authentication owns the equivalent gap on Windows), MLP2-026 spec.
+  overlap before scoping work), MLP2-026 spec.
 - **Confidence:** low — this child needs a decision-log entry before any
   code changes; treat the parent's "wire-protocol change" framing as
   provisional pending that decision.
@@ -4133,7 +4068,7 @@ archive.
   pre-existing same-uid-socket authorization boundary — this covers durable
   worktree memberships (`anvil workspace register`/`unregister`, separate
   one-shot CLI processes with no single owner pid, per ADR-094 decision-3) and
-  Windows sessions (no `SO_PEERCRED` yet, pending CIB-114). Dispatch-level
+  Windows sessions (which have no `SO_PEERCRED` equivalent). Dispatch-level
   tests inject peer A/B credentials to prove cross-peer denial and same-peer
   acceptance for lineage-bearing sessions, and prove no-lineage durable
   memberships remain heartbeat/unregisterable from any same-uid peer
@@ -5650,4 +5585,3 @@ archive.
   worktrees after merge; this item is the merge command itself).
 - **Confidence:** high — clear recurrence and an already-proven workaround
   (GitHub merge API path used in CIB-200).
-

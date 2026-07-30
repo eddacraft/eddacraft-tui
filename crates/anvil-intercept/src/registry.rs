@@ -566,7 +566,8 @@ struct RegistryEntry {
     /// same-uid socket permission as their authorization boundary,
     /// because they have no single owner pid to bind to — durable
     /// worktree memberships are separate one-shot CLI processes, and
-    /// Windows registers `None` pending CIB-114. See
+    /// Windows registers `None`; CIB-114 was superseded without
+    /// changing this behaviour. See
     /// [`SessionRegistry::peer_ownership_check`] for the full reasoning.
     /// Distinct from `subscriber_binding` (telemetry ownership) per the
     /// CIB-153 Intent.
@@ -856,7 +857,8 @@ impl SessionRegistry {
                     // are exempt from the `Heartbeat` /
                     // `UnregisterSession` ownership check (durable
                     // memberships are separate one-shot CLI processes;
-                    // Windows registers `None` pending CIB-114). The
+                    // Windows registers `None`; CIB-114 was
+                    // superseded without changing this behaviour). The
                     // lineage path (`register_with_lineage`) stamps
                     // `Some(pid)` below and gets strict enforcement.
                     launcher_pid: None,
@@ -1263,7 +1265,8 @@ impl SessionRegistry {
     ///   ever match. This is the exact non-obvious invariant that must
     ///   not be "tightened" back into a rejection by a future refactor.
     /// - **Windows** sessions: the named-pipe accept loop hardcodes
-    ///   `peer_pid = None` pending CIB-114's peer-credential work, so
+    ///   `peer_pid = None`; CIB-114 was superseded without changing
+    ///   this Windows behaviour, so
     ///   every Windows session registers with `launcher_pid == None`;
     ///   rejecting them would fail-close all Windows heartbeat/
     ///   unregister traffic (a pure regression vs pre-CIB-153).
@@ -1282,8 +1285,9 @@ impl SessionRegistry {
         };
         match entry.launcher_pid {
             // No verified lineage anchor: same-uid socket permission is
-            // the boundary (durable memberships, Windows pending
-            // CIB-114). See the doc comment for why this must stay a
+            // the boundary (durable memberships and Windows; CIB-114
+            // was superseded without changing that model). See the doc
+            // comment for why this must stay a
             // pass-through and not a rejection.
             None => Ok(()),
             Some(owner) => match peer_pid {
@@ -2326,8 +2330,9 @@ mod tests {
     /// check — same-uid socket permission remains its authorization
     /// boundary (pre-CIB-153 behaviour). This covers durable
     /// memberships (separate one-shot CLI invocations, each its own
-    /// process) and Windows sessions (no `SO_PEERCRED` yet, pending
-    /// CIB-114): any authenticated peer, including one whose pid never
+    /// process) and Windows sessions (no `SO_PEERCRED` equivalent;
+    /// CIB-114 was superseded without changing this behaviour): any
+    /// authenticated peer, including one whose pid never
     /// touched the session, may heartbeat it.
     #[test]
     fn dispatcher_heartbeat_permits_session_registered_without_lineage() {
