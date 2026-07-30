@@ -5499,9 +5499,9 @@ archive.
   - **What happened.** The anchor was dirty — a genuine, long-lived staged APS
     package-vending change. `wt` kept fast-forwarding `refs/heads/main` to
     `origin` via its in-process git-library ref write, which moves the ref
-    without updating the anchor's tree, so the anchor stranded behind `HEAD` and
-    `git status` rendered the gap as the phantom "revert of merged work" the
-    guide describes. The reflog signature matches that write: `main@{0..3}` had
+    without updating the anchor's tree, so the anchor was left stranded behind
+    `HEAD` and `git status` rendered the gap as the phantom "revert of merged
+    work" the guide describes. The reflog signature matches that write: `main@{0..3}` had
     **empty** reason strings against `pull origin main: Fast-forward` on
     `main@{4}` and older, and `HEAD`'s own reflog never recorded those commits.
   - **Defect 3's fix is what protected the work.** Because the anchor's index
