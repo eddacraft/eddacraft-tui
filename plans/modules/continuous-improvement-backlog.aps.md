@@ -3099,25 +3099,97 @@ archive.
 
 - **Status:** Done 2026-07-30 — superseded by CIB-211 and MLP2-028 after
   retirement of the unsupported Node CLI framing.
-- **Summary:** CIB-211 now owns supported driver-client authentication and
+- **Supersession:** CIB-211 now owns supported driver-client authentication and
   trusted-config ACL work; MLP2-028 already owns Windows peer-PID lineage. This
   closure does not claim those gaps were implemented.
+- **Intent:** Close active Windows IPC findings where CLI, driver-client, or
+  intercept clients can connect without proving the server is the Anvil daemon and
+  where trusted config files can be writable by other principals.
+- **Expected Outcome:** Windows named-pipe clients authenticate the daemon peer and
+  preserve local-only/SQOS expectations; driver-client validation no longer
+  accepts an attacker-controlled pipe as the daemon; trusted config reads reject
+  files writable by non-owner principals; Windows lineage/registration semantics
+  match daemon expectations.
+- **Files:** `crates/anvil-intercept-win32/src/lib.rs`,
+  `packages/anvil-driver-client/src/transport/windows.ts`,
+  `packages/anvil-driver-client/src/midedit/validate-mid-edit.ts`,
+  `crates/anvil-run/src/ipc.rs`.
+- **Validation:** Windows matrix tests or platform-specific unit tests proving pipe
+  peer authentication, rejected writable config ACLs, spoof-block propagation, and
+  valid registration lineage on Windows.
+- **Identified From:** Deepsec P1/P2/skip clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across IPC impersonation, ACL, spoof-block
+  suppression, and Windows registration findings.
+- **Coordinates with:** CIB-100, CIB-106, CIB-211, and MLP2-028.
+- **Confidence:** medium — behaviour is clear, but reliable Windows validation is
+  the gating risk.
 
 ### CIB-115: Centralise workspace path containment for TS adapters and APS loaders
 
 - **Status:** Done 2026-07-30 — superseded by CIB-212 and CIB-213 after the
   owner retired the obsolete Node CLI framing.
-- **Summary:** CIB-212 owns APS-loader containment and CIB-213 owns runtime-cache
-  index containment. This closure does not retire the listed release surfaces
-  or claim that their hardening was implemented.
+- **Supersession:** CIB-212 owns APS-loader containment and CIB-213 owns
+  runtime-cache index containment. This closure does not retire the listed
+  release surfaces or claim that their hardening was implemented.
+- **Decomposition note (2026-07-02):** held back from the
+  oversized-item split on purpose — every target directory sits in the
+  retiring JS/TS `packages/` tree, so filing per-consumer children before
+  the owner decides invest-vs-retire would allocate ids for work that may
+  never run. The supported work is now split into CIB-212 and CIB-213.
+- **Intent:** Close the deepsec P1 path-traversal cluster caused by copied,
+  inconsistent path validation across APS, SpecKit, BMAD, architecture, policy,
+  and cache code.
+- **Expected Outcome:** A single containment helper rejects dot segments,
+  backslash traversal, absolute paths, symlink escapes, and untrusted task/scenario
+  identifiers before they become filesystem paths. APS adapters/importers,
+  architecture scanners, policy discovery, runtime cache, and APS state helpers use
+  the shared helper or prove equivalent behaviour.
+- **Files:** `packages/anvil/core/src/utils/path-safety.ts`,
+  `packages/adapters/src/**`, `packages/aps/src/{loader,state,validator}/**`,
+  `packages/anvil/core/src/architecture/**`,
+  `packages/anvil/policy/src/policy-loader.ts`,
+  `packages/anvil/runtime/src/cache/providers/file-cache.ts`.
+- **Validation:** Cross-package tests covering POSIX and Windows separators,
+  symlinked directories, generated scenario/task IDs, duplicate basename handling,
+  and cache-entry names; existing adapter and APS validator tests still pass.
+- **Identified From:** Deepsec P1/P2 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, dominated by path-traversal findings in
+  adapters, APS state/loader, architecture analysis, policy loading, and cache
+  providers.
+- **Coordinates with:** CIB-108 (policy eval trust boundary), CIB-212, CIB-213,
+  and APS parser/validator governance.
+- **Confidence:** high — root cause is duplicated validation; broad file touch
+  warrants careful staged tests.
 
 ### CIB-116: Redact provenance and debug secrets before persistence or logs
 
 - **Status:** Done 2026-07-30 — superseded by CIB-214 and CIB-215 after archival
   of the unsupported Node admin CLI.
-- **Summary:** CIB-214 owns live API debug redaction and CIB-215 owns provenance
-  credential redaction. This closure does not claim those proposals were
-  implemented.
+- **Supersession:** CIB-214 owns live API debug redaction and CIB-215 owns
+  provenance credential redaction. This closure does not claim those proposals
+  were implemented.
+- **Intent:** Prevent Copilot tokens, credential-bearing Git remotes, raw debug
+  payloads, and admin secrets from being persisted to notes, provenance records,
+  logs, or command histories.
+- **Expected Outcome:** Git remote URLs and AI session identifiers are redacted or
+  rejected before persistence; Copilot tokens are never treated as session IDs;
+  structured debug payloads pass through the same redaction path as string logs;
+  admin and revoke tokens are not accepted through command-line arguments where
+  process listings can expose them.
+- **Files:** `packages/anvil/core/src/provenance/**`,
+  `apps/anvil-api/src/lib/debug.ts`, `apps/admin-cli/src/index.ts`,
+  `apps/admin-cli/src/commands/revoke.ts`.
+- **Validation:** Tests proving credential-bearing remotes, Copilot-like tokens,
+  structured debug payloads, and CLI argument secrets are redacted, rejected, or
+  moved to safer input channels; existing provenance output remains stable for
+  non-secret values.
+- **Identified From:** Deepsec P1/P2 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across secret-in-log, secrets-exposure,
+  info-disclosure, and secret CLI argument findings.
+- **Coordinates with:** CIB-214, CIB-215, provenance/Git AI standard outputs, and
+  the admin CLI operator runbook.
+- **Confidence:** high — secret shapes are concrete; compatibility risk is limited
+  to documented input channels and provenance schema expectations.
 
 ### CIB-117: Fence TS runtime and APS state transitions against lost updates
 
