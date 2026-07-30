@@ -1333,7 +1333,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `crossterm` | 0.29.0 | MIT License | https://github.com/crossterm-rs/crossterm |
 | `crossterm_winapi` | 0.9.1 | MIT License | https://github.com/crossterm-rs/crossterm-winapi |
 | `adler2` | 2.0.1 | MIT License | https://github.com/oyvindln/adler2 |
-| `anyhow` | 1.0.104 | MIT License | https://github.com/dtolnay/anyhow |
+| `anyhow` | 1.0.103 | MIT License | https://github.com/dtolnay/anyhow |
 | `atomic-waker` | 1.1.2 | MIT License | https://github.com/smol-rs/atomic-waker |
 | `camino` | 1.2.2 | MIT License | https://github.com/camino-rs/camino |
 | `ctrlc` | 3.5.2 | MIT License | https://github.com/Detegr/rust-ctrlc.git |
