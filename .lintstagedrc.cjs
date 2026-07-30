@@ -21,6 +21,11 @@ const isRootPlansDoc = (file) => {
   return rel === 'plans' || rel.startsWith('plans/');
 };
 
+// The root acknowledgements file is generated and intentionally excluded from
+// oxfmt. Keep markdownlint coverage, but do not hand it to the formatter.
+const isGeneratedMarkdown = (file) =>
+  normalisePath(relative(process.cwd(), file)) === 'ACKNOWLEDGEMENTS.md';
+
 const isVendoredOutput = (file) => {
   const normalised = normalisePath(file);
   return (
@@ -121,7 +126,7 @@ module.exports = {
     // with "Expected at least one target file", failing the whole pre-commit
     // hook. markdownlint has no such exclusion and still covers plans/, so drop
     // planning docs from the formatter only rather than from the glob.
-    const formatted = kept.filter((f) => !isRootPlansDoc(f));
+    const formatted = kept.filter((f) => !isRootPlansDoc(f) && !isGeneratedMarkdown(f));
     if (formatted.length > 0) {
       tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
     }
