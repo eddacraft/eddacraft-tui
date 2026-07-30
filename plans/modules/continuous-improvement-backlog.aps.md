@@ -5489,52 +5489,51 @@ archive.
   clearing, and remain recoverable with `git stash apply refs/stash-backup/NN`
   until deliberately deleted. Defect 3 is the reason this is filed rather than
   left as a small-fix: the class of bug was live data loss, not just debris.
-- **Post-merge observation (2026-07-30) — a fourth, unfixed failure mode in the
-  same family.** Observed live in the shared `anvil-001` main checkout during an
-  APS reconciliation session. **This item stays Merged**; the observation is
-  recorded here because it belongs to the same "shared-checkout ref surgery can
-  destroy work" class, but the mechanism is different from defects 1–3 and is
-  *not* addressed by PR #3440. It needs its own item before anything is claimed
-  fixed.
-  - **Mechanism:** `refs/heads/main` is advanced by a bare ref write rather than
-    a checkout/reset/pull, so the index and working tree stay at the old commit
-    while `HEAD` moves forward. Git then reports every file that differs between
-    the two commits as a *staged modification* — and the content of that
-    "modification" is the **old** version. Committing from that state silently
-    reverts whatever landed in between.
-  - **Reflog signature:** `git reflog show main` had `main@{0..3}` with **empty
-    reason strings**, against `main@{4}` and older reading
-    `pull origin main: Fast-forward`. `git reflog` for `HEAD` never recorded
-    those commits at all — consistent with a direct `refs/heads/main` update
-    (e.g. `git update-ref` with no `-m`) rather than a working-tree-updating
-    command. This is a *different* signature from the `reset: moving to HEAD`
-    entries the anchor-heal hook leaves.
-  - **Concrete instance:** immediately after PR #3460 merged as `95c307794`,
-    `plans/index.aps.md` was staged with `ACTTUI | In Progress | 6/14` while
-    `HEAD` held `ACTTUI | Done | 14/14` — a 15-line staged diff on that file and
-    83 on `activation-tui.aps.md`, exactly inverting the merged reconciliation.
-    A commit at that moment would have reverted PR #3460 while looking like an
-    ordinary "save my staged work" commit.
-  - **It compounds as `main` advances.** After `main` moved on again to
-    `795816153`, twelve further files (`.github/workflows/*` ×10,
-    `ACKNOWLEDGEMENTS.md`, `Cargo.lock`) took on the same revert shape. The
-    exposure grows with every commit that lands while the desync persists, and
-    the affected set is arbitrary — it is whatever the intervening commits
-    touched, not anything the developer chose.
-  - **Detection:** for each staged path, compare `git rev-parse :<path>` against
-    `git rev-parse HEAD:<path>`; if the staged blob matches an *ancestor* of
-    `HEAD` rather than `HEAD` itself, it is a revert, not an edit. Repair is
-    `git checkout HEAD -- <paths>` restricted to the confirmed-revert paths, so
-    genuine concurrent edits in the same checkout are preserved.
-  - **Attribution is unresolved.** The anchor-heal hook runs on every `wt`
-    mutation and is the obvious suspect, but its reflog signature does not match
-    the empty-message ref writes seen here, so it is not established as the
-    cause. A concurrent agent operating directly in the shared main checkout is
-    at least as plausible. Reproducing the ref write is the first task for the
-    follow-up item — this observation is evidence, not a diagnosis.
-  - **Reinforces the standing rule** in `docs/guides/worktree-policy.md` ("Default-branch anchor auto-heal"): treat the default-branch `main` anchor worktree as read-only and do not do branch work in it. Both the reconciliation
-    work and this repair were done from a separate worktree cut from
-    `origin/main`, which is why the merged content was never at risk.
+- **Post-merge confirmation (2026-07-30) — defect 3's fix held in the wild, and
+  the residual hazard it leaves by design.** Observed in the primary `anvil-001`
+  clone (the read-only anchor) during an APS reconciliation session. **No new
+  defect**: the mechanism is the documented `wt` anchor stranding in
+  `docs/guides/worktree-policy.md` § "Default-branch anchor auto-heal", and the
+  heal behaved exactly as specified. Recorded because it is a real-world
+  confirmation of this item's defect-3 repair plus a detection gap worth knowing.
+  - **What happened.** The anchor was dirty — a genuine, long-lived staged APS
+    package-vending change. `wt` kept fast-forwarding `refs/heads/main` to
+    `origin` via its in-process git-library ref write, which moves the ref
+    without updating the anchor's tree, so the anchor stranded behind `HEAD` and
+    `git status` rendered the gap as the phantom "revert of merged work" the
+    guide describes. The reflog signature matches that write: `main@{0..3}` had
+    **empty** reason strings against `pull origin main: Fast-forward` on
+    `main@{4}` and older, and `HEAD`'s own reflog never recorded those commits.
+  - **Defect 3's fix is what protected the work.** Because the anchor's index
+    disagreed with its working tree, the strand proof correctly failed and the
+    heal refused to reset — precisely the behaviour added here ("staged changes
+    are never treated as a strand"). Pre-repair, that state was
+    indistinguishable from a healed anchor by tree alone and would have been
+    hard-reset away. The vending change survived untouched.
+  - **The residual hazard.** A dirty anchor therefore cannot be healed *by
+    design*, and the strand deepens with every merge to `origin`, exactly as the
+    guide predicts. Concretely: right after PR #3460 merged as `95c307794`,
+    `plans/index.aps.md` showed staged as `ACTTUI | In Progress | 6/14` while
+    `HEAD` held `Done | 14/14` — 15 lines on that file and 83 on
+    `activation-tui.aps.md`, the exact inverse of the reconciliation that had
+    just landed. Once `main` advanced again to `795816153`, twelve further files
+    (`.github/workflows/*` ×10, `ACKNOWLEDGEMENTS.md`, `Cargo.lock`) took the
+    same shape. A `git commit -a` in that anchor reverts merged work while
+    looking like an ordinary "save my staged work" commit.
+  - **Detection, when the anchor cannot be healed.** Per staged path, compare
+    `git rev-parse :<path>` with `git rev-parse HEAD:<path>`; a staged blob
+    matching an **ancestor** of `HEAD` is strand, not an edit. Repair with
+    `git checkout HEAD -- <paths>` scoped to the confirmed-strand paths only,
+    which preserves genuine work in the same anchor. Used here to clear four
+    phantom-revert plan files after verifying each was byte-identical to the
+    pre-merge commit, leaving the vending change staged.
+  - **Possible follow-up (not filed):** nothing warns that a dirty anchor is
+    accumulating strand. The heal exits 0 on this path by design, so the signal
+    is only visible to someone who runs `git status` in the anchor and knows how
+    to read it. A cheap advisory — heal reporting "anchor stranded N commits
+    behind; N files will render as phantom reverts until the anchor is cleaned"
+    — would close the gap. Filed nowhere yet; raise as its own CIB item if
+    wanted.
 
 ### CIB-207: Generalise the finding-baseline to the anti-pattern family
 
