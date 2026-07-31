@@ -63,11 +63,11 @@ const MIN_CONFIG_HOOK_GIT_MINOR: u32 = 54;
 const HOOK_COMPAT_DOC: &str = "docs/guides/git-hook-compatibility.md";
 
 /// Pre-commit command body installed via `git config --add hook.pre-commit.command`.
-/// The leading `ANVIL_HOOK=1 anvil gate` segment doubles as the ownership marker
+/// The leading `ANVIL_HOOK=1 anvil` segment doubles as the ownership marker
 /// for uninstall — matched by `ANVIL_CONFIG_HOOK_PATTERN` (re-exported from
 /// `anvil_kernel_types::hooks`).
 const PRE_COMMIT_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate --progress";
-const PRE_PUSH_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate";
+const PRE_PUSH_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil hook pre-push";
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
@@ -85,10 +85,7 @@ const PRE_PUSH_HOOK: &str = r#"#!/bin/sh
 # anvil pre-push hook
 [ "$ANVIL_SKIP_HOOKS" = "1" ] && exit 0
 command -v anvil >/dev/null 2>&1 || { echo "anvil not found on PATH, skipping hook"; exit 0; }
-ANVIL_HOOK=1 anvil gate || {
-  echo "anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git push"
-  exit 1
-}
+exec anvil hook pre-push
 "#;
 
 /// CIB-176 advisory surfaced after a file-mode `hooks install` when no POSIX
@@ -1131,7 +1128,9 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     }
                     crate::output::plain::blank();
                     println!("  pre-commit: Runs quality gates ({PRE_COMMIT_CONFIG_COMMAND})");
-                    println!("  pre-push:   Runs quality gates ({PRE_PUSH_CONFIG_COMMAND})");
+                    println!(
+                        "  pre-push:   Runs L4 pushed-range validation ({PRE_PUSH_CONFIG_COMMAND})"
+                    );
                     crate::output::plain::blank();
                     println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
                 }
@@ -1193,7 +1192,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 }
                 crate::output::plain::blank();
                 println!("  pre-commit: Runs quality gates (anvil gate --progress)");
-                println!("  pre-push:   Runs quality gates (anvil gate)");
+                println!("  pre-push:   Runs L4 pushed-range validation (anvil hook pre-push)");
                 crate::output::plain::blank();
                 println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
 
@@ -1448,6 +1447,13 @@ mod tests {
     fn hook_scripts_check_anvil_exists() {
         assert!(PRE_COMMIT_HOOK.contains("command -v anvil"));
         assert!(PRE_PUSH_HOOK.contains("command -v anvil"));
+    }
+
+    #[test]
+    fn pre_push_install_routes_to_l4_runtime() {
+        assert!(PRE_PUSH_HOOK.contains("exec anvil hook pre-push"));
+        assert!(!PRE_PUSH_HOOK.contains("anvil gate"));
+        assert_eq!(PRE_PUSH_CONFIG_COMMAND, "ANVIL_HOOK=1 anvil hook pre-push");
     }
 
     #[test]

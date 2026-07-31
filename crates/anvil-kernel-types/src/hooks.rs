@@ -1,7 +1,7 @@
 //! Shared identifiers for Anvil-managed Git hooks.
 //!
 //! Anvil installs Git 2.54 native config-mode hooks via `git config --add
-//! hook.<event>.command "ANVIL_HOOK=1 anvil gate ..."`. Multiple surfaces
+//! hook.<event>.command "ANVIL_HOOK=1 anvil ..."`. Multiple surfaces
 //! (CLI install/uninstall, CLI status/doctor, TUI onboarding) need to agree on
 //! which `hook.<event>.command` entries belong to Anvil. Centralising the
 //! pattern + predicate here avoids three sites drifting out of sync.
@@ -9,20 +9,20 @@
 //! The constant `ANVIL_CONFIG_HOOK_PATTERN` is the regex Anvil passes to
 //! `git config --unset-all <key> <value-pattern>` so `uninstall --config`
 //! removes only Anvil-owned entries and leaves user-authored commands intact.
-//! Because the pattern is anchored at the start (`^`) with no other regex
-//! metacharacters, [`is_anvil_managed_command`] uses [`str::starts_with`] for
-//! the in-process predicate — a no-dependency match equivalent to the regex.
+//! [`is_anvil_managed_command`] mirrors the same closed command set for
+//! in-process ownership checks.
 
 /// Regex passed to `git config --unset-all` to remove only Anvil-managed
-/// `hook.<event>.command` entries. The leading `^ANVIL_HOOK=1 anvil gate`
-/// segment doubles as the ownership marker matched by
-/// [`is_anvil_managed_command`].
-pub const ANVIL_CONFIG_HOOK_PATTERN: &str = "^ANVIL_HOOK=1 anvil gate";
+/// `hook.<event>.command` entries. It recognises the legacy quality-gate
+/// commands and the dedicated L3/L4 runtime commands used by current installs.
+pub const ANVIL_CONFIG_HOOK_PATTERN: &str =
+    "^ANVIL_HOOK=1 anvil (gate([[:space:]]|$)|hook (pre-commit|pre-push)([[:space:]]|$))";
 
-/// Prefix that every Anvil-managed config-mode hook command starts with.
-/// Equivalent to [`ANVIL_CONFIG_HOOK_PATTERN`] with the leading `^` stripped
-/// — used for [`str::starts_with`] checks that do not need a regex engine.
-const ANVIL_CONFIG_HOOK_PREFIX: &str = "ANVIL_HOOK=1 anvil gate";
+const ANVIL_CONFIG_HOOK_COMMANDS: &[&str] = &[
+    "ANVIL_HOOK=1 anvil gate",
+    "ANVIL_HOOK=1 anvil hook pre-commit",
+    "ANVIL_HOOK=1 anvil hook pre-push",
+];
 
 /// True when `cmd` is a `hook.<event>.command` entry that Anvil owns.
 ///
@@ -37,10 +37,14 @@ const ANVIL_CONFIG_HOOK_PREFIX: &str = "ANVIL_HOOK=1 anvil gate";
 /// - The TUI onboarding hook detector (treat config-mode as a peer to Husky)
 ///
 /// User-authored entries that happen to set `ANVIL_HOOK=1` but do not invoke
-/// `anvil gate` are intentionally not claimed.
+/// one of the closed managed commands are intentionally not claimed.
 #[must_use]
 pub fn is_anvil_managed_command(cmd: &str) -> bool {
-    cmd.starts_with(ANVIL_CONFIG_HOOK_PREFIX)
+    ANVIL_CONFIG_HOOK_COMMANDS.iter().any(|prefix| {
+        cmd.strip_prefix(prefix).is_some_and(|suffix| {
+            suffix.is_empty() || suffix.chars().next().is_some_and(char::is_whitespace)
+        })
+    })
 }
 
 #[cfg(test)]
@@ -48,34 +52,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pattern_is_anchored_at_start() {
-        // The regex form must match the prefix form so the in-process
-        // predicate stays equivalent to what `git config --unset-all`
-        // does on disk. If anyone edits one without the other, this trips.
+    fn pattern_is_anchored_and_names_the_closed_command_set() {
         assert!(ANVIL_CONFIG_HOOK_PATTERN.starts_with('^'));
-        assert_eq!(
-            &ANVIL_CONFIG_HOOK_PATTERN[1..],
-            ANVIL_CONFIG_HOOK_PREFIX,
-            "regex pattern minus the `^` anchor must equal the starts_with prefix",
-        );
+        assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("gate"));
+        assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("pre-commit"));
+        assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("pre-push"));
     }
 
     #[test]
     fn recognises_canonical_install_commands() {
-        // The two strings the CLI installs today.
+        // Current install commands plus the legacy pre-push gate command.
         assert!(is_anvil_managed_command(
             "ANVIL_HOOK=1 anvil gate --progress"
         ));
         assert!(is_anvil_managed_command("ANVIL_HOOK=1 anvil gate"));
+        assert!(is_anvil_managed_command("ANVIL_HOOK=1 anvil hook pre-push"));
     }
 
     #[test]
     fn rejects_user_authored_commands_with_anvil_hook_var() {
         // Setting ANVIL_HOOK=1 alone is not enough — the command must also
-        // call `anvil gate` for Anvil to claim it.
+        // call one of Anvil's closed managed-hook commands.
         assert!(!is_anvil_managed_command("ANVIL_HOOK=1 npm run my-gate"));
         assert!(!is_anvil_managed_command("npm run lint-staged"));
         assert!(!is_anvil_managed_command(""));
+        assert!(!is_anvil_managed_command("ANVIL_HOOK=1 anvil gatekeeper"));
+        assert!(!is_anvil_managed_command(
+            "ANVIL_HOOK=1 anvil hook pre-push-extra"
+        ));
     }
 
     #[test]

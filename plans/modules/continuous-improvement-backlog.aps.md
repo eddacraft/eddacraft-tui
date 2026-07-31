@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 169/211  |
+| CIB | —     | In Progress | 170/213  |
 
 ## Purpose
 
@@ -5753,3 +5753,60 @@ archive.
   Council review (`council-891d78ba`).
 - **Confidence:** high — the credential sources and persistence sinks are
   concrete.
+
+### CIB-216: Route managed pre-push installs through the L4 runtime
+
+- **Status:** In Progress 2026-07-31
+- **Intent:** Managed file, Husky, and Git config pre-push installs currently
+  invoke bare `anvil gate`, which scans the full worktree and blocks pushes on
+  pre-existing findings instead of evaluating the pushed commit range. Route
+  pre-push through the dedicated `anvil hook pre-push` runtime required by
+  ADR-038 while preserving safe ownership and uninstall of legacy gate entries.
+- **Expected Outcome:** Newly installed managed pre-push hooks consume Git's
+  pre-push stdin through `anvil hook pre-push`, remain silent on a clean range,
+  and no longer run a full-codebase quality gate. Existing managed
+  `ANVIL_HOOK=1 anvil gate` config entries remain recognisable for status and
+  uninstall during migration.
+- **Files:** `.husky/pre-push`,
+  `crates/anvil-cli/src/commands/hooks.rs`,
+  `crates/anvil-cli/tests/hooks_config_mode.rs`,
+  `crates/anvil-kernel-types/src/hooks.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil-kernel-types hooks`;
+  `cargo test -p eddacraft-anvil --bin anvil hooks`;
+  `cargo test -p eddacraft-anvil --test hooks_config_mode`; a synthetic
+  pre-push ref update exits zero and produces no gate report.
+- **Identified From:** 2026-07-31 repository dogfood pre-push failure: bare
+  `anvil gate` scanned 1,667 files and blocked on 59 warning-level
+  anti-patterns plus 540 secret-shaped fixture/cache matches, while
+  `anvil hook pre-push` accepted the same pushed range.
+- **Coordinates with:** ADR-038, GHOOK-002/GHOOK-004, MLP-004, MLP2-016, and
+  CIB-207 (general finding-baseline design remains separate non-scope).
+- **Confidence:** high — the dedicated runtime and accepted hook contract
+  already exist; this corrects installer routing and migration detection.
+
+### CIB-217: Distinguish ignored tool output from ignored credentials
+
+- **Status:** Draft
+- **Intent:** Full secret scans deliberately bypass blanket `.gitignore`
+  filtering so ignored credential files such as `.env` remain visible, but the
+  canonical local-noise policy does not recognise path-scoped generated output
+  under tools such as `.clawpatch/**`, `.deepsec/data/**`, and `.vercel/**`.
+  The result is hundreds of findings copied from old scans and fixture mirrors.
+- **Expected Outcome:** Walking scan surfaces exclude declared generated
+  tool-output paths without making `.gitignore` a secret-scan bypass, while
+  tracked tool configuration and matcher source (for example `.deepsec/*.ts`)
+  remains in scope.
+- **Design questions:** whether path-aware exclusions belong in the
+  kernel-canonical local-noise policy or an auditable project config surface;
+  how a rule proves it cannot hide ignored credential files; how watch,
+  audit, baseline, check, drift, and gate retain conformance.
+- **Validation:** A fixture repo proves generated tool output is absent from
+  secret and anti-pattern discovery, an ignored credential-shaped file remains
+  detected, and tracked files adjacent to an excluded cache subtree remain
+  scanned.
+- **Identified From:** 2026-07-31 dogfood pre-push report plus
+  `git check-ignore -v` confirmation for the reported cache paths.
+- **Coordinates with:** ADOPT-004 (canonical local-noise list), CIB-207
+  (grandfathering old tracked findings), and CIB-216 (pre-push range routing).
+- **Confidence:** medium — the false-positive paths are concrete, but a blanket
+  Git-ignore change would weaken secret protection and is explicitly rejected.

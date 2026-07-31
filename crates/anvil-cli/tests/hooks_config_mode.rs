@@ -128,7 +128,7 @@ fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
     let pre_push = config_get_all(dir.path(), "hook.pre-push.command");
     assert_eq!(
         pre_push,
-        vec!["ANVIL_HOOK=1 anvil gate".to_string()],
+        vec!["ANVIL_HOOK=1 anvil hook pre-push".to_string()],
         "pre-push config-mode entry must round-trip",
     );
 
