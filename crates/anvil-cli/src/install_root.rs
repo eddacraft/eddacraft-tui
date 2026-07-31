@@ -1,38 +1,4 @@
-//! Install-root resolution for the `ANVIL_HOME` / `--anvil-home` override
-//! (DISTRIB-006, [ADR-060]).
-//!
-//! anvil keeps two distinct categories of state:
-//!
-//! - **Install/user-owned** — user config (today under the home dir), the daemon
-//!   socket/PID (under the runtime dir), and kernel cache/logs. When `ANVIL_HOME`
-//!   (or `--anvil-home`, which takes precedence) is set, these re-root under the
-//!   prefix: `<ANVIL_HOME>/user/`, `<ANVIL_HOME>/intercept.sock` +
-//!   `<ANVIL_HOME>/intercept.pid`, and `<ANVIL_HOME>/cache/`. This lets a
-//!   pre-release candidate run side-by-side with the production install without
-//!   colliding on the user config, the daemon socket, or logs.
-//! - **Per-project** — `<root>/.anvil/` (baseline, cache, witness) and
-//!   `<root>/anvil/project-id`. Per ADR-060 **Option (a)**, `ANVIL_HOME` does
-//!   **not** re-root project discovery: candidate tests run against the *real*
-//!   repo so witness continuity and baseline durability are preserved. To contain
-//!   the corruption risk that sharing otherwise carries, durable project-state
-//!   *mutations* (baseline refresh/write, witness append, cutoff pinning) run in a
-//!   read-only / dry-run posture under a non-default `ANVIL_HOME` unless the
-//!   operator opts in with `--touch-project-state`.
-//!
-//! Unsetting `ANVIL_HOME` returns to platform-default behaviour byte-for-byte —
-//! no path changes, no new fields, no guard — for the 99% of users who never set
-//! it (ADR-060 §3).
-//!
-//! The `--anvil-home` and `--touch-project-state` flags become the canonical
-//! `ANVIL_HOME` / `ANVIL_TOUCH_PROJECT_STATE` environment override at the top of
-//! `main` (see `main::reexec_for_install_root`): the crate forbids `unsafe_code`,
-//! so rather than `set_var` the flag, `main` re-execs once with the variable set
-//! in the child environment. Every downstream resolution — including the spawned
-//! daemon, which inherits the environment — then reads one source of truth. Pure
-//! `*_from` helpers take the resolved environment explicitly so they unit-test
-//! without mutating global state.
-//!
-//! [ADR-060]: ../../../plans/decisions/060-anvil-home-install-root-override.md
+//! Resolve Anvil install and state roots (including `ANVIL_HOME` re-rooting).
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

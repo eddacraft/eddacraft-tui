@@ -1,78 +1,7 @@
-//! DRVR-002 / DRVR-008: Editor-driver protocol method names and
-//! capability vocabulary.
+//! DRVR-002 / DRVR-008: editor-driver protocol method names and capability
+//! vocabulary.
 //!
-//! This module is the **authoritative** Rust definition of:
-//!
-//! - The JSON-RPC method-name constants the editor driver and the
-//!   daemon agree on (the `ANVIL_*` constants).
-//! - The capability lattice the §3.3 state machine moves a driver
-//!   through (`Attached` → `Participating`).
-//!
-//! TS bindings in `packages/anvil-driver-client/src/protocol/` mirror
-//! these constants byte-for-byte. The Rust side is the one source of
-//! truth; if the two drift, the Rust side wins and the TS side is
-//! re-pinned to match.
-//!
-//! ## Why this lives in `anvil-intercept-proto`
-//!
-//! The proto crate already owns the wire vocabulary the daemon and
-//! launcher share (`IpcCommand`, `IpcEnvelope`, `SessionRecord`).
-//! Method names are wire vocabulary; they belong with their siblings.
-//! Putting them in `anvil-intercept` proper would force every
-//! consumer (e.g. `auth.rs`'s capability negotiation) to depend on
-//! the daemon binary's runtime crate, and any future
-//! Wasm-/embedded-side daemon implementation would have to re-export
-//! the names from a different crate. Keeping them in `proto` makes
-//! the constants importable everywhere with no extra dependency.
-//!
-//! ## Method namespace policy
-//!
-//! Per §3.2 of the editor-and-mcp-driver design spec, **no new
-//! `anvil/` method without a concrete editor feature that cannot be
-//! expressed in stock LSP**. Every method below has a v1 consumer:
-//!
-//! - `anvil/publishDiagnostics` — server → client notification, the
-//!   Anvil flavour of LSP `textDocument/publishDiagnostics` carrying
-//!   `Diagnostic` from `anvil-kernel-types` rather than the LSP
-//!   shape (so suppression / mode / category survive).
-//! - `anvil/scan_buffer` — client → server request, the mid-edit
-//!   buffer scan path. Companion to the existing `scan_buffer` JSON-RPC
-//!   method; the `anvil/`-namespaced alias is what drivers advertise
-//!   in their manifest.
-//! - `anvil/enforcement/ack` — client → server, confirms an
-//!   enforcement decision was carried out. Drivers that do not
-//!   advertise this method are capped at read-only per DRVR-008.
-//! - `anvil/gate/request` — client → server, asks for a gate-result
-//!   stream over the telemetry lane. Resolves the M3 council-review
-//!   item that `anvil/gate/request` was missing from the §3.2 method
-//!   table while §3.7 referenced it.
-//! - `anvil/suppression/apply` — client → server, requests the
-//!   daemon to validate and normalise a `@anvil-ignore` comment per
-//!   ADR-004.
-//! - `anvil/status/query` — client → server, returns the current
-//!   session / fence / driver state for a worktree.
-//! - `anvil/validate_paths` — client → server, the save-time verdict
-//!   verb (ADR-061 / DSV-002): certify a change set against the warm
-//!   graph cache and return the verdict-shaped response.
-//! - `anvil/workspace_status` — client → server, a read-only
-//!   workspace-assurance snapshot (the `anvil status` surface).
-//! - `anvil/request_full_scan` — client → server, ask the daemon to
-//!   re-establish a clean baseline after assurance went stale.
-//!
-//! Registration invariant: every `pub const ANVIL_*` method name here
-//! MUST also appear in [`ALL_ANVIL_METHODS`]; the
-//! `all_anvil_methods_two_directional` test count-pins the slice so a
-//! method cannot be listed without a backing const, nor the count
-//! changed silently. (Rust cannot enumerate module consts at test time,
-//! so a brand-new const left out of *both* the slice and the test is
-//! the one case tests can't catch — hence this written rule.)
-//!
-//! LSP methods (`textDocument/publishDiagnostics`,
-//! `textDocument/codeAction`, `workspace/applyEdit`,
-//! `window/showMessage`, `initialize`/`initialized`) are pinned by
-//! the LSP spec and are not re-declared here. Drivers speak both
-//! languages over the same transport; the daemon routes by method
-//! name at the JSON-RPC layer.
+//! Closed string sets for wire methods and capability negotiation. No I/O.
 
 use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
@@ -317,32 +246,10 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
 ];
 
 // ============================================================================
-// DSV-002 — the frozen `validate_paths` verdict wire (ADR-061 Sub-phase A)
-// ============================================================================
-//
-// These types pin the forward-compatible, verdict-shaped contract the daemon
-// answers `validate_paths`/`workspace_status`/`request_full_scan` with, and
-// that all four delivery surfaces (watch+daemon, watch+fallback, MCP+daemon,
-// MCP+fallback) integrate against. The **wire is frozen once and the backing
-// swaps underneath it** across sub-phases (interim `SymbolGraph` cache → GV2
-// hot-read slice → warm-start persistence) so consumers never re-integrate.
-//
-// Forward-compatibility rule (MLP2-052 style): no type here uses
-// `#[serde(deny_unknown_fields)]`, so a newer daemon can add additive fields
-// without breaking an older client's deserialise. Wire strings are frozen:
-// `snake_case` for method-adjacent/state vocabulary, `kebab-case` for the
-// reason/family vocabulary that mirrors the daemon's structured-log strings.
-//
-// Two boundaries are deliberately NOT this crate's job and live downstream:
-//   * Resource bounds. `ValidatePathsRequest.paths` and the `String` fields
-//     are unbounded by design here; request-count and per-string length caps
-//     are enforced at the daemon request handler (DSV-003+), so the
-//     deserialise-tolerant wire does not become an unbounded-allocation
-//     surface for a same-uid client.
-//   * Request correlation. `request_full_scan` carries no scan-id today; if a
-//     consumer ever needs to distinguish "my scan" from a coalesced in-flight
-//     one, an `Option<String>` id is an additive (non-breaking) field to add
-//     when DSV-005/-007 give it a real caller — not pre-emptively here.
+// DSV-002 (ADR-061): frozen `validate_paths` / workspace status wire types.
+// Additive-only serde (no deny_unknown_fields). Resource bounds enforced at
+// the daemon handler, not here. Wire strings: snake_case methods/state,
+// kebab-case reason vocabulary.
 
 /// How a single changed path changed, as classified before the daemon
 /// re-derives identity from disk. Internally tagged on `change` so it

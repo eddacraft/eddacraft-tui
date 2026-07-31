@@ -1,33 +1,5 @@
-//! KDS-001 / PORT-011: a daemon-backed [`KindlingObservationSink`].
-//!
-//! Anvil's `command.invoked` governance observations historically landed in a
-//! per-user `usage.ndjson` sidecar (a `DaemonUsageSink`, retired in KDS-005) — a
-//! workaround from when Kindling was not reachable in-process. The Rust-canonical
-//! Kindling port now ships a local daemon (`kindling serve`, HTTP/1 over a Unix
-//! domain socket) and a thin auto-spawning client (`kindling-client`). This
-//! module is the write-side realisation of that: a sink that maps an Anvil
-//! observation to a Kindling `ObservationInput` and appends it through the
-//! daemon, with a durable, capped [`SpooledClient`] fallback so a daemon outage
-//! never loses (or surfaces) a row. Since KDS-005 it is the **default** daemon
-//! `command.invoked` sink (the bespoke NDJSON writer is gone).
-//!
-//! This routes **`command.invoked` only**; `gate.evaluated` and friends are a
-//! fast follow (KDS-001 continuation).
-//!
-//! # Boundary (ADR-064)
-//!
-//! The networking client (hyper/tokio over a UDS) lives ONLY in this app-layer
-//! crate — never in `anvil-intercept`. The `daemon_dep_boundary` guard keeps the
-//! resident daemon's dependency tree free of an HTTP/transport dep; the
-//! producers stay trait-only.
-//!
-//! # Async bridge
-//!
-//! [`KindlingObservationSink`] is synchronous; [`SpooledClient`] is async. The
-//! sink owns a current-thread tokio runtime and `block_on`s the append. That
-//! `block_on` is only ever driven on the `NonBlockingObservationSink` drain
-//! thread (a plain `std::thread` with no ambient runtime), so it never blocks a
-//! dispatch / save-time hot path and never nests inside another runtime.
+//! KDS-001 / PORT-011: `KindlingObservationSink` backed by the Kindling
+//! daemon (with local spool fallback).
 
 use std::path::PathBuf;
 

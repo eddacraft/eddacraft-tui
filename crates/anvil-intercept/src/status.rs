@@ -1,47 +1,4 @@
-//! INTD-011: daemon status / diagnostics surface.
-//!
-//! The `query_status` IPC method returns a [`DaemonStatus`] snapshot
-//! containing:
-//!
-//! - the active session list (mirrors INTD-003's
-//!   [`SessionRegistry::active_sessions`]),
-//! - the worktree status set (one entry per active session — empty
-//!   for an idle daemon, may grow to include explicit worktree
-//!   metadata in later waves),
-//! - the active fence list (mirrors INTD-007's
-//!   [`crate::fence::FenceState::active_fences`]),
-//! - the daemon health (uptime, version, IPC state),
-//! - the latency rollup for `mode = midEdit`,
-//!   `boundary = validation.service` per ADR-031.
-//!
-//! ## Trust posture
-//!
-//! The query is exposed over the same daemon-minted peer-credentials
-//! posture as the rest of the IPC surface (INTD-002 +
-//! INTD-015 §M5):
-//!
-//! - The Unix socket lives in a 0700 directory owned by the current
-//!   user; the socket itself is 0600. Only same-UID peers can
-//!   connect.
-//! - The Windows named pipe is created with an owner-only DACL and
-//!   `PIPE_REJECT_REMOTE_CLIENTS`.
-//! - There is no driver self-declared identity in the request — the
-//!   status payload is identical for every authorised peer; nothing
-//!   in it depends on the caller.
-//!
-//! In the existing INTD-015 vocabulary, status is a "default-allow
-//! for own-session same-UID peers" surface; cross-UID requests are
-//! refused at the socket layer before the request reaches this
-//! module.
-//!
-//! ## Reality, not assumed readiness
-//!
-//! When no mid-edit traffic has been observed yet, `latency.mid_edit`
-//! is `None` (not zero, not a stale cached value). The rendering layer
-//! prints `latency: (no mid-edit traffic yet)` rather than
-//! `latency: p50 0.0ms p95 0.0ms (mid-edit)` — INTD-011's "report
-//! reality" hard rule. The wire surface preserves this distinction
-//! through `Option<LatencyRollup>`.
+//! Build daemon status and protection-claim snapshots for CLI / MCP / doctor.
 
 use std::path::Path;
 use std::sync::Arc;

@@ -1,49 +1,9 @@
-//! OPAE-007 / POLRESET-006: the neutral policy enforcement-routing contract.
+//! OPAE-007 / POLRESET-006: map policy outcomes onto [`ControlDecision`] given
+//! [`EnforcementMode`].
 //!
-//! This module is the **adapter-layer vocabulary** that maps a policy
-//! evaluation outcome onto Anvil's canonical enforcement decision
-//! ([`ControlDecision`]) given an operator's posture
-//! ([`EnforcementMode`]). It is deliberately **contract-only** and depends
-//! on nothing but `anvil-kernel-types`:
-//!
-//! - The hot-path [`crate::InterceptRule`] trait **stays binary**
-//!   (`Allow | Interrupt`, ADR-015 AD-6 / ADR-098 AD-5). Severity-aware
-//!   policy routing does **not** widen it; it happens here, at the adapter
-//!   seam, over a policy outcome the rule trait never sees.
-//! - The resident daemon gains **no** policy evaluation (ADR-098 AD-4):
-//!   the policy engine (`regorus` / `anvil-policy-engine`) is forbidden on
-//!   the daemon by `daemon_dep_boundary`. Because this contract speaks only
-//!   kernel-types, a future daemon-side consumer can adopt the same routing
-//!   vocabulary **without linking an engine** — the mapping is data, not
-//!   evaluation.
-//!
-//! ## The mapping
-//!
-//! A [`PolicyOutcome`] carries a rule id and a severity **class** mirroring
-//! the two Rego rule families packs emit — `violation`/`deny` (blocking
-//! intent) and `warn` (advisory). [`route_policy_outcome`] resolves it
-//! against the posture:
-//!
-//! | Class                        | `off`   | `warn` | `fence` | `interrupt` |
-//! | ---------------------------- | ------- | ------ | ------- | ----------- |
-//! | [`PolicySeverityClass::Warning`]   | `allow` | `warn` | `warn`  | `warn`      |
-//! | [`PolicySeverityClass::Violation`] | `allow` | `warn` | `fence` | `interrupt` |
-//!
-//! - A **warning-class** outcome is advisory: it warns under every posture
-//!   except `off` (where it is suppressed to `allow`). It **never** vetoes,
-//!   under any posture — an advisory finding cannot block a write.
-//! - A **violation-class** outcome escalates through the posture via
-//!   [`EnforcementMode::escalated_decision`]: `off → allow`, `warn → warn`
-//!   (the ADR-002 warnings-first default — a violation still only warns
-//!   until the operator opts into a stricter posture), `fence → fence`,
-//!   `interrupt → interrupt`.
-//!
-//! `off` always yields [`ControlDecision::Allow`] and is therefore never a
-//! veto ([`ControlDecision::is_veto`]) — the posture that suppresses every
-//! decision. No class × posture combination ever produces
-//! [`ControlDecision::Block`]; policy routing speaks only the escalation
-//! ladder (`allow`/`warn`/`fence`/`interrupt`), leaving the bare `block`
-//! decision to the input-error / gate surfaces that own it.
+//! Contract-only adapter over `anvil-kernel-types`. Does not widen the binary
+//! [`crate::InterceptRule`] trait; policy evaluation stays off the resident
+//! daemon hot path (ADR-098).
 
 use anvil_kernel_types::EnforcementMode;
 use anvil_kernel_types::diagnostics::ControlDecision;

@@ -1,48 +1,4 @@
-//! INTD-010: unregistered change handling.
-//!
-//! When the watcher (INTD-004) sees a file change that does not fall
-//! under any registered session's worktree, it routes the change here.
-//! The unregistered path is responsible for two things:
-//!
-//! 1. **Tagging:** the change is labelled `attribution: unknown-agent`
-//!    so downstream telemetry consumers (TUI, dashboard, audit
-//!    surfaces) can distinguish bypass attempts from owned activity.
-//! 2. **Policy:** the change is fenced or warned about per the
-//!    operator's [`crate::config::Resolved::on_ambiguous_ownership`]
-//!    setting.
-//!
-//! ## Hard cap: ambiguous ownership is always Fence
-//!
-//! `plans/decisions/015-intercept-loop-enforcement.md` AD-3 makes the
-//! ambiguous-ownership case **always fence** as a code invariant,
-//! regardless of operator config. The
-//! [`crate::config::AmbiguousOwnership`] enum already restricts the
-//! parse vocabulary to `warn | fence` (no `interrupt`), but even an
-//! operator-set `warn` is upgraded to `fence` here — because the
-//! daemon cannot interrupt a process it cannot confidently attribute,
-//! and warn-only would let an unattributed change carry on
-//! unchallenged. Pinned by [`tests::warn_setting_still_hard_caps_to_fence`].
-//!
-//! "Always Fence" in this module means "always touch the
-//! [`crate::fence::FenceStore`]". The signal-ladder side of
-//! enforcement (INTD-006) has nothing to do here — there is no
-//! process group to interrupt because the change is unattributed by
-//! definition.
-//!
-//! ## What this module is NOT
-//!
-//! - **Not a daemon-error path.** A change with no registered owner is
-//!   a normal operational state (e.g. a non-anvil-launched edit
-//!   landing in a watched worktree); it does not surface as a daemon
-//!   failure.
-//! - **Not a registry mutator.** This module reads the fence store and
-//!   posts decisions; it never registers, unregisters, or
-//!   heartbeats sessions.
-//! - **Not the watcher.** Routing happens in
-//!   `crate::watcher::WatcherIntegration`; this module is the
-//!   handler that watcher hands unattributed changes to.
-//!
-//! See `plans/modules/intercept-daemon.aps.md` task INTD-010.
+//! Policy for file changes in worktrees not yet registered with the daemon.
 
 use std::path::PathBuf;
 use std::sync::Arc;

@@ -1,38 +1,7 @@
-//! INTD-002: NDJSON IPC listener.
+//! IPC listener and JSON-RPC dispatch for the intercept daemon.
 //!
-//! The daemon listens on a Unix domain socket (Linux/macOS) or a named
-//! pipe (Windows) and parses one JSON envelope per line. This module
-//! owns:
-//!
-//! - **Path resolution** — `$XDG_RUNTIME_DIR/anvil` (else
-//!   `$HOME/.local/state/anvil`) on Unix; `\\.\pipe\anvil-intercept-<sid>`
-//!   on Windows. A non-empty `ANVIL_HOME` re-roots both (DISTRIB-006 /
-//!   CIB-106): the Unix socket dir moves under the prefix, the Windows
-//!   pipe name gains a hashed install-root suffix. The launcher
-//!   (DRVR-001) reads the same algorithm.
-//! - **Permission pinning** — symlink refusal, owner-and-mode checks,
-//!   `0700` directories, `0600` socket files. None of this is left to
-//!   umask.
-//! - **NDJSON framing** — a custom line reader (see [`read_one_line`])
-//!   so the per-line cap is enforced byte-by-byte before UTF-8
-//!   conversion. Malformed lines are logged and skipped without
-//!   tearing the connection down. The stock
-//!   `tokio::io::AsyncBufReadExt::lines()` API has no size cap, which
-//!   is why the listener does not use it.
-//! - **Per-connection task spawning** — handlers go on a `JoinSet` so
-//!   shutdown can drain them with a bounded deadline.
-//!
-//! Session-state mutation lives behind the
-//! [`registry::SessionDispatcher`](crate::registry::SessionDispatcher)
-//! trait. The listener parameterises over it so tests can substitute a
-//! recording double and the daemon can plug the concrete
-//! [`SessionRegistry`](crate::registry::SessionRegistry) without
-//! touching the listener body. There is exactly one dispatcher trait
-//! across the crate — keeping it in `registry` (rather than duplicating
-//! it here) avoids the wire surface and the registry surface drifting.
-//!
-//! See `plans/modules/intercept-daemon.aps.md` INTD-002 for the
-//! end-to-end pinning council review M8 demanded.
+//! Accept loop, auth, session/save-time/GCTX routing, telemetry subscribe,
+//! and `DoS` budgets.
 
 use std::borrow::Cow;
 use std::io;
@@ -1485,26 +1454,9 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 &pipe_name,
                                 anvil_intercept_win32::PipeInstance::Additional,
                             )?;
-                            // DSV-010b / ADR-070 step 4: belt-and-suspenders
-                            // peer-SID check (parity for the Unix `SO_PEERCRED`
-                            // same-uid gate). The owner-only pipe DACL already
-                            // refuses a different-SID client at the kernel; this
-                            // explicit `GetNamedPipeClientProcessId → token SID`
-                            // compare is defence in depth.
-                            //
-                            // DSV-010b hardening: run it on a blocking thread —
-                            // it issues several synchronous Win32 kernel calls
-                            // (`OpenProcess` + `GetTokenInformation`), and doing
-                            // them inline would block the accept loop's reactor
-                            // thread on a pathologically slow same-uid peer.
-                            // `connected_server` is held alive across the await so
-                            // its handle stays valid; the raw handle is passed as
-                            // `usize` (not the `RawHandle` pointer) only to satisfy
-                            // `spawn_blocking`'s `Send + 'static` capture bound
-                            // without reaching for `unsafe` in this
-                            // `forbid(unsafe_code)` crate — it is cast straight
-                            // back to a handle inside the closure. Fail closed on a
-                            // non-owner, a validation error, or a join failure.
+                            // DSV-010b: same-uid peer SID check (defence in depth
+                            // vs pipe DACL). Run on blocking pool so Win32 token
+                            // calls never stall the accept reactor; fail closed.
                             use std::os::windows::io::{AsRawHandle, RawHandle};
                             let raw_handle = connected_server.as_raw_handle() as usize;
                             let owner = tokio::task::spawn_blocking(move || {
@@ -3110,22 +3062,8 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         .await;
     }
 
-    // Status query: dual-routed under DRVR-002 / INTD-011.
-    //
-    // - `LEGACY_QUERY_STATUS_METHOD` (`"query_status"`): the bare-name
-    //   form INTD-011 originally pinned. The CLI (`anvil intercept
-    //   status`) and the existing 37-fixture conformance suite still
-    //   speak it; we cannot break that contract until every consumer
-    //   migrates.
-    // - `anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY` (`"anvil/status/query"`):
-    //   the canonical namespaced form DRVR-002 promised drivers when the
-    //   protocol module shipped. Drivers that import the published
-    //   constant must hit a live route, not a `Method not found`.
-    //
-    // Both names route to the same handler. The proto crate is
-    // imported directly (not duplicated as a string literal) so any
-    // future rename on the canonical side propagates here without a
-    // silent drift.
+    // Status query: both legacy `query_status` and namespaced
+    // ANVIL_STATUS_QUERY route to the same handler (DRVR-002 / INTD-011).
     if method == LEGACY_QUERY_STATUS_METHOD
         || method == anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY
     {

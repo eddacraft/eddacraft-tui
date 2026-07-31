@@ -1,34 +1,5 @@
-//! DSV-006 / Sub-phase A Task 10 — the daemon's two cooperating work pools, the
-//! per-workspace in-flight admission token, and the chunked-yield background
-//! scan loop (ADR-061 §4 resource model).
-//!
-//! # Why two pools, not one
-//!
-//! The save-time daemon serves latency-sensitive `validate_paths` requests
-//! concurrently with whole-repo background scans. ADR-061 §4 splits the one
-//! per-host work budget into **two cooperating rayon pools**: a small
-//! *interactive* pool (`validate_paths` only, never starved) and a *background*
-//! pool (full scans). The earlier "one pool, interactive preempts background"
-//! framing is unimplementable — rayon has no task preemption and no priority
-//! between jobs queued on the same pool. Separate pools own dedicated OS
-//! threads, and rayon never steals work across pools, so a saturated background
-//! pool cannot drain the interactive pool's threads.
-//!
-//! Co-operation between the pools (background scans handing cores back under
-//! interactive load) is the chunked cancel/yield loop ([`run_chunked_scan`] +
-//! [`ScanCancel`], Task 10b): rayon has no task preemption, so the background
-//! scan voluntarily checks a cancel flag at every chunk boundary and stops
-//! within one chunk when interactive work arrives. This module also owns the
-//! **construction** of the pools (the hard predecessor of Task 8, which runs
-//! the antipattern check on the interactive pool) plus the admission token.
-//!
-//! # Admission token
-//!
-//! [`WorkspaceAdmission`] bounds how many `validate_paths` requests for a single
-//! [`WorktreeKey`] may be in flight at once. It layers over the IPC listener's
-//! per-connection semaphore (`ipc.rs`): the semaphore caps total connections,
-//! the admission token stops one busy workspace from monopolising the shared
-//! interactive pool.
+//! DSV-006: daemon foreground/background work pools, per-workspace in-flight
+//! admission, and chunked-yield background scans (ADR-061 resource model).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

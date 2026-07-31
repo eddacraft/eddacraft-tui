@@ -1,37 +1,4 @@
-//! GCTX-031: Token-reduction benchmark harness.
-//!
-//! Measures whether identity-only graph-context delivery reduces the assistant
-//! context size needed to answer a change-impact question, versus naive
-//! file-reading baselines. For a fixed set of deterministic fixtures it answers
-//! the same question — *"what is impacted by changing symbol X?"* — three ways
-//! and counts the tokens each delivery strategy costs, using the GCTX-020
-//! estimator (`estimate_gctx_tokens`) so the figures are measured with GCTX's
-//! own planning budget rather than an external tokenizer:
-//!
-//! 1. **Naive whole-repo** — a tool-less assistant reads every source file in
-//!    full. The pathological upper bound: no real assistant reads a whole repo
-//!    for a one-symbol question, so this is reported only as a ceiling.
-//! 2. **Naive neighbourhood** — a graph-less but savvy reader opens, in full,
-//!    every file in the impacted set (the changed file plus the files holding
-//!    its reverse-dependency closure). This is the meaningful baseline.
-//! 3. **Graph context** — the assistant receives the identity-only JSON payload
-//!    modelled on the `anvil_impact_of_change` response shape (affected-symbol
-//!    identities + dependent files + a summary), with no source text.
-//!
-//! The impacted set is the **2-hop reverse-dependency closure** of the target,
-//! matching the production cap (`MAX_REVERSE_IMPACT_DEPTH = 2` in
-//! `anvil-graph-cache`). Both the neighbourhood baseline and the graph payload
-//! cover that same set, so the comparison is apples-to-apples: the reduction
-//! reflects only delivering identities instead of whole files.
-//!
-//! Honesty caveats (see the README for the full disclosure): the GCTX estimator
-//! counts punctuation-dense source code via its `lexical_units` branch and
-//! sparse identity text via its `bytes/4` branch, so it leans toward
-//! over-counting the source baselines relative to the identity payload — real
-//! BPE ratios are likely a few points lower. The figures bound the reduction for
-//! identity-style impact queries on synthetic fixtures, not every assistant
-//! task; snippet-bearing modes (GCTX-021..023) trade higher graph cost for
-//! richer context and would narrow the ratios.
+//! Bench scenario measuring token/context reduction from graph tooling.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;

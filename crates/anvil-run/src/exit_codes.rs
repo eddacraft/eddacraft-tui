@@ -1,44 +1,4 @@
-//! Stable exit codes for `anvil-run` (INTL-008).
-//!
-//! Shell wrappers and CI harnesses switch on these to distinguish
-//! "the wrapped command failed" from "the launcher itself refused to
-//! start the command, and here is why". Adding a new code is
-//! additive; renumbering an existing one is a breaking change for
-//! every wrapper that compares against it.
-//!
-//! ```text
-//!   0      child exited 0
-//!   1..127 child exited with that status (forwarded)
-//!  128+N   child terminated by signal N (Unix convention)
-//!  64      USAGE         — bad CLI input
-//!  69      UNAVAILABLE   — daemon could not be reached / handshake failed
-//!  73      CANT_CREATE   — spawn or registration failed in a recoverable way
-//!  75      TEMP_FAIL     — fence is active, retry later
-//!  78      CONFIG        — required env / configuration missing
-//! ```
-//!
-//! The 64/69/73/75/78 values are the BSD `sysexits.h` codes — common
-//! enough that operators recognise them, and most real tools never
-//! exit with values in that range. They DO overlap with forwarded
-//! child statuses in principle: a wrapped tool exiting 69 is
-//! indistinguishable from "daemon unavailable" looking at the exit
-//! code alone. A wrapper that must tell the two apart looks for the
-//! launcher's *refusal banner* on stderr specifically: the child
-//! inherits stderr too (`spawn::build_command` sets `Stdio::inherit`),
-//! so stderr content as such is not launcher-owned — but the banner
-//! is distinctive, and a refusal is emitted before any child spawns,
-//! so when the launcher refuses, no child output is interleaved with
-//! it. Pure exit-code switching is good enough for the common case;
-//! matching the banner covers the rest.
-//!
-//! (A `$ANVIL_RUN_REFUSED` env signal was once documented here, but
-//! the wrapper could only set it by inspecting the exit code — which
-//! cannot distinguish a launcher refusal from a forwarded child
-//! status in the overlapping `64..=78` range (these fall within the
-//! `1..127` forwarded-child band in the table above), so it would
-//! carry the same ambiguity it claimed to resolve. Matching the
-//! launcher's refusal banner on stderr is the practical
-//! disambiguator. See GH #1707 / Council C-027.)
+//! Stable CLI/hook process exit codes and outcome mapping.
 
 /// Bad CLI usage (e.g. missing `--tool` or `--`).
 pub const EXIT_USAGE: i32 = 64;

@@ -1,32 +1,4 @@
-//! Rust symbol and import extractor (RSTLAN-002).
-//!
-//! Walks the `tree-sitter-rust` AST and emits [`FileSymbols`] — the same
-//! `(SymbolNode, ImportEdge)` shape the TypeScript extractor produces — so the
-//! symbol graph, architecture analysis, and drift baseline see Rust crates
-//! exactly as they see TS modules. The grammar itself is wired in
-//! [`super::super::languages`] (RSTLAN-001).
-//!
-//! Rust constructs map onto the existing language-agnostic [`SymbolKind`] set
-//! rather than growing it (RSTLAN-002 "keep `FileSymbols` minimal"):
-//!
-//! | Rust item        | `SymbolKind` | Note                                   |
-//! | ---------------- | ------------ | -------------------------------------- |
-//! | `fn`             | `Function`   |                                        |
-//! | `struct`/`union` | `Class`      | the nominal type with members          |
-//! | `enum`           | `Enum`       |                                        |
-//! | `trait`          | `Interface`  | a trait is Rust's interface contract   |
-//! | `type X = …`     | `TypeAlias`  |                                        |
-//! | `mod`            | `Module`     |                                        |
-//! | `impl`/`trait` fn| `Method`     | qualified `Owner.method` (as TS-G2)    |
-//!
-//! Imports come from `use`, `pub use`, and `extern crate`. A `use` tree is
-//! flattened to one [`ImportEdge`] per leaf path (`std::collections::HashMap`,
-//! `crate::foo::bar`, each arm of `foo::{a, b}`), preserving the leading
-//! anchor (`crate` / `super` / `self`) so RSTLAN-005's resolver can map the
-//! path to a file. Re-export *name* tracking beyond the edge is deferred per
-//! the T3 acceptance checklist; macro/proc-macro expansion is out of scope, so
-//! macro-hidden symbols and edges are invisible to this static walk (a missed
-//! edge is a missed drift signal, never a false violation).
+//! Rust symbol and import extractor (RSTLAN-002) via tree-sitter-rust.
 
 use std::collections::HashMap;
 use std::ops::Range;

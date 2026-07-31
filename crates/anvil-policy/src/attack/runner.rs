@@ -1,38 +1,4 @@
-//! Attack pack manifest, loader, and deterministic runner (PATT-002).
-//!
-//! An [`AttackPack`] is a versioned manifest naming its member
-//! [`AttackScenario`]s inline (fixtures are self-contained, so a pack is a
-//! single file with no member-path traversal). [`load_pack`] parses one pack
-//! file, validates it, and returns scenarios in declared order.
-//!
-//! The runner ([`run_pack`]) executes each scenario through an injected
-//! [`DefenceObserver`] — the defence-under-test — and normalises the result into
-//! a [`ScenarioOutcome`] (pass/fail plus bounded [`Confidence`] metadata). It is
-//! deterministic: outcomes preserve manifest order and nothing consults a clock
-//! or the network, so the same pack and observer always yield the same report.
-//!
-//! Constraints mirror the policy-pack loader in `anvil-policy-engine`'s
-//! `pack::manifest` (named in prose only — this crate does not depend on it —
-//! for the posture it establishes):
-//!
-//! - A missing pack file maps to [`PackLoadError::NotFound`]; no parse or I/O
-//!   failure is ever folded into a default — every failure propagates as
-//!   [`Err`].
-//! - Loading reads only the pack file. Scenarios are inline, so there is no
-//!   member-path resolution and thus no path-escape surface to guard; the
-//!   fail-closed containment posture of the policy-pack loader is inherited by
-//!   construction (a single self-contained read, no filesystem walk).
-//! - Unknown fields on the pack manifest are rejected (`deny_unknown_fields`) so
-//!   an older runner reading a newer pack fails closed and loudly, rather than
-//!   silently ignoring scenarios it does not understand. (The member
-//!   [`AttackScenario`] stays additive/forward-compatible — the manifest is the
-//!   admission boundary, the scenario is the wire payload.)
-//! - Scenario ordering is the manifest's declared order (deterministic).
-//!
-//! Fail-closed safety: a scenario passes only when the observed behaviour is a
-//! *recognised* safe behaviour that matches the fixture's expectation. An
-//! [`SafeBehaviour::Unknown`] observation (a defence emitting a behaviour this
-//! runner does not recognise) can never confirm safety, so it always fails.
+//! Run adversarial attack-pack scenarios against policy evaluation.
 
 use std::path::{Path, PathBuf};
 

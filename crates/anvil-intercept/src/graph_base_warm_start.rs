@@ -1,56 +1,5 @@
-//! GBASE-006 (ADR-105 §1/§3): the **per-worktree warm-start** that materialises a
-//! resident graph from the shared base plus the worktree's live overlay.
-//!
-//! This is the intercept-side installer that stitches the three pieces together:
-//!
-//! ```text
-//!   base_store::load_base ─▶ overlay_scan::compute_overlay ─▶ graph_cache::compose ─▶ cache.restore
-//!        (GBASE-002)               (GBASE-004)                     (GBASE-006)          (DSV-030 seam)
-//! ```
-//!
-//! It **mirrors the cold per-worktree restore path** (`save_time::restore_snapshot_into_cache`)
-//! exactly, swapping the on-disk source: instead of loading a per-worktree
-//! snapshot it loads the **shared base** (shared on disk across every worktree of
-//! the merge-base), computes the worktree's overlay, composes them, and installs
-//! the result through the **same** [`KernelGraphCache::restore`] seam. `restore`
-//! marks the entry a **restored stand-in**, so the composed workspace comes up
-//! **stale** and cannot certify until the content-hash reconcile completes
-//! (ADR-105 §4, the inherited ADR-069 trust line) — the trust line is enforced by
-//! reusing the exact same installer the snapshot path uses, not by a parallel
-//! mechanism.
-//!
-//! # Failure posture — every non-`Composed` outcome serves cold (non-fatal)
-//!
-//! Routing on [`BaseLoadOutcome`] and the fallible overlay is
-//! discard-and-serve-cold throughout (ADR-105 §6): an absent/ignored base, an
-//! environmental overlay failure, or an inconsistent base replay all leave the key
-//! cold for the ordinary cold-scan path to warm. Nothing here is a hard error.
-//!
-//! # Scope note (GBASE-006 composition seam, wired by GBASE-009)
-//!
-//! This module owns the **composition + cache-installation seam**
-//! ([`compose_worktree_from_base`]). It does **not** own the *lifecycle decision*
-//! — resolving a worktree's merge-base sha (git, which the resident daemon
-//! deliberately never runs) and routing a worktree to the base path vs. the
-//! permanent per-worktree path. That re-entrant topology is
-//! [`crate::persistence_route`] (**GBASE-009**), which supplies the `sha` and
-//! drives this seam **live** through
-//! [`crate::save_time::SaveTimeState::spawn_route_restore`] at the post-admission
-//! warm-start call sites.
-//!
-//! # Admission contract for the caller (security) — satisfied structurally
-//!
-//! `sha` is a **trust boundary**. This seam reads the shared base artefact keyed
-//! by `sha` and composes it into a worktree's resident graph; a caller that keyed
-//! it on a **client-supplied** value could make a worktree materialise an
-//! attacker-chosen base. The GBASE-009 caller
-//! ([`crate::save_time::SaveTimeState::spawn_route_restore`]) satisfies the
-//! contract **by construction**: it is only ever invoked **after the worktree is
-//! admitted** (`AdmittedRoots`), and the `sha` is **derived by the daemon itself**
-//! (the [`crate::persistence_route::GitRouteResolver`] shells `git` against the
-//! worktree's own state — the merge-base of its `HEAD` against the default branch,
-//! `@{upstream}`-refined when tracked) — **never** a sha taken from a wire/IPC
-//! request. The `key`/`root` likewise name the admitted canonical root.
+//! GBASE-006: warm-start a worktree graph from shared base + live overlay.
+
 #![cfg(unix)]
 
 use std::path::Path;

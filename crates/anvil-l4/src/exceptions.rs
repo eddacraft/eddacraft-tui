@@ -1,36 +1,7 @@
-//! EXCEPT-006: exception application semantics for L3/L4 gate
-//! verdicts.
+//! EXCEPT-006: apply exception grants to L3/L4 gate verdicts.
 //!
-//! ADR-073 moved policy exceptions into the tracked
-//! `anvil/exceptions/` store; EXCEPT-005 gave each grant a validity
-//! verdict (active / unattributed / expired / revoked /
-//! invalid-scope). This module owns what an *applying* exception
-//! **means** for a gate verdict — the piece the brainstorm's
-//! enforcement algorithm (git-native-governance `solution.md` §8.3)
-//! calls "apply only to the matching finding instance":
-//!
-//! - A clean grant suppresses its matching diagnostic entirely.
-//! - An **unattributed** grant (v0 shape, no `owner`/`created_by`)
-//!   applies but is never silently honoured (ADR-073): the
-//!   diagnostic stays visible, downgraded to [`Severity::Warn`] and
-//!   annotated with the exception id, so the branch rule's `on_warn`
-//!   routing decides admission and the operator sees why.
-//! - Anything else (expired / revoked / invalid scope / no matching
-//!   grant) leaves the diagnostic untouched — the finding stands.
-//!
-//! Matching and validity classification stay with the caller: this
-//! crate deliberately depends only on `anvil-config` (see the crate
-//! docs), so it cannot — and must not — read the exception store or
-//! run glob matching. The caller (the CLI's `CommitAntipatternEngine`)
-//! verifies each grant with `anvil-policy`'s `verify_exception_at`,
-//! matches scope with `PolicyException::covers_finding`, and hands
-//! this module one [`ExceptionDisposition`] per diagnostic,
-//! positionally aligned — the same positional-correlation contract
-//! [`validate_range`](crate::validate_range) uses for verdicts.
-//!
-//! Fail-safe direction: any ambiguity (a misaligned disposition
-//! slice) applies **no** exceptions, so findings stand and the gate
-//! blocks rather than silently admitting.
+//! Maps EXCEPT-005 validity (active / expired / …) onto whether a diagnostic
+//! is covered so the gate can admit or still block.
 
 use crate::validate::{Severity, ValidationDiagnostic, ValidationVerdict};
 

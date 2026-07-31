@@ -1,60 +1,7 @@
-//! MLP-016: Rust-side `gate_evaluated` observation builder for the
-//! mid-edit L1 path.
+//! MLP-016 / DPO: Kindling observation builders and daemon emission.
 //!
-//! `packages/kindling-integration/src/observation-contract.ts` defines
-//! the wire schema for the Kindling observation kinds, including
-//! `gate_evaluated`. The mid-edit driver loop produces a `ScanBufferResponse`
-//! every keystroke and the daemon needs a stable Rust-side primitive to
-//! convert those responses into observation envelopes. The actual
-//! database write happens TS-side (the `kindling-integration` package
-//! owns the `SQLite` handle); this module just shapes the payload.
-//!
-//! ## Volume-control contract
-//!
-//! Per MLP-016's expected outcome: **pass-no-finding mid-edit calls
-//! remain silent.** [`from_midedit_response`] returns `None` when the
-//! diagnostics vector is empty. The caller is free to call it on
-//! every scan; the helper handles the rate filter so the call site
-//! does not have to track that policy independently.
-//!
-//! ## Severity → enforcement mapping
-//!
-//! Kindling's `enforcement` field is a closed three-value enum
-//! (`blocking` / `warning` / `informational`). Diagnostics carry the
-//! richer [`Severity`] vocabulary (`Info` / `Warning` / `Error`). The
-//! mapping picks the most severe class in the batch:
-//!
-//! | Highest severity in batch | Kindling `enforcement` |
-//! |---------------------------|------------------------|
-//! | `Error`                   | `blocking`             |
-//! | `Warning`                 | `warning`              |
-//! | `Info`                    | `informational`        |
-//!
-//! Empty diagnostics never produce an observation (see volume-control
-//! contract above), so there is no "no diagnostics" row in the table.
-//!
-//! ## Deferred follow-ups (not v1)
-//!
-//! - IPC wiring that emits these observations to the
-//!   `packages/kindling-integration` consumer — owned by INTD's
-//!   notification fan-out layer when the daemon gains a Kindling
-//!   client handle. The observation envelope's `session_id` /
-//!   `timestamp` / `gate_eval_id` fields are caller-supplied so the
-//!   call site stays in control of the identity rules.
-//! - MCP shim mirror in `crates/anvil-cli/src/mcp/validation.rs` —
-//!   the MCP path needs the same conversion, but the shim's
-//!   diagnostic pipeline is its own surface and is not yet wired to
-//!   the kindling-integration package either.
-//! - Driver-client (TypeScript) mirror at
-//!   `packages/anvil-driver-client/src/` — the editor-side L1
-//!   surface needs its own observation builder so the driver can
-//!   emit when the daemon is unreachable and the embedded fallback
-//!   fires.
-//! - Coordination with RTAI-007 telemetry contract — the Kindling
-//!   row shape here is compatible with the contract; the explicit
-//!   joining lands when RTAI-007 surfaces.
-//!
-//! See `plans/modules/multilayer-protection.aps.md` task MLP-016.
+//! Builds `gate_evaluated` (and related) rows; mid-edit emission is throttled
+//! and best-effort so `scan_buffer` never blocks on the sink.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{SyncSender, TrySendError, sync_channel};
@@ -798,32 +745,6 @@ pub fn from_audit_chain(
         partial: summary.partial,
     }
 }
-
-// MLP2-006: daemon-side notification fan-out for `gate_evaluated` ----
-//
-// The pieces below wire the [`from_midedit_response`] builder above into
-// the daemon's mid-edit scan path. The `KindlingObservationSink` trait
-// is the abstraction over "where the row ends up": today the daemon
-// ships with [`NoopKindlingObservationSink`] by default and the host
-// (CLI / tests / future embed) supplies a real sink at startup. The
-// concrete delivery path to the TS-side `kindling-integration` package
-// is the deferred follow-up tracked alongside MLP2-007 / MLP2-008 — but
-// the trait + emitter contract here is the stable seam those wirings
-// snap into without disturbing the scan_buffer hot path.
-//
-// The emitter:
-//
-// - **Short-circuits on no-finding** by calling [`from_midedit_response`],
-//   which already returns `None` for empty diagnostics (volume-control
-//   contract).
-// - **Throttles** through a [`RateWindow`] so a keystroke burst cannot
-//   flood the sink. The default cap matches the MLP2-009 spec
-//   ([`DEFAULT_MIDEDIT_EMIT_CAPACITY`] events per
-//   [`DEFAULT_MIDEDIT_EMIT_WINDOW`]).
-// - **Never blocks the scan** on sink failure: errors are logged via
-//   `tracing::warn!` and surfaced as [`EmissionOutcome::SinkError`] so
-//   tests can observe the drop, but the call signature is infallible
-//   from the caller's perspective.
 
 // DPO-002: fence-engage `constraint_applied` builder --------------
 //
@@ -1602,6 +1523,9 @@ pub const DEFAULT_MIDEDIT_EMIT_CAPACITY: usize = 32;
 /// Pairs with [`DEFAULT_MIDEDIT_EMIT_CAPACITY`] for a 32-events-per-
 /// 5-seconds cap.
 pub const DEFAULT_MIDEDIT_EMIT_WINDOW: Duration = Duration::from_secs(5);
+
+// MLP2-006: mid-edit gate_evaluated emission — RateWindow throttle, skip empty
+// findings, never block scan_buffer (sink errors warn + drop).
 
 /// Daemon-side notification fan-out that converts a mid-edit scan
 /// response into a Kindling `gate_evaluated` row, throttles via a

@@ -1,45 +1,4 @@
-//! DSV-003 Task 2 (ADR-061 §4): the per-connection admitted-workspace-root set.
-//!
-//! `validate_paths` is the first daemon verb to read arbitrary on-disk paths a
-//! client names, so a verb is authorised against a root **iff** that root has
-//! been admitted on this connection. Each admitted entry pairs the *canonical*
-//! root path (the key an incoming `workspace_root` is matched against) with the
-//! once-opened [`WorkspaceAnchor`](crate::workspace_anchor::WorkspaceAnchor) —
-//! the read anchor and the workspace identity (a Unix `O_PATH` dirfd or a
-//! Windows directory handle). All later **reads** go through the held anchor, so
-//! a root-directory retarget after admission cannot redirect them (security C2);
-//! a stale anchor fails closed rather than re-resolving the path.
-//!
-//! This swap-immunity is for *reads*, not for the *admission* step: admission
-//! canonicalises the root string and then opens it, so a same-uid writer could
-//! in principle swap the directory between the canonicalise (which decides
-//! allowlist membership) and the open (which pins the fd). That window is
-//! in-model — the trust boundary is `SO_PEERCRED` same-uid (contract §4), so
-//! allowlist confinement is only ever as strong as that boundary — and crosses
-//! no privilege boundary.
-//!
-//! ## Admission modes (security C3)
-//!
-//! - **Open** (default): the set grows on first contact — the first time a
-//!   nameable root is authorised it is auto-admitted. A compromised *same-uid*
-//!   agent can therefore adopt any root it can name and read arbitrary on-disk
-//!   content under the daemon. This is acceptable **only** because the trust
-//!   boundary is `SO_PEERCRED` same-uid; no intra-uid boundary is claimed
-//!   (contract §4).
-//! - **Allowlist**: only operator-pre-admitted roots are authorised; an
-//!   unlisted root is refused. This is the confinement boundary for operators
-//!   who need one (the `anvil workspace` CLI that configures it is DSV-008).
-//!
-//! Workspace identity is derived purely from the canonicalised path + the held
-//! dirfd. There is deliberately **no** procfs per-pid working-directory lookup
-//! anywhere in the auth path — a connection's working directory is not its
-//! workspace.
-//!
-//! **Scope (DSV-003):** this is the standalone, unit-tested admission
-//! component. Threading a `&mut AdmittedRoots` through the `ipc.rs` connection
-//! handler and calling [`AdmittedRoots::authorise`] from the `validate_paths`
-//! dispatch arm is DSV-005 work — that arm is the only real consumer, so the
-//! wiring lands with it rather than as inert plumbing here.
+//! Decide whether a workspace root may attach to this daemon instance.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;

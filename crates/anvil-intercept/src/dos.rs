@@ -1,68 +1,7 @@
-//! INTD-016: `DoS` protection budgets for the IPC listener.
+//! INTD-016: `DoS` budgets for the IPC listener.
 //!
-//! This module owns the budgets that defend the daemon against a
-//! same-UID peer trying to starve it: connection cap, per-connection
-//! RPS, handshake timeout, control-lane frame size cap. The IPC
-//! listener (`crate::ipc::IpcListener`) reads them through
-//! [`IpcLimits`] and applies each at the listener / per-connection
-//! boundary.
-//!
-//! ## Pinned defaults
-//!
-//! | Limit                            | Default       | Source                    |
-//! | -------------------------------- | ------------- | ------------------------- |
-//! | `max_concurrent_connections`     | 64            | INTD-016 spec             |
-//! | `rps_sustained`                  | 100 req/s     | INTD-016 spec             |
-//! | `rps_burst`                      | 1000 req      | INTD-016 spec             |
-//! | `handshake_timeout`              | 5 s           | INTD-016 spec             |
-//! | `idle_timeout`                   | 60 s          | INTD-016 spec; matches    |
-//! |                                  |               | existing `CONNECTION_READ_TIMEOUT` |
-//! | `control_frame_max_bytes`        | 64 KiB        | INTD-016 spec — control-  |
-//! |                                  |               | lane (non-`scan_buffer`)  |
-//! |                                  |               | NDJSON frame cap          |
-//! | `scan_buffer_frame_max_bytes`    | preserved     | RTAI-006 / INTD-005       |
-//! |                                  |               | shape; the existing 1 MiB |
-//! |                                  |               | `scan_buffer` payload cap |
-//! |                                  |               | survives untouched        |
-//!
-//! ## RPS bucket policy
-//!
-//! Per the INTD-016 hard rule: **RPS bucket exhaustion MUST NOT
-//! terminate the connection**. When a connection's bucket is
-//! depleted, the listener returns a structured JSON-RPC error
-//! (`-32005 Server busy: rate limit exceeded`) and lets the
-//! connection continue. Killing the connection on rate-limit
-//! exhaustion would cause innocent retries to escalate — the same
-//! peer would reconnect, hit the connection cap, and `DoS` itself
-//! out of recovery. Pinned by
-//! [`tests::rps_exhaustion_returns_error_without_closing`].
-//!
-//! ## Frame size cap policy
-//!
-//! Frame size is enforced **before parsing**, not after. The
-//! listener checks `line.len()` against the appropriate cap as
-//! soon as the line is framed; rejection sends a structured
-//! `Invalid Request` (-32600) with `data.reason: "frame exceeds
-//! cap"`. This is required because the parse step itself is the
-//! attack surface (a maliciously deeply-nested JSON payload
-//! consumes O(N) stack regardless of whether we eventually
-//! discard it). Pinned by
-//! [`tests::oversized_control_frame_rejected_before_parse`].
-//!
-//! ## What this module is NOT
-//!
-//! - **Not a global rate limiter.** The bucket is per-connection so a
-//!   single misbehaving driver cannot starve the rest. A multi-
-//!   connection budget is out of scope; if a peer wants to `DoS` the
-//!   daemon at the cost of opening 64 connections, the connection
-//!   cap is the answer.
-//! - **Not a connection-cap enforcer.** The listener already has
-//!   `tokio::sync::Semaphore` for the connection cap; this module
-//!   surfaces the configurable value but does not mutate the
-//!   listener's permits.
-//! - **Not transport security.** AD-4 already restricts the IPC
-//!   surface to plaintext-local-only; INTD-016 does not add TLS.
-//!   See AD-4 amendment in `plans/decisions/015-intercept-loop-enforcement.md`.
+//! Connection, request-rate, and payload limits that protect the daemon from
+//! abusive or runaway clients. Separate from per-event telemetry fan-out.
 
 use std::time::{Duration, Instant};
 

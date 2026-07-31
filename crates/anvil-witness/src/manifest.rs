@@ -1,46 +1,4 @@
-//! MLP2-012: witness chain manifest event stream.
-//!
-//! Rollover events from [`crate::WitnessWriter::append`] become
-//! append-only NDJSON entries under
-//! `anvil/witness/manifest/chain.ndjson`. Each entry records:
-//!
-//! - `archive_path` — repo-relative path of the archive file written
-//!   when rollover fired (e.g. `anvil/witness/archive/active-…ndjson`).
-//! - `merkle` — full hex SHA-256 of the archived file's bytes. The
-//!   writer already computes the short prefix for the archive name;
-//!   the manifest carries the unabbreviated hash so consumers can
-//!   re-verify the archive contents byte-for-byte without re-reading
-//!   the file.
-//! - `line_count` — number of NDJSON lines in the archive at the
-//!   moment of rollover. Useful for downstream consumers checking
-//!   how much volume passed before the rollover boundary.
-//! - `seq_at_rollover` — the [`crate::WitnessLine::seq`] value of the
-//!   final line written before the active file was renamed. Combined
-//!   with `line_count` this lets consumers know the inclusive seq
-//!   range of the archive: `[seq_at_rollover - line_count + 1 ..=
-//!   seq_at_rollover]`.
-//!
-//! ## Scope
-//!
-//! - Manifest is in-tree (lives under `anvil/witness/manifest/`,
-//!   travels via git like the rest of the witness chain).
-//! - Append-only — entries are flock-serialised under the same lock
-//!   as the writer so a concurrent reader never sees a half-written
-//!   line and two rollovers never interleave.
-//! - Idempotent — re-running a rollover that produced an identical
-//!   archive (content-addressed naming) records exactly one entry,
-//!   not duplicates.
-//!
-//! ## Not in scope here
-//!
-//! - **Verification of archive contents against the manifest.** The
-//!   manifest is metadata; tamper-detection still lives in
-//!   [`crate::verify_chain`]. A future "verify all archives" pass
-//!   can cross-check archive bytes against the manifest's `merkle`,
-//!   but that's a separate primitive.
-//! - **Garbage collection of old manifest entries.** The manifest
-//!   grows monotonically; an operator running the daemon for years
-//!   can rotate or vacuum it through tooling that ships separately.
+//! Witness chain manifest types and serialisation.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};

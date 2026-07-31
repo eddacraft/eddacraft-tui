@@ -1,45 +1,4 @@
-//! DRVR-007: v1 driver trust boundary — manifest allowlist + workspace-root
-//! validation.
-//!
-//! See `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md`
-//! §2.3a "Driver trust boundary (v1)" for the contract this module implements.
-//!
-//! What ships in v1:
-//!
-//! - [`is_driver_allowed`] — checks a driver binary path against a
-//!   newline-delimited allowlist file (default location:
-//!   `~/.config/anvil/drivers.allow`). Drivers requesting
-//!   `capability.enforcementCandidate: true` MUST pass this gate before
-//!   the daemon promotes them to `Participating`. Same-UID
-//!   `SO_PEERCRED` is the floor; this is the next layer.
-//! - [`DriverManifest::validate_workspace_roots`] — cross-checks the
-//!   `workspaceRoots` claimed by a driver manifest against the live
-//!   `SessionRecord` set (INTD-003). Three-way semantic per §2.3a:
-//!   an empty claim is the "any-workspace observer" case (Ok); a
-//!   non-empty claim with at least one matching session worktree is
-//!   accepted (consumer drops the unmatched roots); a non-empty
-//!   claim with **no** match is rejected with
-//!   `AuthError::NoMatchingWorkspaceRoot` so the daemon refuses to
-//!   silently attach a driver whose declared scope is empty against
-//!   reality.
-//!
-//! Intentionally NOT in v1 (deferred):
-//!
-//! - The driver consumer that wires this API into the handshake. That
-//!   is DRVR-001 (Wave 2). This crate ships the API and unit tests; no
-//!   `lib.rs` consumer side-effect is added in this PR.
-//! - Reliability-budget quarantine on stable identity. The trust
-//!   boundary spec mandates the contract; the runtime ledger lands
-//!   with DRVR-001.
-//! - Daemon-side response redaction (§4.4). That is an MCP-driver
-//!   filter wired by RMCPF-010; this module deliberately does not
-//!   import the kernel-types diagnostic surface.
-//!
-//! `forbid(unsafe_code)` is inherited from the crate-level lint in
-//! `lib.rs`. Path comparison uses `Path::canonicalize` only when both
-//! sides exist on disk; the allowlist file is read as text and parsed
-//! into owned `PathBuf`s so callers cannot smuggle un-validated paths
-//! past the gate by re-using a borrowed slice.
+//! IPC peer authentication and driver participation allowlists.
 
 use std::collections::HashSet;
 use std::fs;

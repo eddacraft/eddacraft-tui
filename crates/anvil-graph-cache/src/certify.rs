@@ -1,44 +1,6 @@
-//! Bounded reverse-impact certifiability for the save-time daemon
-//! (ADR-061 §6, ADR-064 §5).
+//! Export-surface certification and trust deltas on warm graphs (GV2).
 //!
-//! [`certify`] decides whether a single changed file's verdict can be trusted
-//! from the warm `(SymbolGraph, DependencyGraph)` cache alone, or whether the
-//! change reaches across file boundaries so the affected set must be
-//! revalidated (a `Partial` verdict the daemon reports as stale).
-//!
-//! # Sub-phase A contract (council verdict 2026-06-01, B4)
-//!
-//! Ship the **conservative export-surface default**: any change that touches a
-//! file's public or privileged *symbol surface* is `Partial`; only a body-only
-//! edit that leaves the public/privileged surface identical certifies
-//! self-only. The export-surface decision is the `GraphDelta.previously_public`
-//! / `previously_privileged` set-diff against the post-update graph — no
-//! dedicated `export_surface_changed()` primitive is *mandated*, but one is
-//! provided here for clarity and direct fixture coverage. This is conservatively
-//! safe: `update_file` removes-all-then-re-adds, so a rename reads as
-//! delete+add = surface change, and an internal→public promotion adds a new
-//! public key — both fall to `Partial`.
-//!
-//! # Reverse-impact discovery (council verdict B1)
-//!
-//! Importer discovery reads [`DependencyGraph::dependents_of`] **exclusively**,
-//! never `GraphDelta::removed_edges`: a removed *symbol* edge does not imply a
-//! removed *file* dependency (another symbol in the same file may carry the
-//! same import), so the resident reverse index is the only sound importer
-//! source. GV2-003 populates `removed_edges`, but this path still must not
-//! branch on it. The daemon caches the `(SymbolGraph, DependencyGraph)` pair
-//! (DSV-004 Task 7) precisely so this reverse index is reachable on the hot
-//! path.
-//!
-//! # Crate boundary (ADR-064 §2)
-//!
-//! The `Partial` reason carried here is **graph-cache-local**
-//! ([`CertifyStale`]); the daemon orchestration (DSV-005) maps it to the wire
-//! `StaleReason`. Likewise the change descriptor is the local [`ChangeKind`],
-//! not `anvil-intercept`'s `CanonicalChange` (which would invert the dependency
-//! graph into a cycle). Both keep this crate's frozen ADR-064 §2 dependency set
-//! (`anvil-kernel-types` + `petgraph` + `serde` + `thiserror`) intact — no
-//! `anvil-intercept-proto` / `anvil-intercept` dependency.
+//! Typed stale on miss; privileged escalation via external imports/reexports.
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -277,28 +239,8 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
     added_privileged.sort();
     removed_privileged.sort();
 
-    // GV2-029: the side-effect-surface dimension. The file's privileged module
-    // imports now (read off the post-update graph's resolved `Imports` targets —
-    // a `node:fs` import resolves to a synthetic external `Module` node whose
-    // `file` is the specifier `"node:fs"`) vs the privileged subset of the
-    // pre-update `previously_imported` baseline. A monotone add-only diff: a
-    // privileged module the file did not import before is an escalation,
-    // independent of the symbol-identity sets above (which `annotate_trust`'s
-    // file-granular `Privileged` stamping makes blind to it).
-    //
-    // Only synthetic *external* module placeholders count (`resolve_import`
-    // stamps bare specifiers `kind = Module, trust = External`). Without that
-    // guard a benign relative import to a project file named exactly `net`/`fs`/
-    // … (resolved `file` == the bare token) would be misclassified privileged by
-    // `is_privileged_import` and falsely withhold. Resolved relative imports
-    // never produce an `External` `Module` node, so the guard excludes them.
-    //
-    // GV2-031: re-exports are now lifted into `EdgeType::Reexports` edges, so a
-    // privileged capability reached via `export * from 'node:fs'` (directly or
-    // through a re-export chain) is no longer invisible. `current_privileged`
-    // is the union of two surfaces: privileged modules the file *imports*
-    // (direct `Imports` edges) and privileged modules it *re-exports*
-    // (`reexported_privileged_modules` follows `Reexports` edges transitively).
+    // GV2-029/031: privileged-module escalation via Imports (External Module
+    // placeholders only) and re-export memo/BFS — not same-named project files.
     let mut current_privileged: HashSet<String> = current
         .iter()
         .flat_map(|s| sym.outgoing_edges(s.id))

@@ -1,33 +1,5 @@
-//! Hook-bootstrap recovery helpers (MLP-008).
-//!
-//! Pure primitives for `anvil hook bootstrap`'s recovery path: when
-//! a worktree was created without the hook framework's runtime files
-//! present (e.g. `pnpm install` hasn't been run, so `.husky/_/` is
-//! missing), regenerate just enough that the next commit fires the
-//! hook chain again.
-//!
-//! Scope (MLP-008 v1):
-//! - [`HuskyRuntime`] / [`generate_husky_runtime`] — produce the
-//!   small set of runtime shim files Husky v9 needs at `.husky/_/`
-//!   when `pnpm install` hasn't been run. Pure: returns
-//!   `(relative_path, contents)` pairs; the CLI consumer writes them.
-//! - [`BootstrapPlan`] / [`build_bootstrap_plan`] — decide what to
-//!   do for a detected framework. Returns a plan rather than
-//!   executing so the CLI can preview / `--dry-run`.
-//! - [`SuccessMessage`] / [`render_success_message`] — pinned
-//!   one-line success output per the MLP-008 spec.
-//!
-//! Out of scope (deferred to consumers):
-//! - The `--witness-recent` walk over `<remote>..HEAD` — owned by
-//!   the CLI subcommand which has `gix` / `git` available to
-//!   enumerate the range and call the rule engine.
-//! - Actually writing files to disk — owned by the CLI subcommand
-//!   (so dry-run + atomic-write semantics live at the integration
-//!   layer).
-//! - Husky < v9 or non-default install paths — v1 ships the modern
-//!   default; older shapes are filed as follow-ups when a real
-//!   user reports needing them (CLAUDE.md "warnings over blocks,
-//!   new edges only").
+//! Hook bootstrap recovery (MLP-008): regenerate minimal runtime files so
+//! hooks fire again without a full framework reinstall.
 
 use crate::framework::HookFramework;
 use crate::shell::{HookKind, shell_template};

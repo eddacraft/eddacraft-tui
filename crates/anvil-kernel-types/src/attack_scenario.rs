@@ -1,32 +1,4 @@
-//! Prompt-attack scenario schema — the shared wire vocabulary for
-//! prompt-attack regression fixtures (PATT-001).
-//!
-//! This module owns only the pure serde data shapes for a single attack
-//! *scenario fixture*: the untrusted [`AttackScenario::payload`], the attacker's
-//! [`objective`](AttackScenario::objective), and the
-//! [`expected_safe_behaviour`](AttackScenario::expected_safe_behaviour) a
-//! resilient defence must exhibit. It is **defensive regression-test
-//! infrastructure**: a fixture describes what the product's defences must do
-//! (refuse, sanitise, warn, block) when handed a hostile payload, so a
-//! deterministic runner (PATT-002) and a CI fail-policy (PATT-003) can prove
-//! those defences do not regress. No scanning, no I/O, no live attack.
-//!
-//! It lives in the wire-types crate so every producer (fixture authors, pack
-//! loaders) and consumer (the runner, the gate) binds to one schema without a
-//! heavier dependency, mirroring [`crate::io_risk`].
-//!
-//! ## Forward-compatibility (the wire lesson)
-//!
-//! Every classification enum here — [`AttackCategory`] and [`SafeBehaviour`] —
-//! carries a `#[serde(other)]` `Unknown` fallback, matching
-//! [`crate::io_risk::RiskCategory`] (ADR-096): a newer fixture emitting a value
-//! this consumer does not recognise deserialises to `Unknown` and is
-//! **surfaced, never dropped**, rather than failing the whole [`AttackScenario`]
-//! parse. The schema is additive-only and the wire form is kebab-case.
-//!
-//! Severity reuses [`crate::io_risk::RiskSeverity`] — the one shared severity
-//! band — so a fixture's severity and a risk finding's severity speak the same
-//! vocabulary, and the PATT-003 fail-policy can threshold on it.
+//! Prompt-attack scenario schema shared by adversarial policy fixtures.
 
 use serde::{Deserialize, Serialize};
 

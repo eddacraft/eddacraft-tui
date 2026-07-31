@@ -1,53 +1,6 @@
-//! Key-agnostic sealed-artifact disk I/O seam (ADR-105 §10).
+//! Key-agnostic sealed-artefact disk I/O (ADR-105 §10).
 //!
-//! This submodule is the **artefact-key-agnostic** primitive layer the daemon's
-//! warm-graph persistence is built on: durable, symlink-safe writes and
-//! size-capped, symlink-safe reads of an opaque byte payload to/from a named leaf
-//! in an owner-only directory. It knows nothing about *which* artefact it stores —
-//! the per-worktree keying (`snapshot_filename`), the `<hash>.root` companion, and
-//! the orphan sweep all stay private to the parent [`super`] module.
-//!
-//! Extracting this seam is the ADR-105 entry gate: the shared base-snapshot
-//! producer (the `anvil-cli` `graph_base_producer`, keyed by merge-base sha
-//! instead of by worktree) reuses [`write_sealed`] / [`load_sealed`] and the
-//! dirfd / `openat2` helpers below verbatim, so the hardening discipline is
-//! written and audited exactly once. This is a no-behaviour-diff extraction of
-//! the ADR-069 §4 crash-safety and read-safety core — the parent module's
-//! `write_snapshot` / `load_snapshot` delegate their sealed core here unchanged.
-//!
-//! # Crash-safety (ADR-069 §4)
-//!
-//! `publish_sealed_at` (the shared core of [`write_sealed`]) serialises to a
-//! temp file in the **same directory**, created `O_CREAT | O_EXCL | O_NOFOLLOW`
-//! at mode `0600` with a randomised suffix (defeating a same-uid pre-create /
-//! planted-symlink race), `fsync`s it, `rename`s it over the target (atomic —
-//! temp and target share the dir, so `EXDEV` cannot arise), then `fsync`s the
-//! parent directory so the rename is durable across a crash. A crash at any point
-//! leaves the old artefact or no artefact — never a torn one. A write failure
-//! unlinks the temp and propagates; the caller degrades to no-persistence (never
-//! wedges).
-//!
-//! # Read-safety (ADR-069 §4)
-//!
-//! [`load_sealed`] stats the file and rejects anything over the caller-supplied
-//! size cap **before** reading (no allocation bomb), opens it anchored beneath an
-//! `O_PATH` dirfd under `openat2(RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH)` (with the
-//! `O_NOFOLLOW`-`openat` ladder fallback where `openat2` is unavailable), so a
-//! planted symlink at the leaf *or* a symlinked / `..`-escaping directory
-//! component cannot redirect the read, then caps the actual read at the open fd
-//! (defeating a grow-between-stat-and-open TOCTOU) and returns the raw bytes for
-//! the caller's format gate. Every anomaly maps to a [`LoadSealedError`] the
-//! caller folds into "discard and cold-rebuild" — the load path never panics.
-//!
-//! # Directory security
-//!
-//! `ensure_dir` creates the directory owner-only `0700` and then
-//! `validate_secure_dir`-checks a pre-existing one (a symlinked / non-owned /
-//! group-or-other-accessible dir is refused — a redirected `ANVIL_HOME` /
-//! `XDG_STATE_HOME` must never be written through). The anchored create / rename /
-//! unlink all ride a single validated directory fd, closing the
-//! intermediate-component-swap window a path-based `open` / `rename` would leave
-//! open (CIB-097 / CIB-102).
+//! Shared primitive under base-store and worktree snapshot paths.
 
 use std::fs::{self, DirBuilder, File};
 use std::io::{self, Read, Write};

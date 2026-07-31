@@ -1,43 +1,4 @@
-//! Python symbol and import extractor (PYLAN-002).
-//!
-//! Walks the `tree-sitter-python` AST and emits [`FileSymbols`] — the same
-//! `(SymbolNode, ImportEdge)` shape the TypeScript and Rust extractors produce —
-//! so the symbol graph, architecture analysis, and drift baseline see Python
-//! modules exactly as they see TS modules and Rust crates. The grammar is wired
-//! in [`super::super::languages`] (PYLAN-001).
-//!
-//! Python constructs map onto the existing language-agnostic [`SymbolKind`] set
-//! rather than growing it:
-//!
-//! | Python construct      | `SymbolKind` | Note                                  |
-//! | --------------------- | ------------ | ------------------------------------- |
-//! | `def`                 | `Function`   | module/block-level, outside functions |
-//! | `class`               | `Class`      | the nominal type with members         |
-//! | `def` inside a `class`| `Method`     | qualified `Owner.method` (as TS-G2)   |
-//!
-//! Imports come from `import` and `from … import …`. Each statement yields one
-//! [`ImportEdge`] to the imported *module* (`import a.b.c` → `a.b.c`;
-//! `from a.b import x, y` → `a.b`; `from . import x` → `.`; `from ..pkg import y`
-//! → `..pkg`), preserving the relative-import prefix so a later resolver can map
-//! it to a file. The imported *names* are not tracked as edges (mirrors the TS
-//! `import { x } from "m"` → one module edge). Re-exports (the implicit
-//! `__init__.py` `from .x import y` convention) are out of scope here —
-//! re-export-name tracking is a separate item.
-//! `importlib.import_module(...)` dynamic imports are invisible to this static
-//! walk (a missed edge is a missed drift signal, never a false violation).
-//!
-//! ## Pass 2 — call sites (GCALL-005)
-//!
-//! A second walk emits symbol-level [`CallSite`]s for Python, mirroring the TS/JS
-//! and Rust extractors on the GCALL-001 (ADR-086) contract. Each `call`'s caller
-//! is the innermost emitted-symbol span containing it (a parallel `spans` vec, so
-//! it can never mint a caller Pass 1 did not emit); the callee is resolved
-//! best-effort and static. A `from m import x` binding reverse-maps a bare `x()`
-//! to its export name + module specifier; a plain `import m` / `import a.b as c`
-//! namespace binding resolves `m.foo()` against the module; `self.method()` /
-//! `cls.method()` inside a class resolves to `Owner.method`. Cross-file callee
-//! resolution is lift-time (`re_resolve_calls`, GCALL-003). Dynamic dispatch and
-//! `getattr`-style calls are invisible to this static walk by design.
+//! Python symbol and import extraction via tree-sitter.
 
 use std::collections::HashMap;
 use std::ops::Range;

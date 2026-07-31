@@ -1,34 +1,4 @@
-//! `anvil_suppress` — insert a time-boxed suppression comment.
-//!
-//! RMCPF-002 classifies `anvil_suppress` as a daemon-RPC translator
-//! whose authority is `suppression.apply`. No daemon `suppression.apply`
-//! RPC exists yet, and RMCPF-002 forbids inventing one purely for parity
-//! prose. This handler therefore ships as the **daemon-RPC translator's
-//! correctness-equivalent embedded fallback** — the same shape RMCPF-010
-//! used for `anvil_check`. When INTD lands `suppression.apply`, this
-//! handler flips to the daemon-RPC translator path without an MCP
-//! contract change.
-//!
-//! Behaviour parity with
-//! `anvil-archive/anvil-mcp-server/src/tools/suppress.tool.ts`:
-//!
-//! - Validates `filePath` is workspace-relative, rejects `..` escapes
-//!   and absolute paths, canonicalises the joined path, and re-verifies
-//!   it stays inside the workspace (closing the symlink-target escape
-//!   vector that hit the RMCPF-010 reviewer). The subsequent read and
-//!   write both go through a single containment-checked file handle
-//!   ([`open_contained_rw_handle`]), so a symlink swapped in after the
-//!   check cannot redirect the write (CIB-145 check-then-use / TOCTOU
-//!   hardening).
-//! - Sanitises `reason` by replacing `\r\n` characters with a single
-//!   space and trimming, so the inserted comment cannot inject newlines
-//!   into source code.
-//! - Defaults `expiryDays` to 30; clamps to a sane range.
-//! - Inserts `// @anvil-ignore-until YYYY-MM-DD <warningId>: <reason>`
-//!   above the target line, preserving the target line's indent.
-//! - Uses a cross-process advisory file lock (atomic create-with-exclusive
-//!   sibling file, same-host) to prevent two concurrent suppression writes
-//!   from interleaving.
+//! `anvil_suppress` — insert a time-boxed inline suppression comment.
 
 use std::fs::{self, OpenOptions};
 use std::io::{Read as _, Seek as _, Write as _};

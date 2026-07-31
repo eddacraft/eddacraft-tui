@@ -1,37 +1,4 @@
-//! `.env.example` drift detection (SURFENV-004).
-//!
-//! Compares a template env file (`.env.example` / `.env.sample` /
-//! `.env.template`) against a sibling concrete env file (`.env`,
-//! `.env.local`, `.env.production`, …) and reports keys that are out
-//! of sync. The rule is structural — we only look at the *set of keys*
-//! on each side, not the values. Secret detection stays in SURFENV-001.
-//!
-//! Two finding kinds:
-//!
-//! - [`DriftKind::MissingFromExample`] — key is set in the concrete
-//!   file but the template doesn't document it. New contributors clone
-//!   the repo, copy the example, run the app, and then hit
-//!   "missing required env var" at runtime.
-//! - [`DriftKind::MissingFromConcrete`] — template documents a key
-//!   that's absent from the concrete file. The example is stale or the
-//!   concrete file was forgotten when adding a new variable.
-//!
-//! Findings are still reported per key: each one names the file pair,
-//! the key, and a one-line direction ("add this key to `.env.example`"
-//! / "set this key in `.env.local`").
-//!
-//! Suppression follows [ADR-029](../../../../plans/decisions/029-suppression-parser-authority.md):
-//! a `# @anvil-ignore SURFENV-004 -- <reason>` directive in the file
-//! that *should* be updated suppresses matching SURFENV-004 findings
-//! for that file in that direction. For
-//! [`DriftKind::MissingFromExample`] the directive lives in the
-//! example; for [`DriftKind::MissingFromConcrete`] it lives in the
-//! concrete file. Because suppression is resolved from a file-header
-//! (top-of-file) directive, one directive applies to every relevant
-//! finding for that file across every pairing — not to a single key
-//! or single file pair. A key-by-key directive would clutter
-//! `.env.example` and miss the point of "we're choosing to ignore
-//! drift in this file".
+//! Env-surface drift: compare declared env expectations to the live tree.
 
 use std::collections::BTreeSet;
 

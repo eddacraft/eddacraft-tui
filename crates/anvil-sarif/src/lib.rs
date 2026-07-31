@@ -1,31 +1,4 @@
-//! Shared SARIF 2.1.0 emitter for Anvil (ADR-058, SARIFOUT-002).
-//!
-//! This crate owns the SARIF document *shape* for the bounded subset Anvil
-//! emits (the GitHub Code Scanning ingest subset): `runs[]` / `tool.driver` /
-//! `rules[]` / `results[]` / `locations[]` / `suppressions[]` /
-//! `partialFingerprints`. It is a pure serialisation layer — no command or
-//! collector is wired here. Consumers map their existing finding shape into
-//! these types: the CLI's per-command adapters (SARIFOUT-003/004/005) and the
-//! review-capsule diagnostics collector (GITGOV-008) each do so independently;
-//! there is deliberately **no** unified in-process finding model (ADR-058).
-//!
-//! It lives in its own crate (rather than inside the `anvil-cli` binary) so
-//! non-CLI producers — the review capsule first — can reuse the one emitter,
-//! exactly the "shared across any future SARIF output" intent ADR-058 recorded.
-//!
-//! The bundled upstream SARIF 2.1.0 JSON Schema
-//! (`sarif-schema-2.1.0.json`, vendored verbatim from schemastore) is the
-//! validation gate: the test module checks emitted documents against it.
-//!
-//! Part of the public surface (e.g. `SuppressionKind::External`, `Level::None`,
-//! `ReportingDescriptor::help_uri`) is a faithful slice of the SARIF model used
-//! by some consumers and not others; as a library API it is exercised by the
-//! test module rather than silenced with a blanket `dead_code` allow.
-//!
-//! User-facing docs for `--format sarif` live in the GitHub integration guide
-//! (`docs/public/anvil/integrations/github.md`, "Code Scanning (SARIF)"); the
-//! out-of-band Code Scanning upload check is
-//! `docs/runbooks/sarif-code-scanning-upload.md`.
+//! Shared SARIF 2.1.0 emitter (ADR-058, SARIFOUT-002).
 
 use std::collections::BTreeMap;
 

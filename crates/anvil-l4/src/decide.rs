@@ -1,39 +1,4 @@
-//! Pre-push commit-level decision logic (MLP-004).
-//!
-//! Given the resolved [`BranchRule`] for the branch being pushed and
-//! whether each commit carries an L3 witness, produce one
-//! [`CommitDecision`] per commit. The pre-push CLI subcommand walks
-//! the pushed range and calls this for every commit; the verdict
-//! collapses to one user-facing line.
-//!
-//! Decision matrix (per ADR-037 §D-5):
-//!
-//! | `Requirement` | `has_witness` | `OnNoWitness`    | Result            |
-//! | ------------- | ------------- | ---------------- | ----------------- |
-//! | `L4OrL3`      | true          | —                | `Allow`           |
-//! | `L4OrL3`      | false         | `Allow`          | `Allow`           |
-//! | `L4OrL3`      | false         | `ValidateAtL4`   | `NeedsL4Validation` |
-//! | `L4OrL3`      | false         | `Reject`         | `Block(Unwitnessed)` |
-//! | `L4Only`      | —             | `Allow`          | `Allow` *(see note)* |
-//! | `L4Only`      | —             | `ValidateAtL4`   | `NeedsL4Validation` |
-//! | `L4Only`      | —             | `Reject`         | `Block(Unwitnessed)` |
-//! | `L3Only`      | true          | —                | `Allow`           |
-//! | `L3Only`      | false         | `Allow`          | `Allow`           |
-//! | `L3Only`      | false         | `ValidateAtL4`   | `Block(Unwitnessed)` *(see note)* |
-//! | `L3Only`      | false         | `Reject`         | `Block(Unwitnessed)` |
-//!
-//! ## Notes on the corner cases
-//!
-//! - `L4Only` ignores the L3 witness entirely: the branch contract is
-//!   "every commit must pass server-side re-validation regardless of
-//!   client claims." So `has_witness` doesn't change the answer; we
-//!   route to `NeedsL4Validation` unless the branch explicitly opts
-//!   out via `OnNoWitness::Allow`.
-//! - `L3Only` refuses to accept L4 fallback: the branch contract is
-//!   "every commit must come with witness evidence already." So when
-//!   the commit lacks a witness, even an `OnNoWitness::ValidateAtL4`
-//!   policy can't rescue it — the branch's `Requirement` is the
-//!   stricter pin.
+//! Map L4 policy resolution and validation into commit admit/block decisions.
 
 use crate::policy::{BranchRule, OnNoWitness, Requirement};
 

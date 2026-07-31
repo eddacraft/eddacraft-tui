@@ -1,74 +1,7 @@
-//! GBASE-008 (ADR-105 §5/§9): **refcount GC over ACTMO-registered worktrees'
-//! merge-bases**.
+//! GBASE-008 (ADR-105): refcount GC over merge-bases of ACTMO-registered
+//! worktrees.
 //!
-//! The shared base store ([`super::base_store`]) accumulates one write-once
-//! `<sha>.base` artefact per merge-base a worktree was ever warmed from. When a
-//! registered worktree rebases, its old merge-base base is left behind — the
-//! **new shared-base orphan class** ADR-105 introduces. This module reclaims it.
-//!
-//! It is the merge-base-keyed **analogue of, not a replacement for**, the
-//! per-worktree `<hash>.root` companion sweep
-//! ([`super::sweep_orphan_snapshots_on_start`], CIB-096): that sweep reclaims a
-//! per-worktree `.snap` whose *worktree directory* is gone; this GC reclaims a
-//! shared `.base` whose *sha* is referenced by no live registered worktree's
-//! current merge-base. Different orphan classes, different keep-sets.
-//!
-//! # The keep-set — how the daemon learns each worktree's merge-base (design A)
-//!
-//! The daemon is git-free on the hot path (ADR-061/064), but ADR-105 §5 sanctions
-//! **background** compute for detection. GC is rare (startup + a low-cadence
-//! periodic pass, never the hot path — design B), so the keep-set source is a
-//! **bounded `git merge-base` shell-out per registered worktree per GC pass**
-//! ([`GitMergeBaseResolver`], design A option 1). Option 3 (the build child
-//! recording its sha) was rejected: it would stale between rebases exactly when GC
-//! most needs the truth, and a per-pass shell-out on the background pool matches
-//! the council posture. The resolver is a **seam** ([`KeepSetResolver`]) so tests
-//! run hermetically — no git, no real process state.
-//!
-//! The keep-set is a deliberate **conservative superset**: for each worktree the
-//! resolver contributes *every* plausible merge-base key (the default-branch base
-//! **and** the `@{upstream}`-refined base when the branch tracks one — ADR-105 §6),
-//! so whichever key the build child actually produced under is retained.
-//! **Over-retention (keeping a slightly-stale base) is safe; wrongly reclaiming a
-//! referenced base is not** — so any *uncertainty* is resolved toward keeping.
-//!
-//! Known gap: a base produced via a manual `anvil graph-base build
-//! --merge-base <sha>` invocation whose sha matches neither keep-set key is
-//! reclaimable on the next pass. The daemon's own trigger never passes
-//! `--merge-base`, so this is reachable only out-of-band; worst case is a
-//! cold-start rebuild (write-once store), never corruption.
-//!
-//! # Claim interplay (design C)
-//!
-//! A base under **active production** is never removed: [`super::base_store`]'s
-//! [`reclaim_unreferenced_base`](super::base_store::reclaim_unreferenced_base)
-//! classifies any `.producing/<sha>.lock` **under the same `.guard` `flock`** it
-//! uses for the unlink, and skips a live/undecidable claim. A *stale* lock is not
-//! GC's to reclaim — the claim path owns lock reclaim. The base unlink itself
-//! rides that guard, honestly extending the module's destruction invariant to base
-//! artefacts.
-//!
-//! # Epoch-stale bases (design D, ADR-105 §9)
-//!
-//! An epoch-mismatched base is GC-eligible **at zero refs like any other
-//! unreferenced base** — no special casing. GC keys purely on the refcount: if no
-//! live worktree's merge-base equals its sha, it is eligible (claim-permitting),
-//! whether its bytes are current-epoch or stale. The load path already refuses to
-//! *return* a stale-epoch base ([`super::base_store::load_base`]); GC reclaims it
-//! here once unreferenced.
-//!
-//! # Failure posture
-//!
-//! Every path is **non-fatal and fail-safe**. A missing/unreadable base dir is a
-//! no-op; a per-sha reclaim error is logged and skipped; nothing ever panics
-//! (ADR-105 §6). Crucially, the keep-set resolver distinguishes a **deterministic
-//! absence** (no merge-base, no default branch, non-git root — the build child
-//! resolves identically, so contributing nothing to the keep-set is correct) from
-//! an **unexpected git failure** (I/O error, repo mid-operation, OOM-kill): the
-//! former is [`MergeBase::Uncovered`] and the pass proceeds, the latter is
-//! [`MergeBase::Unavailable`] and **aborts the whole pass before any unlink** — an
-//! unexpected failure can never silently shrink the keep-set and wrongly reclaim a
-//! referenced base. See the classification table on [`GitMergeBaseResolver`].
+//! Drops unreferenced shared bases only; never touches an in-use claim.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

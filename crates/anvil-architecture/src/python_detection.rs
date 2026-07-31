@@ -1,38 +1,7 @@
 //! Python entry-point detection (PYLAN-005).
 //!
-//! Surfaces the roots of a Python project the way [`detection`](crate::detection)
-//! surfaces a Rust workspace's: declared console / GUI scripts and `__main__`
-//! guards become [`EntryPoint`]s, so baseline creation and the `anvil
-//! architecture` surfaces treat a Python (or mixed) repo's roots the way they
-//! already treat a Rust `[[bin]]` or a TS package's `bin`.
-//!
-//! Sources, in order of confidence:
-//!
-//! - `pyproject.toml` `[project.scripts]` (→ [`EntryPointType::Cli`]) and
-//!   `[project.gui-scripts]` (→ [`EntryPointType::Application`]) — PEP 621,
-//!   TOML-parsed, [`High`](DetectionConfidence::High).
-//! - `setup.cfg` `[options.entry_points]` `console_scripts` / `gui_scripts` —
-//!   line-parsed, [`High`](DetectionConfidence::High).
-//! - `setup.py` `console_scripts` / `gui_scripts` — best-effort, by tokenising
-//!   the source (setup.py is arbitrary Python; we never execute it), so
-//!   [`Medium`](DetectionConfidence::Medium).
-//! - `if __name__ == "__main__":` guards in `.py` files —
-//!   [`EntryPointType::Application`], [`High`](DetectionConfidence::High).
-//!
-//! Out of scope: tool-specific script tables (`[tool.poetry.scripts]`,
-//! Hatch/Flit/PDM) are not read — only PEP 621 `[project.scripts]` /
-//! `[project.gui-scripts]`. The `__main__` walk does not consult `.gitignore`
-//! (matching `validator::collect_source_files`); its only gate is the
-//! [`is_pruned_dir`] list.
-//!
-//! A declared `module:object` target is resolved to an existing `.py` file
-//! under the workspace (flat or `src/` layout); a target that resolves to no
-//! file on disk is dropped, mirroring the Rust detector's `is_file()` gate.
-//! Detection parses no Python source beyond the `__main__`-guard line scan and
-//! resolves no imports (that is PYLAN-006). Output is workspace-root-relative,
-//! forward-slash, sorted, and de-duplicated by path for determinism. A tree
-//! with no Python manifest and no `.py` files yields an empty list — a non-Python
-//! tree is not an error.
+//! Declared scripts (PEP 621 / setup.cfg / best-effort setup.py) and
+//! `__main__` guards → [`EntryPoint`]s. No import resolution (PYLAN-006).
 
 use std::path::Path;
 

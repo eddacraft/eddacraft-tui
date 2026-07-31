@@ -1,35 +1,4 @@
-//! EXCEPT-004: `anvil exception grant|revoke|list|show|verify|migrate`.
-//!
-//! Operator surface for the tracked exception store
-//! (`anvil/exceptions/store.json`, ADR-073). Writes are **explicit-only**
-//! and go through [`ExceptionStore::update`], the EXCEPT-007 locked
-//! load-modify-save primitive — no evaluation or check command writes
-//! the store implicitly, so checks never dirty a worktree.
-//!
-//! Contract points (2026-06-08 council):
-//! - `grant` refuses to mint an unattributed record: attribution comes
-//!   from `--owner` and/or the repository's git identity
-//!   (`user.email`, falling back to `user.name`). The ADR-073
-//!   downgrade path for unattributed grants exists for *legacy* v0
-//!   data, not as something this CLI produces.
-//! - `revoke` soft-deletes: the record stays in the store with a
-//!   revocation audit trail; nothing is erased.
-//! - On [`WriteOutcome::SkippedReadOnly`] the command warns and exits
-//!   non-zero (an explicit write that did not persist is not a
-//!   success); the underlying I/O error — deliberately conflating
-//!   read-only checkouts with permission misconfiguration — surfaces
-//!   under `--verbose`.
-//! - `verify` surfaces the EXCEPT-005 verdicts (active / unattributed
-//!   / expired / revoked / invalid-scope) without enforcing anything;
-//!   it always exits zero (warnings over blocks, ADR-002).
-//! - Attribution is **advisory**: `created_by`/`revoked_by` come from
-//!   local git config, which the author controls — reviewers should
-//!   verify it against PR authorship, exactly as with commit authors.
-//! - `--json` mode emits exactly one JSON document on stdout; human
-//!   warnings fold into the document instead of preceding it.
-//! - Writes honour the pre-release project-write gate: a candidate
-//!   binary under a non-default install root refuses to mutate a real
-//!   checkout unless explicitly permitted.
+//! `anvil exception` — create, list, and revoke tracked policy exception grants.
 
 use std::path::Path;
 

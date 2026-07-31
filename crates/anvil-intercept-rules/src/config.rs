@@ -1,48 +1,4 @@
-//! INTR-007: rule configuration — build a populated [`RuleRegistry`]
-//! from the `.anvil.<ext>` `enforcement.intercept-rules` block so
-//! projects can declare deny lists, regex patterns, and which built-in
-//! rules are enabled without code changes.
-//!
-//! Defaults (absent file or absent block): secret detection enabled,
-//! antipattern scanning disabled, no path-deny patterns, no
-//! regex-content patterns. Malformed config returns a typed
-//! [`RuleConfigError`] rather than silently degrading to defaults
-//! (operator-config no-silent-defaults rule); only a genuinely missing
-//! file/block folds into the defaults.
-//!
-//! Globs and regexes are compiled once here, at construction, and cached
-//! inside the rule instances for their lifetime — the hot path never
-//! recompiles.
-//!
-//! Accepted shape (yaml shown; json/toml equivalents per
-//! `anvil_config::discover` precedence):
-//!
-//! ```yaml
-//! enforcement:
-//!   intercept-rules:
-//!     secret-detection:
-//!       enabled: true        # default true
-//!     antipattern:
-//!       enabled: true        # default false
-//!     path-deny:
-//!       patterns: ["**/.env*", "secrets/**"]
-//!     regex-content:
-//!       patterns: ["FORBIDDEN_TOKEN"]
-//! ```
-//!
-//! `secret-detection: false` / `antipattern: true` boolean shorthands
-//! are also accepted. Unknown keys inside `intercept-rules` — including
-//! inside the per-rule objects — are typed errors, not ignored: a typo
-//! must not silently disable a rule.
-//!
-//! `antipattern: true` registers [`AntipatternScanRule::default()`]
-//! (all default patterns, `Error` severity threshold); per-operator
-//! threshold/pattern tuning is deliberately not exposed in v1 (per-rule
-//! granularity is out of module scope). A config that explicitly
-//! disables every rule and configures no patterns yields an **empty
-//! registry that allows everything** — callers that consider that a
-//! misconfiguration should check [`RuleRegistry::is_empty`] at startup
-//! and warn.
+//! Intercept-rules configuration: which rules are enabled and how they load.
 
 use std::path::Path;
 

@@ -1,44 +1,5 @@
-//! Daemon-side GCTX egress projector (ADR-084).
-//!
-//! The single [`GctxProjector`] choke point (CE-5) that turns the daemon's warm
-//! [`SymbolGraph`] into sealed, identity-only [`anvil_gctx_types`] DTOs. It
-//! depends on `anvil-graph-cache` (to read the graph) and `anvil-gctx-types`
-//! (the sealed DTOs), and is **daemon-only**: the MCP consumer never links it,
-//! so no graph internal can reach the wire through this path.
-//!
-//! # Concurrency split (ADR-084 C2)
-//!
-//! GCTX reads must not block save-time mutation. The projection is split so the
-//! caller does the cheap match-and-collect **under** the cache lock
-//! ([`GctxProjector::collect_candidates`]) and the sort/paginate/seal
-//! **outside** it ([`GctxProjector::project`]). Holding the inner `Mutex` across
-//! the whole projection is prohibited (ADR-031 80ms p95). `collect_candidates`
-//! returns already-sealed [`SymbolSummary`] values (identity + visibility only),
-//! so nothing borrowed from the graph escapes the lock.
-//!
-//! # Cursor integrity (ADR-091)
-//!
-//! The opaque pagination cursors minted here (`CursorPayload` and its dependents
-//! / callers / edges siblings) are **server-minted keyset seek positions, not
-//! authorisation tokens**. A cursor is plaintext hex (`encode_cursor`) with no
-//! MAC, so a client can decode it, set its `last` identity to anything, recompute
-//! the FNV-1a filter `fingerprint` (the algorithm is public and the filters are
-//! the client's own query), and present a **forged** cursor. That is deliberately
-//! harmless: a follow-up page is re-authorised by the **echoed query filters**
-//! and the CE-5 identity-only projection — never by the cursor — so a forged
-//! cursor only reseeks *within the caller's own already-authorised, identity-only
-//! result set* (bounded by [`MAX_CURSOR_BYTES`] and the serde-bounded decode). The
-//! fingerprint's only job is **correctness**: binding a cursor to its filter set
-//! so a cursor minted for query A cannot silently resume query B (pagination
-//! overlap/gap), and staying reproducible across restarts (PV-2).
-//!
-//! ADR-091 therefore keeps FNV rather than a keyed MAC. **Revisit trigger
-//! (binding):** the moment a cursor encodes anything the echoed query does not
-//! re-authorise — source/snippet payload (Phase-2 CE-1), cross-tenant or
-//! trust-scope state, or any result not fully determined by the re-fingerprinted
-//! filters — the cursor becomes a capability and MUST be made unforgeable (keyed
-//! MAC, or server-held opaque state). The `forged_cursor_*` test pins the current
-//! identity-only property.
+//! Graph-context egress: project warm-graph answers into bounded GCTX DTOs
+//! for MCP / CLI consumers.
 
 use std::path::Path;
 

@@ -1,31 +1,4 @@
-//! Linux `/proc/<pid>/stat` introspection.
-//!
-//! The kernel's [`proc(5)`] page describes `/proc/<pid>/stat` as a
-//! single space-separated line of 52+ fields. The second field
-//! (`comm`) is the executable's basename wrapped in parens and can
-//! itself contain spaces and parens. The canonical parsing trick is to
-//! scan for the LAST `)` in the line and split everything after that
-//! by ASCII whitespace; this avoids any string-escape edge case in the
-//! comm field. We mirror that approach here.
-//!
-//! [`proc(5)`]: https://man7.org/linux/man-pages/man5/proc.5.html
-//!
-//! ## Why we parse manually rather than depend on `procfs`
-//!
-//! `procfs` would pull in a heavy transitive tree (chrono, byteorder,
-//! flate2, …) for two integer fields. The kernel's format is stable
-//! enough that two careful field accesses by position are robust
-//! through any kernel version that still names the file
-//! `/proc/<pid>/stat`.
-//!
-//! ## Other platforms
-//!
-//! macOS exposes the equivalent through `sysctl kern.proc.pid.<pid>`
-//! and Windows through `GetProcessTimes`. v1 is Linux-only — callers
-//! get [`io::ErrorKind::Unsupported`] on other platforms so they can
-//! degrade attribution gracefully (the trust-model already permits a
-//! missing `pid_starttime` to downgrade a session to worktree-level
-//! fence per ADR-038 noise discipline).
+//! Linux `/proc` process introspection for attribution (pid starttime, parent).
 
 #[cfg(target_os = "linux")]
 use std::fs;

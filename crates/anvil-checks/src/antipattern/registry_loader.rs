@@ -1,41 +1,4 @@
-//! Registry loader — bridges the compiled `.anvil` pattern registry into the
-//! Rust scanner's in-memory `AntiPattern` shape.
-//!
-//! The compiled registry (`patterns/compiled/registry.json`) is produced by
-//! the TypeScript `patterns:compile` script. At runtime the scanner needs an
-//! `AntiPattern` list in the shape `patterns.rs` has always exposed, so this
-//! module reads the JSON, validates it with `serde_json`, maps each
-//! `CompiledPattern` to an `AntiPattern`, and caches the result per resolved
-//! path.
-//!
-//! Resolution order for the registry file mirrors the TypeScript loader:
-//!   1. `opts.registry_path` explicit override (tests).
-//!   2. `ANVIL_REGISTRY_PATH` env var.
-//!   3. Upward walk from the current working directory.
-//!   4. Upward walk from the executable's directory (handles installed
-//!      binaries run outside the monorepo).
-//!   5. The compile-time-embedded registry (`EMBEDDED_REGISTRY`).
-//!
-//! The embedded fallback is the production path for stock installs
-//! (`cargo install`, cargo-dist tarballs, Homebrew). Without it
-//! `~/.cargo/bin/anvil` and friends have nothing for the upward walks
-//! to find, `load_registry_patterns` returns `[]`, and
-//! `CommitAntipatternEngine` surfaces `EngineUnavailable::BinaryMissing`
-//! on every pre-push. Embedding makes the rule pack atomic with the
-//! binary: every signed-binary update ships a matching catalogue.
-//!
-//! The path-based steps stay ahead of the embedded fallback so monorepo
-//! development still picks up live `patterns:compile` output and so
-//! `ANVIL_REGISTRY_PATH` keeps working as an escape hatch for custom
-//! rule packs. The loader only returns an empty (`registry: None`)
-//! result when an explicit / env-var path successfully resolves but
-//! parsing or schema validation fails — that case is a real corruption
-//! signal the napi binding turns into a `GenericFailure`. A *missing*
-//! override is a configuration bug worth flagging, so the loader emits
-//! a warning, but it still falls back to the embedded catalogue so the
-//! scanner stays functional rather than silently disabling enforcement.
-//! A stock install with no override falls through silently (no warning)
-//! to the embedded catalogue.
+//! Load the antipattern catalogue from `patterns/compiled/registry.json`.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

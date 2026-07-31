@@ -1,42 +1,7 @@
-//! LAUNCH-006 / LAUNCH-009: `anvil start` activation entrypoint
-//! integration tests.
+//! Integration tests for `anvil start` activation (LAUNCH-006 / 009).
 //!
-//! `anvil start` drives the activation orchestration: init if absent,
-//! MCP install (LAUNCH-009 part 2), then `activation::verify`. The
-//! acceptance contract is:
-//!
-//! - On a fresh temp repo with an empty `HOME` override, `anvil start`
-//!   exits 0 with `ready_restart_required` (MCP entries written for
-//!   Cursor + Claude Code; user must restart their editor).
-//! - On a fresh temp repo with `--verify` (read-only) and empty `HOME`,
-//!   the diagnostic reports `needs_action` (config absent, no MCP
-//!   detected — nothing has been written).
-//! - `anvil welcome` still runs unchanged.
-//! - Idempotent reruns skip init AND the install (entries already up
-//!   to date).
-//! - `--json` emits a state literal in the same shape as `anvil status
-//!   --verify --json` (LAUNCH-012).
-//!
-//! ## HOME isolation
-//!
-//! Every test that invokes `anvil start` (not `--help`-style metadata
-//! tests) overrides `HOME` to a per-test tempdir. Without this, the
-//! tests would probe the test runner's real `~/.cursor/mcp.json` /
-//! `~/.claude.json` and report whatever state the developer happens
-//! to have on their machine — flaky everywhere, broken on developer
-//! machines that already have anvil installed. CI runs with an empty
-//! home anyway, so the override only changes local-dev behaviour.
-//!
-//! `dirs::home_dir()` (via `dirs-sys` 0.5) checks `$HOME` first on
-//! every Unix platform including macOS, falling back to `getpwuid_r`
-//! only when `HOME` is unset or empty. The `env("HOME", …)`
-//! subprocess override is therefore sufficient on macOS as well as
-//! Linux. On Windows we also set `USERPROFILE`. (The earlier `dirs`
-//! 4.x crate used `getpwuid_r` first on macOS — that quirk is gone
-//! in the version we ship.)
-//!
-//! Council-locked truthfulness: a fresh repo MUST NEVER claim
-//! `protecting`. LAUNCH-011 lands the only safe path to that state.
+//! Uses isolated `HOME` so MCP probes never touch the developer machine.
+//! Fresh repo must never claim `protecting`.
 
 use std::fs;
 #[cfg(unix)]

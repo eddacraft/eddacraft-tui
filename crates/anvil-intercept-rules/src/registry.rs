@@ -1,48 +1,5 @@
-//! INTR-006: rule registry.
-//!
-//! Composes a `Vec<Box<dyn InterceptRule>>` into an ordered evaluation
-//! pipeline. The registry is the layer responsible for:
-//!
-//! - **Evaluation ordering** — rules fire in registration order.
-//! - **Short-circuit semantics** — in enforce mode, the first
-//!   [`RuleDecision::Interrupt`] terminates evaluation and is returned.
-//! - **Observe-only mode** — interrupts are logged via the panic /
-//!   tracing path but the registry's overall decision stays
-//!   [`RegistryDecision::Allow`]. Useful for "shadow" rollouts where
-//!   an operator wants to see what would have fired without breaking
-//!   anyone's flow.
-//! - **Panic isolation** — every `evaluate` call is wrapped in
-//!   [`std::panic::catch_unwind`]. The trait contract says rules MUST
-//!   NOT panic; the registry is the layer that *enforces* that
-//!   contract, so a misbehaving rule cannot abort the daemon's tokio
-//!   task. A panicking rule is treated as if it returned `Allow`.
-//!
-//!   **`catch_unwind` is effective in release too.** It only works
-//!   when the binary unwinds rather than aborts on panic, and the
-//!   Anvil workspace's `[profile.release]` sets `panic = "unwind"`
-//!   (see the top-level `Cargo.toml`, per ADR-051 — Accepted). ADR-051
-//!   chose unwind precisely because `anvil` processes untrusted input
-//!   and a panic must surface as a structured error rather than a
-//!   `SIGABRT`. Consequently this isolation holds in release builds as
-//!   well as debug / test — a panicking rule is caught and treated as
-//!   `Allow` regardless of profile. (The trait contract still asks
-//!   rules to be panic-free by construction as the long-term answer,
-//!   but the registry no longer depends on it for crash-safety.)
-//! - **Cached rule ids** — every rule's [`InterceptRule::rule_id`] is
-//!   sampled once at registration time and stored alongside the rule.
-//!   The hot path never calls `rule_id()` again, so a misbehaving
-//!   rule that panics in `rule_id` cannot crash evaluation. The
-//!   cached id is also the canonical answer for dedup checks, the
-//!   `rule_ids()` accessor, log output, and the `InterruptReason`
-//!   normalisation step (a rule that returns an `InterruptReason`
-//!   with a mismatched `rule_id` has its id rewritten to the cached
-//!   one — observability invariants are non-negotiable).
-//! - **Duplicate detection** — registering two rules with the same
-//!   [`InterceptRule::rule_id`] is a programmer error and surfaces as
-//!   [`RegistryError::DuplicateRuleId`] rather than silently
-//!   replacing the older registration.
-//!
-//! See `plans/modules/intercept-rules.aps.md` task INTR-006.
+//! Intercept rule registry: order rules, evaluate scoped inputs, map to
+//! Allow / Interrupt decisions.
 
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};

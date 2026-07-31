@@ -1,35 +1,6 @@
 //! `anvil_fix` — deterministic mechanical fixes for selected antipattern warnings.
 //!
-//! RMCPF-011 MCP-driver-local composition: applies non-heuristic
-//! line-by-line transforms in-process. The Rust handler matches the
-//! archived TS fixer contract
-//! (`anvil-archive/anvil-mcp-server/src/tools/fix.tool.ts`) for the
-//! deterministic patterns the TS server shipped:
-//!
-//! | Warning | Transform                                                                          |
-//! | ------- | ---------------------------------------------------------------------------------- |
-//! | `AP-001` | Replace `/* eslint-disable */` line comment with `// eslint-disable-next-line`   |
-//! | `AP-003` | Replace `: any` annotation with `: unknown` (skipping strings + comments)        |
-//! | `AP-004` | Replace `@ts-ignore` with `@ts-expect-error`                                     |
-//!
-//! As in the archived TS tool, the transforms are intentionally narrow
-//! and may not match `: any` inside template literals or generic
-//! parameters — those cases keep the original line so the LLM/operator
-//! can review manually. The TS tool surfaced the same limitation in its
-//! description.
-//!
-//! Safety contract matches `anvil_suppress`:
-//! - Workspace-relative path required, no `..` or absolute escapes.
-//! - Canonicalised path is re-verified to stay inside the workspace.
-//! - The read goes through a hardened read-only handle
-//!   ([`open_contained_ro_handle`]); only when a change is actually needed
-//!   does the write go through a second, independently-hardened read+write
-//!   handle ([`open_contained_rw_handle`]). Reading read-only keeps a no-op
-//!   fix from needing write permission; each hardened open is containment-
-//!   checked, so a symlink swapped in after the check cannot redirect the
-//!   write (closes the CIB-145 check-then-use / TOCTOU window).
-//! - Cross-process advisory lock (exclusive `create_new` sibling file)
-//!   guards concurrent writers on the same host.
+//! In-process line transforms; no heuristic rewrites.
 
 use std::fs::{self, OpenOptions};
 use std::io::{Read as _, Seek as _, Write as _};

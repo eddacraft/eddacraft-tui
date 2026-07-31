@@ -1,32 +1,4 @@
-//! Post-hook helpers (MLP-005).
-//!
-//! Pure data primitives for the `post-commit`, `post-merge`, and
-//! `post-rewrite` git hooks. Each helper takes the hook's natural
-//! input shape (stdin lines from git) and returns a structured plan
-//! that the CLI subcommand executes against `anvil-witness`.
-//!
-//! Scope (MLP-005 v1):
-//! - [`parse_post_rewrite_input`] — split git's `<old> <new>` ndjson
-//!   stdin into a typed `RewritePair` list.
-//! - [`merge_witness_plan`] — given a merge commit and its parents'
-//!   chain heads, produce the [`MergeWitnessPlan`] the writer needs
-//!   to append a DAG-aware witness with `parent_commits[]` and
-//!   `prev_line_hashes[]` arrays.
-//! - [`RetroactiveWitness`] — the record shape for regenerated
-//!   witnesses on `post-rewrite` (amend / rebase). Tagged with
-//!   `validation_at: "post-rewrite-recovery"` per ADR-038 §D-6's
-//!   "regenerate witnesses for amended/rebased commits."
-//!
-//! Out of scope (deferred to consumers / `anvil-witness` follow-up):
-//! - Actually appending the merge witness — the writer extension that
-//!   accepts a `parent_commits[]` / `prev_line_hashes[]` array is
-//!   MLP-002 follow-up #1. This crate produces the plan; the writer
-//!   consumes it once shipped.
-//! - Kindling `action_executed` emission on post-commit — owned by
-//!   the CLI subcommand which has the kindling client handle.
-//! - Daemon chain-head cache update — owned by `anvil-intercept`.
-//! - Time-budget enforcement (<100ms p95 per ADR-037 / ADR-038) —
-//!   owned by the CLI subcommand which spawns the work.
+//! MLP-005 post-hook helpers: post-rewrite parse and merge-witness planning.
 
 use thiserror::Error;
 

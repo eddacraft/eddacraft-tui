@@ -1,73 +1,9 @@
-//! MLP-009 protection-claim contract types.
+//! MLP-009 protection-claim wire types (spec §14).
 //!
-//! Spec §14 (`plans/specs/2026-05-07-anvil-multilayer-protection-architecture.md`)
-//! defines the closed-set protection-claim vocabulary that `anvil
-//! status`, the MCP response surface, and `anvil doctor` collectively
-//! commit to. This module ships the Rust-side enums and serde JSON
-//! wire shape that pin those state names so:
-//!
-//! 1. Tooling (CI, contract tests, downstream tools) treats the set
-//!    as closed — unknown states are rejected at deserialise time.
-//! 2. Every surface that renders a protection claim agrees on the
-//!    exact spelling: `pre-write-embedded` ≠ `pre-write-daemon`, etc.
-//! 3. The wire shape is forward-compatible via the explicit
-//!    `schema_version` field; future additions (more surfaces,
-//!    annotations, etc.) ride a major bump rather than silently
-//!    extending a Zod-style permissive parser.
-//!
-//! ## Hard release gate
-//!
-//! MLP-009 is the **hard release gate** for the Multi-Layer
-//! Protection module. The module-level APS rule (see
-//! `plans/modules/multilayer-protection.aps.md`): _"No MLP item
-//! marked Complete in `plans/index.aps.md` until [MLP-009] is
-//! green."_ The gate is "every state in §14 is reachable in a
-//! fixture, round-trips through the wire shape, and renders the
-//! pinned canonical string". This module is the vocabulary half;
-//! the conformance test surface lives at
-//! `crates/anvil-cli/tests/protection_claim_states.rs`.
-//!
-//! ## Additive-optional-fields forward-compat (MLP2-052)
-//!
-//! Future optional fields (e.g., `degraded_reasons: Vec<DegradedReason>`,
-//! `cross_boundary_token: Option<String>`) ride **inside this same
-//! major** — they do NOT bump [`PROTECTION_CLAIM_SCHEMA_VERSION`].
-//! The rule:
-//!
-//! 1. Producers MAY emit additional optional fields not declared in the
-//!    Rust struct; consumers MUST silently ignore them on deserialise.
-//!    The intermediate [`ProtectionClaimRaw`] deliberately does NOT use
-//!    `#[serde(deny_unknown_fields)]` so a strict-rejection regression
-//!    is a compile-time-visible diff rather than a runtime contract
-//!    break. Same posture for [`SurfaceClaim`] entries inside the
-//!    `surfaces` array.
-//! 2. Old consumers parsing a newer payload retain semantic identity
-//!    on the fields they understand — round-tripping into and back out
-//!    of a `ProtectionClaim` drops the unknown field (its data is not
-//!    materialised) but never produces a different value for the
-//!    known fields.
-//! 3. Adding a non-optional field, renaming a field, changing a
-//!    field's type, or removing a closed-set variant is NOT additive
-//!    and MUST bump the major component of
-//!    [`PROTECTION_CLAIM_SCHEMA_VERSION`].
-//!
-//! The conformance tests at the bottom of this module pin these
-//! invariants; the cross-crate mirror at
-//! `crates/anvil-cli/tests/protection_claim_states.rs` pins the same
-//! rule at the contract boundary every downstream surface compiles
-//! against.
-//!
-//! ## Deferred follow-ups (not v1)
-//!
-//! - `anvil status --json` render path emitting these types — owned
-//!   by `crates/anvil-cli/src/commands/status.rs` when the
-//!   render-from-daemon-snapshot lane lands.
-//! - TS e2e mirror at `apps/e2e/src/protection_claim_states.spec.ts`.
-//! - Per-state fixture files at
-//!   `crates/anvil-cli/tests/fixtures/status_v1/`.
-//! - Driver / CLI / MCP-shim conformance tests against the rendered
-//!   surface. The vocabulary lands first so the surfaces can target
-//!   a stable contract; conformance tests follow once they wire it.
+//! Closed-set enums and JSON shape for `status` / MCP / doctor. Unknown states
+//! fail at deserialise. Optional fields may extend within
+//! [`PROTECTION_CLAIM_SCHEMA_VERSION`]; breaking changes bump the major.
+//! Conformance: `crates/anvil-cli/tests/protection_claim_states.rs`.
 
 use serde::{Deserialize, Serialize};
 

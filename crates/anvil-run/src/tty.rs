@@ -1,35 +1,4 @@
-//! INTL-029: foreground-TTY passing for the wrapped child.
-//!
-//! When the launcher is invoked from an interactive terminal, the
-//! child process group needs to own the terminal foreground so that
-//! Ctrl-C (SIGINT from the tty) is delivered to the child's pgrp,
-//! not the launcher's. Without this, the launcher catches SIGINT,
-//! dies with the default action, and the child is orphaned with no
-//! one to forward signals to it.
-//!
-//! ## Strategy
-//!
-//! 1. At launcher startup, install a no-op handler for SIGTTOU via
-//!    [`signal_hook::flag::register`]. The default action of SIGTTOU
-//!    is *stop the process*, which is exactly what would happen the
-//!    moment we (now a background pgrp after the foreground transfer)
-//!    try to take the terminal back at teardown. Registering a
-//!    handler — even one that just sets an unused atomic flag —
-//!    overrides the stop default. Process-wide, but harmless: a
-//!    launcher that exists solely to wrap a child has no business
-//!    being stopped by tty-write attempts.
-//! 2. After spawn, if stdin is a tty, call
-//!    [`nix::unistd::tcsetpgrp`] to make the child's pgrp the
-//!    terminal foreground.
-//! 3. Hold a [`TtyHandoff`] guard for the lifetime of the wait.
-//!    On drop, the guard restores the launcher's pgrp as the
-//!    foreground (best-effort — failures are swallowed because the
-//!    child has already exited and there's no recovery path).
-//!
-//! On Windows and on non-tty stdin, every operation here is a
-//! no-op; the [`TtyHandoff`] guard is a zero-cost token.
-//!
-//! Originating issue: <https://github.com/eddacraft/anvil-001/issues/1529>.
+//! TTY and interactive-session detection for CLI UX branching.
 
 use std::sync::OnceLock;
 

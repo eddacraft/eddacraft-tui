@@ -1,72 +1,7 @@
-//! GBASE-004 (ADR-105 §1): the **worktree overlay fragment** — the changed-file
-//! diff of a dirty worktree versus a loaded shared base, ready to compose onto
-//! that base (GBASE-006).
+//! GBASE-004 (ADR-105): worktree overlay fragment — changed files vs a loaded
+//! shared base, ready to compose.
 //!
-//! ADR-105 persists the shared, dependency-honest majority of a repo's graph
-//! **once per merge-base commit** (the base) and keeps only the small,
-//! changed-file remainder worktree-private (the *overlay*). This module owns the
-//! **shape** of that overlay and the **pure, content-hash-authoritative diff**
-//! that classifies which files differ; the intercept-side
-//! [`crate`](../../anvil_intercept/overlay_scan/index.html)-equivalent scoping
-//! (walk + parse the changed set through the injected parser) assembles the
-//! [`OverlayFragment`] this module defines.
-//!
-//! # Why content hashes, not git
-//!
-//! A dirty working tree has **no committed state to trust** (ADR-105 §1) — the
-//! whole point of the overlay is the *uncommitted* delta. So the diff is
-//! authoritative on **content hashes**, never a git subprocess: the base's
-//! [`SnapshotPayload::file_hashes`](crate::SnapshotPayload::file_hashes) table
-//! (the GV2-032 per-file [`anvil_kernel_types::content_hash`] the base producer
-//! stamped) is compared file-by-file against the same hash recomputed over the
-//! worktree's live bytes. Identical hash ⇒ unchanged (excluded); differing ⇒
-//! modified; worktree-only ⇒ added; base-only ⇒ deleted.
-//!
-//! # Hashed vs hashless base files (exactness posture)
-//!
-//! Membership in the base is decided by the base's **file set**
-//! ([`SnapshotPayload::tracked_files`]), *not* by its hash table — because not
-//! every base file carries a hash. TS / Rust / Python stamp a real content hash;
-//! the tail-language extractors (Dart / Go / Java / Kotlin / C# / C / C++ / Zig /
-//! Wat, via `tail_common::finish`) currently stamp **none**. So:
-//!
-//! - For a base file **with** a hash, the diff is **exact**: same hash ⇒
-//!   unchanged and excluded (never re-parsed).
-//! - For a base file **without** a hash, unchangedness cannot be *proven*, so the
-//!   posture is **conservative — always `modified`**: it is re-parsed and its
-//!   base shadow tombstoned + re-upserted (composition-equivalent, just not free).
-//!   This is correct but defeats the never-re-parse-the-unchanged-majority win
-//!   for those languages until the kernel-side follow-up stamps hashes in
-//!   `tail_common::finish`. Crucially, routing a hashless base file through
-//!   `modified` (not `added`) also **preserves the tombstone-on-parse-failure
-//!   path**: were it misclassified `added`, a now-unparseable worktree version
-//!   would drop with no tombstone and leak the base's stale symbols into
-//!   composition forever.
-//!
-//! # Fragment shape (what GBASE-005/-006 build on)
-//!
-//! - [`OverlayFragment::upserts`] — the re-parsed [`FileSymbols`] for every
-//!   added and modified file, **carrying the parser's raw ids untouched**. The
-//!   fragment deliberately does **not** pre-allocate composed ids: GBASE-005 owns
-//!   the disjoint base↔overlay id watermark and re-resolves cross-boundary
-//!   imports at compose time, so baking ids here would preclude it. Composition
-//!   (GBASE-006) applies each upsert through the same `update_file` path the base
-//!   producer and daemon use.
-//! - [`OverlayFragment::tombstones`] — the base-side files whose base graph
-//!   fragment must be **removed** before composing: every deleted file, **and the
-//!   base shadow of every modified file** (its stale base symbols, superseded by
-//!   the re-parse). Composition removes these from the loaded base, then applies
-//!   the upserts.
-//! - [`OverlayFragment::changed`] — the exact classified [`ChangedSet`]
-//!   provenance the fragment was built from (the GBASE-004 exactness contract).
-//! - [`OverlayFragment::coverage`] — the walk's [`OverlayCoverage`], so an
-//!   over-cap worktree is an honest **bounded** fragment (ADR-085 Bounded
-//!   posture), never a silent truncation that would misread unwalked base files
-//!   as deletions.
-//!
-//! Composition itself (loading the base, applying tombstones + upserts, the
-//! disjoint-id re-resolution) is **out of GBASE-004 scope** — this module stops
-//! at producing a fragment that is *ready* to compose.
+//! Holds only the dirty delta; composition is [`compose`].
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -1,37 +1,5 @@
-//! `anvil capsule` command (GITGOV-004 CLI lane).
-//!
-//! Packages a commit range's governance evidence into an ADR-074
-//! review capsule directory a reviewer, auditor, or supplier can
-//! verify locally without trusting anvil Cloud (ADR-072).
-//!
-//! ## v0 scope
-//!
-//! - **`anvil capsule create --range <base>..<head> --out <dir>`** —
-//!   collect the range (GITGOV-005), the policy/baseline/rules digest
-//!   documents (GITGOV-006), the verbatim witness chain with the
-//!   range's `seq` window (GITGOV-007), the SARIF diagnostics document
-//!   (GITGOV-008, via the shared ADR-058 emitter), and write the capsule
-//!   directory with a digest-complete `manifest.json`. Evidence whose
-//!   collector lands later (applied exceptions — EXCEPT-009) is written
-//!   present-but-empty; `verification.json` starts as the degraded
-//!   no-checks placeholder, so an unverified capsule never claims
-//!   `pass`.
-//! - **`anvil capsule verify <dir>`** (GITGOV-009) — re-collect the
-//!   repo-present digests, reuse `verify_chain_dag` (witness) and the
-//!   EXCEPT-005 exception verifier, combine into closed-state verdicts,
-//!   persist `verification.json`, and exit per the ADR-074 table
-//!   (`0` pass/warn, `1` block, `2` degraded, `3` error).
-//! - `explain` / `inspect` land with GITGOV-010/-011.
-//!
-//! ## Identity discipline (GITGOV-006 council follow-up)
-//!
-//! The manifest's `Producer.anvil_version` and the rules digest's
-//! `ToolIdentity.anvil_version` are filled from the **same binding**
-//! (this crate's `CARGO_PKG_VERSION`), and the OPA runtime version
-//! comes from the shared `anvil_rules::OPA_RUNTIME_VERSION` constant
-//! the witness-writing hook also uses — so the capsule's rule identity
-//! matches witnessed lines by construction, enforced at the single
-//! fill-site below rather than by convention.
+//! `anvil capsule` (GITGOV-004): package commit-range governance evidence for
+//! offline ADR-074 review.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

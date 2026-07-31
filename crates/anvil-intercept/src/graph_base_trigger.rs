@@ -1,105 +1,11 @@
-//! GBASE-003 (ADR-105 §6/§7): proactive pre-production of the shared base graph,
-//! driven by **directory-level ref watches** rather than a save.
+//! GBASE-003 (ADR-105): pre-produce the shared base graph when merge-base may
+//! move, via **directory-level** git ref watches (not save-time).
 //!
-//! The daemon warms a worktree from a shared base keyed by its merge-base commit
-//! (GBASE-001/002). That base is only useful if it already exists when a worktree
-//! restarts, so this module pre-produces it **when the merge-base moves** — a
-//! fetch that advances `origin/HEAD`, a branch update, a checkout. Git ref updates
-//! are **rename-based** (git writes a temp then `rename`s it into place), so a
-//! file-inode watch misses the swap; we watch the **directories** ref updates land
-//! in (`IN_MOVED_TO | IN_CREATE`) and treat any such event as "the merge-base may
-//! have moved".
-//!
-//! # Shape (why a state machine + an executor)
-//!
-//! The heart is [`TriggerCore`] — a **pure, clock-injected state machine**. It
-//! takes ref events + `poll(now)` ticks and returns [`TriggerAction`]s; it owns no
-//! threads, no sockets, no git, and no wall clock, so debounce, the restart cap,
-//! and the ENOSPC degrade are all asserted deterministically (the GBASE-002
-//! lesson: single-shot green under real time lies). [`GraphBaseTrigger`] is the
-//! thin executor that performs those actions — spawns the subprocess, signals a
-//! cancel, emits the health envelope — against injected seams
-//! ([`ProductionSpawner`], [`Signaller`], [`BaseTriggerNotifier`]).
-//!
-//! # Design decisions (ADR-105 §7)
-//!
-//! - **The daemon stays git-free.** Production runs as a detached
-//!   `anvil graph-base build --repo <root>` subprocess with the merge-base
-//!   **omitted** — the subprocess resolves the sha itself (`graph_base` already
-//!   resolves from the default branch when `--merge-base` is absent). The daemon
-//!   never runs `git`, never parses, never links tree-sitter (ADR-061/064 upheld).
-//! - **Single-flight lives in the child, not the daemon.** The daemon does **not**
-//!   pre-claim. The subprocess performs its own `base_store::claim()` internally;
-//!   contention is resolved there (it prints a `claimed-elsewhere` JSON outcome and
-//!   exits cleanly). A daemon-side claim would be a redundant *double*-claim and
-//!   would force the daemon to resolve the sha (git in the daemon) just to key the
-//!   lock — exactly what we avoid. So the daemon's job is only **debounce + spawn +
-//!   reap**; the child's claim is the one source of single-flight truth.
-//! - **The "sha-lineage" is tracked git-free as a ref-trigger lineage.** Because
-//!   the daemon never resolves the sha, it cannot key the restart cap on the actual
-//!   merge-base sha. Instead a *lineage* is the chain of successive debounced
-//!   ref-change triggers for one repo **between quiescent periods**: a gap of
-//!   [`DEFAULT_QUIESCENCE`] with no ref events starts a fresh lineage and resets the
-//!   restart counter. This is the daemon-git-free proxy for §7's "per sha-lineage"
-//!   cap, and it is strictly conservative — it never *under*-counts churn.
-//! - **The background pool never blocks.** On a debounced trigger the background
-//!   thread only spawns + records; a dedicated reaper `std::thread` owns
-//!   `child.wait()` and clears the in-flight slot on exit ([`spawn_reaper`]).
-//!
-//! # Failure posture
-//!
-//! Every path is non-fatal (base absent ⇒ cold scan serves). A spawn error is
-//! logged and dropped; an exceeded restart cap serves cold, logs, and emits an
-//! **ADR-090 worktree-scoped health envelope per registered worktree** of the repo
-//! through the real fan-out ([`BaseTriggerNotifier`]); on `ENOSPC` (or any
-//! add-watch failure) the repo's ref watches degrade to a disabled state and the
-//! fallback is CLI-invocation check-and-request (see the module note below).
-//!
-//! # Multi-worktree model & budget
-//!
-//! State is keyed by a repo's **common gitdir**, so every worktree of a repo
-//! shares one lineage/debounce/in-flight. [`GraphBaseTrigger::reconcile_roots`]
-//! groups the registered roots by common gitdir and watches the **shared** ref
-//! dirs once per repo plus **one HEAD dir per registered worktree** — so a
-//! `git checkout` in *any* worktree (each rewrites only its own HEAD) is caught,
-//! not just the first registrant's. The honest per-repo descriptor invariant is
-//! `O(1) per registered workspace`: shared (≤ [`MAX_SHARED_REF_WATCHES_PER_REPO`])
-//! plus one per worktree ([`ref_watch_budget`]).
-//!
-//! # Known gap — no unregister removal (rides GBASE-010)
-//!
-//! [`TriggerCore`] currently **never removes** a repo/worktree or its watches: a
-//! worktree that unregisters leaves its watches and latched lineage state resident
-//! until the daemon restarts. This is bounded (the registered set is capped, watch
-//! counts are `O(worktrees)`), and correctness is unaffected (a stale watch only
-//! risks a redundant, single-flighted, cold-serving build). Real removal —
-//! dropping the inotify watch and pruning `RepoState` when
-//! `registered_worktrees()` no longer lists a worktree — is deferred to the
-//! GBASE-010 graduation gate, alongside its lock-contention measurement.
-//!
-//! # Wiring
-//!
-//! Activation is gated on the **same** condition the save-time path gates
-//! persistence on — `ANVIL_PERSIST_GRAPH` not explicitly disabled (default-on
-//! since the GBASE-010 graduation; see [`trigger_enabled`]) —
-//! because pre-production is meaningless when persistence is off (ADR-105 §7:
-//! proactive *when the feature is live*, never auto-enabled). `run_foreground`
-//! calls [`activate`] on Linux: it builds the trigger (`current_exe` spawner,
-//! `SIGTERM` signaller, the real broadcaster notifier), seeds the currently
-//! registered worktree roots, and spawns a **dedicated** ref-watch `std::thread`
-//! ([`run_refwatch_loop`]) that reconciles roots every ~1 s (picking up **late**
-//! registrations — the daemon's `notify` watcher lives in the un-linked
-//! `anvil-kernel` crate and its membership hook is already owned by the save-time
-//! driver supervisor, so the trigger learns roots by polling
-//! [`crate::registry::SessionRegistry::registered_worktrees`] every ~10 ticks —
-//! not at the full 10 Hz loop rate, to spare the registry's hot lock), drains
-//! inotify events into the debounce every tick,
-//! and ticks `poll`. Clean shutdown is via
-//! [`TriggerActivation::shutdown_and_join`], called on every daemon exit path.
-//! The check-and-request degrade fallback (what `anvil start`/`watch`/`status`
-//! do after an `ENOSPC` degrade) remains a documented CLI-surface follow-up.
-//! Non-Linux `cfg(unix)` (macOS) needs a kqueue/FSEvents backend — the inherited
-//! ADR-105 §8 platform gap.
+//! [`TriggerCore`] is a pure, clock-injected state machine (debounce, restart
+//! cap, ENOSPC degrade). [`GraphBaseTrigger`] executes its actions: spawn
+//! `anvil graph-base build`, reap, and health notify — without running git or
+//! parsing in the daemon. Single-flight claim lives in the child; the daemon
+//! only debounces, spawns, and reaps. Failures are non-fatal (cold scan).
 
 use std::collections::HashMap;
 use std::io;

@@ -1,41 +1,4 @@
-//! Pre-push hook helpers (MLP-004).
-//!
-//! Pure data primitives for the `pre-push` git hook. Git invokes the
-//! pre-push hook with one line per ref being pushed on stdin:
-//!
-//! ```text
-//! <local-ref> SP <local-sha1> SP <remote-ref> SP <remote-sha1> LF
-//! ```
-//!
-//! Special cases per `githooks(5)`:
-//!
-//! - Branch creation: `remote-sha1` is the 40-character all-zero SHA.
-//! - Branch deletion: `local-sha1` is the 40-character all-zero SHA
-//!   and `local-ref` is `(delete)`.
-//!
-//! Scope (MLP-004 v1):
-//!
-//! - [`parse_pre_push_input`] — split stdin into a typed [`PushRef`]
-//!   list with explicit [`PushKind::Create`] / [`PushKind::Delete`] /
-//!   [`PushKind::Update`] classification so the caller doesn't
-//!   re-parse the zero SHA.
-//! - [`is_zero_sha`] — predicate over the 40-zero deletion / creation
-//!   marker. Exposed publicly because the caller often checks raw
-//!   git output (e.g. `rev-list` results) against it.
-//! - [`ZERO_SHA`] — the bare 40-zero string, pinned as a constant so
-//!   downstream callers don't re-count to forty.
-//!
-//! Out of scope (deferred to consumers / CLI lane):
-//!
-//! - Walking `<remote-sha>..<local-sha>` — `git rev-list` is the
-//!   caller's job; this crate doesn't shell out to git.
-//! - Per-commit witness verification — composes
-//!   [`anvil_witness::verify_chain`] with the SHAs this parser yields.
-//! - Per-branch policy resolution — `anvil-l4` owns the resolver; the
-//!   CLI subcommand threads policy → push-ref → verdict.
-//! - `validate_at_l4` server-side execution — owned by the future
-//!   validate-at-l4 command (CLI lane); MLP-006's library deliberately
-//!   defers it.
+//! Pre-push hook: resolve L4 policy and optionally run `ValidationEngine`.
 
 use thiserror::Error;
 

@@ -1,85 +1,8 @@
-//! GBASE-006 (ADR-105 §1/§3): **compose** a shared base graph with a worktree
-//! overlay into ONE materialised resident graph pair per worktree.
+//! GBASE-006 (ADR-105): compose shared base + worktree overlay into one
+//! resident graph pair per worktree.
 //!
-//! GBASE-004 produced the [`OverlayFragment`] (the changed-file diff) and
-//! GBASE-005 produced the [`ComposePlan`](crate::rebase::ComposePlan) (the
-//! disjoint-id/parity plan). This module performs the plan against a freshly
-//! **replayed** base, mutating one materialised `petgraph` per worktree so the
-//! result is *identical to a cold scan of the combined on-disk state* — the
-//! GBASE-007 correctness anchor. The base is shared **on disk only** (ADR-105 §1):
-//! every worktree calls [`compose`] with the same loaded [`SnapshotPayload`] and
-//! gets its **own** owned `(SymbolGraph, DependencyGraph)` — nothing is aliased.
-//!
-//! # The composition sequence (ADR-105 §3)
-//!
-//! 1. **Replay the base** ([`SnapshotPayload::into_graphs`]) — `petgraph`
-//!    re-derives its own `NodeIndex`es and the persisted `next_id` high-water mark
-//!    is restored as the overlay **watermark**. No on-disk `NodeIndex` is trusted.
-//! 2. **Plan** ([`plan_compose`]) — rebase the overlay's ids into `[watermark, ..)`
-//!    (disjoint from the base's `[0, watermark)`) and derive the cross-boundary
-//!    edge work.
-//! 3. **Apply tombstones** — remove the base shadow of every deleted file **and**
-//!    every modified file. Removing a node drops its incident edges, so the base's
-//!    now-stale edges into those files vanish here — exactly the
-//!    [`invalidated_base_edges`](crate::rebase::ComposePlan::invalidated_base_edges)
-//!    set retired. Their removal is *asserted* in debug builds (a `debug_assert`
-//!    inside `compose` checks no tombstoned target survives), so the plan field is
-//!    read on the production path, not merely computed. This is the file-removal
-//!    primitive the composition relies on: [`SymbolGraph::remove_file`] on the
-//!    symbol side, [`DependencyGraph::remove_file`] on the dependency side.
-//! 4. **Apply upserts** ([`update_file`]) — lift each re-added/added file through
-//!    the same path the base producer and daemon use. Ids are already disjoint;
-//!    each file's imports resolve against the **composed** file set (base ∪
-//!    overlay), so an overlay→base import binds to the base symbol with no plan
-//!    entry (it falls out of the upsert).
-//! 5. **Re-resolve forward references** — retry the overlay's own
-//!    imports/re-exports/calls (a file processed before its target). The base is
-//!    already fully resolved, so only the overlay's edges need retrying; this
-//!    mirrors the cold path's `re_resolve_*` passes, scoped to the overlay.
-//! 6. **Re-bind surviving-base → re-added-overlay imports**
-//!    ([`base_reresolve`](crate::rebase::ComposePlan::base_reresolve)) — a
-//!    surviving base file imported a file the overlay tombstoned-and-re-added; the
-//!    base's persisted edge pointed at the file's **old** id, which the tombstone
-//!    removed. Re-bind BOTH endpoints against the **live** composed graph — the
-//!    surviving file's anchor and the re-added file's **new** overlay symbol —
-//!    never a persisted (stale) id.
-//! 7. **Compose the dependency graph** — base dep edges **minus** the tombstoned
-//!    files, **plus** the recomputed forward edges of every file the overlay
-//!    touched, read from the composed symbol graph (Imports-only, in lockstep with
-//!    the cold oracle).
-//!
-//! # Determinism
-//!
-//! Every step is deterministic: the payload is sorted, [`plan_compose`] sorts all
-//! collections, upserts are applied in sorted-file order, and the re-resolve and
-//! re-bind passes iterate sorted inputs. The same base and fragment always compose
-//! to the same graph pair.
-//!
-//! # Trust line (ADR-105 §4, inherited from ADR-069 verbatim)
-//!
-//! Composing changes only *where the restored indexes come from on disk*, never
-//! what a restored index is worth. A composed graph comes up **stale** exactly as
-//! a per-worktree snapshot did: the daemon-side installer marks the entry a
-//! restored stand-in, and the content-hash reconcile re-establishes `clean` before
-//! any `Certified` verdict. This module produces the indexes; it never asserts a
-//! verdict.
-//!
-//! # Scope of the import contract (a documented persisted-format boundary)
-//!
-//! Composition re-resolves **imports** — exactly what ADR-105 §3 binds and what the
-//! persisted Imports-only dependency forward map supports (see the GBASE-005 note
-//! in [`crate::rebase`]). Two edge classes are **not** reconstructable from the
-//! persisted format and are a known follow-up (schema-additive, deferred):
-//! - **base→overlay re-exports and calls** — the base stores *resolved* edges, not
-//!   the surviving file's raw `ReexportEdge`/`CallSite`, so a surviving base file
-//!   that re-exports from, or calls into, a modified overlay file loses that edge.
-//! - **base→added forward references** — a committed base file whose (dangling at
-//!   commit time) import is first satisfied by a worktree-**added** file. The base
-//!   never held that edge and does not persist the surviving file's raw specifier,
-//!   so composition cannot re-establish it. A cold scan would.
-//!
-//! Both are the same limitation class the GBASE-005 note names; the GBASE-007
-//! parity fixture must scope its cross-edge assertions accordingly.
+//! Pure in-memory merge over the GBASE-005 id contract. Callers own warm-start
+//! and disk I/O.
 
 use std::collections::BTreeSet;
 

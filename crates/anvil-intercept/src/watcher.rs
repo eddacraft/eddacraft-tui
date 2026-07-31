@@ -1,60 +1,7 @@
 //! INTD-004: file-system watcher integration.
 //!
-//! The daemon does not own a watcher of its own — `crates/anvil-kernel`
-//! already runs the recursive `notify`-backed watcher used by `anvil
-//! watch`, debouncing raw inotify / `FSEvents` / `ReadDirectoryChangesW`
-//! events into [`WatcherChangeBatch`]es. INTD-004 wires that existing
-//! channel into the daemon's enforcement pipeline:
-//!
-//! 1. The kernel watcher delivers a `ChangeBatch` on its `mpsc`
-//!    channel. The daemon's [`WatcherIntegration`] task receives it,
-//!    converts to the local [`WatcherChangeBatch`] shape (a 1:1
-//!    structural mirror — see [`From`] impl below) and pushes the
-//!    batch into the per-session coalescer.
-//! 2. Every batch's paths are run through
-//!    [`SessionRegistry::attribute_path`] to identify the owning
-//!    session. Changes that fall under a registered worktree are
-//!    grouped per session and dispatched to that session's
-//!    enforcement pipeline; unattributed changes route to the
-//!    [`UnregisteredHandler`] (INTD-010) and never touch the
-//!    per-session pipeline.
-//! 3. The coalescer holds bursts for a configurable window
-//!    (default 50 ms — pinned by intercept-rules `ChangeBatch`
-//!    coalescing) so a single agent edit that touches N files
-//!    arrives at enforcement as one batch, not N.
-//!
-//! ## Why a structural mirror, not a kernel-crate dep
-//!
-//! Pulling `eddacraft-anvil-kernel` into `anvil-intercept` would drag
-//! in `tree-sitter` and the parser surface — neither of which the
-//! daemon needs at runtime. The channel shape is three plain fields
-//! ([`std::path::PathBuf`], [`ChangeKind`], [`std::time::Instant`]);
-//! duplicating it locally and adapting at the daemon binding keeps the
-//! dep tree honest. The kernel side is still the single source of
-//! truth for *generating* batches; this module is the receiving end.
-//!
-//! The read-only graph state the save-time cache needs (`SymbolGraph`,
-//! `DependencyGraph`, incremental apply-delta) lives in
-//! `eddacraft-anvil-graph-cache` (ADR-064) — `petgraph`-only, no
-//! parser surface — which the daemon *does* depend on (the net-new
-//! `certify` reverse-impact closure lands there in a later sub-phase-A
-//! task, ADR-064 §5). So the boundary held here is narrower than "no
-//! graph at all": the daemon holds and mutates the graph via that crate,
-//! but the tree-sitter parser stays kernel-only (the cache write-path
-//! consumes kernel-parsed `FileSymbols` fed over this channel, ADR-064 §4).
-//!
-//! ## What this module is not
-//!
-//! - **Not the watcher.** The `notify` crate, debounce window, and
-//!   directory walk all live in `anvil_kernel::watcher`.
-//! - **Not the enforcement pipeline.** Decisions are produced by
-//!   [`crate::enforcement::EnforcementPipeline`]; this module hands
-//!   it pre-attributed batches.
-//! - **Not the unknown-change policy.** INTD-010
-//!   ([`UnregisteredHandler`]) decides whether unattributed changes
-//!   warn or fence. This module only routes.
-//!
-//! See `plans/modules/intercept-daemon.aps.md` task INTD-004.
+//! Adapts kernel watcher events into daemon invalidate / rescan work. The
+//! daemon does not own a separate watcher implementation.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

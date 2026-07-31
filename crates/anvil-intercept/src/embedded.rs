@@ -1,71 +1,8 @@
-//! INTD-009: synchronous embedded-mode API.
+//! INTD-009: synchronous embedded-mode API (in-process fallback when no
+//! daemon is available).
 //!
-//! The intercept daemon's primary deployment shape is a per-user
-//! background process talking JSON-RPC over Unix sockets / Windows
-//! named pipes. CI, batch tooling, and one-shot validation surfaces
-//! (the existing RMCP shim's embedded path under
-//! `daemon_status: NotWired`) need an in-process API that produces
-//! the same enforcement decision **without** running a daemon. This
-//! module is that API.
-//!
-//! ## What embedded mode is
-//!
-//! A synchronous function that takes a [`ChangeBatch`] of
-//! caller-provided proposed content plus a [`crate::config::Resolved`]
-//! enforcement policy and returns an [`crate::enforcement::EnforcementDecision`]
-//! produced by the same [`EnforcementPipeline`] the daemon uses. The
-//! envelope every consumer sees (the `anvil.diagnostic.v1` shape
-//! owned by AIGUARD-002) is byte-identical to the daemon-backed
-//! path on the same fixture — that is the load-bearing parity
-//! property the existing
-//! `local_daemon_client_returns_scan_buffer_diagnostics_with_embedded_parity`
-//! test asserts in `anvil-cli` and the new
-//! [`tests::embedded_path_emits_same_envelope_as_daemon_path`] mirror
-//! asserts here.
-//!
-//! ## What embedded mode is NOT
-//!
-//! **Not a silent fallback for a failed daemon.** When the daemon
-//! is configured but unreachable, the caller MUST receive a daemon
-//! error — embedded mode must never auto-promote from a failed
-//! daemon path. The MCP shim's `daemon_status: NotWired` path
-//! already enforces this distinction (`Unavailable` → embedded,
-//! `OperationalFailure` → propagate); embedded mode in this module
-//! is the API for callers who explicitly chose in-process. There
-//! is no `try_daemon_then_embedded` helper here, and the council
-//! review (security-analyst, M5 lineage) rejected one as a
-//! correctness foot-gun.
-//!
-//! Pinned by [`tests::embedded_does_not_auto_promote_from_failed_daemon_path`]:
-//! the API surface accepts only the request and the resolved
-//! config, never a daemon failure to "recover from". A future
-//! refactor that adds a `from_daemon_failure` constructor would
-//! break that test.
-//!
-//! ## Honouring INTD-008 config
-//!
-//! Embedded mode must honour the same `enforcement.mode` /
-//! `observe_only` semantics the daemon does:
-//!
-//! | Resolved mode             | Embedded behaviour                                          |
-//! | ------------------------- | ----------------------------------------------------------- |
-//! | `Mode::Off`               | Always `Allow` with diagnostics — the ADR-098 AD-3 posture; |
-//! |                           | projects to always-`Allow` (same embedded behaviour as      |
-//! |                           | `Warn`; the daemon never enforces from the embedded path).  |
-//! | `Mode::Warn`              | Always `Allow` with diagnostics — the rule engine still     |
-//! |                           | produces them, but the decision stays `Allow`.              |
-//! | `Mode::Fence`             | Pipeline result returned as-is. The caller (CI, MCP shim)   |
-//! |                           | applies the fence decision in its own way; embedded has no  |
-//! |                           | fence store.                                                |
-//! | `Mode::Interrupt`         | Pipeline result returned as-is. As above for fence — the    |
-//! |                           | caller chooses how to enforce. (Embedded mode does not have |
-//! |                           | a process group to interrupt.)                              |
-//! | `observe_only: true`      | Always `Allow`, regardless of `mode`. Diagnostics still     |
-//! |                           | flow on the side channel returned by                        |
-//! |                           | [`embedded_evaluate_with_diagnostics`].                     |
-//!
-//! See `plans/modules/intercept-daemon.aps.md` task INTD-009 and
-//! `plans/decisions/015-intercept-loop-enforcement.md` AD-3.
+//! Same enforcement surface as the daemon path, without IPC. Prefer the
+//! daemon when present; this path is the offline/degraded mode.
 
 use std::path::PathBuf;
 

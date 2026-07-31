@@ -1,36 +1,7 @@
 //! `anvil start` activation orchestration (LAUNCH-006 / LAUNCH-009).
 //!
-//! Composes the read-safe / idempotent primitives the activation flow
-//! ships today:
-//!
-//! 1. Probe `activation::verify`. If `.anvilrc` is absent, call
-//!    `commands::init::run_in` (which writes the default config AND runs
-//!    the LAUNCH-004 post-init first-scan inline).
-//! 2. Register the current worktree with the intercept daemon when it is live.
-//!    This is the MCP-independent activation spine from ACTMO-002; failure is
-//!    non-fatal and the diagnostic remains the source of truth.
-//! 3. **MCP install (LAUNCH-009 part 2).** Probe each registered MCP
-//!    client (Cursor, Claude Code), classify drift, and either prompt
-//!    the user with a [`demand`] picker (interactive) or auto-install
-//!    the obvious cases (non-interactive). See [`install`] for the
-//!    drift policy and atomicity guarantees.
-//! 4. Re-probe and return the diagnostic for the caller to render.
-//!
-//! **Deliberately NOT in this orchestrator** (owned by diagnostic probes /
-//! LAUNCH-011 — the tasks that own the safe versions of these steps):
-//! - **Server startable spawn probe.** `activation::verify` owns the
-//!   read-only MCP handshake and promotes `RestartRequired` to
-//!   `RestartHandshakeVerified` when the installed entry serves MCP.
-//! - **Watch fallback spawn.** LAUNCH-011 owns the in-process / detached
-//!   watcher that lets `start` end in the `watching` state. Until then,
-//!   `WatchTier::NotRequested` is the honest answer.
-//! - **Doctor composition.** `anvil doctor` bails on any check failure;
-//!   inside `start`'s composed flow that propagates as a hard error and
-//!   strips the user of a `ProtectionState` literal.
-//!
-//! **First-run marker:** `anvil start` does NOT write
-//! `.anvil/first-run`. `anvil welcome` keeps sole ownership of that
-//! marker so the two surfaces don't fight for first-run state.
+//! Composes init, MCP install, and verify into one entry path using the
+//! read-safe activation primitives.
 
 use std::collections::BTreeSet;
 use std::io::{IsTerminal, Write as _};

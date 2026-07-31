@@ -1,32 +1,7 @@
-//! Fleet telemetry consent state, first-run disclosure, and anonymous
-//! install identity, canonical payload, and detached fleet-beacon worker.
-//! Every send path consumes [`send_gate`] / [`send_allowed`] immediately
-//! before network egress.
+//! Fleet telemetry consent, first-run disclosure, and anonymous beacons.
 //!
-//! The consent posture is **disclosed opt-out** (decided in
-//! `plans/decisions/107-fleet-telemetry-consent-posture.md`):
-//!
-//! - **Consent state** lives at `telemetry.json` in the user-scoped
-//!   state directory (the same `credentials_dir` convention as the
-//!   usage salt, so it re-roots under a gated `ANVIL_HOME`): `enabled`
-//!   plus `notice_shown`.
-//! - **Hard offs**, all honoured before any send: `anvil telemetry off`
-//!   (persisted), `ANVIL_TELEMETRY=off`, and `DO_NOT_TRACK=1`.
-//! - **Disclosure strictly precedes the first beacon**: `notice_shown`
-//!   is persisted only at the moment the notice is actually shown on a
-//!   terminal, and the send gate refuses while it is false — so gated
-//!   `ANVIL_HOME` environments and non-TTY first runs that never showed
-//!   the notice can never beacon.
-//! - **Identity** is a random UUID v4 install id minted on first use,
-//!   stored beside the per-deployment salt in the credentials dir with
-//!   `0600` perms, derived from nothing (no hardware, no user identity).
-//!   `anvil telemetry reset-id` rotates it. The salted usage principal
-//!   never appears here: this module exposes no accessor for it and the
-//!   identity file contains only the UUID.
-//!
-//! Operator-config rule: a corrupt consent file is an error, never a
-//! silent default. The send gate fails safe (blocked) and surfaces a
-//! warning; only an explicit `anvil telemetry on|off` rewrites it.
+//! Separate from USAGE-001 command-invocation rows (`usage.rs`). Honours
+//! `ANVIL_TELEMETRY` / `DO_NOT_TRACK` and local consent state.
 
 use std::env;
 use std::fs;

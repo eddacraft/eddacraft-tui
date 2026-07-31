@@ -1,59 +1,7 @@
 //! INTD-006: process-group / Job Object interrupt ladder.
 //!
-//! When the enforcement pipeline issues an `interrupt` decision the
-//! daemon must reliably stop every process the offending session has
-//! spawned, without ever signalling a process the session does not own.
-//! This module owns the cross-platform ladder:
-//!
-//! - **Linux / macOS:** `libc::kill(pid, 0)` to verify the leader is
-//!   still alive, a PID-reuse defence (proc starttime match), then
-//!   the SIGINT → SIGTERM → SIGKILL ladder via `libc::kill` on the
-//!   leader and `libc::killpg` on the process group. Polls between
-//!   stages run at 10 ms (SIGINT → SIGTERM) and 50 ms (SIGTERM →
-//!   SIGKILL) — the same adaptive cadence pitchfork@cea18d7 ships in
-//!   `src/procs.rs`. ADR-031 budget for save-time enforcement is the
-//!   binding latency contract; adding more stages would push past it.
-//! - **Windows:** Job Object termination via the
-//!   `anvil-intercept-win32::terminate_job_object` helper. The
-//!   PID-reuse defence still runs first (creation-time match against
-//!   the registry record); on success, the entire job is terminated
-//!   atomically, so the SIGINT / SIGTERM stages have no analogue.
-//!
-//! All `unsafe` for the actual signal / job calls is quarantined in
-//! `nix` (Unix) and `anvil-intercept-win32` (Windows) so this crate
-//! keeps `#![forbid(unsafe_code)]`.
-//!
-//! ## Fence-on-failure invariant
-//!
-//! AD-7 in `plans/decisions/015-intercept-loop-enforcement.md` makes
-//! one rule absolute: **any signal-delivery failure ends in a fence,
-//! immediately**. This module never silently swallows an `Err` from a
-//! signal call. Callers receive `InterruptOutcome::FenceImmediately`
-//! whenever:
-//!
-//! - the leader PID can no longer be queried (already exited / re-used),
-//! - the PID-reuse defence rejects the match,
-//! - any signal in the ladder returns an error other than `ESRCH` on
-//!   the leader (which means "already exited" and is the natural
-//!   resolution), or
-//! - the Windows Job Object termination call returns a non-zero error.
-//!
-//! The daemon's enforcement pipeline (`crate::enforcement`) reads the
-//! outcome and applies the fence; this module does not own fence
-//! state.
-//!
-//! ## Why pitchfork-derived
-//!
-//! `endevco/pitchfork@cea18d7`'s `src/procs.rs::kill` and
-//! `kill_process_group` are MIT-licensed and battle-tested across
-//! `mise`'s task runner — see `ACKNOWLEDGEMENTS.md`. The ladder shape
-//! is lifted as-is; the **PID-reuse defence is original** because
-//! pitchfork does not ship one (it relies on the supervisor to never
-//! reuse a PID between launch and signal). The intercept daemon
-//! cannot make that assumption.
-//!
-//! See `plans/modules/intercept-daemon.aps.md` task INTD-006 for the
-//! work-item scope and the pitchfork survey notes.
+//! Escalating stop signals when enforcement decides `interrupt`, from soft
+//! cancel through hard kill of the agent process group.
 
 use std::time::{Duration, Instant};
 

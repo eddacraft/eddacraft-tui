@@ -1,54 +1,5 @@
-//! DSV-030 (ADR-069 §2/§4/§9/§10): the daemon-side warm-graph snapshot disk I/O.
-//!
-//! The sealed serialization core (the `SnapshotPayload` DTO, `postcard` codec,
-//! magic/version/CRC integrity gate, privacy allowlist, golden round-trip
-//! fixture) lives in [`anvil_graph_cache::snapshot`] (ADR-064: that crate stays
-//! lean — `petgraph` + `serde` + the codec, no `nix`). This module is the part
-//! the ADR assigns to the daemon: **timing and durable, symlink-safe disk I/O**,
-//! which needs the platform syscall surface (`O_EXCL`, `O_NOFOLLOW`, `fsync`,
-//! atomic `rename`) the lean graph-cache crate must not carry.
-//!
-//! Unix-only. On other platforms warm-start persistence is simply off (the
-//! Windows daemon's persistence is a follow-up, mirroring the DSV-010/011
-//! Windows-parity split); callers cfg-gate accordingly.
-//!
-//! # Crash-safety & read-safety (ADR-069 §4)
-//!
-//! The durable, symlink-safe **sealed I/O core** — temp create via
-//! `O_CREAT | O_EXCL | O_NOFOLLOW` `0600`, `fsync` + atomic `renameat` publish +
-//! parent-dir `fsync`; and the size-capped `openat2(RESOLVE_NO_SYMLINKS |
-//! RESOLVE_BENEATH)` load with the `O_NOFOLLOW`-`openat` ladder fallback — is
-//! extracted into the key-agnostic [`store`] submodule (ADR-105 §10). See its
-//! module docs for the full hardening rationale; [`write_snapshot`] and
-//! [`load_snapshot`] delegate their sealed core to `store::publish_sealed_at`
-//! and [`store::load_sealed`] unchanged. This module keeps only the
-//! **per-worktree** concerns layered on top: the [`snapshot_filename`] keying, the
-//! `<hash>.root` companion, and the orphan sweep.
-//!
-//! # Privacy of the on-disk artifacts (PV-12, CIB-096)
-//!
-//! [`write_snapshot`] publishes two sibling files per worktree: the `<hash>.snap`
-//! payload and a `<hash>.root` **companion** (CIB-096) that stores the worktree's
-//! **absolute canonical root path in cleartext**, so the startup orphan sweep
-//! ([`sweep_orphan_snapshots_on_start`]) can existence-check the root with no
-//! session-registry keep-set (safe at cold boot). The `.root` is written `0600`
-//! under the `0700`, owner-only graph-cache dir — same-uid, machine-local — which
-//! is the existing PV-12 boundary: the snapshot **filename** is already an
-//! unsalted, cross-machine-correlatable derivative of the root (the same exposure
-//! class as a git blob hash).
-//!
-//! The companion's **read** matches the `.snap` discipline: it is opened anchored
-//! beneath the validated graph-cache dirfd under `O_NOFOLLOW` /
-//! `RESOLVE_NO_SYMLINKS` (a planted/swapped `.root` symlink is refused, not
-//! followed) and the body is size-bounded by [`MAX_ROOT_BYTES`] (an over-cap
-//! `.root` is rejected, not allocated) — so a tampered companion cannot redirect
-//! the read or bomb the startup allocation. The existence check discriminates a
-//! *proven* `NotFound` from any ambiguous stat error (EACCES / EIO / transient),
-//! reclaiming only on the former.
-//!
-//! The companion stores the root *directly* (cleartext) rather than as a hash, so
-//! an owner/PV sign-off on persisting the absolute root in cleartext may be wanted;
-//! it does not cross the machine-local boundary.
+//! DSV-030: daemon warm-graph snapshot disk I/O (sealed artefacts).
+
 #![cfg(unix)]
 
 use std::fs::{self, File};

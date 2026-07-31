@@ -1,69 +1,9 @@
-//! MLP2-016 production [`ValidationEngine`] implementation.
+//! MLP2-016 production [`ValidationEngine`] for pre-push / `anvil l4-validate`.
 //!
-//! The pre-push hook and the `anvil l4-validate` subcommand both route
-//! [`anvil_l4::CommitDecision::NeedsL4Validation`] through a
-//! [`ValidationEngine`] trait. v1 (MLP2-016 initial wave) bound
-//! [`anvil_l4::NoOpValidationEngine`] as the production default,
-//! preserving the pre-MLP2-016 surface byte-for-byte (single
-//! `InternalError { TimedOut }` + admit push) until a real engine
-//! landed. The 2026-05-15 Council audit reopened MLP2-016 because
-//! production still bound the no-op, so the typed pipeline was
-//! evidence-only — no commit had ever been blocked by a real rule.
-//!
-//! This module is the real engine. It materialises the commit's tree
-//! via `git diff-tree` + `git cat-file --batch` (MLP2-068: one batched
-//! blob fetch per commit instead of N+1 `git show` spawns), hands the
-//! resulting file paths to [`anvil_checks::antipattern::run_antipattern_check`],
-//! and maps the resulting per-rule findings onto
-//! [`ValidationDiagnostic`] entries the hook surfaces under
-//! [`ValidationVerdict::Block`]. Git plumbing failures degrade to
-//! [`ValidationVerdict::EngineUnavailable`] so the hook's
-//! "internal failures never block the user" surface (ADR-038 §D-6)
-//! stays intact.
-//!
-//! ## Production binding
-//!
-//! - [`commands::hook::run_pre_push`] binds
-//!   [`CommitAntipatternEngine`] (was `NoOpValidationEngine`).
-//! - [`commands::l4_validate::run`] binds it through
-//!   [`default_engine`].
-//!
-//! ## Empty-catalogue degradation (Council #C-016B CRITICAL)
-//!
-//! `anvil_checks::antipattern` loads its rule catalogue from
-//! `patterns/compiled/registry.json` resolved via an upward walk from
-//! CWD then from the executable's directory. An installed binary
-//! without an accessible registry returns an empty catalogue. Before
-//! the audit fix, the engine would scan with zero rules and return
-//! `Allow` — silent no-op enforcement masquerading as "the engine
-//! ran". [`validate_commit`] now refuses to run when
-//! `patterns_count() == 0`, returning
-//! `EngineUnavailable { BinaryMissing }` so the hook emits a
-//! `ValidationPending` line instead of silently admitting.
-//!
-//! ## Deliberate Allow paths
-//!
-//! - A commit that touches only non-scannable extensions (e.g. only
-//!   `.md` / `.txt`) admits. The antipattern catalogue targets
-//!   source files; nothing else can fire.
-//! - A commit that only deletes files (no add/modify) admits.
-//!   Antipattern rules detect bad code being introduced; you cannot
-//!   carry an antipattern in a deletion. The engine uses
-//!   `diff-tree --diff-filter=ACMR` to drop pure-deletion entries
-//!   before they hit the scanner so the "I tried to scan a deleted
-//!   file" silent skip cannot regress into a way to wave commits
-//!   through.
-//!
-//! ## On-warn surface
-//!
-//! The engine maps `WarningSeverity::Error` → `Severity::Block` and
-//! `WarningSeverity::{Warning, Info}` → `Severity::Warn`. The branch
-//! rule's `OnWarn` knob decides whether `Severity::Warn` upgrades to a
-//! block; under the default `OnWarn::Allow` policy a Warning-severity
-//! antipattern (e.g. the `AP-001` `eslint-disable` rule) surfaces a
-//! diagnostic but admits the push. This is intentional — operators
-//! must opt into stricter routing per branch — and is pinned by the
-//! `warn_only_antipattern_admits_under_on_warn_allow` test below.
+//! Materialises the commit tree (`git diff-tree` + batched `cat-file`), runs
+//! antipattern checks, maps findings to [`ValidationVerdict`]. Empty catalogue
+//! → `EngineUnavailable` (never silent `Allow`). Non-scannable or delete-only
+//! commits `Allow`. Git failures degrade to `EngineUnavailable` (ADR-038).
 
 use std::io::Write;
 use std::path::Path;

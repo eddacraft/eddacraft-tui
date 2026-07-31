@@ -1,44 +1,5 @@
-//! DSV-045 (ADR-085): the daemon full-scan executor.
-//!
-//! `anvil/request_full_scan` and a fresh MCP session's first contact both want a
-//! *populated* warm graph without the user having to save a file. The verb and
-//! the assurance state machine (DSV-005/-006) only ever set the per-worktree
-//! state to `Pending` — nothing dequeued it. This module is the loop that drives
-//! `Pending → Running → Clean` (or `Bounded`), populating the
-//! [`KernelGraphCache`] by walking the worktree, parsing each file with the
-//! injected [`SymbolParser`], and feeding the symbols through `apply_delta`.
-//!
-//! # Where the work runs (ADR-084 C2 / ADR-031)
-//!
-//! The whole walk + parse + apply runs as a job on the **background** rayon pool
-//! (the caller spawns [`PreparedScan::run`] there), so it never touches the
-//! small interactive pool that protects the `validate_paths` latency budget. The
-//! per-key [`AssuranceMachine`] lock is held **only** for the brief
-//! `start_scan` / `complete_scan` transitions — never across the walk/parse/
-//! apply — so a concurrent `validate_paths` for the same worktree is never
-//! blocked behind a scan.
-//!
-//! # The guarantees this module owns
-//!
-//! - **No phantom `Clean` on a raced save (Decision 4).** Any `apply_delta` for
-//!   the key while the scan is `Running` flags the machine dirty; the scan's
-//!   `complete_scan` compare-and-clears that flag *under the same lock* as the
-//!   `Clean` transition, so a save that raced the scan fails safe to `Stale` and
-//!   re-queues instead of being certified away.
-//! - **No phantom `Clean` without a parser (Decision 3).** A daemon with no
-//!   injected parser (e.g. Windows today) marks the worktree `Stale` and never
-//!   starts a scan — it never produces an empty graph that reads as complete.
-//! - **Honest truncation (Decision 5).** A worktree still over the walk
-//!   file-count cap *after* the gitignore pre-filter completes to `Bounded`
-//!   (carrying [`ScanCoverage`]), never `Clean`.
-//! - **DoS-safe coalescing (Decision 10).** A per-key `scan-enqueued` CAS flag
-//!   means N concurrent `request_full_scan` calls drive one scan; the flag
-//!   resets via an RAII guard on **any** job exit — completion, panic, or
-//!   cancellation — so a panicked job never wedges the verb permanently inert.
-//! - **Cooperative yield (Decision 9).** An interactive `validate_paths` can
-//!   [`ScanCoordinator::cancel`] the in-flight scan; the chunked loop yields at
-//!   the next chunk boundary, keeps the deltas it already applied, and resumes
-//!   the continuation from the processed offset.
+//! Background full/cold graph scan execution when warm state is missing or stale.
+
 #![cfg(any(unix, windows))]
 
 use std::collections::{HashMap, HashSet};

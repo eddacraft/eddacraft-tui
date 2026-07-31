@@ -1,32 +1,5 @@
-//! `anvil policy install` / `anvil policy show` — install bundled starter
-//! policy packs into the local policy set with validated provenance, or preview
-//! a bundled pack's manifest without installing it.
-//!
-//! Bundled packs are embedded in the binary at compile time (`include_str!`);
-//! there is no remote fetch. Install writes a pack's files under
-//! `<workspace>/.anvil/policies/<pack-id>/`, refusing to overwrite existing
-//! files unless `--force`, then runs the full pack-admission pipeline (manifest
-//! load, structural/metadata validation, test execution and enforcement) over
-//! the installed copy. An install that fails validation is rolled back, so the
-//! live gate directory never holds an invalid pack. A `provenance.yaml` records
-//! the pack id, version, install source, and a sha256 for every installed file
-//! (no timestamps — the version control history records when).
-//!
-//! ## Path containment
-//!
-//! The destination is resolved and canonicalised before anything is written:
-//! the deepest existing ancestor of the pack directory must stay within the
-//! canonical workspace root (so a `.anvil` symlinked outside the workspace is a
-//! reported install failure with nothing written). The same guard is applied
-//! per-write inside the [`Journal`] as defence in depth.
-//!
-//! ## Crash-safety
-//!
-//! The rollback [`Journal`] is in-memory only, not a crash-safe transaction: a
-//! process killed mid-install can leave partially-written files on disk. The
-//! recovery path is the existing-files pre-check — the next `install` without
-//! `--force` detects and names those files and refuses, so a partial install is
-//! visible rather than silently completed.
+//! `anvil policy install` / `anvil policy show` — bundled starter packs and
+//! installed pack inspection.
 
 use std::collections::BTreeSet;
 use std::io;

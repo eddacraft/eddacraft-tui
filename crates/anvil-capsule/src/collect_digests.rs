@@ -1,50 +1,8 @@
 //! Policy/baseline/rules digest collector (GITGOV-006, ADR-074).
 //!
-//! Collects the governance-identity evidence a capsule packages as
-//! `policy.json` (`anvil.policy-digest.v1`), `rules.json`
-//! (`anvil.rules-digest.v1`), and `baseline.json`
-//! (`anvil.baseline-digest.v1`). The documents match the witnessed
-//! identity **by construction**: the config digest is computed by the
-//! exact pipeline the pre-commit witness writer uses
-//! (`anvil_config::parse_file` → `anvil_config::canonical_json_bytes`
-//! → `anvil_rules::config_sha_from_canonical`), `rules_sha` is
-//! computed by `anvil_rules::rules_sha` — the same function that
-//! produces the value witnessed on the line — and the baseline cutoff
-//! is read from the same `anvil/baseline.json` store that seeds the
-//! `GENESIS-BASELINED` witness line.
-//!
-//! Missing sources are **not** errors: they collect as absent fields,
-//! and the resulting present-but-empty documents are the verifier's
-//! `degraded` signal (ADR-074: missing evidence never passes, and a
-//! missing *file* must stay distinguishable from "nothing to
-//! report"). A source that exists but cannot be read or parsed fails
-//! collection loudly instead — a capsule must not misrepresent
-//! present-but-broken governance state as absence.
-//!
-//! **Deliberate divergences from the witness writer.** The witness
-//! writer collapses *both* discovery I/O errors *and* parse errors to
-//! `None` (ADR-038 §D-1 noise discipline — a save-time annotation
-//! must not block commits). The collector propagates both as
-//! [`CapsuleError::Collect`]: evidence production has the opposite
-//! duty. Consequence: a repo whose `.anvil.*` config is
-//! present-but-broken can carry witness lines with no `rules_sha`
-//! while capsule creation for those commits fails until the config is
-//! fixed — loud failure, never a divergent identity. Only the
-//! file-absent case behaves identically on both surfaces (`None` /
-//! absent field).
-//!
-//! **Version parity.** `rules_sha` equals the witnessed value only
-//! when [`ToolIdentity`] carries the same `anvil_version` /
-//! `opa_runtime_version` / rule set the hook binary used when it
-//! wrote the line. The collector guarantees the *pipeline* is
-//! identical; input parity is the caller's contract (GITGOV-004),
-//! and version skew between enforcement time and collection time is
-//! the verifier's to classify (GITGOV-009).
-//!
-//! Collection reads live filesystem state at `repo_root` — the
-//! worktree as it is at collection time, not the committed tree of
-//! the capsule's range. ADR-074 v0 verification is repo-present and
-//! recomputes against the repository it runs in.
+//! Builds capsule `policy.json` / `rules.json` / `baseline.json` digests with
+//! the same pipelines as the witness writer. Missing files → absent fields
+//! (degraded); present-but-broken sources fail collection loudly.
 
 use std::path::Path;
 

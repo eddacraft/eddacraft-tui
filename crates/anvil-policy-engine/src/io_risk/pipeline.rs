@@ -1,35 +1,4 @@
-//! Provider-agnostic scanner contracts and the chain executor (IORISK-002).
-//!
-//! A [`Scanner`] inspects an [`IoPayload`] (a model input or output) and returns
-//! zero or more [`RiskFinding`]s from the shared taxonomy
-//! ([`anvil_kernel_types::io_risk`]). A [`ScannerChain`] runs a registered set
-//! of scanners and aggregates their findings.
-//!
-//! This module ships **contracts only** — the trait, the payload type, the
-//! executor, and (test-gated) trivial reference scanners. Concrete heavyweight
-//! scanners (regex/ML/secret detectors) are later intake.
-//!
-//! ## Executor guarantees
-//!
-//! - **Deterministic order.** Findings are aggregated in scanner registration
-//!   order, preserving each scanner's own returned order. No sorting, no
-//!   deduplication — the same scanners over the same payload always yield the
-//!   same [`ScanReport`].
-//! - **Never short-circuits.** Every registered scanner runs, even if an
-//!   earlier one panics or returns findings.
-//! - **Panic isolation, surfaced not swallowed.** A scanner that panics is
-//!   caught via [`std::panic::catch_unwind`] and recorded as an explicit
-//!   [`ScannerError`] on the report's separate `scanner_errors` channel; the
-//!   remaining scanners still run.
-//!
-//!   A scanner panic is recorded as an *executor error*, deliberately **not**
-//!   as a [`RiskFinding`]: a fault in the detector is an operational problem,
-//!   not an IO risk in the taxonomy, and folding it into `findings` would
-//!   mis-classify it (and force an ill-fitting [`RiskCategory`]). Keeping a
-//!   dedicated `scanner_errors` channel surfaces the failure to the caller
-//!   without ever dropping it and without corrupting the risk signal. Effective
-//!   only under `panic = "unwind"` (ADR-051); under `panic = "abort"` the
-//!   process aborts before the catch runs.
+//! I/O-risk evaluation pipeline: assemble facts and run I/O-risk policy rules.
 
 use std::panic::{self, AssertUnwindSafe};
 

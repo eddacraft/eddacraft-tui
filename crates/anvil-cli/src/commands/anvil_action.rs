@@ -1,36 +1,6 @@
-//! MLP-010: in-tree template for the per-PR L4 validation workflow.
+//! Inlined GitHub Actions workflow template for per-PR L4 validation.
 //!
-//! Mirrors the [`audit_workflow_template`] pattern from MLP-015 but
-//! for the per-PR (rather than nightly) workflow. The activation
-//! orchestrator (`anvil start` / `anvil baseline`) is the eventual
-//! caller — it copies this template into a target repo's
-//! `.github/workflows/anvil.yml` at adoption time so users get the
-//! Marketplace action's stable shape without hand-authoring a YAML
-//! file.
-//!
-//! ## Why this lives in-tree (and what's deferred)
-//!
-//! MLP-010's full surface is **two** deliverables:
-//!
-//! 1. A workflow template users can copy into their repos. This
-//!    crate ships that today.
-//! 2. The `eddacraft/anvil-action` Marketplace listing — a separate
-//!    publishing repo at `github.com/eddacraft/anvil-action` that
-//!    wraps the same `anvil hook pre-push` logic the developer-side
-//!    hook uses. **Not in this PR** (its scope is "new repo + npm
-//!    publish + Marketplace listing pipeline"); the template
-//!    references the future action by name (`uses:
-//!    eddacraft/anvil-action@v1`) so the swap from placeholder to
-//!    Marketplace action is a one-line change for adopters.
-//!
-//! The placeholder install step uses a vendored `curl … | sh` so
-//! the template is **runnable** today, with an explicit operator
-//! warning in the YAML comments that the supply-chain-safer path is
-//! the Marketplace action.
-//!
-//! See [`audit_workflow_template`] for the prior-art pattern.
-//!
-//! [`audit_workflow_template`]: crate::commands::audit_chain::audit_workflow_template
+//! Copied into `.github/workflows/anvil.yml` at adoption; ADR-037 default-on.
 
 /// Inlined template for the per-PR L4-validation GitHub workflow.
 ///

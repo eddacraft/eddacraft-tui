@@ -1,31 +1,5 @@
-//! DSV-003 Task 3 (ADR-061 §5): openat2-anchored read-safety for the daemon's
-//! save-time reads.
-//!
-//! `validate_paths` is the first daemon verb to read *arbitrary on-disk paths*
-//! a client names, so the read path is load-bearing rather than incidental.
-//! Every read is anchored at a workspace **dirfd** opened once at admission
-//! (the workspace identity, security C2) and resolved with
-//! `RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH`, so a path can neither escape the
-//! root via `..`/absolute prefixes (rejected structurally by
-//! [`normalise_rel`]) nor via a symlink (rejected at read time by the kernel).
-//!
-//! Because the dirfd is held open, a root-directory retarget *after* admission
-//! cannot redirect reads: the fd is the identity, so reads either hit the
-//! original inode or fail closed — they never silently re-resolve the path
-//! string against a swapped-in directory.
-//!
-//! ## Why a fallback ladder
-//!
-//! `openat2(2)` landed in Linux 5.6 and does not exist on macOS. Where it is
-//! unavailable (older kernel ⇒ `ENOSYS`, or a non-Linux unix build) we fall
-//! back to a component-by-component `openat` ladder with `O_NOFOLLOW` on every
-//! component, anchored at the previous directory fd. That reproduces the
-//! `RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH` guarantee: `O_NOFOLLOW` refuses a
-//! symlink at each single-component hop, and anchoring each hop at the prior
-//! dirfd (after `..` has been rejected) keeps resolution beneath the root.
-//!
-//! `forbid(unsafe_code)` is inherited from the crate lint; all syscalls go
-//! through `nix`'s safe wrappers.
+//! DSV-003 (ADR-061 §5): openat2-anchored path normalisation and workspace
+//! directory opens for daemon reads.
 
 use std::fs::File;
 use std::io::{self, Read};

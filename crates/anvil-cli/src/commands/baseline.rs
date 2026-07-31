@@ -1,44 +1,4 @@
-//! `anvil baseline` command (MLP-007 CLI lane).
-//!
-//! Wraps the `anvil-baseline` library with the user-facing entry points:
-//! `anvil baseline` (create / refresh) and `anvil baseline verify`.
-//!
-//! ## v1 scope
-//!
-//! - **`anvil baseline`** creates `anvil/baseline.json` for the
-//!   current repo. The orchestrator first calls
-//!   [`ensure_project_id`] so adopting anvil into an existing repo
-//!   writes `anvil/project-id` in the same flow (MLP2-032), then runs
-//!   the [`anvil_checks`] scanner across the worktree to populate the
-//!   findings array (MLP2-034 Phase 1). With no existing
-//!   `cutoff_commit`, the on-disk record carries `null`; consumers
-//!   that need a pin set it explicitly via `--refresh` after a
-//!   subsequent commit.
-//! - **`anvil baseline --refresh`** re-creates the file in place,
-//!   bumping `created_at`, preserving `cutoff_commit`, and re-running
-//!   the scanner so adversarial-refresh detection (MLP2-035) has a
-//!   current findings set to compare against.
-//! - **`anvil baseline verify`** re-reads `anvil/baseline.json` and
-//!   reports findings count + `cutoff_commit`. The diff partition
-//!   into the hook lane gate is Phase 2 of MLP2-034.
-//!
-//! ## Cutoff pinning (MLP2-031 ↔ -032)
-//!
-//! When a baseline carries a `cutoff_commit`, the orchestrator pins it
-//! into `anvil/policy.{yml,yaml,json,toml}` via
-//! [`anvil_l4::pin_cutoff_commit`] so the L4 policy lane reads it
-//! from the policy file rather than from `baseline.json`. The pin
-//! step is best-effort: a missing or unreadable policy file is
-//! reported as a hint (warnings over blocks) and does not fail
-//! `anvil baseline`. Operators bootstrap the policy file via
-//! `anvil init`.
-//!
-//! ## Deferred (Phase 2 + later)
-//!
-//! - Diff partition into the hook lane gate (Phase 2 of MLP2-034).
-//! - Per-class baseline behaviour (ADR-039 hard-pinned rejection).
-//! - Adversarial-refresh detection (MLP2-035).
-//! - Async continuation for >100k files (MLP2-036).
+//! `anvil baseline` — create/show/update the new-edges architecture baseline.
 
 use std::path::Path;
 

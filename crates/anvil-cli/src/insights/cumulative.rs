@@ -1,46 +1,4 @@
-//! Cumulative "value caught" aggregates over the evidence Anvil
-//! already records locally.
-//!
-//! This is the reusable aggregation seam for every surface that wants a
-//! trustworthy local "what has Anvil saved me?" number (the `anvil
-//! insights` scoreboard, the shareable scorecard, and future consumers
-//! such as the repeat-start value line). It is deliberately a pure
-//! function of the recorded data — **no wall clock is consulted** — so
-//! the same inputs always produce the same aggregate, and every window
-//! is anchored to its own stream's evidence bounds rather than a
-//! generation timestamp.
-//!
-//! **Scope of the determinism claim:** it covers this aggregate (the
-//! `cumulative` sub-object of the v2 document) and the renders derived
-//! from it (the scoreboard section and the share card). The v1
-//! rolling-window fields that the v2 document also carries remain
-//! wall-clock-anchored (`weekly_summary(root, Utc::now())`), so the v2
-//! document as a whole is *not* reproducible — only its `cumulative`
-//! sub-object is.
-//!
-//! ## Sources and their honest limits
-//!
-//! - **Witness chain** (`anvil/witness/*.ndjson`, per repository):
-//!   append-only and archived, so it genuinely covers "since first
-//!   recorded event". Witness lines carry timestamps but no finding
-//!   payload, so the chain yields event counts only.
-//! - **Kindling usage sidecar** (`<credentials_dir>/kindling/usage.ndjson`,
-//!   user-scoped): carries the save-time `gate_evaluated` and fence
-//!   `constraint_applied` rows the daemon persists. The sidecar is
-//!   trimmed to a bounded retention window (7 days / 64 MiB — see
-//!   `usage::trim_usage_sidecar`), so its counts are reported over the
-//!   **retained window actually present in the file**, never claimed as
-//!   all-time. The window bounds travel with the counts so no consumer
-//!   can accidentally present them as cumulative.
-//!
-//! ## Privacy
-//!
-//! The aggregate carries **counts and RFC 3339 window bounds only**. No
-//! paths, repository names, file names, branch names, rule messages,
-//! hostnames, usernames, or emails cross this seam — the row fields
-//! that contain them are never copied out of the parse. The redaction
-//! fixtures in `commands::insights` seed marker strings through every
-//! source field and prove none survive into any rendered output.
+//! Cumulative insights aggregation over Kindling / usage observation streams.
 
 use std::io::{BufRead, BufReader, Read as _};
 use std::path::Path;

@@ -388,22 +388,9 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
             let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
             let mut probe_results = super::mcp_client::probe_all(root, home, &fresh);
             promote_restart_required_after_handshake(root, home, &mut probe_results, &fresh);
-            // MLP2-051f: layer the daemon-attested LiveValidation
-            // promotion on top of the orchestrator's handshake pass.
-            // The function is best-effort and silently no-ops when the
-            // daemon is unreachable, the worktree is unenforced, or
-            // the snapshot is stale — see
-            // `super::daemon_evidence::promote_to_live_validation_when_daemon_attests`
-            // for the full predicate ladder. The returned attestation
-            // is carried on the diagnostic so the renderer can
-            // distinguish "pre-restart" from "daemon not running" /
-            // "daemon unenforced" when emitting the
-            // `ReadyRestartRequired` repair hint.
-            //
-            // DSV-049: the same probe also reports whether a supervised
-            // save-time driver is attached to this worktree, so the
-            // `Watching` render can distinguish save-time-active watching
-            // (registered ∧ driver attached) from membership-only watching.
+            // MLP2-051f: best-effort promote to LiveValidation from daemon
+            // attestation; carries attestation on the diagnostic for render.
+            // DSV-049: also report supervised save-time driver attachment.
             if matches!(config, ConfigStatus::Valid) {
                 let outcome =
                     super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
@@ -457,29 +444,9 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
     // the same priority as before.
     let last_error = mcp_last_error.or(baseline_load_error);
 
-    // LAUNCH-011: when MCP cannot pre-write attach (no client has
-    // reached `RestartRequired+`) and the repo is in a state where
-    // `anvil start --watch` would produce meaningful coverage,
-    // surface the watch fallback as `Offered`. This is purely
-    // informational — `Offered` does not change `protection_state()`
-    // (the watcher process is not running). It signals to the renderer
-    // that watch is the available next step so the user gets honest
-    // partial-protection language instead of a silent gap.
-    //
-    // Skipped when:
-    // - config is invalid (already an error state — fix config first)
-    // - config is absent (the user must run `anvil init` before any
-    //   activation surface is meaningful — offering watch alongside
-    //   "config: absent" would advertise a fallback that has no
-    //   configuration to honour)
-    // - any layer recorded `last_error` (don't add fallback noise on
-    //   top of an aborted activation)
-    // - MCP is at `RestartRequired+` (the user is ready to attach on
-    //   restart; offering a fallback would dilute that nudge)
-    // - all detected languages are out of scope (council finding:
-    //   advertising watch on an unsupported repo over-claims coverage —
-    //   the watcher will run but produces no findings on those file
-    //   types; the `Unsupported` headline is the honest answer)
+    // LAUNCH-011: offer watch fallback when MCP is not RestartRequired+ and
+    // watch would be meaningful. Informational only. Skip on bad/absent config,
+    // layer errors, RestartRequired+, or unsupported languages.
     let watch = if matches!(config, ConfigStatus::Valid)
         && last_error.is_none()
         && !all_languages_unsupported

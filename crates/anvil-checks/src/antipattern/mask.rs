@@ -1,36 +1,4 @@
-//! Mask comment and string spans in source so code-construct antipattern
-//! rules (AP-*, GS-*) do not match `!`, `any`, etc. that appear inside
-//! comments or string literals (GH #1914).
-//!
-//! **Byte-length-preserving.** Every masked character is replaced by ASCII
-//! spaces equal to its UTF-8 byte length, and unmasked characters are copied
-//! verbatim. So the byte offset of every unmasked character — which the
-//! scanner records as `Warning.location.column` via `regex::Match::start()`
-//! — is identical in the masked line. Match columns therefore stay accurate.
-//!
-//! **What is masked:** `//` line comments, `/* … */` block comments (across
-//! lines), `'…'` / `"…"` string literals (with `\` escapes, and `\`-at-EOL
-//! line continuation carried to the next line), and `/…/` regex literals
-//! (so a `!` / `any` / `//` / quote inside a pattern is neither flagged nor
-//! mistaken for a comment/string).
-//!
-//! **Template literals (backticks).** The literal *text* of a template is
-//! masked (it is string content, so a `!` / `any` there is not a non-null
-//! assertion or a type — GS-001 external-FP dogfood: `` `my-0!` ``,
-//! `` `Stack overflow!` ``). The `${ … }` interpolation spans, which are real
-//! code, are kept and scanned. A carried context stack re-lexes interpolation
-//! code, so strings/comments/regexes inside `${ … }` are masked and their braces
-//! do not affect interpolation depth. Nested template literals are handled the
-//! same way: nested template text is masked, nested `${ … }` code is visible,
-//! and control resumes to the correct parent interpolation/template frame.
-//!
-//! **Regex vs division.** `/` is ambiguous in JS/TS. A `/` is treated as the
-//! start of a regex literal only when the preceding significant token implies
-//! an expression position (an operator/opening punctuator, statement start,
-//! or a regex-preceding keyword such as `return`). After a value (identifier,
-//! `)`, `]`, number, string) a `/` is division. This is the same heuristic
-//! syntax highlighters use; it is not a full parse, but it covers the common
-//! `const re = /…/`, `x.match(/…/)`, and `return /…/` forms.
+//! Inline suppression / mask handling for antipattern findings.
 
 /// Lexer state that can carry across a line boundary.
 #[derive(Clone, PartialEq, Eq)]

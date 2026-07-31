@@ -1,37 +1,4 @@
-//! INTR-003: `AntipatternScanRule` — exposes the existing anvil-checks
-//! antipattern scanner as an `InterceptRule`, mirroring the INTR-002
-//! secret-detection and INTR-008 reasoning wrappers.
-//!
-//! The wrapper holds an [`AntipatternCheckConfig`] and scans the changed
-//! file's borrowed content via [`scan_file`] — no disk reads, no rayon
-//! pool, single-file synchronous scanning well inside the hot-path
-//! latency budget. Findings below the configured severity threshold or
-//! carrying an inline suppression do not interrupt, matching the
-//! pass/fail semantics of `run_antipattern_check`.
-//!
-//! **Suppressions are self-attestable.** Inline `@anvil-ignore`
-//! directives are honoured here exactly as in `run_antipattern_check`
-//! (ADR-029: one authoritative suppression parser). On the intercept
-//! surface the content author is the agent being policed, so an agent
-//! can suppress its own finding by writing the directive — that is the
-//! accepted project-wide suppression contract (suppressions are visible
-//! in diff review), not a gap introduced by this wrapper.
-//!
-//! **Extension gating** mirrors `run_antipattern_check`'s
-//! `is_scannable_file`: paths whose suffix is not in
-//! `config.extensions` are skipped before scanning, and an explicitly
-//! empty `extensions` list therefore scans nothing. `scan_file` applies
-//! its own per-pattern extension/artifact gates after this filter, so
-//! the wrapper stays in lockstep with the disk-reading check rather
-//! than with `scan_file`'s wider raw contract.
-//!
-//! **CRLF caveat** (inherited from `anvil-checks`): the scanner splits
-//! on `'\n'` and keeps the `\r`, so `$`-anchored custom patterns may
-//! not fire on CRLF content. The regex-content rule (INTR-005) uses
-//! `str::lines` and is CRLF-clean.
-//!
-//! `Removed` changes always Allow: a deleted file is not a write, and
-//! antipattern findings in deleted content are moot.
+//! INTR-003: antipattern scanner as an `InterceptRule` (single-file, no disk I/O).
 
 use anvil_checks::antipattern::{
     AntipatternCheckConfig, ScanOptions, Warning, WarningSeverity, scan_file,

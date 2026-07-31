@@ -1,58 +1,7 @@
-//! GBASE-007 (ADR-105 §3): the **combined-state golden parity fixture** — the
-//! campaign's correctness anchor.
+//! GBASE-007: combined-state golden parity (base + overlay vs cold scan).
 //!
-//! This is **layer (i)** of the two-layer parity design: a fast, hermetic,
-//! byte-pinned golden over **hand-scripted** base + overlay fragments. It proves
-//! that composing a shared base with a scripted overlay yields a graph identical
-//! to a **cold scan of the combined on-disk state**, and it pins the exact
-//! composed shape against a **committed serialised fixture file**
-//! (`tests/fixtures/gbase007_combined_state.snap`) so any future divergence fails
-//! against a committed artefact, not a recomputed one.
-//!
-//! Layer (ii) — the intercept-side integration test that runs the **real**
-//! `compute_overlay` (worktree walk + hashing) → `compose` pipeline against a
-//! cold scan — lives in `anvil-intercept`'s `overlay_scan` tests. Layer (ii) is
-//! what makes this golden *honest* (it exercises the production overlay
-//! computation, not hand-built fragments); layer (i) here is what makes a
-//! regression cheap to localise (a byte diff against a committed pin).
-//!
-//! The `compose.rs` / `rebase.rs` in-crate mini-parity tests are the **fast
-//! smoke-check** at unit scale; this golden **supersedes them in scale, not in
-//! existence** — they stay as a quick signal, this is the exhaustive anchor.
-//!
-//! # What the combined-state fixture exercises (Validation binding)
-//!
-//! One rich combined state pins every composition path in a single fixture:
-//! - **adds** — `feature.ts`, `mid.ts` (new files importing base + overlay);
-//! - **removes** — `gone.ts` deleted, *including a file another base file
-//!   imported* (`needsgone.ts → gone.ts`);
-//! - **tombstones** — `widget.ts` and `svc.go` modified (base shadow removed +
-//!   re-added), *including a modified file a surviving base file imports*
-//!   (`consumer.ts → widget.ts`: the **`BaseReresolve`** path);
-//! - **cross-edges both directions** — overlay→base (`feature.ts → core.ts`,
-//!   `mid.ts → core.ts`) and base→overlay import (`consumer.ts → widget.ts`);
-//! - **a multi-hop chain crossing the boundary** — `feature.ts → mid.ts →
-//!   core.ts` (overlay → overlay → base);
-//! - **the hashless-language file** (`svc.go` modified, `helper.go` unchanged) —
-//!   the tail-language (`content_hash: None`) conservative-always-modified path
-//!   through composition (GBASE-004 note: polyglot base + overlay);
-//! - **byte-for-byte equality vs a cold scan**, interpreted as: identical
-//!   resident-index content under the **id-independent `SymbolIdentity`** relation
-//!   (import edges) AND identical dependency-graph edge sets AND a committed
-//!   serialised pin of the exact composed shape.
-//!
-//! # The recorded ADR-105 §3 exclusion (imports-only cross-edge scope)
-//!
-//! Cross-edge re-resolution is scoped to **import** edges — the ADR-105 §3
-//! mechanism GBASE-005 implements. A surviving base file that **re-exports** from
-//! (or calls into) a modified overlay file loses that edge after composition: the
-//! persisted format stores *resolved* edges and an Imports-only forward map, not
-//! the surviving file's raw `ReexportEdge`. Closing it is a schema-additive
-//! payload extension — **out of this item's budget** (the checkpoint clause guards
-//! against scope growth). This item takes the **recorded exclusion**: the golden
-//! asserts the import set byte-equal AND `reexport_call_divergence_is_exactly_the_recorded_gap`
-//! pins the *exact* known divergence — a test that **fails if the gap silently
-//! closes or widens**, so the exclusion is structural and loud, never ignored.
+//! Hermetic pin of composed graph shape; reexport/call cross-edge gaps are
+//! recorded exclusions (ADR-105 §3 imports-only re-resolve).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

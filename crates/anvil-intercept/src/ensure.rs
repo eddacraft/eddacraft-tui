@@ -1,41 +1,4 @@
-//! DLIFE-002: idempotent, race-safe daemon ensure primitive.
-//!
-//! [`ensure_daemon`] is the internal entry point that user-facing CLI surfaces
-//! (`anvil start`, `anvil watch` — wired in DLIFE-003/-004) call to bring up the
-//! per-user save-time daemon. It reuses a live daemon, never double-starts under
-//! concurrency, and degrades honestly when it must not (or cannot) start one.
-//!
-//! Design (ADR-082, the accepted tiered startup posture):
-//!
-//! 1. **probe** the per-user save-time endpoint for a live status answer → if a
-//!    daemon answers (or a listener is present but slow), report [`Reused`];
-//! 2. otherwise, if the caller is not allowed to spawn, report a typed
-//!    [`NoStart`] — `start`/`watch` render a platform-specific advisory distinct
-//!    from a deliberate opt-out;
-//! 3. otherwise acquire a same-user advisory lock around the spawn critical
-//!    section so concurrent `start`/`watch` callers serialise, **re-probe under
-//!    the lock** (a racing caller may have started one → [`Reused`]), then
-//! 4. spawn a detached background daemon with stdout/stderr redirected to a log
-//!    file, and **bound-wait** — to a named timeout — for it to bind and answer
-//!    the status verb → [`Started`]; a spawn that never binds → [`Failed`].
-//!
-//! The sharpest correctness edge is **stale detection**: a *dead* endpoint
-//! (connect fails fast — absent or stale socket) is the only case that triggers a
-//! respawn; a *live-but-slow* endpoint (connect succeeds but no status answer
-//! within the probe timeout) is never torn down, so a daemon under graph/GC load
-//! is not ripped out from under its own listener. The spawned daemon's own
-//! [`crate::ipc::IpcListener`] bind unlinks any stale socket it owns, so this
-//! primitive never unlinks an endpoint itself.
-//!
-//! Unix-first landing (DLIFE-002); Windows background launch followed in
-//! CIB-072 once the named-pipe IPC and save-time verb surface were proven
-//! (DSV-010b). Platforms without a detached launcher still return
-//! [`NoStartReason::PlatformUnsupported`] deterministically.
-//!
-//! [`Reused`]: EnsureOutcome::Reused
-//! [`Started`]: EnsureOutcome::Started
-//! [`NoStart`]: EnsureOutcome::NoStart
-//! [`Failed`]: EnsureOutcome::Failed
+//! Bring a worktree/session to a usable protection readiness state.
 
 use std::io;
 use std::path::Path;

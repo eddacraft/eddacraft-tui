@@ -1,63 +1,9 @@
-//! MCP install path for the activation orchestrator (LAUNCH-009 part 2).
+//! MCP install step for activation (LAUNCH-009).
 //!
-//! Drives the per-client install step that promotes the diagnostic from
-//! `ConfigAbsent` to `RestartRequired` for each client the user picks.
-//!
-//! ## Two execution modes
-//!
-//! - **Interactive** (TTY, not `--no-tui`): probe each registered
-//!   client, render a [`demand`] `MultiSelect` listing what was found,
-//!   with every candidate unticked (CIB-184 — matching the activation
-//!   TUI consent posture and the workflow picker), and let the user
-//!   tick the clients to install. Enter with no tick writes nothing.
-//!   Cancellation (Ctrl-C / `Esc`) returns an empty selection — the
-//!   install step becomes a no-op without aborting the orchestration.
-//!
-//! - **Non-interactive** (`--no-tui`, no TTY, or CI envs like
-//!   `CI=true` / `GIT_DIR` set): auto-install for every `NotPresent`
-//!   and `SafeDrift` candidate. No prompt is shown. `UnsafeDrift` is
-//!   always skipped with the drift reason recorded in the install
-//!   report.
-//!
-//! `--json` is **not** routed through this module. `anvil start
-//! --json` short-circuits to a read-only `activation::verify` probe
-//! at `commands/start.rs` so stdout stays a single JSON document
-//! (init has its own JSON output that would otherwise concatenate).
-//! Users who want a side-effecting `--json` flow run `anvil init
-//! --json` and `anvil start --json` separately.
-//!
-//! ## Drift policy
-//!
-//! | `DriftClass`          | Interactive default | Non-interactive | Notes                                                           |
-//! |-----------------------|---------------------|-----------------|-----------------------------------------------------------------|
-//! | `NotPresent`          | offered unticked    | auto-install    | fresh write, no merge needed                                    |
-//! | `SafeDrift`           | offered unticked    | auto-install    | rewrite over a recognised anvil entry (likely a version drift)  |
-//! | `UpToDate`            | not shown           | skip            | nothing to do                                                   |
-//! | `UnsafeDrift`         | not shown           | skip with note  | foreign tool / unknown shape — never overwrite                  |
-//!
-//! `UnsafeDrift` is hidden from the interactive picker entirely
-//! (filtered out before the `MultiSelect` is built). The install
-//! gate also independently refuses `UnsafeDrift` regardless of
-//! selection, so even a future picker-API change that surfaced it
-//! cannot bypass the foreign-tool guard.
-//!
-//! ## Editor-detection gate (ACTMO-012)
-//!
-//! [`install_for_clients`] takes an `enabled` set of clients (the editors
-//! actually detected on this host, or every client when
-//! `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS` is set). A *fresh*
-//! `NotPresent` write only happens for an enabled client — so
-//! `anvil start` never creates `~/.cursor/mcp.json` for an editor the
-//! user does not have (Matt beta smoke). An existing anvil entry (any
-//! drift other than `NotPresent`) is always managed regardless of the
-//! `enabled` set, so we never orphan a config anvil previously wrote.
-//!
-//! ## Atomicity
-//!
-//! Writes go through `util::atomic_write`, which renames a uniquely-named
-//! tempfile in the same directory into place. Editor configs that hold
-//! sensitive data (Claude Code's `~/.claude.json` carries auth tokens)
-//! are written with mode 0o600 on Unix.
+//! Interactive: `MultiSelect` of detected clients (unticked by default).
+//! Non-interactive / CI: auto-install `NotPresent` and `SafeDrift` only.
+//! `UnsafeDrift` never overwritten. Fresh writes limited to enabled/detected
+//! editors (ACTMO-012). Atomic writes via `util::atomic_write`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -476,29 +422,9 @@ fn pick_install_target(
     home: Option<&Path>,
     fresh: &AnvilEntry,
 ) -> Candidate {
-    // Walk config paths in priority order. We mirror `probe_one`'s
-    // semantics so the read path and the install path agree on which
-    // scope wins:
-    //
-    // - **anvil entry present at this scope** (drift != NotPresent):
-    //   stop and use this scope. The user is using this scope for
-    //   anvil; respect that.
-    // - **File exists but no anvil entry** (drift == NotPresent):
-    //   keep walking. A workspace `.cursor/mcp.json` containing only
-    //   other servers must NOT shadow a valid anvil entry at home —
-    //   if we stopped here, we would write a duplicate workspace
-    //   entry and orphan the home one.
-    // - **Parse error / I/O error**: stop. The file is broken and we
-    //   refuse to install over it (UnsafeDrift) — falling through to
-    //   home would silently install elsewhere while leaving the
-    //   broken workspace file as-is.
-    // - **NotFound**: keep walking.
-    //
-    // Council remediation (kernel MAJOR): previous code stopped on
-    // any successful parse, regardless of whether the anvil entry was
-    // present. That diverged from `probe_one` and caused duplicate
-    // entries when workspace had non-anvil servers and home had a
-    // valid anvil entry.
+    // Walk config paths like probe_one: return on anvil entry or parse/I/O error
+    // (UnsafeDrift — never overwrite broken foreign files); continue on NotFound
+    // or parse-ok-without-anvil entry (keeps walking higher-priority scopes).
     let paths = client.config_paths(workspace, home);
     let mut absent_fallback: Option<(ConfigCandidate, ParsedConfig)> = None;
 

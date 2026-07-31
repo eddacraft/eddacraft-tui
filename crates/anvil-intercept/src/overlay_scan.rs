@@ -1,33 +1,6 @@
-//! GBASE-004 (ADR-105 §1): scope the ADR-085 executor to a worktree's
-//! **changed-vs-base** files and produce the composable [`OverlayFragment`].
-//!
-//! This is the intercept-side computation behind the graph-cache
-//! [`anvil_graph_cache::overlay`] types. It reuses exactly the full-scan
-//! executor's machinery — the gitignore-aware, DoS-capped
-//! [`walk_gitignored`](crate::workspace_pool::walk_gitignored) for the worktree
-//! side and the injected [`SymbolParser`] feed for parsing — but instead of
-//! rebuilding a whole warm graph it computes only the small overlay ADR-105 keeps
-//! worktree-private:
-//!
-//! 1. **Changed-set detection (cheap, no parse).** Walk the worktree, read each
-//!    file through the openat2-guarded [`WorkspaceAnchor`], and recompute its
-//!    [`anvil_kernel_types::content_hash`]. Compare that map to the base's
-//!    `file_hashes` table via [`classify_changes`] — a pure, content-hash
-//!    authoritative diff (no git subprocess: a dirty tree has no committed state
-//!    to trust, ADR-105 §1). This gives added / modified / deleted.
-//! 2. **Scoped parse (the expensive part, changed files only).** Parse **only**
-//!    the added + modified files through the injected parser — the base already
-//!    holds the unchanged majority, so the overlay never re-parses it (the
-//!    ADR-105 sharing win). Each parse yields the [`FileSymbols`] the fragment
-//!    carries as an upsert.
-//! 3. **Fragment assembly.** Upserts for added+modified; tombstones for
-//!    deletions **and** the base shadow of every modified file; the exact
-//!    changed-set provenance; and the walk's bounded/unbounded coverage.
-//!
-//! The daemon itself stays parser-free (ADR-061/064): like the full-scan
-//! executor, the [`SymbolParser`] is **injected** — the base producer and this
-//! overlay computation both run where the parser links (the CLI binary), never in
-//! the resident daemon crate.
+//! GBASE-004: compute a worktree overlay fragment (walk/hash/classify dirty
+//! files) for compose against a shared base.
+
 #![cfg(any(unix, windows))]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -808,26 +781,8 @@ mod tests {
         );
     }
 
-    // =======================================================================
-    // GBASE-007 layer (ii): the REAL end-to-end pipeline parity anchor.
-    //
-    // The graph-cache golden (layer (i)) composes hand-scripted fragments — fast,
-    // hermetic, byte-pinned. This layer runs the **production** overlay pipeline
-    // — a base built via the producer shape, its `SnapshotPayload` round-tripped
-    // through the sealed base bytes, the worktree dirtied on disk, then the REAL
-    // `compute_overlay` (openat2-guarded walk + content hashing + scoped parse) →
-    // `compose` — and asserts the composed graph is identical to a **cold scan of
-    // the dirtied on-disk state**. This is what makes the golden honest: it
-    // exercises the actual walk/hash/classify/parse path, not a fragment a test
-    // hand-wrote. Layer (i) localises a regression to a byte diff; layer (ii)
-    // proves the real machinery upholds `compose == cold scan` on the ADR-105 §3
-    // reconstructable (import) contract.
-    //
-    // The reexport/call divergence (the recorded imports-only exclusion) is pinned
-    // precisely at layer (i); the minimal test parser here does not extract
-    // re-exports, so it is naturally out of scope for this layer — the compose-level
-    // structural gap is the graph-cache golden's job, not the pipeline's.
-    // =======================================================================
+    // GBASE-007 layer (ii): production overlay pipeline vs cold scan parity.
+    // Layer (i) golden pins compose shape; this exercises real walk/hash/parse.
 
     use anvil_graph_cache::{compose, re_resolve_imports};
     use anvil_kernel_types::{EdgeType, SymbolIdentity};

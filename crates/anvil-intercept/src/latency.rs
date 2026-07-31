@@ -1,65 +1,7 @@
-//! INTD-011: sliding-window latency aggregator for daemon-side
-//! `validation.service` measurements.
+//! INTD-011: sliding-window latency aggregator for daemon
+//! `validation.service` timings.
 //!
-//! ## Scope
-//!
-//! This module owns one job: collect `validation.service` durations
-//! observed by the daemon's mid-edit code path (the `scan_buffer` RPC
-//! per ADR-031, `mode = midEdit`, `boundary = validation.service`) and
-//! roll them up into p50 / p95 percentiles over a sliding window. The
-//! rollup feeds `anvil intercept status` so the demo-runbook §1.5
-//! trust-signal line is sourced from real measurements rather than
-//! pre-seeded estimates.
-//!
-//! ## Window policy
-//!
-//! The rollup window is **the last 100 mid-edit calls or the last
-//! 60 seconds, whichever bounds first**. Both bounds apply on every
-//! sample insertion, so a quiet daemon evicts old samples by age and a
-//! busy daemon evicts old samples by count. INTD-011 pins both bounds.
-//!
-//! When the window is empty (no mid-edit traffic has been observed
-//! yet) the aggregator returns `None`. The render layer renders this
-//! as `latency: (no mid-edit traffic yet)` rather than `0ms / 0ms`,
-//! per the INTD-011 "report reality" hard rule.
-//!
-//! ## Concurrency model
-//!
-//! The aggregator is a `Mutex<VecDeque<Sample>>`. The hot mid-edit
-//! path pays:
-//!
-//! 1. `Instant::now()` (one syscall),
-//! 2. `Mutex::lock()` (uncontended in the steady state — one
-//!    daemon-internal `record_mid_edit` call per RPC),
-//! 3. one `pop_front` while-loop bounded by `MAX_SAMPLES`,
-//! 4. one `push_back` of an 8-byte timestamp + 8-byte duration.
-//!
-//! The lock-hold time is well under a microsecond on the
-//! `latency::tests::aggregator_record_is_sub_microsecond` benchmark
-//! recorded inline below; the council-required hot-path contention
-//! check pins it. Switching to a lock-free structure (e.g.
-//! `crossbeam::queue::ArrayQueue`) would buy us nothing under the
-//! `MAX_CONCURRENT_SCAN_BUFFERS = 2` semaphore in `midedit.rs` —
-//! contention is provably bounded to the two scan-buffer worker
-//! threads plus the snapshot caller, and a parking-lot mutex resolves
-//! that in nanoseconds. The simple primitive wins.
-//!
-//! Snapshot reads (`anvil intercept status`) take the same lock and
-//! pay an O(N log N) sort to compute percentiles. They run off the
-//! hot path — every status query is operator-initiated — so the cost
-//! is irrelevant compared to the IPC round-trip itself.
-//!
-//! ## Cold vs warm samples
-//!
-//! ADR-031 separates cold-start measurements from warm percentiles for
-//! **CI / regression gates**. INTD-011 is an **operator trust signal**
-//! — the operator wants to see whatever the daemon has actually been
-//! doing in the last 100 calls / 60 seconds, including any cold-start
-//! outlier from the first call after `anvil intercept start`. The CI
-//! regression-gate path is INTD-014's `ipc_roundtrip` bench, which
-//! tags `daemonState` and reports cold/warm separately in the
-//! benchmark dashboard. The status surface here intentionally does
-//! NOT segregate them.
+//! Records samples and exposes percentiles for health / status; no I/O.
 
 use std::collections::VecDeque;
 use std::sync::Mutex;

@@ -57,37 +57,9 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
 
     let _ = writeln!(out, "  watch: {}", d.watch.label());
 
-    // LAUNCH-011: surface the literal "MCP pre-write validation is
-    // not attached" note whenever the diagnostic does not have an
-    // already-conveys-the-partial-state signal AND the surrounding
-    // state makes the note actionable.
-    //
-    // Council remediation (round 2): suppress the note when MCP is
-    // wired-or-live (`RestartRequired+`). At `RestartRequired`, the
-    // headline already says "Ready, restart required — restart your
-    // editor or agent so the MCP server attaches", which carries the
-    // partial-protection message without needing the note. Adding
-    // the note there with no `watch: offered` line just produces
-    // orphaned watch-fallback copy that nudges the user toward watch
-    // when they should restart. The renamed `mcp_pre_write_wired_or_live`
-    // predicate is the honest gate for this.
-    //
-    // Suppressed in five cases:
-    // - MCP at `RestartRequired+` (headline + restart hint already
-    //   communicate the partial state; note would orphan watch copy)
-    // - `Error` — the surface should report the cause, not hedge
-    //   with a fallback advisory the user cannot act on until the
-    //   error clears
-    // - `Unsupported` — the headline + repair hint already explain
-    //   the language coverage gap; the watch fallback would not
-    //   produce findings on unsupported files, so the note would
-    //   over-claim
-    // - `NeedsAction` with `ConfigStatus::Absent` — the user has
-    //   not run `anvil init` yet; the actionable next step is init,
-    //   not watch fallback. The note distracts from that primary
-    //   action.
-    // - `Protecting` (also covered by `mcp_pre_write_wired_or_live`,
-    //   but the explicit match is kept for readability)
+    // LAUNCH-011: "MCP pre-write validation is not attached" when not suppressed.
+    // Suppress if MCP is RestartRequired+ / live (`mcp_pre_write_wired_or_live`),
+    // or state is Error / Unsupported / Protecting, or NeedsAction+config absent.
     let suppress_note = d.mcp_pre_write_wired_or_live()
         || matches!(
             state,
@@ -2094,30 +2066,9 @@ mod tests {
     }
 
     // ---------------------------------------------------------------
-    // MLP2-051g: `anvil start --verify --why` verbose tier-evidence
-    // renderer. Pinned contracts (from the parent spec
-    // `plans/specs/2026-05-21-activation-daemon-evidence-wireup.md`
-    // §"Council Verdicts" item 9 and the MLP2-051g APS body):
-    //
-    // - Output starts with `ACTIVATION (verbose)` so an operator
-    //   reading stderr can tell at a glance which surface produced
-    //   the block.
-    // - The flag does NOT perturb the plain `render_human` stdout
-    //   block — same diagnostic input must produce identical
-    //   `render_human` output regardless of whether the caller also
-    //   asks for `render_human_verbose`.
-    // - DaemonAttestation surfaces as operator-friendly copy, never
-    //   the raw enum tokens (`Unreachable`, `NotProbed`, etc.) the
-    //   tracing site emits — support engineers map the trace token
-    //   to the runbook copy here.
-    // - The `daemon:` per-client line is gated on
-    //   `RestartHandshakeVerified`; clients below that tier don't
-    //   get a "daemon: …" sub-line because the daemon isn't the
-    //   missing piece for them.
-    // - Security guard: never leaks raw SessionRecord-shaped fields
-    //   (`pid`, `pgid`, `agent_tag` lineage), and never surfaces
-    //   filesystem paths beyond what `render_human` already prints.
-    // ---------------------------------------------------------------
+    // MLP2-051g: verbose `--why` tier evidence. Starts with
+    // `ACTIVATION (verbose)`; must not change plain `render_human` output.
+    // Operator-friendly daemon attestation only; no SessionRecord fields.
 
     #[test]
     fn verbose_render_header_marks_the_block() {

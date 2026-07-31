@@ -1,32 +1,4 @@
-//! OPSUP-006 — File-presence guards and wall-time caps.
-//!
-//! Pure evaluators that callers (gate dispatch, surface modules) consult
-//! before/after running a check. Two concerns:
-//!
-//! 1. **File-presence guards** — a check declaring file-shape patterns
-//!    short-circuits when none of the walked workspace files match. A repo
-//!    with no `.sql` files pays zero cost for a future SQL surface check.
-//! 2. **Wall-time caps** — a check declaring a budget surfaces a
-//!    `TimeoutReason` when its observed runtime exceeds the cap. The
-//!    evaluator does not cancel the check (Rust threads cannot be safely
-//!    pre-empted); it only labels the overrun so it is visible in results.
-//!
-//! Both evaluators are intentionally side-effect-free and accept already-
-//! gathered inputs (the walked file list, the measured `Duration`). This
-//! keeps them composable from any check site and trivial to test.
-//!
-//! ## Caller responsibilities
-//!
-//! * **Walked file list scope.** The gate dispatcher passes the full
-//!   `walk_source_files` result, which deliberately uses
-//!   `standard_filters: false` and `hidden: false` and so includes
-//!   `.github/`, vendor trees, and other conventionally-excluded
-//!   directories. A bare `*.yaml` pattern will therefore match CI
-//!   workflow files in repos that have any YAML at all. Surface and pack
-//!   authors should prefer `prefix/**` patterns over bare extension
-//!   globs whenever the file type is language-generic.
-//! * **No cancellation.** The wall-time guard is a soft budget — see
-//!   [`WallTimeGuard`].
+//! OPSUP-006: file-presence guards and wall-time caps for long-running checks.
 
 use std::time::Duration;
 

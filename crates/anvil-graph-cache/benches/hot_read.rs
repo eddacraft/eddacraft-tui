@@ -1,42 +1,6 @@
-//! GV2-025: the hot-read latency gate ADR-063 names but never shipped.
+//! Hot-read latency gate: p95 budget over admissible warm lookups.
 //!
-//! ADR-063 declares the resident hot-read API "admissible" only if it stays
-//! inside the ADR-031 interactive save-time budget, but until now nothing
-//! measured it. This bench closes that gap: it times all four [`HotReadApi`]
-//! allowlist categories — `resident_symbols`/`symbol_owner` (#1), `known_edge`
-//! (#2), `reverse_impact` at depth 1 and at the hard cap (#3), and
-//! `boundary_membership` (#4) — plus the A′ verdict entry ([`certify`]) over a
-//! versioned resident-graph corpus, reports p50/p95/p99, and **exits non-zero
-//! when any op's p95 exceeds the budget** — so the CI step that runs it is the
-//! gate, not a report.
-//!
-//! ## Why `harness = false` (and not a Criterion group)
-//!
-//! The repo's other ADR-031 latency gate — `anvil-intercept`'s `ipc_roundtrip`
-//! — is a hand-rolled `harness = false` `main()` that computes true percentiles
-//! and `process::exit(1)` on a breach. Criterion's statistical harness reports
-//! mean/median/slope with confidence intervals, not a p95 pass/fail exit code,
-//! so it cannot *gate* CI on an absolute budget. This bench follows the proven
-//! sibling so the two latency gates read and fail identically.
-//!
-//! ## Quiet-box / CI-box requirement
-//!
-//! These are sub-microsecond-to-microsecond in-process reads, three orders of
-//! magnitude under the 80 ms budget, so the gate has enormous headroom and is a
-//! *regression ceiling*, not a tight SLO — it tolerates a shared runner. Still,
-//! p95 is only meaningful on a box that is not paging or fighting for cores: run
-//! `cargo bench -p eddacraft-anvil-graph-cache --bench hot_read` on an otherwise
-//! idle machine (CI runs it on the dedicated resource-budget runner). The bench
-//! is pure in-process (no sockets, no filesystem, no threads), so unlike the
-//! watch/IPC benches it carries no inotify or daemon-startup flakiness and runs
-//! on every platform.
-//!
-//! ## Self-test hook
-//!
-//! Setting `ANVIL_BENCH_HOTREAD_STALL_MS=<n>` injects an `n` ms sleep into every
-//! measured read, driving p95 past the budget so CI can prove the gate actually
-//! trips on a synthetic regression (mirrors `ipc_roundtrip`'s
-//! `ANVIL_BENCH_VALIDATE_STALL_MS`).
+//! Pass/fail CI gate (not Criterion). `ANVIL_BENCH_HOTREAD_STALL_MS` self-test.
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};

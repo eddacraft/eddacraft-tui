@@ -1,34 +1,4 @@
-//! Capsule verification engine (GITGOV-009, ADR-074).
-//!
-//! Runs the closed-state checks over a capsule directory and combines
-//! them into a [`CapsuleVerification`] whose verdict obeys the ADR-074
-//! discipline: **missing evidence is `degraded`, never `pass`**, and a
-//! tool failure is `error` rather than an overclaimed verdict.
-//!
-//! Four checks, each a single [`CheckResult`]:
-//!
-//! - **`manifest-digests`** — self-contained integrity: every file the
-//!   manifest records must be present and hash to its recorded digest.
-//!   A tampered file is `block`; a missing/absent file is `degraded`.
-//! - **`witness-chain`** — reuses [`anvil_witness::verify_chain_dag`]
-//!   over the embedded `witness.ndjson` (the GITGOV-007 contract): a
-//!   chain break is `block`, an empty chain is `degraded`.
-//! - **`digests-vs-repo`** — the ADR-074 **repo-present** contract: the
-//!   capsule records *digests of repo files* (`policy`/`rules`/
-//!   `baseline`) and the resolved commit range, so verification
-//!   re-collects them from `repo_root` and compares. A divergence is
-//!   `degraded` (stale, or a different repo) — not `block`: the
-//!   `manifest-digests` check already proved the capsule's own files are
-//!   intact, so a mismatch here means the *repo* moved, which we must
-//!   not overclaim as tamper. Inability to re-collect is `degraded`.
-//! - **`exceptions`** — reuses [`anvil_policy::exceptions::verify_exception_at`]
-//!   (the EXCEPT-005 contract) over the applied exceptions: an
-//!   expired/revoked/invalid-scope applied exception is `block`, an
-//!   unattributed one is `degraded`; an empty set is `pass`.
-//!
-//! The engine is pure — it reads, classifies, and returns. Writing the
-//! result back into `verification.json` (and re-recording its digest) is
-//! the CLI's job.
+//! Capsule verification (GITGOV / ADR-074): recompute digests and check package integrity.
 
 use std::path::Path;
 

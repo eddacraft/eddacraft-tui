@@ -1,75 +1,8 @@
-//! GCALL-006: the save-time call-lift latency gate ADR-086 names.
+//! GCALL-006: save-time call-lift latency gate (ADR-086 / ADR-031).
 //!
-//! ADR-086 admits the symbol call graph onto the save-time hot path only if
-//! lifting a file's call sites into resident `EdgeType::Calls` edges stays inside
-//! the ADR-031 interactive save-time budget. GCALL-003 added that lift to
-//! `update_file` (`lift_calls_tracked`) and the daemon's forward-reference
-//! `re_resolve_calls`, but nothing measured it. This bench closes that gap: it
-//! times the two call-graph-specific save-time operations over a call-heavy
-//! resident corpus, reports p50/p95/p99, and **exits non-zero when either op's
-//! p95 exceeds the budget** — so the CI step that runs it is the gate, not a
-//! report.
-//!
-//! ## What it gates
-//!
-//! 1. `update_file` re-applying a 100-function module that emits ~300 call sites
-//!    (same-file fan-out + resolved cross-file calls) — the full per-save apply:
-//!    remove → re-add symbols → lift import edges → lift call edges. A large but
-//!    plausible single-file save, chosen as a stress ceiling, not the median.
-//! 2. `re_resolve_calls` over that file's call accumulator — the daemon's
-//!    forward-reference re-resolution pass that resolves callees not yet resident
-//!    at first save (mirrors `re_resolve_imports`).
-//!
-//! Both resolve to real resident edges (the bench asserts a non-trivial lift
-//! count up front), so the gate measures the true resolution + dedup + insert
-//! cost, never a no-op.
-//!
-//! ## Why the corpus is padded to a production-scale node count
-//!
-//! `resolve_import` now resolves a cross-file callee specifier through the
-//! `symbols_in_file` **file index** (O(1)), not the former
-//! `O(total_graph_nodes)` `node_weights().find(…)` scan (council ADV-4), so
-//! call-lift cost is no longer node-count-dependent. The corpus stays padded
-//! with [`RESIDENT_FILLER_SYMBOLS`] filler symbols to a mid-large-workspace node
-//! count anyway, as a standing regression guard: if a future change reintroduces
-//! a whole-graph scan on the lift path, the padded corpus surfaces it here
-//! instead of in production. The measured p95 lands well under budget (~6 ms at
-//! 50k nodes, ~13× under) and — now that the scan is indexed — holds flat as the
-//! node count grows.
-//!
-//! ## Why a max-density op
-//!
-//! ADR-086 §3 bounds a pathological, call-dense file with the per-file
-//! [`anvil_kernel_types::MAX_CALL_SITES`] cap, applied at extraction. The daemon
-//! therefore never lifts more than `MAX_CALL_SITES` call sites from one file, so
-//! the gate measures a third op at exactly that ceiling — the worst-case lift the
-//! cap admits — proving even a maximally-call-dense file's save stays inside the
-//! budget (council OPS-1).
-//!
-//! ## Why `harness = false` (and not a Criterion group)
-//!
-//! Same rationale as the sibling `hot_read` / `ipc_roundtrip` gates: Criterion
-//! reports mean/median with confidence intervals, not a p95 pass/fail exit code,
-//! so it cannot *gate* CI on an absolute budget. The kernel's Criterion
-//! `single_file_reparse_and_update` bench *measures* extraction+update; this one
-//! *gates* the call-lift component on the ADR-031 ceiling. This bench follows the
-//! proven `hot_read` shape so the latency gates read and fail identically.
-//!
-//! ## Quiet-box / CI-box requirement
-//!
-//! These are in-process graph mutations (no sockets, no filesystem, no threads)
-//! that land more than an order of magnitude under the 80 ms budget, so the gate
-//! is a *regression ceiling*, not a tight SLO — it tolerates a shared runner.
-//! Still, p95 is only meaningful on an idle box: CI runs it on the dedicated
-//! resource-budget runner. Being pure in-process, it carries no inotify or
-//! daemon-startup flakiness and runs on every platform.
-//!
-//! ## Self-test hook
-//!
-//! Setting `ANVIL_BENCH_CALLLIFT_STALL_MS=<n>` injects an `n` ms sleep into every
-//! measured op, driving p95 past the budget so CI can prove the gate actually
-//! trips on a synthetic regression (mirrors `hot_read`'s
-//! `ANVIL_BENCH_HOTREAD_STALL_MS`).
+//! Times `update_file` call-lift and `re_resolve_calls` over a dense corpus;
+//! exits non-zero if p95 exceeds the budget. `ANVIL_BENCH_CALLLIFT_STALL_MS`
+//! forces a trip for CI self-test. Not a Criterion report — a pass/fail gate.
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};

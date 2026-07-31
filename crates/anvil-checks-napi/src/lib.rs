@@ -1,44 +1,4 @@
-//! Node-API binding for the authoritative Anvil scanner.
-//!
-//! Wire shape is intentionally JSON-in / JSON-out. The binding is an internal
-//! CLI-acceleration path per ADR-030 (not published to npm, not consumer-facing
-//! via `VSCode` or MCP — those surfaces go through the intercept daemon in DRVR).
-//!
-//! **The binding's JSON is NOT identical to `anvil check --json`.** The CLI
-//! wraps multiple files in an aggregate `CheckOutput` and projects warnings
-//! through a narrow `JsonWarning` (flat `file`/`line`, ~9 fields). This
-//! binding emits a per-artifact `ScanResultOutput` carrying the full
-//! `Warning` struct (~17 fields, nested `location`). Both shapes derive
-//! from the same `scan_artifact` call, so the warning *content* is parity
-//! by construction — the *envelope* is deliberately different because the
-//! binding operates one artifact at a time and exposes the richer Warning
-//! fields consumers may want. Document any consumer that crosses both
-//! surfaces.
-//!
-//! ## Registry-load behaviour
-//!
-//! Every entry point needs the compiled pattern registry
-//! (`patterns/compiled/registry.json`). The underlying loader resolves it
-//! in this order (see `anvil_checks::antipattern::registry_loader`):
-//!
-//!   1. `ANVIL_REGISTRY_PATH` env var override.
-//!   2. Upward walk from the current working directory.
-//!   3. Upward walk from the executable's directory — so discovery still
-//!      works when the host process is launched with a CWD outside the
-//!      monorepo (editor extensions, installed binaries).
-//!   4. The compile-time-embedded registry — the production path for stock
-//!      installs, so a binary that finds nothing on the walks still scans
-//!      against a matching catalogue instead of disabling enforcement.
-//!
-//! Because of the embedded fallback, a *missing* on-disk registry is **not**
-//! a hard failure: the binding falls through to the embedded catalogue and
-//! scans normally. Entry points return a `GenericFailure` only when a
-//! registry actually resolved but could not be loaded — an I/O read error, or
-//! a parse / schema-validation failure (a real corruption signal) — or,
-//! pathologically, when even the embedded catalogue fails to load. What they
-//! never do is silently return an empty catalogue or a zero-warning scan: the
-//! silent-empty failure mode the
-//! 2026-04-24 council review flagged as critical C1.
+//! N-API bindings exposing anvil checks to Node/TypeScript tooling.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 

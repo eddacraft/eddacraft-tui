@@ -1,37 +1,4 @@
-//! Best-effort Python module → file resolution for boundary analysis
-//! (PYLAN-006).
-//!
-//! The kernel Python extractor (PYLAN-002) emits one import edge per imported
-//! *module*, whose `to_source` is the module string exactly as written:
-//!
-//! - absolute: `os`, `foo.bar` (no leading dot);
-//! - relative: a leading-dot prefix preserved — `.` (current package),
-//!   `.sibling`, `..pkg`, `..pkg.sub`;
-//! - star (`from foo import *`) records the module `foo` like any other.
-//!
-//! The architecture validator matches edges to layers by *file* path. This
-//! module bridges the two: it maps a Python module reference, relative to the
-//! importing file, to the workspace-relative `.py` file that defines it.
-//!
-//! It is **conservative by construction**, matching [`rust_resolve`](crate::rust_resolve):
-//! when a reference can't be resolved to a file on disk (a stdlib or
-//! third-party module like `os` / `numpy`, a namespace package with no
-//! `__init__.py`, an `importlib` dynamic import) it returns `None` and the edge
-//! is dropped. A missed edge is a missed drift signal, never a false boundary
-//! violation — Anvil's "warnings over blocks, new edges only" posture.
-//!
-//! Resolution rules:
-//! - **absolute** `foo.bar` → the first of `foo/bar.py`, `foo/bar/__init__.py`,
-//!   `src/foo/bar.py`, `src/foo/bar/__init__.py` that exists (flat and `src/`
-//!   layouts). A module that exists nowhere in the tree is external → `None`.
-//! - **relative** with `N` leading dots → start at the importing file's own
-//!   package directory, climb `N - 1` further parents, append the remainder
-//!   (the text after the dots), then resolve `<path>.py` / `<path>/__init__.py`.
-//!   Climbing above the workspace root yields `None`.
-//!
-//! `#[path]`-style redirects, re-exports beyond the file target, and
-//! `importlib.import_module(...)` are out of scope (documented in the PYLAN
-//! module).
+//! PYLAN-006: best-effort Python module string → workspace `.py` resolution.
 
 use std::path::{Path, PathBuf};
 

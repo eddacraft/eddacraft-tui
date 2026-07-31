@@ -1,67 +1,7 @@
-//! INTD-008: daemon-side enforcement config loader.
+//! INTD-008: daemon enforcement config loader.
 //!
-//! Reads the `enforcement` block from the project `.anvil.yaml` and an
-//! optional user-level config, merges with **stricter-wins** semantics,
-//! and resolves the daemon's runtime enforcement policy. The wire shape
-//! is owned by `anvil_intercept_proto::enforcement_config` so the MCP
-//! launch shim (RTAI-006) and the daemon cannot drift on which keys /
-//! aliases are accepted; this module only owns IO, defaults, merging,
-//! and the daemon-specific resolved enum.
-//!
-//! See `plans/decisions/015-intercept-loop-enforcement.md` (AD-3) for
-//! the policy contract and `plans/modules/intercept-daemon.aps.md`
-//! INTD-008 for the work-item scope.
-//!
-//! ## Shared enforcement posture (ADR-098 AD-3)
-//!
-//! Since ADR-098 AD-3 the daemon [`Mode`] is the shared
-//! [`anvil_kernel_types::EnforcementMode`] — the daemon and the MCP shim
-//! (`crates/anvil-cli/src/mcp/enforcement.rs`) both fold into one posture
-//! type with one alias table, so the two surfaces can no longer drift on
-//! which values / aliases they accept. The single alias table lives in
-//! kernel-types; this module owns only IO, defaults, and the merge.
-//!
-//! Daemon resolution (via the shared [`Mode::parse`]):
-//!
-//! | Raw YAML value         | Resolved [`Mode`]        |
-//! | ---------------------- | ------------------------ |
-//! | `off` / `advisory` /   | `Mode::Off`              |
-//! | `proceed`              | (real posture now)       |
-//! | `warn`                 | `Mode::Warn`             |
-//! | `fence`                | `Mode::Fence`            |
-//! | `interrupt` / `block`  | `Mode::Interrupt`        |
-//! | unknown / missing      | default (`Mode::Warn`)   |
-//!
-//! `off` is a real posture now — it projects to always-`Allow` in the
-//! embedded pipeline. Before AD-3 the daemon clamped `off`/`advisory`/
-//! `proceed` to `Warn` because it had no `off` branch; the shared type
-//! gives it one, and the `fence` / `interrupt` distinction (previously
-//! collapsed to `Block` at parse time by the MCP shim) is preserved for
-//! action-time projection.
-//!
-//! The daemon's default mode is `Warn` — observe-only-style
-//! defaults align with the planless-first principle. Operators
-//! opt into fencing or interruption; the daemon does not invent
-//! enforcement.
-//!
-//! ## Stricter-wins merge
-//!
-//! Project `.anvil.yaml` (`<workspace_root>/.anvil.yaml`) and the
-//! optional user-level `.anvil.yaml`
-//! (`$XDG_CONFIG_HOME/anvil/anvil.yaml` or platform equivalent —
-//! resolved by the caller, not this module) are merged so the
-//! **stricter** of the two wins per field:
-//!
-//! - `mode`: `Interrupt > Fence > Warn`. The strictest project /
-//!   user mode wins. This prevents a user-level config from
-//!   weakening a project's enforcement.
-//! - `on_ambiguous_ownership`: `Fence > Warn`. The strictest wins.
-//!   In addition, the resolved value is **hard-capped at `Fence`**
-//!   regardless of either input — AD-3's invariant.
-//! - `observe_only`: `false > true`. If either side requests
-//!   active enforcement (`observe_only: false`), the daemon
-//!   enforces. The "weaker" choice (`observe_only: true`) only
-//!   wins when both sides agree (or default is unset).
+//! Reads the `enforcement` block from project `.anvil.yaml` (and layered
+//! defaults) into the runtime config the save-time path consumes.
 
 use std::path::{Path, PathBuf};
 

@@ -1,36 +1,4 @@
-//! MLP2-046: dedicated `anvil l4-validate <commit-range>` subcommand.
-//!
-//! The pre-push hook today (`anvil hook pre-push`) already executes the
-//! [`anvil_l4`] pipeline against unwitnessed commits as part of git's
-//! pre-push contract — reading `<local-ref> <local-sha> <remote-ref>
-//! <remote-sha>` lines from stdin. The CI / Marketplace lanes do not
-//! sit inside git's hook surface, so they need a binary they can invoke
-//! with an explicit commit range and inspect the exit code without
-//! teaching CI to forge git's pre-push stdin shape.
-//!
-//! This subcommand is that binary:
-//!
-//! ```text
-//! anvil l4-validate <REMOTE_SHA>..<LOCAL_SHA> [--branch=<name>]
-//! anvil l4-validate <LOCAL_SHA>              [--branch=<name>]   # ancestry walk
-//! ```
-//!
-//! Semantics mirror the pre-push hook 1:1:
-//!
-//! 1. Walk the commit range with `git rev-list`.
-//! 2. Resolve the branch's [`anvil_l4::Policy`] rule.
-//! 3. For each unwitnessed commit, decide via [`anvil_l4::Policy::resolve`]
-//!    and run [`anvil_l4::validate_at_l4`] against the default
-//!    [`crate::l4_engine::CommitAntipatternEngine`] — the real
-//!    `anvil-checks` antipattern pipeline run against the commit's
-//!    tree via git plumbing. Tests substitute fixture engines via
-//!    [`run_with_engine`].
-//! 4. Exit non-zero when any commit blocks; otherwise exit zero.
-//!
-//! The template's `anvil hook pre-push` invocation can swap to
-//! `anvil l4-validate` in a follow-up patch — the binary surface is
-//! ready today, but the swap is gated on the template-render path
-//! catching up (separate APS).
+//! `anvil l4-validate` — run the production L4 `ValidationEngine` on a commit.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};

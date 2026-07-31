@@ -1,38 +1,4 @@
-//! Witness collector (GITGOV-007, ADR-074).
-//!
-//! Collects the **complete witness chain** a capsule packages as
-//! `witness.ndjson`: every rollover archive segment plus the active
-//! file, in [`anvil_witness::witness_paths`] walk order, copied
-//! **verbatim**. The chain is shipped whole — not subset to the
-//! capsule's commit range — because [`anvil_witness::verify_chain_dag`]
-//! is genesis-anchored with a gap-free `seq` walk and cannot verify a
-//! mid-chain extract (ADR-074). The manifest's
-//! `witness_seq_start`/`witness_seq_end` instead *mark* the PR-relevant
-//! window into that whole chain: the `seq` span of the witness lines
-//! attesting commits inside the range.
-//!
-//! Two consequences of "verbatim, no re-modelled extract":
-//!
-//! - The collector never re-canonicalises a line: each segment's bytes
-//!   are copied unchanged. The only edit is a single `\n` inserted
-//!   *between* segments when one lacks a trailing newline (the boundary
-//!   guard below) — never a byte within a line. So the capsule witness
-//!   is the same evidence the enforcing hook wrote, and the verifier
-//!   (GITGOV-009) re-runs the *same* [`anvil_witness::verify_chain_dag`]
-//!   over the single collected file, with no partial-chain special-casing.
-//! - Segment boundaries are preserved as line boundaries. Witness
-//!   segments are newline-terminated NDJSON; the collector still
-//!   guards a `\n` boundary between concatenated segments so a segment
-//!   that ever lacked a trailing newline cannot glue its last line
-//!   onto the next segment's first.
-//!
-//! Absence vs breakage mirrors the digest collector (GITGOV-006). A
-//! repo with no witness tree yet (fresh adoption) collects as an empty
-//! chain — present-but-empty `witness.ndjson`, the verifier's
-//! `degraded` signal, never `pass`. A witness segment that exists but
-//! cannot be read, or carries a line that will not parse, fails
-//! collection loudly ([`CapsuleError::Collect`]): a capsule must not
-//! launder present-but-broken evidence as absence.
+//! Collect witness-chain evidence for a capsule commit range (GITGOV).
 
 use std::collections::BTreeSet;
 use std::path::Path;

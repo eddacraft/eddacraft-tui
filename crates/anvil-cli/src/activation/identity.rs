@@ -1,75 +1,9 @@
-//! Project identity (MLP-001 / A7.2).
+//! Project identity (MLP-001): read/write `anvil/project-id`.
 //!
-//! Writes and reads `anvil/project-id` — the tracked file that carries
-//! the cross-machine project identity for the multi-layer protection
-//! architecture (ADR-036 §D-2, ADR-037 §D-1).
-//!
-//! ## File format
-//!
-//! Plain text, one `key: value` per line. Lines starting with `#` are
-//! comments; blank lines are ignored. Required field: `project_uuid`.
-//! Optional: `created_at`, `created_by_version`, `forked_from`,
-//! `first_commit`, `origin_canonical`.
-//!
-//! Example:
-//!
-//! ```text
-//! # anvil project identifier — see https://github.com/eddacraft/anvil
-//! project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
-//! created_at: 2026-05-07T12:34:56Z
-//! created_by_version: 0.6.0
-//! ```
-//!
-//! For forks (vNext richer support; v1 just records the parent):
-//!
-//! ```text
-//! project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
-//! forked_from: 9b8a7c6d-5e4f-3210-fedc-ba0987654321
-//! ```
-//!
-//! ## Idempotency
-//!
-//! `ensure_project_id` is idempotent: if `anvil/project-id` already
-//! exists and parses, it returns the existing identity. If the file
-//! exists but is malformed, the orchestrator surfaces a warning but
-//! does NOT overwrite — the user must repair manually (anvil-managed
-//! files don't get silently rewritten).
-//!
-//! ## Forward compatibility
-//!
-//! Unknown keys in the file are silently ignored on parse — they are
-//! NOT round-tripped through `render()`. Future additions
-//! (`first_commit`, `origin_canonical`, etc.) will extend this struct
-//! as recognised fields; existing files stay valid because the parser
-//! tolerates the unknown keys until the new version recognises them.
-//! If hand-edited extra keys are added to the file and the file is
-//! later rewritten by anvil tooling, the extras will be lost.
-//!
-//! ## Composite identity check (MLP2-003)
-//!
-//! [`ProjectIdentity`] optionally carries `first_commit` (root commit
-//! SHA from `git rev-list --max-parents=0 HEAD`) and
-//! `origin_canonical` (canonicalised `remote.origin.url`).
-//! [`ProjectIdentity::verify_against_worktree`] runs those git
-//! commands against a live worktree and compares — the daemon
-//! invokes it on attach to detect renamed origins, rebased histories,
-//! or `anvil/project-id` files that have been copied between
-//! unrelated repos.
-//!
-//! Returns [`IdentityCheck::Match`] on a clean pass,
-//! [`IdentityCheck::Mismatch`] on disagreement, and
-//! [`IdentityCheck::ForkedFromParent`] when the file's `forked_from`
-//! field is set and the live git state matches what a fork would
-//! produce — see the variant docs for the trust model.
-//!
-//! ## What this module does NOT do
-//!
-//! - Compute or verify `forked_from` lineage beyond surface-level
-//!   parent-uuid presence: actually cross-checking the parent
-//!   project's `first_commit` lives in a future task that wires the
-//!   parent's identity into the verification path.
-//! - Migration when `project_uuid` changes (deferred per direction).
-//! - Stage the file via git — that's the orchestrator's caller's job.
+//! Plain `key: value` text; required `project_uuid`. [`ensure_project_id`] is
+//! idempotent and never overwrites a malformed file. Unknown keys ignored on
+//! parse (not round-tripped). Optional composite check via
+//! [`ProjectIdentity::verify_against_worktree`] (MLP2-003).
 
 use std::fmt::Write as _;
 use std::fs;

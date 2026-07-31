@@ -1,63 +1,9 @@
-//! USAGE-001: command-invocation usage observations.
+//! USAGE-001: CLI `command.invoked` usage observations.
 //!
-//! Records one `command.invoked` Kindling row per user-initiated CLI
-//! invocation so the founder can answer "who is using what" for
-//! dev-investment decisions (module: `plans/modules/usage-analytics.aps.md`).
-//!
-//! ## What is captured
-//!
-//! Per the privacy contract published at
-//! `docs/observability/usage-analytics.md`: the command name, an
-//! anonymised principal (one-way hash of the user's email with a
-//! per-deployment salt — or the literal `anonymous` when unauthenticated),
-//! a timestamp, the *redacted shape* of each argument (name plus value
-//! type, coarse length bucket, and presence — never the value), an
-//! inline `flag_set`
-//! (empty in USAGE-001; USAGE-002 populates it per ADR-041), and the
-//! incoming W3C `traceparent` when one is bound.
-//!
-//! ## What is NOT captured
-//!
-//! Raw argument values, command results/output, file contents, and
-//! anything about the *value* of a sensitive-named argument. Argument
-//! redaction defers to [`anvil_observability::redaction`] — the same
-//! `SENSITIVE_FIELDS` deny-list the tracing pipe uses.
-//!
-//! ## Storage
-//!
-//! Usage is a cross-cutting, user-scoped signal (not per-repository),
-//! so rows are appended to `<credentials_dir>/kindling/usage.ndjson` —
-//! the user/deployment state directory, which re-roots under a gated
-//! `ANVIL_HOME` (DISTRIB-006 / ADR-060) exactly like credentials. This
-//! mirrors the audit-chain NDJSON sidecar pattern; the
-//! Kindling-integration consumer tails the file. The Rust→TS `SQLite`
-//! bridge remains a stack-wide deferred follow-up and is out of scope
-//! here.
-//!
-//! ## Producer wiring
-//!
-//! [`record_invocation`] is called once from `main`, **after the
-//! auth/routing phase** (so `flag_set` carries the flags resolved while
-//! authorising — USAGE-002) but **before command dispatch**, on both the
-//! auth-pass and auth-fail paths. It fires uniformly for *every* command:
-//! there is no per-command wiring to forget — adding a new subcommand
-//! cannot bypass the producer (R2 mitigation). Emission is strictly
-//! best-effort: a failure is logged and dropped, never surfaced to the
-//! exit code.
-//!
-//! ## JSON-RPC daemon producer (USAGE-004)
-//!
-//! USAGE-001 surfaced that the JSON-RPC daemon dispatch boundary
-//! (`anvil-intercept::ipc`) carries no user principal and no flag
-//! resolver. USAGE-004 resolves that: the client now attaches its
-//! salted-hash principal on the JSON-RPC envelope, and the daemon emits
-//! a `command.invoked` row for an explicit allowlist of user-initiated
-//! methods (the GCTX query tools + the operator `unblock-*` verbs) via
-//! [`daemon_usage_emitter`]. Since KDS-005 the daemon producer writes to the
-//! Kindling daemon (a capped spool fallback under `<credentials_dir>/kindling/`),
-//! NOT the sidecar; the CLI producer ([`record_invocation`]) still writes the
-//! sidecar via [`default_usage_log_path`]. `flag_set` stays empty on the daemon
-//! path (no resolver there).
+//! Best-effort Kindling rows: command name, salted principal (or `anonymous`),
+//! redacted arg shapes — never raw values. Written under credentials/Kindling
+//! paths. Wired once from `main` for every command; failures never affect exit
+//! code. Daemon path: USAGE-004 allowlisted methods via [`daemon_usage_emitter`].
 
 use std::env;
 use std::ffi::OsStr;

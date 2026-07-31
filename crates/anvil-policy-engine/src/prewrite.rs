@@ -1,59 +1,6 @@
 //! Save-time / pre-write policy input adapter (OPAE-006).
 //!
-//! A [`PrewriteInput`] is the single, deterministic assembly of the facts a
-//! save-time / pre-write policy evaluation needs: the changed paths (with their
-//! [change kinds](crate::context::assertion::ChangeKind)), the
-//! [workflow phase](crate::context::WorkflowPhase), a bag of config values, and
-//! optional [graph facts](GraphFacts). It exists so the two policy surfaces that
-//! run at the pre-write boundary — Rego packs (which consume a
-//! [`PolicyInput`]) and CPOL assertions (which consume an [`AssertionContext`])
-//! — evaluate the **same** change set without either side recomputing it.
-//!
-//! ## Single source, two projections
-//!
-//! [`PrewriteInput::to_policy_input`] and [`PrewriteInput::to_assertion_context`]
-//! are pure projections of the one normalised fact set, so the two surfaces are
-//! guaranteed to see identical changed paths. Build once, project twice.
-//!
-//! ## Determinism contract (ADR-040 D-2)
-//!
-//! Like the CPOL adapters, this builder **transforms facts it is handed** — it
-//! never reads the clock, the filesystem, or the environment.
-//! [`PrewriteInput::from_parts`] normalises ordering (changed paths sorted and
-//! de-duplicated, config keyed by a [`BTreeMap`]) so equal facts always yield an
-//! equal input regardless of the order they arrive in.
-//!
-//! ## Pre-write boundary (ADR-098 AD-4)
-//!
-//! Per ADR-098 AD-4 the pre-write boundary is existing off-daemon surfaces only
-//! (MCP `anvil_validate_write`, `anvil gate`, CI); no policy family joins the
-//! daemon's `validate_paths` hot path, and `regorus` / `anvil-policy*` stay
-//! forbidden on the resident daemon. This adapter builds the input those
-//! off-daemon surfaces evaluate; it does not itself evaluate anything.
-//!
-//! ## Scope of the pre-write projection
-//!
-//! The pre-write path is **changed-path-shaped only**. [`to_policy_input`] runs
-//! on an interactive save path that deliberately does **not** perform a full
-//! workspace file walk or build a dependency graph (that is the always-on
-//! daemon's job, and ADR-098 AD-4 keeps policy off it). It therefore produces a
-//! [`PolicyInput`] populated only from the handed-in change set and optional
-//! [`GraphFacts`]:
-//!
-//! - Packs that read only the change set (`input.diff.changed_files`) work as
-//!   intended.
-//! - Packs that need the **whole repository file list** (`input.repo_state`) or
-//!   the **dependency edges** (`input.diff.new_edges` / `input.repo_state.edges`
-//!   — e.g. an architecture-boundary pack) do **not** see a complete graph here
-//!   and must run at `anvil gate`, where the full graph is available. The
-//!   pre-write projection leaves those fields partial/empty rather than
-//!   fabricating them with different semantics from the gate path.
-//!
-//! [`PrewriteInput::supports_edge_packs`] exposes this limit as a queryable,
-//! compiler-visible signal so a caller can steer edge-based packs to the gate
-//! instead of silently evaluating them against an empty edge set.
-//!
-//! [`to_policy_input`]: PrewriteInput::to_policy_input
+//! Assembles a deterministic [`PrewriteInput`] of facts for policy evaluation.
 
 use std::collections::BTreeMap;
 use std::time::Duration;

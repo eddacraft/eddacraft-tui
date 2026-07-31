@@ -923,31 +923,10 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
     // `anvil check --format json` from leaking a human line onto the
     // stream instead of the structured auth envelope.
     let json_mode = global.json || wants_json;
-    // Local dev bypass: ANVIL_DEV=1 resolves through the shared resolver's
-    // local-override precedence on `cli.licence-gate`. Routing via the
-    // resolver (rather than an inline env-var read) means override
-    // telemetry, reason codes, and future override sources all share one
-    // code path. Safety rationale is unchanged from the legacy bypass:
-    //   - All API calls still require a real token server-side.
-    //   - This only bypasses the local credential pre-check.
-    //   - Commands that call the API will fail with a 401 anyway.
-    //   - Intended for CLI UX testing without a live token.
-    // USAGE-002: resolve `cli.licence-gate` once here so the gating policy
-    // is consulted — and recorded as auth context on the usage row via the
-    // open capture window — on every gated invocation, in production as
-    // well as under `ANVIL_DEV`.
-    //
-    // USAGE-005: the resolved gate now *drives* the local credential
-    // pre-check. The decision table lives in
-    // `feature_flags::local_auth_precheck` (dev-bypass → Skip; `disabled`
-    // variant → Skip; `enabled` → Enforce). A Skip runs the command without
-    // a local credential check; for the local-only gated commands (which
-    // never call the server) that means they run fully ungated — the
-    // intended meaning of a `disabled` licence gate. The network-touching
-    // commands (`auth`, `mcp`) still require a valid server token, so the
-    // server backstops those even on a Skip. The manifest default is
-    // `enabled`, so production behaviour is unchanged unless an
-    // operator/targeting rule disables the gate.
+    // Licence-gate pre-check via feature_flags::resolve_cli_licence_gate /
+    // local_auth_precheck (USAGE-002/005). ANVIL_DEV and disabled gate → Skip
+    // (local-only commands ungated; network commands still need a real token).
+    // Default is Enforce. Bypassing only skips the local credential pre-check.
     let licence_gate = feature_flags::resolve_cli_licence_gate();
     if let feature_flags::LocalAuthPrecheck::Skip(reason) =
         feature_flags::local_auth_precheck(&licence_gate)

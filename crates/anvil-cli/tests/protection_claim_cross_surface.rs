@@ -1,42 +1,7 @@
-//! MLP2-051e: cross-surface `ProtectionClaim` parity.
+//! MLP2-051e: ProtectionClaim parity across status / doctor / MCP surfaces.
 //!
-//! Three Rust render surfaces emit the §14 closed-set
-//! `ProtectionClaim`:
-//!
-//! 1. `anvil status --json` — `crates/anvil-cli/src/commands/status.rs`
-//!    via `protection_claim_section::resolve_protection_claim`.
-//! 2. `anvil doctor` — same helper through
-//!    `protection_claim_section::fetch_protection_claim_for_cwd`.
-//! 3. MCP shim `validate_write` — `crates/anvil-cli/src/mcp/
-//!    validation.rs::query_protection_claim`.
-//!
-//! All three converge on the public adapter
-//! [`anvil_intercept::status::build_protection_claim_from_wire`] when a
-//! live `DaemonStatusV1` snapshot is supplied. This test pins that
-//! convergence two ways:
-//!
-//! - **Output parity** (the test cases below): a fixed snapshot in →
-//!   the same `ProtectionClaim` out, regardless of how each surface
-//!   serialises it. The canonical pretty-printed JSON (with trailing
-//!   newline — same convention as the MLP2-049 fixtures) is saved
-//!   under `tests/fixtures/status_v1/cross_surface/<case>.json` so the
-//!   TS driver-client surface (`packages/anvil-driver-client/src/
-//!   protection_claim/cross_surface.test.ts`) reads the exact same
-//!   bytes the Rust helper produced. JSON formatting is irrelevant
-//!   for the parity contract itself — the TS leg parses via
-//!   `JSON.parse` — but pretty-printing makes the fixtures readable
-//!   in code review.
-//!
-//! - **Call-site pin** (`all_rust_render_surfaces_route_through_the_
-//!   shared_helper`): grep-style assertion that each surface's source
-//!   file still references the shared helper. A future refactor that
-//!   inlines or replaces the helper at one surface only — the failure
-//!   mode this test guards against — drops the marker and fails this
-//!   test before the divergence can land on `main`.
-//!
-//! Regenerate the fixtures with `ANVIL_UPDATE_FIXTURES=1 cargo test
-//! --test protection_claim_cross_surface` after an intentional change
-//! to the wire shape.
+//! Fixtures under `tests/fixtures/status_v1/cross_surface/`; regenerate with
+//! `ANVIL_UPDATE_FIXTURES=1`.
 
 use std::fs;
 use std::path::{Path, PathBuf};

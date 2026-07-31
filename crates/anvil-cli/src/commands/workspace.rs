@@ -1,34 +1,5 @@
-//! `anvil workspace` — DSV-008 (ADR-061 §7): manage the operator-level
-//! workspace **confinement** config the intercept daemon reads.
-//!
-//! The daemon's trust floor is `SO_PEERCRED` same-uid. Operators who want a
-//! tighter boundary switch admission to `allowlist` and list the roots the
-//! daemon may serve. This command is a thin caller of the read/modify/write
-//! helpers in [`anvil_intercept::confinement`] — the config shape, owner-only
-//! posture, and `ANVIL_HOME`/XDG path resolution all live daemon-side so the
-//! CLI and daemon cannot drift (the dependency runs `anvil-cli` →
-//! `anvil-intercept`, never the reverse).
-//!
-//! Subcommands:
-//!
-//! - `mode <open|allowlist>` — set the admission mode.
-//! - `allow <PATH> [--prefix]` — add an allow entry (exact, or a `--prefix`
-//!   subtree). Only meaningful in `allowlist` mode.
-//! - `deny <PATH>` — remove an allow entry.
-//! - `register [PATH] [--all] [--persist]` — register a worktree for durable
-//!   daemon protection (ACTMO-015/018); `--persist` also records it under the
-//!   `register_on_start` key so the daemon re-registers it on every startup
-//!   (ACTMO-019).
-//! - `unregister [PATH] [--persist]` — drop a worktree's durable protection
-//!   (idempotent); `--persist` also removes it from `register_on_start`.
-//! - `list` — show the admission mode, allow entries, the live registry, and the
-//!   `register_on_start` set.
-//! - `install-hook [--alias <name>] [--print]` — install a guided Git alias so a
-//!   newly-created worktree auto-registers (ACTMO-020); never shims `git`.
-//!
-//! Confinement (`mode`/`allow`/`deny`) changes take effect for **new** daemon
-//! connections (the daemon reads the config per connection); no restart is
-//! required. Registration (`register`/`unregister`) is a live daemon RPC.
+//! `anvil workspace` — DSV-008 operator controls for workspace confinement
+//! (ADR-061 §7).
 
 use std::collections::BTreeSet;
 

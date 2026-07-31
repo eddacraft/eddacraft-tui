@@ -1,56 +1,6 @@
 //! Shared rayon global-pool initialiser (V050F-007).
 //!
-//! Hosted as a dedicated micro-crate so every rayon consumer in the
-//! workspace can depend on it without dragging unrelated kernel /
-//! checks code (council finding: kernel-maintainer flagged a heavy
-//! `anvil-kernel` dep on `anvil-checks-napi` for what is genuinely
-//! four lines of pool init).
-//!
-//! Anvil caps rayon's global thread pool at half available cores
-//! (minimum 1) so a long-running editor / VS Code extension host
-//! coexisting with a scan does not get its UI thread starved. The
-//! cap policy lives here, in one place, so every consumer of rayon
-//! across the workspace can reach it via a single
-//! [`init_global`] call:
-//!
-//! - The CLI binary entry point (`crates/anvil-cli/src/main.rs`)
-//!   calls it before any subcommand runs.
-//! - The kernel's own watch / embedded entry points
-//!   (`watch::run_watch`, `embedded::run_embedded`) call it
-//!   defensively for direct lib consumers.
-//! - The NAPI binding (`crates/anvil-checks-napi`) calls it from
-//!   `scan_artifact_json` (the only entry that actually drives a
-//!   rayon `par_iter` via `scan_artifact_rust`); other NAPI
-//!   entries (`version`, `get_default_patterns_json`,
-//!   `get_pattern_json`) only read the registry and do not need
-//!   the call. If a future NAPI export touches a parallel scan
-//!   path, it should call `init_global` at its top.
-//!
-//! ## Why centralise this
-//!
-//! Pre-V050F-007 the kernel had two duplicated `POOL_INIT`
-//! `std::sync::Once` blocks (one in `watch.rs`, one in
-//! `embedded.rs`) AND `anvil-checks::antipattern::scan_artifact`
-//! reached for rayon's global pool with no `build_global` of its
-//! own. The first consumer to drive a `par_iter` won the race —
-//! if `scan_artifact` fired first (the `anvil check` path),
-//! rayon initialised the global pool to the default `num_cpus`
-//! threads, and the subsequent `POOL_INIT.call_once` in `watch.rs`
-//! / `embedded.rs` was a no-op. The half-cores cap was silently
-//! absent on every `anvil check` run.
-//!
-//! The fix is structural: the binary calls [`init_global`] BEFORE
-//! any command can dispatch to a rayon-using path, so the cap is
-//! always in force regardless of which scan path runs first. The
-//! kernel's defensive `call_once` blocks are kept (now delegating
-//! here) because the kernel is also consumed as a library by
-//! tests and downstream binaries that bypass `main.rs`.
-//!
-//! The function is idempotent: it wraps the underlying
-//! `rayon::ThreadPoolBuilder::new(...).build_global()` call in a
-//! [`std::sync::Once`], so repeated calls (CLI startup, kernel
-//! defensive `call_once`, NAPI per-entry) cost only an atomic load
-//! after the first.
+//! Single place to size/init the pool so every rayon consumer agrees.
 
 use std::sync::Once;
 

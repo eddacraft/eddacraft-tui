@@ -612,35 +612,8 @@ fn discovery_outcome(
 const SCAN_MAX_FILES: usize = 500;
 const SCAN_MAX_FILE_SIZE: u64 = 512 * 1024; // 512 KB
 
-// SCAN-003 — first-run rayon pool cap.
-//
-// The default rayon global pool is sized to `num_cpus::get()`. On 16-core
-// dev boxes the welcome-screen scan can pin every core, fighting the TUI
-// render thread and any background LSP / indexer for CPU. Cap the
-// pool at `min(num_cpus::get(), DEFAULT_FIRST_RUN_THREAD_CAP)` so the
-// terminal stays responsive while the scan completes.
-//
-// Env var contract — `ANVIL_SCAN_THREADS`
-// ---------------------------------------
-// Operators (and the future RTAI debounced-scan surface) may override the
-// cap via `ANVIL_SCAN_THREADS=<positive integer>`. This is the canonical
-// env-var name for the scan-pool cap and is shared with the upcoming
-// real-time AI validation (RTAI) first-run UX work — see
-// `plans/modules/realtime-ai-validation.aps.md`. Locking in the name now,
-// before RTAI ships, prevents the user-visible split-knob problem the
-// spec calls out.
-//
-// `ANVIL_RAYON_THREADS` was the alternative considered. We picked
-// `ANVIL_SCAN_THREADS` because:
-//   - It scopes to scanning (the actual concern) rather than naming an
-//     internal dependency (rayon) that may get swapped out.
-//   - It composes cleanly with the existing `ANVIL_SCAN_ALL` toggle the
-//     welcome screen already honours.
-//   - "rayon threads" leaks an implementation detail that operators
-//     should not need to know.
-//
-// Invalid / non-positive values fall back to the cap; this is a hint, not
-// a hard contract — we never want a malformed env var to abort the scan.
+// SCAN-003: first-run pool size = ANVIL_SCAN_THREADS (positive, clamped to cpus)
+// or else min(cpus, DEFAULT_FIRST_RUN_THREAD_CAP). Keeps the TUI responsive.
 const ANVIL_SCAN_THREADS_ENV: &str = "ANVIL_SCAN_THREADS";
 const DEFAULT_FIRST_RUN_THREAD_CAP: usize = 4;
 
@@ -1065,27 +1038,9 @@ fn scan_project_at(
     #[allow(clippy::cast_possible_truncation)]
     let duration_ms = start.elapsed().as_millis() as u64;
 
-    // SCAN-004: candidates the gitignore-blind walk saw but the scanned set
-    // (`seen` = Phase 1b's gitignore-respecting walk + the allowlist) never
-    // included were dropped by `.gitignore`.
-    //
-    // This is a filtered membership count over `all_candidates`, NOT a
-    // cardinality difference, which is what makes it robust to the two walks
-    // having different shapes (Phase 1a prunes dirs via `filter_entry`; Phase
-    // 1b prunes per-file in `candidate_path`). A file in `seen` but not in
-    // `all_candidates` is simply not iterated — it was scanned, so it is
-    // correctly not a "skip". A file in `all_candidates` but not in `seen`
-    // made it past Phase 1a's prune, so its directory was not pruned; Phase 1b
-    // (no dir prune) therefore reaches it too, meaning the only reason it is
-    // absent from `seen` is gitignore. Hence every counted file is genuinely
-    // gitignore-excluded.
-    //
-    // Suppressed to 0 when the scan was truncated by the file cap (Phase 1b
-    // stopped early for an unrelated reason, so unscanned candidates beyond the
-    // cap would wrongly look gitignore-dropped) or when `scan_all` disabled
-    // gitignore entirely (`all_candidates` is empty then). `truncated` is set
-    // only by Phase 1b hitting `SCAN_MAX_FILES`; Phase 1a is uncapped by
-    // design, so there is no Phase 1a truncation to account for.
+    // SCAN-004: gitignore-skipped count = candidates in the blind walk not in
+    // `seen` (filtered membership, not set-size delta). Zero when truncated or
+    // when scan_all disabled gitignore.
     let files_skipped_by_ignore = if truncated || scan_all {
         0
     } else {

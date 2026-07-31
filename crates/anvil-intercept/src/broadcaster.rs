@@ -1,34 +1,5 @@
-//! MLP2-071 Phase 2: telemetry broadcaster — the production delivery
-//! machinery that sits beside the [`Fanout`](crate::fanout::Fanout)
-//! decision core.
-//!
-//! The [`Fanout`](crate::fanout::Fanout) decides *whether* and *in what
-//! form* (full / redacted / denied) each registered subscriber may see
-//! a [`NotificationEnvelope`]. The broadcaster owns the *delivery* half:
-//! a per-subscriber outbound channel and the [`Self::broadcast`] entry
-//! that routes an envelope through the fan-out and pushes the
-//! per-subscriber result onto the matching channel.
-//!
-//! ## Ownership boundary (design pass addendum, 2026-06-08)
-//!
-//! MLP2-071 Phase 2 owns this broadcaster and the IPC subscriber
-//! surface that feeds it. The *producer call sites* that build real
-//! transition envelopes and call [`Self::broadcast`] are
-//! [DSV-044](../../../plans/modules/daemon-save-time-validation.aps.md)'s
-//! slice. This module is therefore the stable handle DSV-044 attaches
-//! to: it ships live, callable, and tested (the Phase 2 e2e fires
-//! envelopes through [`Self::broadcast`] over a real socket), and
-//! DSV-044 later wires assurance/fence transitions to it without
-//! touching `ipc.rs` / `lib.rs`.
-//!
-//! ## Non-blocking delivery (INTD-016)
-//!
-//! Each subscriber has a bounded channel
-//! ([`TELEMETRY_SUBSCRIBER_CHANNEL_CAP`]). When a subscriber's channel
-//! is full the broadcaster **drops** the envelope for that subscriber
-//! and increments [`Self::dropped_envelopes`] rather than blocking the
-//! producer — INTD-016's "the daemon does not block on a misbehaving
-//! peer" rule. A slow subscriber degrades only its own stream.
+//! MLP2-071: telemetry broadcaster — register subscribers and deliver
+//! fan-out-approved envelopes on bounded channels.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

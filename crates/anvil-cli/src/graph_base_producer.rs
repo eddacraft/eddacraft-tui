@@ -1,33 +1,9 @@
-//! GBASE-001 merge-base tree reader and base-graph producer (ADR-105 §1).
+//! GBASE-001 merge-base tree reader and base-graph producer (ADR-105).
 //!
-//! Produces the full symbol graph of a merge-base commit's **committed tree**
-//! by reading git objects — never a working tree. A dirty working tree would
-//! poison a shared artefact, so the base is read exclusively from committed
-//! blobs (`ls-tree -r` + `cat-file --batch`, the `l4_engine.rs` batched
-//! object-read pattern reused verbatim, **zero new dependencies**), parsed by
-//! tree-sitter through the injected [`KernelSymbolParser`] (ADR-067: the parser
-//! links into the CLI binary, not the resident daemon crate — the
-//! `daemon_dep_boundary` guard stays green), and assembled into an in-memory
-//! base graph via the existing `anvil-graph-cache` insertion/re-resolution
-//! path.
-//!
-//! ## Determinism
-//!
-//! Same merge-base sha ⇒ identical graph. The file list is sorted before the
-//! parse loop, so synthetic-node id allocation is stable; the parser is
-//! deterministic; and the re-resolution passes use `BTreeSet` ordering. No
-//! wall-clock, no randomness enters the output.
-//!
-//! ## Scope
-//!
-//! This is GBASE-001 only: resolve the base commit, walk its tree, parse it,
-//! build the graph, and emit a deterministic one-line summary. Persisting the
-//! base to a content-addressed store, the proactive ref-watch trigger, and
-//! refcount GC are out of scope here.
-//!
-//! Unix-only, mirroring [`crate::intercept_symbol_parser`]: the parser
-//! injection surface it depends on is `cfg(unix)` (the inherited ADR-070
-//! Windows gap).
+//! Builds the symbol graph of a merge-base **committed** tree via git object
+//! reads (`ls-tree` + `cat-file --batch`) and tree-sitter — never the dirty
+//! working tree.
+
 #![cfg(unix)]
 
 use std::io::Write;

@@ -1,121 +1,15 @@
 //! INTD-015: daemon-enforced telemetry subscription scoping.
 //!
-//! Every `anvil.notification.v1` envelope the daemon emits must travel
-//! through this fan-out filter before it reaches a subscriber. The
-//! filter is **deny-by-default**: a subscriber sees the full envelope
-//! only for sessions whose ownership is proven against the daemon's
-//! authoritative session registry; events for other sessions are
-//! redacted to `{ rule_id, hash_of_path }` per the diagnostic-envelope
-//! coordination spec lines 222-229, OR dropped outright when the
-//! daemon's `telemetry.allow_cross_session` flag is `false` (the
-//! default).
+//! Every `anvil.notification.v1` envelope passes through this deny-by-default
+//! filter before delivery. Subscribers get full envelopes only for sessions
+//! they own (via the daemon registry); others are redacted to
+//! `{ rule_id, hash_of_path }` when `telemetry.allow_cross_session` is on, or
+//! dropped when it is off (default).
 //!
-//! ## Threat model
-//!
-//! Before INTD-015, per-session event filtering was treated as a
-//! driver-promised capability — the spec and KERN-052 supersession
-//! delegated the access-control check to the subscriber. The 2026-04-24
-//! council review (M5, security-analyst) flagged this as the wrong
-//! placement: a hostile or mis-configured driver could subscribe to
-//! cross-session telemetry and exfiltrate file paths, secret-detection
-//! content excerpts, and architectural metadata for sessions it does
-//! not own.
-//!
-//! INTD-015 moves the check daemon-side. The fan-out reads two pieces
-//! of envelope metadata that the daemon itself populates:
-//!
-//! - `correlation.originating_session_id` — the session that produced
-//!   the event. The daemon sets this from the change attribution path,
-//!   not from any driver claim.
-//! - `correlation.originating_driver_id` — the stable identity of the
-//!   driver that produced the event. The daemon mints this from the
-//!   socket-peer credentials of the connection (UID + binary path /
-//!   install-time token), **never** from a driver-supplied
-//!   `driverName`. A same-UID peer self-declaring `"driverName":
-//!   "vscode"` cannot impersonate the real `VSCode` driver because the
-//!   id this fan-out reads comes from `SO_PEERCRED` / equivalent, not
-//!   the manifest.
-//!
-//! ## Decision shape
-//!
-//! For each `(envelope, subscriber)` pair the fan-out emits one of:
-//!
-//! - [`Delivery::Allow`] — the subscriber is authorised for this
-//!   originating session; deliver the full envelope.
-//! - [`Delivery::Redact`] — cross-session subscription is enabled
-//!   and the subscriber sees a redacted envelope (`rule_id` plus
-//!   `hash_of_path` only).
-//! - [`Delivery::Deny`] — cross-session subscription is disabled (or
-//!   the originating session id is absent / unknown); the subscriber
-//!   sees nothing.
-//!
-//! IPC delivery itself is out of scope here — the fan-out is a pure
-//! filter. The IPC listener (INTD-002) calls [`Fanout::route`] for
-//! each envelope it would otherwise broadcast and writes only the
-//! envelopes the fan-out approves.
-//!
-//! ## What this module is **not**
-//!
-//! - **Not the redaction policy for diagnostics.** The shared
-//!   `anvil.diagnostic.v1` envelope owned by AIGUARD-002 is **locked**
-//!   for this PR; the fan-out only operates on the
-//!   `anvil.notification.v1` outer envelope where redaction means
-//!   replacing path-bearing strings with `hash_of_path`.
-//! - **Not the per-driver allowlist for `Participating` mode.** That
-//!   lives under DRVR-007 (`crates/anvil-intercept/src/auth.rs`,
-//!   future) and gates whether a driver can ack enforcement
-//!   decisions. INTD-015's allowlist gates *visibility*, not
-//!   *authority*.
-//! - **Not the rate-limiter or `DoS` budget.** INTD-016 owns `DoS`
-//!   budgets; INTD-015 only filters per-event.
-//!
-//! ## Deployment posture (MLP2-071 Phase 1)
-//!
-//! Phase 1 shipped the daemon-side reachability of the fan-out:
-//!
-//! * `run_foreground` constructs a `Fanout` at startup with the
-//!   operator-configured cross-session policy
-//!   (`enforcement.telemetry.allow_cross_session`) and a fresh
-//!   per-startup HMAC salt
-//!   ([`TelemetryRedactionKey::new_random`]). This closes the
-//!   literal "configured-but-ignored" gap GH issue #1722
-//!   surfaced, AND folds in `v0.6.0-beta-security-note.md` §H2
-//!   on the redaction-hash half.
-//! * [`RegistryOwnershipResolver`] is the production
-//!   [`OwnershipResolver`], backed by the live
-//!   [`crate::registry::SessionRegistry`]. Subscribers register
-//!   via the new `IpcCommand::SubscribeTelemetry` frame; the
-//!   daemon mints the `SubscriberId` from peer credentials and
-//!   binds it on the session via
-//!   [`crate::registry::SessionRegistry::bind_subscriber`].
-//!
-//! ## Deployment posture (MLP2-071 Phase 2)
-//!
-//! Phase 2 shipped the subscriber surface and the delivery path:
-//!
-//! * The IPC accept-loop multiplex routes the
-//!   `subscribe-telemetry` / `unsubscribe-telemetry` JSON-RPC frames
-//!   through to a daemon-minted [`SubscriberId`] (from `SO_PEERCRED`)
-//!   and registers it via [`crate::broadcaster::TelemetryBroadcaster`]
-//!   (which wraps [`Fanout::register`]); each subscriber connection
-//!   drains a bounded outbound channel.
-//! * [`crate::broadcaster::TelemetryBroadcaster::broadcast`] is the
-//!   producer-side entry that calls [`Fanout::route`] and writes each
-//!   per-subscriber delivery (full / redacted) to its channel, dropping
-//!   and counting on a full channel rather than blocking the producer.
-//! * Spoofed-origin envelopes are denied to cross-session subscribers
-//!   regardless of policy ([`OwnershipResolver::is_degraded_origin`],
-//!   design pass D6).
-//!
-//! What Phase 2 deliberately leaves to a follow-up:
-//!
-//! * The production *producer call sites* that build real
-//!   assurance/fence transition envelopes and call
-//!   `TelemetryBroadcaster::broadcast`. No in-tree producer broadcasts
-//!   notification envelopes today; that wiring is DSV-044, gated on
-//!   this broadcaster (now shipped). Any such producer MUST go through
-//!   the broadcaster (and therefore [`Fanout::route`]) — the contract
-//!   and tests below are the authoritative specification.
+//! Origin fields come from daemon attribution / peer credentials — never from
+//! driver-supplied names. Pure filter: [`Fanout::route`] returns
+//! [`Delivery::Allow`], [`Delivery::Redact`], or [`Delivery::Deny`]; IPC
+//! delivery is out of scope here.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -301,26 +195,9 @@ impl OwnershipResolver for RegistryOwnershipResolver {
     }
 
     fn is_authorised_for_worktree(&self, subscriber: &SubscriberId, worktree: &str) -> bool {
-        // ADR-090 (CIB-098): a daemon-originated health envelope carries
-        // no session id, so we cannot use the session-scoped binding
-        // check. Instead, map the worktree to its registered sessions and
-        // authorise iff *any* of them is bound to this subscriber — i.e.
-        // the subscriber owns at least one session in that worktree. A
-        // worktree with no registered session, or one whose sessions all
-        // have a different (or absent) binding, default-denies.
-        //
-        // The envelope's `correlation.worktree` is ALREADY canonical at
-        // both production callers (`save_time.rs` uses the canonical
-        // `WorktreeKey`; `full_scan_executor.rs` uses the canonical
-        // `root`), and the registry stores sessions keyed by the canonical
-        // worktree, so we look up via `sessions_for_canonical_worktree`,
-        // which matches the stored canonical key directly WITHOUT a
-        // `fs::canonicalize`. This keeps the lookup free of any on-disk
-        // dependency: a persist-failure notification fires precisely when
-        // the worktree is degraded (full / EROFS / deleted / unmounted),
-        // and a still-registered session on a now-unstattable worktree
-        // path must still authorise its subscriber. The match remains an
-        // exact canonical-key equality, so no mis-delivery is introduced.
+        // ADR-090: health envelopes have no session id — authorise if the
+        // subscriber owns any session on the envelope's canonical worktree.
+        // Lookup uses stored canonical keys (no fs::canonicalize).
         self.registry
             .sessions_for_canonical_worktree(std::path::Path::new(worktree))
             .iter()

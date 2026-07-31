@@ -1,61 +1,6 @@
 //! Policy pack discovery (OPAE-002).
 //!
-//! Defines where local user and bundled policy packs live and how Anvil finds
-//! them: an installed pack is a directory under `<workspace>/.anvil/policies/`
-//! that owns a `pack.yaml` manifest (the layout OPAE-004's `anvil policy
-//! install` writes, with an optional `provenance.yaml` sibling). This module is
-//! the *discovery* contract only — it locates packs and reports what it found;
-//! loading and admission stay with [`load_manifest`] and
-//! [`crate::pack::validate_pack`]. Compatibility with POLVAL manifests is the
-//! caller chaining discovery into those (see [`discover_and_load`]).
-//!
-//! # Layout and depth
-//!
-//! Discovery scans exactly one level of `<root>/.anvil/policies/`:
-//!
-//! - An immediate subdirectory that contains a `pack.yaml` is a pack candidate.
-//! - Discovery does **not** recurse below that level. A pack owns its own
-//!   subtree (its member `.rego` files live under it); nested packs are not a
-//!   thing, so a `pack.yaml` deeper inside a pack is never treated as a second
-//!   pack. A subdirectory with no `pack.yaml` is simply not a pack and is
-//!   ignored (not recursed into, not reported).
-//! - Loose `*.rego` files sitting directly under `.anvil/policies/` (not inside
-//!   a pack directory) are reported as [`PackDiscovery::loose_policies`] — paths
-//!   only, never opened or evaluated — so a caller can distinguish the
-//!   pack-managed layout from the pre-pack flat layout that the gate's
-//!   `discover_policy_files` still evaluates. Test siblings (`*_test.rego`) are
-//!   included verbatim; applying a suffix filter is the caller's concern, as the
-//!   gate does.
-//!
-//! # Determinism and containment
-//!
-//! Results are deterministic: [`PackDiscovery::packs`] is sorted by pack id
-//! (then directory), and both `loose_policies` and `rejected` are sorted by
-//! path, so a non-deterministic `read_dir` order never leaks out.
-//!
-//! Discovery is workspace-scoped and fail-closed per entry. The policies
-//! directory is canonicalised and required to stay within the canonical
-//! workspace root; every candidate pack directory and every loose `.rego` file
-//! is likewise canonicalised and required to stay within the policies directory
-//! (mirroring [`crate::pack::manifest`]'s `resolve_member_path`). An entry that
-//! canonicalises outside — a symlink escaping the root — is reported in
-//! [`PackDiscovery::rejected`] and skipped, but discovery itself **continues**.
-//!
-//! This per-entry posture is deliberately different from the gate's
-//! `discover_policy_files`, which is all-or-nothing (any traversal error fails
-//! the whole check, because "a bundle exists" must mean "the bundle was fully
-//! evaluated"). The two serve different callers: the gate evaluates one flat
-//! bundle where a partial read would silently drop a policy, whereas discovery
-//! enumerates independent, separately-installed packs where one tampered or
-//! broken entry must not be able to hide every other legitimately-installed
-//! pack from the operator. So discovery fails closed on the bad entry only and
-//! keeps reporting the rest.
-//!
-//! Only a failure to read the policies directory itself, or the policies
-//! directory resolving outside the workspace root, is a whole-discovery
-//! [`DiscoveryError`]. A missing `.anvil/policies/` directory is not an error at
-//! all — nothing installed yet is a normal state — so it returns an empty
-//! [`PackDiscovery`].
+//! Locates user and bundled packs and enumerates available policies for load.
 
 use std::path::{Path, PathBuf};
 

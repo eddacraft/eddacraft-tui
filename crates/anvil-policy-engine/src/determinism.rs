@@ -1,37 +1,8 @@
 //! Determinism contract (POLENG-004).
 //!
-//! Anvil's *own* data sources must be reproducible: a builtin's output is a
-//! pure function of its arguments and the policy [`crate::PolicyInput`]. This
-//! module makes that a *declared, type-enforced* property rather than a lint:
-//! [`Builtin`] requires a [`DeterminismClass`] via [`Builtin::determinism`], so
-//! a builtin cannot be written — let alone registered — without declaring its
-//! class, and [`crate::Engine::register_builtin`] rejects an
-//! [`DeterminismClass::Impure`] builtin unless the engine was explicitly
-//! configured to allow one. The `repeatable_eval_is_byte_identical_over_100_runs`
-//! integration test (`tests/determinism.rs`) exercises the runtime guarantee (a
-//! representative policy evaluated 100× yields identical bytes).
-//!
-//! ## Scope and the stdlib fence (POLENG-009)
-//!
-//! The [`Builtin`] contract above governs only the first-party `anvil.*`
-//! builtins. The Rego *stdlib* that policy text can call directly is fenced
-//! separately, two ways:
-//!
-//! 1. **Feature removal.** The crate builds `regorus` without its `full-opa`
-//!    bundle, dropping the `time` / `uuid` / `http` / `net` / `opa-runtime`
-//!    builtin groups (and their deps) entirely — a policy referencing
-//!    `time.now_ns()` or `uuid.rfc4122()` fails to resolve. See this crate's
-//!    `Cargo.toml`.
-//! 2. **Runtime shadow.** `rand.intn` rides on the `std` feature and can't be
-//!    feature-dropped, so [`crate::Engine::new`] registers an extension that
-//!    shadows it with an error — unless [`crate::EngineConfig::allow_impure_builtins`]
-//!    is set (an explicit opt-in to non-determinism).
-//!
-//! So the byte-identical guarantee holds for any policy on a default engine:
-//! impure stdlib builtins either don't resolve or error at call time, rather
-//! than silently producing non-reproducible output. (`http.send` and
-//! `opa.runtime` env access were already stubbed in regorus 0.10.0; the fence
-//! removes them outright.)
+//! Builtins must declare a [`DeterminismClass`]; pure sources are reproducible
+//! functions of args + [`crate::PolicyInput`]. Registration rejects undeclared
+//! or non-pure classes on the default engine.
 
 /// Determinism classification every registered [`Builtin`] must declare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

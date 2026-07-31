@@ -1,34 +1,4 @@
-//! Assertion failure → remediation-first output (CPOL-003).
-//!
-//! When an assertion is [violated](AssertionEvaluation::Violated), this module
-//! turns the [`Violation`] into an [`AssertionGuidance`]: a structured,
-//! machine-readable explanation that leads with *how to fix it*.
-//!
-//! ## Alignment with pack validation (reuse, not parallel invention)
-//!
-//! Guidance follows the [`crate::pack::validator::ValidationIssue`] conventions
-//! — a stable kebab-case code, a human `message`, remediation-first
-//! `remediation`, clean serde round-trip, and optional fields skip-serialised.
-//! It **reuses** [`PolicySeverity`] (the declared band) directly rather than
-//! cloning it.
-//!
-//! It does **not** reuse [`crate::pack::validator::ValidationIssue`] wholesale,
-//! nor its [`crate::pack::IssueCode`] enum: `IssueCode` is a closed set of *pack
-//! structure* problems (missing policy file, duplicate id, …). Folding
-//! assertion-violation codes into it would conflate two domains — the same
-//! reason `validator.rs` keeps a dedicated severity axis. So [`GuidanceCode`] is
-//! a sibling enum in the shared style.
-//!
-//! ## Blocking is posture-driven, not band-driven
-//!
-//! Whether a violation *blocks* is **not** stored on the guidance and **not**
-//! hard-derived from the declared band. The band describes the assertion; the
-//! enforcement layer decides under a requested [`EnforcementPosture`].
-//! [`decision_under`] / [`blocks_under`] expose that mapping as a function of
-//! `(severity, posture)`, defaulting to warnings-first
-//! ([`EnforcementPosture::Warn`], ADR-002). This shares the exact posture shape
-//! (and the [`EnforcementPosture`] type) with [`crate::io_risk::guidance`], so
-//! the "does it block" decision stays with the posture-owning caller.
+//! CPOL-003: map assertion failures to remediation-first guidance text.
 
 use serde::{Deserialize, Serialize};
 

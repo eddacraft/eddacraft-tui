@@ -1,32 +1,4 @@
-//! Policy pack test runner and enforcement (POLVAL-004).
-//!
-//! Two layers sit here:
-//!
-//! 1. [`run_pack_tests`] loads each member policy together with its sibling
-//!    `*_test.rego` into a *fresh* facade [`Engine`] — one engine per member
-//!    pair, so a policy that fails to compile or panics cannot poison the tests
-//!    of a sibling — discovers `test_*` rules, and evaluates each. OPA
-//!    semantics apply: a test rule passes iff it evaluates to `true`; `false`
-//!    or `undefined` is a failure. The engine keeps the facade's determinism
-//!    fence and evaluation timeout ([`EngineConfig::default`]), so a timeout or
-//!    evaluation error becomes a captured failure detail, never a crash.
-//! 2. [`enforce_tests`] folds a [`TestRunReport`] into the POLVAL-004
-//!    enforcement contract as error-class [`ValidationIssue`]s: a missing test
-//!    file (the validator's pre-enforcement warning) escalates to an error, an
-//!    existing-but-empty test file is an error, and every failing rule is an
-//!    error whose remediation names the rule.
-//!
-//! ## Test-rule discovery
-//!
-//! `regorus` 0.10.1 can enumerate modules/rules via its AST, but the facade
-//! does not surface that API and traversing the internal AST would couple this
-//! crate to `regorus`'s internal shapes. For this slice, discovery is a
-//! conservative source scan: a line beginning `test_` at column zero declares a
-//! test rule (its leading identifier is taken, names deduplicated). Limitation:
-//! a test rule produced by an unusual construct (metadata-generated, or indented
-//! under another rule) is not discovered. That is acceptable for slice 1 and no
-//! Rego parser is vendored. The test package is read from the file's `package`
-//! declaration.
+//! POLVAL-004: run policy-pack local fixtures and report enforcement results.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

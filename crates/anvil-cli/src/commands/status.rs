@@ -95,26 +95,9 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 
     if global.json {
-        // MLP2-048: try the IPC `query_status` round-trip so the
-        // emitted `ProtectionClaim` carries real per-surface entries
-        // instead of an empty `surfaces` array. The daemon canonical-
-        // ises worktree paths on register, so canonicalise locally to
-        // the same shape before matching against the snapshot.
-        //
-        // Failure to reach the daemon is not fatal — we fall back to
-        // the local-only state with empty surfaces. The spec
-        // explicitly allows this as the documented fallback when no
-        // daemon evidence is available (no over-claim of coverage).
-        // Every failure path is surfaced through `tracing` at
-        // `debug` so operators chasing "why is surfaces empty?" can
-        // turn on `RUST_LOG=anvil=debug` and see whether the daemon
-        // was down, the canonicalise call failed, or the worktree
-        // simply has no registered session. A non-canonical fallback
-        // (`Path::new(".")`) will never match a daemon-stored
-        // canonical absolute path; that yields the same empty-
-        // surface shape as daemon-down and is correctly under-
-        // claimed, but the log line tells the operator which
-        // arm fired.
+        // MLP2-048: IPC query_status for real ProtectionClaim surfaces; on
+        // failure fall back to local-only (empty surfaces). Canonicalise paths
+        // the same way the daemon does on register.
         let daemon_snapshot = match crate::commands::intercept::query_daemon_status() {
             Ok(snapshot) => Some(snapshot),
             Err(err) => {
@@ -1375,32 +1358,9 @@ const fn next_action_for(state: WorktreeClaimState, daemon: &DaemonSummary) -> &
 // ADTRUST-002: degraded-state banner primitive
 // ---------------------------------------------------------------------------
 
-// `DegradedBanner` + helpers are exercised by the in-module unit
-// tests and consumed by the watch tui
-// (`crates/anvil-tui/src/surfaces/watch/render.rs`) and the hook
-// bridge (`crates/anvil-cli/src/commands/hook.rs`) in follow-up PRs.
-// The status command itself is single-shot and already names the
-// protection state in the legible block, so it deliberately does
-// not call the rate-limited banner. The `#[allow(dead_code, ...)]`
-// markers below sit on each public-but-not-yet-called item; remove
-// them as the follow-up wiring lands.
-//
-// When the protection claim drops below `full` (any closed-set
-// `WorktreeClaimState` that names a degraded condition), surfaces
-// that the user actively watches — the watch TUI, pre-commit/pre-push
-// hook output, `anvil status` itself — emit a single terse banner
-// naming the state and pointing at `anvil doctor`. The banner is
-// rate-limited per terminal session so a noisy state cannot drown
-// out the surrounding command output.
-//
-// `DegradedBanner` is the shared rate-limit + content primitive.
-// `crates/anvil-cli/src/commands/status.rs` consumes it directly; the
-// tui watch surface (`crates/anvil-tui/src/surfaces/watch/render.rs`)
-// and the hook bridge (`crates/anvil-cli/src/commands/hook.rs`) wire
-// it in follow-up PRs so each crate can carry its own rate-limit
-// state without re-importing this module. The closed-set string the
-// banner names is the canonical `WorktreeClaimState::as_str()`
-// vocabulary, so the surface can never invent ad-hoc wording.
+// DegradedBanner: rate-limited protection-state banner for watch TUI / hooks.
+// Status itself is single-shot and already names protection state; allow-dead-code
+// until those surfaces wire it. Uses WorktreeClaimState::as_str() vocabulary.
 
 /// Banner rate limit window in seconds. Spec §ADTRUST-002 calls for
 /// ≤1 banner per 60s per terminal session. Held as a `u64` so the

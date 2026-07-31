@@ -1,33 +1,7 @@
-//! `.anvil/baseline.json` — activation finding baseline (LAUNCH-010).
+//! Activation finding baseline (LAUNCH-010): `.anvil/baseline.json`.
 //!
-//! First activation captures the set of antipattern + secret findings
-//! present in the repo at activation time. Subsequent scans (here, in
-//! `anvil watch`, `anvil check`, etc.) treat any finding whose
-//! fingerprint is in the baseline as legacy / inherited and surface only
-//! NEW findings. ADR-003's "new edges only" framing applied to findings.
-//!
-//! V1 scope (this PR):
-//!   - Define the on-disk schema (`Baseline`) and atomic writer.
-//!   - Build a baseline from the first-activation sample scan.
-//!   - Surface a `baseline:` summary line in the activation render so
-//!     `anvil start` / `anvil status --verify` can show the count.
-//!   - The diagnostic gains an
-//!     [`ActivationDiagnostic::baseline_summary`](super::diagnostic::ActivationDiagnostic::baseline_summary)
-//!     field (per-kind counts + `created_at`) alongside the back-
-//!     compat `baseline_present` boolean.
-//!
-//! Out of v1 scope (follow-ups under separate work items):
-//!   - Wiring the baseline into `anvil watch` / `anvil check` filtering.
-//!     Those commands learn to consume `Baseline::contains_*` later;
-//!     this PR ships the contract (file shape + reader) so they can.
-//!   - Regenerating / refreshing the baseline. V1 is write-once-on-first-
-//!     activation; users who want to refresh can `rm .anvil/baseline.json`
-//!     and re-run `anvil start`.
-//!
-//! The baseline file is NOT the architecture baseline
-//! (`.anvil/architecture.json` owned by `anvil-architecture::baseline`).
-//! Different shape, different consumer, different lifecycle. The two
-//! files share the `.anvil/` directory but are otherwise independent.
+//! Fingerprints first-run antipattern/secret findings for honest activation
+//! copy — not the new-edges architecture baseline (`anvil baseline`).
 
 use std::collections::BTreeSet;
 use std::fmt;

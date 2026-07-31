@@ -1,39 +1,4 @@
-//! Unified remediation-first policy guidance (OPAE-005).
-//!
-//! A policy failure can originate from three producers: a Rego **pack eval
-//! finding** ([`crate::result::Finding`]), a CPOL **assertion violation**
-//! ([`crate::context::AssertionGuidance`]), or an **IO-risk finding**
-//! ([`crate::io_risk::RiskGuidance`]). Each already carries a remediation-first
-//! shape in its own vocabulary. This module folds all three into a single
-//! [`PolicyGuidance`] output so a caller (CLI, gate, CI summary) renders one
-//! shape regardless of source — the module's "unified guidance" contract.
-//!
-//! ## What the shape carries
-//!
-//! Leading with *how to fix it*, a [`PolicyGuidance`] carries the rule id, the
-//! [`PolicySource`] it came from (a closed enum), the producer's `message` (the
-//! "what failed" text, carried through verbatim so a renderer never loses the
-//! description), an optional rationale, the changed-code
-//! [`context`](PolicyGuidance::context) (the offending path(s) and span when
-//! known), the remediation text, and static-but-parameterised exception
-//! guidance naming `anvil exception grant` with the rule id.
-//!
-//! ## What it deliberately does not carry
-//!
-//! - **No severity or blocking flag.** As with [`crate::context::guidance`] and
-//!   [`crate::io_risk::guidance`], whether a failure blocks is a posture
-//!   decision owned by the enforcement layer (OPAE-007), not a property of the
-//!   guidance. Keeping it off the guidance stops the two from drifting.
-//! - **No exceptions-store wiring.** The exception guidance is a *text* contract
-//!   only: it tells the author which command to run. It does not consult,
-//!   grant, or apply an exception.
-//!
-//! ## Determinism and wire form
-//!
-//! Construction normalises the changed-code context (sorted and de-duplicated)
-//! so equal inputs yield an equal guidance, and the type round-trips cleanly
-//! through serde with absent optionals skip-serialised. User-facing text uses UK
-//! spelling.
+//! Human-readable guidance strings for policy engine evaluation outcomes.
 
 use serde::{Deserialize, Serialize};
 

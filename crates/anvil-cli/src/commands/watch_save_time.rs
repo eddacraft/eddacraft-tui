@@ -1,31 +1,4 @@
-//! DSV-007 Task 12: the `watch` save-time daemon client + scoped fallback.
-//!
-//! `anvil watch` becomes a thin client of the resident save-time daemon: on each
-//! coalesced change it sends the classified changed paths to the daemon's
-//! [`validate_paths`](anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS) verb
-//! and uses the daemon's verdict instead of spawning a per-save `anvil check`
-//! subprocess (ADR-061 §3 — "one warm model, never double-scans"). When the
-//! daemon is absent — never started, or it died mid-session — watch falls back to
-//! a **scoped** `check` over exactly the changed paths (never `--all`) and
-//! surfaces `workspace_assurance{state: unavailable, reason: daemon-absent}`
-//! rather than a truncated `clean`.
-//!
-//! ## Connection lifecycle (item 8)
-//!
-//! `watch` is a persistent client, so it must survive the daemon dying
-//! mid-session, not just being absent at start:
-//!
-//! - Every request is bounded by a read/write timeout. A mid-stream drop / EOF /
-//!   timeout (e.g. the daemon's 250 ms `SHUTDOWN_DRAIN_DEADLINE` truncating an
-//!   in-flight response) is treated as *daemon-absent for that batch* → scoped
-//!   fallback + `unavailable{daemon-absent}`, never a truncated `clean`.
-//! - The first-fallback WARN is latched so a wedged/absent daemon warns **once
-//!   per disconnect**, not once per save.
-//! - On reconnect (a `validate_paths` that succeeds after a prior failure) the
-//!   latch resets and watch re-issues
-//!   [`request_full_scan`](anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN)
-//!   so assurance re-establishes from `stale` rather than a pre-disconnect
-//!   `clean`.
+//! DSV-007: watch-mode save-time daemon client and scoped fallback routing.
 
 use std::ffi::OsStr;
 use std::io::Write;

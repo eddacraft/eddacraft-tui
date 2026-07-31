@@ -1,47 +1,5 @@
-//! DSV-005 Task 8: the per-connection save-time verb orchestration.
-//!
-//! [`validate_paths`](crate::validate_paths::validate_paths) is the pure verdict
-//! core (DSV-004/Task 8, already merged). This module is the daemon-side
-//! orchestration that wires it to a live connection: it owns the shared,
-//! cross-connection [`SaveTimeState`] (the warm graph cache, the per-`WorktreeKey`
-//! assurance machines, the antipattern config, the interactive pool, and the
-//! operator confinement policy) and the per-connection [`SaveTimeConn`] that
-//! threads the admitted-root set through `ipc.rs`.
-//!
-//! The three save-time verbs are routed here from the `ipc.rs` JSON-RPC dispatch
-//! arm (the special-method pattern, mirroring `handle_scan_buffer_jsonrpc`):
-//! `validate_paths`, `workspace_status`, and `request_full_scan`.
-//!
-//! ## Authorisation (DSV-003 Task 2, deferred here)
-//!
-//! Each verb authorises its `workspace_root` against the connection's
-//! [`AdmittedRoots`] set before touching any byte: the set is built once per
-//! connection from the operator [`Confinement`] (open by default; allowlist when
-//! confined). In open mode it first-touch-adopts each root; in allowlist mode it
-//! admits **exactly** the operator's configured allow entries and nothing else
-//! (CIB-149: there is no implicit primary — a client-declared worktree, whether
-//! named first on the wire or in a `RegisterSession` frame, is never folded into
-//! the admitted set; an empty allow-list admits nothing). A root is admitted only
-//! when it matches an operator allow entry. All reads go through the held
-//! [`WorkspaceAnchor`], so a refused root never reaches the filesystem and an
-//! admitted root cannot be retargeted after admission (security C2/C3 — see
-//! [`crate::workspace_admission`]).
-//!
-//! ## Symbols feed ([`SymbolParser`])
-//!
-//! To certify, the verdict needs the edited file's parsed [`FileSymbols`]. The
-//! daemon never parses (ADR-064); instead it enriches the change it holds by
-//! computing symbols through an injected [`SymbolParser`] (a Messaging Gateway —
-//! the tree-sitter impl lives in `anvil-cli`), handing it the **exact**
-//! anchor-guarded bytes it read and hashed. When no parser is injected the feed
-//! yields `None` and every verdict is a safe `Partial(CrossFileResolutionNeeded)`
-//! (B4 conservative default).
-//!
-//! Cross-platform (DSV-010b / ADR-070 Stage 2): the verbs read arbitrary
-//! on-disk paths a client names through a held [`WorkspaceAnchor`] — a Unix
-//! `openat2`-guarded dirfd or a Windows directory-handle + `OBJ_DONT_REPARSE`
-//! ladder (ADR-068). The verdict spine is platform-neutral; only the anchor's
-//! read primitive is platform-split, behind the one type.
+//! Save-time validation pipeline: admit roots, certify changes, emit verdicts.
+
 #![cfg(any(unix, windows))]
 
 use std::collections::HashMap;

@@ -1,67 +1,7 @@
-//! MLP2-001: daemon-side resolved rule-set cache with `.anvil.*`
-//! watcher invalidation.
+//! MLP2-001: daemon-side resolved rule-set cache with `.anvil.*` watcher
+//! invalidation.
 //!
-//! Each registered worktree gets at most one cached
-//! [`ResolvedRuleSet`] keyed by [`WorktreeKey`]. The entry carries
-//! the `rules_sha` that was active when the entry was built so a
-//! caller chasing a witness `rules_sha` can confirm the cached
-//! resolution still matches without parsing again.
-//!
-//! ## Why a separate module
-//!
-//! The session registry (`registry.rs`) is identity-focused: it
-//! attributes filesystem writes to a session. Rule resolution is a
-//! separate concern that does not need session-level granularity —
-//! every agent inside the same worktree sees the same rule set, so
-//! the cache key is the worktree path, not the session. MLP2-023
-//! extends the *session registry* key to `(WorktreeKey, AgentTag)`;
-//! this cache stays worktree-scoped because rules are not
-//! per-agent. The newtype [`WorktreeKey`] keeps both concerns
-//! lined up without making one depend on the other.
-//!
-//! ## What this module does NOT do
-//!
-//! - **Does not parse config.** Cache misses call back into a
-//!   resolver supplied by the caller — typically [`resolve_for_worktree`]
-//!   in this same module, which uses [`anvil_config::parse_file`] +
-//!   [`anvil_rules::rules_sha`]. Keeping the cache agnostic of
-//!   those crates makes the data structure easy to test in
-//!   isolation.
-//! - **Does not enforce.** Rule evaluation lives in the L4 / hook
-//!   path (MLP2-016 onwards). The cache is a memoisation layer.
-//! - **Does not pin in-flight evaluations.** MLP2-002 owns the
-//!   scheduler-level pinning so a mid-evaluation config write
-//!   does not swap the rule set under a running call. The cache's
-//!   invalidate semantics are eventual, not abortive.
-//!
-//! ## Bounded capacity (MLP2-057)
-//!
-//! The cache is capped at [`DEFAULT_RULE_SET_CACHE_CAPACITY`] entries
-//! by default (sized against INTD-016's session cap of ~1024 live
-//! worktrees on a daemon). On insert at capacity the
-//! least-recently-used entry is evicted and a `tracing::warn!` event
-//! fires so operators can detect cache pressure before MLP2-058 wires
-//! the richer status surface. Two counters back the eviction surface:
-//!
-//! - [`RuleSetCache::len`] — current entry count (`cache.entries_count`).
-//! - [`RuleSetCache::evictions`] — cumulative LRU evictions
-//!   (`cache.evictions`).
-//!
-//! Recency is tracked by a monotonic generation counter bumped on
-//! every successful `lookup` and `get_or_resolve` hit. Linear scan to
-//! find the LRU is O(n) where n ≤ capacity (1024); the constant is
-//! small enough that the simpler primitive beats the dependency cost
-//! of a `LinkedHashMap` or `lru` crate.
-//!
-//! ## Session-lifetime coupling (MLP2-057)
-//!
-//! The cache no longer accumulates stale entries across the daemon's
-//! lifetime. [`SessionRegistry::unregister`] and
-//! [`SessionRegistry::evict_stale`] both fire a worktree-unregister
-//! hook that the daemon wires to [`RuleSetCache::invalidate`]; a
-//! register/unregister cycle therefore leaves no cache residue. The
-//! hook is opt-in (defaults to no-op) so embedded-mode tests that
-//! never construct a cache aren't forced to plumb one through.
+//! Serves hot-path rule resolution from memory; rebuilds on config change.
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};

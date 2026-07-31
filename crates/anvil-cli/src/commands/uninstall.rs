@@ -1,34 +1,7 @@
-//! `anvil uninstall` — remove Anvil from the current project and
-//! optionally from user-level state.
+//! `anvil uninstall` — remove Anvil from the project and optional user state.
 //!
-//! Built for beta users who need to reinstall cleanly. The command is
-//! deliberately conservative:
-//!
-//! - Defaults to the **current project only** — `.anvil/`, `.anvilrc`,
-//!   and Anvil-managed git hooks. User state under `~/.anvil/`,
-//!   credentials, editor MCP entries, **and the user-level intercept
-//!   daemon** are touched only with `--global`. The daemon is user-
-//!   scoped, not project-scoped: stopping it affects every Anvil-
-//!   enabled project on the machine, so it must be opt-in.
-//! - Confirms before deleting unless `--yes` is passed.
-//! - `--dry-run` shows the plan and exits without modifying anything.
-//! - On error, stops and reports unless `--force` is set.
-//! - Refuses symlinks (including dangling ones) for every removal
-//!   target, both at plan-build time and at execution time.
-//! - In `--json` mode, the whole result (plan + outcomes) is emitted
-//!   as a single envelope to stdout — no interactive prompts, no
-//!   intermediate output. `--json` non-dry-run therefore requires
-//!   `--yes`.
-//! - Does **not** remove the `anvil` binary itself. The command prints
-//!   a per-install-method hint (Homebrew / curl-installer / cargo) at
-//!   the end.
-//!
-//! The implementation is a thin orchestrator over existing primitives:
-//! [`commands::hooks::uninstall_all_managed_hooks_silent`] for git
-//! hooks (silent variant so JSON contract is preserved), the
-//! `anvil-intercept` PID file convention for the daemon, and surgical
-//! JSON edits for MCP config files (so other server entries are
-//! preserved).
+//! Conservative by design: confirms destructive steps and leaves unrelated
+//! editor config alone unless it is a recognised anvil entry.
 
 use std::fs;
 use std::io::{self, BufRead, Write};

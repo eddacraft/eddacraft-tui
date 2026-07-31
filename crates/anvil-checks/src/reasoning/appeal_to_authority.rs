@@ -1,32 +1,4 @@
-//! AI-001 — appeal-to-authority reasoning rule.
-//!
-//! Flags source comments that justify code with an appeal to authority,
-//! social proof, or deflection rather than technical reasoning. Examples
-//! include "the lead said to do it this way", "as discussed with the
-//! architect", "we've always done it this way", and "trust me, just use
-//! it". These signals correlate with code that has skipped review and
-//! tend to reappear in AI-generated changes that mirror chat-room prose.
-//!
-//! ## Scope
-//!
-//! - Only **comment regions** match. String content with the same prose
-//!   does not match — the rule treats narrative, not data, as the signal.
-//! - Comment families recognised: `//`, `/* … */`, `#`, `<!-- … -->`.
-//! - One emission per matching line (multiple matches collapse) so the
-//!   output stays readable when several phrases co-occur.
-//!
-//! ## False positives vs false negatives
-//!
-//! Reasoning rules ship as `Severity::Info` and the heuristics are kept
-//! deliberately broad: false positives are acceptable, false negatives
-//! are the failure mode. AI-002 onward will tighten precision once we
-//! have telemetry on the AI-001 trigger rate.
-//!
-//! ## Suppression
-//!
-//! Honours `@anvil-ignore AI-001` on the line above per ADR-029. The
-//! parser is shared with the anti-pattern scanner via
-//! [`crate::antipattern::parse_suppression`].
+//! AI-001: appeal-to-authority reasoning rule.
 
 use std::sync::LazyLock;
 

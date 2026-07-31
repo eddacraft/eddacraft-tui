@@ -1,33 +1,4 @@
-//! ATC-002 — loadable probe packs and the probe registry.
-//!
-//! A probe pack is a single YAML manifest ([`ProbePack`]) describing the pack
-//! (id, name, version, description, owner) and its member [`Probe`]s (ATC-001
-//! wire assets, embedded inline). [`load_probe_pack`] parses one manifest,
-//! validates it, and returns members in declared order; [`discover_probe_packs`]
-//! locates installed packs under `<workspace>/.anvil/probes/`; and
-//! [`ProbeRegistry`] admits a set of packs and selects probes by
-//! [`RiskProfile`].
-//!
-//! Constraints (mirroring the policy-engine pack module, POLVAL/OPAE):
-//! - A missing manifest maps to [`ProbePackError::NotFound`]; no parse or I/O
-//!   failure is ever folded into a default — every failure propagates as
-//!   [`Err`] (fail-closed).
-//! - Unknown fields on the *pack root* are rejected (`deny_unknown_fields`) so a
-//!   mistyped authored key cannot silently drop a required value. Individual
-//!   [`Probe`] entries stay forward-compatible (an unrecognised probe field is
-//!   tolerated, per ATC-001): the pack schema is a small fixed authored set,
-//!   whereas a probe is a wire asset that may gain fields across catalog
-//!   revisions.
-//! - Member ordering is the manifest's declared order (deterministic).
-//! - Discovery canonicalises and contains every candidate within the
-//!   workspace-scoped probes directory, rejecting a symlink that escapes it —
-//!   the same containment lesson as
-//!   [`crate::adversarial`]'s policy-engine sibling — while continuing the scan
-//!   (one tampered entry cannot hide the rest).
-//! - [`ProbeRegistry::load`] is the *admission* point and is all-or-nothing
-//!   fail-closed: a rejected entry, a pack that fails to load, or a duplicate
-//!   pack id fails the whole registry, because a registry that silently dropped
-//!   a pack would under-select probes and quietly reduce coverage.
+//! ATC-002: loadable adversarial probe packs and the probe registry.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

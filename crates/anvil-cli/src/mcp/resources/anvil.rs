@@ -1,38 +1,8 @@
-//! RMCPF-020 — read-only `anvil://` MCP resources.
+//! Read-only `anvil://` MCP resources.
 //!
-//! These are the local workspace-state resources ported from the archived
-//! TypeScript MCP server (`anvil-archive/anvil-mcp-server/src/resources/`). Unlike the
-//! GCTX `graph://` resources in the parent module — which forward a sealed
-//! request to the daemon and are identity-only under the CE-5 egress gate —
-//! these read workspace-local files directly (the architecture baseline,
-//! `.anvil/suppressions.json`, the discovered config, drift snapshots, the
-//! anti-pattern catalogue). They mirror the existing MCP **tools** in
-//! `crate::mcp::tools`, which read the same sources, so they share that surface's
-//! workspace-root contract: the root is the MCP server's own process-pinned cwd
-//! (GCTX-002 CE-8), never a client-supplied path.
-//!
-//! Each resource is sourced from the canonical Rust reader, not re-implemented:
-//! - `anvil://baseline` / `anvil://boundaries` → `anvil_architecture::baseline`
-//! - `anvil://patterns` → `anvil_checks::antipattern::patterns`
-//! - `anvil://suppressions` → `crate::services::suppressions`
-//! - `anvil://config` → `anvil_config::{discover, parse_file}`
-//! - `anvil://constraints` → `crate::commands::export::collect_constraints`
-//!   (the same aggregator behind `anvil export constraints`)
-//! - `anvil://drift` → `crate::commands::drift` snapshot readers
-//!
-//! The archived `anvil://file/{path}/warnings` resource is **retired**: it
-//! duplicated the shipped `anvil_check` MCP tool exactly (per-file anti-pattern
-//! scan), and the RMCPF inventory dispositions it as "fold into `anvil_check`".
-//! Clients that previously read that resource call the `anvil_check` tool with
-//! the single file in `files`.
-//!
-//! Payload shapes follow the Rust-owned source models (e.g. layers are the
-//! baseline's map, suppressions are the active-set projection used by
-//! `anvil export`); the archived TS shapes are compatibility reference only
-//! (RMCPF-020 plan note). Structural conditions — a missing baseline, a corrupt
-//! snapshot — ride **in-band** as an `error`/`status` field in a successful
-//! read; only an inaccessible server cwd or a snapshot-listing IO failure is a
-//! transport-level [`ReadError`].
+//! Handlers read canonical workspace sources from the server's process-pinned
+//! root. Missing or corrupt state is returned in-band; inaccessible roots and
+//! snapshot-listing I/O failures are [`ReadError`]s.
 
 use std::path::{Path, PathBuf};
 
