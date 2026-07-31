@@ -5,7 +5,7 @@
 //! dispatch + exit behaviour:
 //! - gate closed → exit 1 (`EXIT_ERROR`), not auth-required
 //! - gate open via `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1` → gate is passed
-//!   (the command does not refuse with the feature_disabled envelope)
+//!   (the command does not refuse with the `feature_disabled` envelope)
 
 use std::process::Command;
 
@@ -88,7 +88,6 @@ fn dashboard_web_json_refusal_envelope_on_stdout() {
 fn dashboard_web_startup_envelope_with_opt_in() {
     use std::io::{BufRead, BufReader};
     use std::process::Stdio;
-    use std::time::Duration;
 
     let mut child = Command::new(ANVIL_BIN)
         .args(["--json", "dashboard", "--web", "--no-open", "--port", "0"])
@@ -107,25 +106,15 @@ fn dashboard_web_startup_envelope_with_opt_in() {
     let mut reader = BufReader::new(stdout);
     let mut line = String::new();
 
-    // Bound wait so a hang fails the test rather than CI.
-    let start = std::time::Instant::now();
-    let mut got = false;
-    while start.elapsed() < Duration::from_secs(15) {
-        line.clear();
-        match reader.read_line(&mut line) {
-            Ok(0) => break,
-            Ok(_) => {
-                got = true;
-                break;
-            }
-            Err(_) => break,
-        }
-    }
+    // One blocking read of the startup envelope. A hang fails via the test
+    // harness timeout rather than a soft loop (read_line is blocking, so a
+    // while-elapsed loop never re-checks the deadline while waiting).
+    let got = matches!(reader.read_line(&mut line), Ok(n) if n > 0);
 
     let _ = child.kill();
     let _ = child.wait();
 
-    assert!(got, "expected a startup JSON line within 15s");
+    assert!(got, "expected a startup JSON line on stdout");
     let envelope: serde_json::Value =
         serde_json::from_str(line.trim()).expect("startup envelope must be JSON");
     assert_ne!(
