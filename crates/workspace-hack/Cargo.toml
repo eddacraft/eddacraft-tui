@@ -39,12 +39,12 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 indexmap = { version = "2" }
 itertools-3575ec1268b04181 = { package = "itertools", version = "0.15" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14", default-features = false, features = ["use_std"] }
+jsonschema = { version = "0.47" }
 kasuari = { version = "0.4", default-features = false, features = ["std"] }
 lru = { version = "0.18" }
 memchr = { version = "2" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1" }
-percent-encoding = { version = "2" }
 rand = { version = "0.10" }
 ratatui-core = { version = "0.1", features = ["layout-cache", "std", "underline-color"] }
 ratatui-widgets = { version = "0.3", features = ["std"] }
@@ -82,7 +82,6 @@ syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-trai
 [target.x86_64-unknown-linux-gnu.dependencies]
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -101,7 +100,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 [target.aarch64-unknown-linux-gnu.dependencies]
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -121,7 +119,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 errno = { version = "0.3" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -141,7 +138,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 errno = { version = "0.3" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -161,7 +157,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 errno = { version = "0.3" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
-idna = { version = "1" }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
@@ -177,7 +172,6 @@ getrandom = { version = "0.4", default-features = false, features = ["std", "sys
 errno = { version = "0.3" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
-idna = { version = "1" }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }

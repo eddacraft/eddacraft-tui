@@ -98,7 +98,7 @@ postcard = { version = "1", features = ["use-std"] }
 # default-features off so the sole consumer (anvil-policy-engine) opts into a
 # pure-only feature subset for the POLENG-009 determinism fence; see that
 # crate's Cargo.toml.
-regorus = { version = "=0.10.1", default-features = false }
+regorus = { version = "=0.11.0", default-features = false }
 
 # TUI
 animate = { version = "0.3", features = ["ratatui"] }

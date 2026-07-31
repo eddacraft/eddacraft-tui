@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 357 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 358 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1035,7 +1035,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
 | `unicode-general-category` | 1.1.0 | Apache License 2.0 | https://github.com/yeslogic/unicode-general-category |
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
-| `regorus` | 0.10.1 | Apache License 2.0 | https://github.com/microsoft/regorus |
+| `regorus` | 0.11.0 | Apache License 2.0 | https://github.com/microsoft/regorus |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
 | `supports-color` | 3.0.2 | Apache License 2.0 | https://github.com/zkat/supports-color |
 | `supports-hyperlinks` | 3.2.0 | Apache License 2.0 | https://github.com/zkat/supports-hyperlinks |
@@ -1048,7 +1048,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `matchit` | 0.8.4 | BSD 3-Clause "New" or "Revised" License | https://github.com/ibraheemdev/matchit |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
 | `aws-lc-sys` | 0.43.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
-| `regorus` | 0.10.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
+| `regorus` | 0.11.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
 | `notify` | 8.2.0 | Creative Commons Zero v1.0 Universal | https://github.com/notify-rs/notify.git |
 | `untrusted` | 0.9.0 | ISC License | https://github.com/briansmith/untrusted |
 | `inotify-sys` | 0.1.8 | ISC License | https://github.com/hannobraun/inotify-sys |
@@ -1083,6 +1083,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `glob` | 0.3.4 | MIT License | https://github.com/rust-lang/glob |
 | `log` | 0.4.33 | MIT License | https://github.com/rust-lang/log |
 | `num-bigint` | 0.4.8 | MIT License | https://github.com/rust-num/num-bigint |
+| `num-bigint` | 0.5.1 | MIT License | https://github.com/rust-num/num-bigint |
 | `num-complex` | 0.4.6 | MIT License | https://github.com/rust-num/num-complex |
 | `num-integer` | 0.1.46 | MIT License | https://github.com/rust-num/num-integer |
 | `num-iter` | 0.1.46 | MIT License | https://github.com/rust-num/num-iter |
@@ -1259,8 +1260,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tokio-macros` | 2.7.2 | MIT License | https://github.com/tokio-rs/tokio |
 | `axum-core` | 0.5.6 | MIT License | https://github.com/tokio-rs/axum |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
-| `jsonschema` | 0.46.10 | MIT License | https://github.com/Stranger6667/jsonschema |
-| `referencing` | 0.46.10 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `referencing` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
@@ -1280,13 +1281,13 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
 | `chrono` | 0.4.45 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
-| `jsonschema-regex` | 0.46.10 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema-regex` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
 | `minisign-verify` | 0.2.5 | MIT License | https://github.com/jedisct1/rust-minisign-verify |
 | `num-cmp` | 0.1.0 | MIT License | https://github.com/lifthrasiir/num-cmp |
 | `objc2-encode` | 4.1.0 | MIT License | https://github.com/madsmtm/objc2 |
 | `objc2` | 0.6.4 | MIT License | https://github.com/madsmtm/objc2 |
-| `regorus` | 0.10.1 | MIT License | https://github.com/microsoft/regorus |
+| `regorus` | 0.11.0 | MIT License | https://github.com/microsoft/regorus |
 | `tree-sitter-cpp` | 0.23.4 | MIT License | https://github.com/tree-sitter/tree-sitter-cpp |
 | `tree-sitter-java` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-java |
 | `tree-sitter-kotlin-ng` | 1.1.0 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-kotlin |
@@ -1367,7 +1368,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `winnow` | 1.0.4 | MIT License | https://github.com/winnow-rs/winnow |
 | `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
 | `fancy-regex` | 0.18.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
-| `spin` | 0.10.1 | MIT License | https://github.com/mvdnes/spin-rs.git |
+| `spin` | 0.12.2 | MIT License | https://codeberg.org/zesterer/spin |
 | `spin` | 0.9.9 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `tree-sitter-c` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-c |
 | `tree-sitter-go` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-go |

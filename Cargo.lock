@@ -1297,7 +1297,7 @@ dependencies = [
  "hex",
  "ignore",
  "insta",
- "jsonschema 0.47.0",
+ "jsonschema",
  "kindling-client",
  "kindling-server",
  "kindling-store",
@@ -1388,7 +1388,7 @@ dependencies = [
  "eddacraft-anvil-sarif",
  "eddacraft-anvil-witness",
  "hex",
- "jsonschema 0.47.0",
+ "jsonschema",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1468,7 +1468,7 @@ dependencies = [
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-plan-read-model",
  "eddacraft-anvil-run",
- "jsonschema 0.47.0",
+ "jsonschema",
  "nix 0.31.3",
  "serde",
  "serde_json",
@@ -1789,7 +1789,7 @@ dependencies = [
 name = "eddacraft-anvil-sarif"
 version = "0.9.0-beta"
 dependencies = [
- "jsonschema 0.47.0",
+ "jsonschema",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -2879,33 +2879,6 @@ dependencies = [
 
 [[package]]
 name = "jsonschema"
-version = "0.46.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0a699d3e77675e6aa4bfffe3b907c8b5f7ed3241f9965bffb25475ad4b08d05"
-dependencies = [
- "ahash",
- "bytecount",
- "data-encoding",
- "email_address",
- "fancy-regex 0.18.0",
- "fraction",
- "getrandom 0.3.4",
- "idna",
- "itoa",
- "jsonschema-regex 0.46.10",
- "num-cmp",
- "num-traits",
- "percent-encoding",
- "referencing 0.46.10",
- "regex",
- "serde",
- "serde_json",
- "unicode-general-category",
- "uuid-simd",
-]
-
-[[package]]
-name = "jsonschema"
 version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "281c43ff06dcb331e9356d30e38853d559ce3d0a3f693e0b0e102667dec14fb1"
@@ -2919,11 +2892,11 @@ dependencies = [
  "getrandom 0.3.4",
  "idna",
  "itoa",
- "jsonschema-regex 0.47.0",
+ "jsonschema-regex",
  "num-cmp",
  "num-traits",
  "percent-encoding",
- "referencing 0.47.0",
+ "referencing",
  "regex",
  "reqwest",
  "rustls",
@@ -2931,15 +2904,6 @@ dependencies = [
  "serde_json",
  "unicode-general-category",
  "uuid-simd",
-]
-
-[[package]]
-name = "jsonschema-regex"
-version = "0.46.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dbd1086b01b9349fd4ef9a07433965af64c8ce8159abe633a189e4ff817bd13"
-dependencies = [
- "regex-syntax",
 ]
 
 [[package]]
@@ -3493,7 +3457,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
 dependencies = [
- "num-bigint",
+ "num-bigint 0.4.8",
  "num-complex",
  "num-integer",
  "num-iter",
@@ -3506,6 +3470,16 @@ name = "num-bigint"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -3568,7 +3542,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
 dependencies = [
- "num-bigint",
+ "num-bigint 0.4.8",
  "num-integer",
  "num-traits",
 ]
@@ -4341,23 +4315,6 @@ dependencies = [
 
 [[package]]
 name = "referencing"
-version = "0.46.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fbf332a2f81899f6836f22c03da73dae8a664c32e3016b84692c23cddadc95d"
-dependencies = [
- "ahash",
- "fluent-uri",
- "getrandom 0.3.4",
- "hashbrown 0.16.1",
- "itoa",
- "micromap",
- "parking_lot",
- "percent-encoding",
- "serde_json",
-]
-
-[[package]]
-name = "referencing"
 version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "348e860aeb0b7bd035778fd11dd9cd5290d32e4aed3b8f2274a00287a9fd362b"
@@ -4404,19 +4361,19 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "regorus"
-version = "0.10.1"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "419a0413adeece71e4d4a64fb75adc359cb807496f0dfd10f429517be908b807"
+checksum = "3cc4dc91481b1d4001ba7f2e81f7faf674142e0ac36d37d79e5f02764d06571e"
 dependencies = [
  "anyhow",
  "data-encoding",
  "globset",
  "indexmap",
- "jsonschema 0.46.10",
+ "jsonschema",
  "lazy_static",
  "lru",
  "msvc_spectre_libs",
- "num-bigint",
+ "num-bigint 0.5.1",
  "num-traits",
  "parking_lot",
  "rand 0.10.2",
@@ -4425,7 +4382,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "spin 0.10.1",
+ "spin 0.12.2",
  "thiserror 2.0.19",
  "url",
 ]
@@ -5005,9 +4962,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.10.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3"
+checksum = "8abadc99fd9c7bbb7d0ca2b31d72a067d0c0dcd7aad25ab8cac71ba91417694b"
 
 [[package]]
 name = "sqlite-wasm-rs"
@@ -6599,11 +6556,11 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "idna",
  "image",
  "indexmap",
  "itertools 0.14.0",
  "itertools 0.15.0",
+ "jsonschema",
  "kasuari",
  "libc",
  "lru",
@@ -6613,7 +6570,6 @@ dependencies = [
  "nix 0.31.3",
  "num-traits",
  "once_cell",
- "percent-encoding",
  "proc-macro2",
  "quote",
  "rand 0.10.2",
