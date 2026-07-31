@@ -484,7 +484,7 @@ scenarios:
             &pack,
             &FixedObserver(SafeBehaviour::Unknown, Confidence::Low),
         );
-        assert!(report.failures().len() == 2);
+        assert_eq!(report.failures().len(), 2);
         assert!(report.outcomes.iter().all(|o| !o.passed));
     }
 

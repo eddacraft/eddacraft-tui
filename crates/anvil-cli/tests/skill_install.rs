@@ -48,7 +48,7 @@ fn installs_embedded_bundle_for_codex_at_global_default() {
         "ef5b34c5f424c9de4292406405e4bedfb603a65a"
     );
     assert_eq!(manifest["bundleDigest"].as_str().unwrap().len(), 64);
-    assert!(manifest["files"]["SKILL.md"].as_str().unwrap().len() == 64);
+    assert_eq!(manifest["files"]["SKILL.md"].as_str().unwrap().len(), 64);
 }
 
 #[test]

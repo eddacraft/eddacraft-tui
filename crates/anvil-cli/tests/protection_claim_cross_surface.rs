@@ -1,4 +1,4 @@
-//! MLP2-051e: ProtectionClaim parity across status / doctor / MCP surfaces.
+//! MLP2-051e: `ProtectionClaim` parity across status / doctor / MCP surfaces.
 //!
 //! Fixtures under `tests/fixtures/status_v1/cross_surface/`; regenerate with
 //! `ANVIL_UPDATE_FIXTURES=1`.

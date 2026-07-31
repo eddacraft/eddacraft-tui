@@ -218,7 +218,7 @@ mod tests {
     fn command_with_pipe_works() {
         let output = execute_command("echo hello | tr a-z A-Z");
         assert!(output.success);
-        assert!(output.stdout.trim() == "HELLO");
+        assert_eq!(output.stdout.trim(), "HELLO");
     }
 
     #[test]
