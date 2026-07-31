@@ -14,7 +14,7 @@
   "dependencies": {
     "@astrojs/starlight": "^0.41.3",
     "@vercel/functions": "^3.7.5",
-    "astro": "^7.1.0",
+    "astro": "^7.1.6",
     "sharp": "^0.35.3"
   },
   "engines": {
