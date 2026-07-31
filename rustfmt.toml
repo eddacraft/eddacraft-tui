@@ -1,0 +1,4 @@
+# Align bare `rustfmt <file>` with `cargo fmt` / workspace edition (Cargo.toml).
+# Without this, rustfmt defaults to edition 2015 and rejects 2024 syntax (e.g. let-chains).
+edition = "2024"
+style_edition = "2024"

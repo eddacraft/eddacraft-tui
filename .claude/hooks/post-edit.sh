@@ -53,9 +53,14 @@ run_oxfmt() {
 
 case "${FILE_PATH##*.}" in
   rs)
-    if command -v rustfmt >/dev/null 2>&1; then
-      rustfmt "$FILE_PATH" 2>&1 || true
-    fi
+    # Format from the project root so the selected toolchain and
+    # rustfmt.toml (edition 2024) apply. Bare rustfmt defaults to 2015.
+    (
+      cd "$PROJECT_DIR" || exit 0
+      if command -v rustfmt >/dev/null 2>&1; then
+        rustfmt -- "$REL_PATH" 2>&1 || true
+      fi
+    )
     ;;
   js|jsx|ts|tsx|json|jsonc|md|mdx|css|html|yaml|yml)
     run_oxfmt

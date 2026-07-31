@@ -578,8 +578,8 @@ fn render_table(
         println!(
             "  {:<14} {:<11} {:<12} {:<12} {:<48} {:<16}",
             id,
-            &entry.memory_type,
-            &entry.status,
+            entry.memory_type,
+            entry.status,
             entry.confidence.as_deref().unwrap_or(""),
             statement,
             created,
