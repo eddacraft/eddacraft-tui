@@ -2075,9 +2075,9 @@ archive.
   need an ADR before implementation.
 ### CIB-077: resolve `preflight.sh` version-gate vs `prepare.sh` bump ordering
 
-- **Status:** In Progress 2026-07-22 — release preflight reproduced the ordering
-  failure for the v0.10.0-beta preparation path; implementation now uses an
-  explicit pre-prepare mode rather than a bypass environment variable.
+- **Status:** Merged 2026-07-22 via PR #3377 — preflight `--pre-prepare --version`
+  mode and runbook path landed; status reconciled 2026-07-31 after validation
+  confirmed the expected outcome (tests green on main).
 - **Intent:** the release flow's `preflight.sh` runs a `cargo-version` gate
   (`require_workspace_version_match`) that fails when the workspace version
   equals the latest release tag — treating it as "the engineer forgot to
