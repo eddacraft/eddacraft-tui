@@ -64,8 +64,8 @@ Record:
 
 - operating system and CPU architecture;
 - installation method;
-- `anvil --version` output;
-- whether `anvil version` reported the current beta or an available update;
+- `anvil version` output, including whether it reported the current beta or an
+  available update;
 - sign-in method (GitHub device sign-in or email OTP), plus whether
   `anvil auth whoami` confirmed the expected identity;
 - project languages;
