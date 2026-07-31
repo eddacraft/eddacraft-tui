@@ -15,18 +15,21 @@ engineering maintenance are recorded in the
 
 ### Added
 
-- **A local dashboard in your browser.** `anvil dashboard --web` opens a
-  read-only view of your project's protection state, gate runs, warnings, and
+- **A local dashboard in your browser (opt-in).** `anvil dashboard --web` opens
+  a read-only view of your project's protection state, gate runs, warnings, and
   plans — current health, what needs attention, and the detail behind each
-  finding. anvil picks a free loopback port, prints the URL, and opens your
-  browser; `--port` pins a port for a bookmark and `--no-open` prints the URL
-  without launching anything. The whole surface ships inside the `anvil` binary
-  you already have: no separate download, no Node toolchain, no second process.
-  It reads only what anvil has already written to your project, so a workspace
-  with no `anvil gate` run yet opens on honest empty states rather than invented
+  finding. The surface ships inside the `anvil` binary and is **default-off**
+  behind the `dashboard.web` feature flag for this release: set
+  `ANVIL_DASHBOARD_WEB=1` (or `ANVIL_DEV=1`) to enable it. When enabled, anvil
+  picks a free loopback port, prints the URL, and opens your browser; `--port`
+  pins a port for a bookmark and `--no-open` prints the URL without launching
+  anything. No separate download, no Node toolchain, no second process. It reads
+  only what anvil has already written to your project, so a workspace with no
+  `anvil gate` run yet opens on honest empty states rather than invented
   numbers. Nothing is reachable from another machine — the server refuses any
   non-loopback address and rejects requests that did not come from the loopback
-  address it bound. See
+  address it bound. Terminal `anvil dashboard` TUI surfaces stay available
+  without the flag. See
   [the local dashboard guide](./docs/guides/local-dashboard.md).
 
 - **MCP install for the harnesses you actually use.**

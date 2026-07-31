@@ -21,7 +21,9 @@
 use anvil_kernel::feature_flags::{
     FlagOverrides, ResolutionDetails, ResolutionReason, resolve_flag,
 };
-use anvil_kernel_types::feature_flags_catalogue::{cli_licence_gate, tui_dashboard_aps_dashboard};
+use anvil_kernel_types::feature_flags_catalogue::{
+    cli_licence_gate, dashboard_web, tui_dashboard_aps_dashboard,
+};
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
 };
@@ -178,12 +180,13 @@ pub const DEV_BYPASS_ENV_VAR: &str = "ANVIL_DEV";
 ///
 /// `ANVIL_DEV=1` is the single recognised source. It inserts local
 /// overrides forcing the developer-bypassable flags to their `"enabled"`
-/// variant: `cli.licence-gate` (FLAGM-003) and, since CIB-046,
+/// variant: `cli.licence-gate` (FLAGM-003), since CIB-046
 /// `tui-dashboard.aps-dashboard` (the internal-developer APS dashboard
-/// gate). Returning an owned value (rather than `Option`) keeps callers
-/// that always pass overrides simple; an empty map is a no-op inside the
-/// resolver, and the resolver only applies the override whose key matches
-/// the flag under evaluation, so carrying both keys is harmless.
+/// gate), and since DASH-012 `dashboard.web` (the local browser dashboard).
+/// Returning an owned value (rather than `Option`) keeps callers that always
+/// pass overrides simple; an empty map is a no-op inside the resolver, and
+/// the resolver only applies the override whose key matches the flag under
+/// evaluation, so carrying several keys is harmless.
 pub fn local_overrides_from_env() -> FlagOverrides {
     let mut overrides = FlagOverrides::default();
     if std::env::var(DEV_BYPASS_ENV_VAR).as_deref() == Ok("1") {
@@ -193,6 +196,9 @@ pub fn local_overrides_from_env() -> FlagOverrides {
         overrides
             .local
             .insert(APS_DASHBOARD_GATE_KEY.into(), "enabled".into());
+        overrides
+            .local
+            .insert(DASHBOARD_WEB_GATE_KEY.into(), "enabled".into());
     }
     overrides
 }
@@ -435,6 +441,57 @@ pub fn local_auth_precheck(licence_gate: &ResolutionDetails) -> LocalAuthPrechec
         return LocalAuthPrecheck::Skip(LocalAuthSkipReason::GateDisabled);
     }
     LocalAuthPrecheck::Enforce
+}
+
+// ── DASH-012: default-off gate for `anvil dashboard --web` ───────────
+
+/// The `dashboard.web` flag key, sourced from the generated catalogue so it
+/// cannot drift from `flags/manifest.json`.
+pub const DASHBOARD_WEB_GATE_KEY: &str = dashboard_web::KEY;
+
+/// Session override for the browser dashboard. `=1` forces
+/// `dashboard.web` to `"enabled"` and `=0` forces it to `"disabled"`, via a
+/// local override routed through the resolver — not a bespoke env branch —
+/// so the FLAGCAT flag stays the single source of truth.
+pub const DASHBOARD_WEB_ENV_VAR: &str = "ANVIL_DASHBOARD_WEB";
+
+/// Whether the caller may open the local browser dashboard
+/// (`anvil dashboard --web`).
+///
+/// Default-off for the v0.10.0-beta cut (foundations landed; UX not yet
+/// release-default). Opt in with `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1`.
+/// `ANVIL_DASHBOARD_WEB=0` forces the surface off even under `ANVIL_DEV=1`.
+/// Terminal `anvil dashboard` TUI surfaces are independent of this flag.
+#[must_use]
+pub fn web_dashboard_access_allowed() -> bool {
+    let mut overrides = local_overrides_from_env();
+    // Dedicated surface override applies after the broad ANVIL_DEV map so
+    // `ANVIL_DASHBOARD_WEB=0` can still kill-switch the browser dashboard
+    // during a full-dev session.
+    match std::env::var(DASHBOARD_WEB_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(DASHBOARD_WEB_GATE_KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(DASHBOARD_WEB_GATE_KEY.into(), "disabled".into());
+        }
+        _ => {}
+    }
+    web_dashboard_access_allowed_with(&overrides)
+}
+
+/// Pure gate decision for tests: resolves `dashboard.web` against the
+/// supplied overrides. Access is granted when the resolved variant is
+/// `"enabled"`.
+fn web_dashboard_access_allowed_with(overrides: &FlagOverrides) -> bool {
+    let definition = dashboard_web::definition();
+    let context = cli_evaluation_context("cli-session", None);
+    let details = resolve_flag(&definition, &context, Some(overrides));
+    details.variant == dashboard_web::variants::ENABLED
 }
 
 // ── CIB-046: internal-developer gate for `anvil plan dashboard` ──────
@@ -776,6 +833,85 @@ mod tests {
         temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
             assert!(cli_dev_bypass_active().is_none());
         });
+    }
+
+    // ── DASH-012: browser dashboard default-off gate ────────────────
+
+    #[test]
+    fn dashboard_web_gate_key_matches_catalogue() {
+        assert_eq!(DASHBOARD_WEB_GATE_KEY, "dashboard.web");
+        let definition = dashboard_web::definition();
+        assert_eq!(definition.key, DASHBOARD_WEB_GATE_KEY);
+        assert_eq!(definition.default_variant, "disabled");
+        assert_eq!(definition.class, anvil_kernel_types::FlagClass::Rollout);
+    }
+
+    #[test]
+    fn web_dashboard_denied_by_default() {
+        assert!(!web_dashboard_access_allowed_with(&FlagOverrides::default()));
+        let definition = dashboard_web::definition();
+        let context = cli_evaluation_context("cli-session", None);
+        let details = resolve_flag(&definition, &context, Some(&FlagOverrides::default()));
+        assert_eq!(details.variant, "disabled");
+        assert_eq!(details.reason, ResolutionReason::Default);
+    }
+
+    #[test]
+    fn web_dashboard_allowed_with_dev_override() {
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
+            let overrides = local_overrides_from_env();
+            assert_eq!(
+                overrides
+                    .local
+                    .get(DASHBOARD_WEB_GATE_KEY)
+                    .map(String::as_str),
+                Some("enabled"),
+                "ANVIL_DEV=1 must insert a local override on {DASHBOARD_WEB_GATE_KEY}"
+            );
+            assert!(web_dashboard_access_allowed_with(&overrides));
+        });
+    }
+
+    #[test]
+    fn web_dashboard_env_gate_allows_with_explicit_opt_in() {
+        temp_env::with_vars(
+            [
+                (DASHBOARD_WEB_ENV_VAR, Some("1")),
+                (DEV_BYPASS_ENV_VAR, None::<&str>),
+            ],
+            || {
+                assert!(web_dashboard_access_allowed());
+            },
+        );
+    }
+
+    #[test]
+    fn web_dashboard_env_gate_force_off_beats_dev_override() {
+        temp_env::with_vars(
+            [
+                (DASHBOARD_WEB_ENV_VAR, Some("0")),
+                (DEV_BYPASS_ENV_VAR, Some("1")),
+            ],
+            || {
+                assert!(
+                    !web_dashboard_access_allowed(),
+                    "ANVIL_DASHBOARD_WEB=0 must kill-switch even under ANVIL_DEV=1"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn web_dashboard_env_gate_denies_when_no_env_set() {
+        temp_env::with_vars(
+            [
+                (DASHBOARD_WEB_ENV_VAR, None::<&str>),
+                (DEV_BYPASS_ENV_VAR, None::<&str>),
+            ],
+            || {
+                assert!(!web_dashboard_access_allowed());
+            },
+        );
     }
 
     // ── CIB-046: APS dashboard internal-developer gate ──────────────

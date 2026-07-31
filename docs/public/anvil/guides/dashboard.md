@@ -41,13 +41,15 @@ For scripts or non-interactive sessions, use the underlying command with
 
 Newer betas after 0.9.0-beta add a loopback **browser** dashboard for protection
 health, gate runs, warnings, and plans, bundled inside the `anvil` binary (no
-separate download or Node toolchain). Discover it from the installed binary:
+separate download or Node toolchain). For this release the surface is
+**default-off** behind the `dashboard.web` feature flag. Opt in for a session:
 
 ```text
-anvil dashboard --help
+ANVIL_DASHBOARD_WEB=1 anvil dashboard --web
 ```
 
-When your binary lists a web/browser mode (commonly `--web`):
+Discover other flags from the installed binary (`anvil dashboard --help`). When
+enabled:
 
 - anvil binds a free loopback port, prints the URL, and can open your browser;
 - a port flag can pin a bookmark; a no-open flag prints the URL only;
@@ -57,12 +59,12 @@ When your binary lists a web/browser mode (commonly `--web`):
 
 ```text
 anvil gate
-anvil dashboard --help
+ANVIL_DASHBOARD_WEB=1 anvil dashboard --web
 ```
 
 The installed help is authoritative for flag names on your version. Browser and
 terminal surfaces are independent; do not combine a web mode with a named
-terminal dashboard.
+terminal dashboard. Terminal dashboards do not require the feature flag.
 
 ## Next step
 

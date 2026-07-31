@@ -1,21 +1,40 @@
 # Local Dashboard
 
-| Type  | Authority     | Owner | Status | Freshness                                                                    |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------- |
-| Guide | Authoritative | DASH  | Live   | Last reviewed 2026-07-26 against `anvil dashboard --web` (DASH-012, ADR-104) |
+| Type  | Authority     | Owner | Status | Freshness                                                                                          |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DASH  | Live   | Last reviewed 2026-07-31 against `dashboard.web` feature flag + `anvil dashboard --web` (DASH-012) |
 
-| Upstream                                                                                                                           | Downstream                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `crates/anvil-dashboard-server/`, `apps/dashboard/`, [ADR-104](../../plans/decisions/104-dashboard-host-server-module-boundary.md) | `docs/guides/README.md`, `CHANGELOG.md`, release runbook |
+| Upstream                                                                                                                                                                                                  | Downstream                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `crates/anvil-dashboard-server/`, `apps/dashboard/`, [ADR-104](../../plans/decisions/104-dashboard-host-server-module-boundary.md), `dashboard.web` in [`flags/manifest.json`](../../flags/manifest.json) | `docs/guides/README.md`, `CHANGELOG.md`, release runbook |
 
 `anvil dashboard --web` opens a read-only browser view of your project's anvil
 state — current protection health, gate runs, warnings, and APS plans — served
 from your own machine.
 
+## Feature flag (default-off)
+
+The browser surface is gated by the `dashboard.web` rollout flag
+(**default-off** for the `v0.10.0-beta` cut). Terminal `anvil dashboard`
+surfaces (architecture / drift / suppressions / gate-summary) are **not**
+affected.
+
+Opt in for a session:
+
+```bash
+ANVIL_DASHBOARD_WEB=1 anvil dashboard --web
+# or a full developer session:
+ANVIL_DEV=1 anvil dashboard --web
+```
+
+`ANVIL_DASHBOARD_WEB=0` forces the surface off even when `ANVIL_DEV=1` is set.
+When the gate is closed, the CLI prints how to opt in and exits non-zero (under
+`--json`, a `feature_disabled` envelope on stdout).
+
 ## Open it
 
 ```bash
-anvil dashboard --web
+ANVIL_DASHBOARD_WEB=1 anvil dashboard --web
 ```
 
 anvil binds a free loopback port, prints the URL, and opens your browser:

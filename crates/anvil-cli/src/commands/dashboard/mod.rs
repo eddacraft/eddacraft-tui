@@ -31,6 +31,8 @@ pub struct DashboardArgs {
 
     /// Serve the browser dashboard on a loopback port instead of opening a
     /// terminal dashboard. Read-only, and reachable only from this machine.
+    /// Gated by the `dashboard.web` feature flag (default-off); set
+    /// `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1` to enable.
     #[arg(long, conflicts_with = "name")]
     pub web: bool,
 
@@ -149,10 +151,39 @@ fn resolve(name: Option<&str>, catalog: &[CatalogEntry]) -> Resolution {
     }
 }
 
+/// Refuse `anvil dashboard --web` when `dashboard.web` is closed.
+///
+/// Not an auth failure — the surface is feature-flagged off for the release.
+/// Structured consumers get a JSON envelope under `--json`; humans get the
+/// opt-in env vars. Returns [`crate::output::AlreadyReported`] so `main`
+/// exits `EXIT_ERROR` without reprinting the message.
+fn refuse_web_dashboard(global: &GlobalArgs) -> anyhow::Error {
+    let detail = "`anvil dashboard --web` is disabled by the `dashboard.web` \
+         feature flag (default-off for this release). Opt in with \
+         ANVIL_DASHBOARD_WEB=1, or ANVIL_DEV=1 for a full developer session.";
+    if global.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "error": "feature_disabled",
+                "flag": crate::feature_flags::DASHBOARD_WEB_GATE_KEY,
+                "detail": detail,
+            })
+        );
+    } else {
+        eprintln!("{detail}");
+    }
+    crate::output::AlreadyReported.into()
+}
+
 pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // The browser dashboard is a different surface from the terminal ones: it
     // serves rather than renders, so it short-circuits the catalogue entirely.
+    // DASH-012: gated behind `dashboard.web` (default-off for the v0.10 cut).
     if args.web {
+        if !crate::feature_flags::web_dashboard_access_allowed() {
+            return Err(refuse_web_dashboard(global));
+        }
         return web::run(args, global);
     }
 

@@ -80,6 +80,23 @@
       "primaryGroup": "daemon"
     },
     {
+      "key": "dashboard.web",
+      "owner": "DASH",
+      "intent": "Gate the local browser dashboard (`anvil dashboard --web`) so it can ship default-off in a release",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "DASH-012",
+      "expiryOrReviewDate": "2026-10-31T00:00:00Z",
+      "description": "Default-off for the v0.10.0-beta cut after live UX review found the surface foundations-ready but not release-default. Opt in with ANVIL_DASHBOARD_WEB=1 (or ANVIL_DEV=1). Terminal `anvil dashboard` TUI surfaces stay independent of this flag.",
+      "primaryGroup": "dashboard"
+    },
+    {
       "key": "docs.access",
       "owner": "DOCSAUTH",
       "intent": "Gate /anvil docs access for authenticated beta users",

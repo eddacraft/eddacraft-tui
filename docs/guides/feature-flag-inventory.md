@@ -57,21 +57,21 @@ To add a flag:
 
 ## Summary Table
 
-| Control                          | Location                                      | Classification | Flag class    | Mechanism       |
-| -------------------------------- | --------------------------------------------- | -------------- | ------------- | --------------- |
-| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target  |
-| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement` | targeting       |
-| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override  |
-| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —               |
-| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default         |
-| Warm-graph persistence           | `crates/anvil-graph-cache/src/snapshot.rs`    | adopt          | `rollout`     | default/opt-out |
-| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —             | —               |
-| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —             | —               |
-| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`     | —               |
-| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement` | —               |
-| Web dashboard capabilities       | (no flag yet)                                 | adopt          | `entitlement` | —               |
-| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`     | —               |
-| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`     | —               |
+| Control                          | Location                                      | Classification | Flag class    | Mechanism         |
+| -------------------------------- | --------------------------------------------- | -------------- | ------------- | ----------------- |
+| CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target    |
+| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement` | targeting         |
+| `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override    |
+| `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —                 |
+| API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default           |
+| Warm-graph persistence           | `crates/anvil-graph-cache/src/snapshot.rs`    | adopt          | `rollout`     | default/opt-out   |
+| Policy profiles                  | `crates/anvil-policy/src/profiles.rs`         | defer          | —             | —                 |
+| Per-policy enabled/disabled      | `crates/anvil-policy/src/config.rs`           | defer          | —             | —                 |
+| OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`     | —                 |
+| Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement` | —                 |
+| Web dashboard (`--web`)          | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `rollout`     | default-off / env |
+| Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`     | —                 |
+| Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`     | —                 |
 
 ## Retired Controls — Migrated
 
@@ -79,6 +79,19 @@ The four controls below were migrated onto the shared resolver across FLAGM-002
 through FLAGM-005 and closed out in FLAGM-006. Each control's legacy hard-coded
 check and dual-evaluation parity scaffolding have been deleted; the shared flag
 is now the sole source of truth.
+
+### Web dashboard (`anvil dashboard --web`) — Migrated (DASH-012 gate)
+
+- **Resolver location:** `crates/anvil-cli/src/feature_flags.rs` —
+  `web_dashboard_access_allowed()`; wired from
+  `crates/anvil-cli/src/commands/dashboard/mod.rs` before the browser server
+  starts.
+- **Flag key:** `dashboard.web` (class: `rollout`, group: `dashboard`).
+- **Current state:** Default-off for the `v0.10.0-beta` cut. Session opt-in via
+  `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1`; `ANVIL_DASHBOARD_WEB=0` forces off
+  even under `ANVIL_DEV`. Terminal `anvil dashboard` TUI surfaces are not gated.
+- **Review:** `expiryOrReviewDate` 2026-10-31 — re-evaluate default-on after UX
+  hardening (overview message truncation, retained history).
 
 ### CLI licence-gated actions — Migrated (FLAGM-002, closed FLAGM-006)
 
