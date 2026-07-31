@@ -15,6 +15,7 @@
 //! `<ANVIL_HOME>/eval` (override with `--store`) and is appended to only when
 //! `--update-baseline` is given, so a dry CI run never mutates the baseline.
 
+use std::io::Write as _;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -227,11 +228,15 @@ pub fn run(args: &EvalRegressionArgs, global: &GlobalArgs) -> Result<()> {
 
     let outcome = build_outcome(&runs);
 
+    // GH #3169: never enter a TUI path for this report-only CI command, and
+    // flush stdout without taking exclusive ownership of fd 1 (so live pipes
+    // such as `… | tee` keep reading until the process exits).
     if global.json {
         output::json::print(&outcome)?;
     } else {
         render_plain(&outcome);
     }
+    let _ = std::io::stdout().flush();
 
     if should_block(&outcome, args.fail_on_regression) {
         return Err(output::AlreadyReported.into());

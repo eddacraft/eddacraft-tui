@@ -4739,19 +4739,20 @@ archive.
 
 ### CIB-182: First-user CLI command-path batch (local test 2026-07-07)
 
-- **Status:** In Progress
-- **Summary:** Six of seven audit findings closed via PR #3253
+- **Status:** Merged
+- **Summary:** All seven audit findings closed. Six via PR #3253
   ([#3216](https://github.com/eddacraft/anvil-001/issues/3216),
   [#3217](https://github.com/eddacraft/anvil-001/issues/3217),
   [#3218](https://github.com/eddacraft/anvil-001/issues/3218),
   [#3219](https://github.com/eddacraft/anvil-001/issues/3219),
   [#3221](https://github.com/eddacraft/anvil-001/issues/3221),
-  [#3222](https://github.com/eddacraft/anvil-001/issues/3222) — GH issues
-  closed 2026-07-12 with evidence). Remaining: [#3220](https://github.com/eddacraft/anvil-001/issues/3220)
-  (`ANVIL_HOME` wrong-mode cascade) — owner-matched loose modes are now
-  tightened to `0700` in socket/PID ensure paths, ensure pre-flights the
-  runtime dir with a `chmod 700` recovery string, and quickstart/runbook
-  document the requirement.
+  [#3222](https://github.com/eddacraft/anvil-001/issues/3222));
+  [#3220](https://github.com/eddacraft/anvil-001/issues/3220) (`ANVIL_HOME`
+  wrong-mode cascade) via PR #3291 — owner-matched loose modes tightened to
+  `0700` in socket/PID ensure paths, ensure pre-flights the runtime dir with a
+  `chmod 700` recovery string, and quickstart/runbook document the requirement.
+  Epic [#3223](https://github.com/eddacraft/anvil-001/issues/3223) closeout
+  2026-07-31.
 - **Intent:** Close the gap between ADR-082's interactive `anvil start` daily
   path and what first users actually see when running `welcome` → `start` →
   `status` → `watch` → `check` locally — especially false daemon-down signals,

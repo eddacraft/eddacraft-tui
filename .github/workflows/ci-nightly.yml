@@ -29,8 +29,10 @@ env:
 
 jobs:
   # ── Cross-platform smoke tests ─────────────────────────────────
+  # Job names say Node 24 to match engines.node / DEVENV-005 (were stale
+  # "Node 22.x" labels while already installing 24.x).
   test-cross-platform:
-    name: Unit Tests (Node 22.x, ${{ matrix.os }})
+    name: Unit Tests (Node 24.x, ${{ matrix.os }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -126,7 +128,7 @@ jobs:
   # `main` push. PR/integration runs use plain tests; nightly produces
   # coverage evidence and uploads the per-project summaries.
   coverage-typescript:
-    name: TypeScript Coverage (Node 22.x, Linux)
+    name: TypeScript Coverage (Node 24.x, Linux)
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Checkout repository

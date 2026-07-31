@@ -103,10 +103,9 @@ assert_not_contains '^untrusted\ comment:.*secret\ key$'
 assert_not_contains "--json targetCommitish"
 assert_not_contains "!github.event.release.prerelease &&"
 
-assert_release_contains 'ACK_PAYLOAD="${RUNNER_TEMP}/acknowledgements-payload.json"'
-assert_release_contains 'EVIDENCE_PAYLOAD="${RUNNER_TEMP}/release-evidence-payload.json"'
-assert_release_contains 'gh api --method PUT repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --input "$ACK_PAYLOAD"'
-assert_release_contains 'gh api --method PUT "repos/eddacraft/anvil/contents/${DEST}" --input "$EVIDENCE_PAYLOAD"'
+assert_release_contains 'bash scripts/release/publish-public-contents.sh'
+assert_release_contains '--path ACKNOWLEDGEMENTS.md'
+assert_release_contains '--path "$DEST"'
 assert_release_step_blocking "Publish ACKNOWLEDGEMENTS.md to eddacraft/anvil"
 assert_release_step_blocking "Publish release evidence to eddacraft/anvil"
 assert_release_contains '::error title=Missing ACKNOWLEDGEMENTS.md'

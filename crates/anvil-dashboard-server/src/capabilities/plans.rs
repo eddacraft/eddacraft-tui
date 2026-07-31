@@ -46,10 +46,21 @@ pub fn load_plan(workspace: &Workspace, id: &str) -> Result<Option<PlanDetail>, 
     let Some(summary) = plan_summary(module) else {
         return Ok(None);
     };
+    // Prefer the snapshot-time source, but re-read when the map key misses
+    // (Windows PathBuf separator normalisation can diverge between insert and
+    // lookup). Detail rendering must not silently return an empty Purpose.
     let source = sources
         .borrow()
         .get(&module.path)
         .cloned()
+        .or_else(|| {
+            sources.borrow().iter().find_map(|(path, contents)| {
+                (path.as_os_str() == module.path.as_os_str()
+                    || path.file_name() == module.path.file_name())
+                .then(|| contents.clone())
+            })
+        })
+        .or_else(|| read_text(workspace, &Path::new("plans").join(&module.path)).ok())
         .unwrap_or_default();
     let timeline = snapshot
         .work_items

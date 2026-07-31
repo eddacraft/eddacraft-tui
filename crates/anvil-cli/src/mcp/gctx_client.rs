@@ -52,16 +52,6 @@ enum PeerCredentialPlatform {
     OtherUnix,
 }
 
-#[cfg(unix)]
-struct CancellationDone(Arc<AtomicBool>);
-
-#[cfg(unix)]
-impl Drop for CancellationDone {
-    fn drop(&mut self) {
-        self.0.store(true, Ordering::Release);
-    }
-}
-
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform::LinuxOrMacos;
 
@@ -140,6 +130,12 @@ where
 }
 
 #[cfg(unix)]
+// Call sites pass `Arc` so the cancel flag can outlive the RPC; taking by
+// value keeps the public surface simple (same as the Windows path).
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "callers own Arc; shared with Windows RPC surface — GH #3371"
+)]
 pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
     method: &str,
     request: &Req,
@@ -150,14 +146,15 @@ where
     Req: Serialize,
     Resp: DeserializeOwned,
 {
-    use std::io::{BufRead, BufReader, Read, Write};
+    use std::io::BufReader;
     use std::os::unix::net::UnixStream;
-    use std::thread;
     use std::time::Duration;
 
     use anvil_intercept::ipc;
 
     const TIMEOUT: Duration = Duration::from_secs(2);
+    // GH #3371: short poll so cancel checks stay responsive without a watcher thread.
+    const POLL: Duration = Duration::from_millis(25);
     // Identity-only GCTX pages/reports are small; 4 MiB is a generous malformed-
     // response cap, sized above any honest reply.
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
@@ -182,34 +179,12 @@ where
         eprintln!("anvil-daemon: {method} peer rejected: {err}");
         classify_peer_validation_failure(PEER_CREDENTIAL_PLATFORM)
     })?;
-    let cancellation_done = Arc::new(AtomicBool::new(false));
-    let _cancellation_guard = CancellationDone(Arc::clone(&cancellation_done));
-    if let Some(cancellation) = cancellation {
-        let cancel_stream = stream.try_clone().map_err(|error| {
-            eprintln!("anvil-daemon: {method} cancellation setup failed: {error}");
-            DaemonRpcError::Failure
-        })?;
-        thread::Builder::new()
-            .name("anvil-daemon-cancel".to_owned())
-            .spawn(move || {
-                while !cancellation_done.load(Ordering::Acquire) {
-                    if cancellation.load(Ordering::Acquire) {
-                        let _ = cancel_stream.shutdown(std::net::Shutdown::Both);
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(5));
-                }
-            })
-            .map_err(|error| {
-                eprintln!("anvil-daemon: {method} cancellation watcher failed: {error}");
-                DaemonRpcError::Failure
-            })?;
-    }
-    stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
+    let deadline = std::time::Instant::now() + TIMEOUT;
+    stream.set_read_timeout(Some(POLL)).map_err(|err| {
         eprintln!("anvil-daemon: {method} read-timeout setup failed: {err}");
         DaemonRpcError::Failure
     })?;
-    stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
+    stream.set_write_timeout(Some(POLL)).map_err(|err| {
         eprintln!("anvil-daemon: {method} write-timeout setup failed: {err}");
         DaemonRpcError::Failure
     })?;
@@ -228,21 +203,32 @@ where
     if method != "scan_buffer" {
         crate::usage::attach_principal(&mut frame);
     }
-    if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
-        eprintln!("anvil-daemon: {method} request write failed: {err}");
+    let request_bytes = format!("{frame}\n");
+    if write_all_until_deadline(
+        &mut stream,
+        request_bytes.as_bytes(),
+        deadline,
+        cancellation.as_ref(),
+    )
+    .is_err()
+    {
+        eprintln!("anvil-daemon: {method} request write failed or cancelled");
         return Err(DaemonRpcError::Failure);
     }
 
     let mut reader = BufReader::new(stream);
     let mut line = Vec::new();
-    let read = reader
-        .by_ref()
-        .take(RESPONSE_LINE_CAP + 1)
-        .read_until(b'\n', &mut line)
-        .map_err(|err| {
-            eprintln!("anvil-daemon: {method} response read failed: {err}");
-            DaemonRpcError::Failure
-        })?;
+    let read = read_until_newline_deadline(
+        &mut reader,
+        &mut line,
+        RESPONSE_LINE_CAP + 1,
+        deadline,
+        cancellation.as_ref(),
+    )
+    .map_err(|err| {
+        eprintln!("anvil-daemon: {method} response read failed: {err}");
+        DaemonRpcError::Failure
+    })?;
     if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
         eprintln!("anvil-daemon: {method} response was empty, oversized, or unframed");
         return Err(DaemonRpcError::Failure);
@@ -253,6 +239,91 @@ where
     })?;
 
     decode_rpc_response(&line, method, request_id)
+}
+
+/// Write `bytes` honouring short write timeouts and optional cancellation.
+#[cfg(unix)]
+fn write_all_until_deadline(
+    stream: &mut std::os::unix::net::UnixStream,
+    mut bytes: &[u8],
+    deadline: std::time::Instant,
+    cancellation: Option<&Arc<AtomicBool>>,
+) -> std::io::Result<()> {
+    use std::io::Write;
+    while !bytes.is_empty() {
+        if cancellation.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "daemon RPC write cancelled",
+            ));
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "daemon RPC write deadline exceeded",
+            ));
+        }
+        match stream.write(bytes) {
+            Ok(0) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WriteZero,
+                    "daemon RPC write returned zero",
+                ));
+            }
+            Ok(n) => bytes = &bytes[n..],
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock
+                        | std::io::ErrorKind::TimedOut
+                        | std::io::ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    stream.flush()
+}
+
+/// Read one newline-terminated frame with short timeouts + cancel polls.
+#[cfg(unix)]
+fn read_until_newline_deadline(
+    reader: &mut impl std::io::BufRead,
+    line: &mut Vec<u8>,
+    cap: u64,
+    deadline: std::time::Instant,
+    cancellation: Option<&Arc<AtomicBool>>,
+) -> std::io::Result<usize> {
+    use std::io::{BufRead as _, Read as _};
+    line.clear();
+    loop {
+        if cancellation.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "daemon RPC read cancelled",
+            ));
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "daemon RPC read deadline exceeded",
+            ));
+        }
+        let before = line.len();
+        let remaining = cap.saturating_sub(before as u64);
+        match reader.take(remaining).read_until(b'\n', line) {
+            Ok(0) if line.is_empty() => return Ok(0),
+            Ok(_) if line.ends_with(b"\n") || line.len() as u64 >= cap => return Ok(line.len()),
+            Ok(_) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock
+                        | std::io::ErrorKind::TimedOut
+                        | std::io::ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 #[cfg(windows)]

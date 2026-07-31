@@ -28,7 +28,7 @@ describe('flags catalogue manifest', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
   });
 
-  it('contains exactly the fifteen shipped flags', () => {
+  it('contains exactly the sixteen shipped flags', () => {
     const keys = featureFlagManifest().flags.map((f) => f.key);
     expect(keys).toEqual([
       'api.scope.beta',
@@ -36,6 +36,7 @@ describe('flags catalogue manifest', () => {
       'api.scope.preview',
       'cli.licence-gate',
       'daemon.persist-graph',
+      'dashboard.web',
       'docs.access',
       'gctx.egress',
       'gv2.reverse-impact-depth',

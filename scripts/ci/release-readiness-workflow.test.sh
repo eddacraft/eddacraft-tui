@@ -55,7 +55,14 @@ assert_contains "$content" 'contents: read' 'workflow must only need read access
 assert_not_contains "$content" 'contents: write' 'workflow must not have publishing permissions'
 assert_not_contains "$content" 'id-token: write' 'workflow must not request OIDC credentials'
 assert_not_contains "$content" 'packages: write' 'workflow must not request package publishing permissions'
-assert_not_contains "$content" 'secrets.' 'workflow must not consume repository secrets'
+# Publication-token preflight (post-#3309) needs ANVIL_RELEASES_TOKEN only —
+# still no registry/OIDC/publish secrets on the readiness surface.
+assert_contains "$content" 'secrets.ANVIL_RELEASES_TOKEN' 'readiness mode must validate the publication token'
+if grep -E 'secrets\.[A-Za-z0-9_]+' <<<"$content" | grep -vq 'ANVIL_RELEASES_TOKEN'; then
+  echo "FAIL: readiness workflow must not consume secrets other than ANVIL_RELEASES_TOKEN" >&2
+  grep -E 'secrets\.[A-Za-z0-9_]+' <<<"$content" >&2 || true
+  exit 1
+fi
 
 assert_contains "$content" 'ref: ${{ inputs.sourceSha }}' 'workflow must checkout the requested SHA directly'
 assert_contains "$content" 'checked_out_sha="$(git rev-parse HEAD)"' 'workflow must read the validated SHA from git'
@@ -69,7 +76,8 @@ assert_contains "$content" 'lifecycleState' 'metadata must identify candidate li
 assert_contains "$content" 'workflowRunUrl' 'metadata must link back to the workflow run'
 
 assert_contains "$content" 'mode must be readiness or candidate-artifacts' 'workflow must reject invalid modes'
-assert_contains "$content" 'expectedReachableFrom must be main or migration-dev' 'workflow must reject invalid reachability targets'
+assert_contains "$content" 'expectedReachableFrom must be main' 'workflow must reject invalid reachability targets'
+assert_not_contains "$content" 'migration-dev' 'migration-dev probe retired with #1419'
 assert_contains "$content" 'retention-days: ${{ needs.validate.outputs.retention-days }}' 'metadata retention must use bounded validation output'
 
 echo 'release-readiness workflow contract passed'

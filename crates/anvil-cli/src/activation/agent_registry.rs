@@ -375,41 +375,70 @@ mod tests {
         assert!(zed.supports_mcp(InstallScope::Project));
     }
 
+    /// Build path strings the same way production detection does
+    /// (`Path::join`), so `FakeEnv` matches on Windows and Unix separators.
+    fn joined(home_or_root: &str, relative: &str) -> String {
+        Path::new(home_or_root)
+            .join(relative)
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn detection_requires_binary_or_exact_marker() {
+        let home = if cfg!(windows) {
+            r"C:\Users\test"
+        } else {
+            "/home/test"
+        };
         let generic = FakeEnv {
             binaries: BTreeSet::new(),
-            paths: BTreeSet::from(["/home/test/.agents".to_string()]),
-            home: "/home/test".to_string(),
+            paths: BTreeSet::from([joined(home, ".agents")]),
+            home: home.to_string(),
         };
         assert!(!AgentClientId::Codex.entry().detected(&generic));
         assert!(!AgentClientId::Antigravity.entry().detected(&generic));
 
         let exact = FakeEnv {
             binaries: BTreeSet::new(),
-            paths: BTreeSet::from(["/home/test/.codex/config.toml".to_string()]),
-            home: "/home/test".to_string(),
+            paths: BTreeSet::from([joined(home, ".codex/config.toml")]),
+            home: home.to_string(),
         };
         assert!(AgentClientId::Codex.entry().detected(&exact));
     }
 
     #[test]
     fn project_mcp_detection_uses_the_exact_scoped_config_path() {
+        let home = if cfg!(windows) {
+            r"C:\Users\test"
+        } else {
+            "/home/test"
+        };
+        let workspace = if cfg!(windows) {
+            r"C:\workspace"
+        } else {
+            "/workspace"
+        };
+        let other = if cfg!(windows) {
+            r"C:\another-workspace"
+        } else {
+            "/another-workspace"
+        };
         let env = FakeEnv {
             binaries: BTreeSet::new(),
-            paths: BTreeSet::from(["/workspace/.mcp.json".to_string()]),
-            home: "/home/test".to_string(),
+            paths: BTreeSet::from([joined(workspace, ".mcp.json")]),
+            home: home.to_string(),
         };
 
         assert!(AgentClientId::ClaudeCode.entry().detected_for_mcp(
             &env,
             InstallScope::Project,
-            Path::new("/workspace"),
+            Path::new(workspace),
         ));
         assert!(!AgentClientId::ClaudeCode.entry().detected_for_mcp(
             &env,
             InstallScope::Project,
-            Path::new("/another-workspace"),
+            Path::new(other),
         ));
     }
 }

@@ -92,9 +92,9 @@ assert_contains "${pr_base_guard}" 'CICD-012: MIGRATION-MODE GUARD'
 assert_contains "${pr_base_guard}" 'OPMODEL-012'
 assert_contains "${pr_base_guard}" '"${HEAD_REPO}" != "${REPO}"'
 
-# Release readiness must already speak the dual-mode vocabulary.
+# Release readiness is main-only after #1419 retired the compatibility branch.
 assert_contains "${release_readiness}" '          - main'
-assert_contains "${release_readiness}" '          - migration-dev'
+assert_not_contains "${release_readiness}" 'migration-dev'
 
 # PR template must name both modes so contributors pick the right
 # base branch.

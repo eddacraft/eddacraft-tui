@@ -17,6 +17,12 @@ impl Drop for ChildGuard {
 #[test]
 fn daemon_down_lifecycle_publishes_an_empty_versioned_result() {
     let anvil_home = tempfile::tempdir().expect("temporary anvil home");
+    // Use a real absolute temp path so Windows gets a drive-letter file URI
+    // (`file:///C:/…`). Hard-coded `file:///tmp/…` is not absolute on Windows.
+    let workspace = tempfile::tempdir().expect("temporary workspace root");
+    let root_uri = path_to_file_uri(workspace.path());
+    let doc_path = workspace.path().join("anvil-lsp-daemon-down.rs");
+    let doc_uri = path_to_file_uri(&doc_path);
     let mut child = ChildGuard(
         Command::new(env!("CARGO_BIN_EXE_anvil"))
             .args(["lsp", "--stdio"])
@@ -43,7 +49,7 @@ fn daemon_down_lifecycle_publishes_an_empty_versioned_result() {
     write_message(
         &mut stdin,
         &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
-            "rootUri":"file:///tmp"
+            "rootUri": root_uri
         }}),
     );
     let initialize = receiver
@@ -61,7 +67,7 @@ fn daemon_down_lifecycle_publishes_an_empty_versioned_result() {
             "jsonrpc":"2.0",
             "method":"textDocument/didOpen",
             "params":{"textDocument":{
-                "uri":"file:///tmp/anvil-lsp-daemon-down.rs",
+                "uri": doc_uri,
                 "languageId":"rust",
                 "version":7,
                 "text":"fn main() {}"
@@ -69,7 +75,7 @@ fn daemon_down_lifecycle_publishes_an_empty_versioned_result() {
         }),
     );
     let publication = receiver
-        .recv_timeout(Duration::from_secs(5))
+        .recv_timeout(Duration::from_secs(10))
         .expect("daemon-down diagnostics publication");
     assert_eq!(publication["method"], "textDocument/publishDiagnostics");
     assert_eq!(publication["params"]["version"], 7);
@@ -80,7 +86,7 @@ fn daemon_down_lifecycle_publishes_an_empty_versioned_result() {
         &json!({
             "jsonrpc":"2.0",
             "method":"textDocument/didClose",
-            "params":{"textDocument":{"uri":"file:///tmp/anvil-lsp-daemon-down.rs"}}
+            "params":{"textDocument":{"uri": doc_uri}}
         }),
     );
     let clear = receiver

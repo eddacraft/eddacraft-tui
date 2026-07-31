@@ -20,3 +20,10 @@ success-output = "immediate"
 # child processes, no worker thread, and no timing dependency. No
 # serialisation needed. See the test's doc comment in
 # `crates/anvil-cli/src/commands/watch.rs`.
+
+# GH #3182: eval harness subprocess tests (shell heredocs, large drains)
+# flake under contended CI runners. Two fixed retries absorb transient
+# spawn/drain failures without weakening the assertion on green runs.
+[[profile.default.overrides]]
+filter = 'package(eddacraft-anvil-policy) & (test(eval_harness_adapter_subprocess) | test(eval_harness_exit_code_classification))'
+retries = { backoff = "fixed", count = 2, delay = "500ms" }

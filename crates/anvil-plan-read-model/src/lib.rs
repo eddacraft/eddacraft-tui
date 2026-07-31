@@ -601,6 +601,9 @@ pub fn is_done_status(status: &str) -> bool {
 /// the pure read model rather than being reimplemented at each filesystem
 /// boundary.
 pub fn extract_markdown_section(source: &str, heading: &str) -> String {
+    // Normalise newlines so Windows CRLF fixtures and checkouts match the
+    // `## heading` / `\n## ` section boundaries used below.
+    let source = source.replace("\r\n", "\n").replace('\r', "\n");
     let marker = format!("## {heading}");
     let Some((_, section)) = source.split_once(&marker) else {
         return String::new();

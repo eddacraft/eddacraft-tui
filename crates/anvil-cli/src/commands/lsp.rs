@@ -594,7 +594,14 @@ mod tests {
 
     #[test]
     fn capacity_rejected_open_closes_retained_document_and_clears_diagnostics() {
-        let uri = "file:///src/main.rs";
+        // Unix-style `file:///src/...` is not absolute on Windows (no drive
+        // prefix). Use a drive-letter root so relative_path succeeds and the
+        // capacity reject path still runs.
+        let (root_uri, uri) = if cfg!(windows) {
+            ("file:///C:/workspace", "file:///C:/workspace/src/main.rs")
+        } else {
+            ("file:///", "file:///src/main.rs")
+        };
         let mut output = Vec::new();
         let mut lifecycle = Lifecycle::Running;
         let mut documents = DocumentStore::new(Duration::ZERO);
@@ -603,7 +610,7 @@ mod tests {
             .expect("document capacity");
         let mut roots = WorkspaceRoots::from_initialize(&json!({
             "params": {
-                "rootUri": "file:///"
+                "rootUri": root_uri
             }
         }));
 
@@ -628,7 +635,10 @@ mod tests {
         .expect("handle capacity-rejected open");
 
         let rendered = String::from_utf8(output).expect("utf8 output");
-        assert!(rendered.contains("textDocument/publishDiagnostics"));
+        assert!(
+            rendered.contains("textDocument/publishDiagnostics"),
+            "expected capacity clear; got: {rendered}"
+        );
         assert!(rendered.contains("\"diagnostics\":[]"));
         assert!(rendered.contains(uri));
         assert!(documents.take_due(Instant::now()).is_empty());

@@ -43,16 +43,18 @@ fn run_mcp_json(workspace: &std::path::Path, extra: &[&str]) -> std::process::Ou
 fn mcp_config_global_scope_defaults_to_user_home() {
     let home = tempfile::tempdir().unwrap();
     let project = tempfile::tempdir().unwrap();
-    let output = Command::new(ANVIL_BIN)
-        .arg("--no-tui")
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
         .arg("mcp-config")
         .args(["--target", "codex", "--write"])
         .current_dir(project.path())
         .env("ANVIL_DEV", "1")
+        // Windows resolves home via USERPROFILE; Unix via HOME. Set both so
+        // the test isolates home on every platform (util::user_home_dir).
         .env("HOME", home.path())
-        .env("XDG_CONFIG_HOME", home.path().join(".config"))
-        .output()
-        .expect("invoke mcp-config");
+        .env("USERPROFILE", home.path())
+        .env("XDG_CONFIG_HOME", home.path().join(".config"));
+    let output = cmd.output().expect("invoke mcp-config");
 
     assert!(
         output.status.success(),
@@ -60,8 +62,13 @@ fn mcp_config_global_scope_defaults_to_user_home() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(home.path().join(".codex/config.toml").exists());
-    assert!(!project.path().join(".codex/config.toml").exists());
+    assert!(
+        home.path().join(".codex").join("config.toml").exists(),
+        "expected global codex config under isolated home; stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!project.path().join(".codex").join("config.toml").exists());
 }
 
 #[cfg(unix)]

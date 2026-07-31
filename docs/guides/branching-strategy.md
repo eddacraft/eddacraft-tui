@@ -20,13 +20,13 @@ for the operating-model context.
 
 ## Branches
 
-| Branch                                 | Purpose                                                                                                                             | Protection                                                        |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `main`                                 | The only permanent product branch; continuously releasable.                                                                         | PRs only. Required CI and release-readiness evidence for release. |
-| `feat/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived normal work branches created from `main`.                                                                               | Disposable.                                                       |
-| `release/*`                            | Exceptional, short-lived release stabilisation branch when `main` cannot be tagged directly.                                        | Explicit expiry; release hardening only.                          |
-| `hotfix/*`                             | Urgent production repair branch from `main` or latest good tag when `main` is unreleasable.                                         | Disposable; incident follow-up required if bypassing normal flow. |
-| `dev`                                  | Retired dated compatibility branch (tag `dev-retired-2026-05-11`). Scheduled for deletion on or after 2026-07-10 — see issue #1419. | Locked: no creation, update, deletion, or non-FF.                 |
+| Branch                                 | Purpose                                                                                      | Protection                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `main`                                 | The only permanent product branch; continuously releasable.                                  | PRs only. Required CI and release-readiness evidence for release. |
+| `feat/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived normal work branches created from `main`.                                        | Disposable.                                                       |
+| `release/*`                            | Exceptional, short-lived release stabilisation branch when `main` cannot be tagged directly. | Explicit expiry; release hardening only.                          |
+| `hotfix/*`                             | Urgent production repair branch from `main` or latest good tag when `main` is unreleasable.  | Disposable; incident follow-up required if bypassing normal flow. |
+| `dev`                                  | **Deleted** (issue #1419, 2026-07-31). Tag `dev-retired-2026-05-11` remains for archaeology. | Removed after the OPMODEL-012 main-first transition window.       |
 
 ## Normal flow
 

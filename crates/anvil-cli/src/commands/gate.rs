@@ -232,8 +232,10 @@ const GATE_HISTORY_FILE: &str = "gate-history.ndjson";
 const GATE_HISTORY_LOCK_FILE: &str = ".gate-history.lock";
 const GATE_HISTORY_LINE_CAP: usize = 500;
 const GATE_HISTORY_MAX_BYTES: usize = GATE_HISTORY_LINE_CAP * 2048;
-const GATE_HISTORY_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
-const GATE_HISTORY_LOCK_RETRY: std::time::Duration = std::time::Duration::from_millis(10);
+// 2s absorbs contended CI runners (Windows exclusive locks report as OS
+// error 33 rather than WouldBlock; macOS/Windows smoke co-schedules writers).
+const GATE_HISTORY_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+const GATE_HISTORY_LOCK_RETRY: std::time::Duration = std::time::Duration::from_millis(20);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct GateHistoryPoint {
@@ -453,6 +455,19 @@ fn read_gate_history_file(mut file: std::fs::File) -> std::io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
+fn gate_history_lock_is_contended(error: &std::io::Error) -> bool {
+    // Unix flock contention is WouldBlock. Windows ERROR_LOCK_VIOLATION (33)
+    // and ERROR_SHARING_VIOLATION (32) often surface as PermissionDenied or
+    // Other, not WouldBlock — treat them as retryable contention.
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::WouldBlock
+            | std::io::ErrorKind::TimedOut
+            | std::io::ErrorKind::Interrupted
+            | std::io::ErrorKind::PermissionDenied
+    ) || matches!(error.raw_os_error(), Some(32 | 33 | 11 | 35 | 16))
+}
+
 fn acquire_gate_history_lock(lock: std::fs::File) -> std::io::Result<std::fs::File> {
     use fs2::FileExt as _;
 
@@ -460,7 +475,7 @@ fn acquire_gate_history_lock(lock: std::fs::File) -> std::io::Result<std::fs::Fi
     loop {
         match lock.try_lock_exclusive() {
             Ok(()) => return Ok(lock),
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+            Err(error) if gate_history_lock_is_contended(&error) => {
                 let Some(remaining) = deadline.checked_duration_since(std::time::Instant::now())
                 else {
                     return Err(std::io::Error::new(
@@ -4554,7 +4569,16 @@ mod tests {
         use std::sync::{Arc, Barrier};
 
         let workspace = tempfile::tempdir().expect("workspace");
-        std::fs::create_dir(workspace.path().join(".anvil")).unwrap();
+        let anvil_dir = workspace.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        // Pre-create the lock file so concurrent first-writers cannot race on
+        // create-open under openat/CreateFile.
+        std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(anvil_dir.join(GATE_HISTORY_LOCK_FILE))
+            .unwrap();
         let root = Arc::new(workspace.path().to_path_buf());
         let barrier = Arc::new(Barrier::new(2));
         let handles = [1, 2].map(|second| {
@@ -4572,16 +4596,24 @@ mod tests {
                         .unwrap()
                         .with_timezone(&chrono::Utc);
                 barrier.wait();
-                append_gate_history(&root, &snapshot, recorded_at).unwrap();
+                append_gate_history(&root, &snapshot, recorded_at).unwrap_or_else(|error| {
+                    panic!("append_gate_history failed for point-{second}: {error:#}");
+                });
             })
         });
         for handle in handles {
-            handle.join().unwrap();
+            handle.join().expect("writer thread");
         }
 
-        let history = std::fs::read_to_string(root.join(".anvil/gate-history.ndjson")).unwrap();
-        assert!(history.contains("point-1"));
-        assert!(history.contains("point-2"));
+        let history = std::fs::read_to_string(root.join(".anvil").join(GATE_HISTORY_FILE)).unwrap();
+        assert!(
+            history.contains("point-1"),
+            "history missing point-1: {history}"
+        );
+        assert!(
+            history.contains("point-2"),
+            "history missing point-2: {history}"
+        );
         assert_eq!(history.lines().count(), 2);
     }
 
@@ -4661,8 +4693,10 @@ mod tests {
             .open(workspace.path().join(".anvil/.gate-history.lock"))
             .unwrap();
         lock.lock_exclusive().unwrap();
+        // Hold longer than GATE_HISTORY_LOCK_TIMEOUT (2s) so the writer
+        // times out rather than waiting for the holder.
         let release = std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(800));
+            std::thread::sleep(std::time::Duration::from_millis(3_500));
             drop(lock);
         });
         let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
@@ -4678,8 +4712,12 @@ mod tests {
         release.join().unwrap();
 
         assert!(
-            elapsed < std::time::Duration::from_millis(600),
-            "{elapsed:?}"
+            elapsed >= GATE_HISTORY_LOCK_TIMEOUT,
+            "should wait for the lock timeout before giving up: {elapsed:?}"
+        );
+        assert!(
+            elapsed < std::time::Duration::from_secs(3),
+            "must not block on the lock holder for the full hold duration: {elapsed:?}"
         );
         assert!(workspace.path().join(".anvil/gates.json").is_file());
         assert!(!workspace.path().join(".anvil/gate-history.ndjson").exists());

@@ -18,17 +18,14 @@ on:
         description: Release channel, such as beta or stable
         required: true
         type: string
-      # CICD-012: `migration-dev` is the migration-mode compatibility
-      # probe. OPMODEL-012 should remove the `migration-dev` option,
-      # the matching `dev` branch in the validate job below, and any
-      # documentation references once `dev` is retired.
+      # Reachability is main-only after the retired compatibility branch
+      # was deleted (#1419).
       expectedReachableFrom:
         description: Reachability target for the requested SHA
         required: true
         type: choice
         options:
           - main
-          - migration-dev
       baseBoundary:
         description: Previous release tag or product boundary for release-content checks
         required: true
@@ -70,7 +67,7 @@ jobs:
       - name: Checkout trusted ref for SHA validation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.expectedReachableFrom == 'migration-dev' && 'dev' || 'main' }}
+          ref: main
           fetch-depth: 0
           persist-credentials: false
 
@@ -148,11 +145,8 @@ jobs:
             main)
               expected_branch=main
               ;;
-            migration-dev)
-              expected_branch=dev
-              ;;
             *)
-              echo "::error::expectedReachableFrom must be main or migration-dev"
+              echo "::error::expectedReachableFrom must be main"
               exit 1
               ;;
           esac

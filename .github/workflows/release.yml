@@ -350,6 +350,25 @@ jobs:
           dist build ${{ needs.plan.outputs.tag-flag }} --output-format=json "--artifacts=global" > dist-manifest.json
           echo "dist ran successfully"
 
+          # GH #2885: prepend package-manager dual-install guard to the
+          # PowerShell installer so a cargo-dist install refuses when WinGet
+          # or Scoop already owns `anvil` on PATH.
+          ps1="$(find target/distrib -name 'eddacraft-anvil-installer.ps1' -print -quit 2>/dev/null || true)"
+          guard="scripts/install/windows-package-manager-guard.ps1"
+          if [ -n "$ps1" ] && [ -f "$ps1" ] && [ -f "$guard" ]; then
+            {
+              echo "# --- begin anvil package-manager dual-install guard (GH #2885) ---"
+              cat "$guard"
+              echo "# --- end anvil package-manager dual-install guard ---"
+              echo ""
+              cat "$ps1"
+            } >"${ps1}.guarded"
+            mv "${ps1}.guarded" "$ps1"
+            echo "Injected Windows package-manager guard into ${ps1}"
+          else
+            echo "::warning::PowerShell installer or guard script missing; dual-install guard not injected"
+          fi
+
           # Parse out what we just built and upload it to scratch storage
           echo "paths<<EOF" >> "$GITHUB_OUTPUT"
           jq --raw-output ".upload_files[]" dist-manifest.json >> "$GITHUB_OUTPUT"
@@ -665,21 +684,12 @@ jobs:
             --clobber \
             ACKNOWLEDGEMENTS.md
 
-          # Commit to the public repo's main so it is visible in the GitHub
-          # file browser. Uses the contents API with the existing SHA (if any)
-          # so we update in place rather than creating a parallel file history.
-          EXISTING_SHA=$(gh api repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --jq '.sha' 2>/dev/null || echo "")
-          ACK_PAYLOAD="${RUNNER_TEMP}/acknowledgements-payload.json"
-          base64 -w 0 ACKNOWLEDGEMENTS.md \
-            | jq -Rs --arg message "chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG" \
-              '{message:$message, content:.}' > "$ACK_PAYLOAD"
-          if [ -n "$EXISTING_SHA" ]; then
-            jq --arg sha "$EXISTING_SHA" '. + {sha:$sha}' "$ACK_PAYLOAD" \
-              > "${ACK_PAYLOAD}.tmp"
-            mv "${ACK_PAYLOAD}.tmp" "$ACK_PAYLOAD"
-          fi
-
-          gh api --method PUT repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md --input "$ACK_PAYLOAD"
+          # Contents API create/update via shared helper (fake-gh covered in #3310).
+          bash scripts/release/publish-public-contents.sh \
+            --repo eddacraft/anvil \
+            --path ACKNOWLEDGEMENTS.md \
+            --file ACKNOWLEDGEMENTS.md \
+            --message "chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG"
 
       # CIB-034: commit the sanitised release-evidence to the public repo's
       # `releases/` path so it is browsable alongside each release (the evidence
@@ -702,18 +712,11 @@ jobs:
           fi
 
           DEST="releases/release-evidence-${RELEASE_TAG}.md"
-          EXISTING_SHA=$(gh api "repos/eddacraft/anvil/contents/${DEST}" --jq '.sha' 2>/dev/null || echo "")
-          EVIDENCE_PAYLOAD="${RUNNER_TEMP}/release-evidence-payload.json"
-          base64 -w 0 "$EVIDENCE" \
-            | jq -Rs --arg message "chore(release): add release evidence for $RELEASE_TAG" \
-              '{message:$message, content:.}' > "$EVIDENCE_PAYLOAD"
-          if [ -n "$EXISTING_SHA" ]; then
-            jq --arg sha "$EXISTING_SHA" '. + {sha:$sha}' "$EVIDENCE_PAYLOAD" \
-              > "${EVIDENCE_PAYLOAD}.tmp"
-            mv "${EVIDENCE_PAYLOAD}.tmp" "$EVIDENCE_PAYLOAD"
-          fi
-
-          gh api --method PUT "repos/eddacraft/anvil/contents/${DEST}" --input "$EVIDENCE_PAYLOAD"
+          bash scripts/release/publish-public-contents.sh \
+            --repo eddacraft/anvil \
+            --path "$DEST" \
+            --file "$EVIDENCE" \
+            --message "chore(release): add release evidence for $RELEASE_TAG"
 
       - name: Promote public release to Latest
         env:
