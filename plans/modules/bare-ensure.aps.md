@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status  | Progress |
 | ---- | ----- | -------- | ------- | -------- |
-| ONSW | Josh  | high     | In Progress | 0/6     |
+| ONSW | Josh  | high     | In Progress | 1/6     |
 
 **Last reviewed:** 2026-08-01 — ADR-114 **Accepted** for `v0.10.0-beta` cut;
 implementation in progress on `plan/bare-anvil-ensure`. Spec:

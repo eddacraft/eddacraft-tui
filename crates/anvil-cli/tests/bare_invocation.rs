@@ -105,3 +105,31 @@ fn bare_anvil_json_not_activated_is_structured() {
     assert_eq!(value["surface"], "ensure");
     assert_eq!(value["config"], "absent");
 }
+
+#[test]
+fn bare_anvil_with_config_outside_git_refuses_worktree() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    // Config present but not a git worktree → refuse (worktree validation gate).
+    std::fs::write(tmp.path().join(".anvilrc"), "{}\n").expect("write config");
+    let out = Command::new(ANVIL_BIN)
+        .current_dir(tmp.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_NO_DAEMON", "1")
+        .env("ANVIL_NO_MCP", "1")
+        .output()
+        .expect("failed to invoke bare anvil");
+
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "non-worktree ensure must exit 1; stdout={}\nstderr={}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("worktree") || stderr.contains("registerable"),
+        "must mention worktree refusal:\n{stderr}"
+    );
+}

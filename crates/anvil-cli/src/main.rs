@@ -571,6 +571,10 @@ fn auth_required_message(kind: AuthRequiredKind) -> &'static str {
 }
 
 /// Auth-required response for bare `anvil` ensure (action surface, exit 3).
+///
+/// Uses the same action-command JSON envelope as [`auth_required_response`]
+/// (`state: "authRequired"`, `next`, optional `earlyAccessUrl`) so bare
+/// `anvil --json` matches `anvil start` and other gated action commands.
 fn auth_required_response_for_action(
     code: u8,
     json_mode: bool,
@@ -580,9 +584,7 @@ fn auth_required_response_for_action(
         let envelope = json_mode.then(|| serde_json::json!({"error": "auth_check_failed"}));
         return (code, envelope);
     }
-    let envelope = if !json_mode {
-        None
-    } else {
+    let envelope = if json_mode {
         let (message, early_access_url) = match kind {
             Some(AuthRequiredKind::NotAuthenticated) => {
                 (AUTH_NOT_AUTHENTICATED_MESSAGE, Some(EARLY_ACCESS_URL))
@@ -593,17 +595,17 @@ fn auth_required_response_for_action(
                 None,
             ),
         };
-        Some(match early_access_url {
-            Some(url) => serde_json::json!({
-                "authRequired": true,
-                "message": message,
-                "earlyAccessUrl": url,
-            }),
-            None => serde_json::json!({
-                "authRequired": true,
-                "message": message,
-            }),
-        })
+        let mut envelope = serde_json::json!({
+            "state": "authRequired",
+            "message": message,
+            "next": "anvil auth login",
+        });
+        if let Some(url) = early_access_url {
+            envelope["earlyAccessUrl"] = serde_json::Value::String(url.to_owned());
+        }
+        Some(envelope)
+    } else {
+        None
     };
     (EXIT_AUTH_REQUIRED, envelope)
 }
@@ -1286,11 +1288,7 @@ fn main() -> ExitCode {
             check_auth(&cli.global, true, wants_json)
         }
         Some(cmd) if requires_auth(cmd) && !skips_auth_for_local_probe(cmd) => {
-            check_auth(
-                &cli.global,
-                allows_interactive_auth_prompt(cmd),
-                wants_json,
-            )
+            check_auth(&cli.global, allows_interactive_auth_prompt(cmd), wants_json)
         }
         Some(_) => Ok(()),
     };
@@ -1413,7 +1411,7 @@ fn main() -> ExitCode {
         Some(Commands::Wizard(args)) => commands::wizard::run(args, &cli.global),
         Some(Commands::Admin(args)) => commands::admin::run(args, &cli.global),
         Some(Commands::Auth(args)) => commands::auth::run(args, &cli.global),
-        Some(Commands::Update(_)) | Some(Commands::Gate(_)) => {
+        Some(Commands::Update(_) | Commands::Gate(_)) => {
             unreachable!("handled above")
         }
         Some(Commands::GateConfig(args)) => commands::gate_config::run(args, &cli.global),

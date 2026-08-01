@@ -402,6 +402,7 @@ workflows, or hooks — use `anvil start` for that.
 | Situation                          | Result                                                                            |
 | ---------------------------------- | --------------------------------------------------------------------------------- |
 | Project config absent              | Exit 1; recovery names `anvil start` / `anvil welcome` (no silent install)        |
+| Not a registerable git worktree    | Exit 1; refuse early (worktree validation fails closed)                           |
 | Activated worktree                 | Daemon ensure + worktree registration + MCP ensure-only; short confidence summary |
 | MCP never installed / declined     | One recovery line → `anvil start` (no re-offer picker)                            |
 | `ANVIL_NO_DAEMON` / `ANVIL_NO_MCP` | Skip that ensure step                                                             |

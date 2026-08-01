@@ -2,7 +2,7 @@
 //!
 //! Turns protection on for an already-activated worktree without reinstall
 //! consent: daemon ensure, worktree registration when registerable, and MCP
-//! ensure-only for already-owned entries. Never installs NotPresent MCP,
+//! ensure-only for already-owned entries. Never installs `NotPresent` MCP,
 //! workflows, or hooks — those stay on `anvil start`.
 
 use std::path::{Path, PathBuf};
@@ -20,14 +20,16 @@ use crate::registration::{self, WorktreeRegistration};
 use crate::util;
 
 /// Human recovery when the repo has never been activated (config Absent).
-pub(crate) const NOT_ACTIVATED_MESSAGE: &str =
-    "anvil: not activated in this repository. Run `anvil start` to activate protection.\n\
+pub(crate) const NOT_ACTIVATED_MESSAGE: &str = "anvil: not activated in this repository. Run `anvil start` to activate protection.\n\
      anvil: new here? Run `anvil welcome` for a guided tour.";
+
+/// Human recovery when cwd is not a registerable git worktree.
+pub(crate) const NOT_REGISTERABLE_MESSAGE: &str = "anvil: not a registerable git worktree. Run bare `anvil` from a \
+     repository working tree (linked worktrees are fine).";
 
 /// Human recovery when MCP was never installed (or was declined).
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const MCP_NOT_INSTALLED_MESSAGE: &str =
-    "anvil: MCP not installed for this machine — run `anvil start` to configure it \
+pub(crate) const MCP_NOT_INSTALLED_MESSAGE: &str = "anvil: MCP not installed for this machine — run `anvil start` to configure it \
      (or `anvil start --no-mcp` if you only want daemon-backed protection).";
 
 #[derive(Debug, Serialize)]
@@ -50,6 +52,14 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         return report_not_activated(global, root);
     }
 
+    // Worktree validation gate (ONSW-002 / ADR-114): bare ensure is for
+    // registerable working trees only. Refuse early so worktree validation
+    // fails closed outside a repo (or inside `.git` / bare repos).
+    let worktree_path = match registration::registerable_worktree(root) {
+        Ok(path) => path,
+        Err(reason) => return report_not_registerable(global, root, &reason.to_string()),
+    };
+
     // Daemon ensure (idempotent). Bare is the on-switch: allow spawn even in
     // non-interactive contexts so scripts can turn protection on without a TTY.
     let capability = if daemon_opt_out() {
@@ -69,13 +79,9 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let daemon_outcome = crate::commands::intercept::ensure_save_time_daemon(capability);
     let daemon_line = format_daemon_outcome(&daemon_outcome);
 
-    // Worktree registration when cwd is registerable (no project-init writes).
-    let worktree_line = match registration::registerable_worktree(root) {
-        Ok(path) => format_worktree_registration(registration::register_worktree_with_daemon(
-            &path,
-        )),
-        Err(reason) => format!("worktree: not registerable ({reason})"),
-    };
+    // Durable worktree registration (no project-init writes).
+    let worktree_line =
+        format_worktree_registration(registration::register_worktree_with_daemon(&worktree_path));
 
     // MCP ensure-only (skip entirely under ANVIL_NO_MCP).
     let mcp_line = if mcp_opt_out() {
@@ -86,7 +92,11 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
                 let fresh = AnvilEntry::local_stdio(exe);
                 let home = util::user_home_dir();
                 let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
-                format_mcp_line(&summary.report, summary.managed, summary.absent_for_recovery)
+                format_mcp_line(
+                    &summary.report,
+                    summary.managed,
+                    summary.absent_for_recovery,
+                )
             }
             Err(err) => format!("mcp: could not resolve anvil executable ({err})"),
         }
@@ -154,6 +164,28 @@ fn report_not_activated(global: &GlobalArgs, root: &Path) -> anyhow::Result<()> 
     Err(AlreadyReported.into())
 }
 
+fn report_not_registerable(global: &GlobalArgs, root: &Path, reason: &str) -> anyhow::Result<()> {
+    if global.json {
+        let doc = EnsureJsonReport {
+            surface: "ensure",
+            protection: "needs_action".to_string(),
+            config: "valid".to_string(),
+            daemon: "skipped".to_string(),
+            worktree: format!("not registerable ({reason}) at {}", root.display()),
+            mcp: "skipped".to_string(),
+            next: Some("run bare `anvil` from a git working tree".to_string()),
+        };
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&doc).context("serialise ensure report")?
+        );
+    } else {
+        eprintln!("{NOT_REGISTERABLE_MESSAGE}");
+        eprintln!("anvil: {reason}");
+    }
+    Err(AlreadyReported.into())
+}
+
 fn daemon_opt_out() -> bool {
     std::env::var_os("ANVIL_NO_DAEMON").is_some_and(|value| !value.is_empty())
 }
@@ -186,9 +218,7 @@ fn format_worktree_registration(outcome: WorktreeRegistration) -> String {
         WorktreeRegistration::Registered => {
             "worktree: registered with the save-time daemon".to_string()
         }
-        WorktreeRegistration::Refreshed => {
-            "worktree: registration refreshed".to_string()
-        }
+        WorktreeRegistration::Refreshed => "worktree: registration refreshed".to_string(),
         WorktreeRegistration::DaemonUnavailable => {
             "worktree: daemon unavailable for registration".to_string()
         }
@@ -220,7 +250,7 @@ fn format_mcp_line(
         return format!("mcp: ensure failed for {failed} client(s); see logs");
     }
     if repaired > 0 {
-        return format!("mcp: updated {repaired} anvil-owned entr(y/ies)");
+        return format!("mcp: updated {repaired} anvil-owned entries");
     }
     if managed > 0 {
         return "mcp: anvil entry present".to_string();
@@ -231,10 +261,7 @@ fn format_mcp_line(
     "mcp: no anvil-owned entry to ensure".to_string()
 }
 
-fn next_action_line(
-    state: activation::state::ProtectionState,
-    mcp_line: &str,
-) -> Option<String> {
+fn next_action_line(state: activation::state::ProtectionState, mcp_line: &str) -> Option<String> {
     use activation::state::ProtectionState;
     if mcp_line.contains("not installed") {
         return Some("run `anvil start` to install MCP (optional)".to_string());
@@ -263,6 +290,11 @@ mod tests {
     fn not_activated_message_names_start_and_welcome() {
         assert!(NOT_ACTIVATED_MESSAGE.contains("anvil start"));
         assert!(NOT_ACTIVATED_MESSAGE.contains("anvil welcome"));
+    }
+
+    #[test]
+    fn not_registerable_message_mentions_worktree() {
+        assert!(NOT_REGISTERABLE_MESSAGE.contains("worktree"));
     }
 
     #[test]

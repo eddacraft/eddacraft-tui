@@ -320,9 +320,9 @@ the operator explicitly promotes them into the cut.
 ### JOURNEY-011: Bare `anvil` daily ensure vs `start` reconfigure
 
 - **Status:** Proposed — 2026-08-01. Design gate
-  [ADR-114](../decisions/114-bare-anvil-ensure-surface.md) Proposed;
-  implementation module [bare-ensure (ONSW)](./bare-ensure.aps.md). Promote to
-  Ready when ADR-114 is Accepted and ONSW-002..004 are Ready or Merged.
+  [ADR-114](../decisions/114-bare-anvil-ensure-surface.md) **Accepted**
+  2026-08-01; implementation module [bare-ensure (ONSW)](./bare-ensure.aps.md)
+  In Progress. Promote to Ready when ONSW-002..004 are Ready or Merged.
 - **Intent:** Finish the daily-confidence story: bare `anvil` is the on-switch
   (daemon + existing MCP ensure, no re-offer of declined installs); `anvil start`
   stays activate/reconfigure/reinstall. Resolves the contradiction between

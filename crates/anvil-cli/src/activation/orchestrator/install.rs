@@ -191,6 +191,16 @@ pub(crate) fn install_selected_clients(
     )
 }
 
+/// Summary of an ensure-only MCP pass (ADR-114 bare path).
+#[derive(Debug, Clone)]
+pub(crate) struct McpEnsureSummary {
+    pub report: InstallReport,
+    /// Count of clients with `UpToDate` or `SafeDrift` (already owned).
+    pub managed: usize,
+    /// Count of `NotPresent` candidates when nothing is managed (recovery).
+    pub absent_for_recovery: usize,
+}
+
 /// ADR-114 bare ensure: repair already-owned MCP entries only.
 ///
 /// - `SafeDrift` → rewrite in place (ADR-044 ownership)
@@ -198,16 +208,6 @@ pub(crate) fn install_selected_clients(
 /// - `NotPresent` → never install (recovery is `anvil start`)
 /// - `UnsafeDrift` → never overwrite
 ///
-/// Summary of an ensure-only MCP pass (ADR-114 bare path).
-#[derive(Debug, Clone)]
-pub(crate) struct McpEnsureSummary {
-    pub report: InstallReport,
-    /// Count of clients with UpToDate or SafeDrift (already owned).
-    pub managed: usize,
-    /// Count of NotPresent candidates when nothing is managed (recovery).
-    pub absent_for_recovery: usize,
-}
-
 /// Returns the install report plus how many candidates were still
 /// `NotPresent` (so the caller can emit one recovery line).
 pub(crate) fn ensure_existing_mcp_entries(
