@@ -46,22 +46,17 @@ permissions:
 on:
   push:
     tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*'
+      # CLI releases only (`v0.7.4-beta`, …). Prefixed library tags
+      # (`eddacraft-tui-v*`, …) use their own publish workflows; a broad
+      # semver glob would still start this workflow and skip most jobs.
+      - 'v*'
 
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
-    # Only the CLI publishes through this cargo-dist pipeline, and its release
-    # tags are always `v*` (v0.7.4-beta, …). Library/crate tags such as
-    # `eddacraft-tui-v*` — and any future prefixed crate tag — ALSO match the
-    # broad push-tags glob ('**[0-9]+.[0-9]+.[0-9]+*'), and running this pipeline
-    # for a non-`[[bin]]` crate publishes a binary-less release on the public
-    # eddacraft/anvil repo that, as the newest non-prerelease, steals the
-    # "Latest" pointer from the CLI and 404s install.eddacraft.ai's
-    # /releases/latest/download/ installer. So allowlist CLI `v*` tags only;
-    # every prefixed/library tag skips by default — no per-crate denylist to
-    # maintain. Skipping `plan` cascades: every downstream job needs it, and
-    # `host` (the public-publish job) gates on `needs.plan.result == 'success'`.
+    # Defense in depth with the `v*` tag filter above: only CLI-style tags
+    # should reach this job. Skipping `plan` cascades — every downstream job
+    # needs it, and `host` gates on `needs.plan.result == 'success'`.
     if: ${{ startsWith(github.ref_name, 'v') }}
     runs-on: 'ubuntu-22.04'
     outputs:

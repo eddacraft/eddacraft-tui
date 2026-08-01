@@ -118,5 +118,11 @@ if grep -E '^[[:space:]]*pull_request:' "${release_workflow}" >/dev/null; then
 fi
 assert_release_contains "push:"
 assert_release_contains "tags:"
+# CLI tags only — do not re-introduce the broad dist-generated semver glob.
+assert_release_contains "- 'v*'"
+if grep -Fq -- '**[0-9]+.[0-9]+.[0-9]+*' "${release_workflow}"; then
+  echo "expected ${release_workflow} not to use the broad cargo-dist tag glob" >&2
+  exit 1
+fi
 
 printf 'release-sign-artefacts-workflow.test.sh: ok\n'
