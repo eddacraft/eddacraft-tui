@@ -285,7 +285,9 @@ fn run_start_in_pty(
         }
         if interaction_stage == 1
             && !matches!(interaction, PtyInteraction::Quit)
-            && screen_enters >= 2
+            && bytes
+                .windows(b"[Verdict]".len())
+                .any(|window| window == b"[Verdict]")
         {
             master.write_all(b"q").expect("quit post-consent PTY");
             master.flush().unwrap();
@@ -390,6 +392,16 @@ fn start_tui_pty_enters_and_restores_the_alternate_screen() {
         "TUI did not restore the terminal on q:\n{}",
         result.transcript,
     );
+    assert!(
+        result.transcript.contains("[Preflight]"),
+        "activation did not render before work began:\n{}",
+        result.transcript,
+    );
+    assert!(
+        result.transcript.contains("[Working]"),
+        "typed activation events did not update the live surface:\n{}",
+        result.transcript,
+    );
     assert_screen_transitions(&result, 1);
     assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
 }
@@ -453,7 +465,7 @@ fn start_tui_empty_apply_reaches_verdict_without_writes_or_false_pass() {
         "PTY start failed:\n{}",
         result.transcript
     );
-    assert_screen_transitions(&result, 2);
+    assert_screen_transitions(&result, 1);
     assert!(
         result.transcript.contains("[Verdict]"),
         "post-consent verdict was not rendered:\n{}",
@@ -482,7 +494,7 @@ fn start_tui_selected_apply_writes_only_selection_then_reaches_verdict() {
         "PTY start failed:\n{}",
         result.transcript
     );
-    assert_screen_transitions(&result, 2);
+    assert_screen_transitions(&result, 1);
     assert!(
         result.transcript.contains("[Verdict]"),
         "post-consent verdict was not rendered:\n{}",

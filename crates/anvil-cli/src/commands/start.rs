@@ -253,6 +253,21 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         read_only,
         start_is_interactive(),
     );
+    let mut tui_session = None;
+    let mut live_surface = None;
+    if matches!(render_mode, StartRenderMode::Tui) {
+        let mut session = crate::tui::TuiSession::enter()?;
+        let surface = anvil_tui::surfaces::activation::ActivationSurface::live(
+            project_writes_gated,
+            matches!(
+                daemon_capability,
+                Some(anvil_intercept::ensure::StartCapability::MaySpawn)
+            ),
+        );
+        session.draw_surface(&surface)?;
+        tui_session = Some(session);
+        live_surface = Some(surface);
+    }
     // The spawn path bound-waits up to ~12s for a fresh daemon to bind. Name
     // the action on stderr before blocking so an interactive `anvil start`
     // does not read as a silent hang. stderr keeps the stdout / `--json`
@@ -265,7 +280,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         if matches!(render_mode, StartRenderMode::Tui) {
             tui_log_lines.push(line.to_string());
         }
-        eprintln!("{line}");
+        if !matches!(render_mode, StartRenderMode::Tui) {
+            eprintln!("{line}");
+        }
     }
     let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
 
@@ -280,15 +297,43 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     } else {
         // Both Install and Skip route through the same entry point; the policy
         // and render mode are the only things that differ.
-        let outcome = activation::orchestrator::run_with_mcp_policy_and_mode(
-            root,
-            global,
-            legacy_mcp_install_policy(args),
-            force_all_mcp_clients,
-            &args.mcp_client,
-            render_mode,
-            args.new_identity,
-        )?;
+        let outcome = if matches!(render_mode, StartRenderMode::Tui) {
+            let session = tui_session
+                .as_mut()
+                .context("activation TUI session was not initialised")?;
+            let surface = live_surface
+                .as_mut()
+                .context("activation live surface was not initialised")?;
+            let mut observed_events = Vec::new();
+            let mut observer = |event: &ActivationStepEvent| {
+                observed_events.push(event.clone());
+                let mut live_lines = tui_log_lines.clone();
+                live_lines.extend(observed_events.iter().map(ActivationStepEvent::render_line));
+                surface
+                    .update_live_progress(live_lines, activation_progress_steps(&observed_events));
+                session.draw_surface(surface)
+            };
+            activation::orchestrator::run_with_mcp_policy_and_mode_observing(
+                root,
+                global,
+                legacy_mcp_install_policy(args),
+                force_all_mcp_clients,
+                &args.mcp_client,
+                render_mode,
+                args.new_identity,
+                &mut observer,
+            )?
+        } else {
+            activation::orchestrator::run_with_mcp_policy_and_mode(
+                root,
+                global,
+                legacy_mcp_install_policy(args),
+                force_all_mcp_clients,
+                &args.mcp_client,
+                render_mode,
+                args.new_identity,
+            )?
+        };
         activation_run = Some(outcome.run);
         (outcome.diagnostic, outcome.install_report)
     };
@@ -449,34 +494,40 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     false,
                     phase,
                 );
+            let mut tui_session = tui_session
+                .take()
+                .context("activation TUI session was not initialised")?;
             if let Some(applied) = run_activation_surface_with(
                 state,
                 &consent_plan,
                 project_writes_gated,
-                crate::tui::run_surface,
+                |mut surface| {
+                    let _ = tui_session.run_surface(&mut surface)?;
+                    Ok(surface)
+                },
             )? {
                 let post_consent_progress =
                     activation_post_consent_progress_steps(progress_steps, &applied);
                 for path in &applied.written_workflows {
-                    eprintln!(
-                        "anvil: installed GitHub Actions workflow {}",
+                    tui_log_lines.push(format!(
+                        "installed GitHub Actions workflow {}",
                         path.strip_prefix(root).unwrap_or(path).display(),
-                    );
+                    ));
                 }
                 for line in &applied.first_wave_mcp_lines {
-                    eprintln!("anvil: {line}");
+                    tui_log_lines.push(line.clone());
                 }
                 for error in &applied.first_wave_mcp_errors {
-                    eprintln!("anvil: {error}");
+                    tui_log_lines.push(error.clone());
                 }
                 if let Some(error) = &applied.workflow_error {
                     tracing::warn!(
                         error = %error,
                         "activation TUI: failed to install selected GitHub Actions workflows",
                     );
-                    eprintln!(
-                        "anvil: could not install selected GitHub Actions workflows ({error}); continuing"
-                    );
+                    tui_log_lines.push(format!(
+                        "could not install selected GitHub Actions workflows ({error}); continuing"
+                    ));
                 }
                 ensure_tui_load_bearing_actions_succeeded(&applied)?;
                 let hooks_active =
@@ -497,7 +548,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     &agent_inventory,
                     agents_cached,
                 );
-                let verdict = activation_post_consent_surface(
+                let mut verdict = activation_post_consent_surface(
                     post_consent_output,
                     &diagnostic,
                     &install_report,
@@ -508,8 +559,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     post_consent_progress,
                     false,
                 );
-                let _ = crate::tui::run_surface(verdict)?;
+                let _ = tui_session.run_surface(&mut verdict)?;
             }
+            tui_session.leave()?;
         } else {
             print!("{human_output}");
         }
@@ -3060,7 +3112,9 @@ mod tests {
         // C-017: `ANVIL_NO_TUI=` (empty) behaves exactly like the sibling
         // `ANVIL_NO_DAEMON` / `ANVIL_NO_MCP` hatches — empty means unset, only
         // a non-empty value opts out.
-        assert!(!activation_tui_env_opt_out());
+        temp_env::with_var("ANVIL_NO_TUI", None::<&str>, || {
+            assert!(!activation_tui_env_opt_out());
+        });
         temp_env::with_var("ANVIL_NO_TUI", Some("1"), || {
             assert!(activation_tui_env_opt_out());
         });

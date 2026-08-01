@@ -1,11 +1,9 @@
 //! Activation surface (ACTTUI-001) — the default `anvil start` TUI.
 //!
 //! This module is the foundation slice for the activation TUI (ADR-103). It
-//! introduces the phased state machine and a [`Surface`] implementation that
-//! renders the already-composed activation verdict inside the anvil shell
-//! chrome. Later work items thread live orchestrator step events into the
-//! phases (ACTTUI-002/-003), replace `demand` pickers with the consent phase
-//! (ACTTUI-004), and build the collapsible verdict tree (ACTTUI-005).
+//! provides the phased state machine used for one continuous activation
+//! session. Typed orchestrator events update the preflight and working phases;
+//! the same surface then owns consent and the collapsible verdict.
 //!
 //! ## Scope boundary (ACTTUI-001)
 //!
@@ -14,10 +12,8 @@
 //!   interactive, with no opt-in. `--no-tui` / `ANVIL_NO_TUI=1`, `--verify`,
 //!   `--json`, `--watch`, CI, and piped output stay on the deterministic plain
 //!   contracts (see `crates/anvil-cli/src/commands/start.rs`).
-//! - v1 renders the verdict text the plain path would have printed, so the TUI
-//!   never claims more (or less) than the byte-stable plain surface. The phased
-//!   enum exists now so downstream items have a stable seam to build on; v1
-//!   constructs the surface already at [`ActivationPhase::Verdict`].
+//! - The verdict still derives from the plain path's typed diagnostic, so the
+//!   TUI never claims more (or less) than the byte-stable plain surface.
 //! - When project writes are gated (a non-default `ANVIL_HOME`, ADR-060) the
 //!   shell chrome carries a persistent banner naming the gated posture.
 
@@ -38,10 +34,7 @@ pub use verdict::{VerdictModel, VerdictSection, VerdictTone, VerdictView};
 /// Ordered phases of an `anvil start` activation run.
 ///
 /// The ordering is meaningful: [`ActivationPhase::next`] advances through the
-/// run and saturates at [`ActivationPhase::Done`]. v1 (ACTTUI-001) builds the
-/// surface directly at [`ActivationPhase::Verdict`] because the orchestrator
-/// runs synchronously before the surface opens; the earlier phases become live
-/// once ACTTUI-002/-003 stream orchestrator step events.
+/// run and saturates at [`ActivationPhase::Done`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ActivationPhase {
     /// Pre-flight: config probe, identity, daemon-ensure decision.
@@ -175,6 +168,32 @@ pub struct ActivationSurface {
 }
 
 impl ActivationSurface {
+    /// Build the first frame of a live activation run.
+    #[must_use]
+    pub fn live(project_writes_gated: bool, daemon_spinner: bool) -> Self {
+        Self::from_verdict_with_progress(
+            "ACTIVATION\n",
+            project_writes_gated,
+            Vec::new(),
+            Vec::new(),
+            daemon_spinner,
+            ActivationPhase::Preflight,
+        )
+    }
+
+    /// Replace the live activity projection as typed orchestrator events arrive.
+    pub fn update_live_progress(
+        &mut self,
+        log_lines: Vec<String>,
+        progress_steps: Vec<ActivationProgressStep>,
+    ) {
+        self.phase = ActivationPhase::Working;
+        self.tier_evidence_entries = log_panel::entries_from_lifecycle(&log_lines);
+        self.log_lines = log_lines;
+        self.progress_steps = progress_steps;
+        self.daemon_spinner = false;
+    }
+
     /// Build a v1 surface positioned at [`ActivationPhase::Verdict`] with the
     /// already-composed verdict text.
     #[must_use]
@@ -225,9 +244,8 @@ impl ActivationSurface {
     }
 
     /// Build a surface with orchestrator progress rows and optional daemon
-    /// spinner. ACTTUI-003 uses this to render the completed working phase from
-    /// ACTTUI-002 lifecycle events; future live streaming can update the same
-    /// fields while the run is in progress.
+    /// spinner. The live path updates the same fields while the run is in
+    /// progress, then the consent and verdict phases reuse the final projection.
     #[must_use]
     pub fn from_verdict_with_progress(
         verdict: impl Into<String>,
@@ -420,6 +438,11 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
     fn help_text(&self) -> &str {
         if self.tier_evidence_pane.is_visible() {
             "j/k scroll  g/G top/bottom  esc close  q quit"
+        } else if matches!(
+            self.phase,
+            ActivationPhase::Preflight | ActivationPhase::Working
+        ) {
+            "activation running"
         } else if self.phase == ActivationPhase::Consent {
             match &self.consent {
                 // The unsafe-drift confirm overlay owns the keys while open.
@@ -562,6 +585,27 @@ mod tests {
         assert_eq!(surface.log_lines(), ["daemon: ensured"]);
         assert_eq!(surface.progress_steps().len(), 1);
         assert!(surface.daemon_spinner());
+    }
+
+    #[test]
+    fn live_surface_moves_from_preflight_to_working_as_events_arrive() {
+        let mut surface = ActivationSurface::live(false, true);
+        assert_eq!(surface.phase(), ActivationPhase::Preflight);
+        assert!(surface.daemon_spinner());
+
+        surface.update_live_progress(
+            vec!["initial-probe: started".to_string()],
+            vec![ActivationProgressStep::new(
+                "initial-probe",
+                "Initial probe",
+                ActivationProgressStatus::Running,
+            )],
+        );
+
+        assert_eq!(surface.phase(), ActivationPhase::Working);
+        assert_eq!(surface.log_lines(), ["initial-probe: started"]);
+        assert_eq!(surface.progress_steps().len(), 1);
+        assert!(!surface.daemon_spinner());
     }
 
     #[test]

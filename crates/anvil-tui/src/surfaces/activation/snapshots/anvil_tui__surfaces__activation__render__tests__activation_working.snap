@@ -14,15 +14,15 @@ expression: "render_to_string(&working, 100, 24)"
   │                                                                                              │  
   │                                                                                              │  
   └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  ◈ state: ready_restart_required                                                                   
-  Activation state: ready_restart_required                                                          
-  ┌ Activation verdict ──────────────────────────────────────────────────────────────────────────┐  
-  │▼ Activation                                                                                  │  
-  │  · state: ready_restart_required                                                             │  
-  │  · next: restart editor                                                                      │  
-  │· Layers                                                                                      │  
-  │· Install                                                                                     │  
-  │· Languages                                                                                   │  
-  │· Config                                                                                      │  
-  └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  [↑/↓] Move  [enter/space] Expand  [t] Smoke  [e] Evidence  [esc/q] Quit
+  ╔Activation activity (3)═══════════════════════════════════════════════════════════════════════╗  
+  ║◇ 00 activation - state: ready_restart_required                                               ║  
+  ║◇ 01 activation - next: restart editor                                                        ║  
+  ║◇ 00 orchestrator - initial-probe: completed                                                  ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ╚══════════════════════════════════════════════════════════════════════════════════════════════╝

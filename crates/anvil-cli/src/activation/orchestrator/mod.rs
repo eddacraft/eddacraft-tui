@@ -162,6 +162,7 @@ impl ActivationRun {
         }
     }
 
+    #[cfg(test)]
     fn start(&mut self, step: ActivationStep) {
         self.events.push(ActivationStepEvent::new(
             step,
@@ -170,6 +171,7 @@ impl ActivationRun {
         ));
     }
 
+    #[cfg(test)]
     fn complete(&mut self, step: ActivationStep) {
         self.events.push(ActivationStepEvent::new(
             step,
@@ -178,22 +180,7 @@ impl ActivationRun {
         ));
     }
 
-    fn skip(&mut self, step: ActivationStep, detail: impl Into<String>) {
-        self.events.push(ActivationStepEvent::new(
-            step,
-            ActivationStepLifecycle::Skipped,
-            Some(detail.into()),
-        ));
-    }
-
-    fn defer(&mut self, step: ActivationStep, detail: impl Into<String>) {
-        self.events.push(ActivationStepEvent::new(
-            step,
-            ActivationStepLifecycle::Deferred,
-            Some(detail.into()),
-        ));
-    }
-
+    #[cfg(test)]
     fn fail(&mut self, step: ActivationStep, detail: impl Into<String>) {
         self.events.push(ActivationStepEvent::new(
             step,
@@ -226,6 +213,96 @@ impl ActivationRun {
                 && event.lifecycle == ActivationStepLifecycle::Skipped
                 && event.detail.as_deref() == Some(INIT_CONFIG_ALREADY_PRESENT_DETAIL)
         })
+    }
+}
+
+pub(crate) type ActivationEventObserver<'a> =
+    dyn FnMut(&ActivationStepEvent) -> anyhow::Result<()> + 'a;
+
+struct ActivationRunRecorder<'a> {
+    run: ActivationRun,
+    observer: Option<&'a mut ActivationEventObserver<'a>>,
+    observer_error: Option<anyhow::Error>,
+}
+
+impl<'a> ActivationRunRecorder<'a> {
+    fn new(observer: Option<&'a mut ActivationEventObserver<'a>>) -> Self {
+        Self {
+            run: ActivationRun::default(),
+            observer,
+            observer_error: None,
+        }
+    }
+
+    fn record(&mut self, event: &ActivationStepEvent) {
+        self.run.events.push(event.clone());
+        if self.observer_error.is_none()
+            && let Some(observer) = self.observer.as_mut()
+            && let Err(error) = observer(event)
+        {
+            self.observer_error = Some(error);
+        }
+    }
+
+    fn start(&mut self, step: ActivationStep) {
+        self.record(&ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Started,
+            None,
+        ));
+    }
+
+    fn complete(&mut self, step: ActivationStep) {
+        self.record(&ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Completed,
+            None,
+        ));
+    }
+
+    fn skip(&mut self, step: ActivationStep, detail: impl Into<String>) {
+        self.record(&ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Skipped,
+            Some(detail.into()),
+        ));
+    }
+
+    fn defer(&mut self, step: ActivationStep, detail: impl Into<String>) {
+        self.record(&ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Deferred,
+            Some(detail.into()),
+        ));
+    }
+
+    fn fail(&mut self, step: ActivationStep, detail: impl Into<String>) {
+        self.record(&ActivationStepEvent::new(
+            step,
+            ActivationStepLifecycle::Failed,
+            Some(detail.into()),
+        ));
+    }
+
+    fn finish(self) -> anyhow::Result<ActivationRun> {
+        match self.observer_error {
+            Some(error) => Err(error),
+            None => Ok(self.run),
+        }
+    }
+}
+
+impl std::ops::Deref for ActivationRunRecorder<'_> {
+    type Target = ActivationRun;
+
+    fn deref(&self) -> &Self::Target {
+        &self.run
+    }
+}
+
+impl std::ops::DerefMut for ActivationRunRecorder<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.run
     }
 }
 
@@ -955,10 +1032,38 @@ pub(crate) fn run_with_mcp_policy_and_mode(
         &enabled,
         render_mode,
         rotate_identity,
+        None,
     )
 }
 
-fn run_with_home_and_policy(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_with_mcp_policy_and_mode_observing<'a>(
+    root: &Path,
+    global: &GlobalArgs,
+    mcp_install_policy: McpInstallPolicy,
+    force_all_mcp_clients: bool,
+    explicit_clients: &[AgentClientId],
+    render_mode: StartRenderMode,
+    rotate_identity: bool,
+    observer: &'a mut ActivationEventObserver<'a>,
+) -> anyhow::Result<ActivationOutcome> {
+    let home = crate::util::user_home_dir();
+    let mut enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    extend_enabled_with_explicit_clients(&mut enabled, explicit_clients);
+    run_with_home_and_policy(
+        root,
+        home.as_deref(),
+        global,
+        mcp_install_policy,
+        &enabled,
+        render_mode,
+        rotate_identity,
+        Some(observer),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_with_home_and_policy<'a>(
     root: &Path,
     home: Option<&Path>,
     global: &GlobalArgs,
@@ -966,6 +1071,7 @@ fn run_with_home_and_policy(
     enabled: &BTreeSet<McpClientId>,
     render_mode: StartRenderMode,
     rotate_identity: bool,
+    observer: Option<&'a mut ActivationEventObserver<'a>>,
 ) -> anyhow::Result<ActivationOutcome> {
     run_with_home_and_registration_outcome(
         root,
@@ -976,6 +1082,7 @@ fn run_with_home_and_policy(
         enabled,
         render_mode,
         rotate_identity,
+        observer,
     )
 }
 
@@ -1057,12 +1164,13 @@ fn run_with_home_and_registration(
         enabled,
         StartRenderMode::Plain,
         false,
+        None,
     )?
     .into_legacy_parts())
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-fn run_with_home_and_registration_outcome(
+fn run_with_home_and_registration_outcome<'a>(
     root: &Path,
     home: Option<&Path>,
     global: &GlobalArgs,
@@ -1071,8 +1179,9 @@ fn run_with_home_and_registration_outcome(
     enabled: &BTreeSet<McpClientId>,
     render_mode: StartRenderMode,
     rotate_identity: bool,
+    observer: Option<&'a mut ActivationEventObserver<'a>>,
 ) -> anyhow::Result<ActivationOutcome> {
-    let mut activation_run = ActivationRun::default();
+    let mut activation_run = ActivationRunRecorder::new(observer);
 
     // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
     // `--touch-project-state`, activation runs in a read-only posture — it still
@@ -1536,6 +1645,7 @@ fn run_with_home_and_registration_outcome(
 
     activation_run.start(ActivationStep::Verdict);
     activation_run.complete(ActivationStep::Verdict);
+    let activation_run = activation_run.finish()?;
 
     Ok(ActivationOutcome {
         diagnostic,
@@ -2041,6 +2151,30 @@ verdict: completed"
     }
 
     #[test]
+    fn activation_run_streams_each_typed_event_as_it_is_recorded() {
+        let mut streamed_events = Vec::new();
+        let mut observer = |event: &ActivationStepEvent| {
+            streamed_events.push(event.clone());
+            Ok(())
+        };
+        let mut run = ActivationRunRecorder::new(Some(&mut observer));
+
+        run.start(ActivationStep::InitialProbe);
+        run.complete(ActivationStep::InitialProbe);
+        let completed = run.finish().expect("observer stays healthy");
+
+        assert_eq!(streamed_events, completed.events());
+        assert_eq!(
+            streamed_events[0].lifecycle,
+            ActivationStepLifecycle::Started
+        );
+        assert_eq!(
+            streamed_events[1].lifecycle,
+            ActivationStepLifecycle::Completed
+        );
+    }
+
+    #[test]
     fn tui_render_mode_suppresses_demand_pickers() {
         assert!(StartRenderMode::Plain.allows_demand_pickers());
         assert!(!StartRenderMode::Tui.allows_demand_pickers());
@@ -2061,6 +2195,7 @@ verdict: completed"
             &crate::activation::mcp_client::all_client_ids(),
             StartRenderMode::Tui,
             false,
+            None,
         )
         .expect("orchestrator should succeed in TUI mode");
 
@@ -2494,6 +2629,7 @@ verdict: completed"
             &BTreeSet::new(),
             StartRenderMode::Tui,
             true,
+            None,
         )
         .unwrap();
         assert!(lifecycle.run.events().iter().any(|event| {
@@ -2535,6 +2671,7 @@ verdict: completed"
             &BTreeSet::new(),
             StartRenderMode::Tui,
             false,
+            None,
         )
         .unwrap();
 

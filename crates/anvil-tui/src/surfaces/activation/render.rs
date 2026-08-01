@@ -34,7 +34,19 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
     if progress_height > 0 {
         render_working_progress(frame, chunks[2], state, theme);
     }
-    if state.tier_evidence_visible() {
+    if matches!(
+        state.phase(),
+        ActivationPhase::Preflight | ActivationPhase::Working
+    ) {
+        let mut panel_state = state.log_panel_state_mut();
+        crate::surfaces::activation::log_panel::render_activity(
+            frame,
+            chunks[3],
+            state.tier_evidence_entries(),
+            &mut panel_state,
+            theme,
+        );
+    } else if state.tier_evidence_visible() {
         let mut panel_state = state.log_panel_state_mut();
         crate::surfaces::activation::log_panel::render(
             frame,
@@ -269,6 +281,26 @@ mod tests {
     }
 
     #[test]
+    fn live_activity_hides_controls_until_the_surface_is_interactive() {
+        let mut surface = ActivationSurface::live(false, false);
+        surface.update_live_progress(
+            vec!["Initial probe: started".to_string()],
+            vec![super::super::ActivationProgressStep::new(
+                "initial-probe",
+                "Initial probe",
+                ActivationProgressStatus::Running,
+            )],
+        );
+
+        let out = render_to_string(&surface, 100, 24);
+
+        assert!(out.contains("Activation activity"));
+        assert!(out.contains("Initial probe: started"));
+        assert!(!out.contains("Search:"));
+        assert!(!out.contains("[j/k] scroll"));
+    }
+
+    #[test]
     fn renders_consent_phase_when_present() {
         let consent = crate::surfaces::activation::ConsentState::new(
             vec![crate::surfaces::activation::ConsentItem::new(
@@ -343,8 +375,7 @@ mod tests {
     fn snapshots_cover_every_activation_phase() {
         let verdict = "ACTIVATION\n  state: ready_restart_required\n  next: restart editor\n";
 
-        let mut preflight = ActivationSurface::from_verdict(verdict, false);
-        preflight.phase = ActivationPhase::Preflight;
+        let preflight = ActivationSurface::live(false, false);
         assert!(render_to_string(&preflight, 100, 22).contains("[Preflight]"));
         insta::assert_snapshot!(
             "activation_preflight",

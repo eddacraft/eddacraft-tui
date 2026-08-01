@@ -198,11 +198,46 @@ pub fn render(
     state: &mut LogPanelState,
     theme: &EddaCraftTheme,
 ) {
-    LogPanel::new(entries, theme)
-        .title("Tier evidence")
+    render_with_title(frame, area, entries, state, theme, "Tier evidence", true);
+}
+
+pub fn render_activity(
+    frame: &mut Frame,
+    area: Rect,
+    entries: &[LogEntry],
+    state: &mut LogPanelState,
+    theme: &EddaCraftTheme,
+) {
+    render_with_title(
+        frame,
+        area,
+        entries,
+        state,
+        theme,
+        "Activation activity",
+        false,
+    );
+}
+
+fn render_with_title(
+    frame: &mut Frame,
+    area: Rect,
+    entries: &[LogEntry],
+    state: &mut LogPanelState,
+    theme: &EddaCraftTheme,
+    title: &str,
+    interactive: bool,
+) {
+    let panel = LogPanel::new(entries, theme)
+        .title(title)
         .focused(true)
-        .max_visible(usize::from(area.height.saturating_sub(5)).max(1))
-        .render(area, frame.buffer_mut(), state);
+        .max_visible(usize::from(area.height.saturating_sub(5)).max(1));
+    let panel = if interactive {
+        panel
+    } else {
+        panel.show_filter(false).show_search(false).show_help(false)
+    };
+    panel.render(area, frame.buffer_mut(), state);
 }
 
 #[cfg(test)]

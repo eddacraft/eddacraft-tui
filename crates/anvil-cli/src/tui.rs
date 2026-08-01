@@ -96,6 +96,56 @@ impl Drop for TerminalGuard {
     }
 }
 
+/// One caller-managed alternate-screen session for multi-phase surfaces.
+pub(crate) struct TuiSession {
+    guard: Option<TerminalGuard>,
+    terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    theme: EddaCraftTheme,
+}
+
+impl TuiSession {
+    /// Enter raw mode and the alternate screen once.
+    pub(crate) fn enter() -> anyhow::Result<Self> {
+        let guard = TerminalGuard::enter()?;
+        let backend = CrosstermBackend::new(io::stdout());
+        let terminal = Terminal::new(backend)?;
+        Ok(Self {
+            guard: Some(guard),
+            terminal,
+            theme: EddaCraftTheme,
+        })
+    }
+
+    /// Draw one frame without entering an input loop.
+    pub(crate) fn draw_surface<S: Surface>(&mut self, state: &S) -> anyhow::Result<()> {
+        self.terminal.draw(|frame| {
+            let area = frame.area();
+            let content = render_shell(
+                frame,
+                area,
+                state.surface_name(),
+                state.help_text(),
+                &self.theme,
+            );
+            state.render(frame, content, &self.theme);
+        })?;
+        Ok(())
+    }
+
+    /// Run a phase without leaving the current terminal session.
+    pub(crate) fn run_surface<S: Surface>(&mut self, state: &mut S) -> anyhow::Result<SurfaceExit> {
+        surface_loop(&mut self.terminal, state, &self.theme)
+    }
+
+    /// Restore the terminal exactly once after all phases finish.
+    pub(crate) fn leave(mut self) -> anyhow::Result<()> {
+        if let Some(guard) = self.guard.take() {
+            guard.leave()?;
+        }
+        Ok(())
+    }
+}
+
 /// How a surface exited.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceExit {

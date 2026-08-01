@@ -2,10 +2,11 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | Done | 14/14      |
+| ACTTUI | Josh  | In Progress | 14/15 |
 
-**Last reviewed:** 2026-07-30 — reconciliation sweep. All fourteen items are
-Merged-or-Done and the module is **Done**. The Release 2 TTY-default flip
+**Last reviewed:** 2026-08-01 — ACTTUI-014 approved and **In Progress** to make
+activation one continuous live surface aligned with the tutorial experience.
+The original fourteen items remain Merged-or-Done. The Release 2 TTY-default flip
 (**ACTTUI-013**) Merged 2026-07-26 via PR #3411: on `main`, a genuinely
 interactive `anvil start` now enters the activation TUI with **no flag**.
 `--tui` is a hidden accepted no-op and `ANVIL_ACTIVATION_TUI` is inert; the
@@ -16,7 +17,8 @@ council block, and the phase-C decision JOURNEY-002 deferred is now discharged.
 
 The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
 remains the governing rollout ladder. Post-flip celebration and richer
-diagnostic depth are not tracked here; new work needs a new item or module.
+diagnostic depth were not part of the original fourteen items; ACTTUI-014 is
+the approved continuous-surface follow-up.
 
 Earlier review (2026-07-11) — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
@@ -524,6 +526,45 @@ tutorial story changes (WOW owns narrative).
   vitest run src/cli/activation.e2e.test.ts`; `pnpm docs:check`
 - **Confidence:** medium
 
+### ACTTUI-014: Continuous live activation surface
+
+- **Status:** In Progress 2026-08-01 (owner-approved)
+- **Source:** Owner direction on 2026-08-01;
+  [ADR-103](../decisions/103-tty-default-activation-tui.md); consistency
+  reference in `crates/anvil-tui/src/surfaces/tutorial/`
+- **Dependencies:** ACTTUI-013 and its release gates (all Merged)
+- **Intent:** Make interactive `anvil start` feel like the tutorial: one
+  branded, continuously updating terminal surface from preflight through
+  consent and the final protection verdict, using the existing
+  `eddacraft-tui` component vocabulary.
+- **Expected Outcome:** The eligible TTY path enters the activation TUI before
+  orchestration work begins and keeps one alternate-screen session alive until
+  the user leaves the final verdict. Typed `ActivationStepEvent` updates drive
+  the existing `ParallelProgress` and `Spinner` presentation while work is
+  running; consent uses the existing unticked `Select`/`Confirm` model; the
+  selected apply result transitions in place to the structured verdict and
+  `LogPanel` evidence without opening a second TUI. The shell branding,
+  progressive phase language, keyboard help, responsive layout, and clear
+  running/result hand-off are checked against the tutorial experience. No new
+  widget is introduced unless the pass proves an existing component cannot
+  express a required state. `--verify`, `--json`, piped/CI output,
+  `--watch`, `--no-tui`, and `ANVIL_NO_TUI=1` retain their deterministic
+  contracts and exit semantics.
+- **Non-scope:** Activation-spine semantics, consent defaults or write set,
+  `ProtectionState` vocabulary, machine/plain output fixtures, JSON-render
+  adoption, Pretext adoption, and widgets added only for visual novelty.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/`,
+  `crates/anvil-cli/src/tui.rs`, `crates/anvil-cli/tests/start.rs`,
+  `crates/anvil-tui/src/surfaces/activation/`,
+  `crates/eddacraft-tui/src/widgets/log_panel.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-tui activation`; `cargo test
+  -p eddacraft-anvil start`; focused flag-free PTY test proving one
+  alternate-screen session through consent and verdict; `pnpm docs:check`;
+  `pnpm aps:active-lint`; `pnpm aps:index:check`; focused clippy for the three
+  changed Rust crates
+- **Confidence:** high
+
 ## Sequencing
 
 ```text
@@ -547,6 +588,9 @@ Review remediation (post council-d4c804e6):
 
 Default flip (ADR-103 Release 2, unblocked 2026-07-25):
   ACTTUI-008 ∧ 009 ∧ 010 ∧ 012 (all Merged) → ACTTUI-013
+
+Continuous-surface follow-up (owner-approved 2026-08-01):
+  ACTTUI-013 → ACTTUI-014
 ```
 
 **Release blocker (JOURNEY conductor, 2026-07-11):** ACTTUI-009 → ACTTUI-010 →

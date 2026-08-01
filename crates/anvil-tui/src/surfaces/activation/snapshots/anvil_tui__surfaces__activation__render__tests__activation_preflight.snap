@@ -6,21 +6,21 @@ expression: "render_to_string(&preflight, 100, 22)"
   [Preflight] > Working > Consent > Verdict > Done                                                  
                                                                                                     
   ────────────────────────────────────────────────────────────────────────────────────────────────  
-  ◈ state: ready_restart_required                                                                   
-  Activation state: ready_restart_required                                                          
-  ┌ Activation verdict ──────────────────────────────────────────────────────────────────────────┐  
-  │▼ Activation                                                                                  │  
-  │  · state: ready_restart_required                                                             │  
-  │  · next: restart editor                                                                      │  
-  │· Layers                                                                                      │  
-  │· Install                                                                                     │  
-  │· Languages                                                                                   │  
-  │· Config                                                                                      │  
-  │                                                                                              │  
-  │                                                                                              │  
-  │                                                                                              │  
-  │                                                                                              │  
-  │                                                                                              │  
-  │                                                                                              │  
-  └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  [↑/↓] Move  [enter/space] Expand  [t] Smoke  [e] Evidence  [esc/q] Quit
+  ╔Activation activity (0)═══════════════════════════════════════════════════════════════════════╗  
+  ║No log entries                                                                                ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ║                                                                                              ║  
+  ╚══════════════════════════════════════════════════════════════════════════════════════════════╝
