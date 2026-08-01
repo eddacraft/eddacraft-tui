@@ -9,6 +9,8 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-01
+
 ### Added
 
 - **Pretext public demos** (collapsed from `joshuaboys/pretext-tui`):
@@ -31,6 +33,15 @@ minor version bump indicates a breaking change.
 - Retained the streaming `append_styled` leading-whitespace attach behaviour
   (and regression tests) so cross-chunk `"hello"` + `" world"` keeps a single
   space on the prior word rather than introducing a phantom word.
+
+### Fixed
+
+- Free-text TUI fields can opt into literal printable-key handling through the
+  defaulted `Surface::text_entry_active` hook, so `h`/`j`/`k`/`l`/`q` and space
+  are inserted instead of being interpreted as navigation or quit commands.
+- `TextInput` horizontal scrolling now measures terminal display columns in a
+  single O(n) scan, keeping multibyte and wide-character cursors visible in
+  narrow fields.
 
 ## [0.4.1] - 2026-06-22
 
@@ -399,7 +410,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.2...HEAD
+[0.4.2]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...eddacraft-tui-v0.4.2
 [0.4.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.0...eddacraft-tui-v0.4.1
 [0.4.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.3.0...eddacraft-tui-v0.4.0
 [0.3.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.2.4...eddacraft-tui-v0.3.0

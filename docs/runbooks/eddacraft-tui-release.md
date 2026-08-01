@@ -348,8 +348,9 @@ The workflow runs (in order):
    `cargo clippy --workspace --all-targets -- -D warnings`,
    `cargo test -p eddacraft-tui --all-features`,
    `cargo test -p eddacraft-tui --no-default-features`,
-   `cargo doc --no-deps -p eddacraft-tui` (with `RUSTDOCFLAGS=-D warnings`),
-   `cargo deny check`,
+   `cargo doc --no-deps -p eddacraft-tui --all-features` (with
+   `RUSTDOCFLAGS=-D warnings`),
+   `cargo deny check --config attribution/deny.toml`,
    `cargo publish --dry-run -p eddacraft-tui --all-features`,
    `cargo package --list -p eddacraft-tui` byte-diff against the TUIR-001
    baseline.
@@ -737,8 +738,8 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test -p eddacraft-tui --all-features
 cargo test -p eddacraft-tui --no-default-features
-RUSTDOCFLAGS='-D warnings' cargo doc --no-deps -p eddacraft-tui
-cargo deny check
+RUSTDOCFLAGS='-D warnings' cargo doc --no-deps -p eddacraft-tui --all-features
+cargo deny check --config attribution/deny.toml
 cargo publish --dry-run -p eddacraft-tui --all-features --allow-dirty
 diff \
   plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt \
