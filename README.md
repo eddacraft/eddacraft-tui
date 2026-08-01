@@ -352,7 +352,8 @@ root ([`CONTRIBUTING.md`](CONTRIBUTING.md), [`RELEASE.md`](RELEASE.md),
 ## Links
 
 - Public crate: <https://crates.io/crates/eddacraft-tui>
-- Canonical source (Anvil monorepo): <https://github.com/eddacraft/anvil>
+- Canonical source (Anvil monorepo):
+  <https://github.com/eddacraft/anvil-001/tree/main/crates/eddacraft-tui>
 - Pretext demos: `cargo run -p eddacraft-tui --example pretext_demos`
 
 ## Acknowledgements
