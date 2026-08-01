@@ -5818,20 +5818,24 @@ archive.
   refuses to reset (CIB-206 defect 3) and exits 0. Nothing then reports that
   the anchor is stranded, so the gap widens silently with every merge to
   `origin` and the only signal is a `git status` a human must know how to read.
-  The refusal path also parks a stash labelled "NOT a provable wt strand;
-  preserved for review", which reads as preserved work even when every hunk in
-  it is stale — an operator who trusts the label and applies it reverts merged
-  work.
+  The refusal path also parks a stash whose full label is
+  `primary-anchor: unexpected changes in the '<default-branch>' anchor — NOT a
+  provable wt strand; preserved for review`. That reads as preserved work
+  even when every hunk in it is stale — an operator who trusts the label and
+  applies it reverts merged work. The script already records the same hazard
+  in a comment, describing regenerable state hidden behind "a 'preserved for
+  review' label nobody read".
 - **Expected Outcome:** The heal path emits an advisory when it declines to
   heal a dirty anchor, naming how far the anchor is stranded and which staged
   paths will render as phantom reverts, without changing its exit code or
   resetting anything. Any stash it parks is labelled so that "preserved" is not
   mistaken for "wanted".
-- **Design questions:** whether the advisory belongs in `heal-primary-anchor.sh`
-  or a `doctor` surface that runs without a heal attempt; whether strand depth
-  is reported per-path or as a single count; whether the parked-stash label
-  should carry the classification verdict or only a pointer to how to obtain
-  it; how the advisory stays quiet for a genuinely dirty anchor with no strand.
+- **Design questions:** whether the advisory belongs in
+  `scripts/dev/heal-primary-anchor.sh` or a `doctor` surface that runs without
+  a heal attempt; whether strand depth is reported per-path or as a single
+  count; whether the parked-stash label should carry the classification verdict
+  or only a pointer to how to obtain it; how the advisory stays quiet for a
+  genuinely dirty anchor with no strand.
 - **Validation:** A fixture anchor made dirty with a genuine staged edit, then
   advanced on `origin`, produces the advisory, still exits 0, and leaves the
   staged edit intact. A dirty anchor with no strand produces no advisory. The
