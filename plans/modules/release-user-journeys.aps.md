@@ -2,9 +2,9 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 8/11 |
+| JOURNEY | Conductor | Josh | high | In Progress | 9/11 |
 
-**Last reviewed:** 2026-08-01 — filed **JOURNEY-011** (bare `anvil` daily ensure
+**Last reviewed:** 2026-08-01 — **JOURNEY-011 Merged** via #3474; filed earlier (bare `anvil` daily ensure
 vs `anvil start` reconfigure; ADR-114 / ONSW). Prior 2026-07-30 note: the
 `v0.9.0-beta` cut chain (JOURNEY-001..006) remains complete and shipped (record:
 [`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); closeout
@@ -12,8 +12,7 @@ vs `anvil start` reconfigure; ADR-114 / ONSW). Prior 2026-07-30 note: the
 JOURNEY-007 Merged 2026-07-30 via PR #3441 (sandboxed autoplay with WOW-006);
 JOURNEY-008 Merged 2026-07-25 via PR #3408; JOURNEY-009 Proposed on hold;
 JOURNEY-010 Proposed blocked on DASHARCH/DASHOPS view waves; **JOURNEY-011
-Proposed** pending ADR-114 accept + ONSW. Progress 8/11 counts Merged items
-only. Created 2026-07-11 from the operator's release goal and the accepted
+Merged #3474**. Progress 9/11 counts Merged items only. Created 2026-07-11 from the operator's release goal and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
 ## Purpose
@@ -319,10 +318,11 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-011: Bare `anvil` daily ensure vs `start` reconfigure
 
-- **Status:** Proposed — 2026-08-01. Design gate
-  [ADR-114](../decisions/114-bare-anvil-ensure-surface.md) **Accepted**
-  2026-08-01; implementation module [bare-ensure (ONSW)](./bare-ensure.aps.md)
-  In Progress. Promote to Ready when ONSW-002..004 are Ready or Merged.
+- **Status:** Merged 2026-08-01 via PR
+  [#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a` on
+  `main`). ADR-114 Accepted; ONSW-001..006 Merged. Evidence: `bare_invocation`
+  + `ensure_existing_*` tests green; worktree smoke (`protecting` + registered);
+  not-activated / non-worktree fail closed.
 - **Intent:** Finish the daily-confidence story: bare `anvil` is the on-switch
   (daemon + existing MCP ensure, no re-offer of declined installs); `anvil start`
   stays activate/reconfigure/reinstall. Resolves the contradiction between

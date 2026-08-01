@@ -5,13 +5,14 @@
 
 | ID   | Owner | Priority | Status  | Progress |
 | ---- | ----- | -------- | ------- | -------- |
-| ONSW | Josh  | high     | In Progress | 6/6     |
+| ONSW | Josh  | high     | Merged | 6/6     |
 
-**Last reviewed:** 2026-08-01 — ADR-114 **Accepted**; ONSW-001..005 implemented
-on PR #3474 (`plan/bare-anvil-ensure`, automerge queued). ONSW-006 regression
-tests landing. Spec:
+**Last reviewed:** 2026-08-01 — **Merged** via PR
+[#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a` on
+`main`, ancestor-checked). ADR-114 Accepted; ONSW-001..006 all Merged. Spec:
 [`plans/specs/2026-08-01-bare-anvil-ensure.md`](../specs/2026-08-01-bare-anvil-ensure.md).
-Conductor: JOURNEY-011 after merge evidence.
+Conductor JOURNEY-011 closed with the same merge. Pending `v0.10.0-beta`
+Released/Shipped evidence.
 
 ## Purpose
 
@@ -68,17 +69,17 @@ reconfigure path.
 
 Change module status to **Ready** when:
 
-- [ ] ADR-114 is **Accepted** (or operator authorises implementation behind
+- [x] ADR-114 is **Accepted** (or operator authorises implementation behind
       Proposed with explicit risk acceptance)
-- [ ] Open questions in the design spec §Open questions are answered or
+- [x] Open questions in the design spec §Open questions are answered or
       deferred with owners
-- [ ] ONSW-001..006 have enough detail to execute
+- [x] ONSW-001..006 have enough detail to execute
 
 ## Work Items
 
 ### ONSW-001: Accept ADR-114 and pin open questions
 
-- **Status:** Done 2026-08-01 — ADR-114 Accepted; open questions pinned
+- **Status:** Merged via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) 2026-08-01 — ADR-114 Accepted; open questions pinned
   (config-Absent predicate, default-on, global `--json`, exit 0/1).
 - **Intent:** Land the product decision so implementation does not invent
   first-run or exit-code policy mid-PR.
@@ -96,7 +97,7 @@ Change module status to **Ready** when:
 
 ### ONSW-002: Bare ensure spine (daemon + worktree)
 
-- **Status:** Done 2026-08-01 — root `Option<Commands>` dispatch, daemon ensure,
+- **Status:** Merged via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) 2026-08-01 — root `Option<Commands>` dispatch, daemon ensure,
   early registerable-worktree gate (exit 1), durable registration; covered by
   `bare_invocation` + live worktree smoke on #3474.
 - **Intent:** Bare root invocation runs idempotent daemon ensure and spine
@@ -118,7 +119,7 @@ Change module status to **Ready** when:
 
 ### ONSW-003: MCP ensure-only (no NotPresent install)
 
-- **Status:** Done 2026-08-01 — `ensure_existing_mcp_entries`; unit tests
+- **Status:** Merged via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) 2026-08-01 — `ensure_existing_mcp_entries`; unit tests
   prove NotPresent never writes and SafeDrift repairs.
 - **Intent:** Bare may verify/repair already-owned MCP entries; must not install
   or re-offer NotPresent clients.
@@ -136,7 +137,7 @@ Change module status to **Ready** when:
 
 ### ONSW-004: Exit codes, non-interactive contract, supersede CIB-177 bare test
 
-- **Status:** Done 2026-08-01 — exit 0/1/3; `--json` compact; CIB-177
+- **Status:** Merged via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) 2026-08-01 — exit 0/1/3; `--json` compact; CIB-177
   superseded; `tests/bare_invocation.rs` rewritten.
 - **Intent:** Replace the bare-always-exit-2 contract with pinned ensure
   contracts; keep help path correct.
@@ -153,7 +154,7 @@ Change module status to **Ready** when:
 
 ### ONSW-005: Docs, help copy, CLICT note
 
-- **Status:** Done 2026-08-01 — `cli-surface.md` bare section, help pointer,
+- **Status:** Merged via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) 2026-08-01 — `cli-surface.md` bare section, help pointer,
   `flags/surfaces.json` ensure key, CLICT review note.
 - **Intent:** Make the split discoverable in help and runbooks.
 - **Expected Outcome:** `cli-surface.md` documents bare ensure vs `start`
@@ -171,7 +172,7 @@ Change module status to **Ready** when:
 
 ### ONSW-006: Cross-path regression — start still reconfigures
 
-- **Status:** Done 2026-08-01 — unit tests: ensure never writes NotPresent; SafeDrift repairs; start auto-install path unchanged (`fresh_repo_auto_installs`).
+- **Status:** Merged via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) 2026-08-01 — unit tests: ensure never writes NotPresent; SafeDrift repairs; start auto-install path unchanged (`fresh_repo_auto_installs`).
 - **Intent:** Prove the split does not break activation or re-offer-on-start.
 - **Expected Outcome:** After a decline-on-start fixture, bare does not install
   MCP/workflows; a subsequent interactive (or plain) `start` still offers
@@ -205,8 +206,8 @@ ONSW-001 (ADR accept)
 
 ## Acceptance Criteria (module)
 
-- [ ] Bare ensure turns daemon spine on for an activated worktree without
+- [x] Bare ensure turns daemon spine on for an activated worktree without
       reinstall prompts
-- [ ] Declined MCP stays uninstalled under bare; `start` can still install
-- [ ] Help and runbook state the split clearly
-- [ ] JOURNEY-011 Merged with rehearsal evidence
+- [x] Declined MCP stays uninstalled under bare; `start` can still install
+- [x] Help and runbook state the split clearly
+- [x] JOURNEY-011 Merged with rehearsal evidence (PR #3474 tests + worktree smoke)
