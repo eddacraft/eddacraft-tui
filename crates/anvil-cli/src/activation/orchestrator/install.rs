@@ -899,7 +899,7 @@ mod tests {
             .unwrap_or_else(|| panic!("missing outcome for {id:?}"))
     }
 
-    /// ONSW-003 / ONSW-006: bare ensure never writes NotPresent MCP entries;
+    /// ONSW-003 / ONSW-006: bare ensure never writes `NotPresent` MCP entries;
     /// auto-install on `start` still would.
     #[test]
     fn ensure_existing_does_not_install_not_present() {
