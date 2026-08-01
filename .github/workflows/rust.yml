@@ -346,8 +346,8 @@ jobs:
         uses: taiki-e/install-action@c44f6b046f1c29ae5918b1e0bfdbb2f1813836fd # v2.84.1
         with:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
-      - name: Run cargo deny check
-        run: cargo deny check --config attribution/deny.toml
+      - name: Run cargo deny check with all features
+        run: cargo deny --all-features check --config attribution/deny.toml
 
   acknowledgements-diff:
     name: Acknowledgements freshness

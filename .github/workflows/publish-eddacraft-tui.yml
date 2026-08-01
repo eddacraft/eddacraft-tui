@@ -196,8 +196,8 @@ jobs:
         with:
           tool: cargo-deny@0.19.4
 
-      - name: cargo deny check
-        run: cargo deny check --config attribution/deny.toml
+      - name: cargo deny --all-features check
+        run: cargo deny --all-features check --config attribution/deny.toml
 
       - name: cargo publish --dry-run -p eddacraft-tui --all-features
         run: cargo publish --dry-run -p eddacraft-tui --all-features --allow-dirty

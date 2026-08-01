@@ -1029,7 +1029,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | Crate | Version | Licence | Source |
 | --- | --- | --- | --- |
 | `miette` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
-| `eddacraft-tui` | 0.4.1 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
+| `eddacraft-tui` | 0.5.0 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
 | `moxcms` | 0.8.1 | Apache License 2.0 | https://github.com/awxkee/moxcms.git |
 | `pxfm` | 0.1.30 | Apache License 2.0 | https://github.com/awxkee/pxfm |
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
@@ -1199,7 +1199,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `num_threads` | 0.1.7 | MIT License | https://github.com/jhpratt/num_threads |
 | `crypto-common` | 0.2.2 | MIT License | https://github.com/RustCrypto/traits |
 | `critical-section` | 1.2.0 | MIT License | https://github.com/rust-embedded/critical-section |
-| `hybrid-array` | 0.4.13 | MIT License | https://github.com/RustCrypto/hybrid-array |
+| `hybrid-array` | 0.4.14 | MIT License | https://github.com/RustCrypto/hybrid-array |
 | `axoasset` | 2.0.1 | MIT License | https://github.com/axodotdev/axoasset |
 | `axoprocess` | 0.2.1 | MIT License | https://github.com/axodotdev/axoprocess |
 | `axotag` | 0.3.0 | MIT License | https://github.com/axodotdev/axotag |
@@ -1217,8 +1217,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `anstyle-query` | 1.1.5 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle-wincon` | 3.0.11 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle` | 1.0.14 | MIT License | https://github.com/rust-cli/anstyle.git |
-| `clap` | 4.6.4 | MIT License | https://github.com/clap-rs/clap |
-| `clap_builder` | 4.6.2 | MIT License | https://github.com/clap-rs/clap |
+| `clap` | 4.6.5 | MIT License | https://github.com/clap-rs/clap |
+| `clap_builder` | 4.6.5 | MIT License | https://github.com/clap-rs/clap |
 | `clap_derive` | 4.6.4 | MIT License | https://github.com/clap-rs/clap |
 | `clap_lex` | 1.1.0 | MIT License | https://github.com/clap-rs/clap |
 | `colorchoice` | 1.0.5 | MIT License | https://github.com/rust-cli/anstyle.git |
@@ -1231,7 +1231,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `toml_writer` | 1.1.2+spec-1.1.0 | MIT License | https://github.com/toml-rs/toml |
 | `num-conv` | 0.2.2 | MIT License | https://github.com/jhpratt/num-conv |
 | `time-core` | 0.1.9 | MIT License | https://github.com/time-rs/time |
-| `time` | 0.3.54 | MIT License | https://github.com/time-rs/time |
+| `time` | 0.3.55 | MIT License | https://github.com/time-rs/time |
 | `libc` | 0.2.189 | MIT License | https://github.com/rust-lang/libc |
 | `idna_adapter` | 1.2.2 | MIT License | https://github.com/hsivonen/idna_adapter |
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |

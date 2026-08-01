@@ -350,7 +350,7 @@ The workflow runs (in order):
    `cargo test -p eddacraft-tui --no-default-features`,
    `cargo doc --no-deps -p eddacraft-tui --all-features` (with
    `RUSTDOCFLAGS=-D warnings`),
-   `cargo deny check --config attribution/deny.toml`,
+   `cargo deny --all-features check --config attribution/deny.toml`,
    `cargo publish --dry-run -p eddacraft-tui --all-features`,
    `cargo package --list -p eddacraft-tui` byte-diff against the TUIR-001
    baseline.
@@ -524,7 +524,7 @@ notes=$(mktemp --suffix=.md)
   echo '> **Note:** This repository is a read-only mirror. The canonical source for'
   echo '> `eddacraft-tui` lives in the Anvil monorepo; releases are published from'
   echo '> `crates/eddacraft-tui/` and mirrored here. To depend on this crate, use the'
-  echo '> crates.io release (`eddacraft-tui = "0.2"`), not git `main`.'
+  echo '> crates.io release (`eddacraft-tui = "X.Y"`), not git `main`.'
   echo
   echo '## Changes'
   echo
@@ -739,7 +739,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test -p eddacraft-tui --all-features
 cargo test -p eddacraft-tui --no-default-features
 RUSTDOCFLAGS='-D warnings' cargo doc --no-deps -p eddacraft-tui --all-features
-cargo deny check --config attribution/deny.toml
+cargo deny --all-features check --config attribution/deny.toml
 cargo publish --dry-run -p eddacraft-tui --all-features --allow-dirty
 diff \
   plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt \
