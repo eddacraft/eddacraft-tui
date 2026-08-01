@@ -12,7 +12,7 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.41.3",
+    "@astrojs/starlight": "^0.41.6",
     "@vercel/functions": "^3.7.5",
     "astro": "^7.1.6",
     "sharp": "^0.35.3"

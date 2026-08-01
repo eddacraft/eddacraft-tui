@@ -164,3 +164,6 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: false
+
+minimumReleaseAgeExclude:
+  - '@astrojs/starlight@0.41.6'
