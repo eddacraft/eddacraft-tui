@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 16/23    |
+| DOCSYNC | —     | In Progress | 20/24    |
 
 ## Purpose
 
@@ -127,9 +127,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |    12 |    7 |           3 |     2 |
+| Future                          |    13 |   11 |           0 |     2 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    23 |   16 |           3 |     4 |
+| **Total**                       |    24 |   20 |           0 |     4 |
 
 ### Item Detail
 
@@ -146,7 +146,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-009 | Done   | All `pnpm anvil`/`npx anvil` refs replaced in public docs |
 | DOCSYNC-010 | Done   | Beta guide updated for 0.3.0-beta, Node.js dep removed |
 | DOCSYNC-011 | Draft  |                                               |
-| DOCSYNC-012 | In Progress | CLICT-002 reconciliation PR rewrites `docs/public/anvil/tutorials/policies.md` around `install` → `validate` → `gate` pack workflow per POLRESET; close when PR lands. |
+| DOCSYNC-012 | Done   | Policy tutorial rewritten for POLRESET pack workflow (`install` → `show` → `validate` → `test` → `gate`); landed with CLICT-002 reconciliation via PR #3209. |
 | DOCSYNC-013 | Draft  |                                               |
 | DOCSYNC-016 | Draft  | Origin: operations-reviewer OPS-002 (RSCAN-008 council) |
 | DOCSYNC-021 | Done   | 0.3.2/0.3.3 public release docs, auth quickstarts, README and repo-topology docs refreshed |
@@ -157,8 +157,8 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-026 | Done   | Public tutorials and terminal tutorial policy-directory step now include macOS/Linux and Windows PowerShell/native-shell variants |
 | DOCSYNC-027 | Done   | README + `docs/public/anvil/**` + beta quickstart audited against `v0.9.0-beta`; obsolete runtime and roadmap guidance removed; 216 fenced command examples parse against the shipped Rust CLI; docs and site validation pass |
 | DOCSYNC-028 | Merged 2026-07-20 via PR #3366 | Structured new-user rebuild delivered with one canonical journey, generated references, public-only validation, and complete navigation. |
-| DOCSYNC-029 | In Progress | APS equivalent of DOCSYNC-028: code-truth audit completed against anvil-plan-spec `origin/main` at `53e6278`; implementation plan: [`plans/execution/DOCSYNC-029.actions.md`](../execution/DOCSYNC-029.actions.md). |
-| DOCSYNC-030 | In Progress | Beta testing brief: add a current-version/update check, GitHub-device and OTP sign-in evidence, explicit CI and cleanup checks, and a private feedback route. |
+| DOCSYNC-029 | Merged 2026-07-20 via PR #3370 | APS first-time-user rebuild delivered; 68/68 documented `aps` commands match the source-pinned contract; council session `council-21580e5f` converged with no findings. |
+| DOCSYNC-030 | Done   | Beta brief repaired: version/update check, GitHub device and OTP sign-in evidence, CI and cleanup steps, private feedback route; filed #3438 and completed via public sync + v0.10 reframe (#3476) + residual bare-ensure sweep (#3477). |
 
 ## Approved New-User Rebuild
 
@@ -208,7 +208,7 @@ snapshot of the upstream CLI contract.
 
 ### DOCSYNC-029 delivery contract
 
-- **Status:** In Progress
+- **Status:** Merged 2026-07-20 via PR #3370
 - **Intent:** Give a first-time APS user one complete path from installation to
   a lint-clean plan and an executable work item without repository access or
   prior planning vocabulary.
