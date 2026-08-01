@@ -1,8 +1,8 @@
 # CLI Command Truth Review
 
-| Type  | Authority | Owner | Status | Freshness                                                                    |
-| ----- | --------- | ----- | ------ | ---------------------------------------------------------------------------- |
-| Guide | Advisory  | CLICT | Live   | Last updated 2026-07-07 — slices 4–6 reconciled; runtime registry re-checked |
+| Type  | Authority | Owner | Status | Freshness                                                            |
+| ----- | --------- | ----- | ------ | -------------------------------------------------------------------- |
+| Guide | Advisory  | CLICT | Live   | Last updated 2026-08-01 — bare `anvil` ensure (ADR-114 / ONSW) noted |
 
 | Upstream                                                                    | Downstream                                      |
 | --------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -14,6 +14,15 @@ command-family.
 
 **APS module:**
 [`plans/modules/cli-command-truth.aps.md`](../../plans/modules/cli-command-truth.aps.md)
+
+### 2026-08-01 — bare `anvil` ensure (ADR-114 / ONSW)
+
+Root invocation with no subcommand is no longer a required-subcommand help exit.
+It dispatches the daily **ensure** surface (`commands/ensure.rs`, usage name
+`ensure`, licence-gated). Documented in
+[`docs/runbooks/cli-surface.md`](../runbooks/cli-surface.md) under “bare
+`anvil`”. `anvil start` remains activate/reconfigure. Full CLICT slice optional
+after `v0.10.0-beta` cut; runtime + runbook already aligned.
 
 ---
 

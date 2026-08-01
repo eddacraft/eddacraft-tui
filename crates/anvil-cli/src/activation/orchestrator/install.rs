@@ -899,6 +899,70 @@ mod tests {
             .unwrap_or_else(|| panic!("missing outcome for {id:?}"))
     }
 
+    /// ONSW-003 / ONSW-006: bare ensure never writes NotPresent MCP entries;
+    /// auto-install on `start` still would.
+    #[test]
+    fn ensure_existing_does_not_install_not_present() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let summary = ensure_existing_mcp_entries(ws.path(), Some(home.path()), &fresh());
+
+        assert_eq!(summary.managed, 0, "fresh home has no owned entries");
+        assert!(
+            summary.absent_for_recovery >= 1,
+            "NotPresent clients must surface recovery"
+        );
+        assert!(
+            summary.report.per_client.is_empty(),
+            "ensure-only must not produce install outcomes on NotPresent"
+        );
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "ensure must not create Cursor MCP config"
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "ensure must not create Claude MCP config"
+        );
+    }
+
+    #[test]
+    fn ensure_existing_repairs_safe_drift_only() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_path = home.path().join(".cursor/mcp.json");
+        fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
+        // Anvil entry with a different command path → SafeDrift vs fresh().
+        fs::write(
+            &cursor_path,
+            r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/old/path/anvil",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let summary = ensure_existing_mcp_entries(ws.path(), Some(home.path()), &fresh());
+        assert!(summary.managed >= 1, "SafeDrift counts as managed");
+        assert_eq!(
+            summary.absent_for_recovery, 0,
+            "when managed, do not claim not-installed"
+        );
+        match summary.report.per_client.get(&McpClientId::Cursor) {
+            Some(InstallOutcome::Installed { .. }) => {}
+            other => panic!("expected Cursor SafeDrift rewrite, got {other:?}"),
+        }
+        let raw = fs::read_to_string(&cursor_path).unwrap();
+        assert!(
+            raw.contains("/usr/local/bin/anvil"),
+            "SafeDrift rewrite should land fresh path: {raw}"
+        );
+    }
+
     #[test]
     fn fresh_repo_auto_installs_to_global_scope() {
         let ws = TempDir::new().unwrap();

@@ -164,6 +164,7 @@
     { "key": "kindling", "name": "anvil kindling", "category": "tools" },
 
     { "key": "init", "name": "anvil init", "category": "setup" },
+    { "key": "ensure", "name": "anvil (bare ensure)", "category": "setup" },
     { "key": "start", "name": "anvil start", "category": "setup" },
     { "key": "welcome", "name": "anvil welcome", "category": "setup" },
     { "key": "new", "name": "anvil new", "category": "setup" },
