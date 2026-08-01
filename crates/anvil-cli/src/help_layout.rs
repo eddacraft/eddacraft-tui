@@ -8,16 +8,14 @@
 
 use clap::Command;
 
-/// First-run orientation shown ahead of the root command's help body (CIB-177).
+/// First-run orientation shown ahead of the root command's help body.
 ///
-/// Bare `anvil` fails clap's required-subcommand parse and renders the full
-/// long help at exit 2, so a first-time user's very first contact is the whole
-/// command list. This `before_help` banner leads with the two commands that
-/// matter on day one — `anvil welcome` for a tour, `anvil start` to activate —
-/// before that wall of commands, without touching parsing or exit codes. Kept
-/// free of internal identifiers so the CLIC-010 help lints stay green.
-pub const FIRST_RUN_POINTER: &str = "New to anvil? Run `anvil welcome` for a guided tour, or `anvil start` to \
-activate protection in this repository.";
+/// ADR-114: bare `anvil` (no subcommand) is the daily ensure surface. Root
+/// `--help` still lists every command; this banner names the three entry
+/// verbs: bare ensure, `start` (activate/reconfigure), and `welcome` (tour).
+/// Kept free of internal identifiers so the CLIC-010 help lints stay green.
+pub const FIRST_RUN_POINTER: &str = "Run `anvil` to turn protection on (daemon + existing MCP). \
+New here? `anvil welcome` for a tour, or `anvil start` to activate or reconfigure this repository.";
 
 const CLI_SURFACE_RUNBOOK: &str = include_str!("../../../docs/runbooks/cli-surface.md");
 const CLI_SURFACE_RUNBOOK_PATH: &str = "docs/runbooks/cli-surface.md";

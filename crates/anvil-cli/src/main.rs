@@ -163,18 +163,22 @@ EXIT CODES:
   2  Gate check failed (one or more checks did not pass)
   3  Authentication required:
        - pre-dispatch on `whoami` / `auth whoami` (state probe)
-       - pre-dispatch on action commands (`start`, `init`, `watch`, `gate`,
-         `check`, `audit`, …) so `anvil start && deploy` stops when the repo
-         is unactivated
+       - pre-dispatch on action commands (bare `anvil`, `start`, `init`,
+         `watch`, `gate`, `check`, `audit`, …) so `anvil && deploy` stops
+         when the repo is unactivated
        - post-dispatch on any command (server-rejected token mid-call)
-  4  Configuration error (invalid config file or options)"
+  4  Configuration error (invalid config file or options)
+
+With no subcommand, `anvil` runs the daily ensure surface (daemon + existing
+MCP). Use `anvil start` to activate or reconfigure."
 )]
 struct Cli {
     #[command(flatten)]
     global: GlobalArgs,
 
+    /// When omitted, bare `anvil` runs the daily ensure surface (ADR-114).
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 fn augmented_cli_command() -> clap::Command {
@@ -564,6 +568,44 @@ fn auth_required_message(kind: AuthRequiredKind) -> &'static str {
         AuthRequiredKind::SessionExpired => AUTH_SESSION_EXPIRED_MESSAGE,
         AuthRequiredKind::InvalidEdict => AUTH_INVALID_EDICT_MESSAGE,
     }
+}
+
+/// Auth-required response for bare `anvil` ensure (action surface, exit 3).
+fn auth_required_response_for_action(
+    code: u8,
+    json_mode: bool,
+    kind: Option<AuthRequiredKind>,
+) -> (u8, Option<serde_json::Value>) {
+    if code != EXIT_AUTH_REQUIRED {
+        let envelope = json_mode.then(|| serde_json::json!({"error": "auth_check_failed"}));
+        return (code, envelope);
+    }
+    let envelope = if !json_mode {
+        None
+    } else {
+        let (message, early_access_url) = match kind {
+            Some(AuthRequiredKind::NotAuthenticated) => {
+                (AUTH_NOT_AUTHENTICATED_MESSAGE, Some(EARLY_ACCESS_URL))
+            }
+            Some(other) => (auth_required_message(other), None),
+            None => (
+                "Authentication required. Run `anvil auth login` to authenticate.",
+                None,
+            ),
+        };
+        Some(match early_access_url {
+            Some(url) => serde_json::json!({
+                "authRequired": true,
+                "message": message,
+                "earlyAccessUrl": url,
+            }),
+            None => serde_json::json!({
+                "authRequired": true,
+                "message": message,
+            }),
+        })
+    };
+    (EXIT_AUTH_REQUIRED, envelope)
 }
 
 fn auth_required_response(
@@ -1211,7 +1253,10 @@ fn main() -> ExitCode {
         eprintln!("anvil: tracing subscriber init skipped: {err}");
     }
 
-    let command_name = command_canonical_name(&cli.command);
+    let command_name = cli
+        .command
+        .as_ref()
+        .map_or("ensure", command_canonical_name);
     let cli_span = tracing::info_span!(
         target: "anvil_cli",
         "cli.command",
@@ -1229,15 +1274,25 @@ fn main() -> ExitCode {
     // is a no-op off the CLI path.
     anvil_kernel::feature_flags::begin_flag_capture();
 
-    let wants_json = cli.global.json || command_requests_structured_output(&cli.command);
-    let auth_outcome = if requires_auth(&cli.command) && !skips_auth_for_local_probe(&cli.command) {
-        check_auth(
-            &cli.global,
-            allows_interactive_auth_prompt(&cli.command),
-            wants_json,
-        )
-    } else {
-        Ok(())
+    let wants_json = cli.global.json
+        || cli
+            .command
+            .as_ref()
+            .is_some_and(command_requests_structured_output);
+    let auth_outcome = match &cli.command {
+        None => {
+            // Bare ensure is an action surface (ADR-114) — same licence wall
+            // as `start`.
+            check_auth(&cli.global, true, wants_json)
+        }
+        Some(cmd) if requires_auth(cmd) && !skips_auth_for_local_probe(cmd) => {
+            check_auth(
+                &cli.global,
+                allows_interactive_auth_prompt(cmd),
+                wants_json,
+            )
+        }
+        Some(_) => Ok(()),
     };
 
     // USAGE-001/-002: record one durable `command.invoked` row per
@@ -1253,8 +1308,10 @@ fn main() -> ExitCode {
     // generic CLI-side `intercept` row for it so the operator action is
     // counted once (a dry-run unblock contacts no daemon, so its CLI row
     // is kept — see InterceptArgs::suppresses_cli_usage_row).
-    let suppress_cli_usage_row =
-        matches!(&cli.command, Commands::Intercept(args) if args.suppresses_cli_usage_row());
+    let suppress_cli_usage_row = matches!(
+        &cli.command,
+        Some(Commands::Intercept(args)) if args.suppresses_cli_usage_row()
+    );
     if !suppress_cli_usage_row && let Err(err) = usage::record_invocation(command_name) {
         tracing::warn!(
             target: "anvil_cli",
@@ -1281,8 +1338,11 @@ fn main() -> ExitCode {
                 "cli auth check failed"
             );
         }
-        let (exit_code, json_envelope) =
-            auth_required_response(&cli.command, code, wants_json, kind);
+        let (exit_code, json_envelope) = match &cli.command {
+            Some(cmd) => auth_required_response(cmd, code, wants_json, kind),
+            // Bare ensure is an action surface: exit 3 on auth-required.
+            None => auth_required_response_for_action(code, wants_json, kind),
+        };
         if let Some(envelope) = json_envelope {
             // CIB-049: the envelope only exists under `--json` / `--format
             // json`, and structured output belongs on stdout (stream policy,
@@ -1294,14 +1354,14 @@ fn main() -> ExitCode {
     }
 
     // Update --check returns UpdateAvailable error when an update exists (exit 1).
-    if let Commands::Update(args) = &cli.command {
+    if let Some(Commands::Update(args)) = &cli.command {
         let result = commands::update::run(args, &cli.global);
         let mut stderr = std::io::stderr().lock();
         return ExitCode::from(dispatch_update_result(result, wants_json, &mut stderr));
     }
 
     // Gate returns Result<bool> (false = gate failed); all others return Result<()>.
-    if let Commands::Gate(args) = &cli.command {
+    if let Some(Commands::Gate(args)) = &cli.command {
         return match commands::gate::run(args, &cli.global) {
             Ok(true) => ExitCode::from(EXIT_OK),
             Ok(false) => ExitCode::from(EXIT_GATE_FAIL),
@@ -1319,57 +1379,60 @@ fn main() -> ExitCode {
     }
 
     let result = match &cli.command {
-        Commands::Audit(args) => commands::audit::run(args, &cli.global),
-        Commands::AuditChain(args) => commands::audit_chain::run(args, &cli.global),
-        Commands::Check(args) => commands::check::run(args, &cli.global),
-        Commands::ReportFp(args) => commands::report_fp::run(args, &cli.global),
-        Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
-        Commands::Config(args) => commands::config::run(args, &cli.global),
-        Commands::Drift(args) => commands::drift::run(args, &cli.global),
-        Commands::Edda(args) => commands::edda::run(args, &cli.global),
-        Commands::Ember(args) => commands::ember::run(args, &cli.global),
-        Commands::Exception(args) => commands::exception::run(args, &cli.global),
-        Commands::Start(args) => commands::start::run(args, &cli.global),
-        Commands::Status(args) => commands::status::run(args, &cli.global),
-        Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
-        Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
-        Commands::Init(args) => commands::init::run(args, &cli.global),
-        Commands::Insights(args) => commands::insights::run(args, &cli.global),
-        Commands::Kindling(args) => commands::kindling::run(args, &cli.global),
-        Commands::Telemetry(args) => commands::telemetry::run(args, &cli.global),
-        Commands::Migrate(args) => commands::migrate::run(args, &cli.global),
-        Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
-        Commands::Workspace(args) => commands::workspace::run(args, &cli.global),
-        Commands::L4Validate(args) => commands::l4_validate::run(args, &cli.global),
-        Commands::Licenses(args) => commands::licenses::run(args, &cli.global),
-        Commands::McpConfig(args) => commands::mcp_config::run(args, &cli.global),
-        Commands::Mcp(args) => commands::mcp::run(args, &cli.global),
-        Commands::Lsp(args) => commands::lsp::run(args),
-        Commands::Skill(args) => commands::skill::run(args, &cli.global),
-        Commands::Plan(args) => commands::plan::run(args, &cli.global),
-        Commands::Dashboard(args) => commands::dashboard::run(args, &cli.global),
-        Commands::New(args) => commands::new::run(args, &cli.global),
-        Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
-        Commands::Admin(args) => commands::admin::run(args, &cli.global),
-        Commands::Auth(args) => commands::auth::run(args, &cli.global),
-        Commands::Update(_) | Commands::Gate(_) => unreachable!("handled above"),
-        Commands::GateConfig(args) => commands::gate_config::run(args, &cli.global),
-        Commands::Watch(args) => commands::watch::run(args, &cli.global),
-        Commands::Export(args) => commands::export::run(args, &cli.global),
-        Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
-        Commands::Hook(args) => commands::hook::run(args, &cli.global),
-        Commands::Uninstall(args) => commands::uninstall::run(args, &cli.global),
-        Commands::Baseline(args) => commands::baseline::run(args, &cli.global),
-        Commands::Capsule(args) => commands::capsule::run(args, &cli.global),
-        Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
-        Commands::Policy(args) => commands::policy::run(args, &cli.global),
-        Commands::Gctx(args) => commands::gctx::run(args, &cli.global),
-        Commands::Validate(args) => commands::validate::run(args, &cli.global),
-        Commands::Version(args) => commands::version::run(args, &cli.global),
-        Commands::GraphBase(args) => commands::graph_base::run(args, &cli.global),
-        Commands::Login(args) => commands::auth::run_login(args, &cli.global),
-        Commands::Logout(args) => commands::auth::run_logout(args, &cli.global),
-        Commands::Whoami(args) => commands::auth::run_whoami(args, &cli.global),
+        None => commands::ensure::run(&cli.global),
+        Some(Commands::Audit(args)) => commands::audit::run(args, &cli.global),
+        Some(Commands::AuditChain(args)) => commands::audit_chain::run(args, &cli.global),
+        Some(Commands::Check(args)) => commands::check::run(args, &cli.global),
+        Some(Commands::ReportFp(args)) => commands::report_fp::run(args, &cli.global),
+        Some(Commands::Doctor(args)) => commands::doctor::run(args, &cli.global),
+        Some(Commands::Config(args)) => commands::config::run(args, &cli.global),
+        Some(Commands::Drift(args)) => commands::drift::run(args, &cli.global),
+        Some(Commands::Edda(args)) => commands::edda::run(args, &cli.global),
+        Some(Commands::Ember(args)) => commands::ember::run(args, &cli.global),
+        Some(Commands::Exception(args)) => commands::exception::run(args, &cli.global),
+        Some(Commands::Start(args)) => commands::start::run(args, &cli.global),
+        Some(Commands::Status(args)) => commands::status::run(args, &cli.global),
+        Some(Commands::Tutorial(args)) => commands::tutorial::run(args, &cli.global),
+        Some(Commands::Welcome(args)) => commands::welcome::run(args, &cli.global),
+        Some(Commands::Init(args)) => commands::init::run(args, &cli.global),
+        Some(Commands::Insights(args)) => commands::insights::run(args, &cli.global),
+        Some(Commands::Kindling(args)) => commands::kindling::run(args, &cli.global),
+        Some(Commands::Telemetry(args)) => commands::telemetry::run(args, &cli.global),
+        Some(Commands::Migrate(args)) => commands::migrate::run(args, &cli.global),
+        Some(Commands::Intercept(args)) => commands::intercept::run(args, &cli.global),
+        Some(Commands::Workspace(args)) => commands::workspace::run(args, &cli.global),
+        Some(Commands::L4Validate(args)) => commands::l4_validate::run(args, &cli.global),
+        Some(Commands::Licenses(args)) => commands::licenses::run(args, &cli.global),
+        Some(Commands::McpConfig(args)) => commands::mcp_config::run(args, &cli.global),
+        Some(Commands::Mcp(args)) => commands::mcp::run(args, &cli.global),
+        Some(Commands::Lsp(args)) => commands::lsp::run(args),
+        Some(Commands::Skill(args)) => commands::skill::run(args, &cli.global),
+        Some(Commands::Plan(args)) => commands::plan::run(args, &cli.global),
+        Some(Commands::Dashboard(args)) => commands::dashboard::run(args, &cli.global),
+        Some(Commands::New(args)) => commands::new::run(args, &cli.global),
+        Some(Commands::Wizard(args)) => commands::wizard::run(args, &cli.global),
+        Some(Commands::Admin(args)) => commands::admin::run(args, &cli.global),
+        Some(Commands::Auth(args)) => commands::auth::run(args, &cli.global),
+        Some(Commands::Update(_)) | Some(Commands::Gate(_)) => {
+            unreachable!("handled above")
+        }
+        Some(Commands::GateConfig(args)) => commands::gate_config::run(args, &cli.global),
+        Some(Commands::Watch(args)) => commands::watch::run(args, &cli.global),
+        Some(Commands::Export(args)) => commands::export::run(args, &cli.global),
+        Some(Commands::Hooks(args)) => commands::hooks::run(args, &cli.global),
+        Some(Commands::Hook(args)) => commands::hook::run(args, &cli.global),
+        Some(Commands::Uninstall(args)) => commands::uninstall::run(args, &cli.global),
+        Some(Commands::Baseline(args)) => commands::baseline::run(args, &cli.global),
+        Some(Commands::Capsule(args)) => commands::capsule::run(args, &cli.global),
+        Some(Commands::Architecture(args)) => commands::architecture::run(args, &cli.global),
+        Some(Commands::Policy(args)) => commands::policy::run(args, &cli.global),
+        Some(Commands::Gctx(args)) => commands::gctx::run(args, &cli.global),
+        Some(Commands::Validate(args)) => commands::validate::run(args, &cli.global),
+        Some(Commands::Version(args)) => commands::version::run(args, &cli.global),
+        Some(Commands::GraphBase(args)) => commands::graph_base::run(args, &cli.global),
+        Some(Commands::Login(args)) => commands::auth::run_login(args, &cli.global),
+        Some(Commands::Logout(args)) => commands::auth::run_logout(args, &cli.global),
+        Some(Commands::Whoami(args)) => commands::auth::run_whoami(args, &cli.global),
     };
 
     match result {
@@ -1404,7 +1467,10 @@ mod tests {
     fn parse_command(args: &[&str]) -> Commands {
         let mut tokens = vec!["anvil"];
         tokens.extend_from_slice(args);
-        Cli::try_parse_from(tokens).unwrap().command
+        Cli::try_parse_from(tokens)
+            .unwrap()
+            .command
+            .expect("subcommand required for parse_command helper")
     }
 
     // ── exit-code constants (CLIC-001 / A7.3) ────────────────────────
@@ -1540,10 +1606,8 @@ mod tests {
 
     #[test]
     fn root_help_leads_with_first_run_pointer() {
-        // CIB-177: bare `anvil` renders the full long help; a first-time user
-        // should meet a short orientation naming `anvil welcome` (tour) and
-        // `anvil start` (activate) *before* the wall of commands, not buried
-        // mid-list. Assert both pointers render ahead of the command list.
+        // ADR-114 / former CIB-177: root help leads with bare ensure, welcome,
+        // and start before the command wall.
         let mut command = augmented_cli_command();
         let help = command.render_long_help().to_string();
 
@@ -1565,6 +1629,16 @@ mod tests {
             start < commands,
             "`anvil start` pointer must appear before the command list:\n{help}"
         );
+        assert!(
+            help.contains("turn protection on") || help.contains("daily ensure"),
+            "help should name bare ensure role:\n{help}"
+        );
+    }
+
+    #[test]
+    fn bare_invocation_parses_as_ensure() {
+        let cli = Cli::try_parse_from(["anvil"]).expect("bare anvil must parse");
+        assert!(cli.command.is_none(), "bare anvil has no subcommand");
     }
 
     #[test]
@@ -1577,8 +1651,8 @@ mod tests {
             let raw = Cli::try_parse_from(&args).expect("raw parse");
             let augmented = try_parse_cli_from(args.iter().copied()).expect("augmented parse");
             assert_eq!(
-                command_canonical_name(&raw.command),
-                command_canonical_name(&augmented.command),
+                command_canonical_name(raw.command.as_ref().expect("subcommand")),
+                command_canonical_name(augmented.command.as_ref().expect("subcommand")),
                 "dispatch drift for {args:?}"
             );
         }
@@ -1683,7 +1757,8 @@ mod tests {
             tokens.extend_from_slice(&recipe);
             let cli = Cli::try_parse_from(&tokens)
                 .unwrap_or_else(|e| panic!("recipe for {command:?} must parse: {e}"));
-            let canonical = command_canonical_name(&cli.command);
+            let canonical =
+                command_canonical_name(cli.command.as_ref().expect("subcommand for recipe"));
             assert!(
                 !canonical.is_empty(),
                 "command {command:?} resolved to an empty canonical name; the \

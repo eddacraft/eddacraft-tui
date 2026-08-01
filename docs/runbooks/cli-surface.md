@@ -387,12 +387,45 @@ $ anvil status --json | jq .protection_state
 
 ---
 
+## bare `anvil` (no subcommand)
+
+**Class:** Setup / daily **Purpose:** Daily ensure surface — turn protection on
+without reinstall. **When to use:** After the repo is activated; re-run to
+ensure the save-time daemon is up, re-attest the worktree, and refresh
+already-owned MCP entries. Does **not** install NotPresent MCP clients,
+workflows, or hooks — use `anvil start` for that.
+
+**Synopsis:** `anvil` · `anvil --json`
+
+**Behaviour (ADR-114):**
+
+| Situation                          | Result                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| Project config absent              | Exit 1; recovery names `anvil start` / `anvil welcome` (no silent install)        |
+| Activated worktree                 | Daemon ensure + worktree registration + MCP ensure-only; short confidence summary |
+| MCP never installed / declined     | One recovery line → `anvil start` (no re-offer picker)                            |
+| `ANVIL_NO_DAEMON` / `ANVIL_NO_MCP` | Skip that ensure step                                                             |
+
+**Exit codes:** 0 (success), 1 (not activated or ensure failure), 3 (auth
+required)
+
+**Examples:**
+
+```
+$ anvil
+$ anvil --json
+$ anvil --help
+```
+
+---
+
 ## anvil start
 
-**Class:** Setup **Purpose:** Activate Anvil in this repository. **When to
-use:** First-time setup in a repo, or when re-running activation after a config
-change. Writes `.anvilrc` if missing and installs MCP config entries for Cursor
-and Claude Code.
+**Class:** Setup **Purpose:** Activate or **reconfigure** Anvil in this
+repository. **When to use:** First-time setup, adding MCP after a prior decline,
+or repairing activation after a config change. Writes `.anvilrc` if missing and
+can install MCP / workflow consent items. For a quiet daily on-switch without
+reinstall, use bare `anvil` instead.
 
 **Synopsis:**
 `anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`

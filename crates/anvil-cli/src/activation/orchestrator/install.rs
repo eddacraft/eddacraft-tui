@@ -191,6 +191,64 @@ pub(crate) fn install_selected_clients(
     )
 }
 
+/// ADR-114 bare ensure: repair already-owned MCP entries only.
+///
+/// - `SafeDrift` → rewrite in place (ADR-044 ownership)
+/// - `UpToDate` → no write
+/// - `NotPresent` → never install (recovery is `anvil start`)
+/// - `UnsafeDrift` → never overwrite
+///
+/// Summary of an ensure-only MCP pass (ADR-114 bare path).
+#[derive(Debug, Clone)]
+pub(crate) struct McpEnsureSummary {
+    pub report: InstallReport,
+    /// Count of clients with UpToDate or SafeDrift (already owned).
+    pub managed: usize,
+    /// Count of NotPresent candidates when nothing is managed (recovery).
+    pub absent_for_recovery: usize,
+}
+
+/// Returns the install report plus how many candidates were still
+/// `NotPresent` (so the caller can emit one recovery line).
+pub(crate) fn ensure_existing_mcp_entries(
+    workspace: &Path,
+    home: Option<&Path>,
+    fresh: &AnvilEntry,
+) -> McpEnsureSummary {
+    let candidates = collect_candidates(workspace, home, fresh);
+    let mut selected = BTreeMap::new();
+    let mut not_present = 0usize;
+    let mut managed = 0usize;
+    for candidate in &candidates {
+        match &candidate.drift {
+            DriftClass::SafeDrift { .. } => {
+                selected.insert(candidate.id, candidate.clone());
+                managed += 1;
+            }
+            DriftClass::UpToDate => {
+                managed += 1;
+            }
+            DriftClass::NotPresent => {
+                not_present += 1;
+            }
+            DriftClass::UnsafeDrift { .. } => {}
+        }
+    }
+    let enabled: BTreeSet<McpClientId> = selected.keys().copied().collect();
+    let report = if selected.is_empty() {
+        InstallReport::default()
+    } else {
+        install_selected_clients(workspace, home, fresh, &enabled, &selected)
+    };
+    // Surface "not installed" only when nothing managed is present.
+    let absent_for_recovery = if managed == 0 { not_present } else { 0 };
+    McpEnsureSummary {
+        report,
+        managed,
+        absent_for_recovery,
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum InstallSelection<'a> {
     Mode(InstallConsentMode),

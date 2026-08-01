@@ -2,17 +2,18 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 8/10 |
+| JOURNEY | Conductor | Josh | high | In Progress | 8/11 |
 
-**Last reviewed:** 2026-07-30 — post-cut expansion refresh. The `v0.9.0-beta`
-cut chain (JOURNEY-001..006) remains complete and shipped (record:
+**Last reviewed:** 2026-08-01 — filed **JOURNEY-011** (bare `anvil` daily ensure
+vs `anvil start` reconfigure; ADR-114 / ONSW). Prior 2026-07-30 note: the
+`v0.9.0-beta` cut chain (JOURNEY-001..006) remains complete and shipped (record:
 [`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); closeout
 [#3305](https://github.com/eddacraft/anvil-001/issues/3305)). Post-cut:
 JOURNEY-007 Merged 2026-07-30 via PR #3441 (sandboxed autoplay with WOW-006);
 JOURNEY-008 Merged 2026-07-25 via PR #3408; JOURNEY-009 Proposed on hold;
-JOURNEY-010 Proposed blocked on DASHARCH/DASHOPS view waves. Progress 8/10
-counts Merged items only. Created 2026-07-11 from the operator's release goal
-and the accepted
+JOURNEY-010 Proposed blocked on DASHARCH/DASHOPS view waves; **JOURNEY-011
+Proposed** pending ADR-114 accept + ONSW. Progress 8/11 counts Merged items
+only. Created 2026-07-11 from the operator's release goal and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
 ## Purpose
@@ -35,6 +36,9 @@ The release slice is complete when:
 - clean repositories get an honest clean result or isolated sandbox option;
 - interactive `anvil start` completes consent and installation end to end;
 - healthy repeat start is terse and confidence-building;
+- bare `anvil` is the daily on-switch (daemon + existing MCP ensure) without
+  re-offering declined installs; `anvil start` remains activate/reconfigure
+  (JOURNEY-011 / ADR-114);
 - cumulative value can be shared without leaking repository or personal data;
 - fresh-install, restart/reboot, repeat, degraded, and recovery journeys pass on
   Linux, macOS, and Windows;
@@ -81,6 +85,7 @@ the operator explicitly promotes them into the cut.
 | [activation-mcp-optional](./activation-mcp-optional.aps.md) | Daemon, durable registration, MCP-optional protection, optional local control app | Existing spine required; ACTMO-021 expansion |
 | [daemon-save-time-validation](../archive/modules/daemon-save-time-validation.aps.md) | Headless background save-time driver | Existing v0.9 usefulness cut-line |
 | [continuous-improvement-backlog](./continuous-improvement-backlog.aps.md) | Share receipt, quiet repeat start, consent parity, local repeat value | CIB-073/-183/-184/-190 required; CIB-075 expansion |
+| [bare-ensure](./bare-ensure.aps.md) | Bare `anvil` daily ensure vs `anvil start` reconfigure | JOURNEY-011; ADR-114 |
 | [usage-insights](../archive/modules/usage-insights.aps.md) | Local-only value aggregates and evidence semantics | Producer consumed by CIB-073/-190 when trustworthy |
 | [dashboard-foundation](./dashboard-foundation.aps.md) | Browser foundation for later continuity | Expansion; non-blocking |
 
@@ -312,6 +317,29 @@ the operator explicitly promotes them into the cut.
   the owning DASH modules.
 - **Confidence:** medium
 
+### JOURNEY-011: Bare `anvil` daily ensure vs `start` reconfigure
+
+- **Status:** Proposed — 2026-08-01. Design gate
+  [ADR-114](../decisions/114-bare-anvil-ensure-surface.md) Proposed;
+  implementation module [bare-ensure (ONSW)](./bare-ensure.aps.md). Promote to
+  Ready when ADR-114 is Accepted and ONSW-002..004 are Ready or Merged.
+- **Intent:** Finish the daily-confidence story: bare `anvil` is the on-switch
+  (daemon + existing MCP ensure, no re-offer of declined installs); `anvil start`
+  stays activate/reconfigure/reinstall. Resolves the contradiction between
+  JOURNEY-003 quiet repeats and consent re-offers on every `start`.
+- **Expected Outcome:** Rehearsal evidence shows (1) first-run / never-activated
+  bare is honest and does not install MCP/workflows; (2) healthy subsequent bare
+  ensure is terse and turns the spine on without pickers; (3) after a deliberate
+  decline on `start`, bare still does not install, while `start` can still offer
+  NotPresent clients; (4) help/runbook state the split.
+- **Dependencies:** ONSW-001..006, ADR-114
+- **Coordinates with:** ONSW, ACTMO, ADR-044/082/092, CIB-177 (supersede bare
+  exit-2-always)
+- **Validation:** ONSW validation suite green; short interactive rehearsal
+  record linked from this item or the release notes for the shipping window;
+  `cargo test -p eddacraft-anvil ensure`; `cargo test -p eddacraft-anvil start`.
+- **Confidence:** high
+
 ## Sequencing
 
 ```text
@@ -324,6 +352,7 @@ Release cut:
 
 Post-cut expansion:
   JOURNEY-007 || JOURNEY-008 || JOURNEY-009 || JOURNEY-010
+  ADR-114 -> ONSW-001..006 -> JOURNEY-011
 ```
 
 ## Release Gate
