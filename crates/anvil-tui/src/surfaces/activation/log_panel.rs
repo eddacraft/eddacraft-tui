@@ -228,10 +228,11 @@ fn render_with_title(
     title: &str,
     interactive: bool,
 ) {
+    let chrome_height = if interactive { 5 } else { 2 };
     let panel = LogPanel::new(entries, theme)
         .title(title)
         .focused(true)
-        .max_visible(usize::from(area.height.saturating_sub(5)).max(1));
+        .max_visible(usize::from(area.height.saturating_sub(chrome_height)).max(1));
     let panel = if interactive {
         panel
     } else {
@@ -243,6 +244,40 @@ fn render_with_title(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    #[test]
+    fn activity_panel_uses_rows_freed_by_hidden_chrome() {
+        let entries: Vec<_> = (0..6)
+            .map(|idx| {
+                entry(
+                    "activity",
+                    idx,
+                    LogLevel::Info,
+                    format!("activity row {idx}"),
+                    "orchestrator",
+                )
+            })
+            .collect();
+        let backend = TestBackend::new(80, 8);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = LogPanelState::default();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render_activity(frame, frame.area(), &entries, &mut state, &theme))
+            .unwrap();
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.contains("activity row 5"));
+    }
 
     #[test]
     fn parses_install_detail_from_compact_verdict() {

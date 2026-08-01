@@ -34,21 +34,21 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ActivationSurface, theme: &
     if progress_height > 0 {
         render_working_progress(frame, chunks[2], state, theme);
     }
-    if matches!(
-        state.phase(),
-        ActivationPhase::Preflight | ActivationPhase::Working
-    ) {
+    if state.tier_evidence_visible() {
         let mut panel_state = state.log_panel_state_mut();
-        crate::surfaces::activation::log_panel::render_activity(
+        crate::surfaces::activation::log_panel::render(
             frame,
             chunks[3],
             state.tier_evidence_entries(),
             &mut panel_state,
             theme,
         );
-    } else if state.tier_evidence_visible() {
+    } else if matches!(
+        state.phase(),
+        ActivationPhase::Preflight | ActivationPhase::Working
+    ) {
         let mut panel_state = state.log_panel_state_mut();
-        crate::surfaces::activation::log_panel::render(
+        crate::surfaces::activation::log_panel::render_activity(
             frame,
             chunks[3],
             state.tier_evidence_entries(),
@@ -298,6 +298,27 @@ mod tests {
         assert!(out.contains("Initial probe: started"));
         assert!(!out.contains("Search:"));
         assert!(!out.contains("[j/k] scroll"));
+    }
+
+    #[test]
+    fn live_tier_evidence_toggle_replaces_activity_panel() {
+        let mut surface = ActivationSurface::live(false, false);
+        surface.update_live_progress(
+            vec!["Initial probe: started".to_string()],
+            vec![super::super::ActivationProgressStep::new(
+                "initial-probe",
+                "Initial probe",
+                ActivationProgressStatus::Running,
+            )],
+        );
+        surface.toggle_tier_evidence();
+
+        let out = render_to_string(&surface, 100, 24);
+
+        assert!(out.contains("Tier evidence"));
+        assert!(out.contains("Initial probe: started"));
+        assert!(out.contains("[j/k] scroll"));
+        assert!(!out.contains("Activation activity"));
     }
 
     #[test]
