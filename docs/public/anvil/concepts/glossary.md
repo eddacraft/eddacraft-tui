@@ -17,6 +17,7 @@ guide introduces an unfamiliar word.
 | **Finding**              | A check result that names what was detected, where, and why it matters.                                                                    |
 | **Gate**                 | A workflow decision made from one or more checks.                                                                                          |
 | **Protection state**     | The final status reported by activation: protecting, restart required, watching, needs action, unsupported, or error.                      |
+| **Daily ensure**         | Bare `anvil` (no subcommand): turn protection on for an already-activated project without reinstalling clients or hooks.                   |
 | **Pre-write validation** | A supported AI client asks anvil to validate a proposed change before writing it.                                                          |
 | **Save-time validation** | A local watcher validates a file after it is saved. It is a fallback, not the same guarantee as pre-write validation.                      |
 | **Daemon**               | A per-user background process that serves local validation requests.                                                                       |

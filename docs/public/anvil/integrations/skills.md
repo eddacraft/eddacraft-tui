@@ -60,7 +60,8 @@ Skills and MCP are complementary:
 1. Configure the client with [MCP integration](mcp.md) so it can call anvil.
 2. Install the skill (when available) so the client has a maintained procedure
    for those tools.
-3. Verify protection with `anvil start --verify`.
+3. Verify protection with `anvil start --verify`. On later days, bare `anvil`
+   turns protection on without reinstalling.
 
 A skill alone does not activate pre-write protection.
 

@@ -45,18 +45,18 @@ eddacraft develops tools across three capability areas:
 - Save-time governance
 - Reusable development memory
 
-### Anvil
+### anvil
 
-The flagship product. Anvil validates AI-generated code changes through
+The flagship product. anvil validates AI-generated code changes through
 deterministic gates as they are made, catching architecture drift and
 anti-patterns before they reach review.
 
 **Best for:** Teams shipping with AI assistance who need production-grade
 quality gates.
 
-[Get started with Anvil →](/anvil/overview)
+[Get started with anvil →](/anvil/overview)
 
-### APS (Anvil Plan Specification)
+### APS (anvil plan specification)
 
 An open-source specification for deterministic, hash-stable development plans.
 APS defines _what_ should be built, enabling reproducible validation.
@@ -65,16 +65,16 @@ APS defines _what_ should be built, enabling reproducible validation.
 
 [Explore the APS spec →](/aps/overview)
 
-### Kindling
+### kindling
 
 An open-source tool for capturing structured observations from development
-sessions. Kindling stores context that matters—without the noise.
+sessions. kindling stores context that matters—without the noise.
 
 **Best for:** Developers wanting session memory that persists and transfers.
 
-[Learn about Kindling →](/kindling/overview)
+[Learn about kindling →](/kindling/overview)
 
-### Development Memory System (Kindling + Ember + Edda)
+### Development Memory System (kindling + ember + edda)
 
 Our memory system turns raw observations into trusted, reusable team knowledge.
 It is designed to reduce repeat mistakes, preserve decision context, and improve

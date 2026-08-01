@@ -176,7 +176,12 @@ function renderCli(commands) {
     `This page is generated from the command definitions shipped with ${releaseLabel()}. ` +
     `Use \`anvil <command> --help\` for flags, examples, and subcommands for your installed version.\n\n` +
     `For a first installation, use the [quickstart](../quickstart.md).\n\n` +
-    `| Command | Purpose |\n| --- | --- |\n${rows}\n`
+    `## Daily ensure\n\n` +
+    `With no subcommand, bare \`anvil\` runs the daily ensure surface: it turns protection on for an already-activated project (daemon + existing MCP entries). ` +
+    `It does not install clients you skipped or rewrite configuration — use \`anvil start\` to activate or reconfigure.\n\n` +
+    `| Command | Purpose |\n| --- | --- |\n` +
+    `| \`anvil\` | Turn protection on for an already-activated project (daily ensure) |\n` +
+    `${rows}\n`
   );
 }
 

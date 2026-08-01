@@ -56,7 +56,8 @@ anvil complements rather than replaces:
 | --------------------------------- | ----------------------------------- |
 | Evaluate value without an account | `anvil welcome`                     |
 | Scan named files                  | `anvil check path/to/file`          |
-| Activate ongoing protection       | `anvil start`                       |
+| Activate or reconfigure a project | `anvil start`                       |
+| Turn protection on day-to-day     | bare `anvil` (after first `start`)  |
 | Run a workflow decision           | `anvil gate`                        |
 | Diagnose an installation          | `anvil doctor`                      |
 | Inspect current coverage          | Use the generated support reference |

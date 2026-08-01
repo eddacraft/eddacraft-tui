@@ -66,6 +66,13 @@ anvil start --verify
 Only `protecting` proves the current pre-write path. A configured file or
 running daemon alone is not enough.
 
+## Day two: turn protection on without reinstalling
+
+After a client is configured, bare `anvil` (no subcommand) ensures the local
+daemon and already-owned MCP entries. It does not install clients you skipped.
+Use `anvil start` again only to change configuration; keep
+`anvil start --verify` for read-only diagnosis.
+
 The next beta after `0.9.0-beta` understands both ratified MCP `2026-07-28` and
 the initialise-era protocol used by existing clients. Generated client entries
 do not change: upgrades continue to run `anvil mcp serve --stdio`.

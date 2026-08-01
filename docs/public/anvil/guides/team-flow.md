@@ -39,6 +39,10 @@ credentials, personal paths, daemon state, or caches.
 
 ## 4. Add local and CI layers
 
+After the pilot is activated, each developer's daily path is bare `anvil` (turn
+protection on without reinstalling). Keep `anvil start` for first activation and
+configuration changes only.
+
 Use [Git hooks](../operations/git-hooks.md) as fast local feedback and
 [continuous integration](../integrations/github.md) as the shared authority.
 

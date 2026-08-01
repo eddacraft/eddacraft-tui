@@ -14,7 +14,7 @@ sparingly—each term has a plain definition alongside.
 
 ## Core Concepts
 
-### Anvil
+### anvil
 
 The eddacraft tool for validating AI-generated code changes. Named for the
 blacksmith's anvil—the stable surface where raw material is shaped into
@@ -23,15 +23,15 @@ something reliable.
 **Plain definition:** A CLI and service that runs quality gates on code changes
 before they reach review.
 
-### APS (Anvil Plan Specification)
+### APS (anvil plan specification)
 
 A deterministic, hash-stable format for defining development plans. The
-specification that Anvil validates against.
+specification that anvil validates against.
 
 **Plain definition:** A structured document format (Markdown with frontmatter)
 that describes what should be built, enabling reproducible validation.
 
-### Kindling
+### kindling
 
 A tool for capturing structured observations from development sessions. Named
 for the small material that catches fire first—observations that spark larger
@@ -162,7 +162,7 @@ A bounded period of development work, typically with a specific goal.
 
 ### Run
 
-A single execution of Anvil validation against a codebase.
+A single execution of anvil validation against a codebase.
 
 **Plain definition:** One invocation of `anvil check` or equivalent.
 

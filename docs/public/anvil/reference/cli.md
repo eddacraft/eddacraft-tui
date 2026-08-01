@@ -14,8 +14,16 @@ for your installed version.
 
 For a first installation, use the [quickstart](../quickstart.md).
 
+## Daily ensure
+
+With no subcommand, bare `anvil` runs the daily ensure surface: it turns
+protection on for an already-activated project (daemon + existing MCP entries).
+It does not install clients you skipped or rewrite configuration — use
+`anvil start` to activate or reconfigure.
+
 | Command              | Purpose                                                                  |
 | -------------------- | ------------------------------------------------------------------------ |
+| `anvil`              | Turn protection on for an already-activated project (daily ensure)       |
 | `anvil admin`        | Manage service approvals and users (administrators only)                 |
 | `anvil architecture` | Manage architecture boundary definitions                                 |
 | `anvil audit`        | Run a full project audit                                                 |

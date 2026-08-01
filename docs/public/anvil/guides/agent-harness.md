@@ -69,6 +69,12 @@ Optionally install a managed [agent skill](../integrations/skills.md) when your
 binary exposes the skill surface (`anvil --help` lists `skill`). Skills are
 complementary to MCP and do not prove protection alone.
 
+## 4. Day two without reinstalling
+
+After activation, bare `anvil` turns protection on for the project (daemon +
+already-configured MCP). It does not open the client picker. Use `anvil start`
+only when you need to add a client or repair configuration.
+
 ## Corporate or restricted environments
 
 If client configuration is not allowed, activate without MCP changes:

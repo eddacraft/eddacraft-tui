@@ -17,7 +17,7 @@ You want to understand what eddacraft offers and whether it fits your needs.
 
 | Goal                                 | Start here                                     |
 | ------------------------------------ | ---------------------------------------------- |
-| Understand Anvil's value proposition | [What Anvil does](/anvil/overview)             |
+| Understand anvil's value proposition | [What anvil does](/anvil/overview)             |
 | See how APS fits into the picture    | [APS Overview](/aps/overview)                  |
 | Learn capture workflows              | [Kindling Overview](/kindling/overview)        |
 | Evaluate memory capabilities         | [Memory System Overview](/edda-stack/overview) |
@@ -26,7 +26,7 @@ You want to understand what eddacraft offers and whether it fits your needs.
 
 ## I want to adopt APS
 
-You're interested in the Anvil Plan Specification for your own tooling or
+You're interested in the anvil plan specification for your own tooling or
 workflows.
 
 | Goal                        | Start here                                    |
@@ -44,7 +44,7 @@ You need to capture session context and turn it into reusable team knowledge.
 
 | Goal                                 | Start here                                             |
 | ------------------------------------ | ------------------------------------------------------ |
-| Get Kindling running                 | [Install Kindling](/kindling/quickstart/install)       |
+| Get kindling running                 | [Install kindling](/kindling/quickstart/install)       |
 | Capture your first memory            | [Your First Memory](/kindling/quickstart/first-memory) |
 | Connect to your workflow             | [Custom Adapters](/kindling/adapters/custom)           |
 | Understand the data model            | [Observations](/kindling/concepts/observations)        |
@@ -54,7 +54,7 @@ You need to capture session context and turn it into reusable team knowledge.
 
 ## I'm deploying in my organisation
 
-You're ready to roll out Anvil to your team or integrate it into CI/CD.
+You're ready to roll out anvil to your team or integrate it into CI/CD.
 
 | Goal                        | Start here                                       |
 | --------------------------- | ------------------------------------------------ |
@@ -67,7 +67,7 @@ You're ready to roll out Anvil to your team or integrate it into CI/CD.
 
 ## I'm a solo developer
 
-You want the fastest path to productive use of Anvil.
+You want the fastest path to productive use of anvil.
 
 | Goal                      | Start here                                   |
 | ------------------------- | -------------------------------------------- |
@@ -81,7 +81,7 @@ You want the fastest path to productive use of Anvil.
 
 <div className="row">
   <div className="col col--4">
-    <h3>Anvil</h3>
+    <h3>anvil</h3>
     <ul>
       <li><a href="/anvil/overview">Overview</a></li>
       <li><a href="/anvil/quickstart">Quickstart</a></li>
@@ -97,7 +97,7 @@ You want the fastest path to productive use of Anvil.
     </ul>
   </div>
   <div className="col col--4">
-    <h3>Kindling</h3>
+    <h3>kindling</h3>
     <ul>
       <li><a href="/kindling/overview">Overview</a></li>
       <li><a href="/kindling/quickstart/install">Install</a></li>

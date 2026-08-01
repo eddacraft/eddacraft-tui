@@ -49,6 +49,22 @@ anvil auth refresh
 If refresh fails, run `anvil auth login` again. In CI, confirm the
 `ANVIL_LICENSE` secret is available to the event; do not print it.
 
+## Daily ensure fails or says not activated
+
+Bare `anvil` (no subcommand) is the day-to-day on-switch after the project has
+been activated once. It ensures the local daemon and already-configured MCP
+entries; it does not install clients you previously skipped.
+
+```text
+anvil
+anvil --json
+```
+
+If the project was never activated, the command names `anvil start` or
+`anvil welcome`. Run `anvil start` to activate, then bare `anvil` on later days.
+For a read-only diagnosis without changing configuration, use
+`anvil start --verify`.
+
 ## Activation needs a restart
 
 Fully quit the named client, reopen it, then run:

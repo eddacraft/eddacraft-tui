@@ -7,7 +7,9 @@ description: Look up every final state reported by anvil activation.
 # Activation states
 
 `anvil start`, `anvil start --verify`, and verified status output use the same
-final vocabulary.
+final vocabulary. Bare `anvil` (daily ensure) reports a separate ensure surface
+for daemon, worktree, and MCP ensure outcomes; use `anvil --json` for automation
+and `anvil start --verify` when you need the activation-state vocabulary below.
 
 | State                    | Assurance                                        | Next action                                         |
 | ------------------------ | ------------------------------------------------ | --------------------------------------------------- |
