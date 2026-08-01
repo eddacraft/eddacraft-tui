@@ -9,7 +9,16 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
-## [0.4.2] - 2026-08-01
+## [0.5.0] - 2026-08-01
+
+### Breaking
+
+- The stable `Surface` trait gains the defaulted `text_entry_active` method.
+  Existing implementations inherit `false`, but downstream method calls can
+  require explicit trait qualification when another in-scope trait exposes the
+  same method name. This stable-trait evolution therefore takes the breaking
+  0.x release bucket; see
+  [ADR-115](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/115-eddacraft-tui-surface-trait-evolution.md).
 
 ### Added
 
@@ -410,8 +419,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.2...HEAD
-[0.4.2]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...eddacraft-tui-v0.4.2
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.0...HEAD
+[0.5.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...eddacraft-tui-v0.5.0
 [0.4.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.0...eddacraft-tui-v0.4.1
 [0.4.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.3.0...eddacraft-tui-v0.4.0
 [0.3.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.2.4...eddacraft-tui-v0.3.0

@@ -12,7 +12,7 @@ Depend on the **crates.io release**, not on git `main`:
 
 ```toml
 [dependencies]
-eddacraft-tui = "0.2"
+eddacraft-tui = "0.5"
 ```
 
 `main` is mirror-managed and may be force-pushed at any time. Release tags

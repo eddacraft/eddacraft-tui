@@ -126,7 +126,7 @@ the convenience spinner presets, but are never required.
 
 ```toml
 [dependencies]
-eddacraft-tui = "0.2"
+eddacraft-tui = "0.5"
 ```
 
 ```rust
