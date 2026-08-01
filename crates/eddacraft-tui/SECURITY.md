@@ -44,8 +44,8 @@ crates.io. Older minor versions are not patched — users should upgrade.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.2.x   | ✔︎         |
-| < 0.2   | ✘         |
+| 0.5.x   | ✔︎         |
+| < 0.5   | ✘         |
 
 ## Scope
 
@@ -76,8 +76,9 @@ job (D-TUIR-018) flags within 24 hours.
 
 ## CI
 
-`cargo deny check` and `cargo audit`-equivalent advisory gates run on every push
-and PR to the canonical Anvil source via the workspace-wide jobs in `rust.yml`;
-advisories against the dependency graph fail the build. Full Anvil-side gate
-contracts are documented in
+`cargo deny --all-features check --config attribution/deny.toml` runs for
+dependency-relevant changes to the canonical Anvil source via `rust.yml`, then
+runs again as a mandatory publish-side gate for every release tag. It covers
+advisories, bans, licences, and sources across the crate's complete feature
+graph. Full Anvil-side gate contracts are documented in
 [`docs/policies/eddacraft-tui-mirror.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/policies/eddacraft-tui-mirror.md).
