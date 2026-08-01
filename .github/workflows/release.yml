@@ -38,14 +38,12 @@ permissions:
 #
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
+# Tag-triggered publish only. cargo-dist plan dry-runs used to fire on every
+# crates/** PR and added a large skipped-check fan-out; that surface moved to
+# release-readiness (`dist plan` on the exact candidate SHA). See
+# `.github/workflows/README.md` tier table. Hand-edits survive `dist generate`
+# via `allow-dirty = ["ci"]` in dist-workspace.toml.
 on:
-  pull_request:
-    paths:
-      - 'crates/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'dist-workspace.toml'
-      - '.github/workflows/release.yml'
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
@@ -60,13 +58,11 @@ jobs:
     # for a non-`[[bin]]` crate publishes a binary-less release on the public
     # eddacraft/anvil repo that, as the newest non-prerelease, steals the
     # "Latest" pointer from the CLI and 404s install.eddacraft.ai's
-    # /releases/latest/download/ installer. So allowlist CLI `v*` tags only (plus
-    # PR dry-runs); every prefixed/library tag skips by default — no per-crate
-    # denylist to maintain. Skipping `plan` cascades: every downstream job needs
-    # it, and `host` (the public-publish job) gates on
-    # `needs.plan.result == 'success'`. This hand-edit survives `dist generate`
-    # via `allow-dirty = ["ci"]` in dist-workspace.toml.
-    if: ${{ github.event_name == 'pull_request' || startsWith(github.ref_name, 'v') }}
+    # /releases/latest/download/ installer. So allowlist CLI `v*` tags only;
+    # every prefixed/library tag skips by default — no per-crate denylist to
+    # maintain. Skipping `plan` cascades: every downstream job needs it, and
+    # `host` (the public-publish job) gates on `needs.plan.result == 'success'`.
+    if: ${{ startsWith(github.ref_name, 'v') }}
     runs-on: 'ubuntu-22.04'
     outputs:
       val: ${{ steps.plan.outputs.manifest }}

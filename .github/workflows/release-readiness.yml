@@ -209,6 +209,8 @@ jobs:
           pnpm lint:md
           bash scripts/agent/_test/guidance.test.sh
           bash scripts/ci/classify-changes.test.sh
+          bash scripts/ci/release-readiness-workflow.test.sh
+          bash scripts/ci/resource-budget-workflow.test.sh
           bash scripts/release/_test/validate-publication-token.test.sh
 
       # The v0.9.0-beta cut stalled ~6h on an expired ANVIL_RELEASES_TOKEN,
@@ -226,12 +228,85 @@ jobs:
         shell: bash
         run: bash scripts/release/validate-publication-token.sh
 
+  # Pre-release packaging contract: was the PR dry-run surface of release.yml
+  # (cargo-dist plan on every crates/** PR). Lives here so only the candidate
+  # SHA pays for it, with no publish credentials and no artefact matrix.
+  dist-plan:
+    name: cargo-dist plan
+    runs-on: ubuntu-22.04
+    needs: validate
+    steps:
+      - name: Checkout validated SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.checked-out-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install dist
+        # Keep pin in lockstep with release.yml plan job (V041F-001).
+        shell: bash
+        env:
+          DIST_VERSION: v0.31.0
+          DIST_INSTALLER_SHA256: e79d87e418b9d2cbe992d014985457c28a5a7c553add3da4ed1047e161c928f4
+        run: |
+          set -euo pipefail
+          INSTALLER="$RUNNER_TEMP/cargo-dist-installer.sh"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$INSTALLER" \
+            "https://github.com/axodotdev/cargo-dist/releases/download/${DIST_VERSION}/cargo-dist-installer.sh"
+          echo "${DIST_INSTALLER_SHA256}  ${INSTALLER}" | sha256sum --check --status || {
+            echo "::error::cargo-dist installer SHA256 mismatch — refusing to run."
+            echo "::error::expected ${DIST_INSTALLER_SHA256}"
+            echo "::error::actual   $(sha256sum "$INSTALLER" | awk '{print $1}')"
+            echo "::error::either upstream changed the script or the download was tampered with."
+            exit 1
+          }
+          sh "$INSTALLER"
+          rm -f "$INSTALLER"
+
+      - name: Run dist plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          dist plan --output-format=json > plan-dist-manifest.json
+          echo "dist plan ran successfully"
+          {
+            echo '## cargo-dist plan'
+            echo
+            echo 'Dry-run packaging contract for the validated release-candidate SHA.'
+            echo 'No tags, hosts, or publish credentials are used here.'
+            echo
+            echo '```json'
+            head -c 8000 plan-dist-manifest.json
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dist plan manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readiness-plan-dist-manifest
+          path: plan-dist-manifest.json
+          retention-days: ${{ needs.validate.outputs.retention-days }}
+
+  # Pre-release resource-budget gate: no longer on every crates PR; must still
+  # pass on the exact candidate SHA before cut (RLB / GCALL / GV2 budgets).
+  resource-budget:
+    name: Resource budgets
+    needs: validate
+    uses: ./.github/workflows/resource-budget.yml
+    with:
+      ref: ${{ needs.validate.outputs.checked-out-sha }}
+
   candidate-artifacts:
     name: Candidate Artefact Placeholder
     runs-on: ubuntu-latest
     needs:
       - validate
       - required-checks
+      - dist-plan
+      - resource-budget
     if: inputs.mode == 'candidate-artifacts'
     steps:
       - name: Record non-publishing candidate scope
@@ -250,9 +325,12 @@ jobs:
     needs:
       - validate
       - required-checks
+      - dist-plan
+      - resource-budget
       - candidate-artifacts
     if:
       always() && needs.validate.result == 'success' && needs.required-checks.result == 'success' &&
+      needs.dist-plan.result == 'success' && needs.resource-budget.result == 'success' &&
       (inputs.mode == 'readiness' || needs.candidate-artifacts.result == 'success')
     steps:
       - name: Build candidate metadata

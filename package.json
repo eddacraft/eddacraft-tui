@@ -45,6 +45,7 @@
     "test:ci-classify": "bash scripts/ci/classify-changes.test.sh",
     "test:release-publication-token": "bash scripts/release/_test/validate-publication-token.test.sh",
     "test:release-readiness-workflow": "bash scripts/ci/release-readiness-workflow.test.sh",
+    "test:ci-resource-budget-workflow": "bash scripts/ci/resource-budget-workflow.test.sh",
     "test:ci-cost": "bash scripts/ci/cost-report.test.sh",
     "test:ci-fast-pr": "bash scripts/ci/fast-pr-validation.test.sh",
     "test:ci-integration": "bash scripts/ci/integration-validation.test.sh",

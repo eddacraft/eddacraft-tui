@@ -111,4 +111,12 @@ assert_release_step_blocking "Publish release evidence to eddacraft/anvil"
 assert_release_contains '::error title=Missing ACKNOWLEDGEMENTS.md'
 assert_release_contains '::error title=Missing release evidence'
 
+# CI de-bloat: cargo-dist publish is tag-only; PR dry-run lives in release-readiness.
+if grep -E '^[[:space:]]*pull_request:' "${release_workflow}" >/dev/null; then
+  echo "expected ${release_workflow} not to declare a pull_request trigger" >&2
+  exit 1
+fi
+assert_release_contains "push:"
+assert_release_contains "tags:"
+
 printf 'release-sign-artefacts-workflow.test.sh: ok\n'

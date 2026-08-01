@@ -80,4 +80,12 @@ assert_contains "$content" 'expectedReachableFrom must be main' 'workflow must r
 assert_not_contains "$content" 'migration-dev' 'migration-dev probe retired with #1419'
 assert_contains "$content" 'retention-days: ${{ needs.validate.outputs.retention-days }}' 'metadata retention must use bounded validation output'
 
+# Pre-release packaging + budget gates (moved off routine PR surface).
+assert_contains "$content" 'name: cargo-dist plan' 'readiness must run cargo-dist plan on the candidate SHA'
+assert_contains "$content" 'dist plan --output-format=json' 'readiness dist plan must emit JSON manifest'
+assert_contains "$content" 'uses: ./.github/workflows/resource-budget.yml' 'readiness must call resource-budget reusable workflow'
+assert_contains "$content" 'ref: ${{ needs.validate.outputs.checked-out-sha }}' 'resource-budget must pin the validated SHA'
+assert_contains "$content" "needs.dist-plan.result == 'success'" 'metadata must require dist-plan success'
+assert_contains "$content" "needs.resource-budget.result == 'success'" 'metadata must require resource-budget success'
+
 echo 'release-readiness workflow contract passed'

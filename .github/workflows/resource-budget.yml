@@ -1,14 +1,18 @@
 name: Resource Budget
 
-# REQUIRED CHECK: the `per-process resource budgets` job carries the load-bearing
-# latency gates (GCALL-006 call-lift, GV2-025 hot-read, RLB SLOs) — each exits
-# non-zero on a budget breach, and each proves it trips via a synthetic-regression
-# self-test step. For those gates to actually BLOCK a regression, this job must be
-# added to the `main` branch-protection ruleset as a required status check
-# (branch protection is a repo-admin setting, not expressible in-repo). Without
-# that, a PR can merge with this job red (council ADV-3/OPS-2). It already runs on
-# every PR touching `crates/**`, so the only remaining step is the protection-rule
-# designation.
+# Assurance + release-candidate gate — not a PR required check.
+#
+# Tiering (see `.github/workflows/README.md`):
+# - PR: does not run (keeps routine crates PRs free of ~18m release-profile work)
+# - Integration push: path-filtered tip-of-main measurement after merge
+# - Assurance: nightly schedule on main tip
+# - Release candidate: `workflow_call` from release-readiness on an exact SHA
+# - Manual: workflow_dispatch (also enables the heavier concurrent job)
+#
+# The load-bearing latency gates (GCALL-006 call-lift, GV2-025 hot-read, RLB
+# SLOs) each exit non-zero on a budget breach and prove they trip via a
+# synthetic-regression self-test. Shipping still requires them green on
+# release-readiness even though they no longer block every PR merge.
 
 on:
   push:
@@ -19,22 +23,27 @@ on:
       - 'docs/policies/resource-budget.md'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - '.github/workflows/resource-budget.yml'
-  pull_request:
-    paths:
-      - 'crates/anvil-bench/**'
-      - 'crates/**'
-      - 'docs/policies/resource-budget.md'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - '.github/workflows/resource-budget.yml'
+  schedule:
+    # Daily 02:15 UTC — offset from ci-nightly @ 02:00 so both share warm
+    # caches without stampeding the same minute.
+    - cron: '15 2 * * *'
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact git ref or SHA to check out (release-readiness)
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: resource-budget-${{ github.ref }}
+  group:
+    resource-budget-${{ github.event_name == 'workflow_call' && inputs.ref || github.ref }}-${{
+    github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -48,6 +57,11 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # workflow_call supplies the release-candidate SHA; other triggers
+          # use the event SHA (push/schedule/dispatch).
+          ref: ${{ github.event_name == 'workflow_call' && inputs.ref || github.sha }}
+          fetch-depth: 0
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -55,11 +69,13 @@ jobs:
           # anvil binary + benches below) but used to restore the debug
           # `rust-ci` cache — which never contains release deps — so every
           # run cold-built the release dependency graph. Own key, saved on
-          # merges to `main` so PR runs restore a warm release cache. Cache
-          # contents only affect compile time, not the measured budgets —
-          # the benches run the built binary.
+          # merges to `main` and nightly so later runs restore a warm
+          # release cache. Cache contents only affect compile time, not the
+          # measured budgets — the benches run the built binary.
           shared-key: rust-release-budget
-          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-if:
+            ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.ref ==
+            'refs/heads/main' }}
       # The watch bench needs inotify headroom; surface the limits in the log so
       # an exhausted-watches failure is one glance to diagnose, not a mystery.
       - name: Report inotify limits
@@ -92,8 +108,8 @@ jobs:
       # (4 agents + 1 background scan, ADR-061 §9 / RLB-008). This bench is
       # in-process (no daemon/inotify, unlike the load-ramp job), and the
       # measured warm p95 sits ~3 orders of magnitude under the 80 ms ADR-031
-      # save-time budget, so it gates on the standard push/PR runner without the
-      # flake risk a tight latency SLO would carry. The bench exits non-zero on a
+      # save-time budget, so it gates on the standard runner without the flake
+      # risk a tight latency SLO would carry. The bench exits non-zero on a
       # p95 breach, so the step itself is the gate (ADR-061 §9 "not optional").
       - name: Measure validate_paths concurrency SLO (RLB-008 / DSV-006)
         run: |
@@ -184,8 +200,7 @@ jobs:
 
   # RLB-005 + the multi-agent load-ramp harness are heavier (spawn 3+ processes
   # and ramp concurrent watchers) and need inotify headroom, so they run on
-  # manual dispatch (and nightly once a dedicated runner returns) rather than on
-  # every push/PR.
+  # manual dispatch only rather than on every push, schedule, or readiness call.
   concurrent-resource-budget:
     name: concurrent multi-process budget + load ramp
     if: github.event_name == 'workflow_dispatch'
@@ -193,10 +208,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_call' && inputs.ref || github.sha }}
+          fetch-depth: 0
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          # Restore the release-profile cache saved by the push-to-main leg
+          # Restore the release-profile cache saved by the push/schedule leg
           # above (dispatch-only job, so it never saves its own).
           shared-key: rust-release-budget
           save-if: 'false'

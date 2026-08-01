@@ -128,15 +128,16 @@ on a quiet box or a fresh CI runner.
 
 `.github/workflows/resource-budget.yml` builds a release `anvil` binary and runs
 the budgets; each bench exits non-zero when `status != "pass"`, so the step is
-the gate, and the JSON verdicts are uploaded as artifacts. The
-`resource-budgets` job (push/PR + dispatch) runs the watch, intercept, and MCP
-budgets; the heavier `concurrent-resource-budget` job (manual dispatch, nightly
-once a dedicated runner returns) runs the concurrent budget and the
-`load-ramp.sh --smoke` harness. `pnpm bench` runs the same budgets locally (skip
-with `--skip-resource-budget`). Until RLB-008 delivers quiet-box calibration, a
-breach of a `[placeholder]` ceiling on a shared runner should be triaged against
-the measured floors above before being treated as a regression. The verdict
-shape is:
+the gate, and the JSON verdicts are uploaded as artifacts. **Not on routine
+PRs** (CI cost control). The `resource-budgets` job runs on path-filtered push
+to `main`, a nightly schedule, manual dispatch, and as a reusable call from
+`release-readiness.yml` on the exact candidate SHA. The heavier
+`concurrent-resource-budget` job is manual dispatch only (and may return to
+nightly once a dedicated runner is online). `pnpm bench` runs the same budgets
+locally (skip with `--skip-resource-budget`). Until RLB-008 delivers quiet-box
+calibration, a breach of a `[placeholder]` ceiling on a shared runner should be
+triaged against the measured floors above before being treated as a regression.
+The verdict shape is:
 
 ```jsonc
 {
