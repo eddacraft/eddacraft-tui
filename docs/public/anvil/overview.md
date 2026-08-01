@@ -68,4 +68,6 @@ boundary.
 - Deciding whether it fits: [when to use anvil](when-to-use.md).
 - Looking up support: [supported platforms and languages](reference/support.md).
 - Already installed: [run the ten-minute protection tutorial](first-gate.md).
-- Inspect local evidence: [browse local dashboards](guides/dashboard.md).
+- Already activated: run bare `anvil` for the daily ensure path.
+- Inspect local evidence in the terminal:
+  [browse local dashboards](guides/dashboard.md).

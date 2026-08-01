@@ -27,11 +27,8 @@ anvil watch
 
 ## Optional MCP configuration
 
-Guided activation in `anvil start` still defaults to Cursor and Claude Code. VS
-Code is not on that guided path in the current public release.
-
-Newer betas expand `anvil mcp install --client` so VS Code can be configured
-explicitly when your binary lists it. Discover support first:
+`anvil start` offers every supported MCP client, including VS Code (as a
+project-scoped offer). You can also configure VS Code explicitly:
 
 ```text
 anvil mcp install --help

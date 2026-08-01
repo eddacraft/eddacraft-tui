@@ -19,12 +19,12 @@ version, date, and final scope are fixed when the next tag ships.
 
 ### Added
 
-- `anvil dashboard --web` opens a read-only browser dashboard on loopback —
-  protection health, gate runs, warnings, and plans — bundled inside the anvil
-  binary. Default-off behind the `dashboard.web` flag for this release; opt in
-  with `ANVIL_DASHBOARD_WEB=1` (or `ANVIL_DEV=1`).
-- `anvil mcp install --client` configures twelve AI clients (not only Cursor and
-  Claude Code), with `--verify` and `--dry-run`.
+- Bare `anvil` (no subcommand) is the daily ensure surface after activation —
+  daemon, worktree attestation, and already-owned MCP refresh without reinstall
+  prompts. Use `anvil start` for first-time setup and reconfigure.
+- `anvil mcp install --client` configures twelve AI clients, with `--verify` and
+  `--dry-run`. Interactive `anvil start` offers every supported client in the
+  consent list (unticked until you select one).
 - The MCP stdio server supports ratified MCP `2026-07-28` discovery and keeps
   all four supported initialise-era versions. Client configuration shapes are
   unchanged; modern and legacy stdio flows are regression-tested.

@@ -10,20 +10,20 @@ description:
 Model Context Protocol (MCP) lets a supported AI client call anvil locally
 before writing a proposed change.
 
-## Guided activation clients
+## Activate and choose clients
 
-The guided path in `anvil start` configures **Cursor** and **Claude Code** when
-they are detected. That path stays consent-first: nothing is written unless you
-select it.
+Interactive `anvil start` offers every supported MCP client in the consent list.
+Offers start unticked: nothing is written until you select a client.
 
 ```text
 anvil start
 ```
 
-To prepare both guided clients even when one is not currently detected:
+Discover the exact client ids and flags on **your** binary (the list expands
+across betas):
 
 ```text
-anvil start --all-mcp-clients
+anvil mcp install --help
 ```
 
 To skip client configuration entirely:
@@ -32,9 +32,17 @@ To skip client configuration entirely:
 anvil start --no-mcp
 ```
 
+For non-interactive multi-client install of every client your binary supports
+(including ones not currently detected):
+
+```text
+anvil start --all-mcp-clients
+```
+
 ## Install a specific client
 
-Write or verify the MCP entry for a guided client:
+Write or verify the MCP entry without a full activation run. Use a client id
+listed by `anvil mcp install --help` on your binary:
 
 ```text
 anvil mcp install --client cursor
@@ -42,26 +50,10 @@ anvil mcp install --client claude-code --verify
 ```
 
 The first command installs; the second only verifies an existing entry. Prefer
-`--verify` after an upgrade rather than reinstalling blindly.
-
-The generated [support reference](../reference/support.md) documents the guided
-activation pair for the current public release.
-
-### Expanded client registry (newer betas)
-
-After 0.9.0-beta, `anvil mcp install --client` can accept a wider set of client
-ids (for example Codex, OpenCode, Gemini CLI, VS Code, Copilot CLI, Grok, Warp,
-and Zed, alongside Cursor and Claude Code). Each installer writes that client's
-documented config shape and leaves unmanaged third-party entries intact.
-
-Discover what **your** binary supports:
-
-```text
-anvil mcp install --help
-```
-
-Use only client ids and flags listed there. Do not assume a client from a newer
-release note is present in an older binary.
+`--verify` after an upgrade rather than reinstalling blindly. Each installer
+writes that client's documented config shape and leaves unmanaged third-party
+entries intact. Do not assume a client from a newer release note is present in
+an older binary.
 
 ## Verify protection
 

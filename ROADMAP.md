@@ -2,9 +2,10 @@
 
 **Last updated:** 2026-07-30 (fact-refresh — latest shipped headline is
 `v0.9.0-beta` "First-Run Wins and the Assistant Graph" (2026-07-12); active
-window is `v0.10.0-beta` "Team-Lead Surface Foundations", operator-confirmed
-2026-07-13. Module status and the pickable release menu live in the SOT files
-below; this roadmap stays thematic.)
+window is `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure" (theme reframe
+2026-08-01; window originally operator-confirmed 2026-07-13). Module status and
+the pickable release menu live in the SOT files below; this roadmap stays
+thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -107,13 +108,14 @@ browser surface. Immutable records live under
 **Latest shipped headline:** `v0.9.0-beta` (2026-07-12). Release record:
 [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
 
-### Horizon 2 — Team-Lead Surface — active window `v0.10.0-beta`
+### Horizon 2 — Multi-Harness MCP and Daily Ensure — active window `v0.10.0-beta`
 
 **Theme:** The persona that funds the tool gets a credible browser surface.
 
 Once the daemon is working end-to-end, the second persona — team leads, platform
-engineers, compliance roles — gets a "Team-Lead Glance": **last gate run,
-current warnings ranked by severity, recent activity** in a browser without
+engineers, compliance roles — longer-term "Team-Lead Glance" (browser surface
+remains flag-gated foundation on this cut, not the customer claim): **last gate
+run, current warnings ranked by severity, recent activity** in a browser without
 learning CLI commands. The smallest credible demo is a warnings list with
 file/line + severity grouping and a detail panel.
 
@@ -121,7 +123,7 @@ The CLI ↔ dashboard bridge is `anvil export` — canonical
 `.anvil/{warnings,gates,provenance,config}.json` written from the latest run
 state.
 
-**Active window:** `v0.10.0-beta` "Team-Lead Surface Foundations"
+**Active window:** `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure"
 (operator-confirmed 2026-07-13). Scope, waves, and cut criteria live in
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module-level status lives in
 [`plans/index.aps.md`](./plans/index.aps.md). This horizon names the capability

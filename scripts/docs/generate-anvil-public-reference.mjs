@@ -243,7 +243,8 @@ function renderSupport(languages, targets, ruleExtensions, clients) {
     `| Platform | Release target |\n| --- | --- |\n${platformRows}\n\n` +
     `## Language coverage\n\n| Language | File extensions | Current depth |\n| --- | --- | --- |\n${languageRows}\n\n` +
     `## AI clients\n\n` +
-    `The guided activation path can configure **${clients.join('** and **')}** for pre-write validation. ` +
+    `\`anvil start\` and \`anvil mcp install --client\` configure supported AI clients for pre-write validation. ` +
+    `This public release documents **${clients.join('** and **')}** on the protection ladder; newer betas expand the install registry — run \`anvil mcp install --help\` on your binary for the full list. ` +
     `Other editors can use terminal checks and save-time watching; do not assume an editor extension is installed.\n`
   );
 }

@@ -43,75 +43,68 @@ nothing else.
   [`plans/releases/v0.8.1-beta.md`](./plans/releases/v0.8.1-beta.md).)
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** `v0.10.0-beta` (below, **confirmed by the operator
-  2026-07-13**): the DASH dashboard-foundation wave (the team-lead browser
-  surface, Horizon 2) plus the `v0.9.x` follow-through patch lane, the residual
-  v0.9 closeout hygiene, and the **MCPX/SKPKG carry-in** already merged to
-  `main` after the `v0.9.0-beta` cut. Records for `v0.6.x`–`v0.9.x` are in
-  [`plans/releases/`](./plans/releases/).
+- **Active window:** `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure" (theme
+  reframe 2026-08-01; window originally confirmed 2026-07-13): multi-client
+  MCP + skills + bare daily ensure, plus residual v0.9 closeout hygiene and the
+  flag-gated dashboard foundation (not a customer claim). Records for
+  `v0.6.x`–`v0.9.x` are in [`plans/releases/`](./plans/releases/).
 
 ---
 
-## Active window — `v0.10.0-beta` "Team-Lead Surface Foundations"
+## Active window — `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure"
 
-**Scope confirmed by the operator 2026-07-13** — the team-lead browser surface
-theme and the DASH wave's place in it, as scoped at the `v0.9.0-beta` turnover.
-Implementation planning may treat this window as approved.
+**Theme reframe 2026-08-01** — customer claim is multi-harness MCP, managed
+skills, activation polish, and bare `anvil` daily ensure. The earlier "Team-Lead
+Surface Foundations" label is retired for this cut: the browser dashboard
+foundation (DASH/DASHCORE) remains **merged and flag-gated** for internal
+testing and is **not** a release claim.
 
-The JOURNEY release accepted the browser surface as explicitly **post-cut**
-expansion; this window picks that thread up. The
-[`dashboard-foundation`](./plans/modules/dashboard-foundation.aps.md) wave
-(DASH-001..012, all Merged) built `apps/dashboard/` (Vite 8 + React + TanStack
-Router/Query/Table + shadcn/ui + Tailwind v4) backed by
-`crates/anvil-dashboard-server/`, unblocking **DASHCORE**, **DASHARCH**, and
-**DASHOPS**. Wave 1 (PR #3261, PR #3321) left the surface unreachable — a repo
-checkout, a Node toolchain, and two processes — and **DASH-012** (PR #3421,
-2026-07-26) closed that: `anvil dashboard --web` now serves the embedded UI from
-the installed binary.
+Primary delivery for this window:
 
-[`dashboard-core-views`](./plans/modules/dashboard-core-views.aps.md) has landed
-all nine items: DASHCORE-001 via PR #3363, DASHCORE-003..009 via PR #3379, and
-DASHCORE-002 retained history and trends via PR #3436 on 2026-07-27. The module
-is 9/9 Merged and awaits release evidence in this window. JOURNEY post-cut
-expansion remains non-blocking for the cut: JOURNEY-007 + WOW-006 Merged via
-#3441 (2026-07-30); JOURNEY-008 Merged via #3408; JOURNEY-009 on hold;
-JOURNEY-010 blocked on DASHARCH/DASHOPS.
+- **MCPX / multi-client MCP** — twelve `anvil mcp install --client` targets;
+  interactive `anvil start` offers every supported client (consent-first).
+- **SKPKG** — managed skill install and doctor freshness.
+- **Bare ensure (ONSW / JOURNEY-011 / ADR-114)** — bare `anvil` as the daily
+  on-switch after activation; `anvil start` remains activate/reconfigure.
+- **Activation / journey polish** — TUI default, celebration, autoplay, and
+  related post-`v0.9` improvements already on `main`.
 
-This window also carries **MCPX** and **SKPKG**, both merged to `main` in #3328
-on 2026-07-15 — three days after the `v0.9.0-beta` cut — and therefore in no
-tag. They need no further implementation, but they are named here because
-nothing of them is reachable from the latest tagged release: as of
-`v0.9.0-beta`, `anvil mcp install --client` accepts two clients, against twelve
-on `main`, so every user on the released binary still wires at most Claude Code
-and Cursor. Untracked carry-in ships by accident of being on `main`; naming it
-makes the cut evidence real and gives the closeout a `Released/Shipped`
-transition to make. Module statuses are unchanged by this document — advancing
-them is the closeout step's job, once a tag exists.
+MCPX and SKPKG merged to `main` in #3328 on 2026-07-15 — three days after the
+`v0.9.0-beta` cut — and therefore in no tag yet. As of `v0.9.0-beta`,
+`anvil mcp install --client` accepts two clients; on `main` it accepts twelve.
+Naming that carry-in makes cut evidence real.
+
+DASH-001..012 and DASHCORE-001..009 are Merged and may ride the tag as
+flag-gated foundation only (`dashboard.web` default-off). They are not
+user-facing highlights for this release. JOURNEY-009 remains on hold;
+JOURNEY-010 remains blocked on later DASH view waves.
 
 ### Phase plan
 
-| Phase                               | Scope                                                                                                                                                                         | State                                                                                                                                                                                      |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Scope confirmation** (gate)       | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                           | **done 2026-07-13** — confirmed by the operator                                                                                                                                            |
-| **v0.9 closeout hygiene**           | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.                     | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR                                                                 |
-| **Dashboard foundation** (DASH)     | DASH-001..012: scaffold, server crate, auth posture, core routing/data layer, first role views, and `anvil dashboard --web` delivery from the installed binary.               | all 12 Merged (PRs #3261, #3321, #3421) — module In Progress pending release evidence                                                                                                      |
-| **Dashboard core views** (DASHCORE) | Product routes on latest-gate evidence: DASHCORE-001 and DASHCORE-003 through DASHCORE-009; DASHCORE-002 adds retained gate history and honest trends from its approved spec. | 9/9 Merged (PR #3363, PR #3379, PR #3436); pending release evidence                                                                                                                        |
-| **JOURNEY post-cut expansion**      | JOURNEY-007..011 as coordinated enhancements alongside the DASH wave. JOURNEY-011 / ONSW (bare `anvil` ensure) targeted for this cut.                                         | JOURNEY-007 + WOW-006 Merged via #3441 (2026-07-30); JOURNEY-008 Merged #3408; JOURNEY-009 on hold; JOURNEY-010 blocked on DASHARCH/DASHOPS; **JOURNEY-011 / ADR-114 / ONSW Merged #3474** |
-| **MCPX/SKPKG carry-in**             | Merged-but-untagged multi-harness MCP install (twelve `--client` targets) and skill packaging; no implementation left, verify at cut and advance at closeout.                 | merged 2026-07-15 via #3328 — in no tag; rides this window                                                                                                                                 |
-| **v0.9 follow-through** (lane)      | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309).          | all closed: CIB-193/-194/-195/-196 merged (2026-07-12, 2026-07-26 via #3422) and #3309 merged 2026-07-12; the lane stays the vehicle for anything urgent                                   |
+| Phase                                | Scope                                                                                                                                                                | State                                                                                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Scope confirmation** (gate)        | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                  | **done 2026-07-13** — confirmed by the operator                                                                                                              |
+| **v0.9 closeout hygiene**            | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.            | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR                                   |
+| **MCPX/SKPKG carry-in**              | Multi-harness MCP install (twelve `--client` targets) + skill packaging; interactive start offers full registry; verify at cut and advance at closeout.              | merged 2026-07-15 via #3328 — in no tag; rides this window; start multi-offer extended 2026-08-01                                                            |
+| **Bare ensure** (ONSW / JOURNEY-011) | Bare `anvil` daily ensure vs `anvil start` reconfigure (ADR-114). First-class public docs for the daily path.                                                        | ONSW-001..006 + JOURNEY-011 Merged via #3474; public docs with v0.10 reframe                                                                                 |
+| **JOURNEY post-cut expansion**       | JOURNEY-007..010 coordinated enhancements. JOURNEY-011 closed with ONSW.                                                                                             | JOURNEY-007 + WOW-006 Merged via #3441; JOURNEY-008 Merged #3408; JOURNEY-009 on hold; JOURNEY-010 blocked on later DASH waves; **JOURNEY-011 Merged #3474** |
+| **Dashboard foundation** (DASH)      | Flag-gated foundation only — not a release claim.                                                                                                                    | all 12 Merged (PRs #3261, #3321, #3421); `dashboard.web` default-off                                                                                         |
+| **Dashboard core views** (DASHCORE)  | Flag-gated core routes only — not a release claim.                                                                                                                   | 9/9 Merged (PR #3363, PR #3379, PR #3436)                                                                                                                    |
+| **v0.9 follow-through** (lane)       | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309). | all closed: CIB-193/-194/-195/-196 merged (2026-07-12, 2026-07-26 via #3422) and #3309 merged 2026-07-12; the lane stays the vehicle for anything urgent     |
 
 ### Cut criteria
 
 - The standing base bar: full `Cross` matrix green (incl. Windows),
   `release-readiness.yml` pass on the source SHA, `ACKNOWLEDGEMENTS` fresh.
-- ADR-031 latency gate (GV2-025 CI job) stays green — the dashboard server must
-  not regress the save-time budget.
-- DASH acceptance gates as defined by the owning modules once the wave is
-  implementation-planned.
+- ADR-031 latency gate (GV2-025 CI job) stays green.
+- Bare ensure: public docs + help describe bare `anvil` vs `anvil start`;
+  `cargo test -p eddacraft-anvil --test bare_invocation` green; JOURNEY-011
+  evidence recorded.
 - The MCPX carry-in is verified **from the release artefact, not from `main`**:
   `anvil mcp install --client <client> --verify` succeeds for a non-Cursor,
   non-Claude-Code client using the tagged binary. Reading `--help` on a stale
   installed binary is what hid the gap across the whole `v0.9.0-beta` window.
+- Interactive `anvil start` offers the full MCP registry (consent-first).
 
 ---
 

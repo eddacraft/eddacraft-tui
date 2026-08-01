@@ -54,4 +54,6 @@ intentional architecture change, an incorrect definition, or accidental drift.
 
 ## Next step
 
-Review the [architecture dashboard](../guides/dashboard.md).
+Review architecture and drift in the terminal with
+`anvil dashboard architecture` and `anvil dashboard drift`, or the
+[dashboard guide](../guides/dashboard.md).

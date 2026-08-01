@@ -20,35 +20,27 @@ local tool.
 
 Complete the [quickstart](../quickstart.md), including sign-in.
 
-## 1. Activate guided clients
+## 1. Activate and connect a client
 
 ```text
 anvil start
 ```
 
-On a real terminal this opens the consent-first activation surface. By default
-the guided path configures **Cursor** and **Claude Code** when they are
-detected. Nothing is written unless you select it.
+On a real terminal this opens the consent-first activation surface. The MCP list
+includes every supported client; nothing is written unless you select it.
 
-To prepare both guided clients even when one is not currently detected:
-
-```text
-anvil start --all-mcp-clients
-```
-
-To install a guided client explicitly:
-
-```text
-anvil mcp install --client cursor
-```
-
-See [Model Context Protocol integration](../integrations/mcp.md) for verify
-options and for how newer betas expand the client registry beyond the guided
-pair. Always confirm ids with:
+To install or verify one client without a full interactive run, use a client id
+from your binary's help:
 
 ```text
 anvil mcp install --help
+anvil mcp install --client cursor
+anvil mcp install --client cursor --verify
 ```
+
+See [Model Context Protocol integration](../integrations/mcp.md) for
+multi-client options such as `--all-mcp-clients` and `--no-mcp`. Always confirm
+ids with `anvil mcp install --help` on the binary you installed.
 
 ## 2. Restart when asked
 

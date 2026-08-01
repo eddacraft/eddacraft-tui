@@ -123,12 +123,15 @@ Confirm each surface with `anvil --help` on the binary you actually installed:
   findings no longer fail `anvil gate` unless you set `--fail-on-warnings` or
   `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers / ECB and JWT `none` stay error
   severity and still block.
-- **More MCP clients via explicit install.** Guided activation still defaults to
-  Cursor and Claude Code. Wider clients appear under `anvil mcp install --help`
-  when your binary includes them.
-- **Browser dashboard.** A loopback browser mode appears under
-  `anvil dashboard --help` when your binary includes it; bare `anvil dashboard`
-  remains the terminal picker.
+- **Multi-harness MCP on start.** Interactive `anvil start` offers every
+  supported client in the consent list (unticked until you select one). List
+  client ids with `anvil mcp install --help`. For scripted multi-client install
+  on start, use `anvil start --mcp-client <id>` (repeatable) or
+  `anvil start --all-mcp-clients` — those flags are on `anvil start`, not on
+  `anvil mcp install`.
+- **Bare `anvil` daily ensure.** After activation, run `anvil` with no
+  subcommand to ensure the daemon and already-owned MCP entries without
+  reinstall prompts. Use `anvil start` for first-time setup and reconfigure.
 
 ## 0.9.0-beta automation change
 

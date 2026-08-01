@@ -1,22 +1,21 @@
 ---
 id: dashboard
 title: Browse local dashboards
-description:
-  Open a read-only browser or terminal dashboard over local anvil state.
+description: Open a read-only terminal dashboard over local anvil state.
 ---
 
 # Browse local dashboards
 
-**For:** users who want an interactive view of retained local evidence
+**For:** users who want an interactive terminal view of retained local evidence
 
 **Time:** 2 minutes
 
 **Outcome:** inspect protection health, gate results, architecture, drift, or
 suppression state without changing them
 
-anvil ships dashboard surfaces that are **read-only**. They only read artefacts
-already written under your project; they never run a scan of their own and never
-write.
+anvil ships **terminal** dashboard surfaces that are **read-only**. They only
+read artefacts already written under your project; they never run a scan of
+their own and never write.
 
 ## Terminal dashboards
 
@@ -36,35 +35,6 @@ anvil dashboard suppressions
 
 For scripts or non-interactive sessions, use the underlying command with
 `--json` instead of the interactive surface.
-
-## Browser dashboard
-
-Newer betas after 0.9.0-beta add a loopback **browser** dashboard for protection
-health, gate runs, warnings, and plans, bundled inside the `anvil` binary (no
-separate download or Node toolchain). For this release the surface is
-**default-off** behind the `dashboard.web` feature flag. Opt in for a session:
-
-```text
-ANVIL_DASHBOARD_WEB=1 anvil dashboard --web
-```
-
-Discover other flags from the installed binary (`anvil dashboard --help`). When
-enabled:
-
-- anvil binds a free loopback port, prints the URL, and can open your browser;
-- a port flag can pin a bookmark; a no-open flag prints the URL only;
-- panels open with honest empty states if you have not yet run `anvil gate`;
-- the listener accepts only loopback traffic — do not port-forward or
-  reverse-proxy it.
-
-```text
-anvil gate
-ANVIL_DASHBOARD_WEB=1 anvil dashboard --web
-```
-
-The installed help is authoritative for flag names on your version. Browser and
-terminal surfaces are independent; do not combine a web mode with a named
-terminal dashboard. Terminal dashboards do not require the feature flag.
 
 ## Next step
 

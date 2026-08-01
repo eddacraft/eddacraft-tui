@@ -323,8 +323,9 @@ struct RegistryMcpCandidate {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RegistryMcpSelection<'a> {
-    pub force_all: bool,
+    /// MCP install scope for registry offers (global vs project).
     pub scope: InstallScope,
+    /// Explicit `--mcp-client` selections to force-include.
     pub explicit_clients: &'a [AgentClientId],
 }
 
@@ -573,7 +574,12 @@ pub(crate) fn build_tui_consent_plan(
     registry_selection: RegistryMcpSelection<'_>,
 ) -> TuiConsentPlan {
     let home = crate::util::user_home_dir();
-    let mut enabled = resolve_enabled_clients(&RealDetectionEnv, registry_selection.force_all);
+    // TUI consent is multi-harness: always *offer* every shipping legacy
+    // adapter (Cursor + Claude Code) plus every scope-eligible registry
+    // client. Offers stay unticked (CIB-184); nothing is written until the
+    // user selects it. Non-interactive AutoInstall still uses detection
+    // gating via `resolve_enabled_clients` (ACTMO-012).
+    let mut enabled = crate::activation::mcp_client::all_client_ids();
     extend_enabled_with_explicit_clients(&mut enabled, registry_selection.explicit_clients);
     let fresh = if matches!(mcp_install_policy, McpInstallPolicy::Install) {
         std::env::current_exe()
@@ -593,11 +599,20 @@ pub(crate) fn build_tui_consent_plan(
         rotate_identity,
     );
     if matches!(mcp_install_policy, McpInstallPolicy::Install) {
+        // Interactive consent always offers every scope-eligible registry
+        // client (unticked until selected). Non-interactive AutoInstall of
+        // undetected clients remains gated by `--all-mcp-clients` on the
+        // plain path, not this offer list.
         plan.add_registry_mcp_offers(
-            registry_selection.force_all,
+            true,
             registry_selection.scope,
             registry_selection.explicit_clients,
         );
+        // Clients that only support project scope (VS Code, Zed) still appear
+        // on a default global start as project-scoped offers.
+        if registry_selection.scope == InstallScope::Global {
+            plan.add_project_only_registry_mcp_offers(registry_selection.explicit_clients);
+        }
     }
     plan
 }
@@ -729,12 +744,12 @@ impl TuiConsentPlan {
         }
         let root = match scope {
             InstallScope::Global => {
-                let Some(home) = self.home.as_deref() else {
+                let Some(home) = self.home.as_ref() else {
                     return;
                 };
-                home
+                home.clone()
             }
-            InstallScope::Project => self.root.as_path(),
+            InstallScope::Project => self.root.clone(),
         };
         let env = RealDetectionEnv;
         if scope == InstallScope::Project {
@@ -743,34 +758,66 @@ impl TuiConsentPlan {
             self.mcp_candidates
                 .retain(|id, _| id != "mcp:claude-code" && id != "mcp:cursor");
         }
+        // When force_all is true (TUI default), offer every client that
+        // supports this scope. When false, keep detection/explicit gating for
+        // tests and narrower call sites. Writes still require a tick.
         for entry in AgentClientId::all().iter().filter(|entry| {
             !(scope == InstallScope::Global
                 && matches!(entry.id, AgentClientId::ClaudeCode | AgentClientId::Cursor))
                 && entry.supports_mcp(scope)
-                && (explicit_clients.contains(&entry.id)
-                    || force_all
-                    || entry.detected_for_mcp(&env, scope, root))
+                && (force_all
+                    || explicit_clients.contains(&entry.id)
+                    || entry.detected_for_mcp(&env, scope, &root))
         }) {
-            let Some(path) = entry.mcp_path(scope, root) else {
-                continue;
-            };
-            let id = format!("mcp:{}", entry.id.label());
-            self.offers.push(TuiConsentOffer {
-                id: id.clone(),
-                label: format!("{} MCP", entry.display_name),
-                description: format!("Write {}", path.display()),
-                kind: TuiConsentOfferKind::Mcp,
-                repo_scoped: scope == InstallScope::Project,
-                unsafe_drift: None,
-            });
-            self.registry_mcp_candidates.insert(
-                id,
-                RegistryMcpCandidate {
-                    client: entry.id,
-                    scope,
-                },
-            );
+            self.push_registry_mcp_offer(entry, scope, &root);
         }
+    }
+
+    /// Offer clients that only support project-scope MCP (VS Code, Zed) even
+    /// when the start default scope is global, so the interactive list covers
+    /// the full install registry without requiring `--mcp-scope project`.
+    fn add_project_only_registry_mcp_offers(&mut self, explicit_clients: &[AgentClientId]) {
+        if self.project_writes_gated {
+            return;
+        }
+        let root = self.root.clone();
+        for entry in AgentClientId::all().iter().filter(|entry| {
+            entry.supports_mcp(InstallScope::Project)
+                && !entry.supports_mcp(InstallScope::Global)
+                && (explicit_clients.is_empty() || explicit_clients.contains(&entry.id))
+        }) {
+            self.push_registry_mcp_offer(entry, InstallScope::Project, &root);
+        }
+    }
+
+    fn push_registry_mcp_offer(
+        &mut self,
+        entry: &crate::activation::agent_registry::AgentClient,
+        scope: InstallScope,
+        root: &Path,
+    ) {
+        let Some(path) = entry.mcp_path(scope, root) else {
+            return;
+        };
+        let id = format!("mcp:{}", entry.id.label());
+        if self.registry_mcp_candidates.contains_key(&id) {
+            return;
+        }
+        self.offers.push(TuiConsentOffer {
+            id: id.clone(),
+            label: format!("{} MCP", entry.display_name),
+            description: format!("Write {}", path.display()),
+            kind: TuiConsentOfferKind::Mcp,
+            repo_scoped: scope == InstallScope::Project,
+            unsafe_drift: None,
+        });
+        self.registry_mcp_candidates.insert(
+            id,
+            RegistryMcpCandidate {
+                client: entry.id,
+                scope,
+            },
+        );
     }
 }
 
@@ -2166,6 +2213,46 @@ verdict: completed"
     }
 
     #[test]
+    fn tui_consent_plan_default_offers_all_registry_clients_without_detection() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let mut plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+
+        // force_all=true mirrors the TUI default: offer everyone even when
+        // no editor is detected on the host.
+        plan.add_registry_mcp_offers(true, InstallScope::Global, &[]);
+        plan.add_project_only_registry_mcp_offers(&[]);
+
+        let offer_ids = plan
+            .offers()
+            .iter()
+            .map(|offer| offer.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(offer_ids.contains("mcp:codex"));
+        assert!(offer_ids.contains("mcp:opencode"));
+        assert!(offer_ids.contains("mcp:gemini-cli"));
+        assert!(offer_ids.contains("mcp:grok"));
+        assert!(
+            offer_ids.contains("mcp:vscode"),
+            "project-only VS Code should appear"
+        );
+        assert!(
+            offer_ids.contains("mcp:zed"),
+            "project-only Zed should appear"
+        );
+        // Global Claude/Cursor remain on the legacy offer path, not registry.
+        assert!(!offer_ids.contains("mcp:claude-code"));
+        assert!(!offer_ids.contains("mcp:cursor"));
+    }
+
+    #[test]
     fn tui_consent_plan_honours_explicit_project_scope() {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
@@ -2585,7 +2672,6 @@ verdict: completed"
             None,
             false,
             RegistryMcpSelection {
-                force_all: true,
                 scope: InstallScope::Global,
                 explicit_clients: &[],
             },

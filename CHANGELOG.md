@@ -10,37 +10,30 @@ engineering maintenance are recorded in the
 
 > **Draft.** This section accumulates customer-relevant changes landed on `main`
 > since `v0.9.0-beta`; the version, date, and final scope are set at the next
-> release. The active window is `v0.10.0-beta` (dashboard foundation plus
-> post-`v0.9.0-beta` carry-in).
+> release. The active window is `v0.10.0-beta` ("Multi-Harness MCP and Daily
+> Ensure"): multi-client MCP install, managed skills, activation polish, and
+> bare `anvil` as the daily ensure surface.
 
 ### Added
 
-- **A local dashboard in your browser (opt-in).** `anvil dashboard --web` opens
-  a read-only view of your project's protection state, gate runs, warnings, and
-  plans — current health, what needs attention, and the detail behind each
-  finding. The surface ships inside the `anvil` binary and is **default-off**
-  behind the `dashboard.web` feature flag for this release: set
-  `ANVIL_DASHBOARD_WEB=1` (or `ANVIL_DEV=1`) to enable it. When enabled, anvil
-  picks a free loopback port, prints the URL, and opens your browser; `--port`
-  pins a port for a bookmark and `--no-open` prints the URL without launching
-  anything. No separate download, no Node toolchain, no second process. It reads
-  only what anvil has already written to your project, so a workspace with no
-  `anvil gate` run yet opens on honest empty states rather than invented
-  numbers. Nothing is reachable from another machine — the server refuses any
-  non-loopback address and rejects requests that did not come from the loopback
-  address it bound. Terminal `anvil dashboard` TUI surfaces stay available
-  without the flag. See
-  [the local dashboard guide](./docs/guides/local-dashboard.md).
+- **Bare `anvil` is the daily ensure surface.** After a project is activated,
+  running `anvil` with no subcommand ensures the save-time daemon, re-attests
+  the worktree, and refreshes already-owned MCP entries — without reinstalling
+  clients, re-offering declined picks, or rewriting activation. Never-activated
+  worktrees exit non-zero and point at `anvil start` or `anvil welcome`. Use
+  `anvil start` for first-time setup and reconfigure; use bare `anvil` for the
+  daily on-switch. `anvil --json` emits a compact ensure document.
 
 - **MCP install for the harnesses you actually use.**
-  `anvil mcp install --client` now accepts twelve clients — Claude Code, Cursor,
+  `anvil mcp install --client` accepts twelve clients — Claude Code, Cursor,
   Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot CLI,
-  Grok, Warp, and Zed — not only Claude Code and Cursor. Each installer writes
-  that client's documented config shape, supports `--verify` / `--dry-run`, and
-  keeps unmanaged third-party entries intact. `anvil start` still offers the
-  consent-first Cursor and Claude Code path by default; pass `--mcp-client <id>`
-  (repeatable), `--all-mcp-clients`, or set `ANVIL_ALL_MCP_CLIENTS` to reach the
-  wider registry, or `--no-mcp` to skip configuration.
+  Grok, Warp, and Zed. Each installer writes that client's documented config
+  shape, supports `--verify` / `--dry-run`, and keeps unmanaged third-party
+  entries intact. Interactive `anvil start` offers every supported client in the
+  consent list (unticked by default — nothing is written until you select one);
+  pass `--mcp-client <id>` (repeatable) or `--all-mcp-clients` /
+  `ANVIL_ALL_MCP_CLIENTS` for scripted multi-client install, or `--no-mcp` to
+  skip configuration.
 
 - **Ratified MCP `2026-07-28` alongside sealed legacy protocol fixtures.** The
   stdio server accepts modern discovery and per-request protocol metadata while

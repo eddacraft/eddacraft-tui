@@ -82,23 +82,23 @@ pub struct StartArgs {
     /// leaving it unset or empty keeps MCP install on.
     #[arg(long = "no-mcp")]
     pub no_mcp: bool,
-    /// Wire the anvil MCP entry for every supported client, even ones not
-    /// detected on this host. By default
-    /// `anvil start` only writes an MCP config for editors it actually
-    /// detects (binary on PATH or pre-existing editor state), so it never
-    /// creates config for a client you do not use. Use this to pre-wire all
-    /// clients supported at the selected scope. Equivalent to setting
-    /// `ANVIL_ALL_MCP_CLIENTS` to any non-empty value (presence-based,
-    /// like `--no-mcp`). Existing anvil entries are always managed
-    /// regardless of this flag.
+    /// Non-interactive: wire every supported MCP client even when that client
+    /// is not detected on this host. Interactive `anvil start` already *offers*
+    /// every registry client (unticked by default); this flag only changes the
+    /// headless auto-install path so it writes configs for undetected clients
+    /// too. Equivalent to setting `ANVIL_ALL_MCP_CLIENTS` to any non-empty
+    /// value (presence-based, like `--no-mcp`). Existing anvil entries are
+    /// always managed regardless of this flag.
     #[arg(long = "all-mcp-clients")]
     pub all_mcp_clients: bool,
-    /// Explicitly configure one or more first-wave MCP clients. Repeat the
-    /// option to select multiple clients.
+    /// Explicitly configure one or more MCP clients from the full registry.
+    /// Repeat the option to select multiple clients.
     #[arg(long = "mcp-client", value_enum)]
     pub mcp_client: Vec<AgentClientId>,
-    /// Scope for first-wave clients selected with --mcp-client. Global is the
-    /// default; project scope uses each client's documented repository path.
+    /// Scope for clients selected with --mcp-client (and first-wave install).
+    /// Global is the default; project scope uses each client's documented
+    /// repository path. Clients that only support project scope (for example
+    /// VS Code and Zed) appear as project offers on interactive start.
     #[arg(long = "mcp-scope", value_enum, default_value_t = InstallScope::Global)]
     pub mcp_scope: InstallScope,
 }
@@ -407,7 +407,6 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 args.format.map(StartFormat::config_format),
                 args.new_identity,
                 activation::orchestrator::RegistryMcpSelection {
-                    force_all: force_all_mcp_clients,
                     scope: args.mcp_scope,
                     explicit_clients: &args.mcp_client,
                 },

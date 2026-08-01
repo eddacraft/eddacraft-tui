@@ -12,11 +12,11 @@
 > [`plans/releases/v0.9.0-beta.md`](./releases/v0.9.0-beta.md); per-tag records
 > for earlier windows are in [`plans/releases/`](./releases/).
 >
-> The active window is **`v0.10.0-beta`** ("Team-Lead Surface Foundations",
-> operator-confirmed 2026-07-13): the DASH dashboard-foundation wave plus the
-> `v0.9.x` follow-through patch lane. See
-> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail and
-> [`ROADMAP.md`](../ROADMAP.md) for thematic context.
+> The active window is **`v0.10.0-beta`** ("Multi-Harness MCP and Daily Ensure",
+> theme reframe 2026-08-01): multi-client MCP, managed skills, activation polish,
+> and bare `anvil` daily ensure. Dashboard foundation remains flag-gated and is
+> not a release claim. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and
+> [`ROADMAP.md`](../ROADMAP.md).
 
 ## Contents
 
@@ -124,8 +124,8 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.10.0-beta`** ("Team-Lead Surface Foundations", operator-confirmed
-2026-07-13), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the
+window is **`v0.10.0-beta`** ("Multi-Harness MCP and Daily Ensure", theme reframe
+2026-08-01), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the
 header above and the NBI table.
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…

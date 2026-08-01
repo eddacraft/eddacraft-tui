@@ -41,22 +41,25 @@ Run these journeys in order:
 1. Install or update with the method appropriate for your operating system.
 2. Run `anvil version`, then run `anvil welcome` without relying on sign-in.
 3. Sign in, confirm `anvil auth whoami`, and run `anvil start` (expect the
-   interactive activation surface in a real terminal).
+   interactive activation surface in a real terminal). Offer MCP install for any
+   client you use from the full consent list.
 4. Confirm the reported protection state and follow any restart instruction.
 5. Complete the [ten-minute protection tutorial](first-gate.md).
 6. Run `anvil start --verify` after restarting a configured client.
 7. Exercise [save-time validation](guides/save-time-validation.md).
-8. Open [local dashboards](guides/dashboard.md); after at least one `anvil gate`
-   run, check `anvil dashboard --help` for any browser mode your binary exposes.
-9. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
-10. Run `anvil gate --profile ci --json` and inspect the machine-readable
+8. **Daily ensure:** from the same project, run bare `anvil` (and
+   `anvil --json`). Expect a short confidence summary when already activated;
+   expect recovery naming `anvil start` if config is absent. Confirm it does not
+   re-offer MCP installs you declined.
+9. Multi-harness MCP: run `anvil mcp install --help`, install a client your
+   binary lists, restart that client, then `anvil start --verify`.
+10. Optional: `anvil skill install` / `anvil doctor` for managed-skill freshness
+    when your binary exposes them.
+11. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
+12. Run `anvil gate --profile ci --json` and inspect the machine-readable
     output.
-11. Run `anvil uninstall --dry-run` and confirm that the proposed scope matches
+13. Run `anvil uninstall --dry-run` and confirm that the proposed scope matches
     the [uninstall guide](operations/uninstall.md).
-
-If you use AI clients beyond Cursor or Claude Code, check
-`anvil mcp install --help` for additional clients on your binary, and
-`anvil --help` for a managed skill surface when present.
 
 ## Success criteria
 
@@ -83,17 +86,16 @@ is explicit, understandable, and repeatable.
 - Ongoing activation requires beta authentication.
 - GitHub device sign-in is the default authentication path. Email OTP is the
   fallback for an approved tester who does not use GitHub.
-- Guided pre-write configuration in `anvil start` targets Cursor and Claude
-  Code; the wider client registry is available through
-  `anvil mcp install --client`.
-- Other editors can use terminal checks, save-time watching, or explicit MCP
-  install when the client is listed by `anvil mcp install --help`.
+- Interactive `anvil start` offers every supported MCP client in the consent
+  list (unticked by default). Scripted install uses
+  `anvil mcp install --client`, `--mcp-client`, or `--all-mcp-clients`.
+- Bare `anvil` is ensure-only after activation: no silent first-time install and
+  no re-offer of declined clients.
+- Other editors can also use terminal checks and save-time watching without MCP.
 - Language parsing and specialised rule depth are not identical; the support
   reference distinguishes them.
 - Warning-severity findings do not fail `anvil gate` by default; opt in with
   `--fail-on-warnings` when you need that stricter posture.
-- The browser dashboard is loopback-only and read-only; it does not replace
-  gates or activation.
 - Beta command shapes and output may change before a stable release.
 - Do not assume a separate editor extension is installed.
 

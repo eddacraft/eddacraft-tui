@@ -9,7 +9,9 @@
 
 **Last reviewed:** 2026-08-01 — **Merged** via PR
 [#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a` on
-`main`, ancestor-checked). ADR-114 Accepted; ONSW-001..006 all Merged. Spec:
+`main`, ancestor-checked). ADR-114 Accepted; ONSW-001..006 all Merged.
+Public first-class docs (quickstart day-2, beta brief, CHANGELOG) landed with
+the v0.10 reframe. Spec:
 [`plans/specs/2026-08-01-bare-anvil-ensure.md`](../specs/2026-08-01-bare-anvil-ensure.md).
 Conductor JOURNEY-011 closed with the same merge. Pending `v0.10.0-beta`
 Released/Shipped evidence.

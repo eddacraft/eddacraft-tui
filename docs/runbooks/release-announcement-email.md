@@ -171,7 +171,7 @@ At cut:
 ```json
 {
   "version": "v0.10.0-beta",
-  "theme": "Team-Lead Surface Foundations",
+  "theme": "Multi-Harness MCP and Daily Ensure",
   "intro": "A new anvil release is live. «one sentence centre of gravity from Unreleased changelog at cut».",
   "highlights": [
     { "title": "…", "body": "… from CHANGELOG Unreleased …" },

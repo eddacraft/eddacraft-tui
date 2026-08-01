@@ -132,7 +132,8 @@ anvil start
 ```
 
 This command may create project configuration, record the existing baseline, and
-configure detected supported AI clients. It reports one final protection state:
+offer MCP install for every supported AI client (interactive consent; nothing is
+written until you select a client). It reports one final protection state:
 
 | State                    | Meaning                                          | What to do                                                |
 | ------------------------ | ------------------------------------------------ | --------------------------------------------------------- |
@@ -148,6 +149,29 @@ For a read-only diagnosis that changes nothing, use:
 ```text
 anvil start --verify
 ```
+
+## 6. Day two: turn protection on without reinstalling
+
+After the project has been activated once with `anvil start`, the daily path is
+the bare command:
+
+```text
+anvil
+```
+
+This ensures the local protection daemon and already-configured MCP entries. It
+does not open a setup picker and does not install clients you previously
+skipped. If the project was never activated, the command exits with recovery
+that names `anvil start` or `anvil welcome`.
+
+For a machine-readable check:
+
+```text
+anvil --json
+```
+
+Use `anvil start` again only when you need to change configuration (new client,
+hooks, or repair). For a read-only diagnosis, keep using `anvil start --verify`.
 
 ## Common problems
 

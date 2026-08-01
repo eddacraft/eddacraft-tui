@@ -242,10 +242,11 @@ enum Commands {
     Exception(commands::exception::ExceptionArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
-    /// Activate anvil in this repository. Writes `.anvilrc` if missing
-    /// and installs MCP config entries for Cursor and Claude Code into
-    /// your home directory (`~/.cursor/mcp.json`, `~/.claude.json`).
-    /// Pass `--verify` to run a read-only probe instead.
+    /// Activate anvil in this repository. Writes `.anvilrc` if missing and
+    /// offers MCP install for every supported client (interactive consent;
+    /// nothing is written until you select a client). Pass `--verify` for a
+    /// read-only probe, or `--mcp-client` / `--all-mcp-clients` for scripted
+    /// multi-client install.
     Start(commands::start::StartArgs),
     /// Interactive guided tutorial.
     Tutorial(commands::tutorial::TutorialArgs),
