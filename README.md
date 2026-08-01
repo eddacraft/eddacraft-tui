@@ -52,7 +52,7 @@ LLM-generated interfaces, etc.).
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.2", features = ["json-render"] }
+eddacraft-tui = { version = "0.5", features = ["json-render"] }
 ```
 
 ```rust
@@ -77,7 +77,7 @@ progressively drop columns, etc. Thresholds are tuned for real terminal sizes
 See the [`json_render` API docs] for the base element set and the `TuiComponent`
 / `TuiRegistry` extension points.
 
-[`json_render` API docs]: https://docs.rs/eddacraft-tui/0.2.4/eddacraft_tui/json_render/
+[`json_render` API docs]: https://docs.rs/eddacraft-tui/0.5.0/eddacraft_tui/json_render/
 
 ### `pretext` — reflow-free text layout for streaming AI
 
@@ -215,7 +215,7 @@ The `widgets/` module ships a curated component set. Highlights:
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.2", features = ["image", "big-text"] }
+eddacraft-tui = { version = "0.5", features = ["image", "big-text"] }
 ```
 
 [`ratatui-image`]: https://crates.io/crates/ratatui-image
@@ -232,7 +232,7 @@ internally).
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.3", features = ["runner"] }
+eddacraft-tui = { version = "0.5", features = ["runner"] }
 ```
 
 ```rust,ignore
@@ -255,7 +255,7 @@ independent of your `clap` major version.
 ```toml
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-eddacraft-tui = { version = "0.3", features = ["runner"] }
+eddacraft-tui = { version = "0.5", features = ["runner"] }
 ```
 
 ```rust,ignore
