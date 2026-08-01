@@ -602,9 +602,12 @@ Use when Anvil-side consumption of the path crate is the problem but the
 migration model is otherwise sound. Reverts Anvil consumers to the crates.io
 release without losing in-flight crate work:
 
-1. In the workspace dep table (root `Cargo.toml`), repoint `eddacraft-tui` from
-   the `path = "crates/eddacraft-tui"` form back to the published version
-   requirement: `eddacraft-tui = "0.2.2"` (or the latest published version).
+1. Select a known-good published release that has been validated against the
+   current Anvil consumers. In the workspace dep table (root `Cargo.toml`),
+   repoint `eddacraft-tui` from the `path = "crates/eddacraft-tui"` form back to
+   an exact registry requirement: `eddacraft-tui = "=X.Y.Z"`. Record the
+   selected version and validation evidence in the rollback PR; do not copy a
+   historical pin from this runbook.
 2. Drop any per-crate `path` overrides on first-party consumers
    (`crates/anvil-tui`, `crates/anvil-cli`) so they inherit the workspace
    crates.io dep.
@@ -623,7 +626,8 @@ tree and can be published later.
 
 Use only if the canonical-source + mirror model must be abandoned wholesale.
 
-1. Apply Layer (a) to revert consumers to `eddacraft-tui = "0.2.2"`.
+1. Apply Layer (a) using its validated known-good `eddacraft-tui = "=X.Y.Z"`
+   registry requirement.
 2. Un-freeze `eddacraft/eddacraft-tui` as the canonical standalone source again:
    re-enable human PRs (remove/relax the PR-redirect workflow and the branch
    protection that allow only the mirror bot to push), and restore the
