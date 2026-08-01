@@ -171,9 +171,15 @@ pub struct LogPanel<'a, T: Theme> {
     block: Option<Block<'a>>,
     max_visible: usize,
     title: &'a str,
+    chrome: LogPanelChrome,
+    focused: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LogPanelChrome {
     show_filter: bool,
     show_search: bool,
-    focused: bool,
+    show_help: bool,
 }
 
 impl<'a, T: Theme> LogPanel<'a, T> {
@@ -184,8 +190,11 @@ impl<'a, T: Theme> LogPanel<'a, T> {
             block: None,
             max_visible: 8,
             title: "Logs",
-            show_filter: true,
-            show_search: true,
+            chrome: LogPanelChrome {
+                show_filter: true,
+                show_search: true,
+                show_help: true,
+            },
             focused: false,
         }
     }
@@ -210,13 +219,19 @@ impl<'a, T: Theme> LogPanel<'a, T> {
 
     #[must_use]
     pub fn show_filter(mut self, show_filter: bool) -> Self {
-        self.show_filter = show_filter;
+        self.chrome.show_filter = show_filter;
         self
     }
 
     #[must_use]
     pub fn show_search(mut self, show_search: bool) -> Self {
-        self.show_search = show_search;
+        self.chrome.show_search = show_search;
+        self
+    }
+
+    #[must_use]
+    pub fn show_help(mut self, show_help: bool) -> Self {
+        self.chrome.show_help = show_help;
         self
     }
 
@@ -282,31 +297,31 @@ impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
         }
 
         let mut rows = Vec::new();
-        if self.show_filter {
+        if self.chrome.show_filter {
             rows.push(Constraint::Length(1));
         }
-        if self.show_search {
+        if self.chrome.show_search {
             rows.push(Constraint::Length(1));
         }
         rows.push(Constraint::Min(1));
-        rows.push(Constraint::Length(1));
+        if self.chrome.show_help {
+            rows.push(Constraint::Length(1));
+        }
         let chunks = Layout::vertical(rows).split(inner);
 
         let mut cursor = 0;
 
-        if self.show_filter {
+        if self.chrome.show_filter {
             render_filter_bar(&state.filter, self.theme, chunks[cursor], buf);
             cursor += 1;
         }
 
-        if self.show_search {
+        if self.chrome.show_search {
             render_search_bar(state, self.theme, chunks[cursor], buf);
             cursor += 1;
         }
 
         let entries_area = chunks[cursor];
-        cursor += 1;
-        let help_area = chunks[cursor];
 
         let visible_height = usize::from(entries_area.height).min(self.max_visible.max(1));
         if visible_height > 0 && !filtered_entries.is_empty() {
@@ -327,14 +342,17 @@ impl<T: Theme> StatefulWidget for LogPanel<'_, T> {
             buf,
         );
 
-        render_help(
-            state,
-            visible_height,
-            filtered_entries.len(),
-            self.theme,
-            help_area,
-            buf,
-        );
+        if self.chrome.show_help {
+            cursor += 1;
+            render_help(
+                state,
+                visible_height,
+                filtered_entries.len(),
+                self.theme,
+                chunks[cursor],
+                buf,
+            );
+        }
 
         state.last_entry_count = filtered_entries.len();
     }
