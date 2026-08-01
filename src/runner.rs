@@ -31,7 +31,7 @@
 //! ```ignore
 //! // Cargo.toml — your crate brings the parser it needs:
 //! //   clap = { version = "4", features = ["derive"] }
-//! //   eddacraft-tui = { version = "0.3", features = ["runner"] }
+//! //   eddacraft-tui = { version = "0.5", features = ["runner"] }
 //!
 //! use clap::Parser;
 //! use eddacraft_tui::runner::{launch_with, RunnerMode, RunnerOptions};
