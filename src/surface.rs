@@ -39,8 +39,10 @@ pub trait Surface<T: Theme = EddaCraftTheme> {
     /// (including `h`/`j`/`k`/`l`/`q`/space) insert literally rather than being
     /// interpreted as vim navigation. Defaults to `false` for the common
     /// list-navigation surface; a surface with a path/name field overrides it
-    /// for that step. Adding this defaulted method is backward-compatible with
-    /// existing `impl Surface` blocks.
+    /// for that step. The default preserves existing `impl Surface` blocks,
+    /// but adding a method to this stable downstream-implemented trait can make
+    /// calls ambiguous when another in-scope trait uses the same name. It was
+    /// therefore introduced in the breaking `0.5.0` release; see ADR-115.
     fn text_entry_active(&self) -> bool {
         false
     }
