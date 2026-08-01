@@ -5810,3 +5810,50 @@ archive.
   (grandfathering old tracked findings), and CIB-216 (pre-push range routing).
 - **Confidence:** medium — the false-positive paths are concrete, but a blanket
   Git-ignore change would weaken secret protection and is explicitly rejected.
+
+### CIB-218: Warn when a dirty anchor accumulates strand
+
+- **Status:** Draft
+- **Intent:** When the default-branch anchor is dirty, auto-heal correctly
+  refuses to reset (CIB-206 defect 3) and exits 0. Nothing then reports that
+  the anchor is stranded, so the gap widens silently with every merge to
+  `origin` and the only signal is a `git status` a human must know how to read.
+  The refusal path also parks a stash labelled "NOT a provable wt strand;
+  preserved for review", which reads as preserved work even when every hunk in
+  it is stale — an operator who trusts the label and applies it reverts merged
+  work.
+- **Expected Outcome:** The heal path emits an advisory when it declines to
+  heal a dirty anchor, naming how far the anchor is stranded and which staged
+  paths will render as phantom reverts, without changing its exit code or
+  resetting anything. Any stash it parks is labelled so that "preserved" is not
+  mistaken for "wanted".
+- **Design questions:** whether the advisory belongs in `heal-primary-anchor.sh`
+  or a `doctor` surface that runs without a heal attempt; whether strand depth
+  is reported per-path or as a single count; whether the parked-stash label
+  should carry the classification verdict or only a pointer to how to obtain
+  it; how the advisory stays quiet for a genuinely dirty anchor with no strand.
+- **Validation:** A fixture anchor made dirty with a genuine staged edit, then
+  advanced on `origin`, produces the advisory, still exits 0, and leaves the
+  staged edit intact. A dirty anchor with no strand produces no advisory. The
+  documented per-path test — `git rev-parse :<path>` versus
+  `git rev-parse HEAD:<path>`, with a staged blob matching an **ancestor** of
+  `HEAD` classified as strand rather than edit — is exercised directly.
+- **Identified From:** 2026-07-31 session. `stash@{0}` (`f550d1a06`, parked
+  2026-07-30, base `aaf108ecf` — not an ancestor of `main`, 39 commits behind)
+  sat for two days labelled as preserved for review. Classification found every
+  hunk stale: the `continuous-improvement-backlog.aps.md` blob was identical to
+  `main` at `795816153` and would have deleted the live 45-line CIB-206
+  post-merge note; the `aps-conductor` / `aps-librarian` / `aps-planner` agent
+  files carried zero `mcp__anvil__*` entries against ten on `main`, reverting
+  `b2e1bf2d3`; `aps-rules.md` removed the section preserving the
+  `#cross-cutting-modules` link anchor and flipped `normalise` to `normalize`.
+  Preserved at `refs/stash-backup/50` and dropped. Note that only the CIB file
+  was catchable by a plain blob-versus-ancestor match — the other four had
+  since taken unrelated commits, so a naive check reports them as genuine
+  edits.
+- **Coordinates with:** CIB-206 (the parent defect, where this was recorded as
+  "Possible follow-up (not filed)"), and `docs/guides/worktree-policy.md`
+  § "Default-branch anchor auto-heal".
+- **Confidence:** medium — the gap and a second real occurrence are concrete,
+  but the detection heuristic is known-incomplete, so scoping the advisory to
+  strand depth rather than a per-path verdict may be the honest first cut.
