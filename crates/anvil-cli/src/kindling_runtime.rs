@@ -56,6 +56,26 @@ mod tests {
     }
 
     #[test]
+    fn explicit_opt_out_does_not_prepare_or_create_runtime_state() {
+        let base = tempfile::tempdir().expect("temp runtime root");
+        let home = base.path().join("kindling");
+        let spool = base.path().join("spool.ndjson");
+
+        temp_env::with_var(
+            crate::feature_flags::KINDLING_EMBEDDED_RUNTIME_ENV_VAR,
+            Some("0"),
+            || {
+                assert!(prepare("/repo/anvil".to_owned(), home.clone(), spool).is_none());
+            },
+        );
+
+        assert!(
+            !home.exists(),
+            "explicit opt-out must not create kindling state"
+        );
+    }
+
+    #[test]
     fn explicit_opt_in_only_prepares_embedded_configuration() {
         let base = tempfile::tempdir().expect("temp runtime root");
         let home = base.path().join("kindling");
