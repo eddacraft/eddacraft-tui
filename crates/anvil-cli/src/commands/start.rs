@@ -789,6 +789,7 @@ fn activation_post_consent_surface(
     .with_prove(activation_prove_runner(diagnostic))
 }
 
+#[cfg(test)]
 fn activation_post_consent_progress_steps(
     mut steps: Vec<anvil_tui::surfaces::activation::ActivationProgressStep>,
     applied: &activation::orchestrator::TuiConsentApplyOutcome,
@@ -920,6 +921,7 @@ fn ensure_tui_load_bearing_actions_succeeded(
     Ok(())
 }
 
+#[cfg(test)]
 fn finish_consent_progress(
     step: &mut anvil_tui::surfaces::activation::ActivationProgressStep,
     selected: usize,
@@ -940,6 +942,7 @@ fn finish_consent_progress(
     }
 }
 
+#[cfg(test)]
 fn finish_project_progress(
     step: &mut anvil_tui::surfaces::activation::ActivationProgressStep,
     applied: &activation::orchestrator::TuiConsentApplyOutcome,
