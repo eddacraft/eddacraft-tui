@@ -204,6 +204,13 @@ def main():
                     help="empty/new dir to build the synthetic repo in; "
                          "kept after the run. Default: a temp dir we create + remove.")
     a = ap.parse_args()
+    # Absolutise --bin before any chdir into the synthetic repo. A relative
+    # path (common in CI: ANVIL_BIN=target/release/anvil) would otherwise be
+    # resolved against the temp repo and fail with FileNotFoundError.
+    a.bin = os.path.abspath(a.bin)
+    if not (os.path.isfile(a.bin) and os.access(a.bin, os.X_OK)):
+        print(f"# error: anvil binary not executable: {a.bin}", file=sys.stderr)
+        sys.exit(3)
     # Only ever delete a directory we created. A user-supplied --repo must be
     # empty (or absent) so we never clobber an existing checkout.
     created_tmp = a.repo is None

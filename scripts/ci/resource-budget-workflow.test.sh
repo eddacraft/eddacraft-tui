@@ -43,6 +43,9 @@ if ! awk '
 fi
 assert_contains 'description: Exact git ref or SHA to check out (release-readiness)'
 assert_contains "github.event_name == 'workflow_dispatch'"
+# Concurrent job must not run when release-readiness supplies workflow_call
+# inputs.ref (caller event_name is still workflow_dispatch).
+assert_contains 'inputs.ref == null || inputs.ref =='
 assert_contains 'shared-key: rust-release-budget'
 
 printf 'resource-budget-workflow.test.sh: ok\n'

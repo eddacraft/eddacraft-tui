@@ -95,6 +95,9 @@ fi
 
 # Resolve the anvil binary. Priority: explicit --bin/$ANVIL_BIN, then a built
 # binary under the active cargo target dir, then `anvil` on PATH.
+# Always store an absolute path: the Python probe chdirs into a synthetic
+# temp repo before spawning agents, so a relative ANVIL_BIN (e.g. CI's
+# `target/release/anvil`) would resolve against /tmp and FileNotFoundError.
 target_dir="${CARGO_TARGET_DIR:-${repo_root}/target}"
 if [[ -z "$bin" ]]; then
   for candidate in "${target_dir}/release/anvil" "${target_dir}/debug/anvil"; do
@@ -108,6 +111,15 @@ if [[ -z "$bin" && $do_build -eq 1 ]]; then
   echo "# building debug anvil (no binary found) ..." >&2
   ( cd "$repo_root" && cargo build -p eddacraft-anvil --bin anvil )
   bin="${target_dir}/debug/anvil"
+fi
+# Relative paths (including CI env ANVIL_BIN=target/release/anvil) are rooted
+# at the repo, then absolutised so the probe's chdir cannot orphan them.
+if [[ -n "$bin" && "$bin" != /* ]]; then
+  if [[ -x "${repo_root}/${bin}" ]]; then
+    bin="${repo_root}/${bin}"
+  elif [[ -x "$bin" ]]; then
+    bin="$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")"
+  fi
 fi
 if [[ -z "$bin" || ! -x "$bin" ]]; then
   # Exit 3 = precondition not met (no binary), distinct from a harness crash so
