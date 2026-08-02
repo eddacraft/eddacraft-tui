@@ -46,21 +46,37 @@ pub fn load_plan(workspace: &Workspace, id: &str) -> Result<Option<PlanDetail>, 
     let Some(summary) = plan_summary(module) else {
         return Ok(None);
     };
-    // Prefer the snapshot-time source, but re-read when the map key misses
-    // (Windows PathBuf separator normalisation can diverge between insert and
-    // lookup). Detail rendering must not silently return an empty Purpose.
-    let source = sources
-        .borrow()
-        .get(&module.path)
-        .cloned()
+    // Prefer a fresh read via the stable module id path
+    // (`plans/modules/<id>.aps.md`). Fall back to the snapshot map when the
+    // re-read misses (key normalisation), never silently empty Purpose.
+    // Use slash-only relative strings so Windows WorkspaceAnchor accepts them
+    // even if a caller built PathBufs via Path::join (see Workspace::read).
+    let by_id_rel = format!("plans/modules/{id}.aps.md");
+    let module_rel = format!(
+        "plans/{}",
+        module
+            .path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .trim_start_matches("./")
+    );
+    let by_id_key = PathBuf::from(format!("modules/{id}.aps.md"));
+    let normalised = PathBuf::from(module.path.to_string_lossy().replace('\\', "/"));
+    let source = read_text(workspace, Path::new(&by_id_rel))
+        .ok()
         .or_else(|| {
-            sources.borrow().iter().find_map(|(path, contents)| {
-                (path.as_os_str() == module.path.as_os_str()
-                    || path.file_name() == module.path.file_name())
-                .then(|| contents.clone())
-            })
+            let map = sources.borrow();
+            map.get(&module.path)
+                .or_else(|| map.get(&normalised))
+                .or_else(|| map.get(&by_id_key))
+                .cloned()
+                .or_else(|| {
+                    map.iter().find_map(|(path, contents)| {
+                        path_keys_match(path, &module.path).then(|| contents.clone())
+                    })
+                })
         })
-        .or_else(|| read_text(workspace, &Path::new("plans").join(&module.path)).ok())
+        .or_else(|| read_text(workspace, Path::new(&module_rel)).ok())
         .unwrap_or_default();
     let timeline = snapshot
         .work_items
@@ -96,14 +112,30 @@ fn load_snapshot(
             max_module_reads: MAX_PLAN_MODULES,
         },
         |relative_path| {
-            let source = read_text(workspace, &Path::new("plans").join(relative_path)).ok()?;
-            sources
-                .borrow_mut()
-                .insert(relative_path.to_path_buf(), source.clone());
+            // Slash-only wire path — never Path::join (Windows `\` is refused).
+            let rel = format!(
+                "plans/{}",
+                relative_path
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .trim_start_matches("./")
+            );
+            let source = read_text(workspace, Path::new(&rel)).ok()?;
+            // Store with forward-slash keys so Windows `\` PathBuf lookups still hit.
+            let key = PathBuf::from(relative_path.to_string_lossy().replace('\\', "/"));
+            sources.borrow_mut().insert(key, source.clone());
             Some(source)
         },
     )?;
     Ok((snapshot, sources))
+}
+
+fn path_keys_match(left: &Path, right: &Path) -> bool {
+    if left.as_os_str() == right.as_os_str() || left.file_name() == right.file_name() {
+        return true;
+    }
+    // Compare component-wise so `modules/foo` and `modules\foo` match.
+    left.components().eq(right.components())
 }
 
 fn plan_summary(module: &anvil_plan_read_model::ModuleSummary) -> Option<PlanSummary> {
@@ -137,5 +169,8 @@ fn validate_plan_id(id: &str) -> Result<(), PlanReadError> {
 }
 
 fn read_text(workspace: &Workspace, path: &Path) -> Result<String, PlanReadError> {
-    String::from_utf8(workspace.read(path)?).map_err(|_| PlanReadError::InvalidUtf8)
+    // Defensive: even if a caller passes a Path::join result, keep the wire
+    // slash-only. Workspace::read also normalises; this keeps map keys tidy.
+    let wire = path.to_string_lossy().replace('\\', "/");
+    String::from_utf8(workspace.read(Path::new(&wire))?).map_err(|_| PlanReadError::InvalidUtf8)
 }

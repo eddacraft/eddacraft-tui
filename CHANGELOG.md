@@ -9,10 +9,14 @@ engineering maintenance are recorded in the
 ## [Unreleased]
 
 > **Draft.** This section accumulates customer-relevant changes landed on `main`
-> since `v0.9.0-beta`; the version, date, and final scope are set at the next
-> release. The active window is `v0.10.0-beta` ("Multi-Harness MCP and Daily
-> Ensure"): multi-client MCP install, managed skills, activation polish, and
-> bare `anvil` as the daily ensure surface.
+> since the latest release; the version, date, and final scope are set at the
+> next cut.
+
+## [0.9.1-beta] — 2026-08-02 — Daily Path Polish and MCP 2.0 support
+
+Bare `anvil` daily ensure, default activation TUI, multi-client MCP install with
+dual-era protocol support, managed skills, and gate honesty. Browser dashboard
+remains flag-gated and is not a claim of this release.
 
 ### Added
 

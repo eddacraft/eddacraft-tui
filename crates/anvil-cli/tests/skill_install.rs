@@ -6,6 +6,10 @@ use serde_json::Value;
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
 fn run(root: &std::path::Path, extra: &[&str]) -> std::process::Output {
+    // macOS tempdirs live under `/var` → `/private/var`. The skill installer
+    // refuses destination paths that walk through a symlink component, so the
+    // workspace must be the resolved path — not the raw tempdir string.
+    let root = fs::canonicalize(root).expect("canonicalize workspace for skill install");
     let mut command = Command::new(ANVIL_BIN);
     command
         .arg("--no-tui")

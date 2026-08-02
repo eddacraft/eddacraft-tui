@@ -228,14 +228,18 @@ mod tests {
         std::fs::write(root.path().join("src/app.ts"), "fixture").expect("fixture");
         let process = autoplay_process("anvil check src/app.ts", root.path()).expect("process");
 
+        // `resolve_working_path` canonicalises the target (macOS: `/var` →
+        // `/private/var`); current_dir stays the path we passed in.
+        let expected_target = root
+            .path()
+            .canonicalize()
+            .expect("canonicalize root")
+            .join("src/app.ts");
         assert_eq!(process.get_current_dir(), Some(root.path()));
         assert_eq!(process.get_program(), std::env::current_exe().unwrap());
         assert_eq!(
             process.get_args().collect::<Vec<_>>(),
-            [
-                std::ffi::OsStr::new("check"),
-                root.path().join("src/app.ts").as_os_str()
-            ]
+            [std::ffi::OsStr::new("check"), expected_target.as_os_str()]
         );
         let env: std::collections::HashMap<_, _> = process.get_envs().collect();
         for value in env.values().flatten() {

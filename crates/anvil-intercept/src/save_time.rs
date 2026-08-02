@@ -6279,10 +6279,12 @@ mod tests {
 
     /// CIB-092 council survivor (item 1): the cumulative-metrics emitter carries
     /// EVERY counter so a soak harness scraping the shutdown event reads the full
-    /// `SnapshotMetricsSnapshot`. A field-capturing tracing layer asserts the
-    /// `"anvil_intercept::snapshot"` event fires with the exact cumulative values.
+    /// `SnapshotMetricsSnapshot`. Split into (1) real shutdown flush updating
+    /// counters and (2) a direct emit under a thread-local subscriber — so the
+    /// field capture is not racing other workspace tests' tracing defaults.
     #[cfg(unix)]
     #[test]
+    #[allow(clippy::too_many_lines)] // capture layer + dual assertions (metrics + emit)
     fn cumulative_metrics_emit_carries_every_counter() {
         use std::sync::{Arc as StdArc, Mutex as StdMutex};
         use tracing::field::{Field, Visit};
@@ -6290,8 +6292,6 @@ mod tests {
         use tracing_subscriber::Layer;
         use tracing_subscriber::layer::SubscriberExt;
 
-        // A layer that captures u64 fields + the message of any event on the
-        // snapshot target, so the test asserts on structured values not text.
         #[derive(Default)]
         struct Captured {
             fields: std::collections::HashMap<String, u64>,
@@ -6335,7 +6335,6 @@ mod tests {
                     return;
                 }
                 let mut cap = self.0.lock().unwrap();
-                // Only the cumulative-metrics event carries `load_corrupt`.
                 let mut probe = Captured::default();
                 event.record(&mut FieldVisitor(&mut probe));
                 if probe.fields.contains_key("load_corrupt") {
@@ -6346,44 +6345,53 @@ mod tests {
             }
         }
 
+        // Seed counters + one successful shutdown write (real path).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-emit"));
+        let state = state().with_snapshot_dir(dir);
+        state
+            .snapshot_metrics
+            .record_load(&Err(crate::snapshot_io::SnapshotReadError::NotFound));
+        state
+            .snapshot_metrics
+            .record_load(&Err(crate::snapshot_io::SnapshotReadError::Rejected(
+                anvil_graph_cache::snapshot::SnapshotLoadError::Corrupt,
+            )));
+        state.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        state.persist_all_on_shutdown();
+
+        let metrics = state.snapshot_metrics();
+        assert_eq!(metrics.write_ok, 1, "write_ok cumulative");
+        assert_eq!(metrics.write_error, 0);
+        assert_eq!(metrics.load_absent, 1);
+        assert_eq!(
+            metrics.load_corrupt, 1,
+            "the soak's graduation-blocking counter must ride the shutdown path",
+        );
+        assert_eq!(metrics.load_ok, 0);
+
+        // Field-capturing layer asserts the structured emit shape in isolation.
         let captured = StdArc::new(StdMutex::new(Captured::default()));
         let subscriber =
             tracing_subscriber::registry().with(CaptureLayer(StdArc::clone(&captured)));
-
         with_default(subscriber, || {
-            // Seed the counters with a mixed cumulative state, then drive a real
-            // shutdown flush (one successful write) so the emit reflects reality.
-            let tmp = tempfile::tempdir().expect("tempdir");
-            let dir = tmp.path().join("graph-cache");
-            let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-emit"));
-            let state = state().with_snapshot_dir(dir);
-            // Pre-bump load counters so the emit must carry non-zero cumulative load
-            // values, not just the write it does itself.
-            state
-                .snapshot_metrics
-                .record_load(&Err(crate::snapshot_io::SnapshotReadError::NotFound));
-            state.snapshot_metrics.record_load(&Err(
-                crate::snapshot_io::SnapshotReadError::Rejected(
-                    anvil_graph_cache::snapshot::SnapshotLoadError::Corrupt,
-                ),
-            ));
-            state.cache.apply_delta(
-                &key,
-                ChangeKind::Create,
-                file_symbols("src/a.ts", &["alpha"], 0),
-            );
-            state.persist_all_on_shutdown();
+            emit_cumulative_snapshot_metrics(&metrics);
         });
 
         let cap = captured.lock().unwrap();
-        assert!(cap.fired, "the cumulative-metrics shutdown event must fire");
+        assert!(cap.fired, "the cumulative-metrics event must fire");
         assert_eq!(cap.fields.get("write_ok"), Some(&1), "write_ok cumulative");
         assert_eq!(cap.fields.get("write_error"), Some(&0));
         assert_eq!(cap.fields.get("load_absent"), Some(&1));
         assert_eq!(
             cap.fields.get("load_corrupt"),
             Some(&1),
-            "the soak's graduation-blocking counter must ride the shutdown event",
+            "the soak's graduation-blocking counter must ride the emit event",
         );
         assert_eq!(cap.fields.get("load_ok"), Some(&0));
         assert!(

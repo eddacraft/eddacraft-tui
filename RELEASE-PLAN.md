@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                        |
-| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Turned over 2026-07-12 at the `v0.9.0-beta` closeout (record: [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md)); the `v0.10.0-beta` window scope was **confirmed by the operator 2026-07-13**. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                    |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Pre-release started 2026-08-02: preferred tag **`v0.9.1-beta`** "Daily Path Polish and MCP 2.0 support" (operator). Fallback if patch framing is rejected: **`v0.10.0-beta`** "Daily Path Upgrade and MCP 2.0 support" — same content. Prior window was scoped as `v0.10.0-beta` 2026-07-13. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -43,31 +43,44 @@ nothing else.
   [`plans/releases/v0.8.1-beta.md`](./plans/releases/v0.8.1-beta.md).)
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure" (theme
-  reframe 2026-08-01; window originally confirmed 2026-07-13): multi-client
-  MCP + skills + bare daily ensure, plus residual v0.9 closeout hygiene and the
-  flag-gated dashboard foundation (not a customer claim). Records for
-  `v0.6.x`–`v0.9.x` are in [`plans/releases/`](./plans/releases/).
+- **Active window:** **`v0.9.1-beta`** "Daily Path Polish and MCP 2.0 support"
+  (operator 2026-08-02). Same payload as the earlier multi-harness/daily-ensure
+  window, reframed as a **patch on the v0.9 line** so the upgrade stays honest:
+  bare `anvil`, default activation TUI, multi-client MCP + ratified protocol
+  support, managed skills, gate honesty. Flag-gated dashboard rides along and is
+  **not** a claim. **Fallback tag** if patch framing gets massive pushback:
+  `v0.10.0-beta` "Daily Path Upgrade and MCP 2.0 support" (identical content).
+  Records for `v0.6.x`–`v0.9.x` are in [`plans/releases/`](./plans/releases/).
 
 ---
 
-## Active window — `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure"
+## Active window — `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
 
-**Theme reframe 2026-08-01** — customer claim is multi-harness MCP, managed
-skills, activation polish, and bare `anvil` daily ensure. The earlier "Team-Lead
-Surface Foundations" label is retired for this cut: the browser dashboard
-foundation (DASH/DASHCORE) remains **merged and flag-gated** for internal
-testing and is **not** a release claim.
+**Operator decision 2026-08-02** — cut preferred as a **v0.9.x patch** so we do
+not oversell. Customer claim is the **daily path** (bare ensure + activation TUI
+default + gate warnings-over-blocks) plus **MCP 2.0 support** (multi-client
+install, dual-era protocol including the 2026-07-28 era, managed skills). The
+earlier "Team-Lead Surface Foundations" and "Multi-Harness MCP and Daily Ensure"
+titles are retired for this cut. Browser dashboard foundation (DASH/DASHCORE)
+remains **merged and flag-gated** for internal testing only — not a release
+claim.
+
+**Fallback:** if patch-vs-minor framing is rejected at review, retag the same
+SHA as `v0.10.0-beta` "Daily Path Upgrade and MCP 2.0 support" without changing
+scope.
 
 Primary delivery for this window:
 
-- **MCPX / multi-client MCP** — twelve `anvil mcp install --client` targets;
-  interactive `anvil start` offers every supported client (consent-first).
-- **SKPKG** — managed skill install and doctor freshness.
 - **Bare ensure (ONSW / JOURNEY-011 / ADR-114)** — bare `anvil` as the daily
   on-switch after activation; `anvil start` remains activate/reconfigure.
-- **Activation / journey polish** — TUI default, celebration, autoplay, and
-  related post-`v0.9` improvements already on `main`.
+- **Activation polish** — interactive `anvil start` opens the consent-first TUI
+  by default; celebration / quiet healthy repeats; related post-`v0.9` path
+  work.
+- **MCP 2.0 support** — twelve `anvil mcp install --client` targets; interactive
+  start offers the full registry (consent-first); ratified MCP `2026-07-28` with
+  sealed legacy eras retained; managed skill install + doctor freshness.
+- **Gate honesty** — warnings-over-blocks restored; must-block crypto (WC-002 /
+  WC-003) still errors.
 
 MCPX and SKPKG merged to `main` in #3328 on 2026-07-15 — three days after the
 `v0.9.0-beta` cut — and therefore in no tag yet. As of `v0.9.0-beta`,
@@ -83,14 +96,15 @@ JOURNEY-010 remains blocked on later DASH view waves.
 
 | Phase                                | Scope                                                                                                                                                                | State                                                                                                                                                        |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Scope confirmation** (gate)        | Operator confirms the `v0.10.0-beta` theme (team-lead browser surface vs. an alternative priority) and the DASH wave's place in it.                                  | **done 2026-07-13** — confirmed by the operator                                                                                                              |
+| **Scope confirmation** (gate)        | Operator confirms preferred tag/theme (`v0.9.1-beta` daily path polish + MCP 2.0; fallback `v0.10.0-beta`) and that DASH is not a claim.                             | **done 2026-08-02** — preferred `v0.9.1-beta`; fallback on pushback only                                                                                     |
 | **v0.9 closeout hygiene**            | All-Merged modules included in `v0.9.0-beta` advance to `Released/Shipped` + archive (own PRs, per the APS archive cascade); CIB intake from the cut log.            | done 2026-07-13 — release record + tracking-issue closeout 2026-07-12; 17 tag-complete modules archived via the cascade PR                                   |
-| **MCPX/SKPKG carry-in**              | Multi-harness MCP install (twelve `--client` targets) + skill packaging; interactive start offers full registry; verify at cut and advance at closeout.              | merged 2026-07-15 via #3328 — in no tag; rides this window; start multi-offer extended 2026-08-01                                                            |
-| **Bare ensure** (ONSW / JOURNEY-011) | Bare `anvil` daily ensure vs `anvil start` reconfigure (ADR-114). First-class public docs for the daily path.                                                        | ONSW-001..006 + JOURNEY-011 Merged via #3474; public docs with v0.10 reframe                                                                                 |
+| **MCP 2.0 / MCPX/SKPKG carry-in**    | Multi-harness MCP install (twelve `--client` targets) + dual-era protocol + skill packaging; interactive start offers full registry; verify at cut.                  | merged 2026-07-15 via #3328 — in no tag; rides this window; start multi-offer extended 2026-08-01                                                            |
+| **Bare ensure** (ONSW / JOURNEY-011) | Bare `anvil` daily ensure vs `anvil start` reconfigure (ADR-114). First-class public docs for the daily path.                                                        | ONSW-001..006 + JOURNEY-011 Merged via #3474; public docs aligned to daily path                                                                              |
 | **JOURNEY post-cut expansion**       | JOURNEY-007..010 coordinated enhancements. JOURNEY-011 closed with ONSW.                                                                                             | JOURNEY-007 + WOW-006 Merged via #3441; JOURNEY-008 Merged #3408; JOURNEY-009 on hold; JOURNEY-010 blocked on later DASH waves; **JOURNEY-011 Merged #3474** |
 | **Dashboard foundation** (DASH)      | Flag-gated foundation only — not a release claim.                                                                                                                    | all 12 Merged (PRs #3261, #3321, #3421); `dashboard.web` default-off                                                                                         |
 | **Dashboard core views** (DASHCORE)  | Flag-gated core routes only — not a release claim.                                                                                                                   | 9/9 Merged (PR #3363, PR #3379, PR #3436)                                                                                                                    |
 | **v0.9 follow-through** (lane)       | Beta-signal fixes on the shipped first-run/daemon/graph surfaces (48h-P0 patch lane on `v0.9.x`); CIB-193/-194/-195/-196 and the release-recovery hardening (#3309). | all closed: CIB-193/-194/-195/-196 merged (2026-07-12, 2026-07-26 via #3422) and #3309 merged 2026-07-12; the lane stays the vehicle for anything urgent     |
+| **Pre-release**                      | assess → preflight → prepare → readiness → pre-tag review → tag. Candidate SHA frozen on a stabilisation or prep branch as needed.                                   | **started 2026-08-02** — assess green on `main` `b971f4ea7`; preflight next                                                                                  |
 
 ### Cut criteria
 
@@ -100,11 +114,13 @@ JOURNEY-010 remains blocked on later DASH view waves.
 - Bare ensure: public docs + help describe bare `anvil` vs `anvil start`;
   `cargo test -p eddacraft-anvil --test bare_invocation` green; JOURNEY-011
   evidence recorded.
-- The MCPX carry-in is verified **from the release artefact, not from `main`**:
+- MCP 2.0 carry-in is verified **from the release artefact, not from `main`**:
   `anvil mcp install --client <client> --verify` succeeds for a non-Cursor,
   non-Claude-Code client using the tagged binary. Reading `--help` on a stale
   installed binary is what hid the gap across the whole `v0.9.0-beta` window.
 - Interactive `anvil start` offers the full MCP registry (consent-first).
+- Changelog title matches the chosen tag (`v0.9.1-beta` preferred;
+  `v0.10.0-beta` only if fallback is taken).
 
 ---
 

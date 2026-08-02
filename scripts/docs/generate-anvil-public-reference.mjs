@@ -277,10 +277,22 @@ function readProductSource(path) {
   const result = spawnSync('git', ['-C', ROOT, 'show', `${sourceRef}:${repoPath}`], {
     encoding: 'utf8',
   });
-  if (result.status !== 0) {
-    fail(`could not read ${repoPath} from the public release tag ${sourceRef}`);
+  if (result.status === 0) {
+    return result.stdout;
   }
-  return result.stdout;
+  // Pre-tag release prep: the public changelog may already name the next version
+  // before `vX.Y.Z` exists as a git tag. Fall back to the workspace tree so
+  // docs:check can pass on the prepare PR; the tag cut is what freezes the
+  // shipped product sources for the next regenerate.
+  if (!existsSync(path)) {
+    fail(
+      `could not read ${repoPath} from the public release tag ${sourceRef} and workspace path is missing`
+    );
+  }
+  process.stderr.write(
+    `[anvil-reference] tag ${sourceRef} missing ${repoPath}; using workspace tree\n`
+  );
+  return readFileSync(path, 'utf8');
 }
 
 function releaseLabel() {

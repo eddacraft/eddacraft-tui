@@ -1,11 +1,11 @@
 # anvil Roadmap
 
-**Last updated:** 2026-07-30 (fact-refresh — latest shipped headline is
+**Last updated:** 2026-08-02 (pre-release — latest shipped headline is
 `v0.9.0-beta` "First-Run Wins and the Assistant Graph" (2026-07-12); active
-window is `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure" (theme reframe
-2026-08-01; window originally operator-confirmed 2026-07-13). Module status and
-the pickable release menu live in the SOT files below; this roadmap stays
-thematic.)
+window preferred as `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
+(operator 2026-08-02; fallback `v0.10.0-beta` "Daily Path Upgrade and MCP 2.0
+support" if patch framing is rejected). Module status and the pickable release
+menu live in the SOT files below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -108,27 +108,22 @@ browser surface. Immutable records live under
 **Latest shipped headline:** `v0.9.0-beta` (2026-07-12). Release record:
 [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
 
-### Horizon 2 — Multi-Harness MCP and Daily Ensure — active window `v0.10.0-beta`
+### Horizon 2 — Daily path + MCP reach — active window `v0.9.1-beta`
 
-**Theme:** The persona that funds the tool gets a credible browser surface.
+**Theme (this cut):** Daily path polish and MCP 2.0 support — bare `anvil`
+ensure, default activation TUI, multi-client MCP install + dual-era protocol,
+managed skills. Honest patch framing on the v0.9 line; fallback minor number
+only if review rejects patch.
 
-Once the daemon is working end-to-end, the second persona — team leads, platform
-engineers, compliance roles — longer-term "Team-Lead Glance" (browser surface
-remains flag-gated foundation on this cut, not the customer claim): **last gate
-run, current warnings ranked by severity, recent activity** in a browser without
-learning CLI commands. The smallest credible demo is a warnings list with
-file/line + severity grouping and a detail panel.
+**Longer-term Horizon 2 (not this claim):** Team-lead browser glance remains the
+next credible surface after this cut. DASH/DASHCORE foundation is already on
+`main` behind `dashboard.web` (default-off) for testing only — not a customer
+claim until default-on or a later named window owns it.
 
-The CLI ↔ dashboard bridge is `anvil export` — canonical
-`.anvil/{warnings,gates,provenance,config}.json` written from the latest run
-state.
-
-**Active window:** `v0.10.0-beta` "Multi-Harness MCP and Daily Ensure"
-(operator-confirmed 2026-07-13). Scope, waves, and cut criteria live in
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module-level status lives in
-[`plans/index.aps.md`](./plans/index.aps.md). This horizon names the capability
-theme only — do not treat the paragraphs above as a claim that every surface has
-already shipped.
+**Active window:** `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
+(operator 2026-08-02; pre-release started). Scope and cut criteria:
+[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
+[`plans/index.aps.md`](./plans/index.aps.md).
 
 ### Horizon 3 — Enterprise Readiness
 

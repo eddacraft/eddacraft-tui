@@ -152,6 +152,8 @@ describe('State File Operations', () => {
     // CIB-117: concurrent read-modify-write updates must not lose records.
     // All calls are launched in the same tick so every unfenced writer would
     // read the same initial snapshot and the last write would win.
+    // Windows file-lock contention is slower than the default 5s Vitest
+    // timeout (Release Gate windows-latest flake).
     it('concurrent updates for different tasks preserve every record', async () => {
       const taskIds = Array.from({ length: 25 }, (_, i) => `RACE-${String(i).padStart(3, '0')}`);
 
@@ -170,7 +172,7 @@ describe('State File Operations', () => {
       for (const taskId of taskIds) {
         expect(state.tasks[taskId]?.locked_by).toBe(taskId);
       }
-    });
+    }, 30_000);
 
     it('reaps an abandoned state file lock so a crashed writer cannot wedge updates', async () => {
       // Simulate a writer that crashed mid-update: its lock file is left

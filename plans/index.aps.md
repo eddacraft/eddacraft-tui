@@ -12,10 +12,12 @@
 > [`plans/releases/v0.9.0-beta.md`](./releases/v0.9.0-beta.md); per-tag records
 > for earlier windows are in [`plans/releases/`](./releases/).
 >
-> The active window is **`v0.10.0-beta`** ("Multi-Harness MCP and Daily Ensure",
-> theme reframe 2026-08-01): multi-client MCP, managed skills, activation polish,
-> and bare `anvil` daily ensure. Dashboard foundation remains flag-gated and is
-> not a release claim. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and
+> The active window is **`v0.9.1-beta`** ("Daily Path Polish and MCP 2.0
+> support", operator 2026-08-02; pre-release started): bare daily ensure,
+> activation TUI default, multi-client MCP + dual-era protocol, managed skills.
+> Fallback tag if patch framing is rejected: `v0.10.0-beta` ("Daily Path Upgrade
+> and MCP 2.0 support"). Dashboard foundation remains flag-gated and is not a
+> release claim. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and
 > [`ROADMAP.md`](../ROADMAP.md).
 
 ## Contents
@@ -124,15 +126,16 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.10.0-beta`** ("Multi-Harness MCP and Daily Ensure", theme reframe
-2026-08-01), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the
-header above and the NBI table.
+window is **`v0.9.1-beta`** ("Daily Path Polish and MCP 2.0 support", operator
+2026-08-02; fallback `v0.10.0-beta` on patch pushback only), declared in
+[`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
+table.
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…
-Released/Shipped via v0.9.0-beta and archived 2026-07-13), active `v0.10`
-delivery (DASH/DASHCORE Merged pending release evidence; JOURNEY post-cut;
-MCP26 dual-era on main), and longer-horizon work, then the
-[Dormant](#dormant-not-yet-scheduled) band. Prefer the NBI table and
+Released/Shipped via v0.9.0-beta and archived 2026-07-13), active `v0.9.1`
+delivery (bare ensure + MCP 2.0 claim; DASH/DASHCORE Merged flag-gated not
+claimed; JOURNEY post-cut; MCP26 dual-era on main), and longer-horizon work, then
+the [Dormant](#dormant-not-yet-scheduled) band. Prefer the NBI table and
 `RELEASE-PLAN.md` over scanning historical Complete rows for "what next".
 
 ### Graph Substrate
@@ -260,13 +263,13 @@ the live release sequencing is in
 | Module                                                                  | Scope    | Status | Progress | Notes                                                                                                                                                                                              |
 | ----------------------------------------------------------------------- | -------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [release-user-journeys](./modules/release-user-journeys.aps.md)         | JOURNEY | In Progress | 9/11 | **Conductor** for first-run advocacy and daily confidence. **v0.9.0-beta shipped 2026-07-12** under JOURNEY-006 (record: [v0.9.0-beta](./releases/v0.9.0-beta.md)). Post-cut: **JOURNEY-007 Merged 2026-07-30 via PR #3441**; **JOURNEY-008 Merged #3408**; **JOURNEY-011 Merged #3474** (bare ensure / ADR-114 / ONSW); JOURNEY-009 on hold; JOURNEY-010 blocked on DASHARCH/DASHOPS. |
-| [bare-ensure](./modules/bare-ensure.aps.md)                             | ONSW    | Merged      | 6/6  | Bare `anvil` daily on-switch on `main` via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a`). [ADR-114](./decisions/114-bare-anvil-ensure-surface.md) Accepted; ONSW-001..006 Merged; JOURNEY-011 Merged. Pending `v0.10.0-beta` Released/Shipped. |
+| [bare-ensure](./modules/bare-ensure.aps.md)                             | ONSW    | Merged      | 6/6  | Bare `anvil` daily on-switch on `main` via [#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a`). [ADR-114](./decisions/114-bare-anvil-ensure-surface.md) Accepted; ONSW-001..006 Merged; JOURNEY-011 Merged. Pending `v0.9.1-beta` Released/Shipped. |
 | [adoption-trust-surface](./archive/modules/adoption-trust-surface.aps.md) | ADTRUST  | Complete    | 6/6      | All six shipped 2026-05-14 (PRs #1531, #1532, #1533, #1534, #1536, #1537). Cross-crate wire-ups for -002 + -004 tracked under MLP2 group J. Archived.                                                                                                                                                  |
 | [adoption-friction](./archive/modules/adoption-friction.aps.md)                 | ADOPT    | Complete | 6/6 | First-week friction removal. **ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521), Released/Shipped via [`v0.6.3-beta`](./releases/v0.6.3-beta.md) on 2026-05-15; ADOPT-001 hook coexistence Done 2026-05-15** (runbook at `docs/runbooks/anvil-hook-coexistence.md`); **resource budget (-002 Done 2026-05-16)**, **shared ignore policy (-004 Merged 2026-05-16 via PR #1658)**, **editor coexistence (-006 Merged 2026-05-17 via PR #1682)**, **AI auto-detect (-003 Merged 2026-05-18 via PR #1700** — primitive in PR #1543). All six items Released/Shipped (ADOPT-005 via `v0.6.3-beta`; the rest via `v0.7.0-beta` on 2026-05-21); module **Complete**; archived. Wave 3A. |
 | [distribution-and-update](./archive/modules/distribution-and-update.aps.md)     | DISTRIB  | Complete | 6/6      | Harden `anvil update` + Homebrew + cadence policy so hotfix iteration reaches users. **DISTRIB-001 Merged via PR #1562** (minisign verification + ADR-045). **DISTRIB-002 Merged via PR #1569** (`anvil version --check` advisory surface + watch/status hint). **DISTRIB-003 Merged via PR #1652** (Homebrew formula auto-bump extracted into tested script + workflow + runbook + macOS smoke matrix). **DISTRIB-004 Done 2026-05-16** (`docs/policies/release-cadence.md`). **DISTRIB-005 Released/Shipped via v0.7.3-beta** (PR #1984 at `8ae65b10` confirmed in tag; `anvil migrate schema`). **DISTRIB-006 Released/Shipped via v0.7.4-beta** (PR #2185 at `c5ee305b` confirmed in tag) — `ANVIL_HOME` / `--anvil-home` install-root override for side-by-side candidate installs, ADR-060 gate Accepted 2026-05-31. Module advanced to **Complete** 2026-06-08 per the v0.7.4-beta release-record post-tag note. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A. |
 | [usage-insights](./archive/modules/usage-insights.aps.md)                       | INSIGHTS | Complete | 5/5      | Local-only periodic value signal (`anvil insights`); INSIGHTS-001 Done 2026-05-17; -002 (#1996) + -003 (#2111) Released/Shipped via v0.7.3-beta 2026-05-31; -004 Released/Shipped via v0.8.0-beta (Merged 2026-06-02 via PR #2226 — first-week nudge in `status` + watch, suppressed after an `anvil insights` run; merge recorded retroactively 2026-06-12); -005 Merged 2026-06-26 via PR #2957 (nudge on the `welcome` surface, reusing the -004 hint contract) — all 5 items Merged, module Complete-eligible pending release-tag evidence. No telemetry. Released/Shipped via v0.9.0-beta (2026-07-12); archived 2026-07-13. |
 | [activation-mcp-optional](./modules/activation-mcp-optional.aps.md)     | ACTMO    | In Progress | 20/22    | MCP-optional `anvil start` golden path: daemon ensure, durable worktree registration, hooks, headless save-time, explicit no-MCP posture, and truthful status. ACTMO-001..020 are Done/Merged; ACTMO-021 optional local control app and ACTMO-022 hardening remain Proposed. JOURNEY consumes the landed spine for its release rehearsal and keeps ACTMO-021 as non-blocking expansion. Counts remain advisory per ADR-053. |
-| [first-run-wow](./modules/first-run-wow.aps.md)                         | WOW      | Done | 6/6 | WOW-001..006 all Merged. WOW-005 first-win Merged via #3280; **WOW-006 sandboxed autoplay Merged 2026-07-30 via PR #3441** with JOURNEY-007. Module **Done** pending `v0.10.0-beta` release evidence. |
+| [first-run-wow](./modules/first-run-wow.aps.md)                         | WOW      | Done | 6/6 | WOW-001..006 all Merged. WOW-005 first-win Merged via #3280; **WOW-006 sandboxed autoplay Merged 2026-07-30 via PR #3441** with JOURNEY-007. Module **Done** pending `v0.9.1-beta` release evidence. |
 | [activation-tui](./modules/activation-tui.aps.md)                     | ACTTUI   | In Progress | 14/15 | TUI-first `anvil start` — the original 14 items are Merged-or-Done. **ACTTUI-014 In Progress 2026-08-01** makes activation one continuous live eddacraft-tui surface aligned with the tutorial experience, without changing machine/plain contracts. ADR-103 Accepted 2026-07-25; **ACTTUI-013 Merged 2026-07-26 via PR #3411** delivered the Release 2 TTY-default flip — an interactive `anvil start` enters the TUI with no flag, `--tui` is a hidden no-op and `ANVIL_ACTIVATION_TUI` is inert, with `--no-tui` / `ANVIL_NO_TUI=1` as the permanent escape hatches. Release evidence still owed before Released/Shipped. |
 | [user-journey](./archive/modules/user-journey.aps.md)                           | UJ       | Complete | 15/15 | Two beta golden paths — `anvil welcome` (discovery wow) and `anvil start` → watch/MCP (daily value) — made strong and self-guiding. Created 2026-06-10 from the v0.8.0-beta user-journey completeness review (operator-directed: beta posture permits explicit "run `anvil start` or `anvil welcome`" guidance; out-of-the-box usefulness ranks above tutorials). Eight items Merged + UJ-002 verified-no-change on 2026-06-10 (PRs #2500..#2507); UJ-007 resolved guidance-only (ADR-079); UJ-011 shaping approved → UJ-012..015 filed (tutorial execution set); UJ-004 (ungate `welcome`, ADR-080) Merged via #2509; UJ-012 (flagship save-caught tutorial) Merged via #2510; UJ-013 (Rust tutorial) Merged via #2511; UJ-014 (refresh + index rewrite) Merged via #2513; UJ-015 (retire ci/suppressions into guides) Merged via #2514 — all 15 items dispositioned; module Complete 2026-06-10; Released/Shipped via v0.8.0-beta (2026-06-11); archived 2026-06-13. Coordinates with CIB-047/-054/-055, INSIGHTS-005, DISTRIB-002, DSV-021/ADR-075. |
 
@@ -736,7 +739,7 @@ Side programme (operator-approved shortlist, 2026-07-28): five tracks that turn
 the shipped graph into agent- and team-lead trust answers. Framing and clearance
 checklist:
 [`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
-**Not** a second `RELEASE-PLAN.md` window — do not stall `v0.10.0-beta`. Module
+**Not** a second `RELEASE-PLAN.md` window — do not stall `v0.9.1-beta`. Module
 rows below remain owned by their home sections where they already live; this
 band is the programme hub plus the one fully cleared track.
 

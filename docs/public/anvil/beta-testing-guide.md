@@ -21,7 +21,7 @@ the quickstart to install or update anvil, sign in, and confirm your identity;
 then return here to test the current beta.
 
 **Current beta:**
-[v0.9.0-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.0-beta). A
+[v0.9.1-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.1-beta). A
 newer beta reported by `anvil version` is also valid.
 
 ## Before you test

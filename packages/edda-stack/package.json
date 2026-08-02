@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-edda-stack",
-  "version": "0.9.0-beta",
+  "version": "0.9.1-beta",
   "description": "Kindling · Ember · Edda memory stack for Anvil",
   "type": "module",
   "main": "./dist/index.js",

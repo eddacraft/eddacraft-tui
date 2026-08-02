@@ -22,6 +22,30 @@ fn reads_regular_files_beneath_the_workspace() {
 }
 
 #[test]
+fn reads_paths_built_with_path_join() {
+    // Regression: Windows WorkspaceAnchor is slash-only. Path::join uses the
+    // platform separator (`\` on Windows), so Workspace::read must normalise
+    // before the anchor call — otherwise plan module loads return empty Purpose.
+    let root = tempdir().expect("workspace");
+    fs::create_dir_all(root.path().join("plans").join("modules")).expect("modules");
+    fs::write(
+        root.path()
+            .join("plans")
+            .join("modules")
+            .join("dash.aps.md"),
+        b"## Purpose\n\nShip it.\n",
+    )
+    .expect("fixture");
+    let workspace = Workspace::new(root.path()).expect("workspace boundary");
+
+    let joined = Path::new("plans").join("modules").join("dash.aps.md");
+    let bytes = workspace
+        .read(&joined)
+        .expect("Path::join multi-component read must succeed on every platform");
+    assert_eq!(bytes, b"## Purpose\n\nShip it.\n");
+}
+
+#[test]
 fn rejects_parent_and_absolute_paths() {
     let root = tempdir().expect("workspace");
     let workspace = Workspace::new(root.path()).expect("workspace boundary");

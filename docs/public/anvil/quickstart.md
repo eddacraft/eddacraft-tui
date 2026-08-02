@@ -76,7 +76,7 @@ anvil --version
 Success looks like:
 
 ```text
-anvil 0.9.0-beta
+anvil 0.9.1-beta
 ```
 
 A newer beta version is also valid. If the command is not found, reopen the

@@ -30,18 +30,23 @@ impl Workspace {
     }
 
     pub fn read(&self, relative: &Path) -> Result<Vec<u8>, WorkspaceReadError> {
-        let display = relative.to_string_lossy().into_owned();
-        let relative = relative
+        // WorkspaceAnchor's wire format is slash-only on every platform.
+        // Windows structurally refuses `\`; callers that build paths via
+        // `Path::join` produce platform separators, so normalise here at the
+        // boundary instead of forcing every capability to hand-build strings.
+        let raw = relative
             .to_str()
             .ok_or_else(|| WorkspaceReadError::UnsafePath {
-                path: display.clone(),
+                path: relative.to_string_lossy().into_owned(),
             })?;
+        let wire = raw.replace('\\', "/");
+        let display = wire.clone();
         let anchor = self
             .anchor
             .lock()
             .map_err(|_| WorkspaceReadError::BoundaryUnavailable)?;
         let bytes = anchor
-            .read_rel_capped(relative, MAX_ARTEFACT_BYTES as u64)
+            .read_rel_capped(&wire, MAX_ARTEFACT_BYTES as u64)
             .map_err(|source| classify_read_error(&display, source))?;
         Ok(bytes)
     }
