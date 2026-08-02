@@ -1,11 +1,11 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-02 (pre-release — latest shipped headline is
-`v0.9.0-beta` "First-Run Wins and the Assistant Graph" (2026-07-12); active
-window preferred as `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
-(operator 2026-08-02; fallback `v0.10.0-beta` "Daily Path Upgrade and MCP 2.0
-support" if patch framing is rejected). Module status and the pickable release
-menu live in the SOT files below; this roadmap stays thematic.)
+**Last updated:** 2026-08-02 (`v0.9.1-beta` "Daily Path Polish and MCP 2.0
+support" tagged; publish recovery in flight. Prior shipped headline
+`v0.9.0-beta` "First-Run Wins and the Assistant Graph". Active window in
+`RELEASE-PLAN.md` is a `v0.10.0-beta` placeholder pending 0.9.1 closeout. Module
+status and the pickable release menu live in the SOT files below; this roadmap
+stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of

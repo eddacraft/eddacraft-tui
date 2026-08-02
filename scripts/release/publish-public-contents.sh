@@ -96,19 +96,22 @@ else
 fi
 
 payload="$(mktemp)"
-trap 'rm -f "$payload"' EXIT
+content_b64_file="$(mktemp)"
+trap 'rm -f "$payload" "$content_b64_file"' EXIT
 
-# --input keeps content out of argv (no ARG_MAX dependence).
+# Encode via a temp file so neither base64 nor jq put the body on argv
+# (ACKNOWLEDGEMENTS.md can exceed ARG_MAX when passed as --arg).
 if base64 --help 2>&1 | grep -q -- '-w'; then
-  content_b64=$(base64 -w 0 "$local_file")
+  base64 -w 0 "$local_file" >"$content_b64_file"
 else
-  content_b64=$(base64 <"$local_file" | tr -d '\n')
+  base64 <"$local_file" | tr -d '\n' >"$content_b64_file"
 fi
 
+# --rawfile keeps content out of argv; --input below keeps it out of gh argv.
 jq -n \
   --arg message "$message" \
-  --arg content "$content_b64" \
-  '{message: $message, content: $content}' >"$payload"
+  --rawfile content "$content_b64_file" \
+  '{message: $message, content: ($content | gsub("\n"; ""))}' >"$payload"
 
 if [ -n "$existing_sha" ]; then
   jq --arg sha "$existing_sha" '. + {sha: $sha}' "$payload" >"${payload}.tmp"

@@ -148,6 +148,10 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # @eddacraft/render ships only built `dist/` (gitignored). Build the
+      # workspace dependency first or tsc fails with TS2307 on release tags.
+      - name: Build dashboard workspace dependencies
+        run: pnpm --filter @eddacraft/render build
       - name: Build dashboard UI
         run: pnpm --filter @eddacraft/anvil-dashboard build
       - name: Verify the bundle exists
