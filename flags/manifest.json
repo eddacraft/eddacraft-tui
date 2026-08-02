@@ -157,6 +157,23 @@
       "primaryGroup": "gv2"
     },
     {
+      "key": "kindling.embedded-runtime",
+      "owner": "KFIT",
+      "intent": "Gate anvil's embedded kindling runtime while downstream adoption is prepared",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "KFIT-006",
+      "expiryOrReviewDate": "2026-10-31T00:00:00Z",
+      "description": "Default-off precursor for KFIT-006. The normal release build excludes the optional kindling-runtime dependency; feature-enabled development builds still require the explicit ANVIL_KINDLING_EMBEDDED_RUNTIME=1 opt-in. Promote only after KFIT-005 publishes the approved runtime version and clean-host lifecycle validation passes.",
+      "primaryGroup": "daemon"
+    },
+    {
       "key": "track.pack",
       "owner": "OPSUP",
       "intent": "Umbrella gate for Track 4 semantic packs (per-pack overrides use track.pack.<pack>)",

@@ -1299,6 +1299,7 @@ dependencies = [
  "insta",
  "jsonschema",
  "kindling-client",
+ "kindling-runtime",
  "kindling-server",
  "kindling-store",
  "libc",
@@ -2954,6 +2955,19 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "kindling-runtime"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b13dd26c99bee7e113eebcb8928edce25d1665df3bbc872ea65a10dcce695492"
+dependencies = [
+ "kindling-client",
+ "kindling-server",
+ "kindling-types",
+ "thiserror 2.0.19",
+ "tokio",
 ]
 
 [[package]]

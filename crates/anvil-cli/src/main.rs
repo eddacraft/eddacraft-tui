@@ -14,6 +14,8 @@ mod install_root;
 #[cfg(unix)]
 mod intercept_symbol_parser;
 mod kindling_daemon_sink;
+#[cfg(feature = "kindling-embedded-runtime")]
+mod kindling_runtime;
 mod l4_engine;
 mod mcp;
 mod output;

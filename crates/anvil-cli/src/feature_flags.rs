@@ -21,6 +21,8 @@
 use anvil_kernel::feature_flags::{
     FlagOverrides, ResolutionDetails, ResolutionReason, resolve_flag,
 };
+#[cfg(feature = "kindling-embedded-runtime")]
+use anvil_kernel_types::feature_flags_catalogue::kindling_embedded_runtime;
 use anvil_kernel_types::feature_flags_catalogue::{
     cli_licence_gate, dashboard_web, tui_dashboard_aps_dashboard,
 };
@@ -493,6 +495,55 @@ fn web_dashboard_access_allowed_with(overrides: &FlagOverrides) -> bool {
     let context = cli_evaluation_context("cli-session", None);
     let details = resolve_flag(&definition, &context, Some(overrides));
     details.variant == dashboard_web::variants::ENABLED
+}
+
+// ── KFIT-006: default-off embedded kindling runtime ────────────────
+
+/// The `kindling.embedded-runtime` rollout key, generated from the canonical
+/// flag manifest so the future runtime consumer cannot drift from catalogue
+/// policy.
+#[cfg(feature = "kindling-embedded-runtime")]
+pub const KINDLING_EMBEDDED_RUNTIME_GATE_KEY: &str = kindling_embedded_runtime::KEY;
+
+/// Dedicated local opt-in for feature-enabled development builds. The broad
+/// `ANVIL_DEV` override deliberately does not open this gate: until KFIT-005
+/// publishes the approved runtime, activation must be explicit and narrow.
+#[cfg(feature = "kindling-embedded-runtime")]
+pub const KINDLING_EMBEDDED_RUNTIME_ENV_VAR: &str = "ANVIL_KINDLING_EMBEDDED_RUNTIME";
+
+/// Whether a feature-enabled build may use the embedded kindling runtime.
+///
+/// Normal release builds exclude the optional Cargo dependency entirely. In a
+/// build that explicitly enables it, the rollout flag still resolves disabled
+/// unless this dedicated local override is `1`; `0` forces it disabled.
+#[must_use]
+#[cfg(feature = "kindling-embedded-runtime")]
+pub fn kindling_embedded_runtime_enabled() -> bool {
+    let mut overrides = FlagOverrides::default();
+    match std::env::var(KINDLING_EMBEDDED_RUNTIME_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides.local.insert(
+                KINDLING_EMBEDDED_RUNTIME_GATE_KEY.into(),
+                kindling_embedded_runtime::variants::ENABLED.into(),
+            );
+        }
+        Ok("0") => {
+            overrides.local.insert(
+                KINDLING_EMBEDDED_RUNTIME_GATE_KEY.into(),
+                kindling_embedded_runtime::variants::DISABLED.into(),
+            );
+        }
+        _ => {}
+    }
+    kindling_embedded_runtime_enabled_with(&overrides)
+}
+
+#[cfg(feature = "kindling-embedded-runtime")]
+fn kindling_embedded_runtime_enabled_with(overrides: &FlagOverrides) -> bool {
+    let definition = kindling_embedded_runtime::definition();
+    let context = cli_evaluation_context("kindling-runtime", None);
+    resolve_flag(&definition, &context, Some(overrides)).variant
+        == kindling_embedded_runtime::variants::ENABLED
 }
 
 // ── CIB-046: internal-developer gate for `anvil plan dashboard` ──────
@@ -1051,6 +1102,27 @@ mod tests {
                 },
             );
         }
+    }
+
+    // ── KFIT-006: default-off embedded kindling runtime ────────────────
+
+    #[cfg(feature = "kindling-embedded-runtime")]
+    #[test]
+    fn kindling_embedded_runtime_gate_key_matches_catalogue() {
+        assert_eq!(
+            KINDLING_EMBEDDED_RUNTIME_GATE_KEY,
+            "kindling.embedded-runtime"
+        );
+        let definition = kindling_embedded_runtime::definition();
+        assert_eq!(definition.key, KINDLING_EMBEDDED_RUNTIME_GATE_KEY);
+    }
+
+    #[cfg(feature = "kindling-embedded-runtime")]
+    #[test]
+    fn kindling_embedded_runtime_is_disabled_by_default() {
+        assert!(!kindling_embedded_runtime_enabled_with(
+            &FlagOverrides::default()
+        ));
     }
 
     // ── USAGE-005: flag-driven licence-gate enforcement ─────────────────

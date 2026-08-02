@@ -7,6 +7,12 @@ publish = false
 description = "anvil CLI — structural governance for AI-assisted development"
 repository = "https://github.com/eddacraft/anvil"
 
+[features]
+# KFIT-006 precursor: compile the embedded-runtime consumption seam for focused
+# development builds only. Release builds do not enable this feature until
+# KFIT-005 publishes the approved successor to kindling-runtime 0.3.
+kindling-embedded-runtime = ["dep:kindling-runtime"]
+
 [package.metadata.dist]
 dist = true
 
@@ -44,6 +50,11 @@ anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraf
 # The `spool` feature adds `SpooledClient` for durable at-least-once emit when
 # the daemon is unreachable; there is no standalone `kindling-spool` crate.
 kindling-client = { version = "0.3", features = ["spool"] }
+# KFIT-006: optional until the upstream release and clean-host lifecycle gates
+# are complete. Even feature-enabled builds remain runtime-gated default-off by
+# `kindling.embedded-runtime`; this slice prepares configuration but never calls
+# `Runtime::start`.
+kindling-runtime = { version = "0.3", optional = true }
 # GCTX-010 / ADR-084: sealed graph-free egress DTOs for the `anvil_search_symbols`
 # MCP tool. The CLI links ONLY `-types` (never `-egress`/graph-cache), so the MCP
 # surface is structurally incapable of emitting a graph internal (CE-5).

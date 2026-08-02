@@ -28,7 +28,7 @@ describe('flags catalogue manifest', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
   });
 
-  it('contains exactly the sixteen shipped flags', () => {
+  it('contains exactly the seventeen shipped flags', () => {
     const keys = featureFlagManifest().flags.map((f) => f.key);
     expect(keys).toEqual([
       'api.scope.beta',
@@ -40,6 +40,7 @@ describe('flags catalogue manifest', () => {
       'docs.access',
       'gctx.egress',
       'gv2.reverse-impact-depth',
+      'kindling.embedded-runtime',
       'track.pack',
       'track.surface',
       'track.surface.dock',

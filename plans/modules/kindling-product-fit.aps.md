@@ -5,13 +5,15 @@
 
 | ID   | Owner  | Priority | Status | Progress |
 | ---- | ------ | -------- | ------ | -------- |
-| KFIT | @aneki | high     | Draft  | 0/11     |
+| KFIT | @aneki | high     | In Progress | 0/11     |
 
-**Last reviewed:** 2026-07-18 — created from a usefulness and fit-for-purpose
-review of the sibling `eddacraft/kindling` repository and Anvil's live Kindling
-integration. The review found a sound daemon/client/spool slice for
-daemon-originated `command.invoked` rows, but not the coherent memory product or
-authoritative governance store described by the two repositories.
+**Last reviewed:** 2026-08-03 — KFIT-006 entered In Progress for the
+operator-approved, default-off embedded-runtime consumption seam. The original
+2026-07-18 usefulness and fit-for-purpose review of the sibling
+`eddacraft/kindling` repository and anvil's live kindling integration found a
+sound daemon/client/spool slice for daemon-originated `command.invoked` rows,
+but not the coherent memory product or authoritative governance store described
+by the two repositories.
 
 ## Purpose
 
@@ -242,7 +244,7 @@ governance record.
 
 #### KFIT-006: Adopt the embedded runtime with stable repository routing
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Anvil should own a usable Kindling runtime without depending on an
   external executable or daemon-start working directory.
 - **Expected Outcome:** The shipped Anvil binary uses the supported embedded
@@ -252,7 +254,23 @@ governance record.
 - **Validation:** Focused Anvil tests cover clean-host startup with no `kindling`
   binary, attach to an existing daemon, subdirectory routing, two-repository
   isolation, and owned-versus-attached shutdown.
-- **Dependencies:** KFIT-005
+- **Current Slice:** Operator-approved 2026-08-03 precursor: add
+  `kindling-runtime` as an optional Cargo dependency, compile a typed consumption
+  seam only under an opt-in Cargo feature, and register an active rollout flag
+  that resolves disabled by default. Do not enable that Cargo feature in release
+  builds or start/attach an embedded daemon in the default path. KFIT-005 still
+  gates activation and release packaging after the next kindling publication.
+- **Slice Validation:** `cargo test -p eddacraft-anvil feature_flags && cargo
+  test -p eddacraft-anvil --features kindling-embedded-runtime kindling_ &&
+  cargo check -p eddacraft-anvil && cargo check -p eddacraft-anvil --features
+  kindling-embedded-runtime && cargo hakari generate --diff && cargo hakari
+  verify`, plus the flags-catalogue tests and APS/docs checks.
+- **Files:** `crates/anvil-cli/Cargo.toml`, `crates/anvil-cli/src/feature_flags.rs`,
+  `crates/anvil-cli/src/kindling_runtime.rs`, `crates/anvil-cli/src/main.rs`,
+  `flags/manifest.json`, `packages/anvil/flags-catalogue/tests/manifest.test.ts`,
+  `Cargo.lock`
+- **Dependencies:** KFIT-005 for activation and release packaging; the disabled
+  compile seam may land before KFIT-005 under the 2026-08-03 operator direction.
 - **Repositories:** `eddacraft/anvil-001`
 - **Confidence:** medium
 
