@@ -954,6 +954,12 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
     out.push_str("ANVIL STATUS\n");
     out.push('\n');
     let _ = writeln!(out, "  Protection: {}", s.protection.as_str());
+    // ACTTUI-017: when the worktree claim and L0 diverge, name both so start's
+    // `protecting` (MCP live) cannot be misread as status's `warming` without
+    // an explained layer.
+    if let Some(meaning) = status_protection_meaning(s.protection, &s.layers) {
+        let _ = writeln!(out, "  meaning: {meaning}");
+    }
     out.push('\n');
     out.push_str("  Layers:\n");
     let _ = writeln!(out, "    L0 mcp        {}", s.layers.l0_mcp.label());
@@ -1317,6 +1323,30 @@ fn parse_iso_timestamp_seconds(s: &str) -> Option<u64> {
     let days_since_epoch = era * 146_097 + doe - 719_468;
     let secs = days_since_epoch * 86400 + hh * 3600 + mm * 60 + ss;
     u64::try_from(secs).ok()
+}
+
+/// ACTTUI-017: one-line meaning when status.protection alone would hide a live
+/// L0 (or other layer) story that `anvil start` may report differently.
+fn status_protection_meaning(
+    state: WorktreeClaimState,
+    layers: &LayerSummary,
+) -> Option<&'static str> {
+    match state {
+        WorktreeClaimState::Warming if matches!(layers.l0_mcp, LayerState::On) => Some(
+            "worktree claim is still warming (restart/handshake pending); L0 mcp is already on — start may report protecting when MCP pre-write is live",
+        ),
+        WorktreeClaimState::Warming => Some(
+            "worktree claim is warming — restart the editor or agent so MCP attaches (see Next)",
+        ),
+        WorktreeClaimState::PreWriteDaemon | WorktreeClaimState::Full
+            if matches!(layers.l2_save, LayerState::Off | LayerState::Partial) =>
+        {
+            Some(
+                "pre-write protection is live; save-time is not fully on — start and status use different layer words, not different truth",
+            )
+        }
+        _ => None,
+    }
 }
 
 /// Single next-action line keyed off the protection state. Kept
@@ -2431,6 +2461,22 @@ mod tests {
     /// diagnostic alone. Pins the honest undershoot so a future
     /// refactor cannot silently promote the claim to `Full` without
     /// wiring the missing surface check.
+    #[test]
+    fn status_protection_meaning_explains_warming_with_live_l0() {
+        let layers = LayerSummary {
+            l0_mcp: LayerState::On,
+            l1_mid_edit: LayerState::Unknown,
+            l2_save: LayerState::Off,
+            l3_commit: LayerState::Partial,
+            l4_push: LayerState::On,
+            l5_audit: LayerState::Unknown,
+        };
+        let meaning = status_protection_meaning(WorktreeClaimState::Warming, &layers).unwrap();
+        assert!(meaning.contains("warming"));
+        assert!(meaning.contains("L0"));
+        assert!(meaning.contains("protecting") || meaning.contains("start"));
+    }
+
     #[test]
     fn protecting_maps_to_pre_write_daemon_until_driver_signal_lands() {
         use activation::diagnostic::{

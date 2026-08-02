@@ -243,7 +243,7 @@ mod tests {
         assert!(out.contains("[Verdict]"));
         assert!(out.contains("state: protecting"));
         assert!(out.contains("Activation verdict"));
-        assert!(out.contains("Smoke"));
+        assert!(out.contains("Prove"));
     }
 
     #[test]

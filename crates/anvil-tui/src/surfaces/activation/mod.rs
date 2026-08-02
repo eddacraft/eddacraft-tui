@@ -29,7 +29,7 @@ use eddacraft_tui::prelude::{LogEntry, LogPanelState};
 
 pub use consent::{ConsentDisabledReason, ConsentItem, ConsentKind, ConsentState};
 pub use log_panel::entries_from_verdict as tier_evidence_entries_from_verdict;
-pub use verdict::{VerdictModel, VerdictSection, VerdictTone, VerdictView};
+pub use verdict::{ProveRunner, VerdictModel, VerdictSection, VerdictTone, VerdictView};
 
 /// Ordered phases of an `anvil start` activation run.
 ///
@@ -377,6 +377,18 @@ impl ActivationSurface {
         &self.verdict_view
     }
 
+    /// Mutable access for CLI wiring (e.g. ACTTUI-016 Prove runner).
+    pub fn verdict_view_mut(&mut self) -> &mut VerdictView {
+        &mut self.verdict_view
+    }
+
+    /// Attach an in-surface Prove runner to the verdict view.
+    #[must_use]
+    pub fn with_prove(mut self, prove: verdict::ProveRunner) -> Self {
+        self.verdict_view.set_prove(prove);
+        self
+    }
+
     /// Orchestrator lifecycle/log lines captured for future in-surface
     /// rendering.
     #[must_use]
@@ -453,7 +465,7 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
                 None => "esc/q quit",
             }
         } else {
-            "j/k navigate  enter expand  t smoke  e evidence  esc/q quit"
+            "j/k navigate  enter expand  t prove  e evidence  esc/q quit"
         }
     }
 
@@ -500,7 +512,7 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
         }
 
         // Verdict phase (ACTTUI-005): the structured view owns tree navigation,
-        // section expand/collapse, and the smoke-test key; it reports back when
+        // section expand/collapse, and the prove key; it reports back when
         // the user asks to leave.
         if self.verdict_view.handle_key(action) {
             self.should_quit = true;
@@ -736,7 +748,7 @@ mod tests {
     }
 
     #[test]
-    fn verdict_key_handling_toggles_tree_and_smoke_toast() {
+    fn verdict_key_handling_toggles_tree_and_prove_toast() {
         let model = VerdictModel::new(
             "protecting",
             "Protecting — pre-write validation is live.",
@@ -841,7 +853,7 @@ mod tests {
         assert_eq!(surface.surface_name(), "Activation");
         assert_eq!(
             surface.help_text(),
-            "j/k navigate  enter expand  t smoke  e evidence  esc/q quit"
+            "j/k navigate  enter expand  t prove  e evidence  esc/q quit"
         );
     }
 

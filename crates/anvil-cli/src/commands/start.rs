@@ -483,17 +483,29 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     anvil_tui::surfaces::activation::ActivationPhase::Consent
                 ),
             );
-            let state =
+            // ACTTUI-014 hand-off: do not leave Working progress chrome under Verdict.
+            let progress_for_ui = if matches!(
+                phase,
+                anvil_tui::surfaces::activation::ActivationPhase::Verdict
+            ) {
+                Vec::new()
+            } else {
+                progress_steps.clone()
+            };
+            let mut state =
                 anvil_tui::surfaces::activation::ActivationSurface::from_typed_with_progress(
                     human_output,
                     verdict_model,
                     tier_evidence,
                     project_writes_gated,
                     tui_log_lines.clone(),
-                    progress_steps.clone(),
+                    progress_for_ui,
                     false,
                     phase,
                 );
+            // ACTTUI-016: attach Prove for any surface that may reach Verdict
+            // (including after empty Consent apply).
+            state = state.with_prove(activation_prove_runner(&diagnostic));
             let mut tui_session = tui_session
                 .take()
                 .context("activation TUI session was not initialised")?;
@@ -506,8 +518,6 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     Ok(surface)
                 },
             )? {
-                let post_consent_progress =
-                    activation_post_consent_progress_steps(progress_steps, &applied);
                 for path in &applied.written_workflows {
                     tui_log_lines.push(format!(
                         "installed GitHub Actions workflow {}",
@@ -556,7 +566,6 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     &applied,
                     project_writes_gated,
                     tui_log_lines,
-                    post_consent_progress,
                     false,
                 );
                 let _ = tui_session.run_surface(&mut verdict)?;
@@ -697,6 +706,43 @@ fn run_activation_surface_with(
         .map(|consent| consent_plan.apply(consent.selected_ids())))
 }
 
+/// ACTTUI-016: run the ADTRUST-006 secret fixture through the real secret-detection
+/// engine and return toast copy. Claims check-pipeline proof only — never MCP
+/// pre-write live status.
+fn run_activation_prove(all_languages_unsupported: bool) -> String {
+    use anvil_checks::secret::{SecretCheckConfig, scan_content};
+
+    if all_languages_unsupported {
+        return "Prove unavailable: no supported languages in this repo, so secret-detection would report nothing. This does not claim MCP pre-write is live."
+            .to_string();
+    }
+
+    // Same fixture bytes as the plain-path ADTRUST-006 recipe (and the unit test
+    // that pins AWS Key detection). In-memory scan avoids a durable repo write.
+    let content = r#"const KEY = "AKIAQRSTUVWXYZ123456";"#;
+    let findings = scan_content(
+        content,
+        ".anvil-smoke-test.ts",
+        &SecretCheckConfig::default(),
+    );
+    if findings.is_empty() {
+        "Prove: no secret-detection finding on the fixture — the check pipeline did not catch the known secret shape. This does not claim MCP pre-write is live."
+            .to_string()
+    } else {
+        format!(
+            "Prove: secret-detection caught {} finding(s) on the fixture (check pipeline only — not MCP pre-write).",
+            findings.len()
+        )
+    }
+}
+
+fn activation_prove_runner(
+    diagnostic: &activation::ActivationDiagnostic,
+) -> anvil_tui::surfaces::activation::ProveRunner {
+    let all_unsupported = diagnostic.all_languages_unsupported;
+    std::sync::Arc::new(move || run_activation_prove(all_unsupported))
+}
+
 /// Whether this run first established protection for the project, gating the
 /// JOURNEY-008 celebration banner.
 ///
@@ -722,7 +768,6 @@ fn activation_post_consent_surface(
     applied: &activation::orchestrator::TuiConsentApplyOutcome,
     project_writes_gated: bool,
     log_lines: Vec<String>,
-    progress_steps: Vec<anvil_tui::surfaces::activation::ActivationProgressStep>,
     daemon_spinner: bool,
 ) -> anvil_tui::surfaces::activation::ActivationSurface {
     use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
@@ -730,16 +775,18 @@ fn activation_post_consent_surface(
     // JOURNEY-008: celebrate only when this run first established protection.
     let first_success = baseline_written_this_run(applied);
 
+    // Verdict phase: drop Working progress rows (ACTTUI-014 hand-off).
     ActivationSurface::from_typed_with_progress(
         human_output,
         activation_verdict_model(diagnostic, install_report).with_first_success(first_success),
         activation_post_consent_evidence(diagnostic, install_report, run, applied),
         project_writes_gated,
         log_lines,
-        progress_steps,
+        Vec::new(),
         daemon_spinner,
         ActivationPhase::Verdict,
     )
+    .with_prove(activation_prove_runner(diagnostic))
 }
 
 fn activation_post_consent_progress_steps(
@@ -2917,7 +2964,6 @@ mod tests {
             &applied,
             false,
             Vec::new(),
-            Vec::new(),
             false,
         );
 
@@ -4364,6 +4410,27 @@ mod tests {
         assert!(
             findings.iter().any(|f| f.pattern_name == "AWS Key"),
             "recipe smoke string must trigger secret-detection, got: {findings:?}",
+        );
+    }
+
+    #[test]
+    fn activation_prove_reports_check_pipeline_only() {
+        let toast = run_activation_prove(false);
+        assert!(
+            toast.contains("secret-detection caught"),
+            "prove must report a real finding: {toast}"
+        );
+        assert!(
+            toast.contains("check pipeline only"),
+            "prove must not over-claim MCP: {toast}"
+        );
+        assert!(!toast.contains("contract-hardening"));
+        assert!(toast.contains("not MCP pre-write") || toast.contains("does not claim MCP"));
+
+        let blocked = run_activation_prove(true);
+        assert!(
+            blocked.contains("Prove unavailable"),
+            "unsupported repos must gate prove: {blocked}"
         );
     }
 

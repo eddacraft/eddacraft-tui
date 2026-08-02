@@ -3,7 +3,7 @@
 //! This module keeps the activation state vocabulary honest by rendering the
 //! state label supplied by the CLI verbatim. It adds eddacraft-tui widgets around
 //! that fixed truth: `StatusBadge` for the headline, `Tree` for collapsible
-//! evidence, `Toast` for the smoke-test placeholder, and `HelpBar` for
+//! evidence, `Toast` for Prove feedback (ACTTUI-016), and `HelpBar` for
 //! contextual keys.
 //!
 //! JOURNEY-008 re-introduces a single-beat `BigBanner` celebration on the
@@ -12,6 +12,8 @@
 //! honesty-pinned `StatusBadge` headline, and it stays silent on healthy repeat
 //! runs so it never adds noise. (ACTTUI-012 had removed the earlier unused
 //! wiring; this reinstates it behind the once-per-local-environment gate.)
+
+use std::sync::Arc;
 
 use eddacraft_tui::keyboard::{Action, Binding};
 use eddacraft_tui::prelude::{
@@ -225,12 +227,16 @@ fn sections_from_plain(verdict: &str) -> Vec<VerdictSection> {
     ]
 }
 
+/// Callback that runs in-surface Prove (ACTTUI-016). Returns toast copy only —
+/// never invents protection-state claims.
+pub type ProveRunner = Arc<dyn Fn() -> String + Send + Sync>;
+
 /// Mutable verdict view state.
-#[derive(Debug, Clone)]
 pub struct VerdictView {
     model: VerdictModel,
     tree: TreeState,
     toast: Option<String>,
+    prove: Option<ProveRunner>,
 }
 
 impl VerdictView {
@@ -246,7 +252,21 @@ impl VerdictView {
             model,
             tree,
             toast: None,
+            prove: None,
         }
+    }
+
+    /// Attach an in-surface Prove runner (ACTTUI-016). When absent, `t` explains
+    /// that Prove is unavailable rather than claiming a future hardening slice.
+    #[must_use]
+    pub fn with_prove(mut self, prove: ProveRunner) -> Self {
+        self.prove = Some(prove);
+        self
+    }
+
+    /// Replace the Prove runner after construction (CLI wiring).
+    pub fn set_prove(&mut self, prove: ProveRunner) {
+        self.prove = Some(prove);
     }
 
     #[must_use]
@@ -316,10 +336,17 @@ impl VerdictView {
                     self.tree.toggle(&id);
                 }
             }
-            // Thin-v1 smoke path: honest feedback without pretending the TUI has
-            // executed the recipe. The textual recipe remains on the plain path.
+            // ACTTUI-016 Prove: run the attached check-pipeline callback when
+            // present. ACTTUI-015 honesty: never claim a future "hardening slice"
+            // or that `--no-tui` always shows a recipe (CIB-183 re-runs omit it).
             Action::Character('t' | 'T') => {
-                self.toast = Some("Smoke test: run `anvil start --no-tui` for the copy/paste recipe; in-surface execution lands in the contract-hardening slice.".to_string());
+                self.toast = Some(match &self.prove {
+                    Some(prove) => prove(),
+                    None => {
+                        "Prove unavailable here. Manual check-pipeline recipe: write a throwaway secret-shaped fixture, run `anvil check` on it, then delete the file. This does not prove MCP pre-write is live."
+                            .to_string()
+                    }
+                });
             }
             Action::Quit | Action::Back => return true,
             _ => {}
@@ -423,7 +450,7 @@ fn render_help(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
         Binding {
             keys: "t",
             action: Action::Character('t'),
-            label: "Smoke",
+            label: "Prove",
         },
         Binding {
             keys: "e",
@@ -558,7 +585,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_key_sets_honest_toast_without_claiming_a_finding() {
+    fn prove_key_without_runner_is_honest_and_claims_no_finding() {
         let mut view = VerdictView::new(VerdictModel::new(
             "protecting",
             "Protecting — live.",
@@ -567,8 +594,32 @@ mod tests {
         assert!(view.toast().is_none());
         assert!(!view.handle_key(Action::Character('t')));
         let toast = view.toast().unwrap();
-        assert!(toast.contains("Smoke test"));
+        assert!(toast.contains("Prove unavailable") || toast.contains("Manual check-pipeline"));
+        assert!(!toast.contains("contract-hardening"));
         assert!(!toast.contains("finding detected"));
+        assert!(
+            toast.contains("does not prove MCP pre-write")
+                || toast.contains("not MCP pre-write")
+                || toast.contains("Manual check-pipeline")
+        );
+    }
+
+    #[test]
+    fn prove_key_with_runner_surfaces_callback_result() {
+        let mut view = VerdictView::new(VerdictModel::new(
+            "protecting",
+            "Protecting — live.",
+            sections(),
+        ))
+        .with_prove(std::sync::Arc::new(|| {
+            "Prove: secret-detection caught 1 finding(s) on the fixture (check pipeline only — not MCP pre-write)."
+                .to_string()
+        }));
+        assert!(!view.handle_key(Action::Character('t')));
+        let toast = view.toast().unwrap();
+        assert!(toast.contains("secret-detection caught"));
+        assert!(toast.contains("check pipeline only"));
+        assert!(!toast.contains("contract-hardening"));
     }
 
     #[test]
@@ -708,6 +759,6 @@ mod tests {
         assert!(out.contains("Ready, restart required"));
         assert!(out.contains("Active layers"));
         assert!(out.contains("pending — restart required"));
-        assert!(out.contains("Smoke"));
+        assert!(out.contains("Prove"));
     }
 }

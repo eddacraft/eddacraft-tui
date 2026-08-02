@@ -262,20 +262,15 @@ fn render_select(frame: &mut Frame, area: Rect, state: &ConsentState, theme: &Ed
 }
 
 fn render_hint(frame: &mut Frame, area: Rect, state: &ConsentState, theme: &EddaCraftTheme) {
+    // ACTTUI-015: key legends live only on the shell HelpBar (`help_text`), not
+    // a second footer here — overlapping chrome garble on small terminals.
     let selected = state.selected_ids().len();
-    let line = Line::from(vec![
-        Span::styled(
-            format!("{selected} selected"),
-            Style::default()
-                .fg(theme.accent())
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
-        Span::styled(
-            "space toggle  enter toggle/inspect  a apply  esc/q cancel",
-            theme.disabled(),
-        ),
-    ]);
+    let line = Line::from(vec![Span::styled(
+        format!("{selected} selected"),
+        Style::default()
+            .fg(theme.accent())
+            .add_modifier(Modifier::BOLD),
+    )]);
     frame.render_widget(Paragraph::new(line), area);
 }
 

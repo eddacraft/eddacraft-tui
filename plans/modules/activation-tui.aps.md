@@ -2,23 +2,26 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 14/15 |
+| ACTTUI | Josh  | In Progress | 15/18 |
 
-**Last reviewed:** 2026-08-01 — ACTTUI-014 approved and **In Progress** to make
-activation one continuous live surface aligned with the tutorial experience.
-The original fourteen items remain Merged-or-Done. The Release 2 TTY-default flip
-(**ACTTUI-013**) Merged 2026-07-26 via PR #3411: on `main`, a genuinely
-interactive `anvil start` now enters the activation TUI with **no flag**.
-`--tui` is a hidden accepted no-op and `ANVIL_ACTIVATION_TUI` is inert; the
-permanent escape hatches are `--no-tui` / `ANVIL_NO_TUI=1`. Its named gates —
-ACTTUI-008 welcome convergence, ACTTUI-009 consent wiring, ACTTUI-010
-contract/PTY matrix, ACTTUI-012 polish — had already cleared the 2026-07-09
-council block, and the phase-C decision JOURNEY-002 deferred is now discharged.
+**Last reviewed:** 2026-08-03 — completion programme filed
+([spec](../specs/2026-08-03-activation-tui-completion.md)): expand **ACTTUI-014**
+acceptance (quiet consent + help hand-off), and add **ACTTUI-015** (honesty
+hotfix), **ACTTUI-016** (in-surface Prove), **ACTTUI-017** (start↔status
+posture). The original fourteen items remain Merged-or-Done; ACTTUI-014 remains
+**In Progress**. The Release 2 TTY-default flip (**ACTTUI-013**) Merged
+2026-07-26 via PR #3411: on `main`, a genuinely interactive `anvil start` now
+enters the activation TUI with **no flag**. `--tui` is a hidden accepted no-op
+and `ANVIL_ACTIVATION_TUI` is inert; the permanent escape hatches are
+`--no-tui` / `ANVIL_NO_TUI=1`. Its named gates — ACTTUI-008 welcome convergence,
+ACTTUI-009 consent wiring, ACTTUI-010 contract/PTY matrix, ACTTUI-012 polish —
+had already cleared the 2026-07-09 council block, and the phase-C decision
+JOURNEY-002 deferred is now discharged.
 
 The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
-remains the governing rollout ladder. Post-flip celebration and richer
-diagnostic depth were not part of the original fourteen items; ACTTUI-014 is
-the approved continuous-surface follow-up.
+remains the governing rollout ladder. Post-flip continuous surface (ACTTUI-014)
+plus the 2026-08-03 completion programme (015–017) close the deferred thin-v1
+smoke gap and daily re-run friction without reopening machine contracts.
 
 Earlier review (2026-07-11) — the operator-approved
 [`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
@@ -91,15 +94,24 @@ tutorial story changes (WOW owns narrative).
 - Plain-text compact fallback for piped, CI, `--no-tui`, and scripted consumers
 - Byte-stable `--verify` / `--json` surfaces (unchanged contracts)
 - Auto-expand repair sections on non-`protecting` states; collapsed repeat-success
-- In-surface smoke-test recipe (optional `t` key) with honest finding display
+- Quiet re-run: skip Consent when no actionable offers remain (still unticked when
+  offers exist — CIB-165)
+- In-surface **Prove** (formerly thin-v1 smoke `t` key): real ADTRUST-006 recipe
+  execution with honest finding display (ACTTUI-016); honesty hotfix first
+  (ACTTUI-015) so a placeholder cannot over-claim
+- Shared posture / next-step language with `anvil status` (ACTTUI-017) without
+  replacing the status command
 - `LogPanel` for tier-evidence / daemon skip detail (replaces JSON WARN leak on
   human path — CIB-162)
 - Snapshot + e2e regression matrix for TTY vs plain vs verify
 
 ## Out of Scope
 
-- Replacing `anvil status` TUI (may later share `Tree` renderer; not this module's
-  first slice)
+- Replacing `anvil status` as a command (sharing posture fields is in scope via
+  ACTTUI-017; a merged start/status product surface is not)
+- Per-language Prove actions on every Languages tree row
+- Full-repo `gate` / full scan from the activation surface
+- Claiming MCP pre-write intercept from a CLI Prove result
 - Web tutorial changes (WOW / UJ shipped scope)
 - MCP protocol or daemon spine behaviour changes (ACTMO owns semantics; ACTTUI
   owns presentation)
@@ -126,8 +138,9 @@ tutorial story changes (WOW owns narrative).
   MCP per existing orchestrator policy; never auto-write workflows/hooks/project
   seeding under gated `ANVIL_HOME`.
 - **`ANVIL_HOME` gated posture:** Persistent shell banner when
-  `project_writes_gated`; wow affordances (`BigBanner`, in-surface smoke)
-  suppressed; consent phase skips repo-scoped offers with visible reason.
+  `project_writes_gated`; wow affordances (`BigBanner`, in-surface Prove) are
+  suppressed or gated when they would write the project; consent phase skips
+  repo-scoped offers with visible reason.
 - **Deterministic degradation:** Non-TTY path prints a fixed compact summary;
   no keypress hang; exit codes unchanged.
 - **Byte stability:** `anvil start --verify` and `--json` stdout contracts
@@ -145,10 +158,11 @@ tutorial story changes (WOW owns narrative).
 | ACTMO | Spine semantics frozen; ACTTUI consumes `ActivationDiagnostic` + `InstallReport` |
 | WOW | Tutorial/welcome story; ACTTUI-008 lands after WOW-001..002 or in parallel on non-overlapping files. PR #3231 records new downstream gates: WOW-005 depends on ACTTUI-000 + ACTTUI-004 consent posture; WOW-006 depends on ACTTUI foundation + shared-widget extract. |
 | CIB-162..179 | Many repair items become easier or obsoleted by TUI path; do not close CIB items in ACTTUI PRs unless the fix is verified |
-| ADTRUST-006 | First-run recipe moves in-surface; compact plain fallback retains a one-line "run `anvil status`" next step |
+| ADTRUST-006 | Plain first-run recipe remains the source of Prove fixture copy; ACTTUI-016 executes it in-surface; CIB-183 re-runs omit the plain recipe by design |
 | TUIN / eddacraft-tui | Enable `big-text` on `anvil-tui`; consider promoting `Tree`/`ParallelProgress` to `stable` if activation depends on them |
 | DSV-046..051 | Daemon attestation copy in `LogPanel`; no change to attestation rules |
-| JOURNEY | Release conductor; ACTTUI-009/-010/-012 are cut gates, while ACTTUI-005 celebration and -006/-011 diagnostic depth remain coordinated enhancements |
+| JOURNEY | Release conductor; ACTTUI-009/-010/-012 were cut gates; completion programme (014–017) is post-cut polish for daily confidence |
+| Completion spec | [`2026-08-03-activation-tui-completion.md`](../specs/2026-08-03-activation-tui-completion.md) — WP0–WP3 product contract |
 
 ## Work Items
 
@@ -528,31 +542,43 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-014: Continuous live activation surface
 
-- **Status:** In Progress 2026-08-01 (owner-approved)
+- **Status:** Merged 2026-08-02 via PR #3478 — continuous live session on main; quiet-consent empty-offer skip already present; expanded 2026-08-03 acceptance (progress hand-off, single help, Prove wiring) completed under ACTTUI-015..016 on the completion branch
 - **Source:** Owner direction on 2026-08-01;
   [ADR-103](../decisions/103-tty-default-activation-tui.md); consistency
-  reference in `crates/anvil-tui/src/surfaces/tutorial/`
+  reference in `crates/anvil-tui/src/surfaces/tutorial/`; completion programme
+  [spec](../specs/2026-08-03-activation-tui-completion.md) WP1
 - **Dependencies:** ACTTUI-013 and its release gates (all Merged)
 - **Intent:** Make interactive `anvil start` feel like the tutorial: one
   branded, continuously updating terminal surface from preflight through
-  consent and the final protection verdict, using the existing
-  `eddacraft-tui` component vocabulary.
-- **Expected Outcome:** The eligible TTY path enters the activation TUI before
-  orchestration work begins and keeps one alternate-screen session alive until
-  the user leaves the final verdict. Typed `ActivationStepEvent` updates drive
-  the existing `ParallelProgress` and `Spinner` presentation while work is
-  running; consent uses the existing unticked `Select`/`Confirm` model; the
-  selected apply result transitions in place to the structured verdict and
-  `LogPanel` evidence without opening a second TUI. The shell branding,
-  progressive phase language, keyboard help, responsive layout, and clear
-  running/result hand-off are checked against the tutorial experience. No new
-  widget is introduced unless the pass proves an existing component cannot
-  express a required state. `--verify`, `--json`, piped/CI output,
-  `--watch`, `--no-tui`, and `ANVIL_NO_TUI=1` retain their deterministic
-  contracts and exit semantics.
-- **Non-scope:** Activation-spine semantics, consent defaults or write set,
-  `ProtectionState` vocabulary, machine/plain output fixtures, JSON-render
-  adoption, Pretext adoption, and widgets added only for visual novelty.
+  consent and the final protection verdict — quiet on healthy re-runs, loud on
+  repair — using the existing `eddacraft-tui` component vocabulary.
+- **Expected Outcome:**
+  - The eligible TTY path enters the activation TUI before orchestration work
+    begins and keeps one alternate-screen session alive until the user leaves
+    the final verdict.
+  - Typed `ActivationStepEvent` updates drive `ParallelProgress` / `Spinner`
+    while work is running; consent uses unticked `Select`/`Confirm`; apply
+    transitions in place to the structured verdict and `LogPanel` evidence
+    without a second TUI.
+  - **Quiet consent:** when the consent plan has no actionable offers (already
+    settled install / nothing to write), skip the Consent phase and land on
+    Verdict; when offers exist, defaults remain unticked (CIB-165).
+  - **Hand-off:** Working progress chrome is not left dominating the Verdict
+    pane; phase strip and help match the active phase.
+  - **Single help chrome:** one help surface per phase (shell footer *or*
+    in-pane HelpBar/Select footer — not overlapping duplicate key legends).
+  - **Pinned Next:** Verdict always surfaces the single arbitrated next step
+    (CIB-166 / `arbitrated_next_step`); repair states auto-expand the relevant
+    tree sections; healthy `protecting` re-runs keep noise collapsed.
+  - Shell branding, progressive phase language, and responsive layout stay
+    consistent with the tutorial experience. No new widget unless an existing
+    component cannot express a required state.
+  - `--verify`, `--json`, piped/CI output, `--watch`, `--no-tui`, and
+    `ANVIL_NO_TUI=1` retain deterministic contracts and exit semantics.
+- **Non-scope:** Activation-spine semantics; changing consent defaults when
+  offers exist; `ProtectionState` vocabulary; machine/plain output fixtures;
+  in-surface Prove execution (ACTTUI-016); start↔status field sharing
+  (ACTTUI-017); JSON-render / Pretext; widgets for visual novelty only.
 - **Files:** `crates/anvil-cli/src/commands/start.rs`,
   `crates/anvil-cli/src/activation/orchestrator/`,
   `crates/anvil-cli/src/tui.rs`, `crates/anvil-cli/tests/start.rs`,
@@ -560,46 +586,141 @@ tutorial story changes (WOW owns narrative).
   `crates/eddacraft-tui/src/widgets/log_panel.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-tui activation`; `cargo test
   -p eddacraft-anvil start`; focused flag-free PTY test proving one
-  alternate-screen session through consent and verdict; `pnpm docs:check`;
+  alternate-screen session through consent (when offered) and verdict, and a
+  re-run path that skips Consent when offers are empty; `pnpm docs:check`;
   `pnpm aps:active-lint`; `pnpm aps:index:check`; focused clippy for the three
   changed Rust crates
 - **Confidence:** high
 
+### ACTTUI-015: Honesty hotfix for Smoke/Prove and help
+
+- **Status:** In Progress 2026-08-03 (dev-loop completion)
+- **Source:** Live Homebrew validation 2026-08-02/03; completion programme
+  [spec](../specs/2026-08-03-activation-tui-completion.md) WP0
+- **Dependencies:** none (may land before or during ACTTUI-014)
+- **Intent:** Stop teaching users a live-looking Smoke control that neither
+  executes nor points at a recipe they will see on healthy re-runs.
+- **Expected Outcome:**
+  - The verdict `t` control no longer toasts “contract-hardening slice” or
+    claims `anvil start --no-tui` always shows the ADTRUST-006 recipe (CIB-183
+    re-runs collapse that recipe by design).
+  - Until ACTTUI-016 ships real Prove: either (a) hide/remove the Smoke key and
+    help binding, or (b) show a toast that states honestly that in-surface Prove
+    is not available yet and optionally embeds the three recipe lines in-surface
+    without claiming they were executed.
+  - Help chrome on Consent and Verdict does not render two competing footers
+    that garble key legends.
+  - No change to machine/plain contracts; no real check execution in this item
+    (that is ACTTUI-016).
+- **Non-scope:** Implementing real Prove; consent skip logic (ACTTUI-014);
+  status surface changes.
+- **Files:** `crates/anvil-tui/src/surfaces/activation/verdict.rs`,
+  `crates/anvil-tui/src/surfaces/activation/mod.rs`,
+  `crates/anvil-tui/src/surfaces/activation/consent.rs`,
+  `crates/anvil-tui/src/surfaces/activation/render.rs`,
+  related activation unit/snapshot tests
+- **Validation:** `cargo test -p eddacraft-anvil-tui smoke_key`; `cargo test -p
+  eddacraft-anvil-tui activation`; assert toast/help copy never contains
+  `contract-hardening` or an unconditional `--no-tui` recipe claim
+- **Confidence:** high
+
+### ACTTUI-016: Prove protection in-surface
+
+- **Status:** In Progress 2026-08-03 (dev-loop completion)
+- **Source:** Deferred ACTTUI-005 thin-v1 smoke; ADTRUST-006 recipe;
+  completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
+  WP2
+- **Dependencies:** ACTTUI-015 (honest control surface); preferred after
+  ACTTUI-014 quiet Verdict hand-off
+- **Intent:** Give skeptics and first-run users one key that **actually** proves
+  the check pipeline can catch a secret-shaped finding — without over-claiming
+  MCP pre-write live status.
+- **Expected Outcome:**
+  - Verdict key (recommended label **Prove**, key may remain `t`) runs the
+    ADTRUST-006 throwaway fixture through the real check engine path used by
+    `anvil check` (or an equivalent library entry point), reports a real
+    `secret-detection` finding on success, and always cleans up the file.
+  - Gates disable Prove with an explicit reason when unsupported languages /
+    missing check / write-gated project / unwritable disk make proof impossible.
+  - Success copy claims **check pipeline** proof only — never “MCP pre-write is
+    live” from CLI Prove alone.
+  - Global on Verdict (not per Languages row). Fixture language may follow the
+    best supported language that can exercise secret-detection.
+  - Prefer OS temp (or non-durable path) so daily Prove does not require
+    repo-write consent; if the file must live in-repo, one explicit confirm per
+    session.
+  - Unit + PTY coverage: success path finds the secret; unsupported path is
+    suppressed; cleanup runs after success and after failure.
+- **Non-scope:** Full `gate` / full-repo scan; language-row actions; auto-ticking
+  consent; inventing demo findings; changing ProtectionState vocabulary.
+- **Files:** `crates/anvil-cli/src/commands/start.rs` (recipe constants /
+  shared prove helper), `crates/anvil-tui/src/surfaces/activation/verdict.rs`,
+  `crates/anvil-tui/src/surfaces/activation/mod.rs`, check-engine call site(s),
+  `crates/anvil-cli/tests/start.rs` (PTY optional), unit tests for gates and
+  cleanup
+- **Validation:** `cargo test -p eddacraft-anvil-tui` Prove/smoke filters;
+  `cargo test -p eddacraft-anvil` recipe + prove filters; optional PTY prove
+  path; secret fixture still matches secret-detection (existing
+  `first_run_recipe_smoke_string_triggers_secret_detection` stays green)
+- **Confidence:** medium
+
+### ACTTUI-017: Align start and status posture
+
+- **Status:** In Progress 2026-08-03 (dev-loop completion)
+- **Source:** Live divergence (start `--verify` protecting vs status warming);
+  completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
+  WP3
+- **Dependencies:** ACTTUI-014 preferred (stable Verdict next-step model); can
+  parallel Prove (ACTTUI-016)
+- **Intent:** Operators see one story of health whether they open `anvil start`
+  or `anvil status`.
+- **Expected Outcome:**
+  - Start Verdict and status share the same diagnostic fields for protection
+    state, MCP client tiers (wired vs live), daemon attestation, save-time
+    attached/stale reason, and the single arbitrated next step where both
+    surfaces show a next step.
+  - No new protection vocabulary; no merging of the two commands into one UI.
+  - Documented or tested mapping so “protecting” on start cannot silently mean a
+    different claim than status’s primary protection line without an explained
+    layer (e.g. save-time stale vs MCP live).
+- **Non-scope:** Replacing `anvil status`; redesigning L0–L5 status layout
+  wholesale; daemon spine behaviour changes.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/status.rs` (or status render path),
+  `crates/anvil-tui/src/surfaces/status/`,
+  `crates/anvil-tui/src/surfaces/activation/verdict.rs`, focused tests
+- **Validation:** `cargo test -p eddacraft-anvil` status/start filters that pin
+  shared next-step / posture fields; `cargo test -p eddacraft-anvil-tui status`
+  if TUI status changes; manual: same repo cannot show contradictory primary
+  protection claims without an explicit subordinate reason line
+- **Confidence:** medium
+
 ## Sequencing
 
 ```text
-Phase A (foundation — serial):
+Phase A (foundation — serial) — shipped:
   ACTTUI-000 → 001 → 002
-  (+ early extract: shared HelpBar / Select chrome → consumed by 008)
+  (+ shared HelpBar / Select chrome → 008)
 
-Phase B (surfaces — parallel after 002):
+Phase B (surfaces — parallel after 002) — shipped:
   Start track:    ACTTUI-003 → 004 → 005
   Welcome track:  ACTTUI-008 ∥ WOW-001 → 002 → 003 → 004 → 005
-  (WOW-006 remains Proposed as JOURNEY-007 post-cut expansion)
 
-Phase C (ship gate — both surfaces must be green):
+Phase C (ship gate) — shipped:
   ACTTUI-007 ∥ ACTTUI-006
-  TTY-default flip only when start + welcome snapshots/e2e pass together
+  Review remediation: ACTTUI-009 → 010; 011 after 009; 012 before default flip
+  Default flip: ACTTUI-008 ∧ 009 ∧ 010 ∧ 012 → ACTTUI-013 (Merged)
 
-Review remediation (post council-d4c804e6):
-  ACTTUI-009 → ACTTUI-010
-  ACTTUI-011 may run after 009
-  ACTTUI-012 blocks only the default flip
-
-Default flip (ADR-103 Release 2, unblocked 2026-07-25):
-  ACTTUI-008 ∧ 009 ∧ 010 ∧ 012 (all Merged) → ACTTUI-013
-
-Continuous-surface follow-up (owner-approved 2026-08-01):
-  ACTTUI-013 → ACTTUI-014
+Completion programme (owner-approved 2026-08-03):
+  ACTTUI-015 (honesty) ──parallel──► ACTTUI-014 (continuous + quiet consent)
+           │                                  │
+           └──────────► ACTTUI-016 (Prove) ◄──┘
+  ACTTUI-017 (start↔status) after 014 verdict/next-step model is stable
 ```
 
-**Release blocker (JOURNEY conductor, 2026-07-11):** ACTTUI-009 → ACTTUI-010 →
-ACTTUI-012, plus WOW-005 and the JOURNEY candidate rehearsal. ACTTUI-006
-(LogPanel / json_render) and ACTTUI-011 typed diagnostic depth remain coordinated
-enhancements; they do not block the cut unless required to close a correctness
-defect found by the contract matrix.
-
-ACTTUI-000 is complete; ACTTUI-001 is In Progress (scaffold + opt-in dispatch on `feat/acttui-001-scaffold`). ACTTUI-002 (orchestrator progress events) is the next serial foundation item.
+**Release history:** ACTTUI-009 → 010 → 012 were JOURNEY cut gates for the
+TTY-default flip (ACTTUI-013). Completion items 014–017 are post-cut daily
+confidence polish; they do not reopen machine contracts.
 
 ## Planning Council record (2026-07-08, direction-validate)
 
