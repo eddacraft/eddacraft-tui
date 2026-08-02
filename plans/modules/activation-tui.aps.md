@@ -5,18 +5,15 @@
 | ACTTUI | Josh  | In Progress | 15/18 |
 
 **Last reviewed:** 2026-08-03 — completion programme filed
-([spec](../specs/2026-08-03-activation-tui-completion.md)): expand **ACTTUI-014**
-acceptance (quiet consent + help hand-off), and add **ACTTUI-015** (honesty
-hotfix), **ACTTUI-016** (in-surface Prove), **ACTTUI-017** (start↔status
-posture). The original fourteen items remain Merged-or-Done; ACTTUI-014 remains
-**In Progress**. The Release 2 TTY-default flip (**ACTTUI-013**) Merged
+([spec](../specs/2026-08-03-activation-tui-completion.md)). Items **000–014**
+are Merged-or-Done (**ACTTUI-014 Merged 2026-08-02 via PR #3478** — continuous
+live surface; expanded quiet-consent / hand-off residual closed with 015–016).
+**ACTTUI-015..017** are In Progress on the completion branch (honesty, Prove,
+start↔status posture). The Release 2 TTY-default flip (**ACTTUI-013**) Merged
 2026-07-26 via PR #3411: on `main`, a genuinely interactive `anvil start` now
 enters the activation TUI with **no flag**. `--tui` is a hidden accepted no-op
 and `ANVIL_ACTIVATION_TUI` is inert; the permanent escape hatches are
-`--no-tui` / `ANVIL_NO_TUI=1`. Its named gates — ACTTUI-008 welcome convergence,
-ACTTUI-009 consent wiring, ACTTUI-010 contract/PTY matrix, ACTTUI-012 polish —
-had already cleared the 2026-07-09 council block, and the phase-C decision
-JOURNEY-002 deferred is now discharged.
+`--no-tui` / `ANVIL_NO_TUI=1`.
 
 The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
 remains the governing rollout ladder. Post-flip continuous surface (ACTTUI-014)

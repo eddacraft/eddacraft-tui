@@ -505,7 +505,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 );
             // ACTTUI-016: attach Prove for any surface that may reach Verdict
             // (including after empty Consent apply).
-            state = state.with_prove(activation_prove_runner(&diagnostic));
+            state = state.with_prove(activation_prove_runner(&diagnostic, root));
             let mut tui_session = tui_session
                 .take()
                 .context("activation TUI session was not initialised")?;
@@ -567,6 +567,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     project_writes_gated,
                     tui_log_lines,
                     false,
+                    root,
                 );
                 let _ = tui_session.run_surface(&mut verdict)?;
             }
@@ -706,14 +707,40 @@ fn run_activation_surface_with(
         .map(|consent| consent_plan.apply(consent.selected_ids())))
 }
 
+/// Whether the project's configured checks include `secret-detection`.
+///
+/// Mirrors planless `anvil check` resolution via
+/// [`crate::commands::gate::read_anvilrc_checks`]: no config (or empty `checks`)
+/// defaults to the planless set that includes secret-detection; an explicit
+/// non-empty list enables Prove only when that list includes the check.
+fn secret_detection_enabled_in_project(root: &Path) -> bool {
+    match crate::commands::gate::read_anvilrc_checks(root) {
+        Ok(None) => true,
+        Ok(Some(checks)) => checks.iter().any(|name| {
+            crate::commands::check_catalog::canonical_check_name(name) == Some("secret-detection")
+                || name == "secret-detection"
+        }),
+        // Parse/IO failure: fail closed on the check-config gate so we never
+        // claim the project's configured pipeline ran when we cannot read it.
+        Err(_) => false,
+    }
+}
+
 /// ACTTUI-016: run the ADTRUST-006 secret fixture through the real secret-detection
 /// engine and return toast copy. Claims check-pipeline proof only — never MCP
 /// pre-write live status.
-fn run_activation_prove(all_languages_unsupported: bool) -> String {
+fn run_activation_prove(
+    all_languages_unsupported: bool,
+    secret_detection_enabled: bool,
+) -> String {
     use anvil_checks::secret::{SecretCheckConfig, scan_content};
 
     if all_languages_unsupported {
         return "Prove unavailable: no supported languages in this repo, so secret-detection would report nothing. This does not claim MCP pre-write is live."
+            .to_string();
+    }
+    if !secret_detection_enabled {
+        return "Prove unavailable: secret-detection is not enabled in this project config. This does not claim MCP pre-write is live."
             .to_string();
     }
 
@@ -738,9 +765,11 @@ fn run_activation_prove(all_languages_unsupported: bool) -> String {
 
 fn activation_prove_runner(
     diagnostic: &activation::ActivationDiagnostic,
+    root: &Path,
 ) -> anvil_tui::surfaces::activation::ProveRunner {
     let all_unsupported = diagnostic.all_languages_unsupported;
-    std::sync::Arc::new(move || run_activation_prove(all_unsupported))
+    let secret_enabled = secret_detection_enabled_in_project(root);
+    std::sync::Arc::new(move || run_activation_prove(all_unsupported, secret_enabled))
 }
 
 /// Whether this run first established protection for the project, gating the
@@ -769,6 +798,7 @@ fn activation_post_consent_surface(
     project_writes_gated: bool,
     log_lines: Vec<String>,
     daemon_spinner: bool,
+    root: &Path,
 ) -> anvil_tui::surfaces::activation::ActivationSurface {
     use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
 
@@ -786,7 +816,7 @@ fn activation_post_consent_surface(
         daemon_spinner,
         ActivationPhase::Verdict,
     )
-    .with_prove(activation_prove_runner(diagnostic))
+    .with_prove(activation_prove_runner(diagnostic, root))
 }
 
 #[cfg(test)]
@@ -2968,6 +2998,7 @@ mod tests {
             false,
             Vec::new(),
             false,
+            Path::new("."),
         );
 
         assert_eq!(surface.phase(), ActivationPhase::Verdict);
@@ -4418,7 +4449,7 @@ mod tests {
 
     #[test]
     fn activation_prove_reports_check_pipeline_only() {
-        let toast = run_activation_prove(false);
+        let toast = run_activation_prove(false, true);
         assert!(
             toast.contains("secret-detection caught"),
             "prove must report a real finding: {toast}"
@@ -4430,11 +4461,41 @@ mod tests {
         assert!(!toast.contains("contract-hardening"));
         assert!(toast.contains("not MCP pre-write") || toast.contains("does not claim MCP"));
 
-        let blocked = run_activation_prove(true);
+        let blocked = run_activation_prove(true, true);
         assert!(
-            blocked.contains("Prove unavailable"),
+            blocked.contains("Prove unavailable") && blocked.contains("no supported languages"),
             "unsupported repos must gate prove: {blocked}"
         );
+
+        let disabled = run_activation_prove(false, false);
+        assert!(
+            disabled.contains("secret-detection is not enabled"),
+            "disabled check must gate prove: {disabled}"
+        );
+    }
+
+    #[test]
+    fn secret_detection_enabled_honours_anvilrc_checks() {
+        let tmp = tempfile::tempdir().unwrap();
+        // No config → planless default includes secret-detection.
+        assert!(secret_detection_enabled_in_project(tmp.path()));
+
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks:\n  - antipattern-scan\n",
+        )
+        .unwrap();
+        assert!(
+            !secret_detection_enabled_in_project(tmp.path()),
+            "explicit list without secret-detection must disable Prove"
+        );
+
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "checks:\n  - secret-detection\n  - antipattern-scan\n",
+        )
+        .unwrap();
+        assert!(secret_detection_enabled_in_project(tmp.path()));
     }
 
     /// Recipe enumerates the layers honestly: a `Protecting` diagnostic
