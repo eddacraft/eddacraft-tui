@@ -260,6 +260,8 @@ governance record.
   that resolves disabled by default. Do not enable that Cargo feature in release
   builds or start/attach an embedded daemon in the default path. KFIT-005 still
   gates activation and release packaging after the next kindling publication.
+- **Pull Request:** [#3489](https://github.com/eddacraft/anvil-001/pull/3489)
+  (draft; base `main`).
 - **Slice Validation:** `cargo test -p eddacraft-anvil feature_flags && cargo
   test -p eddacraft-anvil --features kindling-embedded-runtime kindling_ &&
   cargo check -p eddacraft-anvil && cargo check -p eddacraft-anvil --features
