@@ -4,20 +4,24 @@
 | ----- | ----- | ----------- | -------- |
 | MCP26 | —     | In Progress | 11/12    |
 
-**Last reviewed:** 2026-07-30 — dual-era MCP `2026-07-28` support (MCP26-001
+**Last reviewed:** 2026-08-03 — dual-era MCP `2026-07-28` support (MCP26-001
 through MCP26-011) merged to `main` via PR #3444. Code lands under
 `crates/anvil-cli/src/mcp/protocol/` (dispatch, domain, versions, trace, and
-related). ADR-113 is Accepted. MCP26-012 remains Ready for product adoption of
-stable `rmcp` (temporary typed adapter still in use). Release: first
-post-ratification cut or next+1.
+related). ADR-113 is Accepted. MCP26-013 is In Progress on
+`fix/mcp26-013-request-metadata` to repair the observed legacy
+request-metadata interoperability regression; MCP26-012 remains Ready for
+product adoption of stable `rmcp` (temporary typed adapter still in use).
+Release: first post-ratification cut or next+1.
 
 **Publication:** Merged via PR
 [#3444](https://github.com/eddacraft/anvil-001/pull/3444) on 2026-07-30
 (merge commit `41de26aaa` and related dual-era commits on `main`). Covers
 MCP26-001..011. Actual-client matrix evidence was deferred as residual operator
 work; official stdio conformance remains locally evidenced (HTTP-only official
-runner not applicable). MCP26-012 (rmcp product pin / adapter removal) is not
-in this PR and stays Ready.
+runner not applicable). Actual-client follow-up exposed an era-selection
+regression when a legacy client attaches standard request metadata.
+MCP26-013 owns that compatibility repair. MCP26-012 (rmcp product pin /
+adapter removal) is not in this PR and stays Ready.
 
 ## Purpose
 
@@ -126,6 +130,7 @@ workspace behaviour behind that boundary.
 | `rmcp` v3 late or incomplete | Medium | Medium | Temporary typed adapter + removal condition in ADR-113 |
 | SDK transport bypasses four MiB frame limit | Medium | High | Adoption spike and oversize-frame tests before pin |
 | Legacy clients reject additive modern fields | Medium | High | Era-specific rendering; real-client matrix |
+| Standard legacy request metadata is mistaken for modern protocol intent | Observed | High | Classify modern intent by reserved namespace; retain Codex/rmcp-shaped regression fixtures |
 | Modern probe leaves orphan children or kills legacy path | Medium | Medium | Disposable modern probe, fresh legacy child |
 | Cache policy leaks workspace data | Low | High | `private` scope; zero-TTL resource reads |
 | Protocol refactor weakens security controls | Low | High | Domain-handler extraction + security regression suite |
@@ -137,7 +142,7 @@ Change module status to **Ready** when:
 
 - [x] Purpose and scope are clear
 - [x] Dependencies and non-goals identified
-- [x] Work items MCP26-001..012 defined with intent, outcome, validation
+- [x] Work items MCP26-001..013 defined with intent, outcome, validation
 - [x] MCP26-001 seals the final schema, legacy matrix, and SDK/adapter ADR
 - [x] No dual-era implementation PR merged before MCP26-001 closed its
       ratification hold
@@ -153,11 +158,14 @@ Change module status to **Ready** when:
 | 4 | MCP26-008, MCP26-009 | Schema 2020-12 and trace correlation |
 | 5 | MCP26-010 | Official conformance + client/platform matrix |
 | 6 | MCP26-011 | Docs and release notes |
+| Hotfix | MCP26-013 | Restore legacy request-metadata interoperability |
 | 7 | MCP26-012 | Official `rmcp` product pin and temporary-adapter removal |
 
 MCP26-003..005 may develop together but must not merge without both modern and
 legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
-(or after a stable `rmcp` release exists if 001 closed on the temporary adapter).
+(or after a stable `rmcp` release exists if 001 closed on the temporary
+adapter). MCP26-013 is independent of the SDK adoption and lands first;
+MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ## Work Items
 
@@ -447,6 +455,8 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
   - MCP26-001 (final schema seal + SDK path authorised; closed on temporary
     adapter — product `rmcp` pin still required here)
   - MCP26-002..011 dual-era contracts and fixtures merged via PR #3444
+  - MCP26-013 request-metadata interoperability contract and regression
+    fixtures
   - crates.io stable `rmcp` ≥ target major targeting final `2026-07-28`
   - Prefer with conformance evidence from MCP26-010 so official suite version
     binds the pin (stdio local evidence already recorded; HTTP-only official
@@ -464,6 +474,82 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
   the ADR-113 **removal condition** for that adapter. Evaluation spikes against
   `rmcp` betas are allowed on a work branch only and must not merge as the
   permanent product pin.
+
+### MCP26-013: Restore legacy request-metadata interoperability
+
+- **Status:** In Progress
+- **Intent:** Restore supported initialise-era clients that attach standard
+  per-request metadata, without allowing malformed modern requests to fall
+  back to the legacy protocol path.
+- **Expected Outcome:**
+  - Era selection treats `server/discover` and any reserved
+    `io.modelcontextprotocol/*` request metadata key as modern intent; the
+    presence of `_meta` alone is not a modern discriminator.
+  - After successful legacy initialisation, `tools/list` and `tools/call`
+    requests carrying standard metadata such as `_meta.progressToken` keep
+    legacy dispatch and response envelopes.
+  - Partial reserved modern metadata remains on the modern parser and fails
+    closed with `-32602`; valid modern requests and unsupported-version
+    `-32022` responses remain unchanged.
+  - Codex/rmcp-shaped stdio fixtures reproduce the installed-client request
+    shape so later protocol-layer changes cannot silently reintroduce the
+    regression.
+- **Out of item:**
+  - Adopting `rmcp` or removing the temporary adapter (MCP26-012).
+  - Changing MCP client configuration, daemon lifecycle, tool names, tool
+    schemas, resource URIs, or domain-handler semantics.
+  - Adding a new transport or widening the sealed legacy-version matrix.
+- **Files:**
+  - `crates/anvil-cli/src/mcp/protocol/meta.rs`
+  - `crates/anvil-cli/tests/mcp_serve_stdio.rs`
+  - `plans/modules/mcp-dual-era-support.aps.md`
+  - `plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`
+  - `plans/index.aps.md`
+- **Dependencies:** MCP26-001..011 merged via PR #3444. This item does not
+  depend on MCP26-012; MCP26-012 must preserve the resulting compatibility
+  contract and fixtures.
+- **Risk:** high — era selection is a public dual-era protocol boundary where
+  permissive fallback could hide malformed modern requests and strict
+  detection can break supported legacy clients.
+- **Design source:**
+  [`plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md` §6.2](../specs/2026-07-27-mcp-2026-07-28-dual-era-support.md#62-era-selection)
+  and [ADR-113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md).
+- **Rollback:** Revert the classifier change as one bounded protocol-layer
+  patch while retaining the new fixtures as evidence; do not broaden legacy
+  fallback or remove strict reserved-namespace validation to force a pass.
+- **Validation:**
+  - `cargo test -p eddacraft-anvil --bin anvil protocol::`
+  - `cargo test -p eddacraft-anvil --test mcp_serve_stdio`
+  - `cargo test -p eddacraft-anvil --test mcp_activation_probe`
+  - `cargo clippy -p eddacraft-anvil --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `pnpm docs:check`
+  - `pnpm aps:active-lint`
+  - `pnpm aps:index:check`
+  - `pnpm aps:drift --json`
+  - Independent `verify-loop` against the captured Codex/rmcp request shape,
+    valid modern traffic, partial modern metadata, and unsupported versions
+- **Evidence (2026-08-03):**
+  - Root evidence gate: 40 protocol unit tests, 52 hermetic stdio tests, and the
+    activation probe passed; clippy with warnings denied, Rust formatting,
+    repository formatting, documentation checks, APS lint/index checks, and
+    diff hygiene all passed.
+  - Independent post-repair `verify-loop`: Pass against base
+    `16fa44c1d4b6e57ad905c98b06e7bacea2e5312f`, including malformed unsupported
+    metadata precedence and mixed/lookalike metadata probes.
+  - Council session `council-187f6579`: Converged after all three minor
+    findings were fixed and independently re-reviewed. No findings remain.
+  - Residual: no live Codex/rmcp process was launched during verification; the
+    black-box stdio fixtures preserve its captured request shape.
+- **Confidence:** high
+- **changeType:** fix
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+- **releaseNote:**
+  - **audience:** developer
+  - **type:** fixed
+  - **text:** Restored Codex and other initialise-era MCP clients that attach
+    standard request metadata.
 
 ## Decisions
 
@@ -498,11 +584,18 @@ legacy golden fixtures. MCP26-012 runs after MCP26-001 authorises the SDK path
 11. **Release window** — ship in the first anvil release after MCP
     `2026-07-28` ratification, or at latest that release + 1.
     Operator-ratified 2026-07-27.
+12. **Modern intent uses the reserved namespace, not `_meta` presence** —
+    `server/discover` or any `io.modelcontextprotocol/*` request metadata key
+    selects strict modern validation. Standard metadata remains legacy after
+    initialisation, while partial modern metadata fails closed rather than
+    falling back. Operator-ratified 2026-08-03.
 
 ## Notes
 
-- Dual-era host (MCP26-001..011) is on `main` via PR #3444. MCP26-012 (rmcp
-  product adoption / temporary-adapter removal) remains the open follow-on.
+- Dual-era host (MCP26-001..011) is on `main` via PR #3444. MCP26-013 is the
+  immediate compatibility hotfix. MCP26-012 (rmcp product adoption /
+  temporary-adapter removal) remains the independent follow-on and must retain
+  the MCP26-013 fixtures.
 
 - Spec non-goals (HTTP, Apps, Tasks, MRTR, subscriptions) remain follow-on
   opportunities outside MCP26.

@@ -3,9 +3,9 @@
 | Field | Value |
 | --- | --- |
 | Type | APS module specification |
-| Status | APS module In Progress (ratified implementation review-ready locally) |
+| Status | APS module In Progress (MCP26-001..011 Merged; MCP26-012 Ready; MCP26-013 In Progress) |
 | Module | [mcp-dual-era-support](../modules/mcp-dual-era-support.aps.md) (MCP26) |
-| Branch | `feat/mcp26-dual-era-support` |
+| Branch | `main` for merged implementation; MCP26-013 on `fix/mcp26-013-request-metadata` |
 | Gate audit | [2026-07-27-mcp26-001-ratification-gate](../audits/2026-07-27-mcp26-001-ratification-gate.md) |
 | ADR | [113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Accepted) |
 | Proposed ID | MCP26 |
@@ -211,17 +211,27 @@ golden fixtures for every version anvil claims.
 
 ### 6.2 Era selection
 
+For era selection, **modern intent** means either `server/discover` or an
+object-valued `params._meta` containing at least one key in the reserved
+`io.modelcontextprotocol/*` namespace. The presence of `_meta` alone is not a
+modern discriminator: initialise-era clients may attach standard or
+non-modern extension fields such as `progressToken` to ordinary requests.
+
 | Opening/request shape | Server behaviour |
 | --- | --- |
-| `server/discover` with modern `_meta` | Modern |
-| Any supported method with modern `_meta` | Modern |
+| `server/discover` | Modern; require and fully validate modern `_meta` |
+| Any supported method with a reserved `io.modelcontextprotocol/*` metadata key | Modern; fully validate modern `_meta` |
 | `initialize` without modern `_meta` | Legacy for that stdio process |
-| Legacy request after successful `initialize` | Legacy |
+| Request after successful legacy `initialize`, with no reserved modern metadata key | Legacy, including standard `_meta.progressToken` metadata |
+| Request with non-object `_meta` | Reject as invalid parameters |
 | Request with neither modern `_meta` nor a prior legacy initialisation | Reject as invalid or uninitialised according to the selected legacy rule |
 
 Modern requests remain independently versioned. A legacy marker exists only to
 support requests from the initialise-era client attached to the same stdio
-process.
+process. A partial or malformed reserved modern metadata shape still expresses
+modern intent and must fail strict modern validation with `-32602`; it must not
+fall back to legacy dispatch. Unsupported but otherwise valid modern versions
+continue to return `-32022`.
 
 ### 6.3 Response shaping
 

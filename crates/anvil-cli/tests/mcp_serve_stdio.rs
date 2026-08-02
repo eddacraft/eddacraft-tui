@@ -2217,6 +2217,256 @@ fn modern_meta() -> Value {
 }
 
 #[test]
+fn mcp_serve_stdio_legacy_tools_list_accepts_progress_token_metadata() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "progressToken": 1
+            }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send tools/list with progress token");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    let result = parsed
+        .get("result")
+        .and_then(Value::as_object)
+        .unwrap_or_else(|| panic!("legacy tools/list must succeed: {parsed}"));
+    assert!(
+        result.get("tools").and_then(Value::as_array).is_some(),
+        "legacy tools/list must return the tool list: {parsed}"
+    );
+    for modern_field in ["resultType", "ttlMs", "cacheScope", "_meta"] {
+        assert!(
+            !result.contains_key(modern_field),
+            "legacy result must not contain modern field {modern_field}: {parsed}"
+        );
+    }
+}
+
+#[test]
+fn mcp_serve_stdio_legacy_tools_call_accepts_progress_token_metadata() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    std::fs::write(
+        workspace.path().join(".anvilrc"),
+        r#"{"checks":["secret-detection","policy"]}"#,
+    )
+    .expect("test config is writable");
+    std::fs::create_dir_all(workspace.path().join(".anvil")).expect("anvil dir is writable");
+    std::fs::write(workspace.path().join(".anvil/architecture.json"), "{}")
+        .expect("baseline is writable");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "anvil_status",
+            "arguments": {
+                "workspaceRoot": workspace.path()
+            },
+            "_meta": {
+                "progressToken": 2
+            }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send tools/call with progress token");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["result"]["isError"], false, "{parsed}");
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["status"], "ok", "{payload}");
+    assert_eq!(payload["workspaceRoot"], ".", "{payload}");
+    assert_eq!(payload["hasBaseline"], true, "{payload}");
+
+    let result = parsed["result"]
+        .as_object()
+        .expect("legacy tools/call must return an object result");
+    for modern_field in ["resultType", "ttlMs", "cacheScope", "_meta"] {
+        assert!(
+            !result.contains_key(modern_field),
+            "legacy result must not contain modern field {modern_field}: {parsed}"
+        );
+    }
+}
+
+#[test]
+fn mcp_serve_stdio_reserved_modern_meta_does_not_fall_back_after_legacy_initialize() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send partial modern metadata");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["id"], 3, "{parsed}");
+    assert_eq!(parsed["error"]["code"], -32602, "{parsed}");
+    assert_eq!(parsed["error"]["message"], "Invalid params", "{parsed}");
+    assert!(
+        parsed.get("result").is_none(),
+        "reserved modern metadata must not fall back to legacy: {parsed}"
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_invalid_modern_shape_precedes_unsupported_version() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2099-01-01"
+            }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(stdin, "{request}").expect("send invalid unsupported modern metadata");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+
+    let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+    assert_eq!(parsed["id"], 4, "{parsed}");
+    assert_eq!(parsed["error"]["code"], -32602, "{parsed}");
+    assert_eq!(parsed["error"]["message"], "Invalid params", "{parsed}");
+    assert!(
+        parsed["error"].get("data").is_none(),
+        "invalid shape must win before unsupported-version data: {parsed}"
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_metadata_classifier_handles_boundary_shapes_after_legacy_initialize() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let cases = [
+        (
+            "mixed standard and partial reserved metadata",
+            json!({
+                "progressToken": 10,
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }),
+            true,
+        ),
+        (
+            "look-alike namespace",
+            json!({ "io.modelcontextprotocolx/foo": true }),
+            false,
+        ),
+        ("empty object", json!({}), false),
+        ("non-object metadata", json!("invalid"), true),
+    ];
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        for (index, (_, meta, _)) in cases.iter().enumerate() {
+            let request = json!({
+                "jsonrpc": "2.0",
+                "id": index + 10,
+                "method": "tools/list",
+                "params": {
+                    "_meta": meta
+                }
+            });
+            writeln!(stdin, "{request}").expect("send metadata classifier case");
+        }
+    }
+    drop(child.stdin.take());
+
+    for (index, (case, _, expect_modern_error)) in cases.iter().enumerate() {
+        let line = recv_stdout_line(&mut child, &stdout_rx);
+        let parsed: Value = serde_json::from_str(line.trim()).expect("json");
+        assert_eq!(parsed["id"], index + 10, "{case}: {parsed}");
+
+        if *expect_modern_error {
+            assert_eq!(parsed["error"]["code"], -32602, "{case}: {parsed}");
+            assert_eq!(
+                parsed["error"]["message"], "Invalid params",
+                "{case}: {parsed}"
+            );
+        } else {
+            let result = parsed["result"]
+                .as_object()
+                .unwrap_or_else(|| panic!("{case} must stay legacy: {parsed}"));
+            assert!(
+                result.get("tools").and_then(Value::as_array).is_some(),
+                "{case} must return the legacy tool list: {parsed}"
+            );
+            for modern_field in ["resultType", "ttlMs", "cacheScope", "_meta"] {
+                assert!(
+                    !result.contains_key(modern_field),
+                    "{case} must not contain modern field {modern_field}: {parsed}"
+                );
+            }
+        }
+    }
+
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "clean exit: {status:?}");
+}
+
+#[test]
 fn mcp_serve_stdio_modern_discover_without_initialize() {
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");

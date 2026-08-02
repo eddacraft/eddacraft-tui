@@ -68,12 +68,20 @@ impl MetaError {
     }
 }
 
-/// True when `params` carries a `_meta` field (modern intent).
+/// True when `params._meta` signals modern intent.
 ///
-/// Presence alone selects the modern era so malformed metadata is rejected by
+/// Modern namespaced keys select the modern era. A present non-object `_meta`
+/// also does so, ensuring malformed modern metadata is rejected by
 /// [`parse_modern_meta`] rather than falling through to the legacy dispatcher.
 pub fn looks_like_modern_request(params: Option<&Value>) -> bool {
-    params.is_some_and(|p| p.get("_meta").is_some())
+    params
+        .and_then(|params| params.get("_meta"))
+        .is_some_and(|meta| match meta {
+            Value::Object(entries) => entries
+                .keys()
+                .any(|key| key.starts_with("io.modelcontextprotocol/")),
+            _ => true,
+        })
 }
 
 pub fn parse_modern_meta(params: Option<&Value>) -> Result<ModernRequestMeta, MetaError> {
@@ -96,12 +104,6 @@ pub fn parse_modern_meta(params: Option<&Value>) -> Result<ModernRequestMeta, Me
         Some(_) => return Err(MetaError::InvalidProtocolVersionType),
     };
 
-    if !is_modern_version(&protocol_version) {
-        return Err(MetaError::UnsupportedProtocolVersion {
-            requested: protocol_version,
-        });
-    }
-
     let client_capabilities = match meta_obj.get(META_CLIENT_CAPABILITIES) {
         None => return Err(MetaError::MissingClientCapabilities),
         Some(Value::Object(_)) => meta_obj
@@ -121,6 +123,12 @@ pub fn parse_modern_meta(params: Option<&Value>) -> Result<ModernRequestMeta, Me
         }
         Some(_) => return Err(MetaError::InvalidClientInfoType),
     };
+
+    if !is_modern_version(&protocol_version) {
+        return Err(MetaError::UnsupportedProtocolVersion {
+            requested: protocol_version,
+        });
+    }
 
     Ok(ModernRequestMeta {
         protocol_version,
@@ -183,6 +191,36 @@ mod tests {
     }
 
     #[test]
+    fn invalid_shape_precedes_unsupported_version() {
+        let err = parse_modern_meta(Some(&json!({
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2099-01-01"
+            }
+        })))
+        .unwrap_err();
+        assert!(matches!(err, MetaError::MissingClientCapabilities));
+
+        let err = parse_modern_meta(Some(&json!({
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2099-01-01",
+                "io.modelcontextprotocol/clientCapabilities": []
+            }
+        })))
+        .unwrap_err();
+        assert!(matches!(err, MetaError::InvalidClientCapabilitiesType));
+
+        let err = parse_modern_meta(Some(&json!({
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2099-01-01",
+                "io.modelcontextprotocol/clientCapabilities": {},
+                "io.modelcontextprotocol/clientInfo": {}
+            }
+        })))
+        .unwrap_err();
+        assert!(matches!(err, MetaError::InvalidClientInfoType));
+    }
+
+    #[test]
     fn accepts_absent_client_info() {
         let meta = parse_modern_meta(Some(&json!({
             "_meta": {
@@ -210,12 +248,26 @@ mod tests {
     }
 
     #[test]
-    fn presence_of_meta_is_modern_intent() {
+    fn modern_namespace_or_malformed_meta_is_modern_intent() {
         assert!(looks_like_modern_request(Some(&json!({
-            "_meta": {}
+            "_meta": {
+                "io.modelcontextprotocol/futureField": true
+            }
         }))));
         assert!(looks_like_modern_request(Some(&json!({
             "_meta": "not-an-object"
+        }))));
+    }
+
+    #[test]
+    fn standard_or_absent_meta_is_not_modern_intent() {
+        assert!(!looks_like_modern_request(Some(&json!({
+            "_meta": {
+                "progressToken": 1
+            }
+        }))));
+        assert!(!looks_like_modern_request(Some(&json!({
+            "_meta": {}
         }))));
         assert!(!looks_like_modern_request(Some(&json!({
             "protocolVersion": "2024-11-05"
