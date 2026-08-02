@@ -77,7 +77,7 @@ progressively drop columns, etc. Thresholds are tuned for real terminal sizes
 See the [`json_render` API docs] for the base element set and the `TuiComponent`
 / `TuiRegistry` extension points.
 
-[`json_render` API docs]: https://docs.rs/eddacraft-tui/0.5.0/eddacraft_tui/json_render/
+[`json_render` API docs]: https://docs.rs/eddacraft-tui/latest/eddacraft_tui/json_render/
 
 ### `pretext` — reflow-free text layout for streaming AI
 
