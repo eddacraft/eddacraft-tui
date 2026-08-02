@@ -541,6 +541,9 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
     findings were fixed and independently re-reviewed. No findings remain.
   - Residual: no live Codex/rmcp process was launched during verification; the
     black-box stdio fixtures preserve its captured request shape.
+- **Publication:**
+  [PR #3487](https://github.com/eddacraft/anvil-001/pull/3487) against `main`;
+  merge and release evidence remain pending.
 - **Confidence:** high
 - **changeType:** fix
 - **releaseIntent:** candidate
