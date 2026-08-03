@@ -31,7 +31,7 @@ overrides:
   eslint>ajv: 6.14.0
   '@eslint/eslintrc>ajv': 6.14.0
   serialize-javascript@<7.0.5: '>=7.0.5'
-  brace-expansion@<5.0.8: 5.0.8
+  brace-expansion@<5.0.9: 5.0.9
   hono@<4.12.7: '>=4.12.7'
   http-proxy-middleware@<3.0.6: '>=3.0.6'
   underscore@<=1.13.7: '>=1.13.8'
@@ -89,8 +89,8 @@ overrides:
 
 patchedDependencies:
   gray-matter@4.0.3: c53b60f70a9846157f45c8612e91fde7828d753f709448fe527d2334309c31e1
-  minimatch@3.1.5: 05623a53150cec1addff2faf7eb7f70c8f25be52058f7030dad7861c7c1c85c8
-  minimatch@5.1.9: 49655c509119fcf80bca29847bb223752a3595b0d829d1b40eb979fa42a18c60
+  minimatch@3.1.5: bd42d7720a8750a5094751905b2c388c68bd05aedc47fdc7881549d1f5afea64
+  minimatch@5.1.9: bcb1fa8636a0987ef299fef4a3481f25838a83d73985df7ce072e92866213e63
 
 importers:
 
@@ -8888,8 +8888,8 @@ packages:
     resolution: {integrity: sha512-2hCgjEmP8YLWQ130n2FerGv7rYpfBmnmp9Uy2Le1vge6X3gZIfSmEzP5QTDElFxcvVcXlEn8Aq6MU/PZygIOog==}
     engines: {node: '>=14.16'}
 
-  brace-expansion@5.0.8:
-    resolution: {integrity: sha512-JZyDyq3D4AUifKTPOB7DELf6XsB3WdPuNxCtob1vFXPsSXhdAiHBWJ/tJ8HAc9aH84BK+5JFZLNkJKx3G9kzQg==}
+  brace-expansion@5.0.9:
+    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
     engines: {node: 20 || >=22}
 
   braces@3.0.3:
@@ -23463,7 +23463,7 @@ snapshots:
       https-proxy-agent: 7.0.6(supports-color@10.2.2)
       js-levenshtein: 1.1.6
       js-yaml: 4.3.0
-      minimatch: 5.1.9(patch_hash=49655c509119fcf80bca29847bb223752a3595b0d829d1b40eb979fa42a18c60)
+      minimatch: 5.1.9(patch_hash=bcb1fa8636a0987ef299fef4a3481f25838a83d73985df7ce072e92866213e63)
       pluralize: 8.0.0
       yaml-ast-parser: 0.0.43
     transitivePeerDependencies:
@@ -25595,7 +25595,7 @@ snapshots:
       widest-line: 4.0.1
       wrap-ansi: 8.1.0
 
-  brace-expansion@5.0.8:
+  brace-expansion@5.0.9:
     dependencies:
       balanced-match: 4.0.4
 
@@ -29075,19 +29075,19 @@ snapshots:
 
   minimatch@10.2.4:
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.9
 
   minimatch@10.2.5:
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.9
 
-  minimatch@3.1.5(patch_hash=05623a53150cec1addff2faf7eb7f70c8f25be52058f7030dad7861c7c1c85c8):
+  minimatch@3.1.5(patch_hash=bd42d7720a8750a5094751905b2c388c68bd05aedc47fdc7881549d1f5afea64):
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.9
 
-  minimatch@5.1.9(patch_hash=49655c509119fcf80bca29847bb223752a3595b0d829d1b40eb979fa42a18c60):
+  minimatch@5.1.9(patch_hash=bcb1fa8636a0987ef299fef4a3481f25838a83d73985df7ce072e92866213e63):
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.9
 
   minimist@1.2.8: {}
 
@@ -29334,7 +29334,7 @@ snapshots:
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.9
       buffer: 5.7.1
       call-bind-apply-helpers: 1.0.2
       chalk: 4.1.2
@@ -29463,7 +29463,7 @@ snapshots:
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
-      brace-expansion: 5.0.8
+      brace-expansion: 5.0.9
       buffer: 5.7.1
       call-bind-apply-helpers: 1.0.2
       chalk: 4.1.2
@@ -31474,7 +31474,7 @@ snapshots:
       bytes: 3.0.0
       content-disposition: 0.5.2
       mime-types: 2.1.18
-      minimatch: 3.1.5(patch_hash=05623a53150cec1addff2faf7eb7f70c8f25be52058f7030dad7861c7c1c85c8)
+      minimatch: 3.1.5(patch_hash=bd42d7720a8750a5094751905b2c388c68bd05aedc47fdc7881549d1f5afea64)
       path-is-inside: 1.0.2
       path-to-regexp: 3.3.0
       range-parser: 1.2.0

@@ -82,6 +82,7 @@ security concerns.
 | SEC-007 | Atomic token-revocation hardening (GH #1672) | In Progress |
 | SEC-008 | Named-pattern secret detection (GH #1800) | Merged |
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
+| SEC-010 | Remediate brace-expansion denial-of-service alerts | In Progress |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -431,3 +432,32 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **type:** security
 - **text:** The private docs shell now requires a docs-access entitlement in the
   signed licence before proxying `/anvil` documentation.
+
+### SEC-010: Remediate brace-expansion denial-of-service alerts
+
+- **Status:** In Progress
+- **Intent:** Clear Dependabot alerts
+  [#236](https://github.com/eddacraft/anvil-001/security/dependabot/236) and
+  [#237](https://github.com/eddacraft/anvil-001/security/dependabot/237) for
+  CVE-2026-14257 by moving every curated development-tool consumer to the
+  latest hardened patch in its existing major line.
+- **Expected Outcome:** `tools/dev` resolves `brace-expansion` 1.x to `1.1.18`
+  and 5.x to `5.0.9`; the root and DeepSec overrides resolve affected consumers
+  to `5.0.9`; lockfiles and `ACKNOWLEDGEMENTS.md` agree with those versions.
+- **In Scope:** Existing dependency overrides, their generated lockfiles, and
+  generated attribution output.
+- **Out of Scope:** Runtime feature changes, dependency replacement, audit
+  scheduling, advisory dismissal, and unrelated dependency refreshes.
+- **Dependencies:** None. The releases are compatible patch updates on the
+  existing dependency paths.
+- **Validation:** Clean frozen installs for the root, `tools/dev`, and
+  `.deepsec`; dependency-tree assertions for `brace-expansion`; acknowledgements
+  freshness; APS, documentation, formatting, lint, typecheck, and test gates;
+  GitHub's Dependency Audit check on the draft PR.
+- **Confidence:** High. The affected package is used only by development
+  tooling in this repository, and upstream published dedicated maintained-line
+  fixes for both selected majors.
+
+**changeType:** fix
+**releaseIntent:** none
+**releaseScope:** none

@@ -2,15 +2,14 @@ diff --git a/minimatch.js b/minimatch.js
 index 8545b3ab506a3185107a8f24a4c150a7b7b585f8..61bd1d881866694bc4433542b4ca22d027e684a1 100644
 --- a/minimatch.js
 +++ b/minimatch.js
-@@ -16,7 +16,13 @@ minimatch.sep = path.sep
+@@ -16,7 +16,12 @@ minimatch.sep = path.sep
  
  const GLOBSTAR = Symbol('globstar **')
  minimatch.GLOBSTAR = GLOBSTAR
 -const expand = require('brace-expansion')
-+// brace-expansion >=5 (the only release patched for CVE-2026-14257) is a
-+// dual ESM/CJS package whose CJS entry exports { expand } instead of the
-+// bare callable that 1.x/2.x exported. Accept both so the security
-+// override can lift this transitive past 5.0.8.
++// brace-expansion 5.x is a dual ESM/CJS package whose CJS entry exports
++// { expand } instead of the bare callable that 1.x/2.x exported. Accept
++// both so security overrides can select the maintained patched line.
 +const braceExpansion = require('brace-expansion')
 +const expand =
 +  typeof braceExpansion === 'function' ? braceExpansion : braceExpansion.expand
