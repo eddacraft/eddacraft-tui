@@ -2,7 +2,7 @@
 
 | Type | Authority     | Owner | Status | Freshness                                      |
 | ---- | ------------- | ----- | ------ | ---------------------------------------------- |
-| Spec | Authoritative | ACTTUI | Live  | Implemented Merged 2026-08-03 via PR #3488 |
+| Spec | Authoritative | ACTTUI | Live  | Implemented — Merged 2026-08-03 via PR #3488 |
 
 | Upstream                                                                 | Downstream                                      |
 | ------------------------------------------------------------------------ | ----------------------------------------------- |
