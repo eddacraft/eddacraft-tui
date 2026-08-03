@@ -12,14 +12,21 @@ kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
 config-parser defect were reproduced against the real scripts; the rest are
 gaps in the kit's own verification and mirror surface. The four design decisions
 the items depend on were taken the same day and are recorded in the design
-contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03 and all
-six are now **Merged** — five via PR #3492, with ATTRIB-021 held back until PR
-#3495 fixed the macOS runner's missing Go and the first green both-legs run
-(30792191535) supplied its evidence. **ATTRIB-024 Merged 2026-08-03 — `v1.1.0`
-released**, so the hardening is now in consumers' hands: the published kit no
-longer deletes curated content on a mis-ordered marker pair, nor reports green
-over stale attribution. Module stays **In Progress** for ATTRIB-025
-(`--version`), which is still Proposed.
+contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03; all six
+landed, with ATTRIB-021 held back until PR #3495 fixed the macOS runner's
+missing Go and the first green both-legs run (30792191535) supplied its
+evidence. **ATTRIB-024 Released/Shipped via kit `v1.1.0` (2026-08-03)**, so the
+hardening is now in consumers' hands: the published kit no longer deletes
+curated content on a mis-ordered marker pair, nor reports green over stale
+attribution.
+
+Status tokens follow
+[`plans/project-context.md`](../project-context.md#project-status-extensions):
+the items whose deliverable is inside the released kit — ATTRIB-018, -019, -020
+and -022 — read **Released/Shipped via kit `v1.1.0`**. ATTRIB-021 (a CI matrix
+change) and ATTRIB-023 (recorded decisions, no kit code) stay **Merged**,
+because nothing of theirs is in the subtree the release publishes. Module stays
+**In Progress** for ATTRIB-025 (`--version`), still Proposed.
 
 Design contract:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
@@ -169,7 +176,7 @@ authorisation once the six land.
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
 
-- **Status:** Merged 2026-08-03 via PR #3492
+- **Status:** Released/Shipped via kit `v1.1.0` (2026-08-03) — merged via PR #3492
 - **Intent:** The generator never destroys hand-curated content, and `--check`
   never reports green over generated content it no longer maintains.
 - **Expected Outcome:** A mis-ordered marker pair is refused with an actionable
@@ -191,7 +198,7 @@ authorisation once the six land.
 
 ### ATTRIB-019: Config parsing and rendered cells survive punctuation
 
-- **Status:** Merged 2026-08-03 via PR #3492
+- **Status:** Released/Shipped via kit `v1.1.0` (2026-08-03) — merged via PR #3492
 - **Intent:** A quoted `attribution.toml` value reaches the driver intact, and
   no scanner-supplied string can break the rendered markdown table.
 - **Expected Outcome:** A `#` inside a quoted value is data, not a comment
@@ -212,7 +219,7 @@ authorisation once the six land.
 
 ### ATTRIB-020: Self-tests cannot pass by skipping, and are lint-gated
 
-- **Status:** Merged 2026-08-03 via PR #3492
+- **Status:** Released/Shipped via kit `v1.1.0` (2026-08-03) — merged via PR #3492
 - **Intent:** A green **Kit Self-Tests** run proves every driver was actually
   exercised, and shell regressions are caught by static analysis.
 - **Expected Outcome:** Skips remain available for local runs but are a failure
@@ -284,7 +291,7 @@ authorisation once the six land.
 
 ### ATTRIB-022: The published mirror is self-contained
 
-- **Status:** Merged 2026-08-03 via PR #3492
+- **Status:** Released/Shipped via kit `v1.1.0` (2026-08-03) — merged via PR #3492
 - **Intent:** An external consumer of the public repo can follow every link and
   run the kit's tests without access to the private upstream.
 - **Expected Outcome:** No kit-internal document links to a path outside the
@@ -370,7 +377,7 @@ authorisation once the six land.
 
 ### ATTRIB-024: Cut the release that publishes the hardening
 
-- **Status:** Merged 2026-08-03 via PR #3502 — **`v1.1.0` released.** Operator
+- **Status:** Released/Shipped via kit `v1.1.0` (2026-08-03) — merged via PR #3502. Operator
   authorised the cut the same day; the tag `acknowledgements-starter-v1.1.0`
   points at `3ee5c69cd` on `main` and release run 30800375002 succeeded.
 - **Release evidence (2026-08-03), verified as artifacts rather than by the
