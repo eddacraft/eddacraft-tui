@@ -12,9 +12,10 @@ kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
 config-parser defect were reproduced against the real scripts; the rest are
 gaps in the kit's own verification and mirror surface. The four design decisions
 the items depend on were taken the same day and are recorded in the design
-contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03; those six
-are **Ready** and the module is **In Progress**. ATTRIB-024 (release cut) and
-ATTRIB-025 (`--version`) remain Proposed.
+contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03; all six
+are implemented on `feat/attrib-018-023-kit-hardening` and sit **In Progress**
+pending merge. ATTRIB-024 (release cut) and ATTRIB-025 (`--version`) remain
+Proposed.
 
 Design contract:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
@@ -164,7 +165,7 @@ authorisation once the six land.
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
 - **Intent:** The generator never destroys hand-curated content, and `--check`
   never reports green over generated content it no longer maintains.
 - **Expected Outcome:** A mis-ordered marker pair is refused with an actionable
@@ -186,7 +187,7 @@ authorisation once the six land.
 
 ### ATTRIB-019: Config parsing and rendered cells survive punctuation
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
 - **Intent:** A quoted `attribution.toml` value reaches the driver intact, and
   no scanner-supplied string can break the rendered markdown table.
 - **Expected Outcome:** A `#` inside a quoted value is data, not a comment
@@ -207,7 +208,7 @@ authorisation once the six land.
 
 ### ATTRIB-020: Self-tests cannot pass by skipping, and are lint-gated
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
 - **Intent:** A green **Kit Self-Tests** run proves every driver was actually
   exercised, and shell regressions are caught by static analysis.
 - **Expected Outcome:** Skips remain available for local runs but are a failure
@@ -225,7 +226,7 @@ authorisation once the six land.
 
 ### ATTRIB-021: Prove the portability the kit is written for
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
 - **Intent:** The macOS-portability work already in the scripts is verified, not
   assumed.
 - **Expected Outcome:** The kit self-tests run on macOS as well as Linux, so
@@ -244,7 +245,7 @@ authorisation once the six land.
 
 ### ATTRIB-022: The published mirror is self-contained
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
 - **Intent:** An external consumer of the public repo can follow every link and
   run the kit's tests without access to the private upstream.
 - **Expected Outcome:** No kit-internal document links to a path outside the
@@ -267,7 +268,7 @@ authorisation once the six land.
 
 ### ATTRIB-023: Kit ergonomics backlog
 
-- **Status:** Ready
+- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
 - **Intent:** Record the non-blocking rough edges so they are not rediscovered
   by the next reader.
 - **Expected Outcome:** Each of F10–F12 is either fixed or explicitly declined
@@ -281,6 +282,34 @@ authorisation once the six land.
   `tools/starters/acknowledgements/drivers/python.sh`.
 - **Confidence:** medium — the expander's path configuration is a design
   question (whose default is deliberate), not a defect.
+
+**Decisions recorded 2026-08-03:**
+
+- **F10 — duplicate `license-checker` invocation: declined.** The strict gate
+  (`--onlyAllow`) and the render (`--json`) are two different tool contracts;
+  collapsing them means reimplementing `--onlyAllow`'s SPDX matching in `jq`,
+  moving the licence decision out of the tool that owns it and into the kit.
+  The cost is one extra scan of an already-installed tree. Revisit only if a
+  consumer reports it as a real bottleneck.
+- **F11 — expander path configuration: declined as designed.** Resolving the
+  consumer files beside `licences.toml` is what makes the single-source
+  guarantee legible: the canonical file and everything generated from it live
+  together. Per-file path keys would let them drift apart, which is the failure
+  mode the script exists to prevent.
+- **F12 — Windows venv layout: declined, out of platform scope.** The kit is
+  bash throughout, so a Windows consumer is already under Git Bash or WSL where
+  the POSIX `venv/bin` layout is the norm. Native `Scripts/` support would be
+  the smallest part of a much larger Windows story the kit does not tell.
+- **Carried in from ATTRIB-019 — go and python cell escaping: not done.** The
+  node driver now escapes `|` in every cell it builds, matching
+  bundled-binaries. Go and python are not covered: go's rows come from
+  `templates/go-licenses.tmpl` and python's table is written wholesale by
+  `pip-licenses --format markdown`, so in neither case does the driver
+  construct the cells. Covering them needs either a template-contract change
+  that would silently break a consumer's custom `template_path`, or reparsing
+  tool output. Exposure is theoretical — Go import paths and SPDX identifiers
+  do not contain `|`. Recorded here rather than narrowed silently inside
+  ATTRIB-019.
 
 ### ATTRIB-025: Dispatcher reports its own kit version
 

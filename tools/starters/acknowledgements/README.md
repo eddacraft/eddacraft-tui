@@ -709,3 +709,24 @@ Check `VERSION` ↔ `CHANGELOG.md` consistency locally with:
 ```bash
 bash tools/starters/acknowledgements/check-version.sh
 ```
+
+## Running the kit's own tests
+
+`tests/run-all.sh` is the single source of the kit's test list — CI invokes it
+rather than restating the list, so a test added to `tests/` is a test CI runs.
+
+```bash
+bash tools/starters/acknowledgements/tests/run-all.sh              # run everything
+bash tools/starters/acknowledgements/tests/run-all.sh --require-all # CI mode
+bash tools/starters/acknowledgements/tests/run-all.sh --list        # list only
+```
+
+Several driver tests exit 0 with a `skip:` line when their external scanner or
+network is unavailable. The runner reports those as `SKIP`, distinct from
+`PASS`, and `--require-all` turns them into failures — so a green CI run means
+every ecosystem was actually exercised, not that three of them quietly opted
+out.
+
+If you adopted this kit from the public mirror, copy `kit-tests.yml.snippet`
+into your own `.github/workflows/` to get the same gate, including the pinned
+scanner versions the driver tests expect.

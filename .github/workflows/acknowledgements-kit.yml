@@ -25,6 +25,16 @@ on:
       - 'attribution/licences.go-allow.txt'
       - 'attribution/licences.python-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
+  workflow_dispatch:
+  # ATTRIB-021: the macOS leg runs on a weekly cron, on pushes to main, and
+  # on manual dispatch — not on every PR. The kit carries deliberate
+  # macOS-portability work (manual symlink resolution instead of
+  # `readlink -f`, a hand-written wrapper replacing `fold` because
+  # coreutils implementations disagree), none of which was ever exercised.
+  # Running it on every PR would contradict this repository's matrices-are-
+  # nightly cost posture, so it is scheduled instead.
+  schedule:
+    - cron: '30 5 * * 1'
 
 permissions:
   contents: read
@@ -49,8 +59,16 @@ env:
 
 jobs:
   kit-self-tests:
-    name: Kit Self-Tests
-    runs-on: ubuntu-latest
+    name: Kit Self-Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      # PRs get the Linux leg only; scheduled, main-push and dispatch runs
+      # add macOS. See the ATTRIB-021 note on the `schedule` trigger above.
+      matrix:
+        os:
+          ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' ||
+          '["ubuntu-latest", "macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -103,7 +121,11 @@ jobs:
       # suppression must carry an inline justification comment.
       - name: ShellCheck
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install shellcheck
+          else
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          fi
           shellcheck tools/starters/acknowledgements/*.sh \
                      tools/starters/acknowledgements/drivers/*.sh \
                      tools/starters/acknowledgements/tests/*.sh
