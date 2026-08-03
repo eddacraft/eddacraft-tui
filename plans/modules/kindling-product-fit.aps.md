@@ -193,6 +193,8 @@ governance record.
   accepted ADR in dependency order.
 - **Design Source:** Operator-approved design session on 2026-08-03; ADR-116 is
   the durable deliverable.
+- **Pull Request:** [#3506](https://github.com/eddacraft/anvil-001/pull/3506)
+  (draft; base `main`).
 - **Risk:** high
 - **PR Base:** `main`
 - **Confidence:** high
