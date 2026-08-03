@@ -436,6 +436,8 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 ### SEC-010: Remediate brace-expansion denial-of-service alerts
 
 - **Status:** In Progress
+- **Pull Request:** [#3493](https://github.com/eddacraft/anvil-001/pull/3493)
+  (draft; base: `main`).
 - **Intent:** Clear Dependabot alerts
   [#236](https://github.com/eddacraft/anvil-001/security/dependabot/236) and
   [#237](https://github.com/eddacraft/anvil-001/security/dependabot/237) for
@@ -454,6 +456,10 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
   `.deepsec`; dependency-tree assertions for `brace-expansion`; acknowledgements
   freshness; APS, documentation, formatting, lint, typecheck, and test gates;
   GitHub's Dependency Audit check on the draft PR.
+- **Evidence:** Council `council-c061eec1` passed after scoped re-review; local
+  frozen installs, dependency-tree, acknowledgements, APS, documentation,
+  formatting, lint, typecheck, JavaScript, and Rust workspace gates passed.
+  GitHub's Dependency Audit remains the pre-merge gate.
 - **Confidence:** High. The affected package is used only by development
   tooling in this repository, and upstream published dedicated maintained-line
   fixes for both selected majors.
