@@ -15,9 +15,11 @@ the items depend on were taken the same day and are recorded in the design
 contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03 and all
 six are now **Merged** — five via PR #3492, with ATTRIB-021 held back until PR
 #3495 fixed the macOS runner's missing Go and the first green both-legs run
-(30792191535) supplied its evidence. Module stays **In Progress**: ATTRIB-024
-(release cut) and ATTRIB-025 (`--version`) remain Proposed, so the hardening is
-not yet in any consumer's hands.
+(30792191535) supplied its evidence. **ATTRIB-024 Merged 2026-08-03 — `v1.1.0`
+released**, so the hardening is now in consumers' hands: the published kit no
+longer deletes curated content on a mis-ordered marker pair, nor reports green
+over stale attribution. Module stays **In Progress** for ATTRIB-025
+(`--version`), which is still Proposed.
 
 Design contract:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
@@ -368,10 +370,21 @@ authorisation once the six land.
 
 ### ATTRIB-024: Cut the release that publishes the hardening
 
-- **Status:** In Progress — operator authorised 2026-08-03 (Proposed → Ready →
-  In Progress in one step, on explicit instruction). Version bump prepared; the
-  tag push follows once this lands on `main`. Flip to Merged only after the
-  mirror tag and GitHub Release exist.
+- **Status:** Merged 2026-08-03 via PR #3502 — **`v1.1.0` released.** Operator
+  authorised the cut the same day; the tag `acknowledgements-starter-v1.1.0`
+  points at `3ee5c69cd` on `main` and release run 30800375002 succeeded.
+- **Release evidence (2026-08-03), verified as artifacts rather than by the
+  workflow's own success:**
+  - Mirror tag `refs/tags/v1.1.0` → `e5d3f56bd`; `v1.0.0` still resolves to
+    `7e1b24b4a`, so the append-only property held.
+  - GitHub Release `v1.1.0` published, not draft, not pre-release, and
+    `releases/latest` resolves to it. Notes carry the changelog section,
+    leading with the "Configurations that used to pass and now fail" heading.
+  - Consumer round-trip: `git subtree add --prefix kit … v1.1.0 --squash` into
+    a scratch repo succeeds; the pinned copy reports `VERSION` `1.1.0`, carries
+    both new splice gates, ships `tests/run-all.sh` and
+    `kit-tests.yml.snippet`, and no longer contains the dead
+    `../../../docs/runbooks/…` link that was live in the public README.
 - **Intent:** External consumers can pin a version containing the fixes and read
   what changed.
 - **Expected Outcome:** `VERSION` and `CHANGELOG.md` are bumped to **1.1.0**
