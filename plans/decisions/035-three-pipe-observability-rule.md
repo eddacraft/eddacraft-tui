@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-08-03 by
+[ADR-116](116-kindling-product-profiles-and-governance-record.md): "write-once"
+means append-only during normal operation; its authenticated, explicit,
+receipted governance-prune transaction is the sole removal exception.
 
 ## Date
 
@@ -13,9 +16,12 @@ Accepted
 Anvil now carries three telemetry-shaped pipes that have grown up at different
 times for different reasons:
 
-1. **Kindling** — the system of record for governance facts. Eleven
-   observation kinds, four query scopes, write-once, SQLite-backed,
-   established under the Edda Stack. Already cited by ADR-019 as the
+1. **Kindling** — the system of record for governance facts. ADR-116 defines
+   Anvil's closed six-kind governance inventory and keeps `command.invoked` as a
+   separate usage envelope; generic standalone-memory kinds are not silently
+   governance facts. Rows are append-only outside ADR-116's explicit,
+   receipted governance-prune transaction. The SQLite-backed mechanism is
+   established under the Edda Stack and already cited by ADR-019 as the
    source-of-truth pipe for governance.
 2. **Notification envelope** — the user-visible state-change feed surfaced by
    the dashboard live ops views and consumed across the CLI / TUI / dashboard
@@ -54,7 +60,7 @@ new module that emits or consumes any of them.
 
 | Pipe | Role | Consumer | Durability | Source of truth? |
 |------|------|----------|------------|------------------|
-| **Kindling** | Durable governance facts (gate evaluations, action observations, constraint applications). Write-once, query-friendly. | Provenance queries, audit trails, policy evidence, Edda canonical memory. | Persistent (SQLite, retained per Kindling retention policy). | **Yes** — for governance outcomes that need to be cited later. |
+| **Kindling** | Durable governance facts (gate evaluations, action observations, constraint applications). Append-only outside ADR-116's authenticated explicit prune, query-friendly. | Provenance queries, audit trails, policy evidence, Edda canonical memory. | Persistent (SQLite, retained per Kindling retention policy). | **Yes** — for governance outcomes that need to be cited later. |
 | **Notification envelope** | User-visible state changes that the dashboard live feed and surface UIs render. Carries `notification.context` for mid-flight state (e.g. INTD-013 decision-mirror) and is the contract NOTIFY-008 / INTD-014 ratify. | Dashboard live ops views, CLI/TUI live surfaces, anything that has to render a current state change to a human. | Buffered for the live feed; not retained as a long-term archive. | **Yes** — for user-visible state. The dashboard reads this as the authoritative live view. |
 | **Tracing / OTEL spans** | Ephemeral debugging context: spans, attributes, baggage, `traceparent` propagation. Diagnostic instrumentation only. | Developer-facing tracing UIs, sampled exporters (chosen under EXPORT module, deferred), local `tracing-subscriber` formatters. | Ephemeral by default; sampled / sink-driven retention if EXPORT chooses one. | **No.** Spans MUST NOT be the only place a fact is recorded. If a fact matters for governance, it goes to Kindling. If it matters for the dashboard live view, it goes to the notification envelope. Spans are debugging breadcrumbs. |
 
@@ -114,7 +120,8 @@ unknown one.
 
 Each pipe already exists for a reason that the others do not satisfy:
 
-- Kindling is the only write-once, query-shaped, retained store.
+- Kindling is the only append-only-by-default, query-shaped, retained store;
+  ADR-116's authenticated explicit prune is the sole removal exception.
 - The notification envelope is the only contract the dashboard live feed
   consumes.
 - Tracing/OTEL is the only place developer debugging breadcrumbs land.

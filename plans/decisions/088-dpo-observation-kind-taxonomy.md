@@ -3,10 +3,18 @@
 ## Status
 
 **Accepted** — 2026-06-20, Josh. Owner ratified **Decision 2** (fence events get
-a distinct `constraint_applied` kind, not `gate.evaluated`); the other decisions
+a distinct `constraint_applied` kind, not `gate_evaluated`); the other decisions
 implement binding choices the owner made during the council. Synthesised by a
 planning council (`plan-a50aa93d`) for the [Daemon-Protection Observability
 (DPO)](../modules/daemon-protection-observability.aps.md) module.
+
+**Amended 2026-08-03 by [ADR-116](116-kindling-product-profiles-and-governance-record.md):**
+the canonical wire literal is `gate_evaluated`. The dotted
+`gate.evaluated` spelling in legacy rows and earlier prose is accepted only by
+migration and the one-release dual-read compatibility path. ADR-116 also
+supersedes the original KDS/upstream-kind integration mechanism: KFIT-007 maps
+this ADR's taxonomy into Anvil-owned `anvil.governance.v1` payloads carried by
+Kindling's generic `generic-event@1`; Kindling does not add Anvil-specific kinds.
 
 ## Date
 
@@ -14,7 +22,7 @@ planning council (`plan-a50aa93d`) for the [Daemon-Protection Observability
 
 ## Context
 
-Today only the **mid-edit** intercept path emits a `gate.evaluated` observation
+Today only the **mid-edit** intercept path emits a `gate_evaluated` observation
 to Kindling (`crates/anvil-intercept/src/kindling_observation.rs`,
 `from_midedit_response`, gated `MIDEDIT_GATE_ID`). The **save-time** daemon
 validation path (`validate_paths`, routed through the `SaveTimeDispatch` trait
@@ -41,20 +49,21 @@ Code facts the council relied on:
   `outcome`. A fence engage has none of these (no rules, no file-level
   enforcement) — modelling it as `outcome: Fail` with empty `rules_evaluated`
   is an internally inconsistent row, and any query aggregating
-  `gate.evaluated WHERE outcome = fail` would count fence lockouts as rule
+  `gate_evaluated WHERE outcome = fail` would count fence lockouts as rule
   violations.
 - `KindlingObservationSink` already sets the precedent for distinct kinds via a
   defaulted trait method: `try_emit_action_executed` emits `action_executed`,
-  separate from `gate.evaluated`.
-- `try_emit` is synchronous; its non-blocking property is delegated to the sink
-  implementor (KDS, not yet written). `validate_paths` is on the
+  separate from `gate_evaluated`.
+- At this decision's date, `try_emit` was synchronous and delegated its
+  non-blocking property to the then-unwritten KDS sink. ADR-116/KFIT-007 now own
+  that transport mapping; `validate_paths` remains on the
   [ADR-031](031-validation-latency-rubric.md) latency-gated path.
 
 ## Decision
 
-**Decision 1 — Save-time verdicts use `gate.evaluated` with a pinned
+**Decision 1 — Save-time verdicts use `gate_evaluated` with a pinned
 `gate_id`.** A `validate_paths` verdict is a gate evaluation; reuse the existing
-`gate.evaluated` kind, builder family, and read path, with a new pinned
+`gate_evaluated` kind, builder family, and read path, with a new pinned
 `SAVE_TIME_GATE_ID` constant distinguishing it from `MIDEDIT_GATE_ID` and
 `AUDIT_CHAIN_GATE_ID`. Missing fields are populated honestly (real verdict
 outcome, real changed files subject to Decision 4).
@@ -63,10 +72,11 @@ outcome, real changed files subject to Decision 4).
 Introduce a `constraint_applied` (working name) kind via a new defaulted
 `KindlingObservationSink` method (mirroring `try_emit_action_executed`),
 carrying `worktree`, normalised `reason`, `timestamp`, and a `cascade` flag.
-Fences are **not** modelled as `gate.evaluated/Fail`. This keeps the
+Fences are **not** modelled as `gate_evaluated/Fail`. This keeps the
 gate-failure dashboard and any `outcome = fail` aggregation free of non-gate
-events, at the cost of a new payload type plus a KDS-side mapping and a Kindling
-schema entry.
+events, at the cost of a distinct Anvil-owned payload type and a KFIT-007 mapping
+over upstream `generic-event@1`. The taxonomy choice remains binding; ADR-116
+supersedes the original KDS-side mapping and upstream Anvil-kind schema entry.
 
 **Decision 3 — One registry for the kind / `gate_id` namespace.** The
 `SAVE_TIME_GATE_ID` constant and the new fence kind are declared in one place
@@ -83,15 +93,15 @@ before emit (operator-supplied text never lands verbatim).
 
 - The read surface (DPO-003) filters by `gate_id` for save-time and by kind for
   fences; the two event classes never alias.
-- Decision 2 obliges KDS to map the new kind in its sink and obliges the
-  upstream Kindling schema to accept it — a coordination point flagged on the
-  KDS module (KDS open-Q#4: whether `gate.evaluated` routes to the daemon now
-  gains a sibling question for the fence kind).
+- Under ADR-116, Decision 2 obliges KFIT-007 to map the kind into the closed
+  Anvil-owned governance envelope over upstream `generic-event@1`. The original
+  KDS mapping and upstream Anvil-kind schema obligation is historical and
+  superseded; archived KDS remains only the command-usage transport precursor.
 - Non-blocking emission, fence emit-point/ordering, NDJSON retention, and the
   rate-cap are **implementation decisions recorded in the DPO module**, not this
   ADR; this ADR is deliberately scoped to the kind taxonomy (the
   expensive-to-reverse part).
-- If the owner rejects Decision 2 in favour of reusing `gate.evaluated`, the
+- If the owner rejects Decision 2 in favour of reusing `gate_evaluated`, the
   fallback is a distinct `gate_id` (e.g. `daemon.fence-cascade`) plus a
   documented "exclude this `gate_id` before violation aggregation" contract —
   the council judged this fragile and recommends against it.
@@ -105,6 +115,7 @@ before emit (operator-supplied text never lands verbatim).
 - [ADR-031](031-validation-latency-rubric.md) — latency gate on the save-time path
 - [ADR-064](064-intercept-graph-cache-crate-boundary.md) — daemon dependency
   boundary (the Kindling sink is minted in `anvil-cli`, never `anvil-intercept`)
-- [KDS module](../archive/modules/kindling-daemon-sink.aps.md) — the sink backend that
-  must map the new kind
+- [KDS module](../archive/modules/kindling-daemon-sink.aps.md) — historical
+  command-usage sink precursor; ADR-116/KFIT-007 supersede its proposed
+  Anvil-kind mapping role
 - Planning council session `plan-a50aa93d`

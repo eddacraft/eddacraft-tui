@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-08-03 by
+[ADR-116](116-kindling-product-profiles-and-governance-record.md): the local
+record is append-only during normal operation, while ADR-116's authenticated,
+explicit, receipted governance prune is the sole removal exception. ADR-116
+also supersedes the legacy ordinal Kindling-kind model: `false_positive_reported`
+is an Anvil-owned `anvil.governance.v1` kind carried by upstream
+`generic-event@1`, not an Anvil-specific Kindling product variant.
 
 ## Date
 
@@ -29,10 +35,12 @@ Two architectural facts constrain the answer:
   behaviourally by a network-namespace test harness
   (`crates/anvil-cli/tests/air_gapped.rs`). The only outbound calls today are
   user-initiated auth/licence and an opt-in, off-by-default update advisory.
-- **Kindling is a local, immutable system-of-record — not a transmission
-  pipeline.** It persists observations to a local SQLite database
-  (`.anvil/kindling.db`) plus NDJSON sidecars; its contract has no HTTP or
-  network transport (`packages/kindling-integration/`). Usage analytics
+- **Kindling is a local, append-only-by-default system-of-record — not a
+  transmission pipeline.** ADR-116 permits only its authenticated, explicit,
+  receipted governance-prune transaction to remove retained rows. Its embedded
+  profile persists the generic envelope locally and is normatively air-gapped;
+  the old SQLite/NDJSON sidecars and `packages/kindling-integration/` contract
+  are migration inputs, not current wire authority. Usage analytics
   (USAGE-001) follow the same local-only, anonymise-by-default posture
   (`docs/observability/usage-analytics.md`).
 
@@ -49,8 +57,10 @@ telemetry leaves the user's machine as part of OPSUP-007.**
 
 Concretely:
 
-- `anvil report-fp` records a new `false_positive_reported` Kindling
-  observation kind (the 13th, alongside the existing 12), carrying: the stable
+- `anvil report-fp` records `false_positive_reported` as one of the six closed
+  Anvil-owned governance kinds inside `anvil.governance.v1`, carried by
+  upstream `generic-event@1`. The historical “13th Kindling kind” ordinal is a
+  retired legacy-TypeScript taxonomy, not the canonical wire model. The payload carries the stable
   `ANV-*` check ID, a **hashed** file path (a salted, domain-separated SHA-256
   digest under the USAGE-001 per-deployment salt — never a plaintext path; see
   `usage::hash_file_path`), the
@@ -72,7 +82,7 @@ This is the only option consistent with the air-gap guarantee and the existing
 privacy posture, and it is the smallest correct scope that unblocks OPSUP-007:
 
 - It reuses infrastructure that already exists and is already air-gap-safe —
-  the Kindling observation contract, redaction deny-lists, `ArgShape` shape-only
+  the generic Kindling envelope, Anvil-owned governance contract, redaction deny-lists, `ArgShape` shape-only
   encoding, and the USAGE-001 salted-hash model — rather than building a new
   outbound surface.
 - It keeps the decidable parts of OPSUP-007 (CLI surface, anonymisation policy)

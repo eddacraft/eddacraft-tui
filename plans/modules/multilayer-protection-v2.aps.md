@@ -284,7 +284,9 @@ task's `Source:` line cites the Council finding IDs.
 - **Coordinates with:** INTD (daemon enforcement pipeline), DRVR
   (driver framework), RMCP / RMCPF (MCP shim), RTAI (mid-edit
   validation backbone), LAUNCH (`anvil start` activation
-  orchestrator), kindling-integration (observation consumer).
+  orchestrator), KFIT / ADR-116 (embedded Kindling runtime,
+  Rust-authoritative governance envelope, durable admission, and
+  TypeScript-contract cutover).
 
 ## ADRs cited
 
@@ -686,6 +688,17 @@ task's `Source:` line cites the Council finding IDs.
 #### MLP2-006: Daemon notification layer emits `GateEvaluatedObservation` to Kindling
 
 - **Status:** Done
+- **Current authority (2026-08-03):** This shipped a transport-free
+  builder/emitter seam, a recording test sink, and a no-op default; it did not
+  wire a concrete production transport or prove durable storage. The production
+  delivery gap is now owned by KFIT-007, while KFIT-008 owns canonical
+  repository, session, event, and correlation identity. Per ADR-064 and
+  ADR-116, `anvil-intercept` remains transport-free and runtime/transport
+  ownership stays in `anvil-cli`. Routine successful high-frequency
+  mid-edit/save-time checks are tracing-only. A selected governance event
+  counts as recorded only after Kindling or its bounded spool accepts it;
+  admission failure leaves the Anvil verdict unchanged but must surface a
+  visible `recording_gap` diagnostic and query fact.
 - **Intent:** Wire the daemon's notification fan-out to call
   `anvil-intercept::kindling_observation::from_midedit_response`
   on every scan_buffer completion and write the resulting row
@@ -849,6 +862,12 @@ task's `Source:` line cites the Council finding IDs.
 #### MLP2-009: Volume-bounded burst rate-shaping for observations
 
 - **Status:** Done
+- **Current authority (2026-08-03):** The shipped `RateWindow`,
+  `pending_drops`, and throttle marker are producer-side rate shaping only.
+  They are not durable admission evidence for a selected governance event.
+  KFIT-007 owns the current admission contract: Kindling or the bounded spool
+  must accept selected evidence before it counts as recorded, and failure must
+  remain visible as `recording_gap`.
 - **Intent:** Shared rate-window primitive caps observation emit
   rate so a keystroke burst can't flood Kindling. Same primitive
   used by MLP2-026's `degraded:fence-cascade` detector.
@@ -890,6 +909,14 @@ task's `Source:` line cites the Council finding IDs.
 #### MLP2-010: Kindling `action_executed` emission for post-hooks
 
 - **Status:** Done
+- **Current authority (2026-08-03):** This shipped the transport-free
+  builder/emitter work while the production hook path retained a no-op sink;
+  it is not durable-delivery evidence. KFIT-007 owns removal of every
+  production no-op sink plus durable admission and visible `recording_gap`
+  handling. The TypeScript Zod reference below records the wire-parity
+  authority used when this item shipped; at the KFIT-011 cutover it is replaced
+  by Rust-authoritative generated TypeScript/JSON schemas and fixtures for the
+  closed, versioned `anvil.governance.v1` envelope.
 - **Intent:** `anvil hook post-commit` / `post-merge` /
   `post-rewrite` each emit a Kindling `action_executed`
   observation. Pairs with MLP2-004's chain-head cache update.
@@ -4987,7 +5014,7 @@ value):**
 | L4 engine `validate_at_l4` (MLP2-016) performance regression vs hook-side | Medium | Medium | Benchmark first; the existing 40+ helper tests cover the pure-logic path |
 | Cross-platform PIDs (MLP2-027 / -028) introduce flaky tests | Medium | Medium | Linux remains the canonical surface; macOS / Windows are opt-in CI matrix lanes |
 | External `eddacraft/anvil-action` repo (MLP2-042) supply-chain compromise | Low | Critical | SHA-256 pin for the bundled binary; major-tag move signed; documented rotation procedure |
-| Kindling burst rate-shaping (MLP2-009) drops too many observations | Medium | Medium | Configurable thresholds; `degraded:observation-throttled` makes drops observable |
+| Kindling burst rate-shaping (MLP2-009) drops too many observations | Medium | Medium | Configurable thresholds and producer-local `pending_drops`; KFIT-007 owns durable admission and visible `recording_gap` evidence for selected events |
 
 ## Decisions
 
@@ -5015,5 +5042,6 @@ value):**
 - **RTAI** — RTAI-007 telemetry join (MLP2-008).
 - **LAUNCH** — `anvil start` activation orchestrator (group
   G, H, I, K).
-- **kindling-integration** — Kindling SQLite consumer for
-  group A's observation emissions.
+- **KFIT / ADR-116** — embedded Kindling runtime, Rust-authoritative
+  `anvil.governance.v1` contract, typed durable admission, identity, and
+  removal of the stale `kindling-integration` package at KFIT-011 cutover.
