@@ -2,14 +2,15 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 18/22 |
+| ACTTUI | Josh  | Done | 22/22 |
 
-**Last reviewed:** 2026-08-03 — completion programme **Merged via PR #3488**
-([spec](../specs/2026-08-03-activation-tui-completion.md)): items **000–017**
-Merged. **Usability follow-ups ACTTUI-018..021 filed Ready** (quiet re-run
-consent, shared posture model, settled Install/Languages honesty, optional MCP
-pre-write prove). Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`. Release evidence
-for 000–017 still owed for Released/Shipped.
+**Last reviewed:** 2026-08-03 — items **000–017 Merged via PR #3478/#3488**
+([spec](../specs/2026-08-03-activation-tui-completion.md)); completion programme
+015–017 in #3488. **Usability follow-ups ACTTUI-018..021 Merged via PR #3499**
+(quiet re-run consent, shared posture model, settled Install/Languages honesty,
+MCP pre-write prove honesty). Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`.
+Module **Done** (all 22 items Merged); release evidence still owed for
+Released/Shipped.
 
 The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
 remains the governing rollout ladder. Post-flip continuous surface (ACTTUI-014)
@@ -694,7 +695,9 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-018: Quiet re-run consent — filter settled offers
 
-- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
+- **Status:** Merged 2026-08-03 via PR #3499 — registry MCP dry-run filters
+  settled clients out of Consent into `settled_mcp`; empty offer set opens
+  Verdict without a consent parade
 - **Source:** Live validation + post-#3488 usability residual; completion
   programme WP1 gap (empty-offer skip only)
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
@@ -726,7 +729,9 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-019: Shared start/status posture model
 
-- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
+- **Status:** Merged 2026-08-03 via PR #3499 — `SharedPostureFacts` /
+  `McpPosture` under `crates/anvil-cli/src/activation/posture.rs` feed start
+  Verdict layers and status meaning lines with byte-identical subordinate facts
 - **Source:** Residual of ACTTUI-017 (meaning lines only); live protecting vs
   warming divergence
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
@@ -754,7 +759,8 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-020: Settled Install section and honest Languages leaves
 
-- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
+- **Status:** Merged 2026-08-03 via PR #3499 — Verdict Install lists settled MCP
+  rows; Languages inventory copy states Prove is global, not per-language
 - **Source:** Live TUI — Languages expand + `t` felt language-scoped; Install
   noise on re-run
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
@@ -780,7 +786,9 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-021: Optional MCP pre-write prove (honest intercept demo)
 
-- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
+- **Status:** Merged 2026-08-03 via PR #3499 — Prove toast always appends MCP
+  pre-write honesty from `mcp_pre_write_live()` (refuse/honest path; no false
+  live claim from check-pipeline results alone)
 - **Source:** Explicit gap after ACTTUI-016 (check-pipeline Prove ≠ MCP live)
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
 - **Dependencies:** ACTTUI-016 (Merged); coordinates with ACTMO / daemon
@@ -828,16 +836,15 @@ Completion programme (owner-approved 2026-08-03) — Merged via #3478/#3488:
            └──────────► ACTTUI-016 (Prove) ◄──┘
   ACTTUI-017 (start↔status meaning) Merged
 
-Usability follow-ups (filed 2026-08-03):
+Usability follow-ups (filed 2026-08-03) — Merged via #3499:
   ACTTUI-018 (quiet re-run consent) → ACTTUI-020 (settled Install / Languages)
   ACTTUI-019 (shared posture model) parallel after 017
-  ACTTUI-021 (MCP pre-write prove) after 016; may refuse-only if no fixture
+  ACTTUI-021 (MCP pre-write prove honesty; refuse/honest path)
 ```
 
 **Release history:** ACTTUI-009 → 010 → 012 were JOURNEY cut gates for the
 TTY-default flip (ACTTUI-013). Completion items 014–017 Merged via #3478/#3488.
-Follow-ups 018–021 are post-completion daily usability; they do not reopen
-machine contracts.
+Follow-ups 018–021 Merged via #3499; they do not reopen machine contracts.
 
 ## Planning Council record (2026-07-08, direction-validate)
 
