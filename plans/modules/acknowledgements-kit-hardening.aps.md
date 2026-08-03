@@ -368,7 +368,10 @@ authorisation once the six land.
 
 ### ATTRIB-024: Cut the release that publishes the hardening
 
-- **Status:** Proposed
+- **Status:** In Progress — operator authorised 2026-08-03 (Proposed → Ready →
+  In Progress in one step, on explicit instruction). Version bump prepared; the
+  tag push follows once this lands on `main`. Flip to Merged only after the
+  mirror tag and GitHub Release exist.
 - **Intent:** External consumers can pin a version containing the fixes and read
   what changed.
 - **Expected Outcome:** `VERSION` and `CHANGELOG.md` are bumped to **1.1.0**
