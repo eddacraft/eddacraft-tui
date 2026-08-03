@@ -165,7 +165,7 @@ authorisation once the six land.
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
 
-- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
+- **Status:** Merged 2026-08-03 via PR #3492
 - **Intent:** The generator never destroys hand-curated content, and `--check`
   never reports green over generated content it no longer maintains.
 - **Expected Outcome:** A mis-ordered marker pair is refused with an actionable
@@ -187,7 +187,7 @@ authorisation once the six land.
 
 ### ATTRIB-019: Config parsing and rendered cells survive punctuation
 
-- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
+- **Status:** Merged 2026-08-03 via PR #3492
 - **Intent:** A quoted `attribution.toml` value reaches the driver intact, and
   no scanner-supplied string can break the rendered markdown table.
 - **Expected Outcome:** A `#` inside a quoted value is data, not a comment
@@ -208,7 +208,7 @@ authorisation once the six land.
 
 ### ATTRIB-020: Self-tests cannot pass by skipping, and are lint-gated
 
-- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
+- **Status:** Merged 2026-08-03 via PR #3492
 - **Intent:** A green **Kit Self-Tests** run proves every driver was actually
   exercised, and shell regressions are caught by static analysis.
 - **Expected Outcome:** Skips remain available for local runs but are a failure
@@ -226,7 +226,10 @@ authorisation once the six land.
 
 ### ATTRIB-021: Prove the portability the kit is written for
 
-- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
+- **Status:** In Progress — the matrix landed 2026-08-03 via PR #3492, but its
+  first macOS run was **red**, so this item's Validation is not met. Deliberately
+  not flipped to Merged: the code is integrated, the acceptance evidence is
+  disproven.
 - **Intent:** The macOS-portability work already in the scripts is verified, not
   assumed.
 - **Expected Outcome:** The kit self-tests run on macOS as well as Linux, so
@@ -246,6 +249,17 @@ authorisation once the six land.
   on the default branch. This item therefore stays **In Progress** past merge
   until that first macOS run is green, and any divergence it surfaces is
   follow-up work, not a reason to weaken the gate.
+- **First macOS run — FAILED (run 30790996229, 2026-08-03).** The leg earned its
+  keep on its first execution, though not where expected: the divergence is in
+  the workflow, not the kit's bash. `macos-latest` does not preinstall Go, so
+  `go install github.com/google/go-licenses@…` died with
+  `go: command not found` (exit 127) and every later step — the self-tests,
+  ShellCheck, the drift check — was skipped. The Linux leg of the same run
+  passed. Fix: provision Go explicitly rather than inheriting it from the
+  runner image. Until a macOS run is green end-to-end this item's Expected
+  Outcome is unproven, because the kit's symlink resolution, `fold`-free
+  wrapper and bash-3.2-sensitive constructs still have not executed on macOS
+  even once.
 - **Files:** `.github/workflows/acknowledgements-kit.yml`,
   `tools/starters/acknowledgements/expand-licences.sh`,
   `tools/starters/acknowledgements/generate-acknowledgements.sh`.
@@ -256,7 +270,7 @@ authorisation once the six land.
 
 ### ATTRIB-022: The published mirror is self-contained
 
-- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
+- **Status:** Merged 2026-08-03 via PR #3492
 - **Intent:** An external consumer of the public repo can follow every link and
   run the kit's tests without access to the private upstream.
 - **Expected Outcome:** No kit-internal document links to a path outside the
@@ -279,7 +293,7 @@ authorisation once the six land.
 
 ### ATTRIB-023: Kit ergonomics backlog
 
-- **Status:** In Progress — implemented on `feat/attrib-018-023-kit-hardening`; flip to Merged only once the PR is an ancestor of main.
+- **Status:** Merged 2026-08-03 via PR #3492
 - **Intent:** Record the non-blocking rough edges so they are not rediscovered
   by the next reader.
 - **Expected Outcome:** Each of F10–F12 is either fixed or explicitly declined

@@ -89,8 +89,17 @@ jobs:
           node-version: '20'
 
       # Go driver tests need go-licenses (the render + strict tests build
-      # a network-free local-`replace` Go module fixture). ubuntu-latest
-      # ships Go; install the pinned go-licenses and expose GOPATH/bin.
+      # a network-free local-`replace` Go module fixture).
+      #
+      # Provision Go explicitly rather than inheriting it from the runner
+      # image: ubuntu-latest preinstalls it but macos-latest does not, and
+      # the ATTRIB-021 matrix leg failed on exactly that
+      # (`go: command not found`, exit 127, run 30790996229) — taking the
+      # self-tests, ShellCheck and the drift check down as skipped with it.
+      - name: Setup Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: 'stable'
       - name: Install go-licenses
         run: |
           go install github.com/google/go-licenses@v${GO_LICENSES_VERSION}
