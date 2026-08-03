@@ -2,15 +2,14 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | Merged | 18/18 |
+| ACTTUI | Josh  | In Progress | 18/22 |
 
 **Last reviewed:** 2026-08-03 — completion programme **Merged via PR #3488**
-([spec](../specs/2026-08-03-activation-tui-completion.md)). Items **000–017**
-are all Merged-or-Done: **ACTTUI-014** via #3478 (continuous live surface);
-**ACTTUI-015..017** via #3488 (honesty, Prove, start↔status posture). The
-Release 2 TTY-default flip (**ACTTUI-013**) Merged 2026-07-26 via PR #3411.
-Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`. Module awaits release evidence
-before Released/Shipped.
+([spec](../specs/2026-08-03-activation-tui-completion.md)): items **000–017**
+Merged. **Usability follow-ups ACTTUI-018..021 filed Ready** (quiet re-run
+consent, shared posture model, settled Install/Languages honesty, optional MCP
+pre-write prove). Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`. Release evidence
+for 000–017 still owed for Released/Shipped.
 
 The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
 remains the governing rollout ladder. Post-flip continuous surface (ACTTUI-014)
@@ -98,6 +97,10 @@ tutorial story changes (WOW owns narrative).
 - `LogPanel` for tier-evidence / daemon skip detail (replaces JSON WARN leak on
   human path — CIB-162)
 - Snapshot + e2e regression matrix for TTY vs plain vs verify
+- **Usability follow-ups (post-#3488):** quiet re-run consent when installs are
+  settled (ACTTUI-018); deeper start↔status shared posture model (ACTTUI-019);
+  settled Install section + no fake language-row actions (ACTTUI-020); optional
+  honest MCP pre-write prove path (ACTTUI-021)
 
 ## Out of Scope
 
@@ -689,6 +692,120 @@ tutorial story changes (WOW owns narrative).
   protection claims without an explicit subordinate reason line
 - **Confidence:** medium
 
+### ACTTUI-018: Quiet re-run consent — filter settled offers
+
+- **Status:** Ready 2026-08-03
+- **Source:** Live validation + post-#3488 usability residual; completion
+  programme WP1 gap (empty-offer skip only)
+  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+- **Dependencies:** ACTTUI-014, ACTTUI-015 (Merged)
+- **Intent:** A healthy daily `anvil start` lands on Verdict in seconds without a
+  multi-client consent parade when nothing actionable remains.
+- **Expected Outcome:**
+  - Consent offers exclude **settled** items: MCP clients already at
+    safe/live/`AlreadyUpToDate` with no write needed; hooks already installed
+    and anvil-managed; workflows already present without drift.
+  - When the filtered offer set is empty, skip Consent and open Verdict (same as
+    today's empty-plan path).
+  - Verdict **Install** (or equivalent) still shows settled clients/hooks as
+    read-only posture rows so operators can see what is already wired.
+  - Unsafe drift and truly missing clients still appear as unticked offers
+    (CIB-165 preserved).
+  - PTY/unit: activated repo with Cursor+Claude already configured and no
+    hook/workflow delta → no Consent phase; one missing client still offers only
+    that client.
+- **Non-scope:** Auto-ticking any client; changing non-interactive MCP install
+  policy; removing the ability to re-offer a client after deliberate uninstall.
+- **Files:** `crates/anvil-cli/src/activation/orchestrator/` (consent plan
+  builder), `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-tui/src/surfaces/activation/`, `crates/anvil-cli/tests/start.rs`
+- **Validation:** `cargo test -p eddacraft-anvil` consent-plan / start filters;
+  `cargo test -p eddacraft-anvil-tui activation`; focused PTY re-run without
+  Consent when settled
+- **Confidence:** high
+
+### ACTTUI-019: Shared start/status posture model
+
+- **Status:** Ready 2026-08-03
+- **Source:** Residual of ACTTUI-017 (meaning lines only); live protecting vs
+  warming divergence
+  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+- **Dependencies:** ACTTUI-017 (Merged)
+- **Intent:** Operators get one coherent protection story across `anvil start`
+  and `anvil status`, not just an explanatory footnote.
+- **Expected Outcome:**
+  - A shared typed posture projection (or equivalent pure helper) feeds both
+    start Verdict next-step/layers and status Protection/Next/L0–L2 lines for
+    the overlapping fields: protection state or claim, MCP wired vs live, daemon
+    attestation, save-time attached/stale, single arbitrated next step.
+  - Where vocabularies necessarily differ (`protecting` vs `warming`), both
+    surfaces name the **same subordinate facts** so they cannot contradict
+    without an explicit layer line.
+  - Unit tests pin the shared mapping; no new ProtectionState words.
+- **Non-scope:** Merging start and status into one command; rewriting L1/L5
+  unknown layers; daemon spine behaviour.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/status.rs`, optional shared module under
+  `crates/anvil-cli/src/activation/`, focused tests
+- **Validation:** `cargo test -p eddacraft-anvil` shared-posture / status / start
+  filters; manual pair of `anvil start --verify` and `anvil status` on a
+  warming+L0-on repo shows consistent facts
+- **Confidence:** medium
+
+### ACTTUI-020: Settled Install section and honest Languages leaves
+
+- **Status:** Ready 2026-08-03
+- **Source:** Live TUI — Languages expand + `t` felt language-scoped; Install
+  noise on re-run
+  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+- **Dependencies:** ACTTUI-016 (Merged — Prove global); preferred after
+  ACTTUI-018 so settled Install rows match filtered consent
+- **Intent:** Tree sections set correct expectations: Install shows what is
+  already wired; Languages never imply a per-language action that does not exist.
+- **Expected Outcome:**
+  - Verdict Install (or new Settled subsection) lists configured MCP clients and
+    hook posture as non-actionable status rows on re-runs.
+  - Languages rows remain coverage inventory only; help does not imply that
+    focusing a language then Prove smokes that language.
+  - Optional: focusing a language leaf shows a one-line basis (supported /
+    partial / unsupported) in the toast or detail strip without running checks.
+  - No per-language Prove execution in this item.
+- **Non-scope:** Language packs; per-language secret fixtures; changing coverage
+  tiers.
+- **Files:** `crates/anvil-tui/src/surfaces/activation/verdict.rs`,
+  `crates/anvil-cli/src/commands/start.rs` (verdict model builder), snapshots
+- **Validation:** `cargo test -p eddacraft-anvil-tui activation`; snapshot or unit
+  asserts Install settled rows; help/Prove copy remains global
+- **Confidence:** medium
+
+### ACTTUI-021: Optional MCP pre-write prove (honest intercept demo)
+
+- **Status:** Ready 2026-08-03
+- **Source:** Explicit gap after ACTTUI-016 (check-pipeline Prove ≠ MCP live)
+  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+- **Dependencies:** ACTTUI-016 (Merged); coordinates with ACTMO / daemon
+  attestation truth
+- **Intent:** When the operator asks, prove **editor pre-write interception**
+  honestly — or refuse with a reason — without claiming CLI check results mean
+  MCP is live.
+- **Expected Outcome:**
+  - A distinct control or second mode (not overloading check-pipeline Prove
+    success copy) that either: (a) exercises a documented, safe intercept path
+    and reports real evidence (daemon + client tier / handshake), or (b) states
+    clearly that MCP prove requires a supported editor attach and lists Next.
+  - Never upgrades check-pipeline Prove toast to “MCP pre-write is live”.
+  - Gates: no live client → unavailable with reason; gated `ANVIL_HOME` respected.
+  - Tests for refuse path; success path only if a deterministic harness fixture
+    exists (otherwise ship refuse + guidance only and record residual).
+- **Non-scope:** Driving a real GUI editor from the CLI; claiming full L0 from
+  CLI-only fixtures; replacing `anvil intercept status`.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-tui/src/surfaces/activation/`, intercept/status helpers as needed
+- **Validation:** unit tests for refuse/honest copy; optional integration if a
+  fixture harness exists; must not break ACTTUI-016 check-pipeline Prove
+- **Confidence:** low
+
+
 ## Sequencing
 
 ```text
@@ -705,16 +822,22 @@ Phase C (ship gate) — shipped:
   Review remediation: ACTTUI-009 → 010; 011 after 009; 012 before default flip
   Default flip: ACTTUI-008 ∧ 009 ∧ 010 ∧ 012 → ACTTUI-013 (Merged)
 
-Completion programme (owner-approved 2026-08-03):
-  ACTTUI-015 (honesty) ──parallel──► ACTTUI-014 (continuous + quiet consent)
+Completion programme (owner-approved 2026-08-03) — Merged via #3478/#3488:
+  ACTTUI-015 (honesty) ──parallel──► ACTTUI-014 (continuous)
            │                                  │
            └──────────► ACTTUI-016 (Prove) ◄──┘
-  ACTTUI-017 (start↔status) after 014 verdict/next-step model is stable
+  ACTTUI-017 (start↔status meaning) Merged
+
+Usability follow-ups (filed 2026-08-03):
+  ACTTUI-018 (quiet re-run consent) → ACTTUI-020 (settled Install / Languages)
+  ACTTUI-019 (shared posture model) parallel after 017
+  ACTTUI-021 (MCP pre-write prove) after 016; may refuse-only if no fixture
 ```
 
 **Release history:** ACTTUI-009 → 010 → 012 were JOURNEY cut gates for the
-TTY-default flip (ACTTUI-013). Completion items 014–017 are post-cut daily
-confidence polish; they do not reopen machine contracts.
+TTY-default flip (ACTTUI-013). Completion items 014–017 Merged via #3478/#3488.
+Follow-ups 018–021 are post-completion daily usability; they do not reopen
+machine contracts.
 
 ## Planning Council record (2026-07-08, direction-validate)
 

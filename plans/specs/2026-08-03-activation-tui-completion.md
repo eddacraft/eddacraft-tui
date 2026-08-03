@@ -136,3 +136,17 @@ hardening (not in-surface smoke), ADTRUST-006 plain recipe, CIB-183 quiet re-run
 | ---- | -------- |
 | ACTTUI-014 | Merged via PR #3478 |
 | ACTTUI-015..017 | Merged 2026-08-03 via PR #3488 (`65cc0c915`) — ancestor of `origin/main` |
+
+## Usability follow-ups (filed 2026-08-03)
+
+Residual daily UX after #3488, tracked as **ACTTUI-018..021**:
+
+| Item | Gap | Priority |
+| ---- | --- | -------- |
+| [ACTTUI-018](../modules/activation-tui.aps.md#acttui-018-quiet-re-run-consent--filter-settled-offers) | Consent still re-offers settled MCP/hooks on healthy re-runs | **Highest** — daily 3-second health check |
+| [ACTTUI-019](../modules/activation-tui.aps.md#acttui-019-shared-startstatus-posture-model) | start protecting vs status warming still different models | High — trust |
+| [ACTTUI-020](../modules/activation-tui.aps.md#acttui-020-settled-install-section-and-honest-languages-leaves) | Install noise; Languages leaf feels actionable | Medium |
+| [ACTTUI-021](../modules/activation-tui.aps.md#acttui-021-optional-mcp-pre-write-prove-honest-intercept-demo) | Check-pipeline Prove ≠ MCP pre-write | Medium; may ship refuse-only |
+
+Recommended order: **018 → 020**, **019** in parallel, **021** when intercept
+fixtures allow honest success (else refuse path only).
