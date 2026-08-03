@@ -1,133 +1,134 @@
 ---
 id: beta-testing-guide
-title: Test the current beta
+title: Beta test brief
 description:
-  Focus beta testing on the current user journeys, known boundaries, and useful
-  feedback.
+  Prove install, first value, activation, and recovery on the current anvil
+  beta.
 ---
 
-# Test the current beta
+# Beta test brief
 
-**For:** invited beta testers and teams evaluating anvil
+**For:** invited beta testers
 
-**Time:** 30–60 minutes for the core pass
+**Time:** about 20 minutes
 
-**Outcome:** reproducible feedback about installation, first value, protection,
-and recovery
+**Outcome:** one reproducible report — platform, version, protection state, and
+what worked or broke
 
-This guide is a test brief, not a second setup manual. Complete the canonical
-[quickstart](quickstart.md) first. If you arrived from a beta invitation, use
-the quickstart to install or update anvil, sign in, and confirm your identity;
-then return here to test the current beta.
+This is a **test brief**, not a second setup manual. Setup lives only in the
+[quickstart](quickstart.md). Install or update there, then return here.
 
-**Current beta:**
-[v0.9.1-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.1-beta). A
-newer beta reported by `anvil version` is also valid.
+**Current published beta:**
+[v0.9.1-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.1-beta).
+Confirm with `anvil version`. A newer beta is valid.
 
-## Before you test
+## The product under test
 
-- **First-time tester:** follow the [quickstart](quickstart.md).
-- **Returning tester:** run `anvil version`. If it reports an update, use the
-  recommended command for your installation method before testing.
-- **Approved access:** run `anvil auth login`, complete the GitHub device
-  sign-in, then run `anvil auth whoami`. If you do not use GitHub, run
-  `anvil auth login --otp`; this verifies your invited email but does not bypass
-  beta approval.
+anvil protects AI-assisted and ordinary edits with the same local checks:
 
-## What to test first
+| Moment                    | How you exercise it                               |
+| ------------------------- | ------------------------------------------------- |
+| Discovery (no account)    | `anvil welcome`                                   |
+| Activation (invite-gated) | `anvil auth login` → `anvil start`                |
+| Daily path                | bare `anvil` (daemon + existing MCP; no re-setup) |
+| Deliberate proof          | [ten-minute protection tutorial](first-gate.md)   |
+| CI-shaped gate            | `anvil gate --profile ci --json`                  |
 
-Run these journeys in order:
+Final activation states are literal: `protecting`, `ready_restart_required`,
+`watching`, `needs_action`, `unsupported`, `error`. See
+[activation states](guides/start-output-contracts.md).
 
-1. Install or update with the method appropriate for your operating system.
-2. Run `anvil version`, then run `anvil welcome` without relying on sign-in.
-3. Sign in, confirm `anvil auth whoami`, and run `anvil start` (expect the
-   interactive activation surface in a real terminal). Offer MCP install for any
-   client you use from the full consent list.
-4. Confirm the reported protection state and follow any restart instruction.
-5. Complete the [ten-minute protection tutorial](first-gate.md).
-6. Run `anvil start --verify` after restarting a configured client.
-7. Exercise [save-time validation](guides/save-time-validation.md).
-8. **Daily ensure:** from the same project, run bare `anvil` (and
-   `anvil --json`). Expect a short confidence summary when already activated;
-   expect recovery naming `anvil start` if config is absent. Confirm it does not
-   re-offer MCP installs you declined.
-9. Multi-harness MCP: run `anvil mcp install --help`, install a client your
-   binary lists, restart that client, then `anvil start --verify`.
-10. Optional: `anvil skill install` / `anvil doctor` for managed-skill freshness
-    when your binary exposes them.
-11. Install, inspect, and remove [Git hooks](operations/git-hooks.md).
-12. Run `anvil gate --profile ci --json` and inspect the machine-readable
-    output.
-13. Run `anvil uninstall --dry-run` and confirm that the proposed scope matches
-    the [uninstall guide](operations/uninstall.md).
+## Core pass (do this)
 
-## Success criteria
+From a real project root, in order:
 
-Record:
+1. **Binary** — `anvil version` (install method + upgrade guidance). If an
+   update is available, take it with the printed command, then re-check.
+2. **Discovery** — `anvil welcome` without signing in. Expect a guided scan and
+   either findings or an explicit clean result.
+3. **Identity** — `anvil auth login` (GitHub device flow by default; works over
+   SSH/tmux). No GitHub? `anvil auth login --otp`. Then `anvil auth whoami`.
+   Approval is required; OTP does not bypass the invite.
+4. **Activate** — `anvil start` in a real terminal. Consent offers every
+   supported MCP client (unticked by default). Note the final protection state
+   and any restart instruction.
+5. **Prove detection** — complete the [protection tutorial](first-gate.md).
+6. **Verify** — after restarting any named client: `anvil start --verify`
+   (read-only; same state vocabulary).
+7. **Daily ensure** — bare `anvil` and `anvil --json`. Expect a short confidence
+   summary when already activated; recovery that names `anvil start` if the
+   project was never activated. Declined clients must not reappear.
 
-- operating system and CPU architecture;
-- installation method;
-- `anvil version` output, including whether it reported the current beta or an
-  available update;
-- sign-in method (GitHub device sign-in or email OTP), plus whether
-  `anvil auth whoami` confirmed the expected identity;
-- project languages;
-- AI client, if any;
-- the final protection state;
-- the exact command that failed or surprised you; and
-- whether recovery guidance worked without outside help.
+A clean scan is not a failure. The question is whether the result is explicit,
+repeatable, and recoverable without outside help.
 
-A clean scan is not a test failure. The important question is whether the result
-is explicit, understandable, and repeatable.
+## Stretch (optional, 10 minutes)
 
-## Current beta boundaries
+Pick what matches how you work:
 
-- `anvil welcome` is the account-free discovery path.
-- Ongoing activation requires beta authentication.
-- GitHub device sign-in is the default authentication path. Email OTP is the
-  fallback for an approved tester who does not use GitHub.
-- Interactive `anvil start` offers every supported MCP client in the consent
-  list (unticked by default). Scripted install uses
-  `anvil mcp install --client`, `--mcp-client`, or `--all-mcp-clients`.
-- Bare `anvil` is ensure-only after activation: no silent first-time install and
-  no re-offer of declined clients.
-- Other editors can also use terminal checks and save-time watching without MCP.
-- Language parsing and specialised rule depth are not identical; the support
-  reference distinguishes them.
-- Warning-severity findings do not fail `anvil gate` by default; opt in with
-  `--fail-on-warnings` when you need that stricter posture.
-- Beta command shapes and output may change before a stable release.
-- Do not assume a separate editor extension is installed.
+| Path              | Commands / docs                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| Multi-harness MCP | `anvil mcp install --help`, install one client from the list, restart it, `anvil start --verify`            |
+| Scripted clients  | `anvil start --mcp-client <name>` or `--all-mcp-clients` (headless); or `anvil mcp install --client <name>` |
+| Save-time loop    | [save-time validation](guides/save-time-validation.md) · `anvil watch`                                      |
+| Git hooks         | [git hooks](operations/git-hooks.md) · `anvil hooks install` / `status` / `uninstall`                       |
+| CI gate           | `anvil gate --profile ci --json` (warnings do not fail the gate unless `--fail-on-warnings`)                |
+| Skills / doctor   | `anvil skill install` · `anvil doctor`                                                                      |
+| Uninstall dry-run | `anvil uninstall --dry-run` vs [uninstall](operations/uninstall.md)                                         |
+| AI write path     | [agent harness](guides/agent-harness.md)                                                                    |
 
-## Recovery tests
+The client registry is versioned with the binary — run
+`anvil mcp install --help` for the list your install supports.
 
-Deliberately verify these safe paths:
+## What is in beta (honest boundaries)
 
-| Situation                            | Expected recovery                                                         |
-| ------------------------------------ | ------------------------------------------------------------------------- |
-| Client configuration needs a restart | Restart the named client, then run `anvil start --verify`                 |
-| Authentication expires               | Run `anvil auth refresh`, then sign in again if asked                     |
-| Installation is not found            | Follow the PATH checks in troubleshooting                                 |
-| The project is unsupported           | The output names the unsupported coverage rather than claiming protection |
-| A watcher must stop                  | Ctrl-C ends the foreground process                                        |
-| Hooks are no longer wanted           | `anvil hooks uninstall` removes anvil-managed hooks                       |
-| Managed skill is stale after upgrade | `anvil doctor`, then the skill install path from installed help           |
+- `anvil welcome` needs no account; ongoing protection needs approved beta auth.
+- Default sign-in is GitHub device flow; `--otp` is the email fallback.
+- Interactive `anvil start` offers every registry client; nothing is written
+  until you select one. Use `--no-mcp` if editor MCP is blocked.
+- Bare `anvil` is ensure-only: no silent first-time install, no re-offer of
+  declined clients.
+- Language depth is uneven — [support matrix](reference/support.md) separates
+  compiled patterns from parse-only coverage.
+- Warning findings do not fail `anvil gate` by default.
+- Command shapes and output can still change before a stable release.
+- Do not assume a separate editor extension; terminal + MCP + watch are the
+  shipped surfaces.
+
+## Recovery (safe to break on purpose)
+
+| Situation                | Expected recovery                                         |
+| ------------------------ | --------------------------------------------------------- |
+| Client needs restart     | Restart the named client → `anvil start --verify`         |
+| Session expired          | `anvil auth refresh`; sign in again if asked              |
+| Binary missing from PATH | [troubleshooting](operations/troubleshooting.md)          |
+| Unsupported project      | Output names the gap; it does not claim protection        |
+| Foreground watcher       | Ctrl-C ends it                                            |
+| Hooks unwanted           | `anvil hooks uninstall`                                   |
+| Odd environment          | `anvil doctor` (add `--fix` only when you intend repairs) |
 
 ## Report feedback
 
-Open a [public issue](https://github.com/eddacraft/anvil/issues/new/choose) with
-the evidence above when a redacted public report is appropriate. Remove tokens,
-source code, private repository names, and personal paths before posting.
+Capture once:
 
-For installation, sign-in, or project details that should stay private — or if
-you do not use GitHub — reply to your beta invitation with the same evidence.
+- OS and CPU architecture
+- install method (`anvil version` prints it)
+- full `anvil version` output
+- sign-in method (GitHub or OTP) and whether `anvil auth whoami` matched
+- project languages and AI client(s), if any
+- final protection state
+- the exact command that failed or surprised you
+- whether recovery worked without outside help
 
-For a suspected false positive, use `anvil report-fp --help` and review the
-displayed data boundary before including a source snippet.
+Open a [public issue](https://github.com/eddacraft/anvil/issues/new/choose) when
+a redacted public report is fine. Strip tokens, private paths, and source you
+cannot share. Otherwise reply to your beta invitation with the same evidence.
 
-## Next step
+Suspected false positive: `anvil report-fp --help` first — reports stay local
+unless you opt into a snippet; paths are hashed by default.
 
-After the core pass, test the workflow closest to your real use:
-[AI-assisted writes](guides/agent-harness.md),
-[team gates](guides/team-flow.md), or
-[continuous integration](integrations/github.md).
+## Next
+
+After the core pass, stress the path you actually use:
+[team gates](guides/team-flow.md), [CI](integrations/github.md), or
+[local dashboards](guides/dashboard.md).

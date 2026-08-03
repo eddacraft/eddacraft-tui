@@ -2,24 +2,17 @@
 id: quickstart
 title: anvil beta
 description:
-  Start the anvil beta through the canonical public setup and current testing
-  brief.
+  Start the anvil beta through the maintained setup path and current test brief.
 ---
 
 # anvil beta
 
-The beta has one setup path.
+One path. Do not copy install commands from release notes or old test plans.
 
-1. Follow
-   [install and get first value](https://docs.eddacraft.ai/anvil/quickstart).
-2. Complete the
-   [ten-minute protection tutorial](https://docs.eddacraft.ai/anvil/first-gate).
-3. Use the
-   [current beta testing brief](https://docs.eddacraft.ai/anvil/beta-testing-guide)
-   to record platform, version, protection state, and recovery evidence.
+1. [Install and get first value](https://docs.eddacraft.ai/anvil/quickstart)
+2. [Ten-minute protection tutorial](https://docs.eddacraft.ai/anvil/first-gate)
+3. [Beta test brief](https://docs.eddacraft.ai/anvil/beta-testing-guide) —
+   record platform, version, protection state, and recovery evidence
 
-Do not copy install commands from release notes or old test plans. The
-quickstart is the maintained setup authority.
-
-For current platform, language, and client coverage, use the
-[generated support reference](https://docs.eddacraft.ai/anvil/reference/support-reference).
+Coverage (platforms, languages, clients):
+[support reference](https://docs.eddacraft.ai/anvil/reference/support-reference).
