@@ -494,6 +494,16 @@ orphan_marker_names() {
     if [ "$kind" = "begin" ]; then base="$marker_begin"; else base="$marker_end"; fi
     prefix="$(marker_prefix_for "$kind")"
     awk -v base="$base" -v prefix="$prefix" -v known="$known" '
+      # Fenced code blocks are documentation, not markup. A target may
+      # legitimately show the marker syntax while explaining how to add a
+      # block; treating that as a live orphan would fail the consumer over
+      # their own prose, in both modes, with no in-tool way out.
+      {
+        fence = $0
+        sub(/^[[:space:]]+/, "", fence)
+        if (fence ~ /^(```|~~~)/) { in_fence = !in_fence; next }
+        if (in_fence) next
+      }
       {
         # The unnamed marker is the base text itself. Test it first:
         # the prefix is a substring of the base, so testing prefix first
@@ -507,13 +517,20 @@ orphan_marker_names() {
         if (p == 0) next
         rest = substr($0, p + length(prefix))
         # A managed marker reads "<prefix> <name> -->". Anything else
-        # that merely mentions the prefix (prose, a nested example) is
-        # not a marker and is left alone.
+        # that merely mentions the prefix is not a marker.
         t = index(rest, "-->")
         if (t == 0) next
         name = substr(rest, 1, t - 1)
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
         if (name == "") next
+        # Only a valid block name is a block name. The dispatcher rejects
+        # anything but kebab-case for `name`, so a scan hit that is not
+        # kebab-case cannot be a managed marker. This also disambiguates
+        # overlapping custom markers: with marker_begin "<!-- gen -->" and
+        # marker_end "<!-- gen end -->", the begin stem also matches every
+        # end marker, and the extracted "end alpha" is correctly discarded
+        # rather than reported as a phantom orphan.
+        if (name !~ /^[a-z0-9]+(-[a-z0-9]+)*$/) next
         if (index(known, "|" name "|") == 0) print name
       }
     ' "$target"

@@ -402,5 +402,86 @@ if [ "$seen8" != "$scenario8/vendor/c#sharp/Cargo.toml" ]; then
 fi
 echo "ok scenario 8: '#' inside a quoted value survives, trailing comment stripped"
 
+# ── Scenario 9: the orphan gate must not fire on documentation
+# A target may legitimately document the marker syntax — in a fenced
+# code block, or with a marker-shaped string that is not a real marker.
+# Treating those as live orphans would fail a consumer's build over their
+# own prose, in both modes, with no in-tool way out. Regression guard for
+# the false positive found in review.
+scenario9="$fixture_root/documented-markers"
+make_common_files "$scenario9"
+cat >"$scenario9/attribution.toml" <<EOF
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+EOF
+cat >"$scenario9/ACKNOWLEDGEMENTS.md" <<'MDEOF'
+# Acknowledgements
+
+## How to add a block
+
+Declare the block in `attribution.toml`, then add its marker pair here:
+
+```markdown
+<!-- BEGIN AUTO-GENERATED my-new-block -->
+<!-- END AUTO-GENERATED my-new-block -->
+```
+
+<!-- BEGIN AUTO-GENERATED stub -->
+STUB-GENERATED-ROW
+<!-- END AUTO-GENERATED stub -->
+MDEOF
+
+for mode9 in "--check" ""; do
+  label9="${mode9:-write}"
+  # shellcheck disable=SC2086 # intentional word-split: empty means write mode
+  result9="$(ATTRIB_DRIVERS_DIR="$stub_drivers" run_generator "$scenario9" $mode9)"
+  exit9="$(echo "$result9" | awk -F= '/^EXIT=/ { print $2; exit }')"
+  if [ "$exit9" != "0" ]; then
+    echo "FAIL scenario 9 ($label9): fenced marker documentation treated as a live block" >&2
+    echo "$result9" >&2
+    exit 1
+  fi
+  echo "ok scenario 9 ($label9): fenced marker documentation ignored (exit $exit9)"
+done
+
+# ── Scenario 10: custom markers whose END text extends the BEGIN text
+# With marker_begin "<!-- gen -->" and marker_end "<!-- gen end -->", the
+# begin-marker stem is a prefix of every end marker too. Extracting a
+# name from an end marker must not invent a bogus block name.
+scenario10="$fixture_root/overlapping-markers"
+make_common_files "$scenario10"
+cat >"$scenario10/attribution.toml" <<EOF
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+marker_begin = "<!-- gen -->"
+marker_end = "<!-- gen end -->"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+EOF
+cat >"$scenario10/ACKNOWLEDGEMENTS.md" <<'MDEOF'
+# Acknowledgements
+
+<!-- gen stub -->
+STUB-GENERATED-ROW
+<!-- gen end stub -->
+MDEOF
+
+result10="$(ATTRIB_DRIVERS_DIR="$stub_drivers" run_generator "$scenario10" --check)"
+exit10="$(echo "$result10" | awk -F= '/^EXIT=/ { print $2; exit }')"
+if [ "$exit10" != "0" ]; then
+  echo "FAIL scenario 10: overlapping custom marker stems produced a bogus orphan" >&2
+  echo "$result10" >&2
+  exit 1
+fi
+echo "ok scenario 10: overlapping custom marker stems parse cleanly (exit $exit10)"
+
 echo ""
-echo "dispatcher schema-validation tests passed: 8/8 scenarios green."
+echo "dispatcher schema-validation tests passed: 10/10 scenarios green."

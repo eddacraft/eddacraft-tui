@@ -69,6 +69,26 @@ if [ "$list_only" = true ]; then
   exit 0
 fi
 
+# The array above is ordered deliberately, so it is written by hand — which
+# would make "add a test to tests/ and CI runs it" a promise the runner
+# cannot keep. Enforce it instead: any test file on disk that is missing
+# from TESTS is an error, not a silent omission.
+missing=""
+for candidate in "$TESTS_DIR"/*.sh; do
+  base="$(basename "$candidate")"
+  [ "$base" = "run-all.sh" ] && continue
+  case " ${TESTS[*]} " in
+    *" $base "*) ;;
+    *) missing="$missing $base" ;;
+  esac
+done
+if [ -n "$missing" ]; then
+  echo "error: test file(s) present in $TESTS_DIR but absent from this runner's list:" >&2
+  for m in $missing; do echo "  - $m" >&2; done
+  echo "  add them to TESTS in $(basename "$0") so CI actually runs them." >&2
+  exit 1
+fi
+
 passed=0
 skipped=0
 failed=0

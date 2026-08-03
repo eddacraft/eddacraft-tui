@@ -235,6 +235,17 @@ authorisation once the six land.
 - **Validation:** The kit self-test job passes on both legs of a
   `ubuntu-latest` / `macos-latest` matrix; any platform-specific divergence is
   fixed in the kit rather than skipped.
+- **Evidence gap (recorded 2026-08-03, raised in verification):** the macOS leg
+  is deliberately excluded from `pull_request` runs, because this repository
+  keeps matrices off the PR path on cost grounds and repository policy outranks
+  this item's wording. The consequence is that **the PR implementing this item
+  cannot produce the both-legs evidence its Validation asks for** — the first
+  macOS run happens on the post-merge push to `main`, the weekly cron, or a
+  manual `gh workflow run acknowledgements-kit.yml`. `workflow_dispatch` cannot
+  supply it earlier: GitHub only exposes the trigger once the workflow file is
+  on the default branch. This item therefore stays **In Progress** past merge
+  until that first macOS run is green, and any divergence it surfaces is
+  follow-up work, not a reason to weaken the gate.
 - **Files:** `.github/workflows/acknowledgements-kit.yml`,
   `tools/starters/acknowledgements/expand-licences.sh`,
   `tools/starters/acknowledgements/generate-acknowledgements.sh`.
