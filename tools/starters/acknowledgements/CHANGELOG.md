@@ -12,9 +12,9 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
   which previously exited 0 now exits 1 is **not** a major change, provided the
   meaning of the exit codes themselves is unchanged. Such input was producing
   silently wrong output — a stale block, a truncated path, deleted prose — and
-  reporting it is a fix. Gate fixes of that kind ship as minor, and every one
-  is called out under its own heading in the entry so an upgrade never
-  surprises you. See 1.1.0 for the first instance.
+  reporting it is a fix. Gate fixes of that kind ship as minor, and every one is
+  called out under its own heading in the entry so an upgrade never surprises
+  you. See 1.1.0 for the first instance.
 
 - **minor** — additive and backwards-compatible (a new ecosystem driver, a new
   optional field), plus gate fixes as described above.
@@ -32,17 +32,16 @@ Both cases below exited **0** before this release while producing wrong output.
 If your build goes red on upgrade it is one of these, and the file was already
 wrong:
 
-- **A marker pair in the wrong order** (`END` above its `BEGIN`) is now
-  refused. Previously the generator printed `Updated <file>`, exited 0, and
-  deleted every line from the `BEGIN` marker to the end of the file — silently
-  discarding the hand-curated content this kit promises to preserve. *Fix:* put
-  the markers in the right order, and check your history if content has already
-  gone missing.
-- **A marker pair with no matching block** in `attribution.toml` is now
-  reported by name. Previously a block you deleted or renamed kept its last
-  generated content indefinitely and `--check` reported green over it — stale
-  licence attribution passing a freshness gate. *Fix:* delete the orphaned
-  marker pair, or re-declare the block.
+- **A marker pair in the wrong order** (`END` above its `BEGIN`) is now refused.
+  Previously the generator printed `Updated <file>`, exited 0, and deleted every
+  line from the `BEGIN` marker to the end of the file — silently discarding the
+  hand-curated content this kit promises to preserve. _Fix:_ put the markers in
+  the right order, and check your history if content has already gone missing.
+- **A marker pair with no matching block** in `attribution.toml` is now reported
+  by name. Previously a block you deleted or renamed kept its last generated
+  content indefinitely and `--check` reported green over it — stale licence
+  attribution passing a freshness gate. _Fix:_ delete the orphaned marker pair,
+  or re-declare the block.
 
 Markers inside fenced code blocks are ignored, so a target that documents the
 marker syntax in its own prose is unaffected.
@@ -53,15 +52,15 @@ marker syntax in its own prose is unaffected.
   comment. `manifest_path = "vendor/c#sharp/Cargo.toml"` previously reached the
   driver truncated to `vendor/c` and resolved somewhere else entirely.
 - The Node driver escapes `|` in every cell it renders, so a package name,
-  licence expression, or repository URL containing one can no longer split a
-  row into extra columns. The Go and Python renders are **not** covered: their
-  rows come from an upstream template and from `pip-licenses` itself, so the
-  driver never builds those cells.
+  licence expression, or repository URL containing one can no longer split a row
+  into extra columns. The Go and Python renders are **not** covered: their rows
+  come from an upstream template and from `pip-licenses` itself, so the driver
+  never builds those cells.
 
 ### Added
 
-- `tests/run-all.sh` — one entry point for the kit's self-tests, so the suite
-  is runnable without reconstructing it from a CI file. `--require-all` turns a
+- `tests/run-all.sh` — one entry point for the kit's self-tests, so the suite is
+  runnable without reconstructing it from a CI file. `--require-all` turns a
   skipped test into a failure; `--list` prints the list.
 - `kit-tests.yml.snippet` — a workflow to copy into your own
   `.github/workflows/`, carrying the external scanner versions the driver tests
