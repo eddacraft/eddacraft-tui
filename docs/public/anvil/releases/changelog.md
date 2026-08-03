@@ -14,99 +14,47 @@ version-by-version history and downloadable artefacts, use the
 
 ## 0.9.1-beta — 2 August 2026 — Daily Path Polish and MCP 2.0 support
 
-Bare `anvil` daily ensure, default activation TUI, multi-client MCP install with
-dual-era protocol support, managed skills, and gate honesty. Browser dashboard
-remains flag-gated and is not a claim of this release.
+The daily minute and assistant wiring. After setup, plain `anvil` is the
+on-switch; `anvil start` opens consent-first activation on a real terminal by
+default; install into the assistants you already use. Browser dashboard remains
+flag-gated and is not a claim of this release.
 
 ### Added
 
-- **Bare `anvil` is the daily ensure surface.** After a project is activated,
-  running `anvil` with no subcommand ensures the save-time daemon, re-attests
-  the worktree, and refreshes already-owned MCP entries — without reinstalling
-  clients, re-offering declined picks, or rewriting activation. Never-activated
-  worktrees exit non-zero and point at `anvil start` or `anvil welcome`. Use
-  `anvil start` for first-time setup and reconfigure; use bare `anvil` for the
-  daily on-switch. `anvil --json` emits a compact ensure document.
-
-- **Disclosed anonymous usage telemetry.** After an eligible interactive first
-  run shows the notice, anvil can send a narrow opt-out beacon at most once per
-  24 hours. It excludes source, paths, command arguments, findings, output, and
-  free-form text. Inspect the current gate and eligible payload with
-  `anvil telemetry`; disable sending with `anvil telemetry off`,
-  `ANVIL_TELEMETRY=off`, or `DO_NOT_TRACK=1`. See
-  [anonymous usage telemetry](../operations/telemetry.md) for the full contract.
-
-- **MCP install for the harnesses you actually use.**
-  `anvil mcp install --client` accepts twelve clients — Claude Code, Cursor,
-  Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot CLI,
-  Grok, Warp, and Zed. Each installer writes that client's documented config
-  shape, supports `--verify` / `--dry-run`, and keeps unmanaged third-party
-  entries intact. Interactive `anvil start` offers every supported client in the
-  consent list (unticked by default — nothing is written until you select one);
-  pass `--mcp-client <id>` (repeatable) or `--all-mcp-clients` /
-  `ANVIL_ALL_MCP_CLIENTS` for scripted multi-client install, or `--no-mcp` to
-  skip configuration.
-
-- **Ratified MCP `2026-07-28` alongside sealed legacy protocol fixtures.** The
-  stdio server accepts modern discovery and per-request protocol metadata while
-  retaining all four supported initialise-era versions. Client configuration
-  shapes are unchanged; modern and legacy stdio flows are regression-tested.
-
-- **Managed agent skills.** `anvil skill install` ships the bundled
-  `anvil-developer-functions` skill into supported clients (global or project
-  scope), with `--verify` and `--dry-run` for safe checks. `anvil doctor` now
-  reports managed-skill freshness (fresh, stale, dirty, unmanaged, absent, or
-  broken) so an upgrade can be reconciled with a reinstall rather than leaving a
-  silent mismatch.
-
-- **Package-manager-aware `anvil update`.** When anvil was installed through
-  Homebrew, Scoop, or WinGet, `anvil update` offers that manager's allowlisted
-  upgrade command after explicit consent (`-y` for non-interactive scripts)
-  instead of downloading a sidecar binary that would fight the package database.
-  Direct and other installs keep the existing signed-artefact path.
-
-- **Graph capabilities over LSP.** `anvil lsp --stdio` exposes advisory graph
-  context to editors that speak Language Server Protocol — position-aware symbol
-  resolution, references, plus `anvil/impactOfChange` and `anvil/affectedTests`
-  extensions — so tools that prefer LSP over MCP can use the same resident graph
-  without a second protocol stack.
-
-- **Fragile-presentation check (FRAG-001).** Anti-pattern scanning flags UI
-  content authored invisible (`opacity: 0`) and gated only on an entrance
-  animation — a pattern that fails hard when motion is reduced or the animation
-  never runs. Enabled by default; same opt-out path as other anti-pattern rules.
-
-- **Declare generated files so scans stay quiet.** Anti-pattern scanning now
-  honours GitHub's `linguist-generated` marker in `.gitattributes` and
-  workspace-relative `antipattern.exclude` globs in project config, so
-  machine-generated trees the auto-detector does not recognise can be skipped
-  without baselining individual findings. Secret detection and other gate
-  engines still see those files.
+- Plain `anvil` (no subcommand) is the daily on-switch after activation —
+  healthy daemon, this worktree, and already-connected assistants, without
+  reinstall prompts. Use `anvil start` for first-time setup and reconfigure.
+- Optional anonymous usage telemetry (opt-out). Inspect with `anvil telemetry`;
+  turn off with `anvil telemetry off`, `ANVIL_TELEMETRY=off`, or
+  `DO_NOT_TRACK=1`. See [anonymous usage telemetry](../operations/telemetry.md).
+- `anvil mcp install --client` configures twelve AI clients (Claude Code,
+  Cursor, Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot
+  CLI, Grok, Warp, Zed), with `--verify` and `--dry-run`. Interactive start
+  lists them with nothing ticked until you choose; scripts can use
+  `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS`.
+- Newer MCP protocol support without rewriting older client configs.
+- `anvil skill install` ships the managed developer-functions skill;
+  `anvil doctor` reports whether it is up to date or needs a reinstall.
+- `anvil update` uses Homebrew, Scoop, or WinGet when that is how you installed,
+  after explicit consent.
+- `anvil lsp --stdio` exposes advisory graph context over Language Server
+  Protocol for editors that prefer LSP.
+- Anti-pattern scanning flags UI that is invisible until an entrance animation
+  runs, and can skip generated trees via `linguist-generated` or
+  `antipattern.exclude`.
 
 ### Changed
 
-- **Activation TUI is the default interactive path.** On a real terminal,
-  `anvil start` now opens the consent-first activation TUI without `--tui` or
-  `ANVIL_ACTIVATION_TUI=1`. Read-only, `--watch`, `--json`, `--no-tui`,
-  `ANVIL_NO_TUI`, CI, and non-TTY sessions stay plain. `--tui` and
-  `ANVIL_ACTIVATION_TUI` remain accepted no-ops so old scripts do not break. The
-  first run that writes a protecting baseline also shows a once-per-project
-  celebration banner above the honest status headline; healthy repeat runs stay
-  quiet.
-
-- **Warnings no longer block by default; must-block crypto still does.** The
-  anti-pattern leg of `anvil gate` restores warnings-over-blocks:
-  warning-severity findings no longer fail the gate unless you opt in with
-  `--fail-on-warnings` or `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers / ECB
-  (WC-002) and JWT `none` (WC-003) are promoted to error severity so they block
-  on their own merit. WC-001 (MD5/SHA-1) and the unsafe-rendering family stay
-  warnings to avoid false blocks on legitimate non-crypto uses.
+- On a real terminal, `anvil start` opens the consent-first activation screen by
+  default; use `--no-tui` or `ANVIL_NO_TUI=1` for plain text.
+- Warning-level anti-pattern findings no longer fail `anvil gate` unless you opt
+  in with `--fail-on-warnings` or `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers and
+  JWT `none` still fail the gate.
 
 ### Fixed
 
-- **Brand casing in user-facing copy.** Remaining title-case product-name
-  strings in insights, intercept-protected paths, and related surfaces are
-  lowercase `anvil`, matching the product brand.
+- Remaining title-case product-name strings in user-facing copy are lowercase
+  `anvil`.
 
 ## Unreleased — next beta after 0.9.1-beta
 
