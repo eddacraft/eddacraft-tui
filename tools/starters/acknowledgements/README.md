@@ -713,7 +713,12 @@ bash tools/starters/acknowledgements/check-version.sh
 ## Running the kit's own tests
 
 `tests/run-all.sh` is the single source of the kit's test list — CI invokes it
-rather than restating the list, so a test added to `tests/` is a test CI runs.
+rather than restating the list, so there is only one place to keep current.
+
+That list is the hand-ordered `TESTS` array inside the runner, not a directory
+glob: a new script under `tests/` must be added to it. Forgetting is an error
+rather than a silent omission — the runner fails if it finds a test file on disk
+that the array does not name.
 
 ```bash
 bash tools/starters/acknowledgements/tests/run-all.sh              # run everything

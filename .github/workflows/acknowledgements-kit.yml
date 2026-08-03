@@ -104,9 +104,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      # ATTRIB-022: the runner is the single source of the test list, so a
-      # test added to tests/ is a test CI runs — there is no second list
-      # here to forget. `tests/run-all.sh --list` shows what it covers.
+      # ATTRIB-022: the runner owns the test list, so this workflow no longer
+      # restates it. The list is a hand-ordered array inside run-all.sh, not a
+      # glob — but the runner errors if a test file on disk is missing from
+      # it, so an unlisted test fails loudly instead of being silently
+      # skipped. `tests/run-all.sh --list` shows what it covers.
       #
       # ATTRIB-020: `--require-all` turns a skipped test into a failure.
       # Several driver tests exit 0 with a `skip:` line when their tool or
