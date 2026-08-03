@@ -9,7 +9,7 @@ description: Look up source-pattern rules compiled into anvil.
 # Compiled pattern catalogue
 
 This catalogue covers source-pattern rules in the compiled registry shipped with
-anvil 0.9.1-beta. Secrets, architecture, policy, command-safety, and other gate
+anvil 0.9.2-beta. Secrets, architecture, policy, command-safety, and other gate
 checks have separate engines and are not listed here. The registry contains **45
 enabled rules across 11 families**.
 

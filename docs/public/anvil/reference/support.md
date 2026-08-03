@@ -9,7 +9,7 @@ description: Check where anvil runs and what it can parse.
 # Supported platforms and languages
 
 This page is generated from the release targets, parser mappings, and compiled
-rule registry shipped with anvil 0.9.1-beta. “Parsing and structure only” means
+rule registry shipped with anvil 0.9.2-beta. “Parsing and structure only” means
 anvil can build structural evidence for the language; it does not promise the
 same specialised rule depth as a language with compiled rules.
 
