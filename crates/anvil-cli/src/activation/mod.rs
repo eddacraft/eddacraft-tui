@@ -24,8 +24,11 @@ pub mod identity;
 pub mod language_profile;
 pub mod mcp_client;
 pub mod orchestrator;
+pub mod posture;
 pub mod render;
 pub mod state;
+
+pub use posture::SharedPostureFacts;
 
 // Re-exports kept narrow to the surface the binary currently consumes
 // (status.rs). Each downstream PR (LAUNCH-006/-009/-010/-011) is

@@ -694,7 +694,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-018: Quiet re-run consent — filter settled offers
 
-- **Status:** Ready 2026-08-03
+- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
 - **Source:** Live validation + post-#3488 usability residual; completion
   programme WP1 gap (empty-offer skip only)
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
@@ -726,7 +726,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-019: Shared start/status posture model
 
-- **Status:** Ready 2026-08-03
+- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
 - **Source:** Residual of ACTTUI-017 (meaning lines only); live protecting vs
   warming divergence
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
@@ -754,7 +754,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-020: Settled Install section and honest Languages leaves
 
-- **Status:** Ready 2026-08-03
+- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
 - **Source:** Live TUI — Languages expand + `t` felt language-scoped; Install
   noise on re-run
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
@@ -780,7 +780,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-021: Optional MCP pre-write prove (honest intercept demo)
 
-- **Status:** Ready 2026-08-03
+- **Status:** In Progress 2026-08-03 (dev-loop feat/acttui-usability-followups)
 - **Source:** Explicit gap after ACTTUI-016 (check-pipeline Prove ≠ MCP live)
   ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
 - **Dependencies:** ACTTUI-016 (Merged); coordinates with ACTMO / daemon

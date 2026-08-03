@@ -473,7 +473,8 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             ) {
                 prepare_consent_progress_steps(&mut progress_steps);
             }
-            let verdict_model = activation_verdict_model(&diagnostic, &install_report);
+            let verdict_model =
+                activation_verdict_model(&diagnostic, &install_report, consent_plan.settled_mcp());
             let tier_evidence = activation_tier_evidence(
                 &diagnostic,
                 &install_report,
@@ -568,6 +569,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     tui_log_lines,
                     false,
                     root,
+                    consent_plan.settled_mcp(),
                 );
                 let _ = tui_session.run_surface(&mut verdict)?;
             }
@@ -760,13 +762,29 @@ fn run_activation_prove(all_languages_unsupported: bool, secret_detection_enable
     }
 }
 
+/// ACTTUI-021: honest refuse for MCP pre-write prove (distinct from check pipeline).
+fn mcp_pre_write_prove_note(mcp_live: bool) -> &'static str {
+    if mcp_live {
+        "MCP pre-write: live (see Layers). Check-pipeline Prove does not re-test the editor."
+    } else {
+        "MCP pre-write prove unavailable: no live client yet — restart the editor/agent or run `anvil status` (not claimed by check-pipeline Prove)."
+    }
+}
+
 fn activation_prove_runner(
     diagnostic: &activation::ActivationDiagnostic,
     root: &Path,
 ) -> anvil_tui::surfaces::activation::ProveRunner {
     let all_unsupported = diagnostic.all_languages_unsupported;
     let secret_enabled = secret_detection_enabled_in_project(root);
-    std::sync::Arc::new(move || run_activation_prove(all_unsupported, secret_enabled))
+    let mcp_live = diagnostic.mcp_pre_write_live();
+    std::sync::Arc::new(move || {
+        let mut toast = run_activation_prove(all_unsupported, secret_enabled);
+        // Always append MCP honesty line (ACTTUI-021 refuse/acknowledge path).
+        toast.push(' ');
+        toast.push_str(mcp_pre_write_prove_note(mcp_live));
+        toast
+    })
 }
 
 /// Whether this run first established protection for the project, gating the
@@ -796,6 +814,7 @@ fn activation_post_consent_surface(
     log_lines: Vec<String>,
     daemon_spinner: bool,
     root: &Path,
+    settled_mcp: &[String],
 ) -> anvil_tui::surfaces::activation::ActivationSurface {
     use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
 
@@ -805,7 +824,8 @@ fn activation_post_consent_surface(
     // Verdict phase: drop Working progress rows (ACTTUI-014 hand-off).
     ActivationSurface::from_typed_with_progress(
         human_output,
-        activation_verdict_model(diagnostic, install_report).with_first_success(first_success),
+        activation_verdict_model(diagnostic, install_report, settled_mcp)
+            .with_first_success(first_success),
         activation_post_consent_evidence(diagnostic, install_report, run, applied),
         project_writes_gated,
         log_lines,
@@ -1028,6 +1048,7 @@ fn activation_consent_state(
 fn activation_verdict_model(
     diagnostic: &activation::ActivationDiagnostic,
     install_report: &activation::orchestrator::InstallReport,
+    settled_mcp: &[String],
 ) -> anvil_tui::surfaces::activation::VerdictModel {
     use anvil_tui::surfaces::activation::{VerdictModel, VerdictSection};
 
@@ -1050,18 +1071,9 @@ fn activation_verdict_model(
         )
     }));
     layer_rows.push(format!("watch: {}", diagnostic.watch.label()));
-    layer_rows.push(format!(
-        "daemon: {}",
-        daemon_attestation_label(diagnostic.daemon_attestation),
-    ));
-    layer_rows.push(format!(
-        "save-time driver: {}",
-        if diagnostic.save_time_driver_attached {
-            "attached"
-        } else {
-            "not attached"
-        },
-    ));
+    // ACTTUI-019: shared subordinate facts (same strings as `anvil status`).
+    let posture = activation::SharedPostureFacts::from_diagnostic(diagnostic);
+    layer_rows.extend(posture.fact_lines());
     layer_rows.push(format!(
         "commit/push hooks: {}",
         if install_report.hooks_active {
@@ -1071,7 +1083,8 @@ fn activation_verdict_model(
         },
     ));
 
-    let install_rows = install_report
+    // ACTTUI-020: this-run install outcomes first, then settled (no-write) rows.
+    let mut install_rows: Vec<String> = install_report
         .per_client
         .iter()
         .filter(|(_, outcome)| !is_undetected_editor(outcome))
@@ -1083,6 +1096,10 @@ fn activation_verdict_model(
             )
         })
         .collect();
+    install_rows.extend(settled_mcp.iter().cloned());
+    if install_rows.is_empty() {
+        install_rows.push("no MCP or project install actions this run".to_string());
+    }
 
     let mut language_rows: Vec<String> = diagnostic
         .language_profile
@@ -1090,7 +1107,7 @@ fn activation_verdict_model(
         .iter()
         .map(|entry| {
             format!(
-                "{} ({} {}): {} — {}",
+                "{} ({} {}): {} — inventory only; Prove is global, not per-language",
                 entry.name,
                 entry.files_seen,
                 if entry.files_seen == 1 {
@@ -1099,7 +1116,6 @@ fn activation_verdict_model(
                     "files"
                 },
                 entry.coverage_tier.label(),
-                entry.basis,
             )
         })
         .collect();
@@ -2996,6 +3012,7 @@ mod tests {
             Vec::new(),
             false,
             Path::new("."),
+            &[],
         );
 
         assert_eq!(surface.phase(), ActivationPhase::Verdict);
@@ -3344,7 +3361,7 @@ mod tests {
 
         let diagnostic = daemon_attested_diagnostic();
         let report = activation::orchestrator::InstallReport::default();
-        let model = activation_verdict_model(&diagnostic, &report);
+        let model = activation_verdict_model(&diagnostic, &report, &[]);
         let surface = ActivationSurface::from_typed_with_progress(
             "copy changed completely; state: error",
             model.clone(),
@@ -3358,6 +3375,7 @@ mod tests {
 
         assert_eq!(surface.verdict_view().model(), &model);
         assert_eq!(surface.verdict_view().model().state_label, "watching");
+        // ACTTUI-019: layers carry SharedPostureFacts strings (same as status).
         assert!(
             surface
                 .verdict_view()
@@ -3369,7 +3387,7 @@ mod tests {
                         && section
                             .rows
                             .iter()
-                            .any(|row| row == "daemon: worktree enforced")
+                            .any(|row| row == "daemon: attesting worktree")
                 })
         );
     }
@@ -3785,7 +3803,7 @@ mod tests {
         // generic restart headline.
         let mut diag = restart_required_diagnostic();
         diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
-        let model = activation_verdict_model(&diag, &up_to_date_install_report());
+        let model = activation_verdict_model(&diag, &up_to_date_install_report(), &[]);
         let rows = &model
             .sections
             .iter()
@@ -4258,6 +4276,7 @@ mod tests {
             let model = activation_verdict_model(
                 &diag,
                 &activation::orchestrator::InstallReport::default(),
+                &[],
             );
             let activation_section = model
                 .sections

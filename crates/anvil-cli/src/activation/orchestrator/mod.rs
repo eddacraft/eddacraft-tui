@@ -386,6 +386,9 @@ pub(crate) struct TuiConsentPlan {
     workflows: std::collections::BTreeMap<String, WorkflowTemplate>,
     mcp_candidates: std::collections::BTreeMap<String, install::Candidate>,
     registry_mcp_candidates: std::collections::BTreeMap<String, RegistryMcpCandidate>,
+    /// ACTTUI-018/020: MCP clients already configured (no write needed), for
+    /// Verdict Install rows when Consent is skipped or filtered.
+    settled_mcp: Vec<String>,
     home: Option<PathBuf>,
     fresh: Option<crate::activation::mcp_client::AnvilEntry>,
     enabled: BTreeSet<McpClientId>,
@@ -422,6 +425,11 @@ pub(crate) struct TuiConsentApplyOutcome {
 impl TuiConsentPlan {
     pub(crate) fn offers(&self) -> &[TuiConsentOffer] {
         &self.offers
+    }
+
+    /// ACTTUI-018/020: human-readable settled MCP rows (already configured).
+    pub(crate) fn settled_mcp(&self) -> &[String] {
+        &self.settled_mcp
     }
 
     /// Apply only IDs that the returned TUI state says were ticked.
@@ -802,6 +810,7 @@ fn build_tui_consent_plan_with_project_options(
         workflows,
         mcp_candidates,
         registry_mcp_candidates: std::collections::BTreeMap::new(),
+        settled_mcp: Vec::new(),
         home: home.map(Path::to_path_buf),
         fresh,
         enabled: enabled.clone(),
@@ -835,9 +844,10 @@ impl TuiConsentPlan {
             self.mcp_candidates
                 .retain(|id, _| id != "mcp:claude-code" && id != "mcp:cursor");
         }
-        // When force_all is true (TUI default), offer every client that
-        // supports this scope. When false, keep detection/explicit gating for
-        // tests and narrower call sites. Writes still require a tick.
+        // When force_all is true (TUI default), consider every client that
+        // supports this scope (not only detected hosts). ACTTUI-018 still
+        // filters out clients whose anvil MCP entry is already correct.
+        // When false, keep detection/explicit gating. Writes still require a tick.
         for entry in AgentClientId::all().iter().filter(|entry| {
             !(scope == InstallScope::Global
                 && matches!(entry.id, AgentClientId::ClaudeCode | AgentClientId::Cursor))
@@ -880,6 +890,24 @@ impl TuiConsentPlan {
         if self.registry_mcp_candidates.contains_key(&id) {
             return;
         }
+
+        // ACTTUI-018: dry-run the registry installer. When the expected anvil
+        // entry is already present and matches, skip the offer (settled).
+        if let Ok(command) = std::env::current_exe() {
+            let command = command.to_string_lossy();
+            if let Ok(report) = crate::commands::mcp_installer::install(
+                entry.id, scope, root, &command, false, true, // dry_run
+            ) && !report.changed
+            {
+                self.settled_mcp.push(format!(
+                    "{}: already configured at {}",
+                    entry.display_name,
+                    report.path.display(),
+                ));
+                return;
+            }
+        }
+
         self.offers.push(TuiConsentOffer {
             id: id.clone(),
             label: format!("{} MCP", entry.display_name),
@@ -2385,6 +2413,53 @@ verdict: completed"
         // Global Claude/Cursor remain on the legacy offer path, not registry.
         assert!(!offer_ids.contains("mcp:claude-code"));
         assert!(!offer_ids.contains("mcp:cursor"));
+    }
+
+    #[test]
+    fn tui_consent_plan_skips_settled_registry_mcp_offers() {
+        // ACTTUI-018: pre-install Codex so dry-run reports !changed; re-plan
+        // must not re-offer mcp:codex, and must record a settled row.
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let command = std::env::current_exe().unwrap();
+        crate::commands::mcp_installer::install(
+            AgentClientId::Codex,
+            InstallScope::Global,
+            home.path(),
+            &command.to_string_lossy(),
+            false,
+            false,
+        )
+        .expect("install codex for settled fixture");
+
+        let mut plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+        plan.add_registry_mcp_offers(true, InstallScope::Global, &[]);
+
+        let offer_ids = plan
+            .offers()
+            .iter()
+            .map(|offer| offer.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(
+            !offer_ids.contains("mcp:codex"),
+            "settled Codex must not re-appear as consent: {offer_ids:?}"
+        );
+        assert!(
+            plan.settled_mcp()
+                .iter()
+                .any(|row| row.contains("Codex") && row.contains("already configured")),
+            "settled list should mention Codex: {:?}",
+            plan.settled_mcp()
+        );
+        // Other unset clients still offered.
+        assert!(offer_ids.contains("mcp:opencode") || offer_ids.contains("mcp:grok"));
     }
 
     #[test]

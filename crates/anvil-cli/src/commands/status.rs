@@ -888,6 +888,10 @@ struct LegibleSnapshot {
     save_time: SaveTimePosture,
     witness: WitnessSummary,
     next_action: String,
+    /// ACTTUI-019 shared fact lines (mcp/daemon/save-time).
+    posture_facts: Vec<String>,
+    /// ACTTUI-019 meaning when claim ≠ start protection word.
+    posture_meaning: Option<String>,
 }
 
 /// One-word layer status for the L0–L5 block.
@@ -954,10 +958,13 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
     out.push_str("ANVIL STATUS\n");
     out.push('\n');
     let _ = writeln!(out, "  Protection: {}", s.protection.as_str());
-    // ACTTUI-017: when the worktree claim and L0 diverge, name both so start's
-    // `protecting` (MCP live) cannot be misread as status's `warming` without
-    // an explained layer.
-    if let Some(meaning) = status_protection_meaning(s.protection, &s.layers) {
+    // ACTTUI-019: one compact posture line (same fact strings as start Verdict).
+    if !s.posture_facts.is_empty() {
+        let _ = writeln!(out, "  posture: {}", s.posture_facts.join(" · "));
+    }
+    // ACTTUI-017/019: when claim vocabulary differs from start, explain with
+    // the same subordinate facts both surfaces print.
+    if let Some(meaning) = &s.posture_meaning {
         let _ = writeln!(out, "  meaning: {meaning}");
     }
     out.push('\n');
@@ -1050,6 +1057,9 @@ fn build_legible_snapshot(
     let daemon = read_daemon_summary();
     let witness = read_witness_summary(root);
     let next_action = next_action_for(protection, &daemon).to_string();
+    let shared = activation::SharedPostureFacts::from_diagnostic(diag);
+    let posture_facts = shared.fact_lines();
+    let posture_meaning = shared.meaning_for_status_claim(protection.as_str());
     LegibleSnapshot {
         protection,
         layers,
@@ -1057,6 +1067,8 @@ fn build_legible_snapshot(
         save_time,
         witness,
         next_action,
+        posture_facts,
+        posture_meaning,
     }
 }
 
@@ -1327,28 +1339,6 @@ fn parse_iso_timestamp_seconds(s: &str) -> Option<u64> {
 
 /// ACTTUI-017: one-line meaning when status.protection alone would hide a live
 /// L0 (or other layer) story that `anvil start` may report differently.
-fn status_protection_meaning(
-    state: WorktreeClaimState,
-    layers: &LayerSummary,
-) -> Option<&'static str> {
-    match state {
-        WorktreeClaimState::Warming if matches!(layers.l0_mcp, LayerState::On) => Some(
-            "worktree claim is still warming (restart/handshake pending); L0 mcp is already on — start may report protecting when MCP pre-write is live",
-        ),
-        WorktreeClaimState::Warming => Some(
-            "worktree claim is warming — restart the editor or agent so MCP attaches (see Next)",
-        ),
-        WorktreeClaimState::PreWriteDaemon | WorktreeClaimState::Full
-            if matches!(layers.l2_save, LayerState::Off | LayerState::Partial) =>
-        {
-            Some(
-                "pre-write protection is live; save-time is not fully on — start and status use different layer words, not different truth",
-            )
-        }
-        _ => None,
-    }
-}
-
 /// Single next-action line keyed off the protection state. Kept
 /// terse so it stays one row.
 const fn next_action_for(state: WorktreeClaimState, daemon: &DaemonSummary) -> &'static str {
@@ -2342,6 +2332,12 @@ mod tests {
             save_time: SaveTimePosture::Hidden,
             witness: WitnessSummary::None,
             next_action: "run `anvil start`".to_string(),
+            posture_facts: vec![
+                "mcp: not live".into(),
+                "daemon: not attesting".into(),
+                "save-time: not attached".into(),
+            ],
+            posture_meaning: None,
         }
     }
 
@@ -2427,6 +2423,14 @@ mod tests {
                 age: Some(Duration::from_secs(YEAR_SECS)),
             },
             next_action: next_action.to_string(),
+            posture_facts: vec![
+                "mcp: live".into(),
+                "daemon: attesting worktree".into(),
+                "save-time: attached".into(),
+            ],
+            posture_meaning: Some(
+                "status claim may differ from start; subordinate facts listed above".into(),
+            ),
         }
     }
 
@@ -2463,18 +2467,32 @@ mod tests {
     /// wiring the missing surface check.
     #[test]
     fn status_protection_meaning_explains_warming_with_live_l0() {
-        let layers = LayerSummary {
-            l0_mcp: LayerState::On,
-            l1_mid_edit: LayerState::Unknown,
-            l2_save: LayerState::Off,
-            l3_commit: LayerState::Partial,
-            l4_push: LayerState::On,
-            l5_audit: LayerState::Unknown,
+        // ACTTUI-019: meaning comes from SharedPostureFacts (same as start).
+        use activation::diagnostic::{ConfigStatus, McpClientId, McpTier, WatchTier};
+        use std::collections::BTreeMap;
+
+        let mut mcp = BTreeMap::new();
+        mcp.insert(McpClientId::ClaudeCode, McpTier::LiveValidation.into());
+        let diag = activation::ActivationDiagnostic {
+            config: ConfigStatus::Valid,
+            mcp,
+            watch: WatchTier::NotRequested,
+            baseline_present: false,
+            baseline_summary: None,
+            last_error: None,
+            all_languages_unsupported: false,
+            language_profile: activation::language_profile::RepoLanguageProfile::default(),
+            daemon_attestation: activation::daemon_evidence::DaemonAttestation::NotProbed,
+            save_time_driver_attached: false,
         };
-        let meaning = status_protection_meaning(WorktreeClaimState::Warming, &layers).unwrap();
+        let facts = activation::SharedPostureFacts::from_diagnostic(&diag);
+        let meaning = facts.meaning_for_status_claim("warming").unwrap();
         assert!(meaning.contains("warming"));
-        assert!(meaning.contains("L0"));
+        assert!(meaning.contains("mcp: live"));
         assert!(meaning.contains("protecting") || meaning.contains("start"));
+        for line in facts.fact_lines() {
+            assert!(meaning.contains(&line), "missing {line} in {meaning}");
+        }
     }
 
     #[test]
