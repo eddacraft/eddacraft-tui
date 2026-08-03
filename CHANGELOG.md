@@ -12,6 +12,8 @@ engineering maintenance are recorded in the
 > connectivity (Codex and similar). Secondary activation polish may ride along
 > from `main`. Version and date land at prepare.
 
+## [0.9.2-beta] — 2026-08-03
+
 ### Fixed
 
 - **Codex and similar assistants work with anvil again.** After the last MCP

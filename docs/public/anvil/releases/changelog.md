@@ -12,6 +12,35 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
+## 0.9.2-beta — 3 August 2026
+
+### Fixed
+
+- **Codex and similar assistants work with anvil again.** After the last MCP
+  update, some clients that send normal progress metadata were rejected as if
+  they spoke a newer protocol, so tool lists and tool calls failed. Those
+  clients connect and call tools again; broken modern requests still fail
+  clearly.
+
+### Added
+
+- **Prove it from `anvil start`.** On the result screen, press `t` for
+  **Prove**. anvil runs a real secret check on a sample and tells you whether it
+  caught the secret — a 30-second reality check, not a placeholder toast. If
+  Prove cannot run here (no secret checks configured, unsupported languages), it
+  says so plainly. It never pretends your editor's live save guard is working
+  when only the check engine was tested.
+
+### Changed
+
+- **`anvil status` and `anvil start` tell the same story.** When one says
+  "warming" while the assistant path is already live (or save-time is still
+  catching up), status adds one plain line of meaning so you are not left
+  reconciling two different truths.
+
+- **Cleaner keyboard help on activation.** Consent and the result screen share
+  one help bar — the key list no longer fights itself.
+
 ## 0.9.1-beta — 2 August 2026 — Daily Path Polish and MCP 2.0 support
 
 The daily minute and assistant wiring. After setup, plain `anvil` is the

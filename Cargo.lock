@@ -153,7 +153,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-bench"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-checks",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-spike"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-kernel-types",
@@ -1254,7 +1254,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "eddacraft-anvil"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "animate",
  "anyhow",
@@ -1333,7 +1333,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-architecture"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "chrono",
  "glob",
@@ -1352,7 +1352,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-attribution"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-intercept-proto",
  "nix 0.31.3",
@@ -1363,7 +1363,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-baseline"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-witness",
  "hex",
@@ -1377,7 +1377,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-capsule"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "chrono",
  "eddacraft-anvil-baseline",
@@ -1400,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-checks"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-kernel-types",
@@ -1416,7 +1416,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-checks-ast"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-checks",
  "glob",
@@ -1431,7 +1431,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-checks-napi"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-rayon-init",
@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-config"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "semver",
  "serde",
@@ -1460,7 +1460,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-dashboard-server"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "axum",
  "eddacraft-anvil-intercept",
@@ -1482,7 +1482,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-gctx-egress"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-graph-cache",
@@ -1495,7 +1495,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-gctx-types"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-kernel-types",
  "serde",
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-grammar-wat"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -1515,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-graph-cache"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-kernel-types",
  "petgraph",
@@ -1529,7 +1529,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-hook"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "tempfile",
  "thiserror 2.0.19",
@@ -1538,7 +1538,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-intercept"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "anvil-bench",
  "anyhow",
@@ -1580,14 +1580,14 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-intercept-macos"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "eddacraft-anvil-intercept-proto"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-kernel-types",
@@ -1599,7 +1599,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-intercept-rules"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-config",
@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-intercept-win32"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "tempfile",
  "thiserror 2.0.19",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-kernel"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-grammar-wat",
@@ -1660,7 +1660,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-kernel-types"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "serde",
  "serde_json",
@@ -1669,7 +1669,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-l4"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-config",
  "globset",
@@ -1685,7 +1685,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-observability"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "serde",
  "serde_json",
@@ -1697,7 +1697,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-plan-read-model"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "serde",
  "workspace-hack",
@@ -1705,7 +1705,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-policy"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "chrono",
  "eddacraft-anvil-kernel-types",
@@ -1724,7 +1724,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-policy-engine"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1743,7 +1743,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-rayon-init"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -1752,7 +1752,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-rules"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "eddacraft-anvil-config",
  "hex",
@@ -1768,7 +1768,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-run"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "anyhow",
  "clap",
@@ -1788,7 +1788,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-sarif"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "jsonschema",
  "serde",
@@ -1799,7 +1799,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-tui"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "animate",
  "crossterm",
@@ -1817,7 +1817,7 @@ dependencies = [
 
 [[package]]
 name = "eddacraft-anvil-witness"
-version = "0.9.1-beta"
+version = "0.9.2-beta"
 dependencies = [
  "fs2",
  "hex",
