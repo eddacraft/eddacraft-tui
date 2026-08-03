@@ -5864,7 +5864,7 @@ archive.
 
 ### CIB-219: Reconcile internal and public documentation to current release truth
 
-- **Status:** In Progress 2026-08-03
+- **Status:** Merged 2026-08-03 via PR #3500
 - **Intent:** Complete the quarterly documentation audit across anvil's public
   user journey and its live internal entrypoints after the `v0.9.1-beta` cut.
 - **Expected Outcome:** Public docs describe the shipped `v0.9.1-beta` command,
@@ -5889,6 +5889,13 @@ archive.
   `pnpm release-plan:check`; `pnpm aps:active-lint`;
   `pnpm aps:index:check`; `pnpm --filter @eddacraft/docs-site build`;
   `pnpm validate:changed`.
+- **Evidence:** PR
+  [#3500](https://github.com/eddacraft/anvil-001/pull/3500) squash-merged as
+  `f8f44308b40422683790315095874a355e6f5b84` after all required CI completed
+  successfully. Council session `council-2ba5783e` converged with nine findings
+  fixed, none open, and no waivers. Local docs, public-command, APS, formatting,
+  workflow-contract, and docs-site build gates passed; inherited baselined link
+  warnings and advisory aggregate APS counter drift remain outside this item.
 - **Identified From:** 2026-08-03 quarterly documentation audit following the
   published `v0.9.1-beta` release and PR #3490's beta-entrypoint rewrite.
 - **Coordinates with:** DOCSYNC (public anvil content), archived DOCGOV
