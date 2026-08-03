@@ -10,8 +10,13 @@
 **Last reviewed:** 2026-08-03 — opened from a full read-through of the shipped
 kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
 config-parser defect were reproduced against the real scripts; the rest are
-gaps in the kit's own verification and mirror surface. Module is **Proposed**:
-no work item is authorised until the operator flips it.
+gaps in the kit's own verification and mirror surface. The four design decisions
+the items depend on were taken the same day and are recorded in the design
+contract below. Module is **Proposed**: no work item is authorised until the
+operator flips it.
+
+Design contract:
+[`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
 
 ## Purpose
 
@@ -27,8 +32,9 @@ a non-zero exit. A licence-attribution tool that silently deletes curated prose,
 or reports green over stale attribution data, fails at the one thing it exists
 to do.
 
-Nothing here is a contract change for consumers: every item makes the kit
-enforce a rule it already documents, or verifies a property it already claims.
+No consumer-facing contract is redefined: every item makes the kit enforce a
+rule it already documents, verifies a property it already claims, or adds a
+purely additive flag.
 This module retains the **ATTRIB lineage** (continuing after ATTRIB-017) rather
 than re-opening the archived
 [`attribution-pipeline-v3`](../archive/modules/attribution-pipeline-v3.aps.md)
@@ -53,8 +59,10 @@ ATTRIB-017 set.
 - New ecosystem drivers (Java/Kotlin, Ruby, Swift) — still deferred until a
   real consumer needs one; unchanged from the README's roadmap note.
 - The `attribution.toml` schema, marker syntax, driver-invocation contract, and
-  `--check` exit-code semantics — no consumer-visible contract changes, so the
-  release these items feed is a minor/patch bump, not a major.
+  the `--check` exit-code table. The only additive surface is a dispatcher
+  `--version` flag (ATTRIB-025), which makes the release these items feed a
+  **minor** bump — see decision 4 in the design contract for why the two new
+  gates are read as fixes rather than breaks.
 - SBOM / CycloneDX / attestation — owned by
   [`supply-chain-attestation`](./supply-chain-attestation.aps.md).
 - The release and mirror workflows themselves
@@ -138,7 +146,7 @@ per-path configuration, unlike the fully parameterised dispatcher; and
 
 This module is **Proposed**; items are specified but not authorised. Recommended
 Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
-**-020** (independent of each other), then **-021** / **-022**, with
+**-020** (independent of each other), then **-021** / **-022** / **-025**, with
 **ATTRIB-024** last. ATTRIB-023 can stay Proposed indefinitely.
 
 | Item        | Findings   | Theme                              |
@@ -149,6 +157,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 | ATTRIB-021  | F7         | Portability proof                  |
 | ATTRIB-022  | F8, F9     | Mirror consumability               |
 | ATTRIB-023  | F10–F12    | Ergonomics backlog                 |
+| ATTRIB-025  | —          | Dispatcher `--version`             |
 | ATTRIB-024  | —          | Release cut                        |
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
@@ -158,8 +167,10 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
   never reports green over generated content it no longer maintains.
 - **Expected Outcome:** A mis-ordered marker pair is refused with an actionable
   error and the on-disk target untouched; a marker pair with no matching block
-  in `attribution.toml` is reported by name rather than silently retained. Both
-  behaviours hold in write and `--check` mode.
+  in `attribution.toml` exits non-zero naming the orphan rather than being
+  silently retained. Both are hard errors in write and `--check` alike
+  (decision 1) — no warn tier, no config key, and the consumer's escape hatch is
+  deleting the two marker lines.
 - **Validation:** New fixture cases in
   `tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh` cover
   (a) `END` above `BEGIN` → non-zero exit, target byte-identical, and (b) an
@@ -235,16 +246,19 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 - **Intent:** An external consumer of the public repo can follow every link and
   run the kit's tests without access to the private upstream.
 - **Expected Outcome:** No kit-internal document links to a path outside the
-  subtree; the kit carries its own test entrypoint so the suite is runnable
-  (and forkable) from the mirror alone.
+  subtree; `tests/run-all.sh` becomes the single source of the kit's test list
+  and upstream CI invokes it rather than duplicating sixteen steps; an inert
+  `kit-tests.yml.snippet` carries the four pinned tool versions for a fork to
+  copy into its own `.github/workflows/`. The mirror stays content-only —
+  no live workflow file inside the kit directory (decision 2).
 - **Validation:** No relative link in the kit's mirrored markdown escapes the
-  kit directory; the new runner executes the same set the CI workflow lists,
-  and the workflow invokes the runner rather than duplicating the list; the
-  public `README.md` after the next mirror sync contains no unresolvable
-  relative link.
+  kit directory; the runner executes the same set the workflow previously
+  listed, and the workflow invokes the runner; the public `README.md` after the
+  next mirror sync contains no unresolvable relative link.
 - **Files:** `tools/starters/acknowledgements/README.md`,
   `tools/starters/acknowledgements/MIRROR-README.md`,
-  `tools/starters/acknowledgements/tests/`,
+  `tools/starters/acknowledgements/tests/run-all.sh`,
+  `tools/starters/acknowledgements/kit-tests.yml.snippet`,
   `.github/workflows/acknowledgements-kit.yml`.
 - **Confidence:** high — the dead link is confirmed live; the runner is a
   mechanical extraction of the workflow's step list.
@@ -266,36 +280,71 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 - **Confidence:** medium — the expander's path configuration is a design
   question (whose default is deliberate), not a defect.
 
+### ATTRIB-025: Dispatcher reports its own kit version
+
+- **Status:** Proposed
+- **Intent:** A vendored or symlinked copy of the kit can say which version it
+  is, without the reader resolving the symlink by hand.
+- **Expected Outcome:** `generate-acknowledgements.sh --version` prints the
+  `VERSION` found beside its symlink-resolved real path, degrading to `unknown`
+  when the file is absent. The dispatcher only (decision 3) — `expand-licences.sh`
+  and `check-version.sh` keep their current surface, since both are run from a
+  known checkout.
+- **Validation:** Invoking the flag through a symlink on `PATH` prints the kit's
+  `VERSION`, and a copy with `VERSION` removed prints `unknown` at exit 0;
+  covered by a case in the kit self-tests.
+- **Files:** `tools/starters/acknowledgements/generate-acknowledgements.sh`,
+  `tools/starters/acknowledgements/tests/version-changelog-consistency.sh`,
+  `tools/starters/acknowledgements/README.md`.
+- **Confidence:** high — the symlink resolution it depends on already exists.
+
 ### ATTRIB-024: Cut the release that publishes the hardening
 
 - **Status:** Proposed
 - **Intent:** External consumers can pin a version containing the fixes and read
   what changed.
-- **Expected Outcome:** `VERSION` and `CHANGELOG.md` are bumped together with a
-  Keep-a-Changelog entry describing the landed items, and a release is cut per
-  the existing runbook. Since no consumer contract changes, the bump is
-  minor/patch, not major.
+- **Expected Outcome:** `VERSION` and `CHANGELOG.md` are bumped to **1.1.0**
+  together (decision 4) and a release is cut per the existing runbook. Two
+  conditions travel with the bump: the entry calls out the two newly-failing
+  cases (mis-ordered and orphaned markers) under their own heading so an
+  upgrader meets them before their CI does, and the CHANGELOG's own
+  major/minor/patch definition is reworded to state the narrow reading of
+  "freshness-gate exit semantics" that justifies a minor here.
 - **Validation:** `bash tools/starters/acknowledgements/check-version.sh` is
-  clean; the tag push produces a mirror tag plus a GitHub Release marked latest;
-  `git subtree add … vX.Y.Z --squash` into a scratch repo reproduces the kit
-  tree. Procedure: `docs/runbooks/acknowledgements-starter-release.md`.
+  clean; the `1.1.0` entry contains both the newly-failing-cases heading and the
+  reworded semver definition; the tag push produces a mirror tag plus a GitHub
+  Release marked latest; `git subtree add … v1.1.0 --squash` into a scratch repo
+  reproduces the kit tree. Procedure:
+  `docs/runbooks/acknowledgements-starter-release.md`.
 - **Files:** `tools/starters/acknowledgements/VERSION`,
   `tools/starters/acknowledgements/CHANGELOG.md`.
-- **Dependencies:** whichever of ATTRIB-018..-022 land; do not cut a release per
-  item.
+- **Dependencies:** whichever of ATTRIB-018..-022 and -025 land; do not cut a
+  release per item.
 - **Confidence:** high — mechanical, and the release path is proven from the
   `v1.0.0` cut.
 
-## Open Questions
+## Decisions (2026-08-03)
 
-- Does the orphaned-marker case (F2) warrant a hard error or a warning? A hard
-  error is consistent with the marker-count gate, but it fails a consumer's CI
-  on a block they deliberately retired mid-migration. A staged path (warn in
-  this release, error in the next major) is the alternative.
-- Should the mirrored kit carry its own CI workflow, or is a runnable
-  `tests/` entrypoint enough for external forks (ATTRIB-022)?
-- Is a `--version` flag on the dispatcher worth adding, so a vendored copy can
-  report which kit version a consumer is actually running?
+All four were taken in a design pass on the day the module opened. Rationale and
+rejected alternatives are in the design contract; only the outcomes are repeated
+here.
+
+1. **Orphaned marker pairs hard-error in both write and `--check`** — no warn
+   tier, no `orphan_markers` config key. Consistent with the marker-count gate;
+   escape hatch is deleting the two marker lines. → ATTRIB-018.
+2. **The mirror stays content-only: `tests/run-all.sh` plus an inert
+   `kit-tests.yml.snippet`** carrying the pinned tool versions, not a live
+   workflow inside the kit directory. Follows the `ci-freshness.yml.snippet`
+   precedent and cannot activate by accident in a repo that vendors the kit at
+   its root. → ATTRIB-022.
+3. **`--version` on the dispatcher only**, degrading to `unknown`. →
+   ATTRIB-025.
+4. **The next release is `1.1.0`**, reading "freshness-gate exit semantics" as
+   the exit-code table rather than the set of inputs reaching exit 1. The
+   opposite reading was raised and narrowed deliberately; the two conditions on
+   ATTRIB-024 are what keep that honest. → ATTRIB-024.
+
+No open questions remain.
 
 ## Notes
 
@@ -311,3 +360,9 @@ Findings are recorded in the **Evidence** section above rather than in
 ATTRIB-024 exists because none of the fixes reach an external consumer until a
 release is cut — the same reason ATTRIB-017 folded the first cut into its own
 work item.
+
+The four decisions were grilled the same day the module opened, before any item
+was authorised, so the items are specified against settled choices rather than
+open ones. ATTRIB-025 was spawned from that pass: the dispatcher `--version`
+question started as an open question and became a work item once accepted, which
+is why the numbering runs out of order against the recommended Ready sequence.
