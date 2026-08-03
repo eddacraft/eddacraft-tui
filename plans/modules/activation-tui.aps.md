@@ -2,18 +2,15 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | In Progress | 15/18 |
+| ACTTUI | Josh  | Merged | 18/18 |
 
-**Last reviewed:** 2026-08-03 — completion programme filed
-([spec](../specs/2026-08-03-activation-tui-completion.md)). Items **000–014**
-are Merged-or-Done (**ACTTUI-014 Merged 2026-08-02 via PR #3478** — continuous
-live surface; expanded quiet-consent / hand-off residual closed with 015–016).
-**ACTTUI-015..017** are In Progress on the completion branch (honesty, Prove,
-start↔status posture). The Release 2 TTY-default flip (**ACTTUI-013**) Merged
-2026-07-26 via PR #3411: on `main`, a genuinely interactive `anvil start` now
-enters the activation TUI with **no flag**. `--tui` is a hidden accepted no-op
-and `ANVIL_ACTIVATION_TUI` is inert; the permanent escape hatches are
-`--no-tui` / `ANVIL_NO_TUI=1`.
+**Last reviewed:** 2026-08-03 — completion programme **Merged via PR #3488**
+([spec](../specs/2026-08-03-activation-tui-completion.md)). Items **000–017**
+are all Merged-or-Done: **ACTTUI-014** via #3478 (continuous live surface);
+**ACTTUI-015..017** via #3488 (honesty, Prove, start↔status posture). The
+Release 2 TTY-default flip (**ACTTUI-013**) Merged 2026-07-26 via PR #3411.
+Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`. Module awaits release evidence
+before Released/Shipped.
 
 The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
 remains the governing rollout ladder. Post-flip continuous surface (ACTTUI-014)
@@ -539,7 +536,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-014: Continuous live activation surface
 
-- **Status:** Merged 2026-08-02 via PR #3478 — continuous live session on main; quiet-consent empty-offer skip already present; expanded 2026-08-03 acceptance (progress hand-off, single help, Prove wiring) completed under ACTTUI-015..016 on the completion branch
+- **Status:** Merged 2026-08-02 via PR #3478 — continuous live session; expanded acceptance residuals closed with ACTTUI-015..016 via PR #3488
 - **Source:** Owner direction on 2026-08-01;
   [ADR-103](../decisions/103-tty-default-activation-tui.md); consistency
   reference in `crates/anvil-tui/src/surfaces/tutorial/`; completion programme
@@ -591,7 +588,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-015: Honesty hotfix for Smoke/Prove and help
 
-- **Status:** In Progress 2026-08-03 (dev-loop completion)
+- **Status:** Merged 2026-08-03 via PR #3488
 - **Source:** Live Homebrew validation 2026-08-02/03; completion programme
   [spec](../specs/2026-08-03-activation-tui-completion.md) WP0
 - **Dependencies:** none (may land before or during ACTTUI-014)
@@ -623,7 +620,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-016: Prove protection in-surface
 
-- **Status:** In Progress 2026-08-03 (dev-loop completion)
+- **Status:** Merged 2026-08-03 via PR #3488
 - **Source:** Deferred ACTTUI-005 thin-v1 smoke; ADTRUST-006 recipe;
   completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
   WP2
@@ -663,7 +660,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-017: Align start and status posture
 
-- **Status:** In Progress 2026-08-03 (dev-loop completion)
+- **Status:** Merged 2026-08-03 via PR #3488
 - **Source:** Live divergence (start `--verify` protecting vs status warming);
   completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
   WP3

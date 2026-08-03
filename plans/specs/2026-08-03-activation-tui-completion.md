@@ -2,7 +2,7 @@
 
 | Type | Authority     | Owner | Status | Freshness                                      |
 | ---- | ------------- | ----- | ------ | ---------------------------------------------- |
-| Spec | Authoritative | ACTTUI | Live  | Filed 2026-08-03 from owner-directed scoping |
+| Spec | Authoritative | ACTTUI | Live  | Implemented Merged 2026-08-03 via PR #3488 |
 
 | Upstream                                                                 | Downstream                                      |
 | ------------------------------------------------------------------------ | ----------------------------------------------- |
@@ -129,3 +129,10 @@ activation TUI (Consent re-offer noise, placeholder `t` smoke toast claiming a
 “contract-hardening slice” and a `--no-tui` recipe that CIB-183 re-runs omit).
 Related shipped foundation: ACTTUI-005 thin-v1 toast, ACTTUI-007 fixture
 hardening (not in-surface smoke), ADTRUST-006 plain recipe, CIB-183 quiet re-run.
+
+## Implementation evidence
+
+| Item | Evidence |
+| ---- | -------- |
+| ACTTUI-014 | Merged via PR #3478 |
+| ACTTUI-015..017 | Merged 2026-08-03 via PR #3488 (`65cc0c915`) — ancestor of `origin/main` |
