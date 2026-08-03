@@ -243,5 +243,113 @@ if ! echo "$result5" | grep -qiE "duplicate|collision|same name|'rust'"; then
 fi
 echo "ok scenario 5: duplicate block name rejected (exit $exit5)"
 
+# Scenarios 6+ exercise gates that fire *after* block resolution, so they
+# need a driver that exists and is executable. A stub driver via
+# ATTRIB_DRIVERS_DIR (the documented test seam) keeps them independent of
+# cargo-about and friends.
+stub_drivers="$fixture_root/stub-drivers"
+mkdir -p "$stub_drivers"
+cat >"$stub_drivers/stub.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'STUB-GENERATED-ROW\n' >"$2"
+EOF
+chmod +x "$stub_drivers/stub.sh"
+
+# ── Scenario 6: marker pair present but END precedes BEGIN
+# The count gate passes (exactly one of each), but splicing a file in
+# this state deletes everything from BEGIN to EOF. The dispatcher must
+# refuse, and must leave the on-disk target byte-identical.
+scenario6="$fixture_root/reversed-markers"
+make_common_files "$scenario6"
+cat >"$scenario6/attribution.toml" <<EOF
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+EOF
+cat >"$scenario6/ACKNOWLEDGEMENTS.md" <<'EOF'
+# Acknowledgements
+
+<!-- END AUTO-GENERATED stub -->
+
+Curated middle content.
+
+<!-- BEGIN AUTO-GENERATED stub -->
+
+## Hand-written tail
+
+Curated tail that must survive.
+EOF
+before6="$(mktemp)"
+cp "$scenario6/ACKNOWLEDGEMENTS.md" "$before6"
+
+result6="$(ATTRIB_DRIVERS_DIR="$stub_drivers" run_generator "$scenario6")"
+exit6="$(echo "$result6" | awk -F= '/^EXIT=/ { print $2; exit }')"
+if [ "$exit6" = "0" ]; then
+  echo "FAIL scenario 6 (reversed markers): expected non-zero exit, got $exit6" >&2
+  echo "$result6" >&2
+  exit 1
+fi
+if ! echo "$result6" | grep -qiE "order|before|precede|reversed"; then
+  echo "FAIL scenario 6 (reversed markers): error does not name the ordering problem" >&2
+  echo "$result6" >&2
+  exit 1
+fi
+if ! diff -q "$before6" "$scenario6/ACKNOWLEDGEMENTS.md" >/dev/null; then
+  echo "FAIL scenario 6 (reversed markers): on-disk target was modified" >&2
+  diff -u "$before6" "$scenario6/ACKNOWLEDGEMENTS.md" >&2 || true
+  exit 1
+fi
+rm -f "$before6"
+echo "ok scenario 6: reversed marker pair rejected, target untouched (exit $exit6)"
+
+# ── Scenario 7: orphaned marker pair (no matching block in config)
+# A block removed or renamed in attribution.toml leaves its markers
+# holding stale generated content forever. --check must not report green
+# over it, and write mode must refuse rather than silently retain it.
+scenario7="$fixture_root/orphan-markers"
+make_common_files "$scenario7"
+cat >"$scenario7/attribution.toml" <<EOF
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+EOF
+cat >"$scenario7/ACKNOWLEDGEMENTS.md" <<'EOF'
+# Acknowledgements
+
+<!-- BEGIN AUTO-GENERATED stub -->
+STUB-GENERATED-ROW
+<!-- END AUTO-GENERATED stub -->
+
+<!-- BEGIN AUTO-GENERATED retired-block -->
+| stale-dep | 0.0.1 | GPL-3.0 | never-updated |
+<!-- END AUTO-GENERATED retired-block -->
+EOF
+
+for mode7 in "--check" ""; do
+  label7="${mode7:-write}"
+  # shellcheck disable=SC2086 # intentional word-split: empty means write mode
+  result7="$(ATTRIB_DRIVERS_DIR="$stub_drivers" run_generator "$scenario7" $mode7)"
+  exit7="$(echo "$result7" | awk -F= '/^EXIT=/ { print $2; exit }')"
+  if [ "$exit7" = "0" ]; then
+    echo "FAIL scenario 7 ($label7): orphaned marker pair accepted, got exit $exit7" >&2
+    echo "$result7" >&2
+    exit 1
+  fi
+  if ! echo "$result7" | grep -q "retired-block"; then
+    echo "FAIL scenario 7 ($label7): error does not name the orphaned block" >&2
+    echo "$result7" >&2
+    exit 1
+  fi
+  echo "ok scenario 7 ($label7): orphaned marker pair rejected by name (exit $exit7)"
+done
+
 echo ""
-echo "dispatcher schema-validation tests passed: 5/5 scenarios green."
+echo "dispatcher schema-validation tests passed: 7/7 scenarios green."

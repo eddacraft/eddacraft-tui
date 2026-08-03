@@ -452,6 +452,60 @@ marker_for() {
   esac
 }
 
+marker_prefix_for() {
+  # Args: <begin|end>; emits the marker text with its closing `-->`
+  # trailer removed, i.e. the stable stem every per-block marker shares.
+  # Emits nothing for a marker that carries no trailer — such a project
+  # can only use the unnamed shim, so there is no name to scan for.
+  local base
+  if [ "$1" = "begin" ]; then base="$marker_begin"; else base="$marker_end"; fi
+  case "$base" in
+    *' -->') printf '%s' "${base%' -->'}" ;;
+    *'-->')  printf '%s' "${base%'-->'}" ;;
+    *)       printf '' ;;
+  esac
+}
+
+# orphan_marker_names() prints, one per line, the block name carried by
+# every managed marker in $1 that is NOT in the resolved block set.
+# `(unnamed)` stands for a bare shim marker left behind by a project that
+# has since migrated to [[blocks]].
+#
+# Matching is literal (index/substr, never regex) so an arbitrary
+# operator-supplied marker override needs no escaping — the same property
+# the marker-count gate relies on.
+orphan_marker_names() {
+  local target="$1" known="$2" kind base prefix
+  for kind in begin end; do
+    if [ "$kind" = "begin" ]; then base="$marker_begin"; else base="$marker_end"; fi
+    prefix="$(marker_prefix_for "$kind")"
+    awk -v base="$base" -v prefix="$prefix" -v known="$known" '
+      {
+        # The unnamed marker is the base text itself. Test it first:
+        # the prefix is a substring of the base, so testing prefix first
+        # would classify every unnamed marker as a nameless "orphan".
+        if (index($0, base) > 0) {
+          if (index(known, "|" "|") == 0) print "(unnamed)"
+          next
+        }
+        if (prefix == "") next
+        p = index($0, prefix)
+        if (p == 0) next
+        rest = substr($0, p + length(prefix))
+        # A managed marker reads "<prefix> <name> -->". Anything else
+        # that merely mentions the prefix (prose, a nested example) is
+        # not a marker and is left alone.
+        t = index(rest, "-->")
+        if (t == 0) next
+        name = substr(rest, 1, t - 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+        if (name == "") next
+        if (index(known, "|" name "|") == 0) print name
+      }
+    ' "$target"
+  done | sort -u
+}
+
 # ── Splice loop ──────────────────────────────────────────────────────
 # For each block:
 #   1. Marker-count gate on the *current* working text (which may have
@@ -463,6 +517,30 @@ marker_for() {
 #
 # On any driver failure, abort before the mv: the on-disk target stays
 # byte-identical.
+
+# ── Orphaned-marker gate ────────────────────────────────────────────
+# A block deleted or renamed in attribution.toml leaves its marker pair
+# behind, and the splice loop only ever visits blocks the config still
+# declares. Without this gate that region keeps its last generated
+# content indefinitely and `--check` reports green over stale
+# attribution — the freshness gate's whole purpose, inverted.
+#
+# Runs before any temp file is created so the target is untouched.
+
+known_block_names="|"
+while IFS= read -r block_json; do
+  [ -z "$block_json" ] && continue
+  known_block_names="$known_block_names$(printf '%s' "$block_json" | jq -r '.name')|"
+done <<< "$RESOLVED_BLOCKS"
+
+orphans="$(orphan_marker_names "$splice_input" "$known_block_names")"
+if [ -n "$orphans" ]; then
+  echo "error: $splice_input contains AUTO-GENERATED markers for blocks that attribution.toml no longer declares:" >&2
+  printf '%s\n' "$orphans" | sed 's/^/  - /' >&2
+  echo "  these regions are no longer regenerated, so their content is stale." >&2
+  echo "  fix: delete the orphaned marker pair(s) from $splice_input, or re-declare the block in $config_path." >&2
+  exit 1
+fi
 
 working_dir="$(cd "$(dirname "$output_path")" && pwd)"
 working_file="$(mktemp "$working_dir/.generate-acknowledgements.work.XXXXXX")"
@@ -493,6 +571,23 @@ while IFS= read -r block_json; do
     echo "error: $splice_input must contain exactly one BEGIN and one END marker for block '$label'." >&2
     echo "  '$begin_marker' count: $begin_count (expected 1)" >&2
     echo "  '$end_marker' count: $end_count (expected 1)" >&2
+    exit 1
+  fi
+
+  # Ordering gate. Counts alone are not enough: a pair in the wrong order
+  # passes the count check, and the splice below would then print the
+  # BEGIN marker, emit the driver output, and swallow every remaining
+  # line to EOF — silently deleting hand-curated content the README
+  # promises is preserved verbatim.
+  begin_line="$(grep -nF "$begin_marker" "$working_file" | head -1 | cut -d: -f1)"
+  end_line="$(grep -nF "$end_marker" "$working_file" | head -1 | cut -d: -f1)"
+  if [ "$begin_line" -ge "$end_line" ]; then
+    label="${name:-(unnamed)}"
+    echo "error: $splice_input has its markers for block '$label' in the wrong order." >&2
+    echo "  BEGIN '$begin_marker' is on line $begin_line" >&2
+    echo "  END   '$end_marker' is on line $end_line" >&2
+    echo "  the BEGIN marker must precede the END marker; splicing this file would delete" >&2
+    echo "  everything after the BEGIN marker. The on-disk target was not modified." >&2
     exit 1
   fi
 
