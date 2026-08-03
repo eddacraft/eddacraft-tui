@@ -2,7 +2,7 @@
 id: quickstart
 title: Install and get first value
 description:
-  Install anvil, verify it, and run a first local check in under ten minutes.
+  Install anvil, see a real result from your project, and turn protection on.
 sidebar_position: 2
 ---
 
@@ -10,187 +10,170 @@ sidebar_position: 2
 
 **For:** first-time users
 
-**Time:** 5–10 minutes
+**Time:** about 10 minutes
 
-**Outcome:** a verified anvil installation and a real result from your project
+**Outcome:** anvil is installed, you have a real project result, and you know
+the daily path
 
-## Before you begin
+You do **not** need an account for discovery. Ongoing protection is invite-gated
+during beta.
 
-You need:
+## 1. Install
 
-- macOS, Linux, or Windows;
-- a terminal;
-- a project containing source code; and
-- internet access for installation.
+Pick **one** method. Do not mix package managers on the same machine.
 
-You do **not** need an account for the first discovery run. Ongoing protection
-uses beta authentication.
+### macOS / Linux
 
-## 1. Install anvil
-
-Choose one method. Do not combine package managers on the same machine.
-
-### macOS or Linux — standalone installer
+Standalone:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 ```
 
-### macOS or Linux — Homebrew
+Homebrew:
 
 ```bash
 brew install eddacraft/tap/anvil
 ```
 
-### Windows PowerShell — standalone installer
+### Windows
+
+PowerShell installer:
 
 ```powershell
 irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex
 ```
 
-### Windows — WinGet
+WinGet:
 
 ```powershell
 winget install eddacraft.anvil
 ```
 
-### Windows — Scoop
+Scoop:
 
 ```powershell
 scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
 scoop install anvil
 ```
 
-If the command reports that another installation method already owns anvil,
-upgrade or uninstall through that method instead of overwriting it.
+If another method already owns the binary, upgrade or uninstall through that
+method instead of overwriting it.
 
-## 2. Verify the binary
+## 2. Verify
 
-Open a new terminal, then run:
-
-```text
-anvil --version
-```
-
-Success looks like:
+Open a **new** terminal:
 
 ```text
-anvil 0.9.1-beta
+anvil version
 ```
 
-A newer beta version is also valid. If the command is not found, reopen the
-terminal once, then see
+You should see a version (currently `0.9.1-beta` or newer), the install method,
+and upgrade guidance when an update exists. Prefer `anvil version` over
+`anvil --version` when you care about how the binary was installed.
+
+Not found? Reopen the terminal once, then
 [installation troubleshooting](operations/troubleshooting.md#anvil-is-not-found).
 
-## 3. Get first value without signing in
+## 3. First value (no sign-in)
 
-Change to the root of a source-code project and run:
+From the root of a real source project:
 
 ```text
 anvil welcome
 ```
 
-The guided discovery scans a sample of the project and explains what it found. A
-clean result is still useful evidence; it means the scanned sample did not match
-an enabled rule.
+Discovery scans a sample of the tree and explains what it found. A clean result
+still counts — it means the sample did not match an enabled rule.
 
-Success means the command completes and shows either findings or an explicit
-clean result.
+Success: the command finishes with either findings or an explicit clean result.
 
-## 4. Sign in for ongoing protection
+## 4. Sign in
 
-Ongoing protection is invite-gated during beta. `anvil auth login` registers the
-chosen identity and provisions a local credential only after access is approved.
-If you are not yet invited, request beta access at
-[eddacraft.ai](https://eddacraft.ai) and continue using the account-free
-`anvil welcome` path meanwhile.
+Ongoing protection needs approved beta access. Request access at
+[eddacraft.ai](https://eddacraft.ai) if you are not invited yet; keep using
+`anvil welcome` until then.
 
-When access is approved and you are ready to activate save-time or pre-write
-protection, run:
+When you are approved:
 
 ```text
 anvil auth login
-```
-
-Follow the displayed device-login instructions. Then confirm the identity:
-
-```text
 anvil auth whoami
 ```
 
-If you do not have a GitHub account, run `anvil auth login --otp`. This changes
-the identity method; it does not bypass beta approval. `anvil auth whoami`
-confirms that the approved credential is active without printing its secret.
+Default is **GitHub device sign-in** (works headless over SSH/tmux). No GitHub?
+`anvil auth login --otp`. OTP changes the identity method; it does **not**
+bypass the invite. `whoami` confirms identity without printing secrets.
 
-## 5. Activate the project
-
-From the project root, run:
+## 5. Activate this project
 
 ```text
 anvil start
 ```
 
-This command may create project configuration, record the existing baseline, and
-offer MCP install for every supported AI client (interactive consent; nothing is
-written until you select a client). It reports one final protection state:
+In a real terminal this opens interactive activation. It may write project
+config, record a baseline, and offer MCP install for every supported AI client
+(unticked by default — nothing is written until you select one).
 
-| State                    | Meaning                                          | What to do                                                |
-| ------------------------ | ------------------------------------------------ | --------------------------------------------------------- |
-| `protecting`             | Pre-write validation is active                   | Continue working                                          |
-| `ready_restart_required` | Client configuration is ready                    | Restart the named client, then run `anvil start --verify` |
-| `watching`               | The local protection service is available        | Run `anvil watch` for a visible save-time loop            |
-| `needs_action`           | Setup needs a repair                             | Follow the command's suggested action                     |
-| `unsupported`            | The detected project is outside current coverage | Check the support reference                               |
-| `error`                  | Activation failed                                | Run `anvil doctor` and use troubleshooting                |
+Note the **final protection state**. Common ones:
 
-For a read-only diagnosis that changes nothing, use:
+| State                    | What it means                      | What you do                                       |
+| ------------------------ | ---------------------------------- | ------------------------------------------------- |
+| `protecting`             | Pre-write validation is live       | Keep working                                      |
+| `ready_restart_required` | Client config is installed         | Restart the named client → `anvil start --verify` |
+| `watching`               | Local daemon knows the project     | Optional: `anvil watch` for a visible save loop   |
+| `needs_action`           | A named setup step is incomplete   | Follow the suggested action                       |
+| `unsupported` / `error`  | Coverage gap or activation failure | Support matrix · `anvil doctor`                   |
+
+Read-only probe (changes nothing):
 
 ```text
 anvil start --verify
 ```
 
-## 6. Day two: turn protection on without reinstalling
+No editor MCP? Use `anvil start --no-mcp` for the daemon-backed path only.
 
-After the project has been activated once with `anvil start`, the daily path is
-the bare command:
+Full state vocabulary: [activation states](guides/start-output-contracts.md).
+
+## 6. Day two: bare `anvil`
+
+After one successful `anvil start`, the daily command is:
 
 ```text
 anvil
 ```
 
-This ensures the local protection daemon and already-configured MCP entries. It
-does not open a setup picker and does not install clients you previously
-skipped. If the project was never activated, the command exits with recovery
-that names `anvil start` or `anvil welcome`.
+That ensures the local daemon and **already configured** MCP entries. It does
+not open a setup picker and does not reinstall clients you skipped. Never
+activated? Recovery names `anvil start` or `anvil welcome`.
 
-For a machine-readable check:
+Machine-readable:
 
 ```text
 anvil --json
 ```
 
-Use `anvil start` again only when you need to change configuration (new client,
-hooks, or repair). For a read-only diagnosis, keep using `anvil start --verify`.
+Use `anvil start` again only to reconfigure (new client, hooks, repair).
 
-## Common problems
+## If something fails
 
-- **Sign-in fails:** retry `anvil auth login` and check that the shown URL is
-  reachable.
-- **The project is unsupported:** compare its file types with the
-  [generated support matrix](reference/support.md).
-- **Protection needs a restart:** fully quit and reopen the named AI client.
-- **You want no editor changes:** use `anvil start --no-mcp` for the
-  daemon-backed path without client configuration.
+| Problem             | First move                                                             |
+| ------------------- | ---------------------------------------------------------------------- |
+| Sign-in fails       | Retry `anvil auth login`; confirm the shown URL is reachable           |
+| Unsupported project | Compare file types with the [support matrix](reference/support.md)     |
+| Needs a restart     | Fully quit and reopen the named AI client, then `anvil start --verify` |
+| Odd environment     | `anvil doctor`                                                         |
 
-## Next step
+## Next
 
-If beta access is approved and `anvil auth whoami` confirms your identity, run
-the [ten-minute protection tutorial](first-gate.md) to create, detect, fix, and
-remove a deliberate finding.
+With approved access and a confirmed identity, prove detection end-to-end:
 
-If you are waiting for access, keep using the account-free `anvil welcome`
-journey. You can also review [when anvil fits](when-to-use.md), compare the
-[supported languages and clients](reference/support.md), or request access at
-[eddacraft.ai](https://eddacraft.ai). The protection tutorial uses an
-authenticated command and will not work until your beta access is approved.
+→ [Ten-minute protection tutorial](first-gate.md)
+
+Invited beta tester recording evidence:
+
+→ [Beta test brief](beta-testing-guide.md)
+
+Still deciding fit: [when to use anvil](when-to-use.md) ·
+[support matrix](reference/support.md) · [eddacraft.ai](https://eddacraft.ai)
