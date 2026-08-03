@@ -33,7 +33,7 @@ no networking client is added to the daemon crate (ADR-064 boundary preserved).
 ## Purpose
 
 When DPO was planned, only the **mid-edit** intercept path emitted a
-`gate.evaluated` observation. The **save-time daemon** validation path
+`gate_evaluated` observation. The **save-time daemon** validation path
 (`validate_paths` in `crates/anvil-intercept/src/ipc.rs`) and **fence/cascade**
 engagement (`crates/anvil-intercept/src/fence.rs`) left only live tracing
 telemetry. DPO-001/-002 subsequently merged the missing producer seams. The
@@ -68,7 +68,7 @@ emitters now; config-gated path inclusion; a short kind-taxonomy ADR.
   use canonical wire kind `gate_evaluated` with a pinned `SAVE_TIME_GATE_ID`;
   ADR-088's `gate.evaluated` spelling is a migration/dual-read alias only.
   Fence/cascade events are a **distinct** kind
-  (`constraint_applied`, working name) via a new defaulted
+  (`constraint_applied`) via a new defaulted
   `KindlingObservationSink` method — **not** `gate_evaluated/Fail` (which would
   count fence lockouts as rule violations).
 - **Save-time emission seam:** thread the sink through `SaveTimeState` (not
@@ -118,15 +118,14 @@ KFIT-007 must make every admission failure visible without changing verdicts.
 
 ## In scope
 
-- A save-time producer seam for `gate.evaluated` candidates (a `gate_id`
+- A save-time producer seam for `gate_evaluated` candidates (a `gate_id`
   distinguishing save-time from `midEdit`), via a builder mirroring
   `from_midedit_response`, off the latency-critical path. KFIT-007 applies the
   selected-event durable-admission policy; routine successful high-frequency
   checks remain tracing-only.
-- A fence producer: fence engage / cascade transitions emitted as governance
-  observations (kind resolved in the Ready Checklist — `constraint_applied`
-  versus `gate.evaluated` with a fence `gate_id`) carrying worktree, reason, and
-  timestamp.
+- A fence producer: fence engage / cascade transitions emitted as
+  `constraint_applied` governance observations carrying worktree, reason, and
+  timestamp; fences are never represented as `gate_evaluated/Fail`.
 - TRACE-003 redaction applied before emit; the privacy-first default preserved
   (capture stays opt-in / locally scoped, consistent with USAGE).
 - DPO-owned governance-history semantics over the KFIT-010 query foundation
@@ -173,14 +172,14 @@ KFIT-007 must make every admission failure visible without changing verdicts.
 **Exposes:**
 
 - Save-time and fence governance observations in the Kindling stream.
-- A `gate.evaluated` read surface.
+- A `gate_evaluated` read surface.
 - Save-time protection dashboard views.
 
 ## Ready Checklist
 
 - [x] Design/council pass on producer coverage — council `plan-a50aa93d`
       (2026-06-20)
-- [x] Fence observation kind decided — distinct kind, not `gate.evaluated`
+- [x] Fence observation kind decided — distinct kind, not `gate_evaluated`
       (ADR-088 Decision 2)
 - [x] Privacy approach decided — config-gated path inclusion + always-normalised
       fence `reason` (ADR-088 Decision 4)
@@ -200,12 +199,12 @@ KFIT-007 must make every admission failure visible without changing verdicts.
 > DPO-003 is blocked on KFIT-007/-009/-010; DPO-004/-005 are ordered after
 > DPO-003. The archived KDS module is not an active blocker.
 
-### DPO-001: Emit save-time validation verdicts as `gate.evaluated`
+### DPO-001: Emit save-time validation verdicts as `gate_evaluated`
 
 - **Intent:** The save-time daemon validation path emits each verdict as a
   typed governance observation candidate without crossing the ADR-064 transport
   boundary.
-- **Expected Outcome:** `validate_paths` emits a `gate.evaluated` observation
+- **Expected Outcome:** `validate_paths` emits a `gate_evaluated` observation
   per verdict with the pinned `SAVE_TIME_GATE_ID` (ADR-088 Decision 1), built via
   a new builder, with the sink threaded through `SaveTimeState` and emission
   decoupled from the correlation/session gate. Both pass and fail verdicts are
@@ -219,7 +218,7 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   high-frequency checks to tracing only, and records downstream admission
   failures as visible `recording_gap` evidence without changing the verdict.
 - **Validation:** unit tests asserting pass and fail verdicts each produce a
-  `gate.evaluated` row carrying `SAVE_TIME_GATE_ID`; a rate-cap test confirming
+  `gate_evaluated` row carrying `SAVE_TIME_GATE_ID`; a rate-cap test confirming
   fails survive a saturated window while passes are sampled; a CI latency check
   on `validate_paths` with an **injected deliberately-slow sink** confirming the
   ADR-031 budget holds; the `daemon_dep_boundary` guard stays green.
@@ -254,7 +253,7 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   shares the kind decision with DPO-001
 - **Confidence:** medium
 
-### DPO-003: Read surface for `gate.evaluated` observations
+### DPO-003: Read surface for `gate_evaluated` observations
 
 - **Intent:** A developer can query the admitted save-time and fence governance
   facts through DPO-owned view semantics.
@@ -373,7 +372,7 @@ DPO-003/-004/-005 land in order.
 ## Open questions
 
 1. ~~**Fence observation kind**~~ — RESOLVED: a distinct `constraint_applied`
-   kind, not `gate.evaluated/Fail` (ADR-088 Decision 2; council `plan-a50aa93d`).
+   kind, not `gate_evaluated/Fail` (ADR-088 Decision 2; council `plan-a50aa93d`).
 2. ~~**Save-time emit placement**~~ — RESOLVED: an emitter threaded through
    `SaveTimeState`, emitting on the `ANVIL_VALIDATE_PATHS` arm, decoupled from
    the correlation/session gate (council `plan-a50aa93d`). A shared post-verdict
