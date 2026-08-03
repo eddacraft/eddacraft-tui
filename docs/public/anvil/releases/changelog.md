@@ -12,7 +12,7 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.2-beta — 3 August 2026
+## 0.9.2-beta — 3 August 2026 — MCP 2.0 reconnect
 
 ### Fixed
 

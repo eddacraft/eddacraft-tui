@@ -8,11 +8,10 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft for `v0.9.2-beta`.** Patch cut primarily to restore MCP 2.0 client
-> connectivity (Codex and similar). Secondary activation polish may ride along
-> from `main`. Version and date land at prepare.
+> **Draft.** Customer-facing changes on `main` since the last tagged release.
+> Version and date land at the next cut.
 
-## [0.9.2-beta] — 2026-08-03
+## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
 
 ### Fixed
 
