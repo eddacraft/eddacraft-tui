@@ -142,4 +142,6 @@ if [ -n "$tag" ]; then
   fi
 fi
 
+# shellcheck disable=SC2016 # False positive: the single quotes here are
+# literal characters inside a double-quoted string, so $tag does expand.
 echo "version ok: $version (VERSION == CHANGELOG.md${tag:+ == tag '$tag'})"

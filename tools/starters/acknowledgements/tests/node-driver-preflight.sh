@@ -127,12 +127,12 @@ echo "ok scenario 3: missing node_modules rejected with installer hint (exit $ex
 # PATH. We need jq on PATH for the driver to parse its config arg.
 mkdir -p "$pkg3_dir/node_modules"
 
-# Locate jq and bash by absolute path; build a PATH that contains
-# those but NOT license-checker.
+# Locate jq and bash by absolute path. Each is symlinked individually
+# into the staged PATH dir below, so only the binaries are needed — their
+# containing directories are deliberately NOT put on PATH, since that
+# would drag a real license-checker back in and defeat the test.
 jq_bin="$(command -v jq)"
-jq_dir="$(dirname "$jq_bin")"
 bash_bin="$(command -v bash)"
-bash_dir="$(dirname "$bash_bin")"
 
 # Stage a PATH dir containing only jq + bash. Use symlinks so we
 # don't need to ship binaries.

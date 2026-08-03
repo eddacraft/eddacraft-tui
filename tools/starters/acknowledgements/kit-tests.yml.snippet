@@ -1,0 +1,77 @@
+# Kit self-tests — copy into your own `.github/workflows/kit-tests.yml`.
+#
+# This file ships INERT on purpose: it lives inside the kit directory, and
+# GitHub only runs workflows at a repository's own `.github/workflows/`.
+# A repo that vendors the kit therefore cannot activate it by accident.
+#
+# Adjust `paths:` to wherever you adopted the kit (the default below
+# assumes the recommended `tools/starters/acknowledgements` subtree
+# prefix; a flat clone of the public mirror wants `- '**'` instead).
+#
+# The four pinned versions below are the external scanners the driver
+# tests exercise. Bump them deliberately — a scanner's CLI surface or
+# classifier changing is exactly the kind of drift these tests exist to
+# catch.
+
+name: Kit Self-Tests
+
+on:
+  pull_request:
+    paths:
+      - 'tools/starters/acknowledgements/**'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/starters/acknowledgements/**'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_ABOUT_VERSION: '0.8.4'
+  LICENSE_CHECKER_VERSION: '25.0.1'
+  GO_LICENSES_VERSION: '1.6.0'
+  PIP_LICENSES_VERSION: '5.5.5'
+
+jobs:
+  kit-self-tests:
+    name: Kit Self-Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust driver tests need cargo-about.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+
+      # Node driver tests npm-install license-checker into a fixture.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Go driver tests need go-licenses on PATH.
+      - name: Install go-licenses
+        run: |
+          go install github.com/google/go-licenses@v${GO_LICENSES_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Python driver tests build their own venv and install pip-licenses.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # `--require-all` turns a skipped test into a failure. Without it a
+      # missing tool or a network blip yields a green run with whole
+      # ecosystems unexercised.
+      - name: Kit self-tests
+        run: bash tools/starters/acknowledgements/tests/run-all.sh --require-all
+
+      # The kit is ~2,000 lines of bash; keep it lint-clean.
+      - name: ShellCheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck tools/starters/acknowledgements/*.sh \
+                     tools/starters/acknowledgements/drivers/*.sh \
+                     tools/starters/acknowledgements/tests/*.sh

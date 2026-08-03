@@ -698,9 +698,11 @@ the mirror.
 
 To cut one: bump `VERSION` + add a `CHANGELOG.md` entry (PR), then tag the merge
 commit `acknowledgements-starter-vX.Y.Z` and push it.
-`.github/workflows/release-acknowledgements-starter.yml` does the rest. Full
-procedure (incl. the mirror tag-protection pre-flight) is in
-[`docs/runbooks/acknowledgements-starter-release.md`](../../../docs/runbooks/acknowledgements-starter-release.md).
+`.github/workflows/release-acknowledgements-starter.yml` does the rest. The full
+procedure (incl. the mirror tag-protection pre-flight) lives in
+`docs/runbooks/acknowledgements-starter-release.md` in the upstream repository —
+deliberately not a relative link, because this file is mirrored standalone and
+that path does not exist beside it.
 
 Check `VERSION` ↔ `CHANGELOG.md` consistency locally with:
 

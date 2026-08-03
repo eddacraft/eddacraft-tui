@@ -86,62 +86,27 @@ jobs:
         with:
           python-version: '3.12'
 
-      # ATTRIB-008 dispatcher contract — schema validation paths.
-      - name: Dispatcher schema-validation test
-        run: bash tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh
-      # ATTRIB-008 dispatcher contract — multi-block round-trip + atomic write.
-      - name: Dispatcher two-block round-trip test
-        run: bash tools/starters/acknowledgements/tests/dispatcher-two-block.sh
-      # ATTRIB-007 strict license-field guard + ATTRIB-008 flat-[rust]
-      # back-compat shim coverage.
-      - name: Strict license-field regression test
-        run: bash tools/starters/acknowledgements/tests/strict-license-field.sh
-      # ATTRIB-006 single-source allow-list + ATTRIB-012 Node-fragment
-      # drift detection.
-      - name: Licences drift detector self-test
-        run: bash tools/starters/acknowledgements/tests/licences-drift.sh
+      # ATTRIB-022: the runner is the single source of the test list, so a
+      # test added to tests/ is a test CI runs — there is no second list
+      # here to forget. `tests/run-all.sh --list` shows what it covers.
+      #
+      # ATTRIB-020: `--require-all` turns a skipped test into a failure.
+      # Several driver tests exit 0 with a `skip:` line when their tool or
+      # network is unavailable, so without this a provisioning regression
+      # or a network blip produced a green Kit Self-Tests run with the
+      # Node, Go and Python drivers entirely unexercised.
+      - name: Kit self-tests (skips are failures)
+        run: bash tools/starters/acknowledgements/tests/run-all.sh --require-all
 
-      # ATTRIB-017 release versioning — VERSION must agree with the
-      # newest CHANGELOG.md heading (and the checker the release workflow
-      # uses for its tag triple-match must behave).
-      - name: Version / changelog consistency test
-        run: bash tools/starters/acknowledgements/tests/version-changelog-consistency.sh
-
-      # ATTRIB-012 Node driver tests. Render + strict skip cleanly if
-      # npm is unavailable; the setup-node step above guarantees it.
-      - name: Node driver preflight test
-        run: bash tools/starters/acknowledgements/tests/node-driver-preflight.sh
-      - name: Node driver render test
-        run: bash tools/starters/acknowledgements/tests/node-driver-render.sh
-      - name: Node driver strict test
-        run: bash tools/starters/acknowledgements/tests/node-driver-strict.sh
-
-      # ATTRIB-013 Go driver tests. Preflight stubs its own tools;
-      # render + strict build a network-free local-`replace` fixture and
-      # exercise the installed go-licenses.
-      - name: Go driver preflight test
-        run: bash tools/starters/acknowledgements/tests/go-driver-preflight.sh
-      - name: Go driver render test
-        run: bash tools/starters/acknowledgements/tests/go-driver-render.sh
-      - name: Go driver strict test
-        run: bash tools/starters/acknowledgements/tests/go-driver-strict.sh
-
-      # ATTRIB-014 Python driver tests. Preflight stubs its own venv;
-      # render + strict build a per-test venv, install the pinned
-      # pip-licenses + a local fixture package, and exercise the driver.
-      - name: Python driver preflight test
-        run: bash tools/starters/acknowledgements/tests/python-driver-preflight.sh
-      - name: Python driver render test
-        run: bash tools/starters/acknowledgements/tests/python-driver-render.sh
-      - name: Python driver strict test
-        run: bash tools/starters/acknowledgements/tests/python-driver-strict.sh
-
-      # ATTRIB-004 bundled-binaries driver tests. Pure bash/awk over a
-      # hand-maintained inventory — no external tool needed.
-      - name: Bundled-binaries driver preflight test
-        run: bash tools/starters/acknowledgements/tests/bundled-binaries-preflight.sh
-      - name: Bundled-binaries driver render test
-        run: bash tools/starters/acknowledgements/tests/bundled-binaries-render.sh
+      # ATTRIB-020: the kit is ~2,000 lines of bash and was ShellCheck-clean
+      # when this gate landed, so it starts green and stays green. Any
+      # suppression must carry an inline justification comment.
+      - name: ShellCheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck tools/starters/acknowledgements/*.sh \
+                     tools/starters/acknowledgements/drivers/*.sh \
+                     tools/starters/acknowledgements/tests/*.sh
 
       # ATTRIB-006 (+ ATTRIB-012 Node, ATTRIB-013 Go, ATTRIB-014 Python
       # fragments): the canonical licences.toml must stay in sync with

@@ -104,6 +104,7 @@ exit3b=0
 out3b="$("$CHECKER" --dir "$d3b" 2>&1)" || exit3b=$?
 if [ "$exit3b" -eq 0 ]; then
   echo "fail scenario 3b: checker accepted leading-zero VERSION '01.2.3'" >&2
+  echo "  output: $out3b" >&2
   exit 1
 fi
 echo "ok scenario 3b: leading-zero VERSION rejected (exit $exit3b)"
@@ -165,6 +166,7 @@ exit7=0
 out7="$("$CHECKER" --dir "$d5" --tag "acknowledgements-starter-vv2.1.0" 2>&1)" || exit7=$?
 if [ "$exit7" -eq 0 ]; then
   echo "fail scenario 7: checker accepted malformed double-prefixed tag '…-vv2.1.0'" >&2
+  echo "  output: $out7" >&2
   exit 1
 fi
 echo "ok scenario 7: malformed double-prefixed tag rejected (exit $exit7)"
