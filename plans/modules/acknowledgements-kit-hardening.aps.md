@@ -3,17 +3,18 @@
 
 # Acknowledgements Kit Hardening
 
-| ID     | Owner      | Status   |
-| ------ | ---------- | -------- |
-| ATTRIB | joshuaboys | Proposed |
+| ID     | Owner      | Status      |
+| ------ | ---------- | ----------- |
+| ATTRIB | joshuaboys | In Progress |
 
 **Last reviewed:** 2026-08-03 — opened from a full read-through of the shipped
 kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
 config-parser defect were reproduced against the real scripts; the rest are
 gaps in the kit's own verification and mirror surface. The four design decisions
 the items depend on were taken the same day and are recorded in the design
-contract below. Module is **Proposed**: no work item is authorised until the
-operator flips it.
+contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03; those six
+are **Ready** and the module is **In Progress**. ATTRIB-024 (release cut) and
+ATTRIB-025 (`--version`) remain Proposed.
 
 Design contract:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
@@ -144,10 +145,11 @@ per-path configuration, unlike the fully parameterised dispatcher; and
 
 ## Work Items
 
-This module is **Proposed**; items are specified but not authorised. Recommended
-Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
-**-020** (independent of each other), then **-021** / **-022** / **-025**, with
-**ATTRIB-024** last. ATTRIB-023 can stay Proposed indefinitely.
+**ATTRIB-018..-023 are Ready** (operator authorisation 2026-08-03) and execute in
+that order — **-018** first, then **-019** and **-020** (independent of each
+other), then **-021** (needs -020's skip gate) and **-022**, then **-023**.
+**ATTRIB-025** and **ATTRIB-024** stay Proposed; the release cut is a separate
+authorisation once the six land.
 
 | Item        | Findings   | Theme                              |
 | ----------- | ---------- | ---------------------------------- |
@@ -162,7 +164,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** The generator never destroys hand-curated content, and `--check`
   never reports green over generated content it no longer maintains.
 - **Expected Outcome:** A mis-ordered marker pair is refused with an actionable
@@ -184,7 +186,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 
 ### ATTRIB-019: Config parsing and rendered cells survive punctuation
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** A quoted `attribution.toml` value reaches the driver intact, and
   no scanner-supplied string can break the rendered markdown table.
 - **Expected Outcome:** A `#` inside a quoted value is data, not a comment
@@ -205,7 +207,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 
 ### ATTRIB-020: Self-tests cannot pass by skipping, and are lint-gated
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** A green **Kit Self-Tests** run proves every driver was actually
   exercised, and shell regressions are caught by static analysis.
 - **Expected Outcome:** Skips remain available for local runs but are a failure
@@ -223,7 +225,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 
 ### ATTRIB-021: Prove the portability the kit is written for
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** The macOS-portability work already in the scripts is verified, not
   assumed.
 - **Expected Outcome:** The kit self-tests run on macOS as well as Linux, so
@@ -242,7 +244,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 
 ### ATTRIB-022: The published mirror is self-contained
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** An external consumer of the public repo can follow every link and
   run the kit's tests without access to the private upstream.
 - **Expected Outcome:** No kit-internal document links to a path outside the
@@ -265,7 +267,7 @@ Ready order once the operator flips them: **ATTRIB-018**, then **-019** and
 
 ### ATTRIB-023: Kit ergonomics backlog
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Record the non-blocking rough edges so they are not rediscovered
   by the next reader.
 - **Expected Outcome:** Each of F10–F12 is either fixed or explicitly declined
