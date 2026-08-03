@@ -56,6 +56,12 @@ env:
   # Pinned pip-licenses version installed into the kit's Python test
   # venvs. Bump deliberately when pip-licenses ships a CLI-surface change.
   PIP_LICENSES_VERSION: '5.5.5'
+  # Go toolchain line used to build go-licenses and the Go driver's test
+  # fixture. Pinned rather than `stable` for the same reason as every
+  # version above: an upstream Go release should not be able to turn this
+  # workflow red without anyone changing this file. Minor line only, so
+  # patch releases still flow. Bump deliberately.
+  GO_VERSION: '1.26'
 
 jobs:
   kit-self-tests:
@@ -99,7 +105,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 'stable'
+          go-version: ${{ env.GO_VERSION }}
       - name: Install go-licenses
         run: |
           go install github.com/google/go-licenses@v${GO_LICENSES_VERSION}
