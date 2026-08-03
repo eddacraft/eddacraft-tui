@@ -12,10 +12,12 @@ kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
 config-parser defect were reproduced against the real scripts; the rest are
 gaps in the kit's own verification and mirror surface. The four design decisions
 the items depend on were taken the same day and are recorded in the design
-contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03; all six
-are implemented on `feat/attrib-018-023-kit-hardening` and sit **In Progress**
-pending merge. ATTRIB-024 (release cut) and ATTRIB-025 (`--version`) remain
-Proposed.
+contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03 and all
+six are now **Merged** — five via PR #3492, with ATTRIB-021 held back until PR
+#3495 fixed the macOS runner's missing Go and the first green both-legs run
+(30792191535) supplied its evidence. Module stays **In Progress**: ATTRIB-024
+(release cut) and ATTRIB-025 (`--version`) remain Proposed, so the hardening is
+not yet in any consumer's hands.
 
 Design contract:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
@@ -226,10 +228,9 @@ authorisation once the six land.
 
 ### ATTRIB-021: Prove the portability the kit is written for
 
-- **Status:** In Progress — the matrix landed 2026-08-03 via PR #3492, but its
-  first macOS run was **red**, so this item's Validation is not met. Deliberately
-  not flipped to Merged: the code is integrated, the acceptance evidence is
-  disproven.
+- **Status:** Merged 2026-08-03 via PR #3492 (matrix) and PR #3495 (Go
+  provisioning). Held at In Progress until the evidence existed; released once
+  both legs ran green — see the run record below.
 - **Intent:** The macOS-portability work already in the scripts is verified, not
   assumed.
 - **Expected Outcome:** The kit self-tests run on macOS as well as Linux, so
@@ -256,10 +257,21 @@ authorisation once the six land.
   `go: command not found` (exit 127) and every later step — the self-tests,
   ShellCheck, the drift check — was skipped. The Linux leg of the same run
   passed. Fix: provision Go explicitly rather than inheriting it from the
-  runner image. Until a macOS run is green end-to-end this item's Expected
-  Outcome is unproven, because the kit's symlink resolution, `fold`-free
-  wrapper and bash-3.2-sensitive constructs still have not executed on macOS
-  even once.
+  runner image. **As of that run** the item's Expected Outcome was unproven,
+  because the kit's symlink resolution, `fold`-free wrapper and
+  bash-3.2-sensitive constructs had not yet executed on macOS even once —
+  which is why the item was held at In Progress rather than flipped. Resolved
+  by the run recorded below.
+- **Second macOS run — GREEN (run 30792191535, 2026-08-03), Validation met.**
+  After PR #3495 provisioned Go explicitly, the post-merge push ran both legs
+  to success. The macOS leg reported `16 passed, 0 skipped, 0 failed (of 16)`
+  on `darwin/arm64` with `go1.26.5` — a real tally, not a trivial pass, because
+  `--require-all` (ATTRIB-020) makes a skipped test a failure. This is the
+  first time the kit's hand-written portability work has executed on the
+  platform it was written for, and it needed no changes: the symlink
+  resolution, the `fold`-free note wrapper, and the driver scripts all behaved
+  identically to Linux. The portability was real; it had simply never been
+  proven.
 - **Files:** `.github/workflows/acknowledgements-kit.yml`,
   `tools/starters/acknowledgements/expand-licences.sh`,
   `tools/starters/acknowledgements/generate-acknowledgements.sh`.
