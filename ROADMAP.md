@@ -1,10 +1,9 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-03 (`v0.9.1-beta` "Daily Path Polish and MCP 2.0
-support" published and verified. `RELEASE-PLAN.md` now holds an explicit
-`v0.10.0-beta` intake window until the operator names its theme and cut line.
-Module status and the pickable release menu live in the SOT files below; this
-roadmap stays thematic.)
+**Last updated:** 2026-08-03 (`v0.9.1-beta` published; active cut is
+`v0.9.2-beta` MCP 2.0 reconnect patch in `RELEASE-PLAN.md`. Next minor after
+that remains unscoped. Module status lives in the SOT files below; this roadmap
+stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -119,9 +118,9 @@ next credible surface after this cut. DASH/DASHCORE foundation is already on
 `main` behind `dashboard.web` (default-off) for testing only — not a customer
 claim until default-on or a later named window owns it.
 
-**Next window:** `v0.10.0-beta` is an intake hold, not yet a product claim. The
-operator must name its theme, carry-in modules, and cut criteria before feature
-scope enters the release plan. Current state:
+**Active cut:** `v0.9.2-beta` — patch for the MCP 2.0 reconnect regression
+(MCP26-013). Not a new minor theme. After closeout, the next minor window is
+unscoped until the operator names it. Current state:
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 

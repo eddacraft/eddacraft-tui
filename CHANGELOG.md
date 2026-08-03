@@ -8,9 +8,17 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft.** Customer-facing changes on `main` since `v0.9.1-beta`. Version and
-> date land at the next cut. Two fixes for daily use: assistants stay connected,
-> and you can prove protection from the start screen without hand-waving.
+> **Draft for `v0.9.2-beta`.** Patch cut primarily to restore MCP 2.0 client
+> connectivity (Codex and similar). Secondary activation polish may ride along
+> from `main`. Version and date land at prepare.
+
+### Fixed
+
+- **Codex and similar assistants work with anvil again.** After the last MCP
+  update, some clients that send normal progress metadata were rejected as if
+  they spoke a newer protocol, so tool lists and tool calls failed. Those
+  clients connect and call tools again; broken modern requests still fail
+  clearly.
 
 ### Added
 
@@ -30,14 +38,6 @@ engineering maintenance are recorded in the
 
 - **Cleaner keyboard help on activation.** Consent and the result screen share
   one help bar — the key list no longer fights itself.
-
-### Fixed
-
-- **Codex and similar assistants work with anvil again.** After the last MCP
-  update, some clients that send normal progress metadata were rejected as if
-  they spoke a newer protocol, so tool lists and tool calls failed. Those
-  clients connect and call tools again; broken modern requests still fail
-  clearly.
 
 ## [0.9.1-beta] — 2026-08-02 — Daily Path Polish and MCP 2.0 support
 

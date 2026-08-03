@@ -11,10 +11,10 @@
 > [`plans/releases/v0.9.1-beta.md`](./releases/v0.9.1-beta.md); per-tag records
 > for earlier windows are in [`plans/releases/`](./releases/).
 >
-> The active window is **`v0.10.0-beta`** in an explicit intake hold. The
-> operator must name its theme, carry-in modules, and cut criteria before any
-> feature becomes a release claim. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and
-> [`ROADMAP.md`](../ROADMAP.md).
+> The active window is **`v0.9.2-beta`** — a current-minor **patch** for the
+> MCP 2.0 reconnect regression (MCP26-013 / PR #3487). Operator override of
+> assess's default `v0.10.0-beta`. Theme and cut criteria:
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 ## Contents
 
@@ -121,7 +121,7 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.10.0-beta`** in an operator-owned intake hold, declared in
+window is **`v0.9.2-beta`** (MCP 2.0 reconnect patch; MCP26-013), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 
@@ -734,10 +734,10 @@ Side programme (operator-approved shortlist, 2026-07-28): five tracks that turn
 the shipped graph into agent- and team-lead trust answers. Framing and clearance
 checklist:
 [`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
-**Not** a second `RELEASE-PLAN.md` window. During the `v0.10.0-beta` intake hold,
-module rows below remain owned by their home sections where they already live;
-this band is the programme hub plus the one fully cleared track, not a release
-claim.
+**Not** a second `RELEASE-PLAN.md` window. While the active cut is the
+`v0.9.2-beta` MCP reconnect patch, module rows below remain owned by their home
+sections where they already live; this band is the programme hub plus the one
+fully cleared track, not a release claim.
 
 | Track | Module | Scope | Status | Programme next |
 | ----- | ------ | ----- | ------ | -------------- |

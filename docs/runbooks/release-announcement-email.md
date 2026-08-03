@@ -154,32 +154,34 @@ Omit `firstInvocationNote`, `migrationUrl`, `knownGaps`, and `boringWeekAsk`
 unless the cut has a real ask. Source narrative: `plans/releases/v0.9.0-beta.md`
 and `CHANGELOG.md` `## [0.9.0-beta]`.
 
-### Next release — v0.10.0-beta (fill at cut)
+### Next release — v0.9.2-beta (fill at cut)
 
-Active window per `RELEASE-PLAN.md`: **v0.10.0-beta** (not yet tagged).
-`CHANGELOG.md` `## [Unreleased]` accumulates customer-facing bullets until cut.
+Active window per `RELEASE-PLAN.md`: **v0.9.2-beta** (MCP 2.0 reconnect patch;
+not yet tagged). Headline is the MCP26-013 client reconnect fix; secondary
+Unreleased bullets may ride along.
 
 At cut:
 
 1. Copy the block below.
 2. Set `theme` from `RELEASE-PLAN.md` (active window) or, after cut, the release
    record created under `plans/releases/` (filename matches the tag).
-3. Promote 4–6 customer-facing bullets from the changelog into `highlights`.
+3. Lead `highlights` with the Codex / MCP metadata reconnect fix; add at most
+   one or two secondary bullets if they remain in the promoted changelog.
 4. Point `releaseUrl` at the public tag.
 5. Dry-run → send to `beta:active`.
 
 ```json
 {
-  "version": "v0.10.0-beta",
-  "theme": "Multi-Harness MCP and Daily Ensure",
-  "intro": "A new anvil release is live. «one sentence centre of gravity from Unreleased changelog at cut».",
+  "version": "v0.9.2-beta",
+  "theme": "MCP 2.0 reconnect",
+  "intro": "A patch is live so Codex and similar assistants connect to anvil again after the MCP 2.0 dual-era host change.",
   "highlights": [
-    { "title": "…", "body": "… from CHANGELOG Unreleased …" },
-    { "title": "…", "body": "…" },
-    { "title": "…", "body": "…" },
-    { "title": "…", "body": "…" }
+    {
+      "title": "Assistants reconnect",
+      "body": "Clients that send normal progress metadata are accepted again; tool lists and tool calls work."
+    }
   ],
-  "releaseUrl": "https://github.com/eddacraft/anvil/releases/tag/v0.10.0-beta",
+  "releaseUrl": "https://github.com/eddacraft/anvil/releases/tag/v0.9.2-beta",
   "upgradeCommands": [
     { "label": "Homebrew", "command": "brew upgrade eddacraft/tap/anvil" },
     {
