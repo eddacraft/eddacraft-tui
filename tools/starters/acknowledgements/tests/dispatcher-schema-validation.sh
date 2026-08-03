@@ -351,5 +351,56 @@ for mode7 in "--check" ""; do
   echo "ok scenario 7 ($label7): orphaned marker pair rejected by name (exit $exit7)"
 done
 
+# ── Scenario 8: a `#` inside a quoted value is data, not a comment
+# TOML basic strings may contain `#`. A parser that strips inline
+# comments before handling quotes truncates the value and hands the
+# driver a path that silently points somewhere else.
+scenario8="$fixture_root/hash-in-quoted-value"
+make_common_files "$scenario8"
+mkdir -p "$scenario8/vendor/c#sharp"
+touch "$scenario8/vendor/c#sharp/Cargo.toml"
+cat >"$scenario8/attribution.toml" <<EOF
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+manifest_path = "vendor/c#sharp/Cargo.toml"   # trailing comment must still be stripped
+EOF
+cat >"$scenario8/ACKNOWLEDGEMENTS.md" <<'EOF'
+# Acknowledgements
+
+<!-- BEGIN AUTO-GENERATED stub -->
+<!-- END AUTO-GENERATED stub -->
+EOF
+
+# This stub records what the dispatcher actually passed it.
+echo_drivers="$fixture_root/echo-drivers"
+mkdir -p "$echo_drivers"
+cat >"$echo_drivers/stub.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s' "\$(printf '%s' "\$1" | jq -r '.manifest_path')" >"$fixture_root/seen-manifest-path"
+printf 'STUB-GENERATED-ROW\n' >"\$2"
+EOF
+chmod +x "$echo_drivers/stub.sh"
+
+result8="$(ATTRIB_DRIVERS_DIR="$echo_drivers" run_generator "$scenario8")"
+exit8="$(echo "$result8" | awk -F= '/^EXIT=/ { print $2; exit }')"
+if [ "$exit8" != "0" ]; then
+  echo "FAIL scenario 8 (# in quoted value): expected exit 0, got $exit8" >&2
+  echo "$result8" >&2
+  exit 1
+fi
+seen8="$(cat "$fixture_root/seen-manifest-path" 2>/dev/null || echo "<nothing>")"
+if [ "$seen8" != "$scenario8/vendor/c#sharp/Cargo.toml" ]; then
+  echo "FAIL scenario 8 (# in quoted value): driver received a truncated path" >&2
+  echo "  expected: $scenario8/vendor/c#sharp/Cargo.toml" >&2
+  echo "  actual:   $seen8" >&2
+  exit 1
+fi
+echo "ok scenario 8: '#' inside a quoted value survives, trailing comment stripped"
+
 echo ""
-echo "dispatcher schema-validation tests passed: 7/7 scenarios green."
+echo "dispatcher schema-validation tests passed: 8/8 scenarios green."

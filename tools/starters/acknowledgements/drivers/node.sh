@@ -143,7 +143,13 @@ fi
 # `@scope/name@version` (scoped). Split on `@`, rejoin all but the
 # last segment as the name to handle both shapes deterministically.
 # Sort by the original key (ascending) for byte-stable output.
+#
+# `cell` escapes any literal `|` in a scanner-supplied value, so a package
+# name, licence expression, or repository URL carrying one cannot break
+# the markdown table — the same guarantee drivers/bundled-binaries.sh
+# already gives its hand-curated values.
 license-checker "${lc_args[@]}" --json | jq -r '
+  def cell: tostring | gsub("\\|"; "\\|");
   to_entries
   | sort_by(.key)
   | (
@@ -155,10 +161,10 @@ license-checker "${lc_args[@]}" --json | jq -r '
         ($segs | length) as $n |
         ($segs | .[: $n - 1] | join("@")) as $name |
         ($segs | .[$n - 1]) as $version |
-        "| " + $name +
-        " | " + $version +
-        " | " + (.value.licenses // "UNKNOWN" | tostring) +
-        " | " + (.value.repository // "—") +
+        "| " + ($name | cell) +
+        " | " + ($version | cell) +
+        " | " + (.value.licenses // "UNKNOWN" | cell) +
+        " | " + (.value.repository // "—" | cell) +
         " |"
       )
     )

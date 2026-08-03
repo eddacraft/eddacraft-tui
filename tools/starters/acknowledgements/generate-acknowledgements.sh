@@ -164,6 +164,18 @@ drivers_dir="${ATTRIB_DRIVERS_DIR:-$script_dir/drivers}"
 read_scalar() {
   local table="$1"
   awk -v table="$table" '
+    # strip_value() takes everything after the `=` and returns the value.
+    # Quotes are handled BEFORE comments: a `#` inside a TOML basic string
+    # is data, and stripping comments first truncates it (a path like
+    # "vendor/c#sharp/Cargo.toml" became "vendor/c"). Mirrors the
+    # quote-first parser in drivers/bundled-binaries.sh.
+    function strip_value(v) {
+      sub(/^[[:space:]]+/, "", v)
+      if (v ~ /^"/)      { sub(/^"/, "", v);  sub(/".*$/, "", v) }
+      else if (v ~ /^'"'"'/) { sub(/^'"'"'/, "", v); sub(/'"'"'.*$/, "", v) }
+      else               { sub(/[[:space:]]*#.*$/, "", v); sub(/[[:space:]]+$/, "", v) }
+      return v
+    }
     BEGIN { in_table = 0 }
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*$/ { next }
@@ -179,15 +191,12 @@ read_scalar() {
     }
     in_table {
       line = $0
-      sub(/[[:space:]]*#.*$/, "", line)
       n = index(line, "=")
       if (n == 0) next
       k = substr(line, 1, n - 1)
-      v = substr(line, n + 1)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-      gsub(/^["'\'']|["'\'']$/, "", v)
-      print k "=" v
+      if (k ~ /^#/) next
+      print k "=" strip_value(substr(line, n + 1))
     }
   ' "$config_path"
 }
@@ -211,6 +220,14 @@ read_array_entry() {
   local name="$1"
   local index="$2"
   awk -v name="$name" -v target="$index" '
+    # Same quote-before-comment rule as read_scalar — see the comment there.
+    function strip_value(v) {
+      sub(/^[[:space:]]+/, "", v)
+      if (v ~ /^"/)      { sub(/^"/, "", v);  sub(/".*$/, "", v) }
+      else if (v ~ /^'"'"'/) { sub(/^'"'"'/, "", v); sub(/'"'"'.*$/, "", v) }
+      else               { sub(/[[:space:]]*#.*$/, "", v); sub(/[[:space:]]+$/, "", v) }
+      return v
+    }
     BEGIN { current = -1; in_entry = 0 }
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*$/ { next }
@@ -231,15 +248,12 @@ read_array_entry() {
     }
     in_entry {
       line = $0
-      sub(/[[:space:]]*#.*$/, "", line)
       n = index(line, "=")
       if (n == 0) next
       k = substr(line, 1, n - 1)
-      v = substr(line, n + 1)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-      gsub(/^["'\'']|["'\'']$/, "", v)
-      print k "=" v
+      if (k ~ /^#/) next
+      print k "=" strip_value(substr(line, n + 1))
     }
   ' "$config_path"
 }

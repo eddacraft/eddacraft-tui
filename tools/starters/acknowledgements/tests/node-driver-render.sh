@@ -42,11 +42,15 @@ project="$fixture_root/project"
 mkdir -p "$project/packages/fake-a" "$project/packages/fake-b"
 
 # ── Local-file packages (no network) ─────────────────────────────────
+# fake-a carries a `|` in its repository URL on purpose: a scanner-supplied
+# value containing the markdown cell separator must be escaped by the
+# driver rather than passed through to break the table.
 cat >"$project/packages/fake-a/package.json" <<'EOF'
 {
   "name": "fake-a",
   "version": "1.0.0",
   "license": "MIT",
+  "repository": "https://example.invalid/fake-a|escaped",
   "main": "index.js"
 }
 EOF
@@ -162,7 +166,23 @@ if ! grep -q 'Hand-curated postscript' "$project/ACKNOWLEDGEMENTS.md"; then
   exit 1
 fi
 
+# Cell escaping: the `|` in fake-a's repository URL must be escaped, and
+# the row must still have exactly the four columns the header declares.
+# An unescaped `|` would silently split the row into five cells.
+if ! printf '%s' "$block_body" | grep -qF 'fake-a\|escaped'; then
+  echo "fail: fake-a repository URL with a '|' was not escaped (body: $block_body)" >&2
+  exit 1
+fi
+a_row="$(printf '%s\n' "$block_body" | grep -F 'fake-a' | head -1)"
+unescaped_pipes="$(printf '%s' "$a_row" | sed 's/\\|//g' | tr -cd '|' | wc -c)"
+if [ "$unescaped_pipes" -ne 5 ]; then
+  echo "fail: fake-a row has $unescaped_pipes unescaped cell separators, expected 5" >&2
+  echo "  row: $a_row" >&2
+  exit 1
+fi
+
 echo "ok scenario 1: round-trip render produced sorted two-package block + preserved hand-curated content"
+echo "ok scenario 1b: scanner-supplied '|' escaped, row keeps its four columns"
 
 # ── Run 2: idempotency ────────────────────────────────────────────────
 sha_before="$(sha256sum "$project/ACKNOWLEDGEMENTS.md" | cut -d' ' -f1)"
