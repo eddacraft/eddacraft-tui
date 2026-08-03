@@ -357,6 +357,60 @@ authorisation once the six land.
   do not contain `|`. Recorded here rather than narrowed silently inside
   ATTRIB-019.
 
+### ATTRIB-026: Repair the marker gates shipped in v1.1.0
+
+- **Status:** In Progress — operator authorised 2026-08-04 on the review
+  findings below. Flip to Released/Shipped once `v1.1.1` is cut and verified.
+- **Intent:** The gates ATTRIB-018 added stop rejecting valid files and stop
+  being silently disable-able, so consumers get the guarantee `v1.1.0` claimed.
+- **Expected Outcome:** One shared marker scan feeds the count gate, the order
+  gate, the orphan gate and the splice, so they cannot disagree. A managed
+  marker is a whole line, outside a CommonMark-tracked fence. Marker text
+  reaches `awk` without escape processing.
+- **Validation:** New scenarios 11–16 in
+  `tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh`, one
+  per confirmed defect, each red before the fix; full kit suite and ShellCheck
+  clean; the splice reproduces the repo's own 1,746-line `ACKNOWLEDGEMENTS.md`
+  byte-identically.
+- **Files:** `tools/starters/acknowledgements/generate-acknowledgements.sh`,
+  `tools/starters/acknowledgements/tests/dispatcher-schema-validation.sh`,
+  `tools/starters/acknowledgements/README.md`,
+  `tools/starters/acknowledgements/CHANGELOG.md`,
+  `tools/starters/acknowledgements/VERSION`.
+- **Confidence:** high — every defect has a reproducer that failed first.
+
+**Review findings that opened this item (2026-08-04).** Two independent
+read-only verifiers were given the contract and the shipped code, one hunting
+false positives and one hunting false negatives. Each defect below was
+reproduced against the published `v1.1.0`:
+
+- **Critical — the orphan gate could be switched off by a valid document.**
+  Fence tracking was a single toggling bit that fired on any ` ``` ` or `~~~`
+  line. A `~~~` inside a ` ``` ` block is CommonMark content, not a fence, so an
+  odd count left the scanner "inside a fence" for the rest of the file and every
+  later marker went unseen. `--check` exited 0 over a fabricated `GPL-3.0` row
+  in a retired block — F2 verbatim, still live in the release that claimed to
+  close it. An unbalanced fence did the same, and the disabling line can come
+  from the tool's own driver output on a previous run.
+- **Major — the gate rejected valid files.** Substring matching meant prose
+  mentioning a retired block's marker, an inline code span, or link text was
+  reported as an orphan, failing the build in both modes over bytes the README
+  promises are opaque.
+- **Major — `awk -v` escape processing.** A marker override containing a
+  backslash arrived mangled (`C:\temp` → `C:<tab>emp`), leaving the orphan gate
+  inert.
+- **Major (pre-existing, inherited from v1.0.0) — the count gate counted
+  lines.** Two markers sharing a line counted as one and passed a gate the
+  README says catches duplicates.
+- **Advisory** — the README documented neither new gate; the `v1.1.0` changelog
+  claimed fenced markers are ignored, which held only for the orphan gate and
+  not the count gate.
+
+ATTRIB-018's own tests did not catch any of this: scenario 9 covered exactly one
+fence form, and its comment claimed coverage of "a marker-shaped string that is
+not a real marker" — a fixture that never existed. The suite was green while
+every defect above reproduced.
+
 ### ATTRIB-025: Dispatcher reports its own kit version
 
 - **Status:** Proposed

@@ -269,18 +269,56 @@ a manifest doesn't resolve, or an external scanner crashes silently), the
 generator aborts with a non-zero exit before the `mv` step. The target is never
 overwritten with an empty block.
 
+### What counts as a marker
+
+Every gate below, and the splice itself, read one shared scan of the target, so
+they cannot disagree about where the markers are. A line is a managed marker
+only when **both** hold:
+
+- **It is the whole line.** The trimmed line must _be_ the marker, with nothing
+  before or after it. A marker quoted mid-sentence, in an inline code span, or
+  inside link text is prose, and the kit leaves prose alone.
+- **It is not inside a fenced code block.** Fences follow CommonMark: a fence
+  opens with three or more backticks or tildes, and only a fence of the same
+  character and at least the opener's length closes it. So a target may document
+  the marker syntax in a fenced sample without that sample being treated as live
+  markup.
+
+Marker matching is literal throughout — never regex — so an operator-supplied
+`marker_begin` / `marker_end` override needs no escaping, including one
+containing backslashes or regex metacharacters.
+
 ### Marker-count gate
 
-Before generation runs, the generator counts BEGIN and END marker occurrences in
-the target. If either count is not exactly 1, it exits with a non-zero status
-and an actionable error. This catches:
+Before generation runs, the generator counts the target's managed BEGIN and END
+marker lines for each block. If either count is not exactly 1, it exits with a
+non-zero status and an actionable error. This catches:
 
 - A target file that's missing the marker block entirely.
-- A merge conflict that duplicated the markers.
+- A merge conflict that duplicated the markers — including two markers that
+  ended up sharing a single line.
 - A typo introduced when adding a new block.
 
 Without this gate, the splice loop would no-op silently and `--check` would
 falsely report "all good" while regeneration never happened.
+
+### Marker-order gate
+
+A BEGIN marker must appear before its END marker. Counts alone do not catch a
+reversed pair, and splicing one would print the BEGIN marker, emit the driver
+output, then swallow every remaining line to the end of the file — destroying
+hand-curated content. The generator refuses before writing anything, naming both
+line numbers.
+
+### Orphaned-marker gate
+
+A marker pair whose block is no longer declared in `attribution.toml` is
+reported by name and refused, in write and `--check` alike.
+
+Such a region is never regenerated, so its content is frozen at whatever the
+block last produced — stale licence attribution that a freshness gate would
+otherwise report as green. To resolve it, delete the orphaned marker pair from
+the target, or re-declare the block in `attribution.toml`.
 
 ### `--check` exit-code semantics
 

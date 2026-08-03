@@ -483,5 +483,169 @@ if [ "$exit10" != "0" ]; then
 fi
 echo "ok scenario 10: overlapping custom marker stems parse cleanly (exit $exit10)"
 
+# ── Scenarios 11+: marker-scan regressions found by independent review of
+# the 1.1.0 gates. Each fixture below reproduced a real defect in the
+# shipped kit; they exist so no future change re-opens one.
+
+# Shared helper: build a project with one declared `stub` block whose
+# markers are correct, plus whatever extra body the scenario needs.
+make_scan_case() {
+  local dir="$1" body="$2"
+  make_common_files "$dir"
+  cat >"$dir/attribution.toml" <<'TOMLEOF'
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+TOMLEOF
+  printf '%s\n' "$body" >"$dir/ACKNOWLEDGEMENTS.md"
+}
+
+scan_exit() {
+  local dir="$1"
+  shift
+  local r
+  r="$(ATTRIB_DRIVERS_DIR="$stub_drivers" run_generator "$dir" "$@")"
+  echo "$r" | awk -F= '/^EXIT=/ { print $2; exit }'
+}
+
+LIVE_BLOCK='<!-- BEGIN AUTO-GENERATED stub -->
+STUB-GENERATED-ROW
+<!-- END AUTO-GENERATED stub -->'
+
+# ── Scenario 11: a marker quoted in ordinary prose is not markup
+# The README promises hand-curated bytes are opaque. Substring matching
+# made a migration note mentioning a retired block indistinguishable from
+# a live marker pair, failing the consumer over their own prose.
+s11="$fixture_root/prose-mention"
+make_scan_case "$s11" "# A
+
+The node block used \`<!-- BEGIN AUTO-GENERATED node -->\` once; we dropped it.
+See <!-- BEGIN AUTO-GENERATED node --> in the history if you need it.
+
+$LIVE_BLOCK"
+for m in "--check" ""; do
+  # shellcheck disable=SC2086 # intentional word-split: empty means write mode
+  e="$(scan_exit "$s11" $m)"
+  if [ "$e" != "0" ]; then
+    echo "FAIL scenario 11 (${m:-write}): prose mentioning a marker treated as markup (exit $e)" >&2
+    exit 1
+  fi
+done
+echo "ok scenario 11: markers quoted in prose are not treated as markup"
+
+# ── Scenario 12: fence tracking is character- and length-aware
+# A `~~~` line inside a ``` block is CommonMark content, not a fence. A
+# naive on/off toggle counted it, left the scanner "inside a fence" for the
+# rest of the file, and silently stopped detecting orphans below.
+s12="$fixture_root/fence-mixed-hides-orphan"
+make_scan_case "$s12" '# A
+
+```text
+~~~
+```
+
+'"$LIVE_BLOCK"'
+
+<!-- BEGIN AUTO-GENERATED gone -->
+| stale-pkg | GPL-3.0 |
+<!-- END AUTO-GENERATED gone -->'
+e="$(scan_exit "$s12" --check)"
+if [ "$e" = "0" ]; then
+  echo "FAIL scenario 12: a tilde line inside a backtick fence disabled the orphan gate" >&2
+  exit 1
+fi
+echo "ok scenario 12: mixed fence characters no longer disable the gate (exit $e)"
+
+# ── Scenario 13: an unbalanced fence must not silence the gate either
+s13="$fixture_root/unbalanced-fence-hides-orphan"
+make_scan_case "$s13" '# A
+
+```
+an unclosed fence
+
+'"$LIVE_BLOCK"'
+
+<!-- BEGIN AUTO-GENERATED gone -->
+| stale-pkg | GPL-3.0 |
+<!-- END AUTO-GENERATED gone -->'
+e="$(scan_exit "$s13" --check)"
+if [ "$e" = "0" ]; then
+  echo "FAIL scenario 13: an unbalanced fence disabled the orphan gate" >&2
+  exit 1
+fi
+echo "ok scenario 13: an unbalanced fence no longer disables the gate (exit $e)"
+
+# ── Scenario 14: two markers on one line are two markers
+# grep -c counts lines, so a duplicated marker sharing a line counted as
+# one and passed a gate the README says catches duplicates.
+s14="$fixture_root/duplicate-on-one-line"
+make_scan_case "$s14" '# A
+<!-- BEGIN AUTO-GENERATED stub --> <!-- BEGIN AUTO-GENERATED stub -->
+STUB-GENERATED-ROW
+<!-- END AUTO-GENERATED stub -->
+curated tail'
+e="$(scan_exit "$s14")"
+if [ "$e" = "0" ]; then
+  echo "FAIL scenario 14: duplicated markers sharing a line passed the count gate" >&2
+  exit 1
+fi
+echo "ok scenario 14: duplicated markers on one line are rejected (exit $e)"
+
+# ── Scenario 15: a genuinely fenced example is still exempt
+# The exemption scenario 9 added must survive the stricter scanner.
+s15="$fixture_root/fenced-example-still-exempt"
+make_scan_case "$s15" '# A
+
+```markdown
+<!-- BEGIN AUTO-GENERATED my-new-block -->
+<!-- END AUTO-GENERATED my-new-block -->
+```
+
+'"$LIVE_BLOCK"
+e="$(scan_exit "$s15" --check)"
+if [ "$e" != "0" ]; then
+  echo "FAIL scenario 15: a fenced marker example was treated as a live block (exit $e)" >&2
+  exit 1
+fi
+echo "ok scenario 15: fenced marker documentation stays exempt"
+
+# ── Scenario 16: marker text containing a backslash still gates
+# awk applies escape processing to -v assignments, so `C:\temp` arrived
+# mangled and the orphan scan matched nothing at all.
+s16="$fixture_root/backslash-markers"
+make_common_files "$s16"
+cat >"$s16/attribution.toml" <<'TOMLEOF'
+[project]
+target_path = "ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+marker_begin = "<!-- BEGIN C:\temp -->"
+marker_end = "<!-- END C:\temp -->"
+
+[[blocks]]
+name = "stub"
+ecosystem = "stub"
+TOMLEOF
+cat >"$s16/ACKNOWLEDGEMENTS.md" <<'MDEOF'
+# A
+
+<!-- BEGIN C:\temp stub -->
+STUB-GENERATED-ROW
+<!-- END C:\temp stub -->
+
+<!-- BEGIN C:\temp ghost -->
+| stale-pkg | GPL-3.0 |
+<!-- END C:\temp ghost -->
+MDEOF
+e="$(scan_exit "$s16" --check)"
+if [ "$e" = "0" ]; then
+  echo "FAIL scenario 16: a backslash in the marker text disabled the orphan gate" >&2
+  exit 1
+fi
+echo "ok scenario 16: marker text containing a backslash still gates (exit $e)"
+
 echo ""
-echo "dispatcher schema-validation tests passed: 10/10 scenarios green."
+echo "dispatcher schema-validation tests passed: 16/16 scenarios green."

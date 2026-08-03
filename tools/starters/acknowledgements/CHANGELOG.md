@@ -21,6 +21,47 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
+## [1.1.1] - 2026-08-04
+
+Repairs the marker gates 1.1.0 introduced. Independent review found that those
+gates both rejected valid files and could be silently switched off — **if you
+are on 1.1.0, upgrade.**
+
+### Fixed
+
+- **The orphaned-marker gate could be disabled by a valid document, leaving
+  stale attribution undetected.** Fence tracking was a simple on/off toggle, so
+  a `~~~` line inside a ` ``` ` block — ordinary content in CommonMark, not a
+  fence — flipped it on and left it on. Every marker after that point went
+  unseen, and `--check` reported green over a retired block's frozen content. An
+  unbalanced fence anywhere in the file did the same. Fences are now tracked per
+  CommonMark, by fence character and length.
+- **Prose that mentioned a marker was treated as markup.** A migration note
+  citing a retired block's marker, an inline code span, or link text containing
+  one was reported as an orphaned block, failing the build over hand-curated
+  content the README promises is left alone. A marker is now recognised only
+  when it is the entire line.
+- **Two markers sharing one line counted as one.** The count gate counted
+  matching _lines_, so a duplicated marker on a single line passed a gate the
+  README says catches duplicates.
+- **A `marker_begin` / `marker_end` override containing a backslash disabled the
+  orphaned-marker gate entirely.** The marker text was passed to `awk` in a way
+  that applied escape processing, so `C:\temp` became `C:<tab>emp` and matched
+  nothing.
+- The gates and the splice now read one shared scan of the target instead of
+  each re-matching the text, so they can no longer disagree about which lines
+  are markers.
+
+### Documentation
+
+- The README now documents the marker-order and orphaned-marker gates, and
+  defines exactly what counts as a marker. 1.1.0 shipped both gates without
+  documenting either.
+- 1.1.0's note that "markers inside fenced code blocks are ignored" was true
+  only of the orphaned-marker gate. The count gate did not skip fences, so
+  documenting the markers you actually use still failed. Both now share the same
+  rule.
+
 ## [1.1.0] - 2026-08-03
 
 A hardening release. The kit gains no new capability; it stops failing quietly

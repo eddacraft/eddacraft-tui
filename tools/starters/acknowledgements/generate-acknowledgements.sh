@@ -480,61 +480,133 @@ marker_prefix_for() {
   esac
 }
 
+# marker_scan() is the single source of truth for "where are the markers".
+# Every gate and the splice itself read its output, so they cannot disagree
+# — a disagreement is how a marker can be gated as absent while still being
+# spliced into, or counted once while appearing twice.
+#
+# Emits one TAB-separated record per managed marker line:
+#     <line-number>\t<begin|end>\t<name>
+# where <name> is empty for the unnamed (back-compat shim) marker.
+#
+# Two rules define a managed marker, and both matter:
+#
+#   1. WHOLE LINE. The trimmed line must BE the marker, not merely contain
+#      it. The README has always specified markers "on lines of their own".
+#      Substring matching made ordinary prose that mentions a marker —
+#      a migration note, a link, an inline code span — indistinguishable
+#      from markup, so the gates policed hand-curated bytes the README
+#      promises are opaque.
+#
+#   2. NOT INSIDE A FENCED CODE BLOCK. A target may document the marker
+#      syntax. Fence tracking follows CommonMark: a fence opens with >=3
+#      backticks or tildes, and only a fence of the SAME character and at
+#      least the opener's length closes it. A naive on/off toggle (which is
+#      what shipped in 1.1.0) counted a `~~~` line inside a ``` block as a
+#      fence, so one such line left the scanner "inside a fence" for the
+#      rest of the document and every later marker went unseen — silently
+#      disabling the freshness gate over a valid document.
+#
+# Marker text reaches awk through the environment, never `-v`: awk applies
+# escape processing to -v assignments, so a marker containing a backslash
+# (`C:\temp`) arrived mangled and matched nothing.
+marker_scan() {
+  local target="$1"
+  MS_BEGIN="$marker_begin" \
+  MS_END="$marker_end" \
+  MS_BEGIN_PREFIX="$(marker_prefix_for begin)" \
+  MS_END_PREFIX="$(marker_prefix_for end)" \
+  awk '
+    function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+
+    # classify() returns the block name for a marker line, "" for the
+    # unnamed marker, or the sentinel "\001none" when the line is not a
+    # managed marker of this kind. All comparisons are literal.
+    function classify(line, base, prefix,   rest, t, name) {
+      if (line == base) return ""
+      if (prefix == "") return "\001none"
+      if (substr(line, 1, length(prefix)) != prefix) return "\001none"
+      rest = substr(line, length(prefix) + 1)
+      t = index(rest, "-->")
+      if (t == 0) return "\001none"
+      # Nothing may follow the comment trailer: that is what makes this a
+      # whole-line match rather than a prefix match.
+      if (trim(substr(rest, t + 3)) != "") return "\001none"
+      name = trim(substr(rest, 1, t - 1))
+      if (name == "") return "\001none"
+      # A managed marker can only carry a name the dispatcher would accept.
+      if (name !~ /^[a-z0-9]+(-[a-z0-9]+)*$/) return "\001none"
+      return name
+    }
+
+    BEGIN {
+      b = ENVIRON["MS_BEGIN"]; e = ENVIRON["MS_END"]
+      bp = ENVIRON["MS_BEGIN_PREFIX"]; ep = ENVIRON["MS_END_PREFIX"]
+      fence_char = ""; fence_len = 0
+    }
+
+    {
+      line = trim($0)
+
+      # CommonMark fence tracking, character- and length-aware.
+      if (match(line, /^(`{3,}|~{3,})/)) {
+        run = substr(line, 1, RLENGTH)
+        ch = substr(run, 1, 1)
+        if (fence_char == "") {
+          # Opening fence. An info string may follow, but never for a
+          # closing fence — so a ```-opener is not closed by ```text.
+          fence_char = ch; fence_len = RLENGTH
+          next
+        }
+        if (ch == fence_char && RLENGTH >= fence_len && trim(substr(line, RLENGTH + 1)) == "") {
+          fence_char = ""; fence_len = 0
+        }
+        next
+      }
+      if (fence_char != "") next
+
+      name = classify(line, b, bp)
+      if (name != "\001none") { print NR "\t" "begin" "\t" name; next }
+      name = classify(line, e, ep)
+      if (name != "\001none") { print NR "\t" "end" "\t" name }
+    }
+  ' "$target"
+}
+
 # orphan_marker_names() prints, one per line, the block name carried by
 # every managed marker in $1 that is NOT in the resolved block set.
 # `(unnamed)` stands for a bare shim marker left behind by a project that
 # has since migrated to [[blocks]].
-#
-# Matching is literal (index/substr, never regex) so an arbitrary
-# operator-supplied marker override needs no escaping — the same property
-# the marker-count gate relies on.
 orphan_marker_names() {
-  local target="$1" known="$2" kind base prefix
-  for kind in begin end; do
-    if [ "$kind" = "begin" ]; then base="$marker_begin"; else base="$marker_end"; fi
-    prefix="$(marker_prefix_for "$kind")"
-    awk -v base="$base" -v prefix="$prefix" -v known="$known" '
-      # Fenced code blocks are documentation, not markup. A target may
-      # legitimately show the marker syntax while explaining how to add a
-      # block; treating that as a live orphan would fail the consumer over
-      # their own prose, in both modes, with no in-tool way out.
-      {
-        fence = $0
-        sub(/^[[:space:]]+/, "", fence)
-        if (fence ~ /^(```|~~~)/) { in_fence = !in_fence; next }
-        if (in_fence) next
+  local target="$1" known="$2"
+  marker_scan "$target" | awk -F'\t' -v known="$known" '
+    {
+      name = $3
+      if (name == "") {
+        if (index(known, "||") == 0) print "(unnamed)"
+        next
       }
-      {
-        # The unnamed marker is the base text itself. Test it first:
-        # the prefix is a substring of the base, so testing prefix first
-        # would classify every unnamed marker as a nameless "orphan".
-        if (index($0, base) > 0) {
-          if (index(known, "|" "|") == 0) print "(unnamed)"
-          next
-        }
-        if (prefix == "") next
-        p = index($0, prefix)
-        if (p == 0) next
-        rest = substr($0, p + length(prefix))
-        # A managed marker reads "<prefix> <name> -->". Anything else
-        # that merely mentions the prefix is not a marker.
-        t = index(rest, "-->")
-        if (t == 0) next
-        name = substr(rest, 1, t - 1)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
-        if (name == "") next
-        # Only a valid block name is a block name. The dispatcher rejects
-        # anything but kebab-case for `name`, so a scan hit that is not
-        # kebab-case cannot be a managed marker. This also disambiguates
-        # overlapping custom markers: with marker_begin "<!-- gen -->" and
-        # marker_end "<!-- gen end -->", the begin stem also matches every
-        # end marker, and the extracted "end alpha" is correctly discarded
-        # rather than reported as a phantom orphan.
-        if (name !~ /^[a-z0-9]+(-[a-z0-9]+)*$/) next
-        if (index(known, "|" name "|") == 0) print name
-      }
-    ' "$target"
-  done | sort -u
+      if (index(known, "|" name "|") == 0) print name
+    }
+  ' | sort -u
+}
+
+# marker_line_for() prints the line number of the single <begin|end> marker
+# for block <name> in <target>, or nothing when the count is not exactly 1.
+marker_line_for() {
+  local target="$1" kind="$2" name="$3"
+  marker_scan "$target" | awk -F'\t' -v k="$kind" -v n="$name" '
+    $2 == k && $3 == n { c++; line = $1 }
+    END { if (c == 1) print line }
+  '
+}
+
+# marker_count_for() prints how many <begin|end> markers block <name> has.
+marker_count_for() {
+  local target="$1" kind="$2" name="$3"
+  marker_scan "$target" | awk -F'\t' -v k="$kind" -v n="$name" '
+    $2 == k && $3 == n { c++ } END { print c + 0 }
+  '
 }
 
 # ── Splice loop ──────────────────────────────────────────────────────
@@ -594,14 +666,18 @@ while IFS= read -r block_json; do
   begin_marker="$(marker_for "$name" begin)"
   end_marker="$(marker_for "$name" end)"
 
-  # Per-block marker-count gate.
-  begin_count="$(grep -cF "$begin_marker" "$working_file" || true)"
-  end_count="$(grep -cF "$end_marker" "$working_file" || true)"
+  # Per-block marker-count gate, over the shared scan. Counting managed
+  # marker *lines* rather than grep hits closes two holes: two markers on
+  # one line used to count as one, and a marker quoted mid-sentence used
+  # to count as a marker at all.
+  begin_count="$(marker_count_for "$working_file" begin "$name")"
+  end_count="$(marker_count_for "$working_file" end "$name")"
   if [ "$begin_count" != "1" ] || [ "$end_count" != "1" ]; then
     label="${name:-(unnamed)}"
     echo "error: $splice_input must contain exactly one BEGIN and one END marker for block '$label'." >&2
     echo "  '$begin_marker' count: $begin_count (expected 1)" >&2
     echo "  '$end_marker' count: $end_count (expected 1)" >&2
+    echo "  markers must be alone on their own line and outside fenced code blocks." >&2
     exit 1
   fi
 
@@ -610,8 +686,8 @@ while IFS= read -r block_json; do
   # BEGIN marker, emit the driver output, and swallow every remaining
   # line to EOF — silently deleting hand-curated content the README
   # promises is preserved verbatim.
-  begin_line="$(grep -nF "$begin_marker" "$working_file" | head -1 | cut -d: -f1)"
-  end_line="$(grep -nF "$end_marker" "$working_file" | head -1 | cut -d: -f1)"
+  begin_line="$(marker_line_for "$working_file" begin "$name")"
+  end_line="$(marker_line_for "$working_file" end "$name")"
   if [ "$begin_line" -ge "$end_line" ]; then
     label="${name:-(unnamed)}"
     echo "error: $splice_input has its markers for block '$label' in the wrong order." >&2
@@ -649,23 +725,21 @@ while IFS= read -r block_json; do
     exit 1
   fi
 
-  # Splice driver_output between begin_marker and end_marker in working_file.
+  # Splice driver_output between the two marker LINES located by the same
+  # scan the gates used. Splicing by line number rather than by re-matching
+  # text is what keeps the splice and the gates in agreement: a marker the
+  # gates deliberately ignored (quoted in prose, or inside a fenced sample)
+  # can no longer be spliced into as if it were live markup.
   spliced="$(mktemp "$working_dir/.generate-acknowledgements.splice.XXXXXX")"
   splice_temps="$splice_temps $spliced"
-  awk -v gen="$driver_output" -v begin="$begin_marker" -v end="$end_marker" '
-    BEGIN { in_block = 0 }
-    index($0, begin) {
+  awk -v gen="$driver_output" -v bl="$begin_line" -v el="$end_line" '
+    NR == bl {
       print
       while ((getline line < gen) > 0) print line
-      in_block = 1
       next
     }
-    index($0, end) {
-      in_block = 0
-      print
-      next
-    }
-    !in_block { print }
+    NR > bl && NR < el { next }
+    { print }
   ' "$working_file" > "$spliced"
   mv "$spliced" "$working_file"
 
