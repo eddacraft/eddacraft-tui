@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                             |
-| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-02: `v0.9.1-beta` tagged (publish recovery in flight). Active window advanced to **`v0.10.0-beta`** placeholder — full scope at closeout of the 0.9.1 cut. Prior preferred patch theme recorded in CHANGELOG. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                               |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-03: `v0.9.1-beta` published and verified. **`v0.10.0-beta`** is an explicit intake hold until the operator names its theme, carry-in modules, and cut criteria. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -32,37 +32,33 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support" (tagged
-  2026-08-02; cargo-dist publish recovery after dashboard render prebuild + ACK
-  ARG_MAX fixes). Preferred claim was the **daily path** (bare ensure,
-  activation TUI default, gate honesty) plus **MCP 2.0 support** (twelve-client
-  install, dual-era protocol). Dashboard remained flag-gated and was not a
-  claim. Durable record will land at
-  [`plans/releases/v0.9.1-beta.md`](./plans/releases/v0.9.1-beta.md) on
-  closeout. Prior:
-  [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
+- **Latest tag:** `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
+  (published and verified 2026-08-02 after dashboard render prebuild + ACK
+  ARG_MAX recovery). Its claim was the **daily path** (bare ensure, activation
+  TUI default, gate honesty) plus **MCP 2.0 support** (twelve-client install,
+  dual-era protocol). Dashboard remained flag-gated and was not a claim. Durable
+  record: [`plans/releases/v0.9.1-beta.md`](./plans/releases/v0.9.1-beta.md).
+  Prior: [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** **`v0.10.0-beta`** — open placeholder after the `v0.9.1`
-  tag. Theme and phase plans are **TBD at closeout** of the 0.9.1 publish
-  recovery (do not invent a second narrative while the tag is still landing).
+- **Active window:** **`v0.10.0-beta`** — intake hold after the `v0.9.1-beta`
+  closeout. No feature is a release claim until the operator names the theme,
+  carry-in modules, and cut criteria from APS truth.
 
 ---
 
-## Active window — `v0.10.0-beta` (placeholder)
+## Active window — `v0.10.0-beta` (intake hold)
 
-**Operator note 2026-08-02** — `v0.9.1-beta` is already a git tag. This file
-must not keep that version as the active window (docs `release-plan` surface).
-Scope the next minor here once 0.9.1 publish + closeout finish; until then this
-window is a deliberate placeholder so CI stays forward-looking.
+**Operator note 2026-08-03** — `v0.9.1-beta` is published and its immutable
+record is complete. This window deliberately carries no feature narrative yet:
+scope it only after the operator selects a theme and APS-backed cut line.
 
 ### Phase plan
 
-| Phase                       | Scope                                                                                         | State                                 |
-| --------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------- |
-| **0.9.1 publish recovery**  | Dashboard `@eddacraft/render` prebuild on tag; ACK Contents API ARG_MAX fix; cargo-dist green | In progress via release recovery PRs  |
-| **0.9.1 closeout**          | Release record, tracking issue, APS Released/Shipped advance, prune narrative into ROADMAP    | Blocked on successful publish         |
-| **Scope next minor** (gate) | Operator names theme, carry-in modules, and cut criteria for `v0.10.0-beta`                   | Not started — wait for 0.9.1 closeout |
+| Phase                        | Scope                                                                       | State                                   |
+| ---------------------------- | --------------------------------------------------------------------------- | --------------------------------------- |
+| **0.9.1 publish + closeout** | Publish, sign, verify, and record the `v0.9.1-beta` cut                     | Done 2026-08-02                         |
+| **Scope next minor** (gate)  | Operator names theme, carry-in modules, and cut criteria for `v0.10.0-beta` | Intake hold — no feature claim selected |
 
 ### Cut criteria
 
@@ -92,9 +88,8 @@ Authoritative source:
 
 | Risk                                                                            | Mitigation                                                                                                                                         |
 | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tag exists while cargo-dist publish is incomplete — installers may be partial.  | Finish publish recovery before marketing the tag; verify private + public assets and signing before closeout.                                      |
 | Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`). | Readiness runs `validate-publication-token.sh`; rotate per [`release-token-scope.md`](./docs/runbooks/release-token-scope.md) when the gate fails. |
-| Placeholder active window rots without a real scope.                            | Closeout of 0.9.1 must replace this section with a named theme and phase plan (or an explicit "intake hold" note with owner).                      |
+| An unscoped window quietly accumulates unrelated feature claims.                | Keep the intake hold explicit; require an operator-named theme and APS-backed cut line before adding feature phases.                               |
 
 ## Records & roadmap
 

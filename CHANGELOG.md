@@ -8,9 +8,36 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft.** This section accumulates customer-relevant changes landed on `main`
-> since the latest release; the version, date, and final scope are set at the
-> next cut.
+> **Draft.** Customer-facing changes on `main` since `v0.9.1-beta`. Version and
+> date land at the next cut. Two fixes for daily use: assistants stay connected,
+> and you can prove protection from the start screen without hand-waving.
+
+### Added
+
+- **Prove it from `anvil start`.** On the result screen, press `t` for
+  **Prove**. anvil runs a real secret check on a sample and tells you whether it
+  caught the secret — a 30-second reality check, not a placeholder toast. If
+  Prove cannot run here (no secret checks configured, unsupported languages), it
+  says so plainly. It never pretends your editor's live save guard is working
+  when only the check engine was tested.
+
+### Changed
+
+- **`anvil status` and `anvil start` tell the same story.** When one says
+  "warming" while the assistant path is already live (or save-time is still
+  catching up), status adds one plain line of meaning so you are not left
+  reconciling two different truths.
+
+- **Cleaner keyboard help on activation.** Consent and the result screen share
+  one help bar — the key list no longer fights itself.
+
+### Fixed
+
+- **Codex and similar assistants work with anvil again.** After the last MCP
+  update, some clients that send normal progress metadata were rejected as if
+  they spoke a newer protocol, so tool lists and tool calls failed. Those
+  clients connect and call tools again; broken modern requests still fail
+  clearly.
 
 ## [0.9.1-beta] — 2026-08-02 — Daily Path Polish and MCP 2.0 support
 
@@ -27,6 +54,13 @@ remains flag-gated and is not a claim of this release.
   worktrees exit non-zero and point at `anvil start` or `anvil welcome`. Use
   `anvil start` for first-time setup and reconfigure; use bare `anvil` for the
   daily on-switch. `anvil --json` emits a compact ensure document.
+
+- **Disclosed anonymous usage telemetry.** After an eligible interactive first
+  run shows the notice, anvil can send a narrow opt-out beacon at most once per
+  24 hours. It excludes source, paths, command arguments, findings, output, and
+  free-form text. Inspect the current gate and eligible payload with
+  `anvil telemetry`; disable sending with `anvil telemetry off`,
+  `ANVIL_TELEMETRY=off`, or `DO_NOT_TRACK=1`.
 
 - **MCP install for the harnesses you actually use.**
   `anvil mcp install --client` accepts twelve clients — Claude Code, Cursor,

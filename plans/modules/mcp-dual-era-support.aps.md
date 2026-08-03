@@ -7,10 +7,10 @@
 **Last reviewed:** 2026-08-03 — dual-era MCP `2026-07-28` support (MCP26-001
 through MCP26-011) merged to `main` via PR #3444. Code lands under
 `crates/anvil-cli/src/mcp/protocol/` (dispatch, domain, versions, trace, and
-related). ADR-113 is Accepted. MCP26-013 is In Progress on
-`fix/mcp26-013-request-metadata` to repair the observed legacy
-request-metadata interoperability regression; MCP26-012 remains Ready for
-product adoption of stable `rmcp` (temporary typed adapter still in use).
+related). ADR-113 is Accepted. MCP26-013 merged via PR #3487 on 2026-08-03,
+repairing the observed legacy request-metadata interoperability regression;
+MCP26-012 remains Ready for product adoption of stable `rmcp` (temporary typed
+adapter still in use).
 Release: first post-ratification cut or next+1.
 
 **Publication:** Merged via PR
@@ -20,8 +20,8 @@ MCP26-001..011. Actual-client matrix evidence was deferred as residual operator
 work; official stdio conformance remains locally evidenced (HTTP-only official
 runner not applicable). Actual-client follow-up exposed an era-selection
 regression when a legacy client attaches standard request metadata.
-MCP26-013 owns that compatibility repair. MCP26-012 (rmcp product pin /
-adapter removal) is not in this PR and stays Ready.
+MCP26-013's compatibility repair merged via PR #3487 on 2026-08-03. MCP26-012
+(rmcp product pin / adapter removal) stays Ready.
 
 ## Purpose
 
@@ -477,7 +477,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-013: Restore legacy request-metadata interoperability
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-03 via PR #3487
 - **Intent:** Restore supported initialise-era clients that attach standard
   per-request metadata, without allowing malformed modern requests to fall
   back to the legacy protocol path.
@@ -543,7 +543,8 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
     black-box stdio fixtures preserve its captured request shape.
 - **Publication:**
   [PR #3487](https://github.com/eddacraft/anvil-001/pull/3487) against `main`;
-  merge and release evidence remain pending.
+  merged 2026-08-03 as `0db56985214ae885494c21b4798d3358232f1553`.
+  Release evidence remains pending.
 - **Confidence:** high
 - **changeType:** fix
 - **releaseIntent:** candidate
@@ -595,10 +596,10 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ## Notes
 
-- Dual-era host (MCP26-001..011) is on `main` via PR #3444. MCP26-013 is the
-  immediate compatibility hotfix. MCP26-012 (rmcp product adoption /
-  temporary-adapter removal) remains the independent follow-on and must retain
-  the MCP26-013 fixtures.
+- Dual-era host (MCP26-001..011) is on `main` via PR #3444. MCP26-013's
+  compatibility hotfix is on `main` via PR #3487. MCP26-012 (rmcp product
+  adoption / temporary-adapter removal) remains the independent follow-on and
+  must retain the MCP26-013 fixtures.
 
 - Spec non-goals (HTTP, Apps, Tasks, MRTR, subscriptions) remain follow-on
   opportunities outside MCP26.

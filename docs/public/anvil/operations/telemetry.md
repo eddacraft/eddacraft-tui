@@ -1,47 +1,91 @@
 ---
 id: telemetry
-title: Upcoming anonymous usage telemetry
+title: Anonymous usage telemetry
 description:
-  Preview the privacy boundary for anonymous usage telemetry in an unreleased
-  anvil build.
-public_unlisted: true
+  See exactly what anvil's narrow anonymous beacon can send and how to inspect,
+  disable, or reset it.
 ---
 
-# Upcoming anonymous usage telemetry
+# Anonymous usage telemetry
 
-This page describes an unreleased telemetry implementation. It is deliberately
-excluded from the current navigation because the public `0.9.0-beta` binary does
-not send this beacon and does not include the `anvil telemetry` command.
+`0.9.1-beta` and later include a narrow anonymous usage beacon. It is separate
+from the detailed local observations that support `anvil insights` and kindling:
+those rows stay on your machine and are never uploaded.
 
-Do not use this page as current beta setup guidance. For the released product's
-network boundary, use [local data and security](security.md).
+## Consent and timing
 
-## Proposed privacy boundary
+Telemetry uses a disclosed opt-out posture. It starts enabled, but anvil cannot
+send a first beacon until an eligible interactive first run has shown the full
+notice. A non-interactive first run cannot record that disclosure. After an
+interactive run records it, later non-interactive commands may send a beacon. A
+non-default `ANVIL_HOME` and unreadable consent state always fail closed.
 
-The unreleased implementation is designed to send a narrow anonymous usage
-beacon from eligible beta, release-candidate, and stable builds. Source code,
-paths, repository names, command arguments, findings, output, hostnames, emails,
-account identity, stack traces, and free-form diagnostic text are excluded.
+After disclosure, anvil may send at most one successful beacon per installation
+in 24 hours. Network work runs in a detached worker with short timeouts; a
+failed send is dropped rather than queued and does not block the command you
+ran.
 
-The proposed body contains only:
+## Exact payload
 
-- a random install identifier that is not derived from a person or machine;
-- the anvil version, release channel, platform, and install method;
-- the active feature-flag snapshot version; and
-- aggregate feature-key counts.
+The beacon contains only:
 
-The implementation is designed to send at most one successful beacon per
-installation in 24 hours, retain raw beacon rows for no more than 90 calendar
-dates, and avoid retaining source IP addresses. The random identifier is not an
-authenticated customer identity, so aggregate metrics are directional product
-evidence rather than a verified customer count.
+- a schema version;
+- a random install identifier derived from nothing about you or your machine;
+- the anvil version and closed-set installation method;
+- the platform target and release channel;
+- the feature-flag snapshot version; and
+- aggregate counts for allowlisted feature keys used since the previous
+  successful beacon.
 
-## Proposed controls
+It never contains source code, file paths, repository names, command names or
+arguments, findings, output, hostnames, emails, account identity, stack traces,
+or free-form diagnostic text. Adding another field requires a reviewed update to
+the telemetry decision and public contract.
 
-The unreleased command surface is designed to preview the exact next payload,
-turn sending on or off, and rotate the random install identifier. Environment
-hard-offs are designed to include `ANVIL_TELEMETRY=off` and `DO_NOT_TRACK=1`.
+## Inspect or turn it off
 
-These controls become actionable documentation only when a public release
-contains them. Until then, the current beta behaviour documented by the
-[security guide](security.md) is authoritative.
+Show the current state and send gate. When a beacon is currently eligible, this
+also shows the exact next payload; during the 24-hour cooldown or while another
+send is in progress, it explains that delivery-state block instead:
+
+```text
+anvil telemetry
+```
+
+Persist an off or on choice:
+
+```text
+anvil telemetry off
+anvil telemetry on
+```
+
+Rotate the random install identifier so earlier and later beacons cannot be
+joined through it:
+
+```text
+anvil telemetry reset-id
+```
+
+For machine-readable inspection, use:
+
+```text
+anvil --json telemetry
+```
+
+`ANVIL_TELEMETRY=off` and `DO_NOT_TRACK=1` always override persisted consent.
+`DO_NOT_TRACK=1` also disables the local usage-observation surface.
+
+## Storage and retention
+
+Telemetry database rows do not contain source IP addresses. The API transiently
+uses an edge-provided IP address for a best-effort, one-minute in-memory rate
+limit; an exceeded limit can include that address in application debug output.
+This contract does not describe or limit the hosting provider's infrastructure
+logs. The ingest service coarsens beacon arrival time to a date, keeps raw
+beacon rows for no more than 90 calendar dates, and keeps date-level aggregate
+counts after raw rows expire. The random install identifier is not an
+authenticated customer identity, so these aggregates are directional product
+evidence rather than verified customer counts.
+
+For the broader local and network data boundary, see
+[local data and security](security.md).

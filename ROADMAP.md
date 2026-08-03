@@ -1,11 +1,10 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-02 (`v0.9.1-beta` "Daily Path Polish and MCP 2.0
-support" tagged; publish recovery in flight. Prior shipped headline
-`v0.9.0-beta` "First-Run Wins and the Assistant Graph". Active window in
-`RELEASE-PLAN.md` is a `v0.10.0-beta` placeholder pending 0.9.1 closeout. Module
-status and the pickable release menu live in the SOT files below; this roadmap
-stays thematic.)
+**Last updated:** 2026-08-03 (`v0.9.1-beta` "Daily Path Polish and MCP 2.0
+support" published and verified. `RELEASE-PLAN.md` now holds an explicit
+`v0.10.0-beta` intake window until the operator names its theme and cut line.
+Module status and the pickable release menu live in the SOT files below; this
+roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -99,29 +98,30 @@ These minors land capability between the always-on daemon loop and the team-lead
 browser surface. Immutable records live under
 [`plans/releases/`](./plans/releases/).
 
-| Tag           | Theme                                  | Headline capability                                                                                                                                               |
-| ------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.8.0-beta` | The Save-Time Daemon                   | Persistent intercept daemon validates save-time deltas (ADR-061); save-time governance no longer cold-spawns per save. Shipped 2026-06-11.                        |
-| `v0.8.1-beta` | Headless GitHub Login                  | Headless auth/login path patch on the v0.8 line.                                                                                                                  |
-| `v0.9.0-beta` | First-Run Wins and the Assistant Graph | Assistant-facing graph over MCP (GCTX), warm-start persistence, MCP-optional useful daemon, USAGE analytics, JOURNEY-conducted first-run cut. Shipped 2026-07-12. |
+| Tag           | Theme                                  | Headline capability                                                                                                                                                       |
+| ------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.8.0-beta` | The Save-Time Daemon                   | Persistent intercept daemon validates save-time deltas (ADR-061); save-time governance no longer cold-spawns per save. Shipped 2026-06-11.                                |
+| `v0.8.1-beta` | Headless GitHub Login                  | Headless auth/login path patch on the v0.8 line.                                                                                                                          |
+| `v0.9.0-beta` | First-Run Wins and the Assistant Graph | Assistant-facing graph over MCP (GCTX), warm-start persistence, MCP-optional useful daemon, USAGE analytics, JOURNEY-conducted first-run cut. Shipped 2026-07-12.         |
+| `v0.9.1-beta` | Daily Path Polish and MCP 2.0 support  | Bare daily ensure, default activation TUI, twelve-client MCP install, dual-era protocol support, managed skills, and warning-over-block gate honesty. Shipped 2026-08-02. |
 
-**Latest shipped headline:** `v0.9.0-beta` (2026-07-12). Release record:
-[`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
+**Latest shipped headline:** `v0.9.1-beta` (2026-08-02). Release record:
+[`plans/releases/v0.9.1-beta.md`](./plans/releases/v0.9.1-beta.md).
 
-### Horizon 2 — Daily path + MCP reach — active window `v0.9.1-beta`
+### Horizon 2 — Daily path + MCP reach — shipped `v0.9.1-beta`
 
-**Theme (this cut):** Daily path polish and MCP 2.0 support — bare `anvil`
+**Delivered theme:** Daily path polish and MCP 2.0 support — bare `anvil`
 ensure, default activation TUI, multi-client MCP install + dual-era protocol,
-managed skills. Honest patch framing on the v0.9 line; fallback minor number
-only if review rejects patch.
+and managed skills on the v0.9 line.
 
 **Longer-term Horizon 2 (not this claim):** Team-lead browser glance remains the
 next credible surface after this cut. DASH/DASHCORE foundation is already on
 `main` behind `dashboard.web` (default-off) for testing only — not a customer
 claim until default-on or a later named window owns it.
 
-**Active window:** `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
-(operator 2026-08-02; pre-release started). Scope and cut criteria:
+**Next window:** `v0.10.0-beta` is an intake hold, not yet a product claim. The
+operator must name its theme, carry-in modules, and cut criteria before feature
+scope enters the release plan. Current state:
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 

@@ -110,10 +110,10 @@ anvil start --verify
 When your binary lists additional MCP clients or a managed `skill` command, use
 installed help to re-verify those assets after the upgrade.
 
-## Behaviour changes after 0.9.0-beta
+## 0.9.1-beta behaviour changes
 
-These land with the next beta after 0.9.0-beta (draft on the maintained branch).
-Confirm each surface with `anvil --help` on the binary you actually installed:
+These shipped in `0.9.1-beta`. Confirm each surface with `anvil --help` on the
+binary you actually installed:
 
 - **Activation TUI by default.** On a real terminal, `anvil start` opens the
   consent-first interactive surface without `--tui`. Use `--no-tui` or
@@ -132,6 +132,12 @@ Confirm each surface with `anvil --help` on the binary you actually installed:
 - **Bare `anvil` daily ensure.** After activation, run `anvil` with no
   subcommand to ensure the daemon and already-owned MCP entries without
   reinstall prompts. Use `anvil start` for first-time setup and reconfigure.
+- **Disclosed opt-out telemetry.** After an eligible interactive first run shows
+  its notice, anvil can send a narrow anonymous usage beacon at most once per 24
+  hours. Inspect the gate and eligible payload with `anvil telemetry`. Disable
+  sending with `anvil telemetry off`, `ANVIL_TELEMETRY=off`, or
+  `DO_NOT_TRACK=1`; see [anonymous usage telemetry](../operations/telemetry.md)
+  for the exact payload, timing, transient IP processing, and retention.
 
 ## 0.9.0-beta automation change
 

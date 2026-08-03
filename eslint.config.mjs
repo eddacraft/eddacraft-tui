@@ -26,6 +26,7 @@ export default typescriptEslint.config(
       '**/.next/',
       '**/.vercel/',
       '**/.docusaurus/',
+      '**/.astro/',
       '**/build/',
       '.claude/',
       'archive/',

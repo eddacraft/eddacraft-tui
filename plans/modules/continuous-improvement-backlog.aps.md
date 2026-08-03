@@ -5861,3 +5861,41 @@ archive.
 - **Confidence:** medium — the gap and a second real occurrence are concrete,
   but the detection heuristic is known-incomplete, so scoping the advisory to
   strand depth rather than a per-path verdict may be the honest first cut.
+
+### CIB-219: Reconcile internal and public documentation to current release truth
+
+- **Status:** In Progress 2026-08-03
+- **Intent:** Complete the quarterly documentation audit across anvil's public
+  user journey and its live internal entrypoints after the `v0.9.1-beta` cut.
+- **Expected Outcome:** Public docs describe the shipped `v0.9.1-beta` command,
+  telemetry, MCP, managed-skill, upgrade, and CI surfaces without future-tense
+  `0.9.0-beta` framing; live repository entrypoints agree on the latest promoted
+  release and the forward-looking release window; docs-site operator guidance
+  matches the installed Docusaurus version, `pnpm` workflow, `docs/public/**`
+  content roots, and static section configuration. Stale toggle guidance is
+  removed instead of retained as executable procedure. Historical release,
+  incident, and archive references remain historical.
+- **Files:** `README.md`, `ROADMAP.md`, `RELEASE-PLAN.md`, `CHANGELOG.md`,
+  `plans/index.aps.md`, `plans/project-context.md`,
+  `plans/modules/continuous-improvement-backlog.aps.md`,
+  `plans/modules/fleet-telemetry.aps.md`,
+  `plans/modules/mcp-dual-era-support.aps.md`, `.github/workflows/ci.yml`,
+  `eslint.config.mjs`,
+  `apps/docs-site/AGENTS.md`, `apps/docs-site/README.md`,
+  `apps/docs-site/TOGGLING-DOCS.md`, `apps/docs-site/sidebars/anvil.ts`,
+  `docs/public/anvil/**`.
+- **Validation:** `pnpm docs:check`; `pnpm docs:public:check`;
+  `pnpm docs:public:commands`; `pnpm docs:public:aps-commands`;
+  `pnpm release-plan:check`; `pnpm aps:active-lint`;
+  `pnpm aps:index:check`; `pnpm --filter @eddacraft/docs-site build`;
+  `pnpm validate:changed`.
+- **Identified From:** 2026-08-03 quarterly documentation audit following the
+  published `v0.9.1-beta` release and PR #3490's beta-entrypoint rewrite.
+- **Coordinates with:** DOCSYNC (public anvil content), archived DOCGOV
+  (authority/freshness contract), and DSITE (shared docs host wiring).
+- **Non-scope:** Product behaviour, architecture decisions, sibling product
+  editorial content, archive rewrites, and lifecycle reconciliation beyond
+  documentation claims directly checked in this audit.
+- **Confidence:** high — the published release, installed binary help, package
+  manifests, docs-site config, and repository validators provide direct source
+  truth for every correction.

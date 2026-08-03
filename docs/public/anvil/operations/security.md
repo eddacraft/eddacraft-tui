@@ -43,6 +43,14 @@ updates, and public feedback. Local checks do not need to upload source code.
 The current beta records local command-usage observations for local insights;
 set `DO_NOT_TRACK=1` for a process that must not write that local usage record.
 
+`0.9.1-beta` and later can also send a disclosed opt-out anonymous usage beacon
+after an eligible interactive first run has shown its notice. This beacon is
+separate from local observations and excludes source code, paths, command
+arguments, findings, output, and free-form text. Read
+[anonymous usage telemetry](telemetry.md) for its complete payload, timing,
+transient IP processing, retention, and the `anvil telemetry off`,
+`ANVIL_TELEMETRY=off`, and `DO_NOT_TRACK=1` controls.
+
 ## AI-client and source-snippet egress
 
 Graph context shared through a configured AI client is **identity-only by

@@ -57,10 +57,14 @@ system. It adds another evidence layer around them.
 
 Code scanning and findings stay on your machine. Network access is used for
 tasks that inherently need it, such as signing in, checking for updates, or
-using authenticated services when you explicitly request them.
+using authenticated services when you explicitly request them. `0.9.1-beta` and
+later can also send a narrow anonymous usage beacon after showing its first-run
+notice. It is opt-out, contains no source or free-form data, and has hard-off
+controls.
 
-Read [local data and security](operations/security.md) for the complete
-boundary.
+Read [local data and security](operations/security.md) for the complete boundary
+and [anonymous usage telemetry](operations/telemetry.md) for the payload,
+timing, retention, and off controls.
 
 ## Where to begin
 

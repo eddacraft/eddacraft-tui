@@ -364,4 +364,4 @@ The `Authored-By:` trailer is added automatically; do not add it manually.
   `APSCAN` moves the repository toward canonical APS terms.
 - Historical archive content remains historical unless a future item explicitly
   reopens it.
-- APS governs repository work,not user prerequisites.
+- APS governs repository work, not user prerequisites.

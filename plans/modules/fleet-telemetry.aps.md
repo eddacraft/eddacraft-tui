@@ -7,20 +7,16 @@
 | ----- | ----- | -------- | ------ |
 | FLEET | —     | High     | Done |
 
-**Last reviewed:** 2026-07-15 — OQ3 resolved by the operator (investor
-evidence is the trigger); design gate
-[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) **Accepted
-2026-07-15 (operator)**; module flipped to Ready with FLEET-001..007
-drafted against the accepted ADR.
+**Last reviewed:** 2026-08-03 against `v0.9.1-beta`, installed
+`anvil telemetry --help`, and the FLEET-001..007 implementation evidence.
+[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) is the accepted
+consent and dimension contract.
 
-> **Provenance:** Filed 2026-07-14 from an operator observability review.
-> Today Anvil ships **zero** remote telemetry by deliberate privacy posture:
-> the usage pipe (USAGE/KDS) is local-only Kindling, tracing is opt-in local
-> sinks, and EXPORT covers only a production sink for the *tracing* pipe.
-> The operator has no way to see what version anyone runs, how they installed
-> it, or which features are used in the field. This module owns the decision
-> and the machinery to change that — deliberately, with explicit user consent, and within
-> a tightly controlled dimension set.
+> **Provenance:** Filed 2026-07-14 from an operator observability review, when
+> anvil shipped zero remote telemetry. `v0.9.1-beta` now ships the completed
+> FLEET-001..007 slice: a disclosed opt-out beacon with an enumerated payload,
+> first-run notice, hard offs, transparency command, bounded ingest, and an
+> operator-only aggregate view. The local USAGE/KDS Kindling pipe remains local.
 
 ## Purpose
 
@@ -28,14 +24,14 @@ Give the operator fleet-level visibility — what version is out there, which
 install method delivered it, and which features are actually used — via an
 explicitly consented, phone-home telemetry channel.
 
-This is a **posture change**, not an increment: the existing privacy contract
-(`docs/observability/usage-analytics.md`) promises observations never leave
-the machine, and the INSIGHTS module was shipped with an explicit "No
-telemetry" annotation. That reversal is decided:
+This was a **posture change**, not an increment: the earlier privacy contract
+promised observations never left the machine, and the INSIGHTS module shipped
+with an explicit "No telemetry" annotation. The current two-pipe distinction is
+recorded in `docs/observability/usage-analytics.md`, and the remote boundary is
+decided by
 [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) (Accepted
-2026-07-15) narrows it to an enumerated payload behind a disclosed opt-out;
-FLEET-006 owns rewriting the contract surfaces in the same release as the
-beacon.
+2026-07-15): an enumerated payload behind a disclosed opt-out. FLEET-006 shipped
+the matching contract surfaces with the beacon.
 
 The dimension contract already exists on paper: the feature-flagging design
 (`plans/specs/2026-04-09-feature-flagging-design.md`, restated in
@@ -43,7 +39,8 @@ The dimension contract already exists on paper: the feature-flagging design
 telemetry plus one usage stat per feature actually used — no PII, only
 low-risk dimensions (feature key, environment, runtime, snapshot version,
 coarse tier/channel). That contract was realised locally as the USAGE-002
-inline `flag_set`; its remote half was never wired and lands here.
+inline `flag_set`; FLEET-001..007 later realised its bounded remote half and
+shipped it in `v0.9.1-beta`.
 
 ## In Scope
 

@@ -188,10 +188,15 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         env:
-          ANVIL_DOCS_VERSION: 0.9.0-beta
+          ANVIL_DOCS_VERSION: 0.9.1-beta
+          ANVIL_DOCS_INSTALLER_SHA256: e609fb1b175bb047fb3e86d801b320941c6605a4ce1810c33238fbb35223dcea
         run: |
+          installer_path="${RUNNER_TEMP}/eddacraft-anvil-installer.sh"
           curl --proto '=https' --tlsv1.2 -LsSf \
-            "https://github.com/eddacraft/anvil/releases/download/v${ANVIL_DOCS_VERSION}/eddacraft-anvil-installer.sh" | sh
+            --output "${installer_path}" \
+            "https://github.com/eddacraft/anvil/releases/download/v${ANVIL_DOCS_VERSION}/eddacraft-anvil-installer.sh"
+          echo "${ANVIL_DOCS_INSTALLER_SHA256}  ${installer_path}" | sha256sum --check --strict
+          sh "${installer_path}"
           test "$(anvil --version)" = "anvil ${ANVIL_DOCS_VERSION}"
 
       - name: Validate public anvil command examples

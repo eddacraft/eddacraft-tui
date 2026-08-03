@@ -64,6 +64,7 @@ const sidebars: SidebarsConfig = {
         'reference/support-reference',
         'operations/config',
         'operations/security',
+        'operations/telemetry',
         'integrations/watch-output',
         'guides/start-output-contracts',
       ],

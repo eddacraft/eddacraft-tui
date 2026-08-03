@@ -73,9 +73,9 @@ daemon and already-owned MCP entries. It does not install clients you skipped.
 Use `anvil start` again only to change configuration; keep
 `anvil start --verify` for read-only diagnosis.
 
-The next beta after `0.9.0-beta` understands both ratified MCP `2026-07-28` and
-the initialise-era protocol used by existing clients. Generated client entries
-do not change: upgrades continue to run `anvil mcp serve --stdio`.
+`0.9.1-beta` understands both ratified MCP `2026-07-28` and the initialise-era
+protocol used by existing clients. Generated client entries do not change:
+upgrades continue to run `anvil mcp serve --stdio`.
 
 Verification tries modern discovery first. If the installed client entry does
 not support it, anvil closes that disposable child and retries legacy

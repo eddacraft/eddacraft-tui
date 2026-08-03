@@ -20,16 +20,19 @@ The bundled skill name is `anvil-developer-functions`.
 anvil --help
 ```
 
-If `skill` is not listed, the managed-skill surface is not in your installed
-version. The public 0.9.0-beta binary does not ship it; newer betas after that
-release add `anvil skill install`. Upgrade, then re-check help before following
-the rest of this page.
+`0.9.1-beta` and later list `skill` in top-level help. If your installed binary
+does not, upgrade and re-check help before following the rest of this page.
 
-## Install the managed skill (when available)
+## Install the managed skill
 
-When `skill` appears in top-level help, open that subcommand's help on the same
-binary for client ids, scope, verify, and dry-run flags. Typical shape after the
-skill surface ships:
+Open the subcommand help on the same binary for the current client ids, scope,
+verify, and dry-run flags:
+
+```text
+anvil skill install --help
+```
+
+The current surface supports:
 
 - interactive install prompts for scope and detected clients;
 - scripts pass explicit `--client` values (repeatable) and optional
@@ -58,8 +61,7 @@ managed skill directories if you want doctor to keep treating them as managed.
 Skills and MCP are complementary:
 
 1. Configure the client with [MCP integration](mcp.md) so it can call anvil.
-2. Install the skill (when available) so the client has a maintained procedure
-   for those tools.
+2. Install the skill so the client has a maintained procedure for those tools.
 3. Verify protection with `anvil start --verify`. On later days, bare `anvil`
    turns protection on without reinstalling.
 

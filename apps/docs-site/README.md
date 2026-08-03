@@ -1,45 +1,54 @@
-# Website
+# eddacraft docs site
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern
-static website generator.
+| Type   | Authority | Owner | Status | Freshness                                                                                |
+| ------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------- |
+| README | Derived   | DSITE | Live   | Reviewed 2026-08-03 against `package.json`, `docusaurus.config.ts`, and `docs/public/**` |
 
-## Installation
+| Upstream                                        | Downstream                            |
+| ----------------------------------------------- | ------------------------------------- |
+| `docusaurus.config.ts`, `docs/public/**`, DSITE | Local development and deployment work |
 
-```bash
-yarn
-```
+This app builds [docs.eddacraft.ai](https://docs.eddacraft.ai) with Docusaurus
+3.10.1. It is a shared host: public product content lives under
+`../../docs/public/`, while this directory owns routing, navigation, the landing
+page, styling, and deployment configuration.
 
-## Local Development
+## Develop
 
-```bash
-yarn start
-```
-
-This command starts a local development server and opens up a browser window.
-Most changes are reflected live without having to restart the server.
-
-## Build
+Use the repository's pinned Node and pnpm versions, then run from the repository
+root:
 
 ```bash
-yarn build
+pnpm install
+pnpm --filter @eddacraft/docs-site start
 ```
 
-This command generates static content into the `build` directory and can be
-served using any static contents hosting service.
+The development server serves the anvil, APS, kindling, and Edda Stack sections.
+The beta section is routable but deliberately absent from the global navigation.
 
-## Deployment
-
-Using SSH:
+## Validate
 
 ```bash
-USE_SSH=true yarn deploy
+pnpm docs:public:check
+pnpm docs:public:commands
+pnpm docs:public:aps-commands
+pnpm docs:check
+pnpm --filter @eddacraft/docs-site typecheck
+pnpm --filter @eddacraft/docs-site build
 ```
 
-Not using SSH:
+The production build fails on broken Docusaurus links. The root docs checks add
+public-only language, navigation, command-contract, metadata, source-reference,
+and generated-index validation.
 
-```bash
-GIT_USER=<Your GitHub username> yarn deploy
-```
+## Ownership
 
-If you are using GitHub pages for hosting, this command is a convenient way to
-build the website and push to the `gh-pages` branch.
+- Host configuration: `docusaurus.config.ts`, `sidebars/`, `src/`, `static/`,
+  and `vercel.json`.
+- Product content: `../../docs/public/<product>/`.
+- Public anvil editorial work: DOCSYNC.
+- Shared host and sibling registration: DSITE.
+
+Read [`AGENTS.md`](AGENTS.md) before editing this app and the root
+[`documentation governance guide`](../../docs/guides/documentation-governance.md)
+before closing documentation work.

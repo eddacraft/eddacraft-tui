@@ -28,6 +28,14 @@ remains flag-gated and is not a claim of this release.
   `anvil start` for first-time setup and reconfigure; use bare `anvil` for the
   daily on-switch. `anvil --json` emits a compact ensure document.
 
+- **Disclosed anonymous usage telemetry.** After an eligible interactive first
+  run shows the notice, anvil can send a narrow opt-out beacon at most once per
+  24 hours. It excludes source, paths, command arguments, findings, output, and
+  free-form text. Inspect the current gate and eligible payload with
+  `anvil telemetry`; disable sending with `anvil telemetry off`,
+  `ANVIL_TELEMETRY=off`, or `DO_NOT_TRACK=1`. See
+  [anonymous usage telemetry](../operations/telemetry.md) for the full contract.
+
 - **MCP install for the harnesses you actually use.**
   `anvil mcp install --client` accepts twelve clients — Claude Code, Cursor,
   Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot CLI,
@@ -100,39 +108,29 @@ remains flag-gated and is not a claim of this release.
   strings in insights, intercept-protected paths, and related surfaces are
   lowercase `anvil`, matching the product brand.
 
-## Unreleased — next beta after 0.9.0-beta
+## Unreleased — next beta after 0.9.1-beta
 
-Draft summary of customer-visible work already on the maintained branch. The
-version, date, and final scope are fixed when the next tag ships.
+Draft of customer-visible work already on the maintained branch. Version and
+date land when the next tag ships. Focus: keep assistants connected, and let you
+prove protection from the start screen.
 
 ### Added
 
-- Bare `anvil` (no subcommand) is the daily ensure surface after activation —
-  daemon, worktree attestation, and already-owned MCP refresh without reinstall
-  prompts. Use `anvil start` for first-time setup and reconfigure.
-- `anvil mcp install --client` configures twelve AI clients, with `--verify` and
-  `--dry-run`. Interactive `anvil start` offers every supported client in the
-  consent list (unticked until you select one).
-- The MCP stdio server supports ratified MCP `2026-07-28` discovery and keeps
-  all four supported initialise-era versions. Client configuration shapes are
-  unchanged; modern and legacy stdio flows are regression-tested.
-- `anvil skill install` ships the managed `anvil-developer-functions` skill;
-  `anvil doctor` reports managed-skill freshness.
-- Package-manager-aware `anvil update` for Homebrew, Scoop, and WinGet installs.
-- `anvil lsp --stdio` exposes advisory graph context over Language Server
-  Protocol.
-- Anti-pattern scanning honours `linguist-generated` markers and
-  `antipattern.exclude` globs for generated trees.
-- Fragile-presentation check for UI content hidden with `opacity: 0` and gated
-  only on entrance animation.
+- On `anvil start`, press `t` for **Prove** — a real secret check on a sample,
+  with an honest “can't prove here” when it cannot run. Never claims the
+  editor's live save guard from that alone.
 
 ### Changed
 
-- On a real terminal, `anvil start` opens the consent-first activation surface
-  by default; use `--no-tui` or `ANVIL_NO_TUI=1` for plain text.
-- Warning-severity anti-pattern findings no longer fail `anvil gate` unless you
-  opt in with `--fail-on-warnings` or `ANVIL_FAIL_ON_WARNINGS`. Broken ciphers /
-  ECB and JWT `none` remain blocking errors.
+- `anvil status` explains in one line when “warming” and a live assistant path
+  would otherwise disagree with `anvil start`.
+- Activation keyboard help is a single bar on consent and the result screen.
+
+### Fixed
+
+- Codex and similar assistants connect and call tools again after the last MCP
+  update rejected normal progress metadata. Broken modern requests still fail
+  clearly.
 
 ## 0.9.0-beta — 12 July 2026
 
