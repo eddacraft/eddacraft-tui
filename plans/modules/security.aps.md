@@ -82,7 +82,7 @@ security concerns.
 | SEC-007 | Atomic token-revocation hardening (GH #1672) | In Progress |
 | SEC-008 | Named-pattern secret detection (GH #1800) | Merged |
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
-| SEC-010 | Remediate brace-expansion denial-of-service alerts | In Progress |
+| SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -435,9 +435,9 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-010: Remediate brace-expansion denial-of-service alerts
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-03 via PR #3493
 - **Pull Request:** [#3493](https://github.com/eddacraft/anvil-001/pull/3493)
-  (draft; base: `main`).
+  (merged into `main`).
 - **Intent:** Clear Dependabot alerts
   [#236](https://github.com/eddacraft/anvil-001/security/dependabot/236) and
   [#237](https://github.com/eddacraft/anvil-001/security/dependabot/237) for
@@ -455,11 +455,13 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **Validation:** Clean frozen installs for the root, `tools/dev`, and
   `.deepsec`; dependency-tree assertions for `brace-expansion`; acknowledgements
   freshness; APS, documentation, formatting, lint, typecheck, and test gates;
-  GitHub's Dependency Audit check on the draft PR.
+  GitHub's Dependency Audit check on the pull request.
 - **Evidence:** Council `council-c061eec1` passed after scoped re-review; local
   frozen installs, dependency-tree, acknowledgements, APS, documentation,
   formatting, lint, typecheck, JavaScript, and Rust workspace gates passed.
-  GitHub's Dependency Audit remains the pre-merge gate.
+  All 30 applicable GitHub checks passed, merge commit `e2cba8f30` reached
+  `main`, and Dependabot marked alerts #236 and #237 fixed at
+  2026-08-03T07:05:28Z.
 - **Confidence:** High. The affected package is used only by development
   tooling in this repository, and upstream published dedicated maintained-line
   fixes for both selected majors.
