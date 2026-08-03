@@ -18,7 +18,7 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 
 - **minor** — additive and backwards-compatible (a new ecosystem driver, a new
   optional field), plus gate fixes as described above.
-- **patch** — fixes, docs, or determinism work that changes no behaviour a
+- **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
 ## [1.1.0] - 2026-08-03
