@@ -729,10 +729,7 @@ fn secret_detection_enabled_in_project(root: &Path) -> bool {
 /// ACTTUI-016: run the ADTRUST-006 secret fixture through the real secret-detection
 /// engine and return toast copy. Claims check-pipeline proof only — never MCP
 /// pre-write live status.
-fn run_activation_prove(
-    all_languages_unsupported: bool,
-    secret_detection_enabled: bool,
-) -> String {
+fn run_activation_prove(all_languages_unsupported: bool, secret_detection_enabled: bool) -> String {
     use anvil_checks::secret::{SecretCheckConfig, scan_content};
 
     if all_languages_unsupported {
