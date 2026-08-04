@@ -1008,12 +1008,22 @@ fn run_check_secret(
     run_check_secret_with_hook_mode(name, root, plan_files, hook_mode)
 }
 
-fn staged_gate_changes(root: &Path) -> Option<BTreeMap<String, Option<String>>> {
+struct StagedGateChange {
+    head_path: Option<String>,
+    index_oid: String,
+    head_oid: Option<String>,
+}
+
+fn staged_gate_changes(
+    root: &Path,
+    git_subprocess_count: &mut usize,
+) -> Option<BTreeMap<String, StagedGateChange>> {
+    *git_subprocess_count += 1;
     let output = std::process::Command::new("git")
         .args([
             "diff",
             "--cached",
-            "--name-status",
+            "--raw",
             "-z",
             "--find-renames",
             "--diff-filter=ACMRT",
@@ -1031,17 +1041,34 @@ fn staged_gate_changes(root: &Path) -> Option<BTreeMap<String, Option<String>>> 
         .split(|byte| *byte == b'\0')
         .filter(|field| !field.is_empty());
     let mut changes = BTreeMap::new();
-    while let Some(status) = fields.next() {
-        let status = String::from_utf8_lossy(status);
+    while let Some(header) = fields.next() {
+        let header = std::str::from_utf8(header).ok()?;
+        let mut header_fields = header.split_ascii_whitespace();
+        header_fields.next()?.strip_prefix(':')?;
+        header_fields.next()?;
+        let head_oid = header_fields.next()?;
+        let index_oid = header_fields.next()?.to_string();
+        let status = header_fields.next()?;
         let code = status.as_bytes().first().copied()?;
-        if matches!(code, b'R' | b'C') {
+        let (path, head_path) = if matches!(code, b'R' | b'C') {
             let old_path = String::from_utf8_lossy(fields.next()?).replace('\\', "/");
             let new_path = String::from_utf8_lossy(fields.next()?).replace('\\', "/");
-            changes.insert(new_path, Some(old_path));
+            (new_path, Some(old_path))
         } else {
             let path = String::from_utf8_lossy(fields.next()?).replace('\\', "/");
-            changes.insert(path.clone(), (code != b'A').then_some(path));
-        }
+            (path.clone(), (code != b'A').then_some(path))
+        };
+        changes.insert(
+            path,
+            StagedGateChange {
+                head_path,
+                index_oid,
+                head_oid: head_oid
+                    .bytes()
+                    .any(|byte| byte != b'0')
+                    .then(|| head_oid.to_string()),
+            },
+        );
     }
     Some(changes)
 }
@@ -1060,53 +1087,193 @@ struct RawSecretFindingKey {
     raw_line_digest: [u8; 32],
 }
 
-fn raw_secret_finding_key(
-    finding: &anvil_checks::secret::SecretFinding,
-    content: &str,
-) -> Option<RawSecretFindingKey> {
+fn raw_line_digests(content: &str) -> Vec<[u8; 32]> {
     use sha2::{Digest as _, Sha256};
 
+    content
+        .lines()
+        .map(|line| Sha256::digest(line.as_bytes()).into())
+        .collect()
+}
+
+fn raw_secret_finding_key(
+    finding: &anvil_checks::secret::SecretFinding,
+    line_digests: &[[u8; 32]],
+) -> Option<RawSecretFindingKey> {
     let finding_type = match finding.finding_type {
         anvil_checks::secret::FindingType::Pattern => 0,
         anvil_checks::secret::FindingType::Entropy => 1,
     };
-    let raw_line = content.lines().nth(finding.line.checked_sub(1)?)?;
     Some(RawSecretFindingKey {
         finding_type,
         pattern_name: finding.pattern_name.clone(),
-        raw_line_digest: Sha256::digest(raw_line.as_bytes()).into(),
+        raw_line_digest: *line_digests.get(finding.line.checked_sub(1)?)?,
     })
 }
 
 const MAX_STAGED_BLOB_SIZE: u64 = 1024 * 1024;
+const GIT_BATCH_CHECK_ARGS: [&str; 2] = ["cat-file", "--batch-check"];
+const GIT_BATCH_CONTENT_ARGS: [&str; 2] = ["cat-file", "--batch"];
 
-fn git_blob_content(root: &Path, object: &str) -> Option<String> {
-    let size = std::process::Command::new("git")
-        .args(["cat-file", "-s", object])
+enum GitBlobContent {
+    Text(String),
+    Oversized,
+    Unavailable,
+}
+
+fn batch_header_size(header: &[u8]) -> Option<u64> {
+    let header = std::str::from_utf8(header).ok()?.trim_end();
+    let mut fields = header.rsplitn(3, ' ');
+    fields.next()?.parse().ok()
+}
+
+fn batched_git_blob_contents(
+    root: &Path,
+    objects: &[String],
+    git_subprocess_count: &mut usize,
+) -> Option<BTreeMap<String, GitBlobContent>> {
+    use std::io::{BufRead as _, Read as _, Write as _};
+
+    if objects.is_empty() {
+        return Some(BTreeMap::new());
+    }
+    *git_subprocess_count += 1;
+    let mut child = std::process::Command::new("git")
+        .args(GIT_BATCH_CHECK_ARGS)
         .current_dir(root)
-        .output()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
         .ok()?;
-    if !size.status.success() {
+    let mut input = child.stdin.take()?;
+    let mut output = std::io::BufReader::new(child.stdout.take()?);
+    let mut blobs = BTreeMap::new();
+    let mut eligible = Vec::new();
+
+    for object in objects {
+        let metadata = (|| {
+            input.write_all(object.as_bytes()).ok()?;
+            input.write_all(b"\n").ok()?;
+            input.flush().ok()?;
+            let mut header = Vec::new();
+            output.read_until(b'\n', &mut header).ok()?;
+            (!header.ends_with(b" missing\n")).then(|| batch_header_size(&header))?
+        })();
+        match metadata {
+            Some(size) if size < MAX_STAGED_BLOB_SIZE => eligible.push((object.clone(), size)),
+            Some(_) => {
+                blobs.insert(object.clone(), GitBlobContent::Oversized);
+            }
+            None => {
+                blobs.insert(object.clone(), GitBlobContent::Unavailable);
+            }
+        }
+    }
+
+    drop(input);
+    if !child.wait().ok()?.success() {
         return None;
     }
-    let size = String::from_utf8(size.stdout)
-        .ok()?
-        .trim()
-        .parse::<u64>()
+    if eligible.is_empty() {
+        return Some(blobs);
+    }
+
+    *git_subprocess_count += 1;
+    let mut child = std::process::Command::new("git")
+        .args(GIT_BATCH_CONTENT_ARGS)
+        .current_dir(root)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
         .ok()?;
-    if size >= MAX_STAGED_BLOB_SIZE {
+    let mut input = child.stdin.take()?;
+    let mut output = std::io::BufReader::new(child.stdout.take()?);
+    for (object, expected_size) in &eligible {
+        let content = (|| {
+            input.write_all(object.as_bytes()).ok()?;
+            input.write_all(b"\n").ok()?;
+            input.flush().ok()?;
+            let mut header = Vec::new();
+            output.read_until(b'\n', &mut header).ok()?;
+            (batch_header_size(&header)? == *expected_size).then_some(())?;
+            let mut content = vec![0; usize::try_from(*expected_size).ok()?];
+            output.read_exact(&mut content).ok()?;
+            let mut terminator = [0];
+            output.read_exact(&mut terminator).ok()?;
+            (terminator == *b"\n").then_some(())?;
+            String::from_utf8(content).ok()
+        })();
+        blobs.insert(
+            object.clone(),
+            content.map_or(GitBlobContent::Unavailable, GitBlobContent::Text),
+        );
+    }
+    drop(input);
+    if !child.wait().ok()?.success() {
+        for (object, _) in eligible {
+            blobs.insert(object, GitBlobContent::Unavailable);
+        }
+    }
+    Some(blobs)
+}
+
+fn batch_diff_line_hunks(
+    root: &Path,
+    pathspecs: &std::collections::BTreeSet<String>,
+    result_paths: &std::collections::BTreeSet<String>,
+    cached: bool,
+    git_subprocess_count: &mut usize,
+) -> Option<BTreeMap<String, Vec<LineHunk>>> {
+    let mut hunks = result_paths
+        .iter()
+        .cloned()
+        .map(|path| (path, Vec::new()))
+        .collect::<BTreeMap<_, _>>();
+    if pathspecs.is_empty() {
+        return Some(hunks);
+    }
+
+    *git_subprocess_count += 1;
+    let mut command = std::process::Command::new("git");
+    command.arg("diff");
+    if cached {
+        command.arg("--cached");
+    }
+    command.args([
+        "--no-ext-diff",
+        "--no-color",
+        "--no-prefix",
+        "--find-renames",
+        "--unified=0",
+        "--",
+    ]);
+    command.args(pathspecs);
+    let output = command.current_dir(root).output().ok()?;
+    if !output.status.success() {
         return None;
     }
-    let output = std::process::Command::new("git")
-        .args(["cat-file", "blob", object])
-        .current_dir(root)
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8(output.stdout).ok())
-        .flatten()
+    let diff = String::from_utf8(output.stdout).ok()?;
+    let mut current_path = None;
+    for line in diff.lines() {
+        if let Some(path) = line.strip_prefix("+++ ") {
+            current_path = result_paths.contains(path).then(|| path.to_string());
+            continue;
+        }
+        if !line.starts_with("@@ ") {
+            continue;
+        }
+        let path = current_path.as_ref()?;
+        let mut fields = line.split_whitespace();
+        (fields.next()? == "@@").then_some(())?;
+        let (index_start, index_len) = parse_diff_range(fields.next()?, '-')?;
+        let (_worktree_start, worktree_len) = parse_diff_range(fields.next()?, '+')?;
+        hunks.get_mut(path)?.push(LineHunk {
+            index_start,
+            index_len,
+            worktree_len,
+        });
+    }
+    Some(hunks)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1120,56 +1287,6 @@ fn parse_diff_range(token: &str, prefix: char) -> Option<(usize, usize)> {
     let range = token.strip_prefix(prefix)?;
     let (start, len) = range.split_once(',').unwrap_or((range, "1"));
     Some((start.parse().ok()?, len.parse().ok()?))
-}
-
-fn diff_line_hunks(
-    root: &Path,
-    path: &str,
-    cached: bool,
-    source_path: Option<&str>,
-) -> Option<Vec<LineHunk>> {
-    let mut command = std::process::Command::new("git");
-    command.arg("diff");
-    if cached {
-        command.arg("--cached");
-    }
-    command
-        .args([
-            "--no-ext-diff",
-            "--no-color",
-            "--find-renames",
-            "--unified=0",
-        ])
-        .arg("--");
-    if let Some(source_path) = source_path.filter(|source_path| *source_path != path) {
-        command.arg(source_path);
-    }
-    let output = command.arg(path).current_dir(root).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let diff = String::from_utf8(output.stdout).ok()?;
-    let mut hunks = Vec::new();
-    for line in diff.lines().filter(|line| line.starts_with("@@ ")) {
-        let mut fields = line.split_whitespace();
-        (fields.next()? == "@@").then_some(())?;
-        let (index_start, index_len) = parse_diff_range(fields.next()?, '-')?;
-        let (_worktree_start, worktree_len) = parse_diff_range(fields.next()?, '+')?;
-        hunks.push(LineHunk {
-            index_start,
-            index_len,
-            worktree_len,
-        });
-    }
-    Some(hunks)
-}
-
-fn index_to_worktree_hunks(root: &Path, path: &str) -> Option<Vec<LineHunk>> {
-    diff_line_hunks(root, path, false, None)
-}
-
-fn head_to_index_hunks(root: &Path, path: &str, head_path: Option<&str>) -> Option<Vec<LineHunk>> {
-    diff_line_hunks(root, path, true, head_path)
 }
 
 fn map_index_line_to_worktree(index_line: usize, hunks: &[LineHunk]) -> Option<usize> {
@@ -1197,6 +1314,78 @@ fn map_index_line_to_worktree(index_line: usize, hunks: &[LineHunk]) -> Option<u
 struct HookSecretProvenance {
     primary_worktree: BTreeMap<(String, usize, RawSecretFindingKey), usize>,
     index_only: Vec<anvil_checks::secret::SecretFinding>,
+    indeterminate_paths: std::collections::BTreeSet<String>,
+    git_subprocess_count: usize,
+}
+
+struct StagedProvenanceSnapshot {
+    changes: Vec<(String, StagedGateChange)>,
+    blobs: BTreeMap<String, GitBlobContent>,
+    head_to_index: Option<BTreeMap<String, Vec<LineHunk>>>,
+    index_to_worktree: Option<BTreeMap<String, Vec<LineHunk>>>,
+    git_subprocess_count: usize,
+}
+
+fn git_patch_path_safe(path: &str) -> bool {
+    path.is_ascii()
+        && !path
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || matches!(byte, b'\\' | b'"'))
+}
+
+fn staged_provenance_snapshot(root: &Path) -> Option<StagedProvenanceSnapshot> {
+    let mut git_subprocess_count = 0_usize;
+    let changes = staged_gate_changes(root, &mut git_subprocess_count)?;
+    let changes = changes
+        .into_iter()
+        .filter(|(path, _)| secret_path_scannable(Path::new(path)))
+        .collect::<Vec<_>>();
+    let result_paths = changes
+        .iter()
+        .map(|(path, _)| path)
+        .filter(|path| git_patch_path_safe(path))
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut cached_pathspecs = result_paths.clone();
+    let mut objects = std::collections::BTreeSet::new();
+    for (path, change) in &changes {
+        if !git_patch_path_safe(path) {
+            continue;
+        }
+        objects.insert(change.index_oid.clone());
+        if let Some(head_path) = &change.head_path {
+            cached_pathspecs.insert(head_path.clone());
+            if secret_path_scannable(Path::new(head_path))
+                && let Some(head_oid) = &change.head_oid
+            {
+                objects.insert(head_oid.clone());
+            }
+        }
+    }
+    let objects = objects.into_iter().collect::<Vec<_>>();
+    let blobs =
+        batched_git_blob_contents(root, &objects, &mut git_subprocess_count).unwrap_or_default();
+    let head_to_index = batch_diff_line_hunks(
+        root,
+        &cached_pathspecs,
+        &result_paths,
+        true,
+        &mut git_subprocess_count,
+    );
+    let index_to_worktree = batch_diff_line_hunks(
+        root,
+        &result_paths,
+        &result_paths,
+        false,
+        &mut git_subprocess_count,
+    );
+    Some(StagedProvenanceSnapshot {
+        changes,
+        blobs,
+        head_to_index,
+        index_to_worktree,
+        git_subprocess_count,
+    })
 }
 
 fn staged_secret_provenance(
@@ -1204,30 +1393,49 @@ fn staged_secret_provenance(
     worktree_findings: &[anvil_checks::secret::SecretFinding],
     config: &anvil_checks::secret::SecretCheckConfig,
 ) -> Option<HookSecretProvenance> {
-    let changes = staged_gate_changes(root)?;
+    let StagedProvenanceSnapshot {
+        changes,
+        blobs,
+        head_to_index,
+        index_to_worktree,
+        git_subprocess_count,
+    } = staged_provenance_snapshot(root)?;
     let mut provenance = HookSecretProvenance::default();
 
-    for (path, head_path) in changes {
-        if !secret_path_scannable(Path::new(&path)) {
+    for (path, change) in changes {
+        if !git_patch_path_safe(&path) {
+            provenance.indeterminate_paths.insert(path);
             continue;
         }
-        let Some(index_content) = git_blob_content(root, &format!(":{path}")) else {
-            continue;
+        let index_content = match blobs.get(&change.index_oid) {
+            Some(GitBlobContent::Text(content)) => content,
+            Some(GitBlobContent::Oversized) => continue,
+            Some(GitBlobContent::Unavailable) | None => {
+                provenance.indeterminate_paths.insert(path);
+                continue;
+            }
         };
-        let head_content = head_path
+        let head_content = change
+            .head_path
             .as_deref()
             .filter(|head_path| secret_path_scannable(Path::new(head_path)))
-            .and_then(|head_path| git_blob_content(root, &format!("HEAD:{head_path}")))
-            .unwrap_or_default();
-        let head_to_index = head_to_index_hunks(root, &path, head_path.as_deref());
+            .and(change.head_oid.as_deref())
+            .and_then(|head_oid| blobs.get(head_oid))
+            .and_then(|blob| match blob {
+                GitBlobContent::Text(content) => Some(content.as_str()),
+                GitBlobContent::Oversized | GitBlobContent::Unavailable => None,
+            })
+            .unwrap_or("");
+        let head_line_digests = raw_line_digests(head_content);
+        let index_line_digests = raw_line_digests(index_content);
+        let staged_hunks = head_to_index.as_ref().and_then(|hunks| hunks.get(&path));
         let mut base_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
-        for finding in anvil_checks::secret::scan_content(&head_content, &path, config) {
-            let Some(key) = raw_secret_finding_key(&finding, &head_content) else {
+        for finding in anvil_checks::secret::scan_content(head_content, &path, config) {
+            let Some(key) = raw_secret_finding_key(&finding, &head_line_digests) else {
                 continue;
             };
-            let Some(index_line) = head_to_index
-                .as_deref()
-                .and_then(|hunks| map_index_line_to_worktree(finding.line, hunks))
+            let Some(index_line) =
+                staged_hunks.and_then(|hunks| map_index_line_to_worktree(finding.line, hunks))
             else {
                 continue;
             };
@@ -1235,8 +1443,8 @@ fn staged_secret_provenance(
         }
 
         let mut introduced = Vec::new();
-        for mut finding in anvil_checks::secret::scan_content(&index_content, &path, config) {
-            let Some(key) = raw_secret_finding_key(&finding, &index_content) else {
+        for mut finding in anvil_checks::secret::scan_content(index_content, &path, config) {
+            let Some(key) = raw_secret_finding_key(&finding, &index_line_digests) else {
                 finding.file.clone_from(&path);
                 provenance.index_only.push(finding);
                 continue;
@@ -1250,21 +1458,23 @@ fn staged_secret_provenance(
             }
         }
         let worktree_content = std::fs::read_to_string(root.join(&path)).unwrap_or_default();
-        let hunks = index_to_worktree_hunks(root, &path);
+        let worktree_line_digests = raw_line_digests(&worktree_content);
+        let worktree_hunks = index_to_worktree
+            .as_ref()
+            .and_then(|hunks| hunks.get(&path));
         let mut worktree_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
         for finding in worktree_findings
             .iter()
             .filter(|finding| finding_workspace_path(root, &finding.file) == path)
         {
-            if let Some(key) = raw_secret_finding_key(finding, &worktree_content) {
+            if let Some(key) = raw_secret_finding_key(finding, &worktree_line_digests) {
                 *worktree_counts.entry((finding.line, key)).or_default() += 1;
             }
         }
 
         for (mut finding, key) in introduced {
-            let mapped_line = hunks
-                .as_deref()
-                .and_then(|hunks| map_index_line_to_worktree(finding.line, hunks));
+            let mapped_line =
+                worktree_hunks.and_then(|hunks| map_index_line_to_worktree(finding.line, hunks));
             let mapped_key = mapped_line.map(|line| (line, key.clone()));
             if let Some((line, key)) = mapped_key
                 && let Some(count) = worktree_counts.get_mut(&(line, key.clone()))
@@ -1282,6 +1492,7 @@ fn staged_secret_provenance(
         }
     }
 
+    provenance.git_subprocess_count = git_subprocess_count;
     Some(provenance)
 }
 
@@ -1391,8 +1602,11 @@ fn run_check_secret_with_hook_mode(
     let index_only_count = hook_provenance
         .as_ref()
         .map_or(0, |provenance| provenance.index_only.len());
+    let indeterminate_count = hook_provenance
+        .as_ref()
+        .map_or(0, |provenance| provenance.indeterminate_paths.len());
 
-    if result.passed && index_only_count == 0 {
+    if result.passed && index_only_count == 0 && indeterminate_count == 0 {
         CheckResult {
             name: name.to_string(),
             passed: true,
@@ -1411,7 +1625,7 @@ fn run_check_secret_with_hook_mode(
         // so an unstaged removal cannot make the hook pass. If Git truth is
         // unavailable, `hook_provenance` is None and established output is
         // retained. Non-hook output is unchanged.
-        let worktree_contents = result
+        let worktree_line_digests = result
             .findings
             .iter()
             .map(|finding| finding_workspace_path(root, &finding.file))
@@ -1420,7 +1634,7 @@ fn run_check_secret_with_hook_mode(
             .filter_map(|path| {
                 std::fs::read_to_string(root.join(&path))
                     .ok()
-                    .map(|c| (path, c))
+                    .map(|content| (path, raw_line_digests(&content)))
             })
             .collect::<BTreeMap<_, _>>();
         let mut locations: Vec<String> = result
@@ -1429,15 +1643,18 @@ fn run_check_secret_with_hook_mode(
             .map(|f| {
                 let location = secret_finding_location(f, &file_refs, root);
                 let path = finding_workspace_path(root, &f.file);
-                let is_primary = worktree_contents.get(&path).and_then(|content| {
-                    let key = raw_secret_finding_key(f, content)?;
+                let is_indeterminate = hook_provenance
+                    .as_ref()
+                    .is_some_and(|provenance| provenance.indeterminate_paths.contains(&path));
+                let is_primary = worktree_line_digests.get(&path).and_then(|line_digests| {
+                    let key = raw_secret_finding_key(f, line_digests)?;
                     let count = hook_provenance
                         .as_mut()?
                         .primary_worktree
                         .get_mut(&(path, f.line, key))?;
                     (*count > 0).then(|| *count -= 1)
                 });
-                if hook_provenance.is_some() && is_primary.is_none() {
+                if hook_provenance.is_some() && !is_indeterminate && is_primary.is_none() {
                     format!("{location} (pre-existing; not staged)")
                 } else {
                     location
@@ -1451,8 +1668,14 @@ fn run_check_secret_with_hook_mode(
                     finding.file, finding.line, finding.pattern_name
                 )
             }));
+            locations.extend(
+                provenance
+                    .indeterminate_paths
+                    .iter()
+                    .map(|path| format!("{path} [staged content unavailable]")),
+            );
         }
-        let finding_count = result.findings.len() + index_only_count;
+        let finding_count = result.findings.len() + index_only_count + indeterminate_count;
         CheckResult {
             name: name.to_string(),
             passed: false,
@@ -4543,6 +4766,140 @@ mod tests {
             "one invalid blob must not discard other staged provenance: {}",
             result.message
         );
+    }
+
+    #[test]
+    fn hook_secret_check_fails_closed_for_uninspectable_staged_blob() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env.invalid");
+        std::fs::write(&env_path, [0xff]).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.invalid"]);
+        std::fs::write(&env_path, "SAFE_VALUE=working-tree\n").unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            !result.passed,
+            "indeterminate staged content must fail closed"
+        );
+        assert!(
+            result
+                .message
+                .contains(".env.invalid [staged content unavailable]"),
+            "the affected staged path must be identified: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_leaves_indeterminate_worktree_finding_unqualified() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env.invalid");
+        std::fs::write(&env_path, [0xff]).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.invalid"]);
+        write_detectable_env(&env_path);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        let worktree_finding = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env.invalid:1"))
+            .expect("worktree finding should be rendered");
+        assert!(
+            !worktree_finding.contains("pre-existing"),
+            "indeterminate provenance must not downgrade the affected finding: {worktree_finding}"
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_batches_git_subprocesses_for_many_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        for index in 0..32 {
+            std::fs::write(
+                tmp.path().join(format!(".env.{index}")),
+                format!("SAFE_VALUE={index}\n"),
+            )
+            .unwrap();
+        }
+        git_for_hook_fixture(tmp.path(), &["add", "-f", "."]);
+        let config = crate::util::secret_check_config(tmp.path());
+
+        let provenance = staged_secret_provenance(tmp.path(), &[], &config)
+            .expect("staged provenance should be available");
+
+        assert!(
+            provenance.git_subprocess_count <= 5,
+            "Git subprocess count must be constant, got {}",
+            provenance.git_subprocess_count
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_uses_git_230_batch_protocol() {
+        assert_eq!(GIT_BATCH_CHECK_ARGS, ["cat-file", "--batch-check"]);
+        assert_eq!(GIT_BATCH_CONTENT_ARGS, ["cat-file", "--batch"]);
+    }
+
+    #[test]
+    fn hook_secret_check_isolates_newline_path_from_normal_provenance() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let exotic_path = ".env\nexotic";
+        write_detectable_env(&tmp.path().join(exotic_path));
+        git_for_hook_fixture(tmp.path(), &["add", "-f", exotic_path]);
+        let normal_path = tmp.path().join(".env.normal");
+        write_detectable_env(&normal_path);
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.normal"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(result.message.contains("[staged content unavailable]"));
+        let normal_finding = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env.normal:1"))
+            .expect("normal finding should be rendered");
+        assert!(
+            !normal_finding.contains("pre-existing"),
+            "an exotic path must not compromise normal attribution: {normal_finding}"
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_indexes_dense_finding_lines_once() {
+        let value = "abcd".repeat(10);
+        let finding_line = format!("aws_secret_access_key='{value}'\n");
+        let content = finding_line.repeat(512);
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let findings = anvil_checks::secret::scan_content(&content, ".env", &config);
+
+        let line_digests = raw_line_digests(&content);
+        let keyed = findings
+            .iter()
+            .filter_map(|finding| raw_secret_finding_key(finding, &line_digests))
+            .count();
+
+        assert_eq!(line_digests.len(), 512);
+        assert_eq!(keyed, findings.len());
     }
 
     #[test]
