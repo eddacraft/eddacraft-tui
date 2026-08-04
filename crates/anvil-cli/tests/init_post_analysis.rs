@@ -241,6 +241,16 @@ fn start_json_auth_failure_emits_envelope_on_stdout() {
 fn json_verbose_edict_auth_failure_emits_only_json_error() {
     let dir = tempfile::tempdir().unwrap();
     let config_home = tempfile::tempdir().unwrap();
+    // CIB-221: only an explicit `is_edict: true` marker forces the edict
+    // re-verify path. `ANVIL_LICENSE` alone is an ordinary session and must
+    // not be treated as an edict via the `anvil_beta_*` prefix.
+    let anvil_dir = config_home.path().join("anvil");
+    std::fs::create_dir_all(&anvil_dir).unwrap();
+    std::fs::write(
+        anvil_dir.join("credentials.json"),
+        r#"{"license":"anvil_beta_bad","isEdict":true}"#,
+    )
+    .unwrap();
 
     let output = Command::new(ANVIL_BIN)
         .arg("--json")
@@ -251,13 +261,13 @@ fn json_verbose_edict_auth_failure_emits_only_json_error() {
         .env("ANVIL_LOG", "off")
         .env("ANVIL_NO_PROMPT", "1")
         .env("ANVIL_API_URL", "http://127.0.0.1:9")
-        .env("ANVIL_LICENSE", "anvil_beta_bad")
         .env("XDG_CONFIG_HOME", config_home.path())
         .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
         .output()
         .expect("failed to invoke anvil binary");
 
-    // CIB-169: edict refresh failure on the read-only `status` surface
+    // CIB-169: edict re-verify failure on the read-only `status` surface
     // treats auth-required as an expected state and exits 0 with the
     // informational envelope (same shape as missing creds).
     // CIB-049: the envelope is structured data → stdout (stream policy).

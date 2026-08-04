@@ -316,7 +316,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation::orchestrator::run_with_mcp_policy_and_mode_observing(
                 root,
                 global,
-                legacy_mcp_install_policy(args),
+                orchestrator_mcp_install_policy(args, render_mode),
                 force_all_mcp_clients,
                 &args.mcp_client,
                 render_mode,
@@ -327,7 +327,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation::orchestrator::run_with_mcp_policy_and_mode(
                 root,
                 global,
-                legacy_mcp_install_policy(args),
+                orchestrator_mcp_install_policy(args, render_mode),
                 force_all_mcp_clients,
                 &args.mcp_client,
                 render_mode,
@@ -2101,11 +2101,37 @@ fn mcp_install_policy(args: &StartArgs) -> activation::orchestrator::McpInstallP
 /// The pre-registry Claude/Cursor installer always chooses an existing config
 /// or its global fallback. Project-scoped activation therefore routes every
 /// client through the shared scope-aware installer instead.
+///
+/// Plain start still uses this so the legacy global installer is not invoked
+/// under `--mcp-scope project` (first-wave / registry install runs separately).
+/// Interactive TUI must **not** use this `Skip` path: that policy surfaces
+/// "MCP installation disabled" and never defers to the consent picker
+/// (CIB-220). Use [`orchestrator_mcp_install_policy`] at the orchestrator call
+/// sites.
 fn legacy_mcp_install_policy(args: &StartArgs) -> activation::orchestrator::McpInstallPolicy {
     if args.mcp_scope == InstallScope::Project {
         activation::orchestrator::McpInstallPolicy::Skip
     } else {
         mcp_install_policy(args)
+    }
+}
+
+/// MCP policy handed to the activation orchestrator for this render mode.
+///
+/// - **TUI:** always the real opt-out policy ([`mcp_install_policy`]). Project
+///   scope must `Install` so `McpConsent` defers to the interactive picker
+///   rather than claiming installation is disabled (CIB-220).
+/// - **Plain:** keep the legacy project-scope `Skip` so the pre-registry
+///   global installer is not invoked; plain project installs go through
+///   [`install_first_wave_mcp_clients`].
+fn orchestrator_mcp_install_policy(
+    args: &StartArgs,
+    render_mode: StartRenderMode,
+) -> activation::orchestrator::McpInstallPolicy {
+    if matches!(render_mode, StartRenderMode::Tui) {
+        mcp_install_policy(args)
+    } else {
+        legacy_mcp_install_policy(args)
     }
 }
 
@@ -2531,9 +2557,10 @@ fn read_cumulative_value_within(
 /// window end is inside the horizon (neither stale nor future-dated),
 /// and the chosen count is non-zero;
 /// anything else is omitted — never rendered as "0 events". The copy
-/// carries counts and the stream's own window words only (day-precision
-/// dates): no paths, repository names, or any other detail can cross —
-/// structural, since [`CumulativeValue`] carries none.
+/// carries counts, the stream's own window words (day-precision dates),
+/// and a plain-language evidence scope ("on this machine" for save-time,
+/// "for this repository" for witness — CIB-222). No paths or repository
+/// names leak — structural, since [`CumulativeValue`] carries none.
 ///
 /// Source priority: save-time protection (risky writes flagged, then
 /// saves checked) over witness events — the save-time figures are the
@@ -2570,13 +2597,13 @@ fn repeat_value_line(
         let window = format!("({} to {})", date_part(start), date_part(end));
         if save.risky_writes_flagged > 0 {
             return Some(format!(
-                "value: {} flagged at save time {window}",
+                "value: {} flagged at save time on this machine {window}",
                 count_noun(save.risky_writes_flagged, "risky write", "risky writes"),
             ));
         }
         if save.evaluations_observed > 0 {
             return Some(format!(
-                "value: {} checked {window}",
+                "value: {} checked on this machine {window}",
                 count_noun(save.evaluations_observed, "save", "saves"),
             ));
         }
@@ -2592,7 +2619,7 @@ fn repeat_value_line(
             unreachable!("witness_has_evidence guarantees the bound");
         };
         return Some(format!(
-            "value: {} recorded in the 30 days to {}",
+            "value: {} recorded for this repository in the 30 days to {}",
             count_noun(
                 value.witness_events_last_30_days,
                 "witness event",
@@ -3947,19 +3974,23 @@ mod tests {
         value.save_time.risky_writes_flagged = 2;
         assert_eq!(
             repeat_value_line(&value, now).as_deref(),
-            Some("value: 2 risky writes flagged at save time (2026-07-05 to 2026-07-08)"),
+            Some(
+                "value: 2 risky writes flagged at save time on this machine (2026-07-05 to 2026-07-08)"
+            ),
         );
         // Nothing flagged → the honest fallback claim is saves checked.
         value.save_time.risky_writes_flagged = 0;
         assert_eq!(
             repeat_value_line(&value, now).as_deref(),
-            Some("value: 3 saves checked (2026-07-05 to 2026-07-08)"),
+            Some("value: 3 saves checked on this machine (2026-07-05 to 2026-07-08)"),
         );
         // Singular grammar.
         value.save_time.risky_writes_flagged = 1;
         assert_eq!(
             repeat_value_line(&value, now).as_deref(),
-            Some("value: 1 risky write flagged at save time (2026-07-05 to 2026-07-08)"),
+            Some(
+                "value: 1 risky write flagged at save time on this machine (2026-07-05 to 2026-07-08)"
+            ),
         );
     }
 
@@ -3974,7 +4005,8 @@ mod tests {
         value.witness_events_total = 12;
         value.witness_events_last_30_days = 4;
         value.witness_events_last_90_days = 9;
-        let expected = "value: 4 witness events recorded in the 30 days to 2026-07-01";
+        let expected =
+            "value: 4 witness events recorded for this repository in the 30 days to 2026-07-01";
         assert_eq!(repeat_value_line(&value, now).as_deref(), Some(expected));
         // A stale save-time window must not suppress the fresh witness
         // arm — staleness falls through, it never vetoes the receipt.
@@ -4052,7 +4084,9 @@ mod tests {
         value.save_time.window_end = Some("2026-06-11T00:00:00Z".to_string());
         assert_eq!(
             repeat_value_line(&value, now).as_deref(),
-            Some("value: 2 risky writes flagged at save time (2026-06-01 to 2026-06-11)"),
+            Some(
+                "value: 2 risky writes flagged at save time on this machine (2026-06-01 to 2026-06-11)"
+            ),
         );
         // … and one second past it is omitted.
         assert_eq!(
@@ -4105,7 +4139,7 @@ mod tests {
         let rendered = render_repeat_start_output(&diag, None, Some(&line));
         assert!(
             rendered.contains(
-                "\n  value: 2 risky writes flagged at save time (2026-07-05 to 2026-07-08)\n"
+                "\n  value: 2 risky writes flagged at save time on this machine (2026-07-05 to 2026-07-08)\n"
             ),
             "{rendered}",
         );
@@ -4182,7 +4216,7 @@ mod tests {
             .expect("fresh flagged evidence renders");
         assert_eq!(
             line,
-            "value: 1 risky write flagged at save time (2026-07-08 to 2026-07-08)",
+            "value: 1 risky write flagged at save time on this machine (2026-07-08 to 2026-07-08)",
         );
         assert_receipt_redacted(&line);
     }
@@ -4208,7 +4242,7 @@ mod tests {
             .expect("fresh witness evidence renders");
         assert_eq!(
             line,
-            "value: 1 witness event recorded in the 30 days to 2026-07-01",
+            "value: 1 witness event recorded for this repository in the 30 days to 2026-07-01",
         );
         assert_receipt_redacted(&line);
     }
@@ -4974,6 +5008,35 @@ mod tests {
         assert_eq!(
             mcp_install_policy(&args),
             activation::orchestrator::McpInstallPolicy::Install,
+        );
+    }
+
+    /// CIB-220: interactive project-scope start must Install (defer to the
+    /// MCP picker), never Skip with "MCP installation disabled".
+    #[test]
+    fn tui_project_scope_orchestrator_policy_installs_not_disabled() {
+        let args = StartArgs {
+            mcp_scope: InstallScope::Project,
+            ..start_args_default()
+        };
+        assert_eq!(
+            orchestrator_mcp_install_policy(&args, StartRenderMode::Tui),
+            activation::orchestrator::McpInstallPolicy::Install,
+        );
+        // --no-mcp still skips for both modes.
+        let opted_out = StartArgs {
+            no_mcp: true,
+            mcp_scope: InstallScope::Project,
+            ..start_args_default()
+        };
+        assert_eq!(
+            orchestrator_mcp_install_policy(&opted_out, StartRenderMode::Tui),
+            activation::orchestrator::McpInstallPolicy::Skip,
+        );
+        // Plain project scope keeps the legacy Skip so first-wave owns install.
+        assert_eq!(
+            orchestrator_mcp_install_policy(&args, StartRenderMode::Plain),
+            activation::orchestrator::McpInstallPolicy::Skip,
         );
     }
 

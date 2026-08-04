@@ -2385,6 +2385,29 @@ mod tests {
         assert!(evaluate_auth(&Ok(Some(no_expiry_creds())), false, true).is_ok());
     }
 
+    /// CIB-221: authenticated pro/beta tokens must not be forced through the
+    /// edict re-verify path (which nags `auth login --edict` on network miss).
+    #[test]
+    fn evaluate_auth_treats_unmarked_anvil_beta_token_as_ordinary_session() {
+        let creds = Credentials {
+            license: "anvil_beta_pro_user_token".into(),
+            refresh_token: Some("refresh".into()),
+            email: Some("pro@example.com".into()),
+            expires_at: Some("2099-01-01T00:00:00Z".into()),
+            is_edict: None,
+        };
+        assert!(
+            evaluate_auth(&Ok(Some(creds.clone())), false, true).is_ok(),
+            "unmarked anvil_beta_* session must clear the gate without network",
+        );
+        // Explicit non-edict marker (device-flow default) likewise.
+        let marked = Credentials {
+            is_edict: Some(false),
+            ..creds
+        };
+        assert!(evaluate_auth(&Ok(Some(marked)), false, true).is_ok());
+    }
+
     #[test]
     fn check_auth_bypasses_when_anvil_dev_set() {
         // ANVIL_DEV=1 should allow unauthenticated access for local testing.

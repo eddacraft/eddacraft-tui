@@ -5909,7 +5909,7 @@ archive.
 
 ### CIB-220: Project-scope interactive start must install MCP (not claim disabled)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P0 for `v0.9.3-beta` honesty pass
 - **Intent:** `anvil start --mcp-scope project` in the interactive TUI currently
   routes through `legacy_mcp_install_policy`, which returns
@@ -5924,6 +5924,7 @@ archive.
   (`legacy_mcp_install_policy`), `crates/anvil-cli/src/activation/orchestrator/`,
   `crates/anvil-tui/src/surfaces/activation/`
 - **Validation:** `cargo test -p eddacraft-anvil start`; manual
+- **Evidence (dev-loop):** `cargo test -p eddacraft-anvil --bin anvil -- tui_project_scope_orchestrator project_scope_disables` green; TUI uses `orchestrator_mcp_install_policy` → Install for project scope.
   `anvil start --mcp-scope project` in a clean worktree with at least one
   project-capable client.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
@@ -5932,7 +5933,7 @@ archive.
 
 ### CIB-221: Stop false auth-login prompts for already-authenticated pro users
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1 for `v0.9.3-beta` honesty pass
 - **Intent:** Authenticated / pro users still see copy directing them to
   `anvil auth login` during start or related surfaces, which undermines trust
@@ -5944,6 +5945,7 @@ archive.
 - **Files:** `crates/anvil-cli/src/commands/start.rs`,
   `crates/anvil-cli/src/activation/`, `crates/anvil-cli/src/auth/`
 - **Validation:** `cargo test -p eddacraft-anvil`; fixture with stored credentials
+- **Evidence (dev-loop):** `unmarked_credentials_are_not_edicts` + `evaluate_auth_treats_unmarked_anvil_beta_token_as_ordinary_session` green; `is_edict` only when `Some(true)`.
   shows no login nag; without credentials, login guidance remains.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
 - **Coordinates with:** AUTH, ACTMO, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
@@ -5951,7 +5953,7 @@ archive.
 
 ### CIB-222: Value receipt must disclose machine-wide vs repo-scoped evidence
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1 for `v0.9.3-beta` honesty pass
 - **Intent:** Healthy repeat-start can show e.g. `value: N saves checked
   (dates)` drawn from machine-wide save-time aggregates (CIB-190). On a brand-new
@@ -5964,6 +5966,7 @@ archive.
 - **Files:** `crates/anvil-cli/src/commands/start.rs` (`repeat_value_line`),
   optionally `crates/anvil-cli/src/insights/`
 - **Validation:** `cargo test -p eddacraft-anvil start` value-line cases;
+- **Evidence (dev-loop):** `value_receipt_*` suite green; save-time says "on this machine", witness says "for this repository".
   fixture with machine-wide saves and empty repo witness includes scope wording.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
 - **Coordinates with:** CIB-190, INSIGHTS, JOURNEY, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)

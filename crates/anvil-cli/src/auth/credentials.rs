@@ -17,8 +17,8 @@ pub struct Credentials {
     pub expires_at: Option<String>,
     /// Explicit marker recorded when the credential was minted via the
     /// early-access edict flow. `None` covers credentials saved before this
-    /// field existed; the `is_edict()` predicate falls back to the legacy
-    /// `anvil_beta_` prefix check in that case.
+    /// field existed; [`is_edict`] treats unmarked credentials as ordinary
+    /// sessions (CIB-221 — the `anvil_beta_` prefix alone is not enough).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub is_edict: Option<bool>,
 }
@@ -230,14 +230,14 @@ pub fn is_expired(creds: &Credentials) -> bool {
 pub fn is_edict(creds: &Credentials) -> bool {
     // Prefer the explicit marker recorded at edict-login time; that is the
     // source of truth from `/auth/verify`'s `isEdict` field.
-    if let Some(is_edict) = creds.is_edict {
-        return is_edict;
-    }
-    // Legacy fallback for credentials saved before the marker existed. The
-    // `anvil_beta_` prefix is also the general access-token format, so this
-    // is a best-effort heuristic only and gets corrected the next time the
-    // user runs `anvil auth login --edict`.
-    creds.license.starts_with("anvil_beta_")
+    //
+    // CIB-221: when the marker is missing, do **not** treat `anvil_beta_*`
+    // as an edict. That prefix is also the general access-token format, so
+    // the old heuristic misclassified authenticated pro/beta sessions and
+    // forced a live edict re-verify (and a false "run auth login --edict"
+    // nag when the network check failed). Unmarked credentials are ordinary
+    // sessions; only `is_edict: Some(true)` requires the edict path.
+    creds.is_edict.unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -282,11 +282,15 @@ mod tests {
     }
 
     #[test]
-    fn legacy_prefix_fallback_when_marker_missing() {
-        // Credentials saved before the explicit marker existed have
-        // `is_edict: None`; the predicate falls back to the prefix heuristic.
-        assert!(is_edict(&make_creds("anvil_beta_abc")));
+    fn unmarked_credentials_are_not_edicts() {
+        // CIB-221: `is_edict: None` is an ordinary session, even when the
+        // licence uses the shared `anvil_beta_*` access-token prefix.
+        assert!(!is_edict(&make_creds("anvil_beta_abc")));
         assert!(!is_edict(&make_creds("jwt.header.payload")));
+        assert!(is_edict(&Credentials {
+            is_edict: Some(true),
+            ..make_creds("anvil_beta_edict")
+        }));
     }
 
     #[test]
