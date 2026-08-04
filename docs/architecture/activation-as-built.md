@@ -40,11 +40,11 @@ gate. The same `ProtectionState` enum
 `anvil status --verify`, `anvil doctor`, the protection-loop tutorial path, and
 JSON consumers — there is one renderer, surfaces cannot drift.
 
-The first-wave agent registry supplements this diagnostic. `anvil start` may
-offer strongly detected MCP clients, and explicit `--mcp-client` selections can
-install their documented config shapes. Those writes are reported separately;
-they do not promote the Cursor/Claude-specific diagnostic to `protecting` or
-claim that another client completed live pre-write validation.
+The multi-client agent registry (`AgentClientId`) supplements this diagnostic.
+`anvil start` may offer every registry client, and explicit `--mcp-client`
+selections can install their documented config shapes. Those writes are reported
+separately; they do not promote a client into `protecting` unless the
+protection-ladder diagnostic observes live pre-write validation for that client.
 
 DSV-051 adds the operator runbook for the headless save-time driver:
 [`docs/runbooks/save-time-background-driver.md`](../runbooks/save-time-background-driver.md).
@@ -113,7 +113,7 @@ strings.
 | Literal                  | Meaning                                                                                  | What drives it                                                                                             | User's next action                                                             |
 | ------------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `protecting`             | Pre-write `anvil_validate_write` evidence has been observed live in this repo.           | Highest MCP tier across clients is `LiveValidation` (`diagnostic.rs:223`).                                 | None — try the AI guardrail demo.                                              |
-| `ready_restart_required` | MCP config is wired and the server starts; the editor has not yet attached.              | Highest MCP tier is `RestartRequired` or `RestartHandshakeVerified` (`diagnostic.rs:232-235, 248`).        | Restart Cursor / Claude Code; re-run `anvil start --verify`.                   |
+| `ready_restart_required` | MCP config is wired and the server starts; the editor has not yet attached.              | Highest MCP tier is `RestartRequired` or `RestartHandshakeVerified` (`diagnostic.rs:232-235, 248`).        | Restart the named AI client; re-run `anvil start --verify`.                    |
 | `watching`               | Daemon-backed activation or save-time fallback; pre-write attachment is not in evidence. | `DaemonAttestation::Enforced`, or `WatchTier::Running` with MCP below `RestartRequired` (`diagnostic.rs`). | MCP is optional; wire pre-write MCP if desired, otherwise accept the fallback. |
 | `needs_action`           | No literal protection claim; user has actionable next steps.                             | Default branch when no stronger signal applies (`diagnostic.rs:263`).                                      | Read the `next:` repair hint below the diagnostic.                             |
 | `unsupported`            | Repo languages are out of scope for this release.                                        | `all_languages_unsupported` and MCP below `RestartRequired` (`diagnostic.rs:257-259`).                     | Wait for the language pack, or scope anvil to a TS / JS subdirectory.          |
@@ -184,11 +184,14 @@ orchestrator executes seven main ordered steps:
    re-register heartbeats the existing owner (ADR-094 decision 3) rather than
    erroring, and the rendered diagnostic remains the source of truth.
 
-5. **Install MCP entries for Cursor and Claude Code by default (LAUNCH-009 part
-   2 / ACTMO-004).** Unless `anvil start --no-mcp` is passed or `ANVIL_NO_MCP`
-   is non-empty, the orchestrator resolves `current_exe()`, builds an
-   `AnvilEntry::local_stdio` (`mcp_client.rs:91-101`), then calls
-   `install::install_for_clients` (`orchestrator/mod.rs`). The install step is
+5. **Install MCP entries for the multi-client registry (LAUNCH-009 part 2 /
+   ACTMO-004 / MCPX / ADR-106).** Unless `anvil start --no-mcp` is passed or
+   `ANVIL_NO_MCP` is non-empty, the orchestrator resolves `current_exe()`,
+   builds an `AnvilEntry::local_stdio` (`mcp_client.rs:91-101`), then calls
+   `install::install_for_clients` (`orchestrator/mod.rs`) for clients selected
+   interactively or via `--mcp-client` / `--all-mcp-clients` against the full
+   `AgentClientId` registry (Claude Code, Cursor, Codex, OpenCode, Gemini CLI,
+   VS Code, and others — `anvil mcp install --help`). The install step is
    idempotent (`UpToDate` → skip), refuses to overwrite `UnsafeDrift`, and
    offers `NotPresent` / `SafeDrift` candidates unticked (CIB-184). With MCP
    install skipped, daemon-backed worktree registration still runs and the human
@@ -385,10 +388,14 @@ language-specific antipattern checks.
 ## MCP install (LAUNCH-009)
 
 The install module (`activation/orchestrator/install.rs`) drives per-client
-install for the two clients registered in v1: Cursor and Claude Code
-(`mcp_client.rs:330-332`).
+install. **At v1 launch (LAUNCH-009)** the protection-ladder clients were Cursor
+and Claude Code only (`mcp_client.rs`); the **current** install registry is the
+multi-client `AgentClientId` table in `activation/agent_registry.rs` (MCPX /
+ADR-106) — twelve clients including Codex, OpenCode, Gemini CLI, VS Code,
+Copilot CLI, Grok, Warp, and Zed. Run `anvil mcp install --help` for the live
+ids on a given binary.
 
-**Per-client config paths** (workspace-first then global):
+**Per-client config paths (historical v1 pair, still first-class):**
 
 - **Cursor** — `.cursor/mcp.json` (workspace) → `~/.cursor/mcp.json` (global)
   (`mcp_client/cursor.rs:33-156`).
@@ -401,6 +408,10 @@ install for the two clients registered in v1: Cursor and Claude Code
   `.claude/settings.json` `permissions.allow` array. Existing allow/deny rules
   are preserved, the rule is idempotent, and an already up-to-date
   `.claude.json` still repairs a missing allow rule.
+
+Additional clients follow each registry entry's `mcp_global_path` /
+`mcp_project_path` and `McpConfigKind` (JSON `mcpServers`, Codex TOML, OpenCode
+JSON, Grok TOML, Zed context servers, and so on).
 
 **Drift policy** (`activation/orchestrator/install.rs:30-41`):
 
@@ -565,10 +576,10 @@ What `anvil start` deliberately does **not** do
 - No `git config` mutation or unmanaged hook overwrite; managed hook
   installation is constrained by the `anvil hooks install` coexistence policy.
 - No demo fixtures, challenge files, or guaranteed-catch prompt catalogues.
-- No Windsurf, VS Code, Copilot CLI, or Codex CLI MCP install — Cursor + Claude
-  Code only.
-- No process auto-attach. anvil only knows what it wired itself; it does not
-  "find the AI session running in this repo".
+- No process auto-attach into an arbitrary AI session anvil did not wire — anvil
+  only knows what it configured itself. (Historical v1 launch also limited MCP
+  _install_ to Cursor + Claude Code; multi-client install is now the registry
+  path — see [MCP install](#mcp-install-launch-009).)
 - No no-args TUI theatre — `anvil start` is the activation surface;
   `anvil welcome` remains the menu / tutorial surface. Per ADR-080 (UJ-004),
   `anvil welcome` is now the **ungated** beta demo surface — it runs without

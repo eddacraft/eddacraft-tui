@@ -49,6 +49,12 @@ anvil auth refresh
 If refresh fails, run `anvil auth login` again. In CI, confirm the
 `ANVIL_LICENSE` secret is available to the event; do not print it.
 
+Action commands such as `anvil start`, bare `anvil`, `anvil gate`, and
+`anvil check` exit **`3`** when authentication is required so scripted `&&`
+chains stop cleanly. Read-only `anvil status` exits **`0`** and reports
+`authRequired` under `--json`. See
+[CLI exit codes](../reference/cli.md#exit-codes).
+
 ## Daily ensure fails or says not activated
 
 Bare `anvil` (no subcommand) is the day-to-day on-switch after the project has

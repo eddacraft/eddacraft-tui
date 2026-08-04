@@ -72,3 +72,61 @@ It does not install clients you skipped or rewrite configuration — use
 | `anvil welcome`      | Show the welcome screen with quick-start options                          |
 | `anvil wizard`       | Guided project setup wizard                                               |
 | `anvil workspace`    | Control which project folders the local protection process may access     |
+
+## `anvil start` flags
+
+Activation entrypoint. Flags below are generated from the shipped CLI; confirm
+with `anvil start --help` on your binary.
+
+| Flag                | Purpose                                                                                             |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| `--verify`          | Run a non-mutating activation probe — skip init, first-scan, and the MCP install step               |
+| `--watch`           | After activation, run the save-time watch fallback when MCP cannot pre-write attach                 |
+| `--format`          | Pick a config file format for first-run activation                                                  |
+| `--new-identity`    | Mint a fresh project UUID and record the previous one as `forked_from`                              |
+| `--why`             | Print per-tier activation evidence to stderr alongside the normal verdict on stdout                 |
+| `--no-daemon`       | Skip auto-starting the per-user save-time daemon                                                    |
+| `--no-mcp`          | Skip MCP config installation                                                                        |
+| `--all-mcp-clients` | Non-interactive: wire every supported MCP client even when that client is not detected on this host |
+| `--mcp-client`      | Explicitly configure one or more MCP clients from the full registry                                 |
+| `--mcp-scope`       | Scope for clients selected with --mcp-client (and first-wave install)                               |
+
+Interactive `anvil start` offers every installable MCP client (unticked by
+default). Scripted multi-client install uses `--mcp-client <id>` (repeatable),
+`--all-mcp-clients`, and `--mcp-scope global|project`. Discover client ids with
+`anvil mcp install --help`.
+
+## Exit codes
+
+Stable process exit codes used by the CLI. Scripts should gate on these values
+rather than parsing human-readable prose.
+
+| Code | Meaning                                                                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                   |
+| `1`  | General error (recoverable user-action condition)                                                                                         |
+| `2`  | Gate failure — fail-fast for CI and scripted gates                                                                                        |
+| `3`  | Authentication required on an action command or auth probe (not used by read-only `status`, which exits 0 with an informational envelope) |
+| `4`  | Configuration error                                                                                                                       |
+| `5`  | Surface and daemon on different OS instances, or cross-boundary mixed configuration (reserved / future emission)                          |
+| `6`  | Daemon not running and embedded fallback unavailable (reserved / future emission)                                                         |
+| `7`  | CLI or hook protocol version mismatch with the daemon (reserved / future emission)                                                        |
+| `10` | Runtime discovery failed (reserved / future emission)                                                                                     |
+
+### Authentication-required behaviour
+
+- **Action commands** (`anvil start`, bare `anvil`, `anvil init`, `anvil gate`,
+  `anvil check`, `anvil watch`, and other gated mutating surfaces) exit **`3`**
+  when authentication is required, so `&&` chains and script preflights stop at
+  an unauthenticated or unactivated repo.
+- **Read-only status** (`anvil status`) exits **`0`** when authentication is
+  required and reports an informational `authRequired` envelope under `--json`.
+  Auth-required is the expected answer on that state probe, not a failure.
+- Auth state probes such as `anvil auth whoami` exit **`3`** so scripts can
+  detect a missing login without treating it as a generic error `1`.
+- Read-only activation probes (`anvil start --verify`, `anvil status --verify`)
+  bypass the pre-dispatch auth wall entirely.
+
+When `--json` is set, action-command auth-required responses use an
+informational envelope (`state: "authRequired"`, `next`, optional
+`earlyAccessUrl`) on stdout while still exiting `3`.

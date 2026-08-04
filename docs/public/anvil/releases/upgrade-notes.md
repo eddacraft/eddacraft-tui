@@ -141,9 +141,12 @@ binary you actually installed:
 
 ## 0.9.0-beta automation change
 
-Authentication-required action commands use a distinct non-zero exit code. Any
+Authentication-required **action** commands exit **`3`** (`EXIT_AUTH_REQUIRED`)
+so `&&` chains stop at an unauthenticated repo. Read-only `anvil status` still
+exits **`0`** with an informational `authRequired` envelope under `--json`. Any
 script that previously treated an unauthenticated action as success must now
-handle authentication explicitly.
+handle authentication explicitly. See the
+[CLI exit codes](../reference/cli.md#exit-codes).
 
 Interactive activation choices also begin unselected. Pressing Enter without
 choosing an item writes nothing.

@@ -125,8 +125,8 @@ prove protection from the start screen.
 
 ### Changed
 
-- Authentication-required action commands use a distinct exit code for safer
-  automation.
+- Authentication-required action commands exit **`3`** for safer automation;
+  read-only `anvil status` stays exit **`0`** with an informational envelope.
 - Interactive activation choices begin unselected; continuing without a choice
   writes nothing.
 - Save-time activation manages the local daemon on supported platforms while

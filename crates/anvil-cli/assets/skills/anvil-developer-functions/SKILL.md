@@ -45,16 +45,19 @@ available and focuses on the agent edit loop.
 ## Prerequisites
 
 The tools come from the `anvil mcp serve --stdio` server, backed by the local
-anvil daemon. Current documented client wiring covers Claude Code and Cursor;
-OpenCode, Codex, and Grok Build support is in beta via standard MCP client
-wiring — expect rougher edges and verify the connection before relying on it.
+anvil daemon. MCP install covers the multi-client registry (Claude Code, Cursor,
+Codex, OpenCode, Gemini CLI, VS Code, Copilot CLI, Grok Build, Warp, Zed, and
+others — run `anvil mcp install --help` for the ids on your binary). Attachment
+depth varies by client; verify the connection before relying on the tools.
 Before relying on the tools:
 
-- The MCP server must be wired into your client. `anvil start` installs it (and
-  starts the daemon) for Claude Code and Cursor;
-  `anvil mcp install --client claude-code` or `--client cursor` does it
-  explicitly. Restart or reload the client's MCP servers afterwards. For
-  activation states, doctor, and broader setup, see **`using-anvil`**.
+- The MCP server must be wired into your client. Interactive `anvil start`
+  offers every registry client (unticked by default) and starts the daemon;
+  scripted installs use `anvil start --mcp-client <id>`,
+  `anvil start --all-mcp-clients`, or `anvil mcp install --client <id>`
+  (examples: `--client claude-code`, `--client cursor`, `--client codex`).
+  Restart or reload the client's MCP servers afterwards. For activation states,
+  doctor, and broader setup, see **`using-anvil`**.
 - **Verify the connection** before the first real call: read `graph://stats`, or
   call `anvil_search_symbols` with any short name. A `ready` result (even with
   zero counts) confirms the wiring. If you get `not_ready`, retry shortly — the

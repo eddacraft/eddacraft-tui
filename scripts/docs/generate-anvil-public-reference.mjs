@@ -21,7 +21,10 @@ const CHECK = argv.includes('--check');
 const inputs = {
   registry: resolve(ROOT, 'patterns/compiled/registry.json'),
   cli: resolve(ROOT, 'crates/anvil-cli/src/main.rs'),
-  clients: resolve(ROOT, 'crates/anvil-cli/src/activation/diagnostic.rs'),
+  start: resolve(ROOT, 'crates/anvil-cli/src/commands/start.rs'),
+  // Full MCP install registry (MCPX / ADR-106), not the two-client v1
+  // protection-ladder enum in diagnostic.rs.
+  clients: resolve(ROOT, 'crates/anvil-cli/src/activation/agent_registry.rs'),
   languages: resolve(ROOT, 'crates/anvil-kernel/src/parser/languages.rs'),
   dist: resolve(ROOT, 'dist-workspace.toml'),
 };
@@ -34,6 +37,8 @@ const release = latestPublicRelease();
 const sourceRef = release ? `v${release}` : undefined;
 const registry = JSON.parse(readProductSource(inputs.registry));
 const commands = parseCommands(readProductSource(inputs.cli));
+const startFlags = parseStartFlags(readProductSource(inputs.start));
+const exitCodes = parseExitCodes(readProductSource(inputs.cli));
 const clients = parseClients(readProductSource(inputs.clients));
 const languages = parseLanguages(readProductSource(inputs.languages));
 const targets = parseTargets(readProductSource(inputs.dist));
@@ -42,7 +47,7 @@ const ruleExtensions = new Set(
 );
 
 const rendered = new Map([
-  [resolve(ROOT, 'docs/public/anvil/reference/cli.md'), renderCli(commands)],
+  [resolve(ROOT, 'docs/public/anvil/reference/cli.md'), renderCli(commands, startFlags, exitCodes)],
   [resolve(ROOT, 'docs/public/anvil/reference/rules.md'), renderRules(registry)],
   [
     resolve(ROOT, 'docs/public/anvil/reference/support.md'),
@@ -130,11 +135,95 @@ function delimiterBalance(line) {
 }
 
 function parseClients(source) {
-  const block = /pub enum McpClientId\s*\{([\s\S]*?)\n\}/.exec(source)?.[1];
-  if (!block) fail('could not locate supported MCP clients');
-  const clients = [...block.matchAll(/^\s*([A-Z][A-Za-z0-9]*),\s*$/gm)].map((match) => match[1]);
+  // Prefer display_name from the ADR-106 agent registry; fall back to the
+  // enum variants when the registry table is unavailable.
+  const displayNames = [...source.matchAll(/display_name:\s*"([^"]+)"/g)].map((match) => match[1]);
+  if (displayNames.length > 0) return displayNames;
+
+  const block = /pub enum AgentClientId\s*\{([\s\S]*?)\n\}/.exec(source)?.[1];
+  if (!block) fail('could not locate supported MCP clients (AgentClientId)');
+  const clients = [...block.matchAll(/^\s*(?:#\[[^\]]*\]\s*)*([A-Z][A-Za-z0-9]*),?\s*$/gm)].map(
+    (match) => match[1]
+  );
   if (clients.length === 0) fail('supported MCP client list is empty');
-  return clients.map((client) => (client === 'ClaudeCode' ? 'Claude Code' : client));
+  return clients.map(clientDisplayName);
+}
+
+function clientDisplayName(variant) {
+  const names = {
+    ClaudeCode: 'Claude Code',
+    GeminiCli: 'Gemini CLI',
+    VsCode: 'VS Code',
+    CopilotCli: 'Copilot CLI',
+    OpenCode: 'OpenCode',
+    OpenClaw: 'OpenClaw',
+  };
+  return names[variant] ?? variant;
+}
+
+// Parse public long flags from `StartArgs` in `commands/start.rs`.
+// Skips hidden flags (for example the retained `--tui` no-op).
+function parseStartFlags(source) {
+  const start = source.indexOf('pub struct StartArgs {');
+  if (start < 0) fail('could not locate StartArgs');
+  // End at the next top-level item after the struct body.
+  const after = source.slice(start);
+  const endRel = after.search(/\n}\n\n(?:\/\/\/|#\[|pub |fn |const |struct |enum |impl )/);
+  if (endRel < 0) fail('could not locate end of StartArgs');
+  const end = start + endRel;
+
+  const flags = [];
+  let docs = [];
+  let longName;
+  let hidden = false;
+  let hasLong = false;
+
+  for (const line of source.slice(start, end).split(/\r?\n/).slice(1)) {
+    const comment = /^\s*\/\/\/\s?(.*)$/.exec(line);
+    if (comment) {
+      docs.push(comment[1]);
+      continue;
+    }
+    const attribute = /^\s*#\[arg\((.*)\)\]/.exec(line);
+    if (attribute) {
+      const body = attribute[1];
+      const explicitLong = /long\s*=\s*"([^"]+)"/.exec(body)?.[1];
+      if (explicitLong) {
+        longName = explicitLong;
+        hasLong = true;
+      } else if (/\blong\b/.test(body)) {
+        hasLong = true;
+      }
+      if (/\bhide\s*=\s*true\b/.test(body)) hidden = true;
+      continue;
+    }
+    const field = /^\s*pub\s+([a-z0-9_]+)\s*:/.exec(line);
+    if (!field) continue;
+    if (hasLong && !hidden) {
+      const name = longName ?? field[1].replaceAll('_', '-');
+      const description = docs.filter(Boolean).join(' ').split(/\.\s/)[0].replace(/\.$/, '').trim();
+      flags.push({
+        flag: `--${name}`,
+        description: lowerBrands(description || 'See `anvil start --help`'),
+      });
+    }
+    docs = [];
+    longName = undefined;
+    hidden = false;
+    hasLong = false;
+  }
+
+  if (flags.length === 0) fail('StartArgs produced no public flags');
+  return flags;
+}
+
+function parseExitCodes(source) {
+  const codes = [];
+  for (const match of source.matchAll(/pub const (EXIT_[A-Z0-9_]+):\s*u8\s*=\s*(\d+);/g)) {
+    codes.push({ name: match[1], code: Number(match[2]) });
+  }
+  if (codes.length === 0) fail('could not locate EXIT_* constants in main.rs');
+  return codes;
 }
 
 function parseLanguages(source) {
@@ -162,9 +251,18 @@ function parseTargets(source) {
   return [...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }
 
-function renderCli(commands) {
+function renderCli(commands, startFlags, exitCodes) {
   const rows = commands
     .map(({ name, description }) => `| \`anvil ${name}\` | ${escapeCell(description)} |`)
+    .join('\n');
+  const startRows = startFlags
+    .map(({ flag, description }) => `| \`${flag}\` | ${escapeCell(description)} |`)
+    .join('\n');
+  const exitRows = exitCodes
+    .map(({ name, code }) => {
+      const meaning = exitCodeMeaning(name, code);
+      return `| \`${code}\` | ${escapeCell(meaning)} |`;
+    })
     .join('\n');
   return (
     generatedHeader(
@@ -181,8 +279,44 @@ function renderCli(commands) {
     `It does not install clients you skipped or rewrite configuration — use \`anvil start\` to activate or reconfigure.\n\n` +
     `| Command | Purpose |\n| --- | --- |\n` +
     `| \`anvil\` | Turn protection on for an already-activated project (daily ensure) |\n` +
-    `${rows}\n`
+    `${rows}\n\n` +
+    `## \`anvil start\` flags\n\n` +
+    `Activation entrypoint. Flags below are generated from the shipped CLI; confirm with \`anvil start --help\` on your binary.\n\n` +
+    `| Flag | Purpose |\n| --- | --- |\n` +
+    `${startRows}\n\n` +
+    `Interactive \`anvil start\` offers every installable MCP client (unticked by default). ` +
+    `Scripted multi-client install uses \`--mcp-client <id>\` (repeatable), \`--all-mcp-clients\`, and \`--mcp-scope global|project\`. ` +
+    `Discover client ids with \`anvil mcp install --help\`.\n\n` +
+    `## Exit codes\n\n` +
+    `Stable process exit codes used by the CLI. Scripts should gate on these values rather than parsing human-readable prose.\n\n` +
+    `| Code | Meaning |\n| --- | --- |\n` +
+    `${exitRows}\n\n` +
+    `### Authentication-required behaviour\n\n` +
+    `- **Action commands** (\`anvil start\`, bare \`anvil\`, \`anvil init\`, \`anvil gate\`, \`anvil check\`, \`anvil watch\`, and other gated mutating surfaces) exit **\`3\`** when authentication is required, so \`&&\` chains and script preflights stop at an unauthenticated or unactivated repo.\n` +
+    `- **Read-only status** (\`anvil status\`) exits **\`0\`** when authentication is required and reports an informational \`authRequired\` envelope under \`--json\`. Auth-required is the expected answer on that state probe, not a failure.\n` +
+    `- Auth state probes such as \`anvil auth whoami\` exit **\`3\`** so scripts can detect a missing login without treating it as a generic error \`1\`.\n` +
+    `- Read-only activation probes (\`anvil start --verify\`, \`anvil status --verify\`) bypass the pre-dispatch auth wall entirely.\n\n` +
+    `When \`--json\` is set, action-command auth-required responses use an informational envelope (\`state: "authRequired"\`, \`next\`, optional \`earlyAccessUrl\`) on stdout while still exiting \`3\`.\n`
   );
+}
+
+function exitCodeMeaning(name, code) {
+  const meanings = {
+    EXIT_OK: 'Success',
+    EXIT_ERROR: 'General error (recoverable user-action condition)',
+    EXIT_GATE_FAIL: 'Gate failure — fail-fast for CI and scripted gates',
+    EXIT_AUTH_REQUIRED:
+      'Authentication required on an action command or auth probe (not used by read-only `status`, which exits 0 with an informational envelope)',
+    EXIT_CONFIG_ERROR: 'Configuration error',
+    EXIT_CROSS_BOUNDARY:
+      'Surface and daemon on different OS instances, or cross-boundary mixed configuration (reserved / future emission)',
+    EXIT_DAEMON_DOWN:
+      'Daemon not running and embedded fallback unavailable (reserved / future emission)',
+    EXIT_VERSION_MISMATCH:
+      'CLI or hook protocol version mismatch with the daemon (reserved / future emission)',
+    EXIT_DISCOVERY_FAILED: 'Runtime discovery failed (reserved / future emission)',
+  };
+  return meanings[name] ?? `${name} (${code})`;
 }
 
 function renderRules(registry) {
@@ -248,8 +382,10 @@ function renderSupport(languages, targets, ruleExtensions, clients) {
     `| Platform | Release target |\n| --- | --- |\n${platformRows}\n\n` +
     `## Language coverage\n\n| Language | File extensions | Current depth |\n| --- | --- | --- |\n${languageRows}\n\n` +
     `## AI clients\n\n` +
-    `\`anvil start\` and \`anvil mcp install --client\` configure supported AI clients for pre-write validation. ` +
-    `This public release documents **${clients.join('** and **')}** on the protection ladder; newer betas expand the install registry — run \`anvil mcp install --help\` on your binary for the full list. ` +
+    `\`anvil start\` and \`anvil mcp install --client\` configure supported AI clients for MCP-backed pre-write validation. ` +
+    `The install registry currently includes **${clients.join('**, **')}** (${clients.length} clients). ` +
+    `Interactive \`anvil start\` offers every registry client (unticked by default); scripted installs use \`anvil start --mcp-client <id>\`, \`anvil start --all-mcp-clients\`, or \`anvil mcp install --client <id>\`. ` +
+    `Client ids and scope notes change with the binary — always run \`anvil mcp install --help\` on your install for the authoritative list. ` +
     `Other editors can use terminal checks and save-time watching; do not assume an editor extension is installed.\n`
   );
 }

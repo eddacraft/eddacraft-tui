@@ -229,7 +229,9 @@ If `anvil` is not found:
 
 If `ready_restart_required` persists:
 
-- Restart Cursor or Claude Code so MCP config is picked up.
+- Fully quit and reopen the named AI client so MCP config is picked up
+  (examples: Claude Code, Cursor, Codex, VS Code — see
+  `anvil mcp install --help` for the install registry).
 - If the daemon is unreachable, run `anvil intercept start --foreground` in
   another terminal and retry verification.
 - Run `anvil intercept status` to distinguish daemon-down, stale, and

@@ -9,10 +9,11 @@
 | [ACTMO](../../plans/modules/activation-mcp-optional.aps.md), [ADR-092](../../plans/decisions/092-mcp-optional-activation-spine.md), [`anvil start`](../../crates/anvil-cli/src/commands/start.rs) | [Activation as-built](../architecture/activation-as-built.md), [Wow start guide](../public/anvil/guides/wow-start-demo.md), [Hook coexistence](anvil-hook-coexistence.md) |
 
 Use this runbook when an organisation blocks editor MCP integration, has not yet
-approved Claude Code or Cursor MCP, or wants to evaluate Anvil without touching
-editor MCP config. The supported path is `anvil start --no-mcp` or
-`ANVIL_NO_MCP=1 anvil start`; this skips MCP config writes but still runs the
-activation spine.
+approved AI-client MCP wiring (Claude Code, Cursor, Codex, VS Code, and the rest
+of the install registry — see `anvil mcp install --help`), or wants to evaluate
+Anvil without touching editor MCP config. The supported path is
+`anvil start --no-mcp` or `ANVIL_NO_MCP=1 anvil start`; this skips MCP config
+writes but still runs the activation spine.
 
 ## Expected Posture
 
@@ -87,12 +88,14 @@ Drop `--no-mcp` / `ANVIL_NO_MCP` and rerun:
 anvil start
 ```
 
-Anvil will install or refresh Cursor and Claude Code MCP entries when safe.
-Claude Code installs also merge `mcp__anvil__*` into `.claude/settings.json`
-`permissions.allow` so Anvil MCP tools do not prompt on every write. Existing
-Claude allow/deny rules are preserved.
+Anvil will install or refresh MCP entries for selected/supported clients when
+safe (interactive start offers the full registry unticked; scripted installs use
+`--mcp-client` / `--all-mcp-clients` or `anvil mcp install --client <id>` — see
+`anvil mcp install --help`). Claude Code installs also merge `mcp__anvil__*`
+into `.claude/settings.json` `permissions.allow` so Anvil MCP tools do not
+prompt on every write. Existing Claude allow/deny rules are preserved.
 
-Restart the editor or Claude Code session after MCP install, then run:
+Restart the named AI client after MCP install, then run:
 
 ```bash
 anvil start --verify

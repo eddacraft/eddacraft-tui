@@ -7,18 +7,22 @@ resources, and the egress/redaction mechanics.
 ## Setup and verification
 
 The graph-context surface ships with the Rust CLI's MCP server,
-`anvil mcp serve --stdio`, verified against Claude Code and Cursor. The daemon
-must be running for the tools to return data.
+`anvil mcp serve --stdio`. Prefer `anvil start` or
+`anvil mcp install --client <id>` for supported clients (full list:
+`anvil mcp install --help`). The daemon must be running for the tools to return
+data.
 
 ```bash
-anvil start                              # auto-installs the MCP server, starts the daemon
-anvil mcp install --client claude-code   # install for Claude Code explicitly
-anvil mcp install --client cursor        # install for Cursor explicitly
+anvil start                              # offers every registry client; starts the daemon
+anvil mcp install --client claude-code   # example: Claude Code
+anvil mcp install --client cursor        # example: Cursor
+anvil mcp install --client codex         # example: Codex — see --help for all ids
 ```
 
-Manual wiring — add the shim to the client's MCP config (`~/.claude.json` for
-Claude Code, which needs the `"type": "stdio"` discriminator;
-`~/.cursor/mcp.json` for Cursor, same entry without `type`):
+Manual wiring when install is blocked — add the stdio shim to the client's MCP
+config. Paths and shape vary (examples: `~/.claude.json` for Claude Code, which
+needs the `"type": "stdio"` discriminator; `~/.cursor/mcp.json` for Cursor,
+often without `type`). Prefer the installer when available:
 
 ```json
 {

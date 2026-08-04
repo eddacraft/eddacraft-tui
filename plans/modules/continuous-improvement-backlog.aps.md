@@ -6025,7 +6025,7 @@ archive.
 
 ### CIB-226: Public CLI docs — current flags and auth exit code 3
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 for `v0.9.3-beta` honesty pass
 - **Intent:** Public CLI reference / support docs omit current `anvil start`
   flags and the auth-required exit code **3** on action commands (status stays
@@ -6040,10 +6040,17 @@ archive.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
 - **Coordinates with:** DOCSYNC, CIB-219, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
 - **Confidence:** high.
+- **Evidence (in progress):** Extended
+  `scripts/docs/generate-anvil-public-reference.mjs` so generated `cli.md`
+  lists current `anvil start` flags (from `commands/start.rs`) and the stable
+  exit-code map (auth action exit **3**, read-only `status` exit **0**).
+  Public troubleshooting + upgrade notes link the same contract. Validation:
+  `node scripts/docs/generate-anvil-public-reference.mjs --check` (pass);
+  `node scripts/docs/check-public-docs.mjs` (0 errors / 68 files).
 
 ### CIB-227: User-facing copy must not imply only Claude Code and Cursor
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** Product still has twelve-client install (MCPX) but several live
   surfaces still describe MCP wiring as Claude Code + Cursor only (or those two
@@ -6065,6 +6072,11 @@ archive.
   Morgan multi-client pass on Deus.
 - **Coordinates with:** MCPX, DOCSYNC, CIB-219, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
 - **Confidence:** high — inventory already enumerated.
+- **Evidence (in progress):** Support generator reads the full
+  `AgentClientId` install registry (12 clients); skills, no-MCP runbook, and
+  activation as-built user claims reword exclusive Claude/Cursor pairs.
+  Historical v1 tables note launch-time scope. Exclusive-pair `rg` on scoped
+  paths clean; public-docs check 0 errors.
 
 ### CIB-228: Fix PowerShell dual-install guard inject (silent no-op)
 
