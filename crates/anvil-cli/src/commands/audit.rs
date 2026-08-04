@@ -527,12 +527,12 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
     }
 
     if steps.is_empty() {
-        // "Looks clean" over-claims: audit's passes are narrower than
-        // the rule engine's, so an empty audit is a statement about
-        // audit's scope, not about the tree (CIB-234).
+        // "Looks clean" over-claims: audit runs a strict subset of the
+        // checks, so an empty audit is a statement about audit's scope,
+        // not about the tree (CIB-234). Route to `gate` — it is the
+        // full suite; planless `check` runs only two of the checks.
         steps.push(
-            "No issues in audit's scope — run `anvil check --all` for the full rule-engine report"
-                .to_string(),
+            "No issues in audit's scope — run `anvil gate` for the full check suite".to_string(),
         );
     }
 
@@ -546,26 +546,38 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
 /// What audit's security pass actually covers, in terms a reader can
 /// act on.
 ///
-/// CIB-234: on a planted-secret tree `anvil check --all` reported four
-/// secret findings and `anvil audit` two, and the gap read as "the tree
-/// is cleaner than check says" or "check is wrong". Both counts are
-/// right for their surface — audit is a project overview that reports
-/// `.env` exposure at file level and summarises source-secret patterns,
-/// while check runs the full rule engine over its own file set. Audit
-/// simply never said so.
+/// CIB-234: a reader compared `anvil audit`'s secret count against
+/// another surface's and read the gap as "the tree is cleaner than that
+/// says" or "that surface is wrong". Both counts were right for their
+/// surface; audit simply never said what its own covers.
 ///
-/// The disclosure is deliberately symmetric: the counts can differ in
-/// **either** direction (audit scans `.env` files that check's rule set
-/// skips, so audit can also report the larger number). Claiming check
-/// is always the bigger number would trade one wrong inference for
-/// another. Stating the scope is the fix; forcing the counts to match
-/// is out of scope — that needs a product decision, not a presentation
-/// change.
-const SECURITY_SCOPE: &str = "audit is a project overview — `.env` files are reported once at \
-     file level and source-secret patterns are summarised. `anvil check --all` \
-     and `anvil gate` run the full rule engine over a different file set, so \
-     their counts and audit's can differ in either direction. Neither count \
-     alone is a clean bill of health.";
+/// Every clause here is load-bearing and checked against the code —
+/// vague copy was the original defect, so wrong-but-specific copy would
+/// be a worse one:
+///
+/// - `.env` handling is **not** one finding per file: `check_env_file`
+///   adds a file-level flag, and `scan_for_hardcoded_secrets` then
+///   scans the same file and adds one entry per pattern match.
+/// - Findings are **not** summarised — each secret match is its own
+///   `High` entry (see `scan_for_hardcoded_secrets`).
+/// - Audit and gate scan the **same** secret file set, deliberately and
+///   by documented invariant (see `SECRET_SCAN_EXTS`); claiming they
+///   differ would licence the drift that issue #1798 fixed.
+/// - The full check suite is `anvil gate`, not `anvil check --all` —
+///   the planless `check` path runs only `PLANLESS_ELIGIBLE_CHECKS`
+///   (`secret-detection`, `antipattern-scan`), so pointing a reader
+///   there "for the full report" would hand them a narrower surface
+///   wearing the word "full".
+///
+/// So the honest difference is which *checks* run, not which files are
+/// read. Stating that is the fix; forcing counts to match across
+/// surfaces stays out of scope — that needs a product decision.
+const SECURITY_SCOPE: &str = "audit is a project overview. Its security pass flags `.env` files \
+     and runs the same secret-detection patterns as `anvil gate` over the same \
+     file set — one entry per match, plus one file-level flag per `.env`. It \
+     does not run gate's architecture, policy, dependency or lint checks, so \
+     finding counts are not comparable between surfaces and an audit with \
+     nothing to report is not a passing `anvil gate`.";
 
 fn print_plain(data: &AuditData) {
     print!("{}", render_plain(data));
@@ -575,23 +587,51 @@ fn render_plain(data: &AuditData) -> String {
     use std::fmt::Write as _;
 
     // Writing into a String is infallible; `let _ =` keeps the render
-    // path free of unwrap noise.
+    // path free of unwrap noise. One buffer for the whole report —
+    // a second buffer for the body would copy every finding twice on
+    // trees large enough for that to matter (cf. the OPS-002 cap on
+    // `notifications[]`).
     let mut out = String::new();
     let _ = writeln!(out, "ANVIL AUDIT — {}\n", data.project_name);
     let _ = writeln!(out, "Total files scanned: {}", data.total_files);
     let _ = writeln!(out, "Issues found: {}", data.issues.len());
     // Sits with the count, not in a footer: the count is what gets
-    // skimmed, so the qualifier has to travel with it.
-    let _ = writeln!(out, "Security scope: {SECURITY_SCOPE}\n");
+    // skimmed, so the qualifier has to travel with it. Wrapped rather
+    // than emitted as one long line — an unbroken paragraph is the
+    // shape readers skip, which would defeat the point.
+    let _ = writeln!(out, "Security scope:");
+    for line in wrap_scope_note(SECURITY_SCOPE, 76) {
+        let _ = writeln!(out, "  {line}");
+    }
+    let _ = writeln!(out);
 
-    out.push_str(&render_body(data));
+    render_body_into(&mut out, data);
     out
 }
 
-fn render_body(data: &AuditData) -> String {
+/// Greedy word wrap for the scope note. Deliberately tiny — pulling a
+/// wrapping crate in for one paragraph is not worth the dependency.
+fn wrap_scope_note(text: &str, width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if !current.is_empty() && current.len() + 1 + word.len() > width {
+            lines.push(std::mem::take(&mut current));
+        }
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(word);
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
+}
+
+fn render_body_into(out: &mut String, data: &AuditData) {
     use std::fmt::Write as _;
 
-    let mut out = String::new();
     if !data.issues.is_empty() {
         let _ = writeln!(out, "ISSUES");
         for issue in &data.issues {
@@ -629,7 +669,6 @@ fn render_body(data: &AuditData) -> String {
             let _ = writeln!(out, "  {}. {step}", i + 1);
         }
     }
-    out
 }
 
 // ---------------------------------------------------------------------------
@@ -648,9 +687,10 @@ struct AuditOutput {
     project_name: String,
     total_files: usize,
     /// What audit's security pass covers, so a consumer comparing
-    /// `issues.len()` against `anvil check --all` can see the two
-    /// surfaces are scoped differently rather than infer a discrepancy.
-    /// Additive field; `issues[]` remains canonical.
+    /// `issues.len()` against another surface's count can see the two
+    /// run different checks rather than infer a discrepancy. Carries
+    /// the same text the human output shows. Additive field;
+    /// `issues[]` remains canonical.
     security_scope: &'static str,
     issues: Vec<IssueOutput>,
     historical_scores: Vec<ScoreOutput>,
@@ -782,7 +822,7 @@ fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
             NotificationClass::Info,
             NotificationPriority::Low,
             format!(
-                "No issues in audit's scope across {} files; `anvil check --all` runs the full rule engine",
+                "No issues in audit's scope across {} files; `anvil gate` runs the full check suite",
                 data.total_files
             ),
         )
@@ -1126,8 +1166,8 @@ mod tests {
             "a clean audit must scope its claim, got: {step}"
         );
         assert!(
-            step.contains("anvil check --all"),
-            "a clean audit must point at the full rule-engine surface, got: {step}"
+            step.contains("anvil gate"),
+            "a clean audit must point at the full check suite, got: {step}"
         );
         cleanup(&dir);
     }
@@ -1148,19 +1188,28 @@ mod tests {
             "audit must name its security domain:\n{out}"
         );
         assert!(
-            out.contains("anvil check --all"),
-            "audit must point at the full rule-engine surface:\n{out}"
+            out.contains("anvil gate"),
+            "audit must point at the full check suite:\n{out}"
         );
         assert!(
-            out.contains("Neither count alone is a clean bill of health"),
+            out.contains("not comparable between surfaces"),
             "audit must refuse the 'count comparison = safety verdict' reading:\n{out}"
         );
-        // Symmetry guard: audit scans `.env` files check's rule set
-        // skips, so it can report the larger number too. The copy must
-        // not assert a direction.
         assert!(
-            out.contains("either direction"),
-            "scope note must not claim one surface always reports more:\n{out}"
+            out.contains("not a passing `anvil gate`"),
+            "an empty audit must not be readable as a passing gate:\n{out}"
+        );
+
+        // Placement is load-bearing, not decoration: the qualifier has
+        // to travel with the count a reader skims. Footer placement
+        // would satisfy every substring assertion above and still lose
+        // the argument, so pin the ordering.
+        let scope_at = out.find("Security scope").expect("scope line present");
+        let count_at = out.find("Issues found").expect("count line present");
+        let issues_at = out.find("ISSUES").expect("issue list present");
+        assert!(
+            count_at < scope_at && scope_at < issues_at,
+            "scope note must sit between the count and the findings, not in a footer:\n{out}"
         );
         cleanup(&dir);
     }
@@ -1193,8 +1242,12 @@ mod tests {
             .as_str()
             .expect("JSON output must carry security_scope");
         assert!(
-            scope.contains("anvil check --all"),
-            "security_scope must name the full rule-engine surface, got: {scope}"
+            scope.contains("anvil gate"),
+            "security_scope must name the full check suite, got: {scope}"
+        );
+        assert_eq!(
+            scope, SECURITY_SCOPE,
+            "JSON and human output must carry the same disclosure verbatim"
         );
         // The canonical finding list stays exactly where it was.
         assert!(value["issues"].is_array(), "issues[] must remain canonical");
@@ -1213,17 +1266,70 @@ mod tests {
         )
         .unwrap();
         let data = run_audit(&dir);
-        let env_file_issues: Vec<_> = data
-            .issues
+
+        let env_issues: Vec<_> = data.issues.iter().filter(|i| i.file == ".env").collect();
+        let file_level = env_issues
             .iter()
-            .filter(|i| i.file == ".env" && i.message.contains("Environment file"))
-            .collect();
+            .filter(|i| i.message.contains("Environment file"))
+            .count();
+        let per_pattern = env_issues
+            .iter()
+            .filter(|i| i.message.contains("Potential hardcoded secret"))
+            .count();
+
         assert_eq!(
-            env_file_issues.len(),
-            1,
-            "`.env` stays a single file-level finding; forcing count parity with \
-             `check --all` is explicitly out of scope, got: {:?}",
-            data.issues
+            file_level, 1,
+            "exactly one file-level flag per `.env`, got: {env_issues:?}"
+        );
+        assert_eq!(
+            per_pattern, 2,
+            "one entry per pattern match — no fan-out, no collapsing; forcing count \
+             parity with another surface is out of scope, got: {env_issues:?}"
+        );
+        assert_eq!(
+            env_issues.len(),
+            file_level + per_pattern,
+            "no other `.env` findings should appear: {env_issues:?}"
+        );
+        cleanup(&dir);
+    }
+
+    /// The scope note describes `.env` handling, so that description
+    /// must track the code. If aggregation changes, this fails right
+    /// next to the copy that would silently become a lie.
+    #[test]
+    fn security_scope_matches_actual_env_handling() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".env"), "API_KEY=sk-live-abcdefghijklmnop\n").unwrap();
+        let data = run_audit(&dir);
+        let env_issues: Vec<_> = data.issues.iter().filter(|i| i.file == ".env").collect();
+
+        // Copy promises: one file-level flag PLUS one entry per match.
+        assert!(
+            SECURITY_SCOPE.contains("one entry per match")
+                && SECURITY_SCOPE.contains("one file-level flag per `.env`"),
+            "scope copy must state the actual `.env` shape: {SECURITY_SCOPE}"
+        );
+        assert_eq!(
+            env_issues.len(),
+            2,
+            "one `.env` with one secret must yield flag + match, matching the copy: {env_issues:?}"
+        );
+
+        // Guard against resurrecting claims that were checked and found
+        // false: `.env` reported "once", findings "summarised", or a
+        // file set differing from gate's (they share one by invariant).
+        for overclaim in ["reported once", "summarised", "different file set"] {
+            assert!(
+                !SECURITY_SCOPE.contains(overclaim),
+                "scope copy must not claim {overclaim:?}: {SECURITY_SCOPE}"
+            );
+        }
+        // Planless `check` runs only PLANLESS_ELIGIBLE_CHECKS, so it
+        // must never be sold to the reader as the full surface.
+        assert!(
+            !SECURITY_SCOPE.contains("check --all"),
+            "the full suite is `anvil gate`, not planless `check`: {SECURITY_SCOPE}"
         );
         cleanup(&dir);
     }
@@ -1516,8 +1622,14 @@ mod tests {
             steps[0]
         );
         assert!(
-            steps[0].contains("anvil check --all"),
-            "empty result must name the full rule-engine surface, got: {}",
+            steps[0].contains("anvil gate"),
+            "empty result must name the full check suite, got: {}",
+            steps[0]
+        );
+        assert!(
+            !steps[0].contains("check --all"),
+            "planless `check` runs only two checks; it must not be sold as the \
+             full surface, got: {}",
             steps[0]
         );
     }

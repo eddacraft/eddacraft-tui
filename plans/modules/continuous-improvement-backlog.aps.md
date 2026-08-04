@@ -6271,6 +6271,16 @@ archive.
   document that `--no-tui` is JSON for this command if that stays intentional.
 - **Files:** `crates/anvil-cli/src/commands/audit_chain.rs` human print path /
   summary fields
+- **Verified during implementation:** `chain_is_intact` returns `true` when
+  the witness directory is **absent** as well as when the DAG verifies, and a
+  truncated tail leaves a verifying prefix — so the summary must not describe
+  it as tamper-evidence. The rendered qualifier says only that the records
+  present verify and that missing records are not detectable there; coverage
+  is what catches the missing-records case.
+- **JSON:** no new field. `witnessed` and `commits_walked` are already
+  first-class and already precede `chain_intact` in the serialised order, so
+  the "JSON summary if present" clause is satisfied without touching the
+  byte-exact `anvil.audit-chain.v1` empty-state pin.
 - **Validation:** fixture 0/2 witnessed, threshold 5: output clearly states
   unwitnessed coverage; `chain_intact` may still be true; regression tests for
   field semantics unchanged.
@@ -6298,6 +6308,20 @@ archive.
   Optional later: product ADR for full parity.
 - **Files:** `crates/anvil-cli/src/commands/audit.rs` messaging / aggregation
   summary
+- **Scope narrowing (recorded, not silent):** the disclosure ships on the
+  plain and JSON output paths only, matching this item's `Files` field. The
+  default `anvil audit` surface on a TTY is the **TUI** (`OutputMode::Tui`),
+  and the SARIF path feeds GitHub code scanning; neither carries the scope
+  note, because both live in `crates/anvil-tui/` (18 `AuditData` construction
+  sites across two crates). Follow-up item owed for those surfaces — until
+  then the Expected Outcome is met for plain/JSON, not for TUI/SARIF.
+- **Verified during implementation:** audit and `anvil gate` scan the **same**
+  secret file set by documented invariant (`SECRET_SCAN_EXTS` lock-step,
+  issue #1798), and planless `anvil check` runs only
+  `PLANLESS_ELIGIBLE_CHECKS` (`secret-detection`, `antipattern-scan`) — so the
+  disclosure routes readers to `anvil gate` as the full suite, and describes
+  the difference as *which checks run*, not which files are read. A `.env`
+  yields one file-level flag **plus** one entry per pattern match.
 - **Validation:** planted multi-file secret fixture; audit output names domain;
   no requirement that issue count equals `check --all`.
 - **Identified From:** Dave TRUST-2; re-triage.

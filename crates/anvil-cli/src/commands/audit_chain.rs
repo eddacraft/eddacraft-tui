@@ -145,11 +145,17 @@ pub struct AuditReport {
     /// `chain_intact` nor `degraded_audit_drift` reports it.
     pub witnessed: usize,
     pub unwitnessed: Vec<String>,
-    /// Tamper check on the witness records themselves: the chain-segment
-    /// DAG parses and verifies. **Not** a coverage claim — a repo where
-    /// no commit was ever witnessed has an intact (empty-ish) chain and
-    /// reports `true`. Consumers that want coverage read `witnessed` /
-    /// `commits_walked`.
+    /// Verification result for the witness records that are **present**:
+    /// the chain-segment DAG parses and its hash linkage holds.
+    ///
+    /// Deliberately narrow, and narrower than "nothing was tampered
+    /// with". `true` also means "there are no witness files at all"
+    /// (greenfield, or every record deleted), and a truncated tail
+    /// leaves a valid prefix that still verifies. It is **not** a
+    /// coverage claim either — a repo where no commit was ever
+    /// witnessed reports `true`. Consumers that want coverage read
+    /// `witnessed` / `commits_walked`; that pair, not this flag, is
+    /// what catches missing records.
     pub chain_intact: bool,
     /// `unwitnessed.len() >= threshold`. A threshold breach only —
     /// `false` means the count is under `--threshold`, not that the
@@ -587,9 +593,15 @@ fn render_plain(r: &AuditReport) -> String {
     let _ = writeln!(out, "  commits walked: {}", r.commits_walked);
     let _ = writeln!(out, "  witnessed:      {}", r.witnessed);
     let _ = writeln!(out, "  unwitnessed:    {}", r.unwitnessed.len());
+    // Say only what `chain_is_intact` proves. It returns `true` when
+    // the witness records that EXIST form a verifying DAG — and also
+    // when there are no witness files at all. It therefore cannot see
+    // wholesale deletion or a truncated tail, so the qualifier must not
+    // promise tamper-evidence. Coverage above is what catches the
+    // missing-records case.
     let _ = writeln!(
         out,
-        "  chain intact:   {} (witness records unmodified — not a coverage claim)",
+        "  chain intact:   {} (records present verify; missing records are not detectable here)",
         if r.chain_intact { "yes" } else { "NO" },
     );
     if r.partial {
@@ -928,8 +940,9 @@ mod tests {
             .find(|l| l.contains("chain intact"))
             .expect("chain intact line present");
         assert!(
-            intact_line.contains("not a coverage claim"),
-            "`chain intact` must disclaim coverage, got: {intact_line}"
+            intact_line.contains("missing records are not detectable"),
+            "`chain intact` must disclaim both coverage and tamper-evidence, \
+             got: {intact_line}"
         );
     }
 
@@ -965,28 +978,106 @@ mod tests {
         );
     }
 
-    /// Guard the contract this item must NOT change: presentation work
-    /// on the summary must leave `chain_intact` and
-    /// `degraded_audit_drift` semantics exactly where they were.
-    /// `chain_intact` = witness DAG untampered (not coverage);
-    /// `degraded_audit_drift` = unwitnessed count >= threshold.
+    /// Guard the contract this item must NOT change, through the REAL
+    /// pipeline rather than a synthesised report — a hand-built
+    /// `AuditReport` would only assert the test helper's own literals
+    /// and would stay green if `run_audit_chain` redefined
+    /// `chain_intact` to mean "every commit was witnessed", which is
+    /// precisely the forbidden change.
+    ///
+    /// Fixture is the reported case: 2 real commits, no witness records,
+    /// default threshold 5.
     #[test]
     fn zero_coverage_below_threshold_keeps_field_semantics() {
-        let r = coverage_report(2, 0, 5);
+        let git_probe = Command::new("git").arg("--version").output();
+        if !matches!(&git_probe, Ok(out) if out.status.success()) {
+            eprintln!("skipping CIB-233 semantics guard: git unavailable");
+            return;
+        }
+
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let run_git = |args: &[&str]| {
+            let out = Command::new("git").arg("-C").arg(root).args(args).output();
+            assert!(
+                matches!(&out, Ok(o) if o.status.success()),
+                "git {args:?} failed: {out:?}"
+            );
+        };
+        run_git(&["init", "-q", "-b", "main"]);
+        run_git(&["config", "user.email", "cib-233@anvil.test"]);
+        run_git(&["config", "user.name", "CIB-233 fixture"]);
+        run_git(&["config", "commit.gpgsign", "false"]);
+        for i in 0..2 {
+            std::fs::write(root.join(format!("f{i}.txt")), "x\n").unwrap();
+            run_git(&["add", "."]);
+            run_git(&["commit", "-q", "-m", &format!("c{i}")]);
+        }
+
+        let r = run_audit_chain(root, "HEAD", None, 5);
+
+        // Coverage is genuinely zero over a genuinely non-empty walk.
+        assert_eq!(r.commits_walked, 2, "fixture must walk both commits");
+        assert_eq!(r.witnessed, 0, "no witness records were written");
         assert!(
             r.chain_intact,
-            "chain_intact must stay a tamper check, not a coverage check"
+            "chain_intact must stay a check on the records present, NOT coverage — \
+             redefining it to require every commit witnessed is out of scope"
         );
         assert!(
             !r.degraded_audit_drift,
             "2 unwitnessed under threshold 5 must not flip the drift marker"
         );
-        // And the JSON contract is untouched by the presentation change.
+
+        // The JSON contract is untouched by the presentation change.
         let value = serde_json::to_value(&r).unwrap();
         assert_eq!(value["chain_intact"], serde_json::json!(true));
         assert_eq!(value["degraded_audit_drift"], serde_json::json!(false));
         assert_eq!(value["witnessed"], serde_json::json!(0));
+        assert_eq!(value["commits_walked"], serde_json::json!(2));
         assert_eq!(value["schema_version"], "anvil.audit-chain.v1");
+
+        // And the summary built from that real report still leads with
+        // coverage, so the two halves of the item hold together.
+        let out = render_plain(&r);
+        assert!(out.contains("0/2 commits witnessed"), "{out}");
+        assert!(out.contains("NO WITNESS COVERAGE"), "{out}");
+    }
+
+    /// The `chain intact` qualifier must not promise more than
+    /// `chain_is_intact` computes. With every witness record deleted
+    /// the flag still reports `true`, so any wording implying "nothing
+    /// was tampered with" would be false exactly when it matters.
+    #[test]
+    fn chain_intact_qualifier_does_not_promise_tamper_evidence() {
+        let tmp = TempDir::new().unwrap();
+        // No witness files at all — the deleted-records case.
+        assert!(
+            chain_is_intact(tmp.path()),
+            "precondition: an absent chain reports intact"
+        );
+
+        let r = coverage_report(2, 0, 5);
+        let out = render_plain(&r);
+        let intact_line = out
+            .lines()
+            .find(|l| l.contains("chain intact"))
+            .expect("chain intact line present");
+        assert!(
+            intact_line.contains("missing records are not detectable"),
+            "qualifier must disclose the blind spot, got: {intact_line}"
+        );
+        for overclaim in [
+            "unmodified",
+            "untampered",
+            "not tampered",
+            "verified intact",
+        ] {
+            assert!(
+                !intact_line.contains(overclaim),
+                "qualifier must not imply tamper-evidence via {overclaim:?}: {intact_line}"
+            );
+        }
     }
 
     #[test]
