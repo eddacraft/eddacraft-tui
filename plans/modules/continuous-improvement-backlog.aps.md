@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 185/263  |
+| CIB | —     | In Progress | 185/262  |
 
 ## Purpose
 
@@ -6746,15 +6746,20 @@ contract semantics). Pack-02 does **not** re-file those IDs.
 
 **RETRACT-1 (binding):** Pack-01 verified-good "hooks install then committing a
 secret is blocked" was unconditional. It holds only for **file-mode** hooks and
-**extensions gate scans**. Replacement anchors: (A) file-mode + scanned
-extension asserts block; (B) file-mode + `.py` asserts current gap until domain
-settled. Tracked as **CIB-250**.
+**extensions gate scans**. Replacement anchors (no standalone CIB — **CIB-250
+is reserved for a concurrent Claude lane** and must not be consumed here):
+- **Anchor A** (file-mode + scanned extension, e.g. `.env` asserts block) lives
+  with **CIB-251** validation (file-mode path stays green; do not treat
+  `--config` as covered without a verified hook fire).
+- **Anchor B** (file-mode + `.py` / gate-miss extension documents current gap)
+  lives with **CIB-255**; flips green when gate/check domain disclosure or
+  domain expansion is settled.
 
 ### Pack-02 disposition map (stable Dave IDs)
 
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
-| RETRACT-1 | correction / conditioned anchors | **CIB-250** Ready P1 |
+| RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); **CIB-250 free** (reserved elsewhere) |
 | HOOK-1 | net-new honesty (opt-in `--config`; one git) | **CIB-251** Ready P1 |
 | WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
 | STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
@@ -6785,28 +6790,6 @@ settled. Tracked as **CIB-250**.
 | R1..R8 | suggestions | deliberate non-scope (not release work) |
 | Pack-01 UPD/TRUST/UX/CONF/AUTH | preserve prior disposition | CIB-228..243; AUTH untracked |
 
-### CIB-250: Condition pack-01 hook-block regression anchors (RETRACT-1)
-
-- **Status:** Ready
-- **Priority:** P1 for `v0.9.3-beta` (test/trust hygiene — prevent false green)
-- **Intent:** Pack-01 verified-good claimed unconditionally that after hooks
-  install, committing a secret is blocked. Dave RETRACT-1 confirms that only
-  holds for **file-mode** hooks and **extensions that gate scans**. An
-  unconditional suite anchor passes on ground that does not generalise.
-- **Expected Outcome:** Split/replace any pack-01-derived regression anchor:
-  - **Anchor A:** file-mode hook + scanned extension (e.g. `.env`) — asserts
-    block.
-  - **Anchor B:** file-mode hook + `.py` (or other gate-miss extension) —
-    documents current domain gap; flips green when CIB-255 domain is settled.
-  - Document that `--config` mode is **not** covered by Anchor A without a
-    platform-verified hook fire (HOOK-1 / CIB-251).
-- **Non-scope:** Changing default install mode; redefining gate domains (CIB-255).
-- **Validation:** suite comments/fixtures name conditions; no bare
-  "hooks install → secret blocked" without mode + extension.
-- **Identified From:** Dave pack-02 RETRACT-1 (2026-08-04).
-- **Coordinates with:** CIB-251, CIB-255, pack-01 verified-good disposition
-- **Confidence:** high — Dave confirmed; self-described as reporting-ahead.
-
 ### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
 
 - **Status:** Ready
@@ -6828,8 +6811,15 @@ settled. Tracked as **CIB-250**.
 - **Validation:** fresh repo `hooks install --config` then commit with marker
   file / secret; surfaces match whether hook fired. File-mode path remains
   green.
-- **Identified From:** Dave pack-02 HOOK-1.
-- **Coordinates with:** CIB-250, GHOOK archive, CIB-235 layer honesty
+- **RETRACT-1 Anchor A (absorbed):** Any pack-01-derived "hooks install → secret
+  blocked" regression must name **file-mode** hooks and a **gate-scanned**
+  extension (e.g. `.env`). Do **not** treat `--config` install as covered by
+  Anchor A without a platform-verified hook fire. Suite comments/fixtures must
+  not use an unconditional "hooks install then secret blocked" claim.
+- **Identified From:** Dave pack-02 HOOK-1; RETRACT-1 Anchor A absorbed 2026-08-04
+  (CIB-250 left free — reserved by concurrent Claude lane).
+- **Coordinates with:** CIB-255 (RETRACT-1 Anchor B / gate domain), GHOOK archive,
+  CIB-235 layer honesty
 - **Confidence:** high on observation; medium that root cause is anvil vs git.
 
 ### CIB-252: Workspace register must not report success when list is empty (WS-1)
@@ -6926,14 +6916,21 @@ settled. Tracked as **CIB-250**.
   choice.
 - **Expected Outcome:** Prefer domain disclosure on human + JSON gate and
   `check --all` (what was scanned / skipped), matching import-boundaries
-  "Skipping" honesty. If product expands gate secret domain, add Anchor B
-  flip from CIB-250. GATE-2 count either explained in output or fixed once
-  mechanism is known.
+  "Skipping" honesty. If product expands gate secret domain, flip **RETRACT-1
+  Anchor B** green (below). GATE-2 count either explained in output or fixed
+  once mechanism is known.
+- **RETRACT-1 Anchor B (absorbed):** Pack-01 verified-good "hooks install then
+  secret blocked" must not pass on a file-mode hook + **gate-miss** extension
+  (e.g. `.py`) without stating that gap. Suite/fixture: file-mode + `.py` (or
+  other not-detected-by-gate extension) documents current domain gap and flips
+  green when this item settles domain disclosure or expansion. Complements
+  Anchor A on CIB-251 (file-mode + scanned extension asserts block).
 - **Validation:** multi-extension secret fixture; gate and check --all name
   domain or detect consistently with stated domain; regression tests for
-  disclosure strings.
-- **Identified From:** Dave pack-02 GATE-1, CHECK-1, GATE-2.
-- **Coordinates with:** CIB-234, CIB-239, CIB-250
+  disclosure strings; Anchor B fixture as above.
+- **Identified From:** Dave pack-02 GATE-1, CHECK-1, GATE-2; RETRACT-1 Anchor B
+  absorbed 2026-08-04 (CIB-250 left free — reserved by concurrent Claude lane).
+- **Coordinates with:** CIB-234, CIB-239, CIB-251 (RETRACT-1 Anchor A)
 - **Confidence:** high on GATE-1/CHECK-1; medium on GATE-2 mechanism.
 
 ### CIB-256: `start --verify` meaning must not claim writes that did not run (START-1)
