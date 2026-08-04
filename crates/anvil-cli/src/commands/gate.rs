@@ -1162,38 +1162,41 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
         }
         let (head_mode, index_mode, head_oid, index_oid, code) =
             parse_raw_inventory_header(header)?;
-        let (path, head_path) = if matches!(code, b'R' | b'C') {
+        let (path_bytes, head_path_bytes) = if matches!(code, b'R' | b'C') {
             let old_path_bytes = fields.next()?;
             let new_path_bytes = fields.next()?;
             if old_path_bytes.is_empty() || new_path_bytes.is_empty() {
                 return None;
             }
-            let old_path = strict_inventory_path(old_path_bytes);
-            let new_path = strict_inventory_path(new_path_bytes);
-            if old_path.is_err() {
-                quarantined_paths.insert(quarantined_inventory_path(old_path_bytes));
-            }
-            if new_path.is_err() {
-                quarantined_paths.insert(quarantined_inventory_path(new_path_bytes));
-            }
-            let (Ok(old_path), Ok(new_path)) = (old_path, new_path) else {
-                continue;
-            };
-            (new_path, Some(old_path))
+            (new_path_bytes, Some(old_path_bytes))
         } else {
             let path_bytes = fields.next()?;
             if path_bytes.is_empty() {
                 return None;
             }
-            let Ok(path) = strict_inventory_path(path_bytes) else {
-                quarantined_paths.insert(quarantined_inventory_path(path_bytes));
-                continue;
-            };
-            (path.clone(), (code != b'A').then_some(path))
+            (path_bytes, (code != b'A').then_some(path_bytes))
         };
         if index_mode != GitInventoryMode::Blob {
             continue;
         }
+        let path = strict_inventory_path(path_bytes);
+        let head_path = head_path_bytes.map(strict_inventory_path);
+        if path.is_err() {
+            quarantined_paths.insert(quarantined_inventory_path(path_bytes));
+        }
+        if let Some(Err(_)) = &head_path
+            && let Some(head_path_bytes) = head_path_bytes
+        {
+            quarantined_paths.insert(quarantined_inventory_path(head_path_bytes));
+        }
+        let Ok(path) = path else {
+            continue;
+        };
+        let head_path = match head_path {
+            Some(Ok(head_path)) => Some(head_path),
+            None => None,
+            Some(Err(_)) => continue,
+        };
         changes.insert(
             path,
             StagedGateChange {
@@ -5020,6 +5023,31 @@ mod tests {
     }
 
     #[test]
+    fn staged_inventory_discards_non_blob_paths_after_structural_validation() {
+        for mode in ["120000", "160000"] {
+            let added_header = valid_raw_inventory_header("A").replacen("100644", mode, 1);
+            let added = raw_inventory_record(&added_header, b".unsafe\n\xff");
+            let inventory =
+                parse_staged_gate_inventory(&added).expect("non-blob add should be structural");
+            assert!(inventory.changes.is_empty());
+            assert!(inventory.quarantined_paths.is_empty());
+
+            let renamed_header = valid_raw_inventory_header("R100").replacen("100644", mode, 1);
+            let mut renamed = raw_inventory_record(&renamed_header, b".old\n\xff");
+            renamed.extend_from_slice(b".new\n\xff\0");
+            let inventory = parse_staged_gate_inventory(&renamed)
+                .expect("non-blob rename should be structural");
+            assert!(inventory.changes.is_empty());
+            assert!(inventory.quarantined_paths.is_empty());
+
+            let missing_new_path = raw_inventory_record(&renamed_header, b".old");
+            assert!(parse_staged_gate_inventory(&missing_new_path).is_none());
+            let empty_added_path = raw_inventory_record(&added_header, b"");
+            assert!(parse_staged_gate_inventory(&empty_added_path).is_none());
+        }
+    }
+
+    #[test]
     fn staged_inventory_keeps_invalid_bytes_distinct_from_valid_unicode() {
         let mut raw = raw_inventory_record(&valid_raw_inventory_header("A"), b".env.\xff");
         raw.extend(raw_inventory_record(
@@ -6362,6 +6390,105 @@ mod tests {
             result.message
         );
         assert!(!result.message.contains("linked.js"));
+    }
+
+    #[test]
+    fn hook_secret_check_ignores_control_name_staged_gitlink() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        let head = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        assert!(head.status.success());
+        let head = String::from_utf8(head.stdout).unwrap();
+        let cacheinfo = format!("160000,{},vendor/\nmodule", head.trim());
+        git_for_hook_fixture(
+            tmp.path(),
+            &["update-index", "--add", "--cacheinfo", &cacheinfo],
+        );
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "staged gitlinks must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("[staged content unavailable]"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_ignores_non_utf8_name_staged_symlink() {
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let path = tmp
+            .path()
+            .join(std::ffi::OsStr::from_bytes(b"linked-\xff.js"));
+        std::os::unix::fs::symlink("safe-target", &path).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-A"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "staged symlinks must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("[staged content unavailable]"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_fails_closed_for_non_utf8_name_staged_blob() {
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let path = tmp
+            .path()
+            .join(std::ffi::OsStr::from_bytes(b"source-\xff.js"));
+        std::fs::write(path, "export const safe = true;\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-A"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed, "unsafe regular paths must fail closed");
+        assert!(result.message.contains("[staged content unavailable]"));
     }
 
     #[test]
