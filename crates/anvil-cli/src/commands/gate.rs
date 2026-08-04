@@ -1016,7 +1016,7 @@ struct StagedGateChange {
 
 struct StagedGateInventory {
     changes: BTreeMap<String, StagedGateChange>,
-    quarantined_paths: std::collections::BTreeSet<String>,
+    quarantined_paths: std::collections::BTreeSet<Vec<u8>>,
 }
 
 const GIT_RAW_INVENTORY_ARGS: [&str; 8] = [
@@ -1058,15 +1058,30 @@ fn command_stdout_bounded(
 
 fn escaped_inventory_path(path: &[u8]) -> String {
     let mut escaped = String::from("<staged path:");
-    for byte in path {
+    for byte in path.iter().take(MAX_QUARANTINED_PATH_DISPLAY_BYTES) {
         escaped.extend(std::ascii::escape_default(*byte).map(char::from));
+    }
+    if path.len() > MAX_QUARANTINED_PATH_DISPLAY_BYTES {
+        escaped.push_str("...");
     }
     escaped.push('>');
     escaped
 }
 
 fn quarantined_inventory_path(path: &[u8]) -> String {
-    std::str::from_utf8(path).map_or_else(|_| escaped_inventory_path(path), str::to_string)
+    std::str::from_utf8(path).map_or_else(
+        |_| escaped_inventory_path(path),
+        |path| {
+            if path.len() <= MAX_QUARANTINED_PATH_DISPLAY_BYTES {
+                return path.to_string();
+            }
+            let mut end = MAX_QUARANTINED_PATH_DISPLAY_BYTES;
+            while !path.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}...", &path[..end])
+        },
+    )
 }
 
 fn strict_inventory_path(path: &[u8]) -> Result<String, String> {
@@ -1182,12 +1197,12 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
         let path = strict_inventory_path(path_bytes);
         let head_path = head_path_bytes.map(strict_inventory_path);
         if path.is_err() {
-            quarantined_paths.insert(quarantined_inventory_path(path_bytes));
+            quarantined_paths.insert(path_bytes.to_vec());
         }
         if let Some(Err(_)) = &head_path
             && let Some(head_path_bytes) = head_path_bytes
         {
-            quarantined_paths.insert(quarantined_inventory_path(head_path_bytes));
+            quarantined_paths.insert(head_path_bytes.to_vec());
         }
         let Ok(path) = path else {
             continue;
@@ -1304,6 +1319,7 @@ const MAX_STAGED_BLOB_SIZE: u64 = 1024 * 1024;
 // objects or produces an unexpectedly large patch/inventory stream.
 const MAX_STAGED_BLOB_COUNT: usize = 1024;
 const MAX_PROVENANCE_PATH_COUNT: usize = 1024;
+const MAX_QUARANTINED_PATH_DISPLAY_BYTES: usize = 1024;
 const MAX_STAGED_BLOB_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
 const MAX_WORKTREE_PROVENANCE_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
 const MAX_PROVENANCE_SCAN_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
@@ -1679,10 +1695,17 @@ fn staged_provenance_snapshot(
     plan_files: &std::collections::HashSet<String>,
 ) -> Option<StagedProvenanceSnapshot> {
     let mut git_subprocess_count = 0_usize;
-    let inventory = staged_gate_changes(root, &mut git_subprocess_count)?;
-    let mut indeterminate_paths = inventory.quarantined_paths;
-    let changes = inventory
-        .changes
+    let StagedGateInventory {
+        changes,
+        quarantined_paths,
+    } = staged_gate_changes(root, &mut git_subprocess_count)?;
+    let mut indeterminate_paths = bounded_quarantined_paths_in_scan_domain(
+        root,
+        quarantined_paths,
+        plan_files,
+        skip_extensions,
+    );
+    let changes = changes
         .into_iter()
         .filter(|(path, _)| {
             let path = Path::new(path);
@@ -2024,6 +2047,75 @@ fn scan_path_config_eligible(path: &Path, skip_extensions: &[String]) -> bool {
         || !skip_extensions
             .iter()
             .any(|extension| path.to_string_lossy().ends_with(extension))
+}
+
+fn raw_secret_path_scannable(path: &[u8]) -> bool {
+    let file_name = path.rsplit(|byte| *byte == b'/').next().unwrap_or(path);
+    if file_name.starts_with(b".env") {
+        return true;
+    }
+    let Some(dot) = file_name.iter().rposition(|byte| *byte == b'.') else {
+        return false;
+    };
+    matches!(
+        &file_name[dot + 1..],
+        b"ts" | b"js" | b"rs" | b"json" | b"yaml" | b"yml" | b"toml" | b"env"
+    )
+}
+
+fn raw_secret_path_has_allowed_directories(path: &[u8]) -> bool {
+    let mut components = path.split(|byte| *byte == b'/').peekable();
+    while let Some(component) = components.next() {
+        if components.peek().is_none() {
+            break;
+        }
+        if std::str::from_utf8(component).is_ok_and(crate::util::is_ignored_dir_name) {
+            return false;
+        }
+    }
+    true
+}
+
+fn raw_scan_path_config_eligible(path: &[u8], skip_extensions: &[String]) -> bool {
+    let is_lockfile = std::str::from_utf8(path)
+        .is_ok_and(|path| anvil_checks::filter::is_lockfile(Path::new(path)));
+    is_lockfile
+        || !skip_extensions
+            .iter()
+            .any(|extension| path.ends_with(extension.as_bytes()))
+}
+
+fn raw_secret_path_in_scan_domain(
+    root: &Path,
+    path: &[u8],
+    plan_files: &std::collections::HashSet<String>,
+    skip_extensions: &[String],
+) -> bool {
+    if !raw_secret_path_scannable(path)
+        || !raw_secret_path_has_allowed_directories(path)
+        || !raw_scan_path_config_eligible(path, skip_extensions)
+    {
+        return false;
+    }
+    if plan_files.is_empty() {
+        return path.split(|byte| *byte == b'/').count() <= SECRET_SCAN_MAX_DEPTH;
+    }
+    std::str::from_utf8(path)
+        .is_ok_and(|path| secret_path_matches_plan_scope(root, Path::new(path), plan_files))
+}
+
+fn bounded_quarantined_paths_in_scan_domain(
+    root: &Path,
+    paths: std::collections::BTreeSet<Vec<u8>>,
+    plan_files: &std::collections::HashSet<String>,
+    skip_extensions: &[String],
+) -> std::collections::BTreeSet<String> {
+    paths
+        .into_iter()
+        .filter(|path| raw_secret_path_in_scan_domain(root, path, plan_files, skip_extensions))
+        .take(MAX_PROVENANCE_PATH_COUNT)
+        .map(|path| quarantined_inventory_path(&path))
+        .collect()
 }
 
 fn secret_path_matches_plan_scope(
@@ -5063,7 +5155,7 @@ mod tests {
             inventory
                 .quarantined_paths
                 .iter()
-                .all(|path| !path.contains('�'))
+                .all(|path| std::str::from_utf8(path).is_err())
         );
         assert_eq!(
             strict_inventory_path(br".env\literal").unwrap(),
@@ -5085,10 +5177,11 @@ mod tests {
             .iter()
             .next()
             .expect("control path should be quarantined");
+        let diagnostic = quarantined_inventory_path(diagnostic);
 
         assert!(diagnostic.contains('\n'));
         assert!(diagnostic.contains('\u{1b}'));
-        let rendered_diagnostic = render_gate_path(diagnostic);
+        let rendered_diagnostic = render_gate_path(&diagnostic);
         assert!(!rendered_diagnostic.contains('\n'));
         assert!(!rendered_diagnostic.contains('\u{1b}'));
         assert!(rendered_diagnostic.contains(r"\n"));
@@ -5097,6 +5190,52 @@ mod tests {
         assert!(!rendered.contains('\n'));
         assert!(!rendered.contains('\u{1b}'));
         assert_eq!(rendered, r".env\n\x1b[31m");
+    }
+
+    #[test]
+    fn unsafe_blob_quarantine_respects_domain_and_path_caps() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let header = valid_raw_inventory_header("A");
+        let mut raw = Vec::new();
+        for index in 0..MAX_PROVENANCE_PATH_COUNT + 17 {
+            raw.extend(raw_inventory_record(
+                &header,
+                format!("src/file-{index:04}\n.js").as_bytes(),
+            ));
+            raw.extend(raw_inventory_record(
+                &header,
+                format!("notes/file-{index:04}\n.txt").as_bytes(),
+            ));
+        }
+        let inventory = parse_staged_gate_inventory(&raw).expect("inventory should be valid");
+        assert!(inventory.quarantined_paths.len() > MAX_PROVENANCE_PATH_COUNT);
+        let retained = bounded_quarantined_paths_in_scan_domain(
+            tmp.path(),
+            inventory.quarantined_paths,
+            &std::collections::HashSet::new(),
+            &crate::util::secret_check_config(tmp.path()).skip_extensions,
+        );
+
+        assert_eq!(retained.len(), MAX_PROVENANCE_PATH_COUNT);
+        assert!(
+            !retained.is_empty(),
+            "retained unsafe blobs must fail closed"
+        );
+        assert!(retained.iter().all(|path| !path.contains(".txt")));
+
+        let too_deep = format!("{}unsafe\n.js", "directory/".repeat(SECRET_SCAN_MAX_DEPTH));
+        assert!(!raw_secret_path_in_scan_domain(
+            tmp.path(),
+            too_deep.as_bytes(),
+            &std::collections::HashSet::new(),
+            &[],
+        ));
+
+        let mut long_path = vec![b'a'; MAX_QUARANTINED_PATH_DISPLAY_BYTES + 128];
+        long_path.extend_from_slice(b"\n.js");
+        let rendered = quarantined_inventory_path(&long_path);
+        assert!(rendered.len() <= MAX_QUARANTINED_PATH_DISPLAY_BYTES + 3);
+        assert!(rendered.ends_with("..."));
     }
 
     #[test]
@@ -6489,6 +6628,74 @@ mod tests {
 
         assert!(!result.passed, "unsafe regular paths must fail closed");
         assert!(result.message.contains("[staged content unavailable]"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_ignores_unsafe_blob_paths_outside_scan_domain() {
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join("notes\n.txt"), "safe\n").unwrap();
+        std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
+        std::fs::write(
+            tmp.path()
+                .join("node_modules")
+                .join(std::ffi::OsStr::from_bytes(b"source-\xff.js")),
+            "export const safe = true;\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path()
+                .join(std::ffi::OsStr::from_bytes(b"bundle-\xff.min.js")),
+            "export const safe = true;\n",
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", "-A"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "provably out-of-domain paths must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("[staged content unavailable]"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_ignores_non_utf8_blob_outside_plan_scope() {
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::write(tmp.path().join("src/in_scope.rs"), "fn safe() {}\n").unwrap();
+        std::fs::write(
+            tmp.path()
+                .join("src")
+                .join(std::ffi::OsStr::from_bytes(b"out-\xff.js")),
+            "export const safe = true;\n",
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-A"]);
+        let plan_files = std::collections::HashSet::from(["src/in_scope.rs".to_string()]);
+
+        let result = run_check_secret_with_hook_mode("secret", tmp.path(), &plan_files, true);
+
+        assert!(
+            result.passed,
+            "non-UTF-8 paths cannot match a UTF-8 plan member: {}",
+            result.message
+        );
+        assert!(!result.message.contains("[staged content unavailable]"));
     }
 
     #[test]
