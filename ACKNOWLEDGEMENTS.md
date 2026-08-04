@@ -154,7 +154,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 358 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 361 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1058,7 +1058,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `aws-lc-sys` | 0.43.0 | ISC License | https://github.com/aws/aws-lc-rs |
 | `is_ci` | 1.2.0 | ISC License | https://github.com/zkat/is_ci |
 | `msvc_spectre_libs` | 0.1.3 | MIT License | https://github.com/microsoft/rust_msvc_spectre_libs |
-| `instability` | 0.3.12 | MIT License | https://github.com/ratatui/instability |
+| `instability` | 0.3.13 | MIT License | https://github.com/ratatui/instability |
 | `lazy_static` | 1.5.0 | MIT License | https://github.com/rust-lang-nursery/lazy-static.rs |
 | `rayon-core` | 1.13.0 | MIT License | https://github.com/rayon-rs/rayon |
 | `rayon` | 1.12.0 | MIT License | https://github.com/rayon-rs/rayon |
@@ -1090,7 +1090,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `num-rational` | 0.4.2 | MIT License | https://github.com/rust-num/num-rational |
 | `num-traits` | 0.2.19 | MIT License | https://github.com/rust-num/num-traits |
 | `num` | 0.4.3 | MIT License | https://github.com/rust-num/num |
-| `regex-automata` | 0.4.16 | MIT License | https://github.com/rust-lang/regex |
+| `regex-automata` | 0.4.18 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.13.1 | MIT License | https://github.com/rust-lang/regex |
 | `uuid` | 1.24.0 | MIT License | https://github.com/uuid-rs/uuid |
@@ -1235,22 +1235,25 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `libc` | 0.2.189 | MIT License | https://github.com/rust-lang/libc |
 | `idna_adapter` | 1.2.2 | MIT License | https://github.com/hsivonen/idna_adapter |
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
-| `ipnet` | 2.12.0 | MIT License | https://github.com/krisprice/ipnet |
+| `ipnet` | 2.12.1 | MIT License | https://github.com/krisprice/ipnet |
 | `rand` | 0.10.2 | MIT License | https://github.com/rust-random/rand |
 | `zerocopy-derive` | 0.8.55 | MIT License | https://github.com/google/zerocopy |
 | `zerocopy` | 0.8.55 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
-| `lru` | 0.18.1 | MIT License | https://github.com/jeromefroe/lru-rs.git |
+| `lru` | 0.18.2 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
 | `font8x8` | 0.3.1 | MIT License | https://gitlab.com/saibatizoku/font8x8-rs |
 | `smawk` | 0.3.3 | MIT License | https://github.com/mgeisler/smawk |
 | `static_assertions` | 1.1.0 | MIT License | https://github.com/nvzqz/static-assertions-rs |
 | `darling` | 0.20.11 | MIT License | https://github.com/TedDriggs/darling |
 | `darling` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
+| `darling` | 0.24.0 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_core` | 0.20.11 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_core` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
+| `darling_core` | 0.24.0 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_macro` | 0.20.11 | MIT License | https://github.com/TedDriggs/darling |
 | `darling_macro` | 0.23.0 | MIT License | https://github.com/TedDriggs/darling |
+| `darling_macro` | 0.24.0 | MIT License | https://github.com/TedDriggs/darling |
 | `crc32fast` | 1.5.0 | MIT License | https://github.com/srijs/rust-crc32fast |
 | `bytemuck` | 1.25.2 | MIT License | https://github.com/Lokathor/bytemuck |
 | `bytemuck_derive` | 1.11.0 | MIT License | https://github.com/Lokathor/bytemuck |
@@ -1269,7 +1272,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `outref` | 0.5.2 | MIT License | https://github.com/Nugine/outref |
 | `demand` | 2.0.5 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
-| `line-clipping` | 0.3.7 | MIT License | https://github.com/ratatui/line-clipping |
+| `line-clipping` | 0.3.8 | MIT License | https://github.com/ratatui/line-clipping |
 | `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
@@ -1376,11 +1379,11 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `typenum` | 1.20.1 | MIT License | https://github.com/paholg/typenum |
 | `tree-sitter-c-sharp` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-c-sharp |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
-| `aho-corasick` | 1.1.4 | MIT License | https://github.com/BurntSushi/aho-corasick |
+| `aho-corasick` | 1.1.5 | MIT License | https://github.com/BurntSushi/aho-corasick |
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |
 | `byteorder` | 1.5.0 | MIT License | https://github.com/BurntSushi/byteorder |
-| `globset` | 0.4.19 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/globset |
-| `ignore` | 0.4.31 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/ignore |
+| `globset` | 0.4.20 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/globset |
+| `ignore` | 0.4.33 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/ignore |
 | `memchr` | 2.8.3 | MIT License | https://github.com/BurntSushi/memchr |
 | `termcolor` | 1.4.1 | MIT License | https://github.com/BurntSushi/termcolor |
 | `walkdir` | 2.5.0 | MIT License | https://github.com/BurntSushi/walkdir |
@@ -1390,7 +1393,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `fsevent-sys` | 4.1.0 | MIT License | https://github.com/octplane/fsevent-rust/tree/master/fsevent-sys |
 | `security-framework-sys` | 2.17.0 | MIT License | https://github.com/kornelski/rust-security-framework |
 | `security-framework` | 3.7.0 | MIT License | https://github.com/kornelski/rust-security-framework |
-| `data-encoding` | 2.11.0 | MIT License | https://github.com/ia0/data-encoding |
+| `data-encoding` | 2.11.1 | MIT License | https://github.com/ia0/data-encoding |
 | `aws-lc-sys` | 0.43.0 | MIT License | https://github.com/aws/aws-lc-rs |
 | `kasuari` | 0.4.12 | MIT License | https://github.com/ratatui/kasuari |
 | `derive_more-impl` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
