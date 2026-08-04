@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-08-04 (`v0.9.2-beta` published; active cut is
 `v0.9.3-beta` — Morgan honesty CIB-220..227 / #3510 **and** Dave Windows
-install/path CIB-228..245 / #3514. See `RELEASE-PLAN.md`. Module status lives in
-the SOT files below; this roadmap stays thematic.)
+install/path CIB-228..245 / #3514 **plus** pack-02 commissioning/TUI
+CIB-250..267 (RETRACT-1; preserve pack-01 disposition). See `RELEASE-PLAN.md`.
+Module status lives in the SOT files below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -119,9 +120,9 @@ next credible surface after this cut. DASH/DASHCORE foundation is already on
 claim until default-on or a later named window owns it.
 
 **Active cut:** `v0.9.3-beta` — honesty pass (Morgan Deus; CIB-220..227 / #3510)
-**plus** Windows install/self-update path (Dave; CIB-228..229 P0 and related
-#3514). Prior: `v0.9.2-beta` MCP reconnect. Current state:
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
+**plus** Windows install/self-update path (Dave; CIB-228..229 P0 and related;
+pack-02 P0 trust CIB-252/254 #3514). Prior: `v0.9.2-beta` MCP reconnect. Current
+state: [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 
 ### Horizon 3 — Enterprise Readiness

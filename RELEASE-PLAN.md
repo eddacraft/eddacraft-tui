@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                     |
-| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-04: **`v0.9.3-beta`** = honesty pass (Morgan CIB-220..227 / #3510) + Windows install/update path (Dave CIB-228..243 / #3514; auth wall excluded). Prior cut `v0.9.2-beta` MCP reconnect is published. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-04: **`v0.9.3-beta`** = honesty pass (Morgan CIB-220..227 / #3510) + Windows install/update path (Dave pack-01 CIB-228..243 / #3514; auth wall excluded) + pack-02 commissioning/TUI intake **CIB-250..267** (RETRACT-1 + trust candidates). Prior cut `v0.9.2-beta` MCP reconnect is published. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -57,6 +57,8 @@ restore the Windows install / self-update path for cargo-dist users.
   APS **CIB-220..227**
 - Dave field report: [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
   · APS **CIB-228..243** (auth wall excluded by operator)
+- Dave pack-02 commissioning + TUI (2026-08-04): APS **CIB-250..267** ·
+  preserves pack-01 disposition; **RETRACT-1** conditions hook-block anchors
 
 ### Primary claim (must ship)
 
@@ -110,6 +112,36 @@ Full report: `Projects/tmp/20260804-anvil-beta-0.9.2-test-{josh,agent}.md`.
 | **CIB-244** | Verdict Install reflects this-run multi-client choice         | P1  | start TUI | Dual-era Install vs registry consent |
 | **CIB-245** | Grouped multi-step consent; blurbs on project/hooks/workflows | P2  | start TUI | MCP secondary; multi-screen OK       |
 
+### Dave pack-02 intake (commissioning + TUI; 2026-08-04)
+
+Sources: operator pack `/tmp/anvil-dave-pack02/` (Windows-only scope binding).
+**Pack-01 disposition preserved** (do not re-file UPD/TRUST/UX/CONF/AUTH).
+**RETRACT-1** replaces unconditional pack-01 hook-block regression anchors.
+
+| ID          | Item                                    | Pri      | Dave ID                 | Tonight?          | Notes                         |
+| ----------- | --------------------------------------- | -------- | ----------------------- | ----------------- | ----------------------------- |
+| **CIB-250** | Condition hook-block regression anchors | P1       | RETRACT-1               | Yes (if capacity) | Anchors A/B                   |
+| **CIB-251** | Config-mode hooks honesty (opt-in)      | P1       | HOOK-1                  | Maybe             | One git; default file-mode OK |
+| **CIB-252** | Workspace register false success        | P0       | WS-1                    | **Yes**           | Coords CIB-160                |
+| **CIB-253** | status vs intercept daemon agreement    | P1       | STATUS-1                | Yes (if capacity) | Low-risk                      |
+| **CIB-254** | Daemon save-time silent miss            | P0       | WATCH-1                 | **Yes**           | ND caveat                     |
+| **CIB-255** | gate / check --all domain disclosure    | P1       | GATE-1, CHECK-1, GATE-2 | Yes (if capacity) | Same stance as CIB-234        |
+| **CIB-256** | start --verify meaning honesty          | P2       | START-1                 | If green          |                               |
+| **CIB-257** | Init sample + language honesty          | P2       | INIT-2, INIT-3          | If green          |                               |
+| **CIB-258** | Tutorial progress repo scoping          | P1       | TUI-2                   | Yes (if capacity) | Wrong-repo activate           |
+| **CIB-259** | Learning-path overclaim copy            | P2       | TUI-8                   | If green          |                               |
+| **CIB-260** | Welcome save-time promise               | P3       | WELCOME-1               | No                |                               |
+| **CIB-261** | Windows policy-path idempotent          | P2       | TUI-4                   | If green          | Windows                       |
+| **CIB-262** | --json for workspace list / tutorial    | P3       | JSON-1                  | No                |                               |
+| **CIB-263** | Init lists .gitignore                   | P3       | INIT-1                  | No                |                               |
+| **CIB-264** | status no project cache side effect     | P3       | STATUS-3                | No                |                               |
+| **CIB-265** | esc back vs exit                        | P3       | TUI-1                   | No                | Status Proposed               |
+| **CIB-266** | Watch dashboard local/relative time     | P3       | TUI-7                   | No                |                               |
+| **CIB-267** | Pre-push silent pass                    | Proposed | PUSH-1                  | No                | Needs repro after 252         |
+
+**Absorbed / non-scope:** STATUS-2→CIB-235; PATH-1→CIB-237; TUI-9→CIB-248;
+TUI-3/5/6/10, TUI-N1/N2, R1..R8 not automatic release work.
+
 ### Not a claim of this release
 
 - Browser dashboard default-on
@@ -129,7 +161,8 @@ Full report: `Projects/tmp/20260804-anvil-beta-0.9.2-test-{josh,agent}.md`.
 | **Intake Windows path** | File CIB-228..230 + #3514 (Dave; still live on 0.9.2)     | Done 2026-08-04             |
 | **Intake Dave field**   | File CIB-231..243; **exclude auth wall**                  | Done 2026-08-04             |
 | **Re-triage Dave**      | Merge UPD-3→229; demote CONF/trust/UX per operator review | Done 2026-08-04             |
-| **P0 implement**        | CIB-228, 229 (receipt+classify+check); then CIB-220       | Next                        |
+| **Intake Dave pack-02** | File CIB-250..267; RETRACT-1; preserve pack-01 map        | Done 2026-08-04             |
+| **P0 implement**        | CIB-228, 229; then CIB-252, 254 (pack-02 trust); CIB-220  | Next                        |
 | **P1 implement**        | CIB-221, 222                                              | Same cut                    |
 | **P2 implement**        | CIB-230 (with 228), 223, 224, 227                         | Same cut if unblocked       |
 | **P3**                  | CIB-225, 226                                              | Same cut or follow-up patch |
@@ -145,6 +178,8 @@ Full report: `Projects/tmp/20260804-anvil-beta-0.9.2-test-{josh,agent}.md`.
   cargo-dist receipt layout).
 - **CIB-220** validated (TUI project-scope MCP path).
 - **CIB-221** and **CIB-222** validated (or explicit waive with issue).
+- **Pack-02 P0 if green tonight:** CIB-252 (register honesty), CIB-254
+  (save-time daemon path) validated or explicitly waived with reason.
 - Changelog leads with install/update + honesty fixes, not new features.
 - Strategy: **direct** unless readiness forces stabilisation.
 - Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag
@@ -152,13 +187,15 @@ Full report: `Projects/tmp/20260804-anvil-beta-0.9.2-test-{josh,agent}.md`.
 
 ### Risks
 
-| Risk                                           | Mitigation                                                                                   |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Guard inject still breaks cargo-dist `param`   | Insert after cargo-dist `param` as fall-through; assembly fixture in CI                      |
-| Receipt rename misses legacy names             | Try `eddacraft-anvil` then `anvil`; actionable error if neither configures                   |
-| Project-scope MCP reopens installer edge cases | Prefer thin path: stop `Skip` for project; reuse scope-aware installer already used headless |
-| Auth false-negative hides real login need      | Fixture matrix: no token / expired / valid / pro                                             |
-| Scope copy on value line confuses              | One short parenthetical; match insights scorecard language                                   |
+| Risk                                             | Mitigation                                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Guard inject still breaks cargo-dist `param`     | Insert after cargo-dist `param` as fall-through; assembly fixture in CI                      |
+| Receipt rename misses legacy names               | Try `eddacraft-anvil` then `anvil`; actionable error if neither configures                   |
+| Project-scope MCP reopens installer edge cases   | Prefer thin path: stop `Skip` for project; reuse scope-aware installer already used headless |
+| Auth false-negative hides real login need        | Fixture matrix: no token / expired / valid / pro                                             |
+| Scope copy on value line confuses                | One short parenthetical; match insights scorecard language                                   |
+| Pack-02 WS-1 register false success (Windows)    | Ship honesty first (CIB-252); durable path coords CIB-160 — never claim Registered if empty  |
+| Pack-02 WATCH-1 daemon save-time non-determinism | Do not claim fixed on one happy path; repeat controlled write-while-watch (CIB-254)          |
 
 ---
 

@@ -11,8 +11,10 @@
 > The active window is **`v0.9.3-beta`** — honesty pass (Morgan Deus 0.9.1;
 > **CIB-220..227** / [#3510](https://github.com/eddacraft/anvil-001/issues/3510))
 > plus Dave field report (Windows install/update **CIB-228..230** P0; further
-> confinement/trust/UX **CIB-231..243**; [#3514](https://github.com/eddacraft/anvil-001/issues/3514)).
-> Auth wall intentionally not tracked. See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
+> confinement/trust/UX **CIB-231..243**; [#3514](https://github.com/eddacraft/anvil-001/issues/3514))
+> and Dave pack-02 commissioning/TUI intake **CIB-250..267** (RETRACT-1;
+> preserve pack-01 disposition). Auth wall intentionally not tracked. See
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 ## Contents
 
@@ -102,11 +104,12 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | CIB-228 + CIB-229 — Windows installer silent no-op + cargo-dist receipt/classify/update | Ready | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3514](https://github.com/eddacraft/anvil-001/issues/3514), [RELEASE-PLAN](../RELEASE-PLAN.md) | P0 for **v0.9.3-beta**; official Windows install is a no-op on clean machines; self-update check broken for cargo-dist receipts. Dave 0.9.1 feedback; still live on 0.9.2. | Fix inject shape (post-`param`, no happy-path `exit 0`); CIB-229 receipt path + classify order + update --check; CIB-230 with installer change. |
-| 2 | CIB-244 — verdict Install shows chosen clients (not Cursor/Claude-only skips) | Ready | [CIB](./modules/continuous-improvement-backlog.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | P1 honesty; multi-client consent exists but Install block still dual-era. | Wire this-run registry outcomes into Install; collapse unselected noise. |
-| 3 | CIB-220..225 — start honesty (MCP/auth/value/non-git/flags) | Merged | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3520](https://github.com/eddacraft/anvil-001/pull/3520), [#3522](https://github.com/eddacraft/anvil-001/pull/3522) | Shipped on main. | None. |
-| 4 | CIB-226 + CIB-227 — public CLI docs + multi-client wording | Merged | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3525](https://github.com/eddacraft/anvil-001/pull/3525) | Shipped on main. | None. |
-| 5 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Still highest-value programme track after the 0.9.3 cut; not a 0.9.3 claim. | After 0.9.3 or in parallel if capacity; prefer thin witness-lines path. |
-| 6 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
+| 2 | CIB-252 + CIB-254 — pack-02 trust: register false success + daemon save-time silent miss | Ready | [CIB](./modules/continuous-improvement-backlog.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | P0 tonight candidates from Dave pack-02 commissioning; Windows-observed. | Fix register honesty (coords CIB-160); investigate watch daemon path + degraded-label pairing. |
+| 3 | CIB-244 — verdict Install shows chosen clients (not Cursor/Claude-only skips) | Ready | [CIB](./modules/continuous-improvement-backlog.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | P1 honesty; multi-client consent exists but Install block still dual-era. | Wire this-run registry outcomes into Install; collapse unselected noise. |
+| 4 | CIB-220..225 — start honesty (MCP/auth/value/non-git/flags) | Merged | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3520](https://github.com/eddacraft/anvil-001/pull/3520), [#3522](https://github.com/eddacraft/anvil-001/pull/3522) | Shipped on main. | None. |
+| 5 | CIB-226 + CIB-227 — public CLI docs + multi-client wording | Merged | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3525](https://github.com/eddacraft/anvil-001/pull/3525) | Shipped on main. | None. |
+| 6 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Still highest-value programme track after the 0.9.3 cut; not a 0.9.3 claim. | After 0.9.3 or in parallel if capacity; prefer thin witness-lines path. |
+| 7 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
 
 ## Release Plan
 
@@ -121,7 +124,7 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.9.3-beta`** (honesty CIB-220..227 / #3510 + Dave CIB-228..243 / #3514; auth wall excluded), declared in
+window is **`v0.9.3-beta`** (honesty CIB-220..227 / #3510 + Dave CIB-228..243 / #3514 + pack-02 CIB-250..267; auth wall excluded), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 
@@ -233,7 +236,7 @@ Codebase-maintenance and code-review-backlog are retained for history.
 
 | Module                                                                      | Scope | Status      | Progress           |
 | --------------------------------------------------------------------------- | ----- | ----------- | ------------------ |
-| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 174/245 (standing continuous-improvement intake. **2026-08-04:** filed **CIB-246..249** (welcome dual-menu naming, first-run 11-ERROR framing, autoplay auth after login, TTY teardown; CIB-249 Done→superseded by 248); **CIB-244..245** (start Install multi-client honesty + consent blurbs); Dave field **CIB-228..243** (#3514; auth wall excluded; CIB-231 Done→superseded by 229); honesty pass **CIB-220..227** (#3510). **2026-07-30 reconcile:** CIB-161/#3120, CIB-163/#3125, CIB-191/#3285, CIB-192 Wave C triage Merged; harvested 38 pending notes; last triaged **2026-07-30**; filed **CIB-208..210** Draft; closed CIB-114..116 as superseded; filed **CIB-211..215** Ready for supported-surface risks. Ready examples include CIB-202, 204, 205, 211..215, 220..230, 232..248 (CIB-231 and CIB-249 Done). Per-item status in the module file.) |
+| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 185/263 (standing continuous-improvement intake. **2026-08-04 pack-02:** filed **CIB-250..267** (RETRACT-1, WS-1, WATCH-1, GATE/CHECK domain, TUI scoping; STATUS-2→235, PATH-1→237, TUI-9→248; R1..R8 non-scope). **2026-08-04:** filed **CIB-246..249** (welcome dual-menu naming, first-run 11-ERROR framing, autoplay auth after login, TTY teardown; CIB-249 Done→superseded by 248); **CIB-244..245** (start Install multi-client honesty + consent blurbs); Dave field **CIB-228..243** (#3514; auth wall excluded; CIB-231 Done→superseded by 229); honesty pass **CIB-220..227** (#3510). **2026-07-30 reconcile:** CIB-161/#3120, CIB-163/#3125, CIB-191/#3285, CIB-192 Wave C triage Merged; harvested 38 pending notes; last triaged **2026-07-30**; filed **CIB-208..210** Draft; closed CIB-114..116 as superseded; filed **CIB-211..215** Ready for supported-surface risks. Ready examples include CIB-202, 204, 205, 211..215, 220..230, 232..248, 250..264, 266 (CIB-231 and CIB-249 Done; CIB-265/267 Proposed). Per-item status in the module file.) |
 | [clawpatch-pre-tag-v0.7.0-beta](./archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md) | CLAWP | Archived | 53/65 (archived 2026-06-03 via CIB-039 — 53 Merged / 11 Ship / 1 Deferred-tracked; CLAWP-001 PR #1732, CLAWP-008 PR #1765, CLAWP-011 PR #1791, CLAWP-012 PR #1772, CLAWP-013 PR #1788, CLAWP-014 PR #1786, CLAWP-015 PR #1783, CLAWP-021 PR #1764, CLAWP-022 PR #1770, CLAWP-028 PR #1763, CLAWP-029 PR #1789, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065, CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142, CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159, CLAWP-065 PR #2211; 2026-06-03 reconcile of fixes shipped untracked, verified vs `origin/main`: CLAWP-034 PR #1186, CLAWP-043 PR #1114, CLAWP-044 PR #1163, CLAWP-051 PR #1653; 2026-06-03 #1740 test-hardening batch (24 items) Merged via PRs #2261 / #2265 / #2267) |
 | [aps-dashboard-starter](./modules/aps-dashboard-starter.aps.md)             | APSDASH | In Progress | 2/4 (APSDASH-001 Done — ADR-055 filed (OSS carve-out). APSDASH-002 Done — seed kit staged + verified (30/30 vs crates.io `eddacraft-tui`). ADR-055 Accepted 2026-06-18 (legal gate cleared); APSDASH-003 Ready — execute pre-publication scrub before lift. APSDASH-004 Proposed — downstream re-development in `anvil-plan-spec`.) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md)         | CRB   | Complete    | 29/29              |

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 177/245  |
+| CIB | —     | In Progress | 185/263  |
 
 ## Purpose
 
@@ -6302,7 +6302,9 @@ archive.
 - **Validation:** planted multi-file secret fixture; audit output names domain;
   no requirement that issue count equals `check --all`.
 - **Identified From:** Dave TRUST-2; re-triage.
-- **Coordinates with:** CIB-233, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Coordinates with:** CIB-233, CIB-255 (gate/`check --all` domain — same
+  disclosure stance, different surfaces),
+  [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
 - **Confidence:** high on presentation; medium if residual true misses found.
 
 ### CIB-235: `status` Protection:warming must name next step or refuse that label
@@ -6322,6 +6324,11 @@ archive.
 - **Identified From:** Dave field report 2026-08-04 TRUST-3.
 - **Coordinates with:** CIB-220 honesty, start --verify meaning lines,
   [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Pack-02 extension (STATUS-2, 2026-08-04):** A never-activated repo can
+  report `L3 commit partial` / `L4 push partial` while `doctor` correctly says
+  hooks not installed / unprotected. Same honesty family as warming — layers
+  must not read as partially on when nothing is installed. Prefer one fix pass
+  with TRUST-3 rather than a second CIB.
 - **Confidence:** high.
 
 ### CIB-236: `insights` zeros must disclose the counted domain
@@ -6355,6 +6362,8 @@ archive.
   gate, audit, skill install.
 - **Identified From:** Dave field report 2026-08-04 UX-1.
 - **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Pack-02 absorb (PATH-1):** `status --json` emits mixed separators in one
+  value (e.g. `.git\\hooks/pre-commit`). Covered here; no separate CIB.
 - **Confidence:** high.
 
 ### CIB-238: Clarify "Blocking warnings" means threshold-block, not severity=warning
@@ -6688,6 +6697,9 @@ archive.
 - **Identified From:** `anvil-beta` 14-03 (fail → login ok → fail again);
   operator reiteration that post-auth failure is the smoking gun.
 - **Coordinates with:** ADR-080, AUTH, CIB-249, CIB-221
+- **Pack-02 absorb (TUI-9):** Dave pack-02 `tutorial --autoplay` returns
+  Authentication required while host `auth whoami` succeeds — same sandbox
+  `env_clear` root cause. Do **not** re-file; land under this item / PR #3521.
 - **Confidence:** high — screenshot sequence + source-level env isolation.
 
 ### CIB-249: Keep clean TTY teardown when welcome *does* exit (secondary to stay-in-TUI)
@@ -6721,3 +6733,409 @@ archive.
 - **Coordinates with:** CIB-248 (owns recovery UX)
 - **Confidence:** high on demotion; teardown already OK on clean TTY.
 
+
+## Pack-02 intake (Dave commissioning + TUI, 2026-08-04)
+
+Sources: `/tmp/anvil-dave-pack02/report.md` + `report.json` (Windows 11, Git Bash,
+git 2.55.0.windows.3, anvil 0.9.2-beta x86_64-msvc). **One platform / one git /
+one console width** are binding scope limits.
+
+**Baseline preserved:** Pack-01 disposition (Grok 6.1 → CIB-228..243 / #3514;
+auth wall excluded; UPD-3→229; open admission intentional; trust fields keep
+contract semantics). Pack-02 does **not** re-file those IDs.
+
+**RETRACT-1 (binding):** Pack-01 verified-good "hooks install then committing a
+secret is blocked" was unconditional. It holds only for **file-mode** hooks and
+**extensions gate scans**. Replacement anchors: (A) file-mode + scanned
+extension asserts block; (B) file-mode + `.py` asserts current gap until domain
+settled. Tracked as **CIB-250**.
+
+### Pack-02 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| RETRACT-1 | correction / conditioned anchors | **CIB-250** Ready P1 |
+| HOOK-1 | net-new honesty (opt-in `--config`; one git) | **CIB-251** Ready P1 |
+| WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
+| STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
+| STATUS-2 | absorbed into CIB-235 | CIB-235 pack-02 extension |
+| START-1 | net-new honesty | **CIB-256** Ready P2 |
+| WATCH-1 | net-new trust (ND caveat) | **CIB-254** Ready P0 |
+| INIT-2 | net-new honesty | **CIB-257** Ready P2 |
+| TUI-8 | net-new copy honesty | **CIB-259** Ready P2 |
+| GATE-1 | net-new domain disclosure | **CIB-255** Ready P1 · coords CIB-234 |
+| CHECK-1 | net-new domain/scoping | **CIB-255** (same item) |
+| GATE-2 | needs internals; same family | **CIB-255** observation |
+| TUI-1 | net-new polish (operator-observed) | **CIB-265** Proposed |
+| JSON-1 | net-new | **CIB-262** Ready P3 · coords CIB-240 |
+| PUSH-1 | needs reproduction (plausible only) | **CIB-267** Proposed |
+| INIT-1 | net-new polish | **CIB-263** Ready P3 |
+| INIT-3 | net-new polish | **CIB-257** (with INIT-2) |
+| WELCOME-1 | net-new polish | **CIB-260** Ready P3 |
+| STATUS-3 | net-new polish | **CIB-264** Ready P3 |
+| PATH-1 | absorbed | CIB-237 |
+| TUI-2 | net-new scoping | **CIB-258** Ready P1 |
+| TUI-3 | plausible | deliberate non-scope tonight · note only |
+| TUI-4 | net-new Windows | **CIB-261** Ready P2 |
+| TUI-5/TUI-6 | width-dependent plausible | deliberate non-scope tonight |
+| TUI-7 | net-new polish | **CIB-266** Ready P3 |
+| TUI-9 | absorbed | CIB-248 / PR #3521 |
+| TUI-10 | plausible low | deliberate non-scope tonight |
+| TUI-N1/N2 | nitpicks | deliberate non-scope |
+| R1..R8 | suggestions | deliberate non-scope (not release work) |
+| Pack-01 UPD/TRUST/UX/CONF/AUTH | preserve prior disposition | CIB-228..243; AUTH untracked |
+
+### CIB-250: Condition pack-01 hook-block regression anchors (RETRACT-1)
+
+- **Status:** Ready
+- **Priority:** P1 for `v0.9.3-beta` (test/trust hygiene — prevent false green)
+- **Intent:** Pack-01 verified-good claimed unconditionally that after hooks
+  install, committing a secret is blocked. Dave RETRACT-1 confirms that only
+  holds for **file-mode** hooks and **extensions that gate scans**. An
+  unconditional suite anchor passes on ground that does not generalise.
+- **Expected Outcome:** Split/replace any pack-01-derived regression anchor:
+  - **Anchor A:** file-mode hook + scanned extension (e.g. `.env`) — asserts
+    block.
+  - **Anchor B:** file-mode hook + `.py` (or other gate-miss extension) —
+    documents current domain gap; flips green when CIB-255 domain is settled.
+  - Document that `--config` mode is **not** covered by Anchor A without a
+    platform-verified hook fire (HOOK-1 / CIB-251).
+- **Non-scope:** Changing default install mode; redefining gate domains (CIB-255).
+- **Validation:** suite comments/fixtures name conditions; no bare
+  "hooks install → secret blocked" without mode + extension.
+- **Identified From:** Dave pack-02 RETRACT-1 (2026-08-04).
+- **Coordinates with:** CIB-251, CIB-255, pack-01 verified-good disposition
+- **Confidence:** high — Dave confirmed; self-described as reporting-ahead.
+
+### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
+
+- **Status:** Ready
+- **Priority:** P1 honesty (default file-mode still works; opt-in path)
+- **Intent:** On Dave's Windows git 2.55, `hook.<event>.command` config does not
+  fire on commit, yet after `anvil hooks install --config` doctor reports
+  `hooks-installed` pass and status shows L3/L4 on. End-to-end: secret in
+  `.env` lands under `--config`, blocked under default file-mode.
+- **Caveats (binding):** `--config` is **opt-in**; default file-mode works.
+  One platform / one git only — may be environment-scoped if other gits honour
+  config hooks. Do not claim a universal git bug without multi-platform repro.
+- **Expected Outcome:** doctor/status either (a) verify a hook actually runs
+  before "pass"/"on", or (b) label config-mode as installed-but-unverified /
+  environment-dependent and not "L3 on". Prefer honest degraded wording over
+  silent green. Optional: diagnose husky-via-Node remedy pressure that pushed
+  Dave to `--config` on Node-less hosts (copy only unless product owns a
+  non-Node path).
+- **Non-scope:** Shipping a different git; flipping default away from file-mode.
+- **Validation:** fresh repo `hooks install --config` then commit with marker
+  file / secret; surfaces match whether hook fired. File-mode path remains
+  green.
+- **Identified From:** Dave pack-02 HOOK-1.
+- **Coordinates with:** CIB-250, GHOOK archive, CIB-235 layer honesty
+- **Confidence:** high on observation; medium that root cause is anvil vs git.
+
+### CIB-252: Workspace register must not report success when list is empty (WS-1)
+
+- **Status:** Ready
+- **Priority:** P0 for `v0.9.3-beta` (trust / durable worktree protection)
+- **Intent:** With daemon running, `anvil workspace register "$PWD"` prints
+  `Registered <path>.` exit 0, then `workspace list` shows none. Same via
+  `anvil start` lifecycle. Blocks establishing durable worktree protection
+  (upstream of PUSH-1 partial activation). Daemonless path already says
+  "Daemon unavailable — not registered" — that honesty must reach the
+  daemon-attached path when registration does not stick.
+- **Likely related:** CIB-160 (Windows durable membership fail-closed over wire
+  without peer-exe authorisation). Even if durable register is unavailable on
+  Windows, **false success is worse than an explicit failure**.
+- **Expected Outcome:** Register either persists and `list` shows the entry, or
+  exits non-zero / prints the existing daemon-unavailable-style failure with
+  reason (e.g. durable claim downgraded, admission open decorative — see
+  CIB-232). Never claim Registered when the registry is empty.
+- **Non-scope:** Full portable peer-exe durable membership (owned by CIB-160)
+  can land separately once honesty is fixed.
+- **Validation:** daemon up → register → list non-empty **or** explicit fail;
+  daemon down keeps honest unavailable message.
+- **Identified From:** Dave pack-02 WS-1 (Windows; requires daemon).
+- **Coordinates with:** CIB-160, CIB-232, PUSH-1/CIB-267
+- **Confidence:** high on false-success observation.
+
+### CIB-253: `status` must not contradict live daemon (STATUS-1)
+
+- **Status:** Ready
+- **Priority:** P1 honesty (low-risk probe/copy)
+- **Intent:** After `intercept start`, `anvil status` reports `Daemon: not
+  running` while `intercept status` and OS process table show the daemon up.
+  Reproduced in three repos. Same block already has accurate
+  `daemon: not attesting` phrasing two lines above.
+- **Expected Outcome:** Human status agrees with intercept status on
+  running/not-running, or states a scoped difference explicitly (e.g. "not
+  attesting this repo" vs process not running). Prefer reusing "not attesting"
+  when that is the true condition.
+- **Validation:** intercept start → status and intercept status agree on process
+  liveness; three-repo smoke if cheap.
+- **Identified From:** Dave pack-02 STATUS-1.
+- **Coordinates with:** CIB-235, CIB-242
+- **Confidence:** high.
+
+### CIB-254: Daemon-path save-time must not read as clean over live secrets (WATCH-1)
+
+- **Status:** Ready
+- **Priority:** P0 for `v0.9.3-beta` (save-time trust) — investigate before
+  claiming fixed
+- **Intent:** With watch daemon path default, writing an AWS secret key into a
+  watched `.py` yields `stale{cross-file-resolution-needed} (0 finding(s))` or
+  `--action gate` "All quality gates passed! (score: 100%)". Same file with
+  `ANVIL_WATCH_DAEMON=0 --no-daemon` reports the secret. Degraded
+  `stale{…}` is honest in isolation but paired with `(0 finding(s))` reads as
+  clean. intercept status stayed `0 save-time active`; status never left
+  `L2 save off`.
+- **Caveat (binding):** One early `watch --action gate` run DID fail
+  secret-detection; controlled repeat passed. Treat daemon-on path as
+  **non-deterministic until explained** — do not ship a "fixed" claim on a
+  single happy path.
+- **Expected Outcome:** (1) When degraded/stale, do not present a clean score
+  or zero findings as success without the degraded label dominating. (2)
+  Daemon path detects the same class of secrets as non-daemon for the same
+  write, or honestly refuses save-time attachment. (3) Document non-determinism
+  if residual races remain.
+- **Validation:** controlled write-while-watch with AWS fixture key; daemon and
+  non-daemon; repeat ≥3 for stability.
+- **Identified From:** Dave pack-02 WATCH-1.
+- **Coordinates with:** DSV/watch daemon routing, CIB-255 domain if extension
+  interacts
+- **Confidence:** high on behaviour gap; medium on root cause.
+
+### CIB-255: Disclose `gate` / `check --all` secret file domains (GATE-1, CHECK-1, GATE-2)
+
+- **Status:** Ready
+- **Priority:** P1 trust honesty for `v0.9.3-beta` (prefer disclosure over
+  forced parity — same stance as CIB-234)
+- **Intent:**
+  - **GATE-1:** `check app.py` finds AWS secret; `gate` PASS 100% with no
+    domain statement. Gate detects secrets in `.ts/.js/.json/.yml/.toml/.env/
+    .env.local` but not `.py/.rb/.go/.java/.txt/.ini/.sh/.ps1/.md`. Per-file
+    check finds all sixteen. Practical: Python/Go/shell-only secret repos get
+    a green commit gate.
+  - **CHECK-1:** `check --all` reports "Checked 3 file(s)" (`.js/.py/.ts`
+    only) while per-file check finds secrets in all 16 extensions. Correction:
+    not a "dotfile exclude" bug — extension scoping.
+  - **GATE-2:** `gate --json` "Anti-pattern check passed: 3 files scanned" in
+    a ~25-file repo with planted secrets; mechanism unknown (plan-scoping
+    **refuted** by Dave). Needs internal knowledge; treat as same family.
+- **Non-scope / do not:** Force gate/check count parity without product ADR
+  (Dave correctly applied the CIB-234 audit ruling). Do not expand domains
+  silently without stating the previous/new domain if that is the product
+  choice.
+- **Expected Outcome:** Prefer domain disclosure on human + JSON gate and
+  `check --all` (what was scanned / skipped), matching import-boundaries
+  "Skipping" honesty. If product expands gate secret domain, add Anchor B
+  flip from CIB-250. GATE-2 count either explained in output or fixed once
+  mechanism is known.
+- **Validation:** multi-extension secret fixture; gate and check --all name
+  domain or detect consistently with stated domain; regression tests for
+  disclosure strings.
+- **Identified From:** Dave pack-02 GATE-1, CHECK-1, GATE-2.
+- **Coordinates with:** CIB-234, CIB-239, CIB-250
+- **Confidence:** high on GATE-1/CHECK-1; medium on GATE-2 mechanism.
+
+### CIB-256: `start --verify` meaning must not claim writes that did not run (START-1)
+
+- **Status:** Ready
+- **Priority:** P2 honesty (same pattern as CIB-220..222)
+- **Intent:** On a virgin repo, `anvil start --verify` reports
+  `state: ready_restart_required` and `meaning: anvil has written the MCP
+  config…` while `config: absent` / `config: defaults` — non-mutating probe
+  describes a completed write. Two different `config:` keys also render under
+  one label.
+- **Expected Outcome:** meaning lines describe **this run's** verified state;
+  if MCP was not written, do not claim it was. Distinct config keys keep
+  distinct labels. Align with start honesty pass tone.
+- **Validation:** virgin repo `start --verify`; no false write claims; labels
+  unique.
+- **Identified From:** Dave pack-02 START-1.
+- **Coordinates with:** CIB-220..222, CIB-223..225
+- **Confidence:** high.
+
+### CIB-257: Init sample-scan and language-coverage honesty (INIT-2, INIT-3)
+
+- **Status:** Ready
+- **Priority:** P2 honesty
+- **Intent:**
+  - **INIT-2:** Init over a sole secret-bearing file prints
+    `Scanned 1 file(s) (sampled…)` then tick "No warnings found in this
+    sample" — sample word is honest; the tick reads as clean.
+  - **INIT-3:** Repo of 17 files (md/yml/ps1/sh) gets "No source files yet —
+    nothing to scan" while `start --verify` inventories Markdown (8). Prefer
+    existing vocabulary: unsupported languages, not file absence.
+- **Expected Outcome:** Sample/clean results cannot be skimmed as full-tree
+  clear; empty-language message uses unsupported-coverage wording.
+- **Validation:** secret-in-sample fixture; non-source-only fixture.
+- **Identified From:** Dave pack-02 INIT-2, INIT-3.
+- **Coordinates with:** CIB-247 first-run scan framing
+- **Confidence:** high.
+
+### CIB-258: Scope tutorial progress to repo/workspace (TUI-2)
+
+- **Status:** Ready
+- **Priority:** P1 (scoping / activation footgun — Dave weights with WS-1)
+- **Intent:** `~/.anvil/tutorial-progress.json` has no repo/project/workspace
+  key. Resume lands on "Press enter to activate in **this** repo" wherever the
+  operator now stands — can write activation into the wrong tree.
+- **Expected Outcome:** Progress is scoped (repo root identity or explicit
+  workspace id), or resume always re-confirms target path before activate.
+  Wrong-repo activation without confirmation is a fail.
+- **Validation:** complete path in repo A; open tutorial in repo B → no silent
+  activate into B without naming B.
+- **Identified From:** Dave pack-02 TUI-2 (file inspected + operator).
+- **Coordinates with:** CIB-246 hub naming, R4 suggestion (non-binding)
+- **Confidence:** high on global file shape.
+
+### CIB-259: Learning-path copy must not claim configuration the walk did not perform (TUI-8)
+
+- **Status:** Ready
+- **Priority:** P2 honesty
+- **Intent:** Binary strings claim "You now have architecture enforcement
+  configured." and "Your CI pipeline now runs anvil checks on every push."
+  after walks that did not perform those writes. Other paths are scrupulous
+  (reporting-ahead inconsistency).
+- **Expected Outcome:** Path completion copy matches demonstrated steps;
+  configuration claims only after actual writes or with explicit "not applied"
+  framing (tutorial already has [read-only] / [writes to your repo] tags).
+- **Validation:** string audit of path completion copy vs walk side effects.
+- **Identified From:** Dave pack-02 TUI-8 (binary-verified).
+- **Coordinates with:** R8 editorial rule (non-binding), CIB-246
+- **Confidence:** high on strings; medium on product intent.
+
+### CIB-260: Welcome must not promise save-time that `start` does not attach (WELCOME-1)
+
+- **Status:** Ready
+- **Priority:** P3 polish
+- **Intent:** Welcome closes "Next: run `anvil start` for daily save-time
+  protection" while `start --verify` reports `watch: not_requested`,
+  `save-time: not attached`.
+- **Expected Outcome:** Next-step copy matches what start actually does by
+  default, or start offers save-time when that is the promised path.
+- **Validation:** welcome → start --verify copy alignment.
+- **Identified From:** Dave pack-02 WELCOME-1.
+- **Coordinates with:** CIB-246, CIB-254
+- **Confidence:** high.
+
+### CIB-261: Policy-checks tutorial step idempotent on Windows (TUI-4)
+
+- **Status:** Ready
+- **Priority:** P2 Windows tutorial reliability
+- **Intent:** Policy-checks path uses `mkdir .anvil\policies` on Windows.
+  Re-run fails with raw "already exists" exit 1; `r` retries identically. Copy
+  states both OS branches — Unix `mkdir -p` not tested by Dave.
+- **Expected Outcome:** Re-run succeeds or offers skip framing; no raw shell
+  failure as the only UX. Prefer `mkdir -p` equivalent / exist-ok on Windows
+  branch.
+- **Caveat:** Report Windows copy behaviour only until Unix re-verified.
+- **Validation:** run Policy-checks path twice on Windows; second pass green
+  or guided skip.
+- **Identified From:** Dave pack-02 TUI-4.
+- **Coordinates with:** tutorial executor
+- **Confidence:** high on Windows observation.
+
+### CIB-262: Honour `--json` for `workspace list` and `tutorial` (JSON-1)
+
+- **Status:** Ready
+- **Priority:** P3 contract polish
+- **Intent:** `workspace list --json` returns prose byte-identical to text;
+  `tutorial --json` returns prose and suggests dropping `--no-tui` when that
+  flag was not passed. Peer commands (status, doctor, check, gate, …) honour
+  `--json`.
+- **Expected Outcome:** Both commands emit structured JSON or refuse with
+  non-zero + accurate reason. Tutorial message must not invent `--no-tui`
+  (coords CIB-240).
+- **Validation:** `--json` parseable; tutorial non-tty path exit non-zero.
+- **Identified From:** Dave pack-02 JSON-1.
+- **Coordinates with:** CIB-240
+- **Confidence:** high.
+
+### CIB-263: Init summary must list `.gitignore` edits (INIT-1)
+
+- **Status:** Ready
+- **Priority:** P3 polish
+- **Intent:** Init appends `.anvil/`, exception lock, witness chain paths to
+  `.gitignore` without listing that file in the summary (Config/Plans/Checks
+  only). Edits are correct; summary short. (`start` separately touches
+  `.gitattributes` — do not re-attribute that to init.)
+- **Expected Outcome:** Summary lists every path touched, matching tutorial
+  blast-radius honesty tags.
+- **Validation:** init on repo with tracked `.gitignore`; summary names it.
+- **Identified From:** Dave pack-02 INIT-1.
+- **Confidence:** high.
+
+### CIB-264: `status` should not create project cache as a side effect (STATUS-3)
+
+- **Status:** Ready
+- **Priority:** P3 polish
+- **Intent:** In a never-activated repo, `anvil status` alone creates
+  `.anvil/cache/last-seen-version`. Read-only look leaves a trace. Dave first
+  missed this under dry-run clean-room without `--touch-project-state`.
+- **Expected Outcome:** Prefer no project writes for pure status, or document
+  and gate the cache write behind an explicit touch / activation. Global home
+  cache is fine if project tree stays clean.
+- **Validation:** fresh git repo; status; no new `.anvil/` unless documented.
+- **Identified From:** Dave pack-02 STATUS-3.
+- **Confidence:** high.
+
+### CIB-265: Tutorial `esc back` exits instead of going back (TUI-1)
+
+- **Status:** Proposed
+- **Priority:** P3 polish (operator-observed; labels binary-verified)
+- **Intent:** Esc is advertised under nine labels; where the bar reads
+  `esc back`, press exits the tutorial across several paths. Other esc
+  meanings not fully tested.
+- **Expected Outcome:** Label matches behaviour (back goes back, quit quits)
+  on tutorial chrome, or label is corrected to quit.
+- **Validation:** operator walk of learning paths; bar label vs key result.
+- **Identified From:** Dave pack-02 TUI-1.
+- **Confidence:** medium — confirmed labels + repeated back/exit; full matrix
+  untested.
+- **Non-scope tonight:** not a release ship gate.
+
+### CIB-266: Watch dashboard live timestamps should not read as stale UTC (TUI-7)
+
+- **Status:** Ready
+- **Priority:** P3 polish
+- **Intent:** Watch dashboard shows bare UTC (`…Z`) on a live view; operator
+  in +0800 read a 75s-old entry as eight hours stale.
+- **Expected Outcome:** Relative or local time for live-monitoring views;
+  absolute UTC acceptable as secondary/detail.
+- **Validation:** live watch entry age vs clock.
+- **Identified From:** Dave pack-02 TUI-7.
+- **Confidence:** high.
+
+### CIB-267: Pre-push silent exit 0 under partial activation (PUSH-1) — needs reproduction
+
+- **Status:** Proposed
+- **Priority:** not a ship gate until reproduced with full activation
+- **Intent:** With local bare remote, pre-push hook runs (GIT_TRACE), emits
+  nothing, exits 0; `l4-validate` silent; audit-chain witnessed 0/10. **Dave
+  confidence: plausible only.** Activation was partial (`init` +
+  `start --no-mcp`) on a worktree that never registered (**WS-1**). May be
+  entirely downstream of incomplete activation rather than L4 logic.
+- **Also note:** invoking `anvil hook pre-push testremote <url>` like git's
+  argv fails with unexpected argument — shipped shim strips argv so not a live
+  bug, but GIT_TRACE copypaste misleads operators (docs only).
+- **Expected Outcome:** After reproduction with durable worktree + full
+  activation + a real remote path, pre-push either blocks/validates with a
+  stated reason or documents intentional pass conditions. Until reproduced,
+  **do not treat as a confirmed L4 regression**.
+- **Validation:** blocked on CIB-252 (and full activation); then controlled
+  push matrix.
+- **Identified From:** Dave pack-02 PUSH-1.
+- **Coordinates with:** CIB-252, CIB-216 pre-push runtime
+- **Confidence:** low–medium — plausible; caveat may explain all of it.
+
+### Pack-02 deliberate non-scope (do not auto-file work)
+
+- **TUI-3** resume mid-path (plausible) — product UX later
+- **TUI-5 / TUI-6** dual help bars / next: truncation — one console width only
+- **TUI-10** 6 vs 7 path counts — unconfirmed intent
+- **TUI-N1 / TUI-N2** nitpicks — skip freely per Dave
+- **R1..R8** 60-second walk design suggestions — not findings; not release work
+- **AUTH day-zero wall** — still operator-excluded from pack-01
+- **Untested surfaces** — lsp, capsule, exception, edda/ember, drift, uninstall,
+  wizard, new, dashboard, real remote push, three learning paths E2E, macOS,
+  Linux, other gits
