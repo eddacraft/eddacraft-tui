@@ -6220,8 +6220,7 @@ archive.
 
 ### CIB-232: Disclose open admission mode honestly (do not flip factory default)
 
-- **Status:** In Progress — PR [#3529](https://github.com/eddacraft/anvil-001/pull/3529)
-  open; on merge, set to `Merged YYYY-MM-DD via PR #3529`.
+- **Status:** Merged 2026-08-04 via PR #3529
 - **Priority:** P3 presentation (Dave CONF-1; re-triaged 2026-08-04)
 - **Scope narrowing (recorded 2026-08-04):** delivered on `anvil workspace list`
   and `anvil workspace mode open` only. `anvil status` is deliberately left
