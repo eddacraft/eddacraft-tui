@@ -1016,7 +1016,7 @@ fn staged_gate_changes(root: &Path) -> Option<BTreeMap<String, Option<String>>> 
             "--name-status",
             "-z",
             "--find-renames",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRT",
             "--",
         ])
         .current_dir(root)
@@ -1078,7 +1078,25 @@ fn raw_secret_finding_key(
     })
 }
 
+const MAX_STAGED_BLOB_SIZE: u64 = 1024 * 1024;
+
 fn git_blob_content(root: &Path, object: &str) -> Option<String> {
+    let size = std::process::Command::new("git")
+        .args(["cat-file", "-s", object])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    if !size.status.success() {
+        return None;
+    }
+    let size = String::from_utf8(size.stdout)
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()?;
+    if size >= MAX_STAGED_BLOB_SIZE {
+        return None;
+    }
     let output = std::process::Command::new("git")
         .args(["cat-file", "blob", object])
         .current_dir(root)
@@ -1104,19 +1122,29 @@ fn parse_diff_range(token: &str, prefix: char) -> Option<(usize, usize)> {
     Some((start.parse().ok()?, len.parse().ok()?))
 }
 
-fn index_to_worktree_hunks(root: &Path, path: &str) -> Option<Vec<LineHunk>> {
-    let output = std::process::Command::new("git")
+fn diff_line_hunks(
+    root: &Path,
+    path: &str,
+    cached: bool,
+    source_path: Option<&str>,
+) -> Option<Vec<LineHunk>> {
+    let mut command = std::process::Command::new("git");
+    command.arg("diff");
+    if cached {
+        command.arg("--cached");
+    }
+    command
         .args([
-            "diff",
             "--no-ext-diff",
             "--no-color",
+            "--find-renames",
             "--unified=0",
-            "--",
-            path,
         ])
-        .current_dir(root)
-        .output()
-        .ok()?;
+        .arg("--");
+    if let Some(source_path) = source_path.filter(|source_path| *source_path != path) {
+        command.arg(source_path);
+    }
+    let output = command.arg(path).current_dir(root).output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -1134,6 +1162,14 @@ fn index_to_worktree_hunks(root: &Path, path: &str) -> Option<Vec<LineHunk>> {
         });
     }
     Some(hunks)
+}
+
+fn index_to_worktree_hunks(root: &Path, path: &str) -> Option<Vec<LineHunk>> {
+    diff_line_hunks(root, path, false, None)
+}
+
+fn head_to_index_hunks(root: &Path, path: &str, head_path: Option<&str>) -> Option<Vec<LineHunk>> {
+    diff_line_hunks(root, path, true, head_path)
 }
 
 fn map_index_line_to_worktree(index_line: usize, hunks: &[LineHunk]) -> Option<usize> {
@@ -1175,21 +1211,37 @@ fn staged_secret_provenance(
         if !secret_path_scannable(Path::new(&path)) {
             continue;
         }
-        let index_content = git_blob_content(root, &format!(":{path}"))?;
+        let Some(index_content) = git_blob_content(root, &format!(":{path}")) else {
+            continue;
+        };
         let head_content = head_path
             .as_deref()
+            .filter(|head_path| secret_path_scannable(Path::new(head_path)))
             .and_then(|head_path| git_blob_content(root, &format!("HEAD:{head_path}")))
             .unwrap_or_default();
-        let mut base_counts = BTreeMap::<RawSecretFindingKey, usize>::new();
+        let head_to_index = head_to_index_hunks(root, &path, head_path.as_deref());
+        let mut base_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
         for finding in anvil_checks::secret::scan_content(&head_content, &path, config) {
-            let key = raw_secret_finding_key(&finding, &head_content)?;
-            *base_counts.entry(key).or_default() += 1;
+            let Some(key) = raw_secret_finding_key(&finding, &head_content) else {
+                continue;
+            };
+            let Some(index_line) = head_to_index
+                .as_deref()
+                .and_then(|hunks| map_index_line_to_worktree(finding.line, hunks))
+            else {
+                continue;
+            };
+            *base_counts.entry((index_line, key)).or_default() += 1;
         }
 
         let mut introduced = Vec::new();
-        for finding in anvil_checks::secret::scan_content(&index_content, &path, config) {
-            let key = raw_secret_finding_key(&finding, &index_content)?;
-            if let Some(count) = base_counts.get_mut(&key)
+        for mut finding in anvil_checks::secret::scan_content(&index_content, &path, config) {
+            let Some(key) = raw_secret_finding_key(&finding, &index_content) else {
+                finding.file.clone_from(&path);
+                provenance.index_only.push(finding);
+                continue;
+            };
+            if let Some(count) = base_counts.get_mut(&(finding.line, key.clone()))
                 && *count > 0
             {
                 *count -= 1;
@@ -1198,18 +1250,21 @@ fn staged_secret_provenance(
             }
         }
         let worktree_content = std::fs::read_to_string(root.join(&path)).unwrap_or_default();
-        let hunks = index_to_worktree_hunks(root, &path)?;
+        let hunks = index_to_worktree_hunks(root, &path);
         let mut worktree_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
         for finding in worktree_findings
             .iter()
             .filter(|finding| finding_workspace_path(root, &finding.file) == path)
         {
-            let key = raw_secret_finding_key(finding, &worktree_content)?;
-            *worktree_counts.entry((finding.line, key)).or_default() += 1;
+            if let Some(key) = raw_secret_finding_key(finding, &worktree_content) {
+                *worktree_counts.entry((finding.line, key)).or_default() += 1;
+            }
         }
 
         for (mut finding, key) in introduced {
-            let mapped_line = map_index_line_to_worktree(finding.line, &hunks);
+            let mapped_line = hunks
+                .as_deref()
+                .and_then(|hunks| map_index_line_to_worktree(finding.line, hunks));
             let mapped_key = mapped_line.map(|line| (line, key.clone()));
             if let Some((line, key)) = mapped_key
                 && let Some(count) = worktree_counts.get_mut(&(line, key.clone()))
@@ -4418,6 +4473,226 @@ mod tests {
                 .any(|line| line.contains(".env.new:1") && line.contains("pre-existing")),
             "an unchanged staged rename must retain HEAD provenance: {}",
             result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_marks_rename_into_scannable_scope_primary() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        write_detectable_env(&tmp.path().join("safe.txt"));
+        git_for_hook_fixture(tmp.path(), &["add", "safe.txt"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        git_for_hook_fixture(tmp.path(), &["mv", "safe.txt", ".env"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed);
+        let renamed_finding = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env:1"))
+            .expect("renamed finding should be rendered");
+        assert!(
+            !renamed_finding.contains("pre-existing"),
+            "renaming a secret into scan scope introduces gate debt: {renamed_finding}"
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_isolates_non_utf8_staged_blob() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join(".env.invalid"), [0xff]).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.invalid"]);
+        let secret_path = tmp.path().join(".env.secret");
+        write_detectable_env(&secret_path);
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.secret"]);
+        std::fs::write(&secret_path, "SAFE_VALUE=working-tree\n").unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed, "a readable staged secret must still block");
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env.secret:1")),
+            "one invalid blob must not discard other staged provenance: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_skips_oversized_staged_blob_without_discarding_others() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let large_path = tmp.path().join(".env.a-large");
+        let value = "abcd".repeat(10);
+        let prefix = format!("aws_secret_access_key='{value}'\n");
+        let oversized = format!(
+            "{prefix}{}",
+            "x".repeat(
+                usize::try_from(anvil_checks::secret::MAX_FILE_SIZE).unwrap() - prefix.len()
+            )
+        );
+        std::fs::write(&large_path, oversized).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.a-large"]);
+        std::fs::write(&large_path, "SAFE_VALUE=working-tree\n").unwrap();
+        let secret_path = tmp.path().join(".env.z-secret");
+        write_detectable_env(&secret_path);
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.z-secret"]);
+        std::fs::write(&secret_path, "SAFE_VALUE=working-tree\n").unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            !result.passed,
+            "the bounded readable staged secret must block"
+        );
+        assert!(
+            !result.message.contains(".env.a-large:"),
+            "the existing size boundary must apply to index blobs: {}",
+            result.message
+        );
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env.z-secret:1")),
+            "an oversized blob must not discard other staged provenance: {}",
+            result.message
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_includes_symlink_to_regular_type_change() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join("safe.txt"), "SAFE_VALUE=committed\n").unwrap();
+        std::os::unix::fs::symlink("safe.txt", tmp.path().join(".env.link")).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.link", "safe.txt"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::remove_file(tmp.path().join(".env.link")).unwrap();
+        write_detectable_env(&tmp.path().join(".env.link"));
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.link"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed);
+        let finding = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env.link:1"))
+            .expect("type-changed finding should be rendered");
+        assert!(
+            !finding.contains("pre-existing"),
+            "a type-changed staged secret must be primary: {finding}"
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_matches_identical_head_occurrence_by_line() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env");
+        let value = "abcd".repeat(10);
+        let secret = format!("aws_secret_access_key='{value}'");
+        std::fs::write(
+            &env_path,
+            format!("ANCHOR=before\n{secret}\nANCHOR=after\n"),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::write(
+            &env_path,
+            format!("{secret}\nANCHOR=before\n{secret}\nANCHOR=after\n"),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        let inserted = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env:1"))
+            .expect("inserted occurrence should be rendered");
+        let surviving = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env:3"))
+            .expect("surviving occurrence should be rendered");
+        assert!(
+            !inserted.contains("pre-existing"),
+            "the inserted identical occurrence must remain primary: {inserted}"
+        );
+        assert!(
+            surviving.contains("pre-existing"),
+            "the HEAD occurrence must retain provenance after a line shift: {surviving}"
         );
     }
 
