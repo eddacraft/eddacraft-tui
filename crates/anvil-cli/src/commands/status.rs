@@ -2573,15 +2573,20 @@ mod tests {
         };
         let facts = activation::SharedPostureFacts::from_diagnostic(&diag);
         let mut snapshot = legible_test_snapshot(WorktreeClaimState::Warming);
-        snapshot.next_action =
-            next_action_for(WorktreeClaimState::Warming, &DaemonSummary::NotRunning).to_string();
+        snapshot.next_action = next_action_for_diagnostic(
+            WorktreeClaimState::Warming,
+            &DaemonSummary::NotRunning,
+            &diag,
+        )
+        .to_string();
         snapshot.posture_facts = facts.fact_lines();
         snapshot.posture_meaning = facts.meaning_for_status_claim("warming");
 
         let rendered = render_plain_legible(&snapshot);
 
         assert!(
-            rendered.contains("Next: Restart your editor or agent"),
+            rendered
+                .contains("Next: Restart your editor or agent, then run `anvil start --verify`."),
             "warming must name the action that can advance it: {rendered}"
         );
         assert!(
