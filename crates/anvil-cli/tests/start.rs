@@ -245,7 +245,7 @@ fn run_start_in_pty(
     // CIB-224: `start_command_env` forces ANVIL_ALL_MCP_CLIENTS for hermetic
     // install coverage. That collides with `--no-mcp` (and ANVIL_NO_MCP). Drop
     // the all-clients opt-in when the test is intentionally skipping MCP.
-    if extra_args.iter().any(|arg| *arg == "--no-mcp") {
+    if extra_args.contains(&"--no-mcp") {
         command.env_remove("ANVIL_ALL_MCP_CLIENTS");
         command.env_remove("ANVIL_NO_MCP"); // flag alone owns opt-out
     }
