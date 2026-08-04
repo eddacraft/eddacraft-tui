@@ -31,10 +31,34 @@ pub(crate) fn execute_command(command: &str) -> CommandOutput {
     command_output(process.output())
 }
 
-fn autoplay_process(
-    command: &str,
-    root: &std::path::Path,
-) -> std::io::Result<std::process::Command> {
+/// Runs one autoplay demo check **in-process** and returns what the user sees.
+///
+/// CIB-248: autoplay used to re-enter the gated `anvil check` CLI as a child
+/// process with `env_clear()` and a sandbox `HOME`/`ANVIL_HOME`. Real
+/// credentials live under the host config dir, so the child never saw them and
+/// every demo step failed `Authentication required` — including straight after
+/// a successful `anvil auth login`, because the sandbox env is what hid the
+/// credentials, not the absence of a session.
+///
+/// ADR-080 already settles the shape of the fix: `welcome` is ungated and the
+/// hub runs gate / audit / doctor "in-process", so the demo runs the check the
+/// same way. No CLI dispatch happens, so the licence gate is never consulted
+/// and no externally-settable bypass is introduced.
+///
+/// `anvil-tui` deliberately depends only on `eddacraft-tui` and
+/// `anvil-kernel-types`, so the runner is **injected** by `anvil-cli` (which
+/// already owns the check crates) rather than called directly from here.
+pub type AutoplayRunner =
+    std::sync::Arc<dyn Fn(&std::path::Path) -> CommandOutput + Send + Sync + 'static>;
+
+/// Validate an autoplay command and resolve its target inside the sandbox.
+///
+/// The allow-list is unchanged from the subprocess era: exactly
+/// `anvil check <relative-target>`, resolved through
+/// [`super::resolve_working_path`] so symlink and `..` escapes are rejected.
+/// Keeping this gate matters even without a child process — the runner is
+/// handed a path, and that path must stay inside the sandbox.
+fn autoplay_target(command: &str, root: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
     let words = command.split_ascii_whitespace().collect::<Vec<_>>();
     let ["anvil", "check", target] = words.as_slice() else {
         return Err(std::io::Error::new(
@@ -42,32 +66,19 @@ fn autoplay_process(
             "autoplay command must be exactly: anvil check <relative-target>",
         ));
     };
-    let target = super::resolve_working_path(root, std::path::Path::new(target))?;
-    let mut process = std::process::Command::new(std::env::current_exe()?);
-    process
-        .arg("check")
-        .arg(target)
-        .current_dir(root)
-        .env_clear();
-    for (name, path) in [
-        ("ANVIL_HOME", ".anvil-home"),
-        ("HOME", ".home"),
-        ("XDG_CONFIG_HOME", ".config"),
-        ("XDG_RUNTIME_DIR", ".runtime"),
-        ("TMPDIR", ".tmp"),
-        ("TEMP", ".tmp"),
-        ("TMP", ".tmp"),
-        ("USERPROFILE", ".home"),
-        ("APPDATA", ".config"),
-        ("LOCALAPPDATA", ".local-share"),
-    ] {
-        process.env(name, root.join(path));
-    }
-    Ok(process)
+    super::resolve_working_path(root, std::path::Path::new(target))
 }
 
+/// An autoplay check running on a worker thread.
+///
+/// The demo check is fast (one pinned fixture), but it still runs off the UI
+/// thread so a slow filesystem cannot freeze the tutorial mid-frame. The
+/// polling shape (`is_finished` → `finish`) is unchanged from the subprocess
+/// implementation, so the caller in `tutorial::mod` keeps its existing
+/// non-blocking tick.
 pub(crate) struct AutoplayCommand {
-    child: Option<std::process::Child>,
+    receiver: std::sync::mpsc::Receiver<CommandOutput>,
+    output: Option<CommandOutput>,
     started_at: std::time::Instant,
     timed_out: bool,
 }
@@ -75,14 +86,31 @@ pub(crate) struct AutoplayCommand {
 impl AutoplayCommand {
     const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
-    pub(crate) fn spawn(command: &str, root: &std::path::Path) -> std::io::Result<Self> {
-        let mut process = autoplay_process(command, root)?;
-        process
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+    /// Validate the command first, then require a runner.
+    ///
+    /// Ordering matters: a malformed or escaping command is rejected as such
+    /// whether or not `anvil-cli` supplied a runner, so the allow-list message
+    /// never gets masked by a wiring error.
+    pub(crate) fn spawn(
+        command: &str,
+        root: &std::path::Path,
+        runner: Option<&AutoplayRunner>,
+    ) -> std::io::Result<Self> {
+        let target = autoplay_target(command, root)?;
+        let runner = runner.ok_or_else(|| {
+            std::io::Error::other("autoplay demo is unavailable: no check runner was supplied")
+        })?;
+        let runner = std::sync::Arc::clone(runner);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("anvil-autoplay-check".to_string())
+            .spawn(move || {
+                // A disconnected receiver just means the tutorial moved on.
+                let _ = sender.send(runner(&target));
+            })?;
         Ok(Self {
-            child: Some(process.spawn()?),
+            receiver,
+            output: None,
             started_at: std::time::Instant::now(),
             timed_out: false,
         })
@@ -90,58 +118,69 @@ impl AutoplayCommand {
 
     #[cfg(test)]
     pub(crate) fn successful_for_test() -> Self {
-        let mut process = std::process::Command::new(std::env::current_exe().expect("test binary"));
-        process
-            .arg("--help")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sender
+            .send(CommandOutput {
+                stdout: "AP-003 explicit any".to_string(),
+                stderr: String::new(),
+                success: true,
+                exit_code: Some(0),
+            })
+            .expect("test output");
         Self {
-            child: Some(process.spawn().expect("successful test child")),
+            receiver,
+            output: None,
             started_at: std::time::Instant::now(),
             timed_out: false,
         }
     }
 
     pub(crate) fn is_finished(&mut self) -> std::io::Result<bool> {
-        let child = self.child.as_mut().expect("autoplay child is present");
-        if child.try_wait()?.is_some() {
+        if self.output.is_some() || self.timed_out {
             return Ok(true);
         }
-        if self.started_at.elapsed() >= Self::TIMEOUT {
-            self.timed_out = true;
-            child.kill()?;
-            return Ok(true);
+        match self.receiver.try_recv() {
+            Ok(output) => {
+                self.output = Some(output);
+                Ok(true)
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(std::io::Error::other(
+                "autoplay check ended without reporting a result",
+            )),
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                if self.started_at.elapsed() >= Self::TIMEOUT {
+                    self.timed_out = true;
+                    return Ok(true);
+                }
+                Ok(false)
+            }
         }
-        Ok(false)
     }
 
     pub(crate) fn finish(mut self) -> CommandOutput {
-        let timed_out = self.timed_out;
-        let child = self.child.take().expect("autoplay child is present");
-        let mut output = command_output(child.wait_with_output());
-        if timed_out {
-            output.success = false;
-            output.stderr = "autoplay command exceeded its 30 second limit".to_string();
+        if self.timed_out {
+            return CommandOutput {
+                stdout: String::new(),
+                stderr: "autoplay command exceeded its 30 second limit".to_string(),
+                success: false,
+                exit_code: None,
+            };
         }
-        output
+        self.output
+            .take()
+            .or_else(|| self.receiver.recv().ok())
+            .unwrap_or_else(|| CommandOutput {
+                stdout: String::new(),
+                stderr: "autoplay check ended without reporting a result".to_string(),
+                success: false,
+                exit_code: None,
+            })
     }
 
-    pub(crate) fn cancel(mut self) {
-        if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-    }
-}
-
-impl Drop for AutoplayCommand {
-    fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-    }
+    /// Abandon the result. The worker thread is not killable, but it only
+    /// reads one pinned sandbox file and exits, so dropping the receiver is
+    /// enough — the send simply fails and the thread ends.
+    pub(crate) fn cancel(self) {}
 }
 
 fn command_output(result: std::io::Result<std::process::Output>) -> CommandOutput {
@@ -221,58 +260,87 @@ mod tests {
         assert_eq!(output.stdout.trim(), "HELLO");
     }
 
+    /// CIB-248: the demo check must reach the runner in-process. The runner is
+    /// handed the resolved sandbox path and its output is what the tutorial
+    /// shows — no `anvil check` child process, so the licence gate that used to
+    /// fail every demo step with `Authentication required` is never consulted.
     #[test]
-    fn autoplay_process_is_structured_and_environment_is_allowlisted() {
+    fn autoplay_runs_in_process_against_the_resolved_sandbox_target() {
         let root = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(root.path().join("src")).expect("src");
         std::fs::write(root.path().join("src/app.ts"), "fixture").expect("fixture");
-        let process = autoplay_process("anvil check src/app.ts", root.path()).expect("process");
+
+        let seen: std::sync::Arc<std::sync::Mutex<Option<std::path::PathBuf>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let recorder = std::sync::Arc::clone(&seen);
+        let runner: AutoplayRunner = std::sync::Arc::new(move |target: &std::path::Path| {
+            *recorder.lock().expect("record target") = Some(target.to_path_buf());
+            CommandOutput {
+                stdout: "AP-003 explicit any".to_string(),
+                stderr: String::new(),
+                success: true,
+                exit_code: Some(0),
+            }
+        });
+
+        let mut command =
+            AutoplayCommand::spawn("anvil check src/app.ts", root.path(), Some(&runner)).expect("spawn");
+        while !command.is_finished().expect("poll") {
+            std::thread::yield_now();
+        }
+        let output = command.finish();
+
+        assert!(output.success);
+        assert_eq!(output.exit_code, Some(0));
+        assert!(output.stdout.contains("AP-003"));
 
         // `resolve_working_path` canonicalises the target (macOS: `/var` →
-        // `/private/var`); current_dir stays the path we passed in.
+        // `/private/var`), and the runner must never see a path outside root.
         let expected_target = root
             .path()
             .canonicalize()
             .expect("canonicalize root")
             .join("src/app.ts");
-        assert_eq!(process.get_current_dir(), Some(root.path()));
-        assert_eq!(process.get_program(), std::env::current_exe().unwrap());
-        assert_eq!(
-            process.get_args().collect::<Vec<_>>(),
-            [std::ffi::OsStr::new("check"), expected_target.as_os_str()]
-        );
-        let env: std::collections::HashMap<_, _> = process.get_envs().collect();
-        for value in env.values().flatten() {
-            assert!(std::path::Path::new(value).starts_with(root.path()));
-        }
-        assert!(!env.keys().any(|name| *name == std::ffi::OsStr::new("PATH")));
-        assert!(
-            !env.keys()
-                .any(|name| *name == std::ffi::OsStr::new("ANVIL_REGISTRY_PATH"))
-        );
+        let observed = seen.lock().expect("read target").clone().expect("invoked");
+        assert_eq!(observed, expected_target);
+    }
+
+    fn unreachable_runner() -> AutoplayRunner {
+        std::sync::Arc::new(|_: &std::path::Path| unreachable!("runner must not be reached"))
     }
 
     #[test]
-    fn autoplay_process_rejects_shell_and_alternate_binary_commands() {
+    fn autoplay_rejects_shell_and_alternate_binary_commands() {
         let root = tempfile::tempdir().expect("tempdir");
-        assert!(autoplay_process("cat src/app.ts", root.path()).is_err());
-        assert!(autoplay_process("anvil-check src/app.ts", root.path()).is_err());
-        assert!(autoplay_process("anvil check", root.path()).is_err());
-        assert!(autoplay_process("anvil check src/app.ts --fix", root.path()).is_err());
-        assert!(autoplay_process("anvil check src/app.ts && touch escaped", root.path()).is_err());
-        assert!(autoplay_process("anvil check ../outside.ts", root.path()).is_err());
-        assert!(autoplay_process("anvil check /tmp/outside.ts", root.path()).is_err());
+        let runner = unreachable_runner();
+        for command in [
+            "cat src/app.ts",
+            "anvil-check src/app.ts",
+            "anvil check",
+            "anvil check src/app.ts --fix",
+            "anvil check src/app.ts && touch escaped",
+            "anvil check ../outside.ts",
+            "anvil check /tmp/outside.ts",
+        ] {
+            assert!(
+                AutoplayCommand::spawn(command, root.path(), Some(&runner)).is_err(),
+                "expected rejection: {command}"
+            );
+        }
     }
 
     #[cfg(unix)]
     #[test]
-    fn autoplay_process_rejects_symlink_escape_target() {
+    fn autoplay_rejects_symlink_escape_target() {
         use std::os::unix::fs::symlink;
 
         let root = tempfile::tempdir().expect("root");
         let outside = tempfile::tempdir().expect("outside");
         symlink(outside.path(), root.path().join("linked")).expect("symlink");
 
-        assert!(autoplay_process("anvil check linked/app.ts", root.path()).is_err());
+        assert!(
+            AutoplayCommand::spawn("anvil check linked/app.ts", root.path(), Some(&unreachable_runner()))
+                .is_err()
+        );
     }
 }

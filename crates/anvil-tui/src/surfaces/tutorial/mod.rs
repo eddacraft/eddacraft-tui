@@ -1,6 +1,9 @@
 pub mod discovery;
 mod discovery_render;
 pub(crate) mod executor;
+
+/// The in-process autoplay check runner supplied by `anvil-cli` (CIB-248).
+pub use executor::AutoplayRunner;
 pub mod first_win;
 mod first_win_render;
 pub mod fix;
@@ -322,6 +325,9 @@ pub struct TutorialState {
     autoplay_watch_dwell: bool,
     autoplay_command: Option<executor::AutoplayCommand>,
     autoplay_command_advance: bool,
+    /// Supplied by `anvil-cli` (CIB-248). Runs the demo check in-process so
+    /// autoplay never re-enters the licence-gated `anvil check` CLI.
+    autoplay_runner: Option<executor::AutoplayRunner>,
     autoplay_failure: Option<String>,
     autoplay_teardown_requested: bool,
     autoplay_saved_context: Option<AutoplaySavedContext>,
@@ -409,6 +415,7 @@ impl TutorialState {
             autoplay_watch_dwell: false,
             autoplay_command: None,
             autoplay_command_advance: false,
+            autoplay_runner: None,
             autoplay_failure: None,
             autoplay_teardown_requested: false,
             autoplay_saved_context: None,
@@ -762,6 +769,15 @@ impl TutorialState {
 
     pub fn autoplay_driver_active(&self) -> bool {
         self.autoplay
+    }
+
+    /// Supply the in-process check runner used by the autoplay demo (CIB-248).
+    ///
+    /// `anvil-cli` owns this because it already depends on the check crates;
+    /// `anvil-tui` stays a presentation crate. Without a runner the demo
+    /// reports itself unavailable rather than shelling out to a gated CLI.
+    pub fn set_autoplay_runner(&mut self, runner: executor::AutoplayRunner) {
+        self.autoplay_runner = Some(runner);
     }
 
     pub fn autoplay_failure(&self) -> Option<&str> {
@@ -1362,7 +1378,7 @@ impl TutorialState {
             let Some(root) = self.working_root.as_deref() else {
                 return false;
             };
-            match executor::AutoplayCommand::spawn(cmd, root) {
+            match executor::AutoplayCommand::spawn(cmd, root, self.autoplay_runner.as_ref()) {
                 Ok(command) => {
                     self.autoplay_command = Some(command);
                     self.autoplay_command_advance = advance;
