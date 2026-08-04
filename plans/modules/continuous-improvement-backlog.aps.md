@@ -6549,9 +6549,8 @@ archive.
 
 ### CIB-247: First-run scan must not dump raw live-repo ERRORs as the tutorial "domain"
 
-- **Status:** In Progress 2026-08-04 — welcome/tutorial framing landed on
-  `fix/cib-247-first-run-scan-framing`; flip to
-  `Merged YYYY-MM-DD via PR #N` when that PR merges.
+- **Status:** In Progress 2026-08-04 — welcome/tutorial framing open in PR
+  #3524; flip to `Merged YYYY-MM-DD via PR #3524` when that PR merges.
 - **Implementation note (2026-08-04, In Progress):** took option **(b)**,
   honest framing of the live-repo scan. Options (a) and (c) both change *what
   is counted* — a sandbox domain or a `**/tests/**` exclusion would have made
