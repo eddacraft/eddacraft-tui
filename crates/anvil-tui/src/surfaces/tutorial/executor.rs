@@ -180,7 +180,9 @@ impl AutoplayCommand {
     /// Abandon the result. The worker thread is not killable, but it only
     /// reads one pinned sandbox file and exits, so dropping the receiver is
     /// enough — the send simply fails and the thread ends.
-    pub(crate) fn cancel(self) {}
+    pub(crate) fn cancel(self) {
+        drop(self.receiver);
+    }
 }
 
 fn command_output(result: std::io::Result<std::process::Output>) -> CommandOutput {
@@ -284,7 +286,8 @@ mod tests {
         });
 
         let mut command =
-            AutoplayCommand::spawn("anvil check src/app.ts", root.path(), Some(&runner)).expect("spawn");
+            AutoplayCommand::spawn("anvil check src/app.ts", root.path(), Some(&runner))
+                .expect("spawn");
         while !command.is_finished().expect("poll") {
             std::thread::yield_now();
         }
@@ -339,8 +342,12 @@ mod tests {
         symlink(outside.path(), root.path().join("linked")).expect("symlink");
 
         assert!(
-            AutoplayCommand::spawn("anvil check linked/app.ts", root.path(), Some(&unreachable_runner()))
-                .is_err()
+            AutoplayCommand::spawn(
+                "anvil check linked/app.ts",
+                root.path(),
+                Some(&unreachable_runner())
+            )
+            .is_err()
         );
     }
 }

@@ -1064,10 +1064,13 @@ fn scan_project_at(
 /// Try to start a file watcher for the tutorial. Returns the receiver and
 /// handle on success, or `None` if the watcher cannot be started (e.g.
 /// inotify limit reached, no project directory).
-fn try_start_tutorial_watcher() -> Option<(
+/// The tutorial's live-verification watcher: change receiver plus its handle.
+type TutorialWatcher = (
     std::sync::mpsc::Receiver<anvil_kernel::watcher::events::ChangeBatch>,
     anvil_kernel::watcher::WatcherHandle,
-)> {
+);
+
+fn try_start_tutorial_watcher() -> Option<TutorialWatcher> {
     let root = crate::util::workspace_root().ok()?;
     let config = anvil_kernel::watcher::WatcherConfig {
         root,
@@ -1086,6 +1089,24 @@ fn try_start_tutorial_watcher() -> Option<(
 /// changes trigger automatic re-verification on watched steps. When the
 /// user triggers a watch demo step (WELCOME-014), the watch demo surface
 /// is launched and the tutorial resumes afterward.
+/// Start (or restart) the tutorial file watcher, falling back to static mode.
+///
+/// The tutorial re-establishes its watcher whenever an autoplay sandbox is torn
+/// down — on ordinary teardown and, since CIB-248, on demo failure recovery.
+/// Without a watcher the tutorial degrades to informational steps rather than
+/// silently failing live verification.
+fn restart_tutorial_watcher(
+    tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+) -> Option<TutorialWatcher> {
+    let watcher = try_start_tutorial_watcher();
+    if watcher.is_none() {
+        tutorial_state.enable_static_mode_with_reason(
+            anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
+        );
+    }
+    watcher
+}
+
 fn run_tutorial_with_fix(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
@@ -1097,14 +1118,8 @@ fn run_tutorial_with_fix(
     // Try to start a file watcher for live verification (WELCOME-013).
     // If unavailable, the tutorial enters static mode (all steps become
     // informational press-enter-to-continue, commands are not executed).
-    let mut watcher = try_start_tutorial_watcher();
     let mut autoplay_sandbox: Option<AutoplaySandbox> = None;
-
-    if watcher.is_none() {
-        tutorial_state.enable_static_mode_with_reason(
-            anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
-        );
-    }
+    let mut watcher = restart_tutorial_watcher(tutorial_state);
 
     loop {
         let file_rx = watcher.as_ref().map(|(rx, _)| rx);
@@ -1124,23 +1139,13 @@ fn run_tutorial_with_fix(
             tutorial_state.recover_from_autoplay_failure(format!(
                 "The hands-free demo stopped: {failure}. Your repo was not touched — pick a path to continue."
             ));
-            watcher = try_start_tutorial_watcher();
-            if watcher.is_none() {
-                tutorial_state.enable_static_mode_with_reason(
-                    anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
-                );
-            }
+            watcher = restart_tutorial_watcher(tutorial_state);
             continue;
         }
 
         if tutorial_state.take_autoplay_teardown_requested() {
             drop(autoplay_sandbox.take());
-            watcher = try_start_tutorial_watcher();
-            if watcher.is_none() {
-                tutorial_state.enable_static_mode_with_reason(
-                    anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
-                );
-            }
+            watcher = restart_tutorial_watcher(tutorial_state);
             continue;
         }
 

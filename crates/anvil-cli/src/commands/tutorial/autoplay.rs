@@ -207,8 +207,7 @@ mod tests {
             output.stdout
         );
         assert!(
-            !output.stdout.contains("Authentication")
-                && !output.stderr.contains("Authentication"),
+            !output.stdout.contains("Authentication") && !output.stderr.contains("Authentication"),
             "the demo must never surface an auth wall: {} / {}",
             output.stdout,
             output.stderr
