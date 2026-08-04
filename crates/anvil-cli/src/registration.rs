@@ -14,8 +14,8 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use anvil_intercept_proto::SessionId;
 use anvil_intercept_proto::session::AgentTag;
+use anvil_intercept_proto::{SessionId, SessionRecord};
 use serde_json::Value;
 
 use crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT;
@@ -64,14 +64,24 @@ pub(crate) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistra
         &request_id,
         ACTIVATION_DAEMON_QUERY_TIMEOUT,
     ) {
-        Ok(_) => {
-            tracing::info!(
-                worktree = %canonical.display(),
-                session_id = session_id.as_str(),
-                "activation: registered worktree with intercept daemon",
-            );
-            WorktreeRegistration::Registered
-        }
+        Ok(_) => match crate::commands::intercept::query_daemon_status_with_timeout(
+            ACTIVATION_DAEMON_QUERY_TIMEOUT,
+        ) {
+            Ok(status) => confirm_durable_registration(&canonical, &status.sessions),
+            Err(err) => {
+                let message = format!(
+                    "daemon acknowledged registration for {}, but durable membership could not be confirmed: {err}",
+                    canonical.display(),
+                );
+                tracing::warn!(
+                    worktree = %canonical.display(),
+                    session_id = session_id.as_str(),
+                    error = %err,
+                    "activation: daemon registration acknowledgement could not be confirmed",
+                );
+                WorktreeRegistration::Rejected(message)
+            }
+        },
         // ADR-094 decision 3: a re-register of the same canonical worktree
         // (our deterministic id, or a `WorktreeAlreadyOwned` for an equivalent
         // spelling) heartbeats the existing owner rather than erroring.
@@ -112,6 +122,64 @@ pub(crate) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistra
     }
 }
 
+fn confirm_durable_registration(
+    canonical: &Path,
+    sessions: &[SessionRecord],
+) -> WorktreeRegistration {
+    let session_id = activation_session_id(canonical);
+    let outcome = confirm_registration_membership(
+        canonical,
+        &session_id,
+        sessions,
+        WorktreeRegistration::Registered,
+    );
+    if outcome == WorktreeRegistration::Registered {
+        tracing::info!(
+            worktree = %canonical.display(),
+            "activation: registered worktree with intercept daemon",
+        );
+    }
+    outcome
+}
+
+fn confirm_durable_refresh(canonical: &Path, sessions: &[SessionRecord]) -> WorktreeRegistration {
+    let session_id = activation_session_id(canonical);
+    confirm_registration_membership(
+        canonical,
+        &session_id,
+        sessions,
+        WorktreeRegistration::Refreshed,
+    )
+}
+
+fn confirm_registration_membership(
+    canonical: &Path,
+    session_id: &SessionId,
+    sessions: &[SessionRecord],
+    confirmed: WorktreeRegistration,
+) -> WorktreeRegistration {
+    let present = sessions.iter().any(|session| {
+        &session.id == session_id
+            && canonicalise_for_registration(&session.worktree) == canonical
+            && session
+                .agent_tag
+                .as_ref()
+                .is_some_and(AgentTag::is_durable_membership)
+    });
+    if present {
+        confirmed
+    } else {
+        missing_durable_membership(canonical)
+    }
+}
+
+fn missing_durable_membership(canonical: &Path) -> WorktreeRegistration {
+    WorktreeRegistration::Rejected(format!(
+        "daemon acknowledged registration for {}, but durable membership was absent from daemon status; retry registration and inspect `anvil intercept status`",
+        canonical.display(),
+    ))
+}
+
 fn refresh_existing_activation_session(
     session_id: &SessionId,
     canonical: &Path,
@@ -123,14 +191,34 @@ fn refresh_existing_activation_session(
         &request_id,
         ACTIVATION_DAEMON_QUERY_TIMEOUT,
     ) {
-        Ok(_) => {
-            tracing::info!(
-                worktree = %canonical.display(),
-                session_id = session_id.as_str(),
-                "activation: refreshed existing daemon worktree registration",
-            );
-            WorktreeRegistration::Refreshed
-        }
+        Ok(_) => match crate::commands::intercept::query_daemon_status_with_timeout(
+            ACTIVATION_DAEMON_QUERY_TIMEOUT,
+        ) {
+            Ok(status) => {
+                let outcome = confirm_durable_refresh(canonical, &status.sessions);
+                if outcome == WorktreeRegistration::Refreshed {
+                    tracing::info!(
+                        worktree = %canonical.display(),
+                        session_id = session_id.as_str(),
+                        "activation: refreshed existing daemon worktree registration",
+                    );
+                }
+                outcome
+            }
+            Err(err) => {
+                let message = format!(
+                    "daemon refreshed registration for {}, but durable membership could not be confirmed: {err}",
+                    canonical.display(),
+                );
+                tracing::warn!(
+                    worktree = %canonical.display(),
+                    session_id = session_id.as_str(),
+                    error = %err,
+                    "activation: refreshed daemon registration could not be confirmed",
+                );
+                WorktreeRegistration::Rejected(message)
+            }
+        },
         Err(err) => {
             let message = err.to_string();
             tracing::warn!(
@@ -605,7 +693,23 @@ fn git_rev_parse(start: &Path, args: &[&str]) -> Result<String, NotRegisterable>
 mod tests {
     use std::path::Path;
 
+    use anvil_intercept_proto::{SessionRecord, SessionStatus};
+
     use super::*;
+
+    fn durable_session(id: SessionId, worktree: &Path) -> SessionRecord {
+        SessionRecord {
+            id,
+            worktree: worktree.to_path_buf(),
+            pid: None,
+            pgid: None,
+            started_at_unix: 1,
+            last_heartbeat_unix: 1,
+            status: SessionStatus::Active,
+            agent_tag: Some(activation_agent_tag()),
+            daemon_issued_tag: None,
+        }
+    }
 
     #[test]
     fn activation_session_id_is_stable_and_path_derived() {
@@ -629,6 +733,100 @@ mod tests {
         assert!(
             params.get("lineage").is_none(),
             "activation registration must not require peer lineage support"
+        );
+    }
+
+    #[test]
+    fn acknowledged_registration_without_durable_membership_is_rejected() {
+        let worktree = Path::new("/tmp/repo");
+
+        let outcome = confirm_durable_registration(worktree, &[]);
+
+        assert!(
+            matches!(outcome, WorktreeRegistration::Rejected(ref message)
+                if message.contains("durable membership") && message.contains("/tmp/repo")),
+            "an acknowledged registration must not report success when daemon status has no durable membership: {outcome:?}",
+        );
+    }
+
+    #[test]
+    fn refreshed_registration_without_durable_membership_is_rejected() {
+        let worktree = Path::new("/tmp/repo");
+
+        let outcome = confirm_durable_refresh(worktree, &[]);
+
+        assert!(
+            matches!(outcome, WorktreeRegistration::Rejected(ref message)
+                if message.contains("durable membership") && message.contains("/tmp/repo")),
+            "a successful heartbeat must not report refresh when daemon status has no durable membership: {outcome:?}",
+        );
+    }
+
+    #[test]
+    fn durable_membership_for_a_different_session_does_not_confirm_registration() {
+        let worktree = Path::new("/tmp/repo");
+        let expected = activation_session_id(worktree);
+        let other = durable_session(SessionId::new("sess_activation_other"), worktree);
+
+        let outcome = confirm_registration_membership(
+            worktree,
+            &expected,
+            &[other],
+            WorktreeRegistration::Registered,
+        );
+
+        assert!(matches!(outcome, WorktreeRegistration::Rejected(_)));
+    }
+
+    #[test]
+    fn deterministic_session_for_a_different_canonical_worktree_is_rejected() {
+        let expected_dir = tempfile::tempdir().expect("expected worktree tempdir");
+        let other_dir = tempfile::tempdir().expect("other worktree tempdir");
+        let expected_worktree = canonicalise_for_registration(expected_dir.path());
+        let other_worktree = canonicalise_for_registration(other_dir.path());
+        let expected_session = activation_session_id(&expected_worktree);
+        let wrong_path_session = durable_session(expected_session.clone(), &other_worktree);
+
+        let outcome = confirm_registration_membership(
+            &expected_worktree,
+            &expected_session,
+            &[wrong_path_session],
+            WorktreeRegistration::Registered,
+        );
+
+        assert!(matches!(outcome, WorktreeRegistration::Rejected(_)));
+    }
+
+    #[test]
+    fn matching_session_and_canonical_worktree_without_durable_tag_is_rejected() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let expected_session = activation_session_id(&worktree);
+        let mut live_session = durable_session(expected_session.clone(), &worktree);
+        live_session.agent_tag = Some(AgentTag::new("anvil-start", "live-agent", 1));
+
+        let outcome = confirm_registration_membership(
+            &worktree,
+            &expected_session,
+            &[live_session],
+            WorktreeRegistration::Registered,
+        );
+
+        assert!(matches!(outcome, WorktreeRegistration::Rejected(_)));
+    }
+
+    #[test]
+    fn matching_durable_membership_preserves_registered_and_refreshed_outcomes() {
+        let worktree = Path::new("/tmp/repo");
+        let session = durable_session(activation_session_id(worktree), worktree);
+
+        assert_eq!(
+            confirm_durable_registration(worktree, std::slice::from_ref(&session)),
+            WorktreeRegistration::Registered,
+        );
+        assert_eq!(
+            confirm_durable_refresh(worktree, std::slice::from_ref(&session)),
+            WorktreeRegistration::Refreshed,
         );
     }
 

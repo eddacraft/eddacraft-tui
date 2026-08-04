@@ -6906,7 +6906,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-252: Workspace register must not report success when list is empty (WS-1)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P0 for `v0.9.3-beta` (trust / durable worktree protection)
 - **Intent:** With daemon running, `anvil workspace register "$PWD"` prints
   `Registered <path>.` exit 0, then `workspace list` shows none. Same via
