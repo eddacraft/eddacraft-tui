@@ -18,12 +18,34 @@ same kind of thing:
   `tags`, `links`, `asbuilt-paths`, `public-docs`. A failure means *this PR* is
   wrong. Gating the PR on them is correct.
 - **Repo-state surfaces** assert a property of the repository as a whole —
-  `release-plan`, `adr`, `aps`. `scripts/docs/check-release-plan.mjs`,
-  `check-adr.mjs` and `check-aps.mjs` take **zero** references to the PR diff or
-  base ref. They read fixed files and answer "is the repository tidy right now?"
+  `release-plan`, `adr`, `aps`, `index-freshness`.
+  `scripts/docs/check-release-plan.mjs`, `scripts/docs/check-adr.mjs` and
+  `scripts/docs/check-aps.mjs` take **zero** references to the PR diff or base
+  ref; `scripts/docs/check-index-freshness.mjs` delegates to
+  `docs-index.mjs --check`, which regenerates and compares the whole index.
+  They answer "is the repository tidy right now?"
 
-Wiring the second kind into a required per-PR check means repository drift
-fails every contributor's build, whatever they changed.
+That is all nine surfaces, and the split alone is not yet a decision rule —
+"doesn't read the diff" describes four surfaces whose failure modes differ
+sharply. The rule that matters is narrower:
+
+> **Can this check begin failing with no commit at all?**
+
+Only `release-plan` can. It asserts the active window in `RELEASE-PLAN.md` is
+not already a shipped tag, so **creating a git tag** makes it fail — no file
+changed, no PR involved, nothing for any contributor to have done differently.
+
+The other three can only break because a commit broke them: an ADR added
+without its log row, a module edited past its recorded count, a doc added
+without regenerating the index. In each case the offending PR is itself the one
+that fails, which is a gate working correctly. Their weakness is only
+*inheritance* — once a bad commit lands on `main`, every later PR inherits the
+red until someone repairs it. That is a real cost, but it is an argument for
+fixing `main` quickly, not for removing the gate that catches the mistake at
+source.
+
+Wiring a check of the first kind into a required per-PR gate means repository
+drift fails every contributor's build for something no contributor did.
 
 This is not hypothetical. On 2026-08-04 the `release-plan` surface began failing
 every open PR because `v0.9.2-beta` had been **tagged**. The check asserts the
@@ -55,24 +77,30 @@ surface and as the separately-required `APS Drift Check` job.
 
 ## Decision
 
-**Repo-state assertions are reported, not gated. Merge gates judge the diff.**
+**A merge gate may only fail for something a commit did.**
 
-1. **Split the surfaces by kind.** `docs:check` grows an explicit classification.
-   Diff-judging surfaces (`metadata`, `tags`, `links`, `asbuilt-paths`,
-   `public-docs`) remain in the per-PR `Docs Lint` required check. Repo-state
-   surfaces (`release-plan`, `adr`, `aps`) move out of it.
+1. **`release-plan` leaves the per-PR gate.** It is the one surface that can
+   begin failing with no commit at all, because creating a tag makes it fail.
+   It moves to a `Repo Health` workflow on push to `main` and on a schedule.
+   Failure notifies the release owner; it does not block contributors.
+   `Repo Health` is **not** added to the required-check set.
 
-2. **Repo-state surfaces run in a `Repo Health` workflow** on push to `main` and
-   on a schedule. Failure notifies the owning role — it does not block
-   contributors. `Repo Health` is **not** added to the required-check set.
+2. **`adr`, `aps` and `index-freshness` stay gating.** Each can only break
+   because a commit broke it, and the PR carrying that commit is the one that
+   fails — which is the gate doing its job. Moving them would let a broken ADR
+   log or a stale index land unnoticed, trading a real defect for a smaller
+   inconvenience.
 
-3. **The release train keeps its gate.** `release-plan` remains blocking where it
-   is meaningful: the release preflight/prepare path already runs
-   `pnpm release-plan:check`, and that is the correct place for it to stop work,
-   because that is the work it describes.
+3. **The release train keeps its hard stop.** `release-plan` remains blocking
+   where it is meaningful: the release preflight/prepare path already runs
+   `pnpm release-plan:check`, and that is the correct place for it to stop
+   work, because that is the work it describes.
 
-4. **Drop the duplicate `aps` execution.** `APS Drift Check` remains the single
-   required APS gate; the `aps` surface moves to `Repo Health`.
+4. **Drop the duplicate `aps` execution.** `aps` currently runs both as a
+   `docs:check` surface and as the separately-required `APS Drift Check` job.
+   `APS Drift Check` remains the single required APS gate; the duplicate
+   surface execution is removed. This is independent of the rest — it is
+   redundancy, not classification.
 
 5. **Mirrored sub-products are treated as independent for gating purposes.**
    `tools/starters/acknowledgements/**` and `crates/eddacraft-tui/**` are
@@ -88,13 +116,18 @@ owned by the executing work item.
 ## Rationale
 
 A required status check answers one question: *is it safe to merge this change?*
-A repo-state assertion answers a different one: *is the repository currently
-tidy?* Both are worth knowing. Only the first is a property of the change under
-review, and only the first should be able to block it.
+A contributor can only answer that for things their commit did. When a check
+can go red without any commit, it is asking a question the PR author has no
+standing to answer and no means to fix — so it belongs somewhere that notifies
+its owner instead.
 
-The distinction is already latent in the code — the three repo-state scripts
-never read the diff, while the diff-judging ones do. This ADR makes an existing
-structural fact explicit rather than inventing a new taxonomy.
+The first draft of this ADR grouped all four non-diff-reading surfaces together
+and moved three of them. Review pointed out that the fourth, `index-freshness`,
+was unclassified, and classifying it exposed that "doesn't read the diff" is
+the wrong rule: `adr`, `aps` and `index-freshness` all go red only because some
+commit made them go red, and catching that at source is exactly what a gate is
+for. Only `release-plan` fails on an event — a tag — that no commit carries.
+Narrowing to that one surface is the change this ADR actually needs.
 
 The sub-product clause follows from the same reasoning applied to ownership. Two
 products in this repo have independent release cadences and independent public
@@ -107,20 +140,21 @@ document.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **Chosen: classify surfaces; repo-state reports, diff-judging gates** | Fixes the disease, not the symptom; matches an existing structural split; keeps every assertion, just relocates three; removes a duplicate execution | Repo state can drift longer before someone acts, since nothing blocks on it |
+| **Chosen: only `release-plan` leaves the gate; the rest stay** | Removes exactly the failure no contributor can cause or fix; keeps every gate that catches a real mistake at source; smallest change that solves the problem | Release-plan drift is no longer forced to attention by a red PR |
 | Keep everything gating; fix drift faster | No tooling change; strongest tidiness pressure | Already demonstrably failing — drift is caused by *tagging* and by release prep, so the pressure lands on uninvolved contributors, not the owner |
 | Make `release-plan` tolerate a shipped active window | One-line change | Removes the assertion's whole point: the window is supposed to be pruned on closeout, and a plan naming a shipped tag is genuinely wrong |
+| Move all four non-diff-reading surfaces (`release-plan`, `adr`, `aps`, `index-freshness`) to Repo Health | Tidier taxonomy; one rule for "doesn't read the diff" | Over-broad — the other three only fail when a commit breaks them, so removing them lets a broken ADR log or stale index land unnoticed. Reviewing this alternative is what narrowed the decision to `release-plan` alone |
 | Carve out only sub-product paths, leave the gate otherwise intact | Smallest diff; directly unblocks the kit and the TUI | Leaves every other contributor blocked by release-plan drift; treats a general defect as a special case |
 | Move the sub-products to their own repositories | Total decoupling; no shared gate at all | Loses the subtree-mirror model deliberately chosen in ATTRIB-011/TUIR; large migration for a CI problem |
 
 ## Consequences
 
-- **Positive:** A release-plan or ADR-log drift stops blocking unrelated work.
+- **Positive:** A release-plan drift stops blocking unrelated work.
   Mirrored sub-products can cut patch releases on their own cadence, which is
   the point of publishing them separately. `Docs Lint` failures become
-  actionable by the PR author, because every remaining surface is about their
-  diff. One duplicate check execution disappears.
-- **Negative:** Repo-state drift is no longer forced to the top of someone's
+  actionable by the PR author, because every remaining surface fails only when
+  a commit broke it. One duplicate check execution disappears.
+- **Negative:** Release-plan drift is no longer forced to the top of someone's
   attention by a red PR. It will be visible in `Repo Health` and on `main`, but
   visibility is weaker pressure than a block.
 - **Risks:** `RELEASE-PLAN.md` staleness could persist unnoticed, since the very
