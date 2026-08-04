@@ -1014,55 +1014,163 @@ struct StagedGateChange {
     head_oid: Option<String>,
 }
 
-fn staged_gate_changes(
-    root: &Path,
-    git_subprocess_count: &mut usize,
-) -> Option<BTreeMap<String, StagedGateChange>> {
-    *git_subprocess_count += 1;
-    let output = std::process::Command::new("git")
-        .args([
-            "diff",
-            "--cached",
-            "--raw",
-            "-z",
-            "--find-renames",
-            "--diff-filter=ACMRT",
-            "--",
-        ])
-        .current_dir(root)
-        .output()
+struct StagedGateInventory {
+    changes: BTreeMap<String, StagedGateChange>,
+    quarantined_paths: std::collections::BTreeSet<String>,
+}
+
+const GIT_RAW_INVENTORY_ARGS: [&str; 8] = [
+    "diff",
+    "--cached",
+    "--raw",
+    "--no-abbrev",
+    "-z",
+    "--find-renames",
+    "--diff-filter=ACMRT",
+    "--",
+];
+
+fn read_to_limit(reader: impl std::io::Read, max_bytes: usize) -> Option<Vec<u8>> {
+    use std::io::Read as _;
+
+    let read_limit = u64::try_from(max_bytes).ok()?.checked_add(1)?;
+    let mut bytes = Vec::new();
+    reader.take(read_limit).read_to_end(&mut bytes).ok()?;
+    (bytes.len() <= max_bytes).then_some(bytes)
+}
+
+fn command_stdout_bounded(
+    command: &mut std::process::Command,
+    max_bytes: usize,
+) -> Option<Vec<u8>> {
+    let mut child = command
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
         .ok()?;
-    if !output.status.success() {
+    let Some(bytes) = read_to_limit(child.stdout.take()?, max_bytes) else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
+    child.wait().ok()?.success().then_some(bytes)
+}
+
+fn escaped_inventory_path(path: &[u8]) -> String {
+    let mut escaped = String::from("<staged path:");
+    for byte in path {
+        escaped.extend(std::ascii::escape_default(*byte).map(char::from));
+    }
+    escaped.push('>');
+    escaped
+}
+
+fn strict_inventory_path(path: &[u8]) -> Result<String, String> {
+    let path_text = std::str::from_utf8(path).map_err(|_| escaped_inventory_path(path))?;
+    if path_text.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(escaped_inventory_path(path));
+    }
+    Ok(path_text.to_string())
+}
+
+fn render_gate_path(path: &str) -> String {
+    let mut rendered = String::new();
+    for byte in path.bytes() {
+        rendered.extend(std::ascii::escape_default(byte).map(char::from));
+    }
+    rendered
+}
+
+fn parse_raw_inventory_header(header: &[u8]) -> Option<(&str, &str, u8)> {
+    let header = std::str::from_utf8(header).ok()?;
+    let mut fields = header.split_ascii_whitespace();
+    let head_mode = fields.next()?.strip_prefix(':')?;
+    let index_mode = fields.next()?;
+    let head_oid = fields.next()?;
+    let index_oid = fields.next()?;
+    let status = fields.next()?;
+    if fields.next().is_some() {
         return None;
     }
+    let valid_mode =
+        |mode: &str| mode.len() == 6 && mode.bytes().all(|byte| matches!(byte, b'0'..=b'7'));
+    if !valid_mode(head_mode) || !valid_mode(index_mode) {
+        return None;
+    }
+    let valid_oid = |oid: &str| {
+        matches!(oid.len(), 40 | 64) && oid.bytes().all(|byte| byte.is_ascii_hexdigit())
+    };
+    if head_oid.len() != index_oid.len() || !valid_oid(head_oid) || !valid_oid(index_oid) {
+        return None;
+    }
+    let status_bytes = status.as_bytes();
+    let code = *status_bytes.first()?;
+    match code {
+        b'A' | b'M' | b'T' if status_bytes.len() == 1 => {}
+        b'C' | b'R'
+            if matches!(status_bytes.len(), 2..=4)
+                && status_bytes[1..].iter().all(u8::is_ascii_digit)
+                && std::str::from_utf8(&status_bytes[1..])
+                    .ok()
+                    .and_then(|score| score.parse::<u8>().ok())
+                    .is_some_and(|score| score <= 100) => {}
+        _ => return None,
+    }
+    Some((head_oid, index_oid, code))
+}
 
-    let mut fields = output
-        .stdout
-        .split(|byte| *byte == b'\0')
-        .filter(|field| !field.is_empty());
+fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
+    if !raw.is_empty() && raw.last() != Some(&0) {
+        return None;
+    }
+    let mut fields = raw.split(|byte| *byte == b'\0');
     let mut changes = BTreeMap::new();
+    let mut quarantined_paths = std::collections::BTreeSet::new();
     while let Some(header) = fields.next() {
-        let header = std::str::from_utf8(header).ok()?;
-        let mut header_fields = header.split_ascii_whitespace();
-        header_fields.next()?.strip_prefix(':')?;
-        header_fields.next()?;
-        let head_oid = header_fields.next()?;
-        let index_oid = header_fields.next()?.to_string();
-        let status = header_fields.next()?;
-        let code = status.as_bytes().first().copied()?;
+        if header.is_empty() {
+            return fields.next().is_none().then_some(StagedGateInventory {
+                changes,
+                quarantined_paths,
+            });
+        }
+        let (head_oid, index_oid, code) = parse_raw_inventory_header(header)?;
         let (path, head_path) = if matches!(code, b'R' | b'C') {
-            let old_path = String::from_utf8_lossy(fields.next()?).replace('\\', "/");
-            let new_path = String::from_utf8_lossy(fields.next()?).replace('\\', "/");
+            let old_path_bytes = fields.next()?;
+            let new_path_bytes = fields.next()?;
+            if old_path_bytes.is_empty() || new_path_bytes.is_empty() {
+                return None;
+            }
+            let old_path = strict_inventory_path(old_path_bytes);
+            let new_path = strict_inventory_path(new_path_bytes);
+            if let Err(path) = &old_path {
+                quarantined_paths.insert(path.clone());
+            }
+            if let Err(path) = &new_path {
+                quarantined_paths.insert(path.clone());
+            }
+            let (Ok(old_path), Ok(new_path)) = (old_path, new_path) else {
+                continue;
+            };
             (new_path, Some(old_path))
         } else {
-            let path = String::from_utf8_lossy(fields.next()?).replace('\\', "/");
+            let path_bytes = fields.next()?;
+            if path_bytes.is_empty() {
+                return None;
+            }
+            let path = match strict_inventory_path(path_bytes) {
+                Ok(path) => path,
+                Err(path) => {
+                    quarantined_paths.insert(path);
+                    continue;
+                }
+            };
             (path.clone(), (code != b'A').then_some(path))
         };
         changes.insert(
             path,
             StagedGateChange {
                 head_path,
-                index_oid,
+                index_oid: index_oid.to_string(),
                 head_oid: head_oid
                     .bytes()
                     .any(|byte| byte != b'0')
@@ -1070,7 +1178,23 @@ fn staged_gate_changes(
             },
         );
     }
-    Some(changes)
+    Some(StagedGateInventory {
+        changes,
+        quarantined_paths,
+    })
+}
+
+fn staged_gate_changes(
+    root: &Path,
+    git_subprocess_count: &mut usize,
+) -> Option<StagedGateInventory> {
+    *git_subprocess_count += 1;
+    let mut command = std::process::Command::new("git");
+    command.args(GIT_RAW_INVENTORY_ARGS).current_dir(root);
+    parse_staged_gate_inventory(&command_stdout_bounded(
+        &mut command,
+        MAX_GIT_DIFF_OUTPUT_SIZE,
+    )?)
 }
 
 fn finding_workspace_path(root: &Path, file: &str) -> String {
@@ -1112,6 +1236,11 @@ fn raw_secret_finding_key(
 }
 
 const MAX_STAGED_BLOB_SIZE: u64 = 1024 * 1024;
+// Hook provenance stays bounded even when a repository stages many unique
+// objects or produces an unexpectedly large patch/inventory stream.
+const MAX_STAGED_BLOB_COUNT: usize = 1024;
+const MAX_STAGED_BLOB_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
+const MAX_GIT_DIFF_OUTPUT_SIZE: usize = 8 * 1024 * 1024;
 const GIT_BATCH_CHECK_ARGS: [&str; 2] = ["cat-file", "--batch-check"];
 const GIT_BATCH_CONTENT_ARGS: [&str; 2] = ["cat-file", "--batch"];
 
@@ -1125,6 +1254,35 @@ fn batch_header_size(header: &[u8]) -> Option<u64> {
     let header = std::str::from_utf8(header).ok()?.trim_end();
     let mut fields = header.rsplitn(3, ' ');
     fields.next()?.parse().ok()
+}
+
+fn blob_budget_admit(
+    size: u64,
+    used_count: &mut usize,
+    used_bytes: &mut u64,
+    max_count: usize,
+    max_bytes: u64,
+) -> bool {
+    let Some(next_count) = used_count.checked_add(1) else {
+        return false;
+    };
+    let Some(next_bytes) = used_bytes.checked_add(size) else {
+        return false;
+    };
+    if next_count > max_count || next_bytes > max_bytes {
+        return false;
+    }
+    *used_count = next_count;
+    *used_bytes = next_bytes;
+    true
+}
+
+fn inspect_next_blob(inspected_count: &mut usize, max_count: usize) -> bool {
+    if *inspected_count >= max_count {
+        return false;
+    }
+    *inspected_count += 1;
+    true
 }
 
 fn batched_git_blob_contents(
@@ -1149,8 +1307,15 @@ fn batched_git_blob_contents(
     let mut output = std::io::BufReader::new(child.stdout.take()?);
     let mut blobs = BTreeMap::new();
     let mut eligible = Vec::new();
+    let mut inspected_count = 0;
+    let mut eligible_count = 0;
+    let mut eligible_bytes = 0;
 
     for object in objects {
+        if !inspect_next_blob(&mut inspected_count, MAX_STAGED_BLOB_COUNT) {
+            blobs.insert(object.clone(), GitBlobContent::Oversized);
+            continue;
+        }
         let metadata = (|| {
             input.write_all(object.as_bytes()).ok()?;
             input.write_all(b"\n").ok()?;
@@ -1160,7 +1325,18 @@ fn batched_git_blob_contents(
             (!header.ends_with(b" missing\n")).then(|| batch_header_size(&header))?
         })();
         match metadata {
-            Some(size) if size < MAX_STAGED_BLOB_SIZE => eligible.push((object.clone(), size)),
+            Some(size)
+                if size < MAX_STAGED_BLOB_SIZE
+                    && blob_budget_admit(
+                        size,
+                        &mut eligible_count,
+                        &mut eligible_bytes,
+                        MAX_STAGED_BLOB_COUNT,
+                        MAX_STAGED_BLOB_TOTAL_SIZE,
+                    ) =>
+            {
+                eligible.push((object.clone(), size));
+            }
             Some(_) => {
                 blobs.insert(object.clone(), GitBlobContent::Oversized);
             }
@@ -1248,11 +1424,12 @@ fn batch_diff_line_hunks(
         "--",
     ]);
     command.args(pathspecs);
-    let output = command.current_dir(root).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let diff = String::from_utf8(output.stdout).ok()?;
+    command.current_dir(root);
+    let diff = String::from_utf8(command_stdout_bounded(
+        &mut command,
+        MAX_GIT_DIFF_OUTPUT_SIZE,
+    )?)
+    .ok()?;
     let mut current_path = None;
     let mut in_hunk = false;
     for line in diff.lines() {
@@ -1329,6 +1506,7 @@ struct HookSecretProvenance {
     primary_worktree: BTreeMap<(String, usize, RawSecretFindingKey), usize>,
     index_only: Vec<anvil_checks::secret::SecretFinding>,
     indeterminate_paths: std::collections::BTreeSet<String>,
+    global_indeterminate: bool,
     git_subprocess_count: usize,
 }
 
@@ -1337,6 +1515,7 @@ struct StagedProvenanceSnapshot {
     blobs: BTreeMap<String, GitBlobContent>,
     head_to_index: Option<BTreeMap<String, Option<Vec<LineHunk>>>>,
     index_to_worktree: Option<BTreeMap<String, Option<Vec<LineHunk>>>>,
+    indeterminate_paths: std::collections::BTreeSet<String>,
     git_subprocess_count: usize,
 }
 
@@ -1359,6 +1538,28 @@ fn mapping_failed(hunks: Option<&BTreeMap<String, Option<Vec<LineHunk>>>>, path:
     hunks.is_none() || matches!(hunks.and_then(|hunks| hunks.get(path)), Some(None))
 }
 
+struct PathLineHunks<'a> {
+    staged: Option<&'a [LineHunk]>,
+    worktree: Option<&'a [LineHunk]>,
+}
+
+fn path_line_hunks<'a>(
+    head_to_index: Option<&'a BTreeMap<String, Option<Vec<LineHunk>>>>,
+    index_to_worktree: Option<&'a BTreeMap<String, Option<Vec<LineHunk>>>>,
+    path: &str,
+) -> Option<PathLineHunks<'a>> {
+    if mapping_failed(head_to_index, path) || mapping_failed(index_to_worktree, path) {
+        return None;
+    }
+    let staged = head_to_index
+        .and_then(|hunks| hunks.get(path))
+        .and_then(|hunks| hunks.as_deref());
+    let worktree = index_to_worktree
+        .and_then(|hunks| hunks.get(path))
+        .and_then(|hunks| hunks.as_deref());
+    Some(PathLineHunks { staged, worktree })
+}
+
 fn staged_head_content<'a>(
     change: &StagedGateChange,
     blobs: &'a BTreeMap<String, GitBlobContent>,
@@ -1378,8 +1579,10 @@ fn staged_head_content<'a>(
 
 fn staged_provenance_snapshot(root: &Path) -> Option<StagedProvenanceSnapshot> {
     let mut git_subprocess_count = 0_usize;
-    let changes = staged_gate_changes(root, &mut git_subprocess_count)?;
-    let changes = changes
+    let inventory = staged_gate_changes(root, &mut git_subprocess_count)?;
+    let indeterminate_paths = inventory.quarantined_paths;
+    let changes = inventory
+        .changes
         .into_iter()
         .filter(|(path, _)| secret_path_scannable(Path::new(path)))
         .collect::<Vec<_>>();
@@ -1452,8 +1655,20 @@ fn staged_provenance_snapshot(root: &Path) -> Option<StagedProvenanceSnapshot> {
         blobs,
         head_to_index,
         index_to_worktree,
+        indeterminate_paths,
         git_subprocess_count,
     })
+}
+
+fn index_by_path<T>(
+    items: &[T],
+    mut path_for: impl FnMut(&T) -> String,
+) -> BTreeMap<String, Vec<&T>> {
+    let mut indexed = BTreeMap::<String, Vec<_>>::new();
+    for item in items {
+        indexed.entry(path_for(item)).or_default().push(item);
+    }
+    indexed
 }
 
 fn staged_secret_provenance(
@@ -1466,9 +1681,16 @@ fn staged_secret_provenance(
         blobs,
         head_to_index,
         index_to_worktree,
+        indeterminate_paths,
         git_subprocess_count,
     } = staged_provenance_snapshot(root)?;
-    let mut provenance = HookSecretProvenance::default();
+    let worktree_findings = index_by_path(worktree_findings, |finding| {
+        finding_workspace_path(root, &finding.file)
+    });
+    let mut provenance = HookSecretProvenance {
+        indeterminate_paths,
+        ..HookSecretProvenance::default()
+    };
 
     for (path, change) in changes {
         if !git_patch_path_safe(&path) {
@@ -1483,18 +1705,16 @@ fn staged_secret_provenance(
             }
         };
         let head_content = staged_head_content(&change, &blobs);
-        if mapping_failed(head_to_index.as_ref(), &path)
-            || mapping_failed(index_to_worktree.as_ref(), &path)
-        {
+        let Some(PathLineHunks {
+            staged: staged_hunks,
+            worktree: worktree_hunks,
+        }) = path_line_hunks(head_to_index.as_ref(), index_to_worktree.as_ref(), &path)
+        else {
             provenance.indeterminate_paths.insert(path);
             continue;
-        }
+        };
         let head_line_digests = raw_line_digests(head_content);
         let index_line_digests = raw_line_digests(index_content);
-        let staged_hunks = head_to_index
-            .as_ref()
-            .and_then(|hunks| hunks.get(&path))
-            .and_then(|hunks| hunks.as_deref());
         let mut base_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
         for finding in anvil_checks::secret::scan_content(head_content, &path, config) {
             let Some(key) = raw_secret_finding_key(&finding, &head_line_digests) else {
@@ -1529,15 +1749,8 @@ fn staged_secret_provenance(
             String::new()
         };
         let worktree_line_digests = raw_line_digests(&worktree_content);
-        let worktree_hunks = index_to_worktree
-            .as_ref()
-            .and_then(|hunks| hunks.get(&path))
-            .and_then(|hunks| hunks.as_deref());
         let mut worktree_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
-        for finding in worktree_findings
-            .iter()
-            .filter(|finding| finding_workspace_path(root, &finding.file) == path)
-        {
+        for finding in worktree_findings.get(&path).into_iter().flatten() {
             if let Some(key) = raw_secret_finding_key(finding, &worktree_line_digests) {
                 *worktree_counts.entry((finding.line, key)).or_default() += 1;
             }
@@ -1656,6 +1869,36 @@ fn run_check_secret_with_hook_mode(
     plan_files: &std::collections::HashSet<String>,
     hook_mode: bool,
 ) -> CheckResult {
+    run_check_secret_with_hook_mode_and_provenance(name, root, plan_files, hook_mode, false)
+}
+
+fn resolve_hook_provenance(
+    hook_mode: bool,
+    force_inventory_failure: bool,
+    load: impl FnOnce() -> Option<HookSecretProvenance>,
+) -> Option<HookSecretProvenance> {
+    hook_mode.then(|| {
+        let loaded = (!force_inventory_failure).then(load).flatten();
+        loaded.unwrap_or_else(|| HookSecretProvenance {
+            global_indeterminate: true,
+            ..HookSecretProvenance::default()
+        })
+    })
+}
+
+fn hook_indeterminate_count(provenance: Option<&HookSecretProvenance>) -> usize {
+    provenance.map_or(0, |provenance| {
+        provenance.indeterminate_paths.len() + usize::from(provenance.global_indeterminate)
+    })
+}
+
+fn run_check_secret_with_hook_mode_and_provenance(
+    name: &str,
+    root: &Path,
+    plan_files: &std::collections::HashSet<String>,
+    hook_mode: bool,
+    force_inventory_failure: bool,
+) -> CheckResult {
     let files_to_scan = secret_scan_files(root, plan_files);
 
     let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
@@ -1667,15 +1910,13 @@ fn run_check_secret_with_hook_mode(
     let suppression_suffix = crate::util::secret_suppression_suffix(&result.suppressions);
 
     let pattern_errors_suffix = secret_pattern_errors_suffix(&result.pattern_errors);
-    let mut hook_provenance = hook_mode
-        .then(|| staged_secret_provenance(root, &result.findings, &config))
-        .flatten();
+    let mut hook_provenance = resolve_hook_provenance(hook_mode, force_inventory_failure, || {
+        staged_secret_provenance(root, &result.findings, &config)
+    });
     let index_only_count = hook_provenance
         .as_ref()
         .map_or(0, |provenance| provenance.index_only.len());
-    let indeterminate_count = hook_provenance
-        .as_ref()
-        .map_or(0, |provenance| provenance.indeterminate_paths.len());
+    let indeterminate_count = hook_indeterminate_count(hook_provenance.as_ref());
 
     if result.passed && index_only_count == 0 && indeterminate_count == 0 {
         CheckResult {
@@ -1693,9 +1934,8 @@ fn run_check_secret_with_hook_mode(
         // index-to-worktree line mapping. This keeps staged new occurrences
         // primary even when redaction collides or an identical unstaged
         // duplicate appears earlier. Index-only staged findings are appended
-        // so an unstaged removal cannot make the hook pass. If Git truth is
-        // unavailable, `hook_provenance` is None and established output is
-        // retained. Non-hook output is unchanged.
+        // so an unstaged removal cannot make the hook pass. Unavailable Git
+        // truth fails closed in hook mode. Non-hook output is unchanged.
         let worktree_line_digests = result
             .findings
             .iter()
@@ -1714,9 +1954,10 @@ fn run_check_secret_with_hook_mode(
             .map(|f| {
                 let location = secret_finding_location(f, &file_refs, root);
                 let path = finding_workspace_path(root, &f.file);
-                let is_indeterminate = hook_provenance
-                    .as_ref()
-                    .is_some_and(|provenance| provenance.indeterminate_paths.contains(&path));
+                let is_indeterminate = hook_provenance.as_ref().is_some_and(|provenance| {
+                    provenance.global_indeterminate
+                        || provenance.indeterminate_paths.contains(&path)
+                });
                 let is_primary = worktree_line_digests.get(&path).and_then(|line_digests| {
                     let key = raw_secret_finding_key(f, line_digests)?;
                     let count = hook_provenance
@@ -1733,6 +1974,9 @@ fn run_check_secret_with_hook_mode(
             })
             .collect();
         if let Some(provenance) = &hook_provenance {
+            if provenance.global_indeterminate {
+                locations.push("staged changes [staged content unavailable]".to_string());
+            }
             locations.extend(provenance.index_only.iter().map(|finding| {
                 format!(
                     "{}:{} [{}]",
@@ -1743,7 +1987,7 @@ fn run_check_secret_with_hook_mode(
                 provenance
                     .indeterminate_paths
                     .iter()
-                    .map(|path| format!("{path} [staged content unavailable]")),
+                    .map(|path| format!("{} [staged content unavailable]", render_gate_path(path))),
             );
         }
         let finding_count = result.findings.len() + index_only_count + indeterminate_count;
@@ -4452,6 +4696,161 @@ mod tests {
     fn write_detectable_env(path: &Path) {
         let value = "abcd".repeat(10);
         std::fs::write(path, format!("aws_secret_access_key='{value}'\n")).unwrap();
+    }
+
+    fn raw_inventory_record(header: &str, path: &[u8]) -> Vec<u8> {
+        let mut record = header.as_bytes().to_vec();
+        record.push(0);
+        record.extend_from_slice(path);
+        record.push(0);
+        record
+    }
+
+    fn valid_raw_inventory_header(status: &str) -> String {
+        format!(
+            ":000000 100644 {} {} {status}",
+            "0".repeat(40),
+            "1".repeat(40)
+        )
+    }
+
+    #[test]
+    fn hook_secret_check_fails_closed_when_inventory_is_globally_unavailable() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+
+        let result = run_check_secret_with_hook_mode_and_provenance(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+            true,
+        );
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .message
+                .contains("staged changes [staged content unavailable]")
+        );
+    }
+
+    #[test]
+    fn staged_inventory_rejects_unknown_status() {
+        let raw = raw_inventory_record(&valid_raw_inventory_header("X"), b".env");
+        assert!(parse_staged_gate_inventory(&raw).is_none());
+    }
+
+    #[test]
+    fn staged_inventory_rejects_trailing_header_fields() {
+        let raw = raw_inventory_record(&valid_raw_inventory_header("M trailing"), b".env");
+        assert!(parse_staged_gate_inventory(&raw).is_none());
+    }
+
+    #[test]
+    fn staged_inventory_rejects_malformed_header_and_score() {
+        let malformed_mode = valid_raw_inventory_header("M").replacen(":000000", ":000008", 1);
+        assert!(
+            parse_staged_gate_inventory(&raw_inventory_record(&malformed_mode, b".env")).is_none()
+        );
+        assert!(
+            parse_staged_gate_inventory(&raw_inventory_record(
+                &valid_raw_inventory_header("R101"),
+                b".env"
+            ))
+            .is_none()
+        );
+        assert!(GIT_RAW_INVENTORY_ARGS.contains(&"--no-abbrev"));
+    }
+
+    #[test]
+    fn staged_inventory_keeps_invalid_bytes_distinct_from_valid_unicode() {
+        let mut raw = raw_inventory_record(&valid_raw_inventory_header("A"), b".env.\xff");
+        raw.extend(raw_inventory_record(
+            &valid_raw_inventory_header("A"),
+            ".env.�".as_bytes(),
+        ));
+
+        let inventory = parse_staged_gate_inventory(&raw).expect("inventory should be parsed");
+
+        assert!(inventory.changes.contains_key(".env.�"));
+        assert_eq!(inventory.quarantined_paths.len(), 1);
+        assert!(
+            inventory
+                .quarantined_paths
+                .iter()
+                .all(|path| !path.contains('�'))
+        );
+        assert_eq!(
+            strict_inventory_path(br".env\literal").unwrap(),
+            r".env\literal"
+        );
+        assert!(parse_staged_gate_inventory(&raw[..raw.len() - 1]).is_none());
+    }
+
+    #[test]
+    fn staged_inventory_escapes_control_path_diagnostics() {
+        let mut control_path = b".env\n".to_vec();
+        control_path.push(0x1b);
+        control_path.extend_from_slice(b"[31m");
+        let raw = raw_inventory_record(&valid_raw_inventory_header("A"), &control_path);
+
+        let inventory = parse_staged_gate_inventory(&raw).expect("inventory should be parsed");
+        let diagnostic = inventory
+            .quarantined_paths
+            .iter()
+            .next()
+            .expect("control path should be quarantined");
+
+        assert!(!diagnostic.contains('\n'));
+        assert!(!diagnostic.contains('\u{1b}'));
+        assert!(diagnostic.contains(r"\n"));
+        assert!(diagnostic.contains(r"\x1b"));
+        let rendered = render_gate_path(".env\n\u{1b}[31m");
+        assert!(!rendered.contains('\n'));
+        assert!(!rendered.contains('\u{1b}'));
+        assert_eq!(rendered, r".env\n\x1b[31m");
+    }
+
+    #[test]
+    fn hook_blob_budgets_bound_count_and_aggregate_bytes() {
+        let mut used_count = 0;
+        let mut used_bytes = 0;
+        let admitted = (0..128)
+            .filter(|_| blob_budget_admit(900, &mut used_count, &mut used_bytes, 64, 14_400))
+            .count();
+        assert_eq!(admitted, 16);
+
+        let mut inspected = 0;
+        let inspected_items = (0..2048)
+            .filter(|_| inspect_next_blob(&mut inspected, 1024))
+            .count();
+        assert_eq!(inspected_items, 1024);
+        assert_eq!(inspected, 1024);
+    }
+
+    #[test]
+    fn hook_diff_reader_rejects_output_over_budget() {
+        let bounded = read_to_limit(std::io::Cursor::new(vec![b'x'; 65]), 64);
+        assert!(bounded.is_none());
+        assert_eq!(
+            read_to_limit(std::io::Cursor::new(vec![b'x'; 64]), 64),
+            Some(vec![b'x'; 64])
+        );
+    }
+
+    #[test]
+    fn hook_worktree_finding_index_normalises_each_item_once() {
+        let items = [".env", ".env", ".env.other"];
+        let calls = std::cell::Cell::new(0);
+        let index = index_by_path(&items, |path| {
+            calls.set(calls.get() + 1);
+            (*path).to_string()
+        });
+
+        assert_eq!(calls.get(), items.len());
+        assert_eq!(index[".env"].len(), 2);
+        assert_eq!(index[".env.other"].len(), 1);
     }
 
     #[test]
