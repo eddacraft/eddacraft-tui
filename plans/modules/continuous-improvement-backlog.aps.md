@@ -6906,7 +6906,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-252: Workspace register must not report success when list is empty (WS-1)
 
-- **Status:** Merged 2026-08-05 via PR #3552 (`2c542839`)
+- **Status:** Merged 2026-08-05 via [#3552](https://github.com/eddacraft/anvil-001/pull/3552) (`2c5428395`)
 - **Priority:** P0 for `v0.9.3-beta` (trust / durable worktree protection)
 - **Intent:** With daemon running, `anvil workspace register "$PWD"` prints
   `Registered <path>.` exit 0, then `workspace list` shows none. Same via
