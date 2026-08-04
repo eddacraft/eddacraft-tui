@@ -571,11 +571,8 @@ fn secret_finding_to_json(
     workspace_root: Option<&str>,
 ) -> JsonWarning {
     let id = secret_rule_id(&f.pattern_name);
-    let file = crate::display_path::render_secret_finding(
-        &f.file,
-        scanned,
-        workspace_root.map(Path::new),
-    );
+    let file =
+        crate::display_path::render_secret_finding(&f.file, scanned, workspace_root.map(Path::new));
     JsonWarning {
         id,
         category: "secret".to_string(),

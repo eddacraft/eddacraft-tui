@@ -394,7 +394,10 @@ mod tests {
     #[test]
     fn collapses_a_leading_dot_segment() {
         let root = PathBuf::from("/home/dev/project");
-        assert_eq!(render("/home/dev/project/./src/a.rs", Some(&root)), "src/a.rs");
+        assert_eq!(
+            render("/home/dev/project/./src/a.rs", Some(&root)),
+            "src/a.rs"
+        );
     }
 
     #[test]
