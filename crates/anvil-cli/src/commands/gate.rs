@@ -1071,7 +1071,7 @@ fn quarantined_inventory_path(path: &[u8]) -> String {
 
 fn strict_inventory_path(path: &[u8]) -> Result<String, String> {
     let path_text = std::str::from_utf8(path).map_err(|_| escaped_inventory_path(path))?;
-    if path_text.bytes().any(|byte| byte.is_ascii_control()) {
+    if path_text.chars().any(char::is_control) {
         return Err(escaped_inventory_path(path));
     }
     Ok(path_text.to_string())
@@ -1079,13 +1079,37 @@ fn strict_inventory_path(path: &[u8]) -> Result<String, String> {
 
 fn render_gate_path(path: &str) -> String {
     let mut rendered = String::new();
-    for byte in path.bytes() {
-        rendered.extend(std::ascii::escape_default(byte).map(char::from));
+    for character in path.chars() {
+        if character.is_ascii() {
+            rendered.extend(std::ascii::escape_default(character as u8).map(char::from));
+        } else if character.is_control() {
+            rendered.extend(character.escape_default());
+        } else {
+            rendered.push(character);
+        }
     }
     rendered
 }
 
-fn parse_raw_inventory_header(header: &[u8]) -> Option<(&str, &str, u8)> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GitInventoryMode {
+    Absent,
+    Blob,
+    Gitlink,
+}
+
+fn git_inventory_mode(mode: &str) -> Option<GitInventoryMode> {
+    match mode {
+        "000000" => Some(GitInventoryMode::Absent),
+        "100644" | "100755" | "120000" => Some(GitInventoryMode::Blob),
+        "160000" => Some(GitInventoryMode::Gitlink),
+        _ => None,
+    }
+}
+
+fn parse_raw_inventory_header(
+    header: &[u8],
+) -> Option<(GitInventoryMode, GitInventoryMode, &str, &str, u8)> {
     let header = std::str::from_utf8(header).ok()?;
     let mut fields = header.split_ascii_whitespace();
     let head_mode = fields.next()?.strip_prefix(':')?;
@@ -1096,11 +1120,8 @@ fn parse_raw_inventory_header(header: &[u8]) -> Option<(&str, &str, u8)> {
     if fields.next().is_some() {
         return None;
     }
-    let valid_mode =
-        |mode: &str| mode.len() == 6 && mode.bytes().all(|byte| matches!(byte, b'0'..=b'7'));
-    if !valid_mode(head_mode) || !valid_mode(index_mode) {
-        return None;
-    }
+    let head_mode = git_inventory_mode(head_mode)?;
+    let index_mode = git_inventory_mode(index_mode)?;
     let valid_oid = |oid: &str| {
         matches!(oid.len(), 40 | 64) && oid.bytes().all(|byte| byte.is_ascii_hexdigit())
     };
@@ -1120,7 +1141,7 @@ fn parse_raw_inventory_header(header: &[u8]) -> Option<(&str, &str, u8)> {
                     .is_some_and(|score| score <= 100) => {}
         _ => return None,
     }
-    Some((head_oid, index_oid, code))
+    Some((head_mode, index_mode, head_oid, index_oid, code))
 }
 
 fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
@@ -1137,7 +1158,8 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
                 quarantined_paths,
             });
         }
-        let (head_oid, index_oid, code) = parse_raw_inventory_header(header)?;
+        let (head_mode, index_mode, head_oid, index_oid, code) =
+            parse_raw_inventory_header(header)?;
         let (path, head_path) = if matches!(code, b'R' | b'C') {
             let old_path_bytes = fields.next()?;
             let new_path_bytes = fields.next()?;
@@ -1167,15 +1189,17 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
             };
             (path.clone(), (code != b'A').then_some(path))
         };
+        if index_mode != GitInventoryMode::Blob {
+            continue;
+        }
         changes.insert(
             path,
             StagedGateChange {
                 head_path,
                 index_oid: index_oid.to_string(),
-                head_oid: head_oid
-                    .bytes()
-                    .any(|byte| byte != b'0')
-                    .then(|| head_oid.to_string()),
+                head_oid: (head_mode == GitInventoryMode::Blob
+                    && head_oid.bytes().any(|byte| byte != b'0'))
+                .then(|| head_oid.to_string()),
             },
         );
     }
@@ -1242,8 +1266,32 @@ fn raw_secret_finding_key(
     }
 }
 
-fn content_line(content: &str, line: usize) -> Option<&str> {
-    content.lines().nth(line.checked_sub(1)?)
+#[derive(Default)]
+struct ContentLineIndexStats {
+    builds: usize,
+    lines_indexed: usize,
+}
+
+struct ContentLineIndex<'a> {
+    lines: Vec<&'a str>,
+}
+
+impl<'a> ContentLineIndex<'a> {
+    fn new(content: &'a str, stats: &mut ContentLineIndexStats) -> Self {
+        let lines = content.lines().collect::<Vec<_>>();
+        stats.builds += 1;
+        stats.lines_indexed += lines.len();
+        Self { lines }
+    }
+
+    fn get(&self, line: usize) -> Option<&'a str> {
+        self.lines.get(line.checked_sub(1)?).copied()
+    }
+
+    #[cfg(test)]
+    fn line_count(&self) -> usize {
+        self.lines.len()
+    }
 }
 
 const MAX_STAGED_BLOB_SIZE: u64 = 1024 * 1024;
@@ -1273,10 +1321,20 @@ enum GitBlobContent {
     Unavailable,
 }
 
-fn batch_header_size(header: &[u8]) -> Option<u64> {
+fn git_batch_blob_size(header: &[u8]) -> Option<u64> {
     let header = std::str::from_utf8(header).ok()?.trim_end();
-    let mut fields = header.rsplitn(3, ' ');
-    fields.next()?.parse().ok()
+    let mut fields = header.split_ascii_whitespace();
+    let oid = fields.next()?;
+    let object_type = fields.next()?;
+    let size = fields.next()?;
+    if fields.next().is_some()
+        || object_type != "blob"
+        || !matches!(oid.len(), 40 | 64)
+        || !oid.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    size.parse().ok()
 }
 
 fn blob_budget_admit(
@@ -1345,7 +1403,7 @@ fn batched_git_blob_contents(
             input.flush().ok()?;
             let mut header = Vec::new();
             output.read_until(b'\n', &mut header).ok()?;
-            (!header.ends_with(b" missing\n")).then(|| batch_header_size(&header))?
+            (!header.ends_with(b" missing\n")).then(|| git_batch_blob_size(&header))?
         })();
         match metadata {
             Some(size)
@@ -1394,7 +1452,7 @@ fn batched_git_blob_contents(
             input.flush().ok()?;
             let mut header = Vec::new();
             output.read_until(b'\n', &mut header).ok()?;
-            (batch_header_size(&header)? == *expected_size).then_some(())?;
+            (git_batch_blob_size(&header)? == *expected_size).then_some(())?;
             let mut content = vec![0; usize::try_from(*expected_size).ok()?];
             output.read_exact(&mut content).ok()?;
             let mut terminator = [0];
@@ -1434,7 +1492,7 @@ fn batch_diff_line_hunks(
 
     *git_subprocess_count += 1;
     let mut command = std::process::Command::new("git");
-    command.args(["--literal-pathspecs", "diff"]);
+    command.args(["-c", "core.quotePath=false", "--literal-pathspecs", "diff"]);
     if cached {
         command.arg("--cached");
     }
@@ -1528,6 +1586,8 @@ struct HookSecretProvenance {
     worktree_keys: Vec<Option<RawSecretFindingKey>>,
     global_indeterminate: bool,
     git_subprocess_count: usize,
+    content_line_index_builds: usize,
+    content_lines_indexed: usize,
 }
 
 struct StagedProvenanceSnapshot {
@@ -1540,10 +1600,7 @@ struct StagedProvenanceSnapshot {
 }
 
 fn git_patch_path_safe(path: &str) -> bool {
-    path.is_ascii()
-        && !path
-            .bytes()
-            .any(|byte| byte.is_ascii_control() || matches!(byte, b'\\' | b'"'))
+    !path.chars().any(char::is_control) && !path.bytes().any(|byte| matches!(byte, b'\\' | b'"'))
 }
 
 fn blob_is_bounded_text(blobs: &BTreeMap<String, GitBlobContent>, oid: &str) -> bool {
@@ -1711,7 +1768,8 @@ fn bounded_path_values<T, K>(
     root: &Path,
     items: &[T],
     mut path_for: impl FnMut(&T) -> String,
-    mut value_for: impl FnMut(&T, &str) -> Option<K>,
+    mut value_for: impl FnMut(&T, &ContentLineIndex<'_>) -> Option<K>,
+    line_index_stats: &mut ContentLineIndexStats,
     max_count: usize,
     max_bytes: u64,
 ) -> (Vec<Option<K>>, std::collections::BTreeSet<String>) {
@@ -1746,8 +1804,9 @@ fn bounded_path_values<T, K>(
             indeterminate.insert(path);
             continue;
         };
+        let lines = ContentLineIndex::new(&content, line_index_stats);
         for index in path_positions {
-            values[index] = value_for(&items[index], &content);
+            values[index] = value_for(&items[index], &lines);
         }
     }
     (values, indeterminate)
@@ -1767,13 +1826,17 @@ fn staged_secret_provenance(
         indeterminate_paths,
         git_subprocess_count,
     } = staged_provenance_snapshot(root)?;
+    let mut line_index_stats = ContentLineIndexStats::default();
     let (worktree_keys, worktree_indeterminate) = bounded_path_values(
         root,
         worktree_findings,
         |finding| finding_workspace_path(root, &finding.file),
-        |finding, content| {
-            content_line(content, finding.line).map(|line| raw_secret_finding_key(finding, line))
+        |finding, lines| {
+            lines
+                .get(finding.line)
+                .map(|line| raw_secret_finding_key(finding, line))
         },
+        &mut line_index_stats,
         MAX_STAGED_BLOB_COUNT,
         MAX_WORKTREE_PROVENANCE_TOTAL_SIZE,
     );
@@ -1815,6 +1878,8 @@ fn staged_secret_provenance(
             continue;
         }
         let head_content = staged_head_content(&change, &blobs);
+        let index_lines = ContentLineIndex::new(index_content, &mut line_index_stats);
+        let head_lines = ContentLineIndex::new(head_content, &mut line_index_stats);
         let Some(path_scan_size) = index_content.len().checked_add(head_content.len()) else {
             provenance.indeterminate_paths.insert(path);
             continue;
@@ -1843,7 +1908,8 @@ fn staged_secret_provenance(
         };
         let mut base_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
         for finding in anvil_checks::secret::scan_content(head_content, &path, config) {
-            let Some(key) = content_line(head_content, finding.line)
+            let Some(key) = head_lines
+                .get(finding.line)
                 .map(|line| raw_secret_finding_key(&finding, line))
             else {
                 continue;
@@ -1858,7 +1924,8 @@ fn staged_secret_provenance(
 
         let mut introduced = Vec::new();
         for mut finding in anvil_checks::secret::scan_content(index_content, &path, config) {
-            let Some(key) = content_line(index_content, finding.line)
+            let Some(key) = index_lines
+                .get(finding.line)
                 .map(|line| raw_secret_finding_key(&finding, line))
             else {
                 finding.file.clone_from(&path);
@@ -1909,6 +1976,8 @@ fn staged_secret_provenance(
     }
 
     provenance.git_subprocess_count = git_subprocess_count;
+    provenance.content_line_index_builds = line_index_stats.builds;
+    provenance.content_lines_indexed = line_index_stats.lines_indexed;
     Some(provenance)
 }
 
@@ -4891,6 +4960,11 @@ mod tests {
             ))
             .is_none()
         );
+        let unsupported_mode = valid_raw_inventory_header("A").replacen("100644", "100664", 1);
+        assert!(
+            parse_staged_gate_inventory(&raw_inventory_record(&unsupported_mode, b".env"))
+                .is_none()
+        );
         assert!(GIT_RAW_INVENTORY_ARGS.contains(&"--no-abbrev"));
     }
 
@@ -5164,15 +5238,18 @@ mod tests {
         std::fs::write(tmp.path().join("a"), "x").unwrap();
         std::fs::write(tmp.path().join("b"), "yy").unwrap();
         let items = ["a", "b"];
+        let mut line_index_stats = ContentLineIndexStats::default();
         let (values, indeterminate) = bounded_path_values(
             tmp.path(),
             &items,
             |path| (*path).to_string(),
-            |_path, content| Some(content.len()),
+            |_path, lines| Some(lines.line_count()),
+            &mut line_index_stats,
             2,
             2,
         );
         assert_eq!(values, vec![Some(1), None]);
+        assert_eq!(line_index_stats.builds, 1);
         assert!(indeterminate.contains("b"));
 
         let changes = vec![
@@ -5231,6 +5308,52 @@ mod tests {
             "committed finding should be qualified in hook output: {}",
             result.message
         );
+    }
+
+    #[test]
+    fn hook_secret_check_classifies_printable_unicode_paths() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let committed_path = tmp.path().join("配置.rs");
+        write_detectable_env(&committed_path);
+        git_for_hook_fixture(tmp.path(), &["add", "配置.rs"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::write(tmp.path().join("安全.rs"), "pub const SAFE: bool = true;\n").unwrap();
+        write_detectable_env(&tmp.path().join("秘密.rs"));
+        git_for_hook_fixture(tmp.path(), &["add", "安全.rs", "秘密.rs"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        let committed = result
+            .message
+            .lines()
+            .find(|line| line.contains("配置.rs:1"))
+            .expect("committed Unicode-path finding should be rendered");
+        assert!(committed.contains("pre-existing"));
+        let staged = result
+            .message
+            .lines()
+            .find(|line| line.contains("秘密.rs:1"))
+            .expect("staged Unicode-path finding should be rendered");
+        assert!(!staged.contains("pre-existing"));
+        assert!(!result.message.contains("staged content unavailable"));
     }
 
     #[test]
@@ -5685,6 +5808,49 @@ mod tests {
     }
 
     #[test]
+    fn hook_secret_check_ignores_staged_gitlink_objects() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        let head = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(tmp.path())
+            .output()
+            .unwrap();
+        assert!(head.status.success());
+        let head = String::from_utf8(head.stdout).unwrap();
+        let cacheinfo = format!("160000,{},vendor/module", head.trim());
+        git_for_hook_fixture(
+            tmp.path(),
+            &["update-index", "--add", "--cacheinfo", &cacheinfo],
+        );
+
+        let snapshot =
+            staged_provenance_snapshot(tmp.path()).expect("gitlink inventory should be supported");
+
+        assert!(snapshot.changes.is_empty());
+        assert!(snapshot.indeterminate_paths.is_empty());
+        let commit_header = format!("{} commit 123\n", "a".repeat(40));
+        let blob_header = format!("{} blob 123\n", "a".repeat(40));
+        assert_eq!(git_batch_blob_size(commit_header.as_bytes()), None);
+        assert_eq!(git_batch_blob_size(blob_header.as_bytes()), Some(123));
+    }
+
+    #[test]
     fn hook_secret_check_isolates_newline_path_from_normal_provenance() {
         let tmp = tempfile::TempDir::new().unwrap();
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
@@ -5716,21 +5882,30 @@ mod tests {
 
     #[test]
     fn hook_secret_check_indexes_dense_finding_lines_once() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
         let value = "abcd".repeat(10);
         let finding_line = format!("aws_secret_access_key='{value}'\n");
         let content = finding_line.repeat(512);
         let config = anvil_checks::secret::SecretCheckConfig::default();
-        let findings = anvil_checks::secret::scan_content(&content, ".env", &config);
+        let env_path = tmp.path().join(".env.dense");
+        std::fs::write(&env_path, &content).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.dense"]);
+        let findings = anvil_checks::secret::scan_content(
+            &content,
+            env_path.to_string_lossy().as_ref(),
+            &config,
+        );
 
-        let keyed = findings
-            .iter()
-            .filter_map(|finding| {
-                content_line(&content, finding.line)
-                    .map(|line| raw_secret_finding_key(finding, line))
-            })
-            .count();
+        let provenance = staged_secret_provenance(tmp.path(), &findings, &config)
+            .expect("dense provenance should be available");
 
-        assert_eq!(keyed, findings.len());
+        assert_eq!(
+            provenance.worktree_keys.iter().flatten().count(),
+            findings.len()
+        );
+        assert_eq!(provenance.content_line_index_builds, 3);
+        assert_eq!(provenance.content_lines_indexed, 1024);
     }
 
     #[test]
