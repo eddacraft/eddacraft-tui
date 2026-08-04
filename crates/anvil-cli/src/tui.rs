@@ -31,11 +31,25 @@ fn restore_terminal() {
 /// installs the hook; subsequent calls are no-ops. Without this, a panic
 /// inside a `run_*` loop leaves the user at a shell prompt with raw mode and
 /// the alternate screen still active.
+///
+/// CIB-248/CIB-249: the welcome autoplay check runs on a named worker thread
+/// that catches its own panics and reports them as a failed demo step. The TUI
+/// is still live at that point, so restoring the terminal (or printing a
+/// backtrace over the frame) would corrupt the session rather than rescue it.
+/// The hook therefore leaves that thread alone — the containment the old
+/// child-process implementation got for free from piped stderr. The panic text
+/// is not lost: it is carried in the step's `stderr` and shown by the recovery
+/// notice.
 fn install_panic_hook() {
     static INSTALLED: OnceLock<()> = OnceLock::new();
     INSTALLED.get_or_init(|| {
         let prev = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
+            if std::thread::current().name()
+                == Some(anvil_tui::surfaces::tutorial::AUTOPLAY_WORKER_THREAD)
+            {
+                return;
+            }
             restore_terminal();
             prev(info);
         }));

@@ -2,8 +2,9 @@ pub mod discovery;
 mod discovery_render;
 pub(crate) mod executor;
 
-/// The in-process autoplay check runner supplied by `anvil-cli` (CIB-248).
-pub use executor::AutoplayRunner;
+/// The in-process autoplay check runner supplied by `anvil-cli` (CIB-248),
+/// and the name of the worker thread it runs on (CIB-249 teardown).
+pub use executor::{AUTOPLAY_WORKER_THREAD, AutoplayRunner};
 pub mod first_win;
 mod first_win_render;
 pub mod fix;

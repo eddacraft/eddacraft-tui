@@ -51,6 +51,15 @@ pub(crate) fn execute_command(command: &str) -> CommandOutput {
 pub type AutoplayRunner =
     std::sync::Arc<dyn Fn(&std::path::Path) -> CommandOutput + Send + Sync + 'static>;
 
+/// Name of the worker thread the autoplay check runs on.
+///
+/// Exported because the host's process-wide panic hook must recognise it: a
+/// panic here is caught and reported as a failed demo step (see
+/// [`AutoplayCommand::spawn`]), so the hook must not tear the terminal down
+/// while the TUI is still drawing. Previously autoplay ran in a child process
+/// with piped stderr, which gave that containment for free.
+pub const AUTOPLAY_WORKER_THREAD: &str = "anvil-autoplay-check";
+
 /// Validate an autoplay command and resolve its target inside the sandbox.
 ///
 /// The allow-list is unchanged from the subprocess era: exactly
@@ -103,10 +112,29 @@ impl AutoplayCommand {
         let runner = std::sync::Arc::clone(runner);
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::Builder::new()
-            .name("anvil-autoplay-check".to_string())
+            .name(AUTOPLAY_WORKER_THREAD.to_string())
             .spawn(move || {
+                // CIB-249 teardown: a panic in the runner must not unwind out
+                // of this thread. The host installs a process-wide panic hook
+                // that restores the terminal, and the TUI is still running, so
+                // an escaping panic would tear the screen down mid-session.
+                // The subprocess era contained panics for free (child process,
+                // piped stderr); catching here restores that, reporting the
+                // panic as an ordinary failed step through the existing
+                // recovery path.
+                let output =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runner(&target)))
+                        .unwrap_or_else(|payload| CommandOutput {
+                            stdout: String::new(),
+                            stderr: format!(
+                                "autoplay check panicked: {}",
+                                panic_message(&*payload)
+                            ),
+                            success: false,
+                            exit_code: None,
+                        });
                 // A disconnected receiver just means the tutorial moved on.
-                let _ = sender.send(runner(&target));
+                let _ = sender.send(output);
             })?;
         Ok(Self {
             receiver,
@@ -177,11 +205,31 @@ impl AutoplayCommand {
             })
     }
 
-    /// Abandon the result. The worker thread is not killable, but it only
-    /// reads one pinned sandbox file and exits, so dropping the receiver is
-    /// enough — the send simply fails and the thread ends.
+    /// Abandon the result. **Does not stop the work.**
+    ///
+    /// Dropping the receiver does not cancel the worker thread: the check runs
+    /// to completion, its `send` then fails, and only at that point does the
+    /// thread exit. The 30-second limit in [`Self::is_finished`] is the same —
+    /// it bounds how long the tutorial *waits*, not how long the check runs.
+    /// The subprocess implementation could kill its child; this one cannot.
+    ///
+    /// That is tolerable only because the demo check reads one pinned sandbox
+    /// file. If the sandbox `TempDir` is dropped first, the runner simply finds
+    /// nothing to read. A runner doing heavier work would need a real
+    /// cancellation signal.
     pub(crate) fn cancel(self) {
         drop(self.receiver);
+    }
+}
+
+/// Best-effort human text for a caught panic payload.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&'static str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "unknown panic payload".to_string()
     }
 }
 
@@ -310,6 +358,81 @@ mod tests {
 
     fn unreachable_runner() -> AutoplayRunner {
         std::sync::Arc::new(|_: &std::path::Path| unreachable!("runner must not be reached"))
+    }
+
+    /// CIB-248 / CIB-249 teardown: a panicking runner must surface as a failed
+    /// step, not as an unwind off the worker thread.
+    ///
+    /// An escaping panic would reach the host's process-wide hook, which
+    /// restores the terminal while the TUI is still drawing; the subprocess
+    /// implementation this replaced contained panics inside the child. The
+    /// caught panic becomes a `CommandOutput` failure, which the existing
+    /// `take_autoplay_failure` → `recover_from_autoplay_failure` path already
+    /// handles inside the TUI.
+    ///
+    /// The default panic hook still prints "thread ... panicked" to the test
+    /// harness's stderr; that is expected noise here, and is exactly what the
+    /// host hook's thread-name check suppresses in the real binary.
+    #[test]
+    fn panicking_runner_becomes_a_failed_step_instead_of_unwinding() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(root.path().join("src")).expect("src");
+        std::fs::write(root.path().join("src/app.ts"), "fixture").expect("fixture");
+
+        let runner: AutoplayRunner =
+            std::sync::Arc::new(|_: &std::path::Path| panic!("demo runner exploded"));
+
+        let mut command =
+            AutoplayCommand::spawn("anvil check src/app.ts", root.path(), Some(&runner))
+                .expect("spawn");
+        while !command.is_finished().expect("poll") {
+            std::thread::yield_now();
+        }
+        let output = command.finish();
+
+        assert!(!output.success, "a panic must not report success");
+        assert_eq!(output.exit_code, None);
+        assert!(
+            output.stderr.contains("panicked") && output.stderr.contains("demo runner exploded"),
+            "the panic payload must reach the failure message: {}",
+            output.stderr
+        );
+    }
+
+    /// The worker thread carries the name the host panic hook keys off. If this
+    /// drifts, panics start tearing the terminal down again.
+    #[test]
+    fn autoplay_worker_thread_is_named_for_the_panic_hook() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(root.path().join("src")).expect("src");
+        std::fs::write(root.path().join("src/app.ts"), "fixture").expect("fixture");
+
+        let seen: std::sync::Arc<std::sync::Mutex<Option<String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let recorder = std::sync::Arc::clone(&seen);
+        let runner: AutoplayRunner = std::sync::Arc::new(move |_: &std::path::Path| {
+            *recorder.lock().expect("record name") =
+                std::thread::current().name().map(ToString::to_string);
+            CommandOutput {
+                stdout: String::new(),
+                stderr: String::new(),
+                success: true,
+                exit_code: Some(0),
+            }
+        });
+
+        let mut command =
+            AutoplayCommand::spawn("anvil check src/app.ts", root.path(), Some(&runner))
+                .expect("spawn");
+        while !command.is_finished().expect("poll") {
+            std::thread::yield_now();
+        }
+        let _ = command.finish();
+
+        assert_eq!(
+            seen.lock().expect("read name").as_deref(),
+            Some(AUTOPLAY_WORKER_THREAD)
+        );
     }
 
     #[test]
