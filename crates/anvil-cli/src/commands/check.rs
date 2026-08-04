@@ -40,6 +40,11 @@ const PLANLESS_ELIGIBLE_CHECKS: &[&str] = &["secret-detection", "antipattern-sca
 /// JSON output schema version — shared across all output paths.
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 
+/// Human-facing notice emitted when one or more findings meet the configured
+/// blocking threshold. Keep this vocabulary severity-neutral: a blocking
+/// finding may have error or warning severity depending on the threshold.
+const BLOCKING_FINDINGS_BANNER: &str = "Blocking findings (severity meets threshold)";
+
 /// Hard cap on a single artifact's size for `anvil check --artifact`. PR
 /// descriptions and commit messages are kilobytes; agent outputs can grow
 /// but a multi-megabyte input is almost always an operator mistake (a
@@ -459,7 +464,7 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         // Keep the blocking notice off the machine-output streams (it goes to
         // stdout); JSON and SARIF stay well-formed. Exit code is unchanged.
         if matches!(mode, OutputMode::Plain | OutputMode::Tui) {
-            output::plain::error("Blocking warnings found (severity meets threshold)");
+            output::plain::error(BLOCKING_FINDINGS_BANNER);
         }
         // Signal failure via AlreadyReported so main exits with EXIT_ERROR
         // without reprinting the message.
@@ -911,7 +916,7 @@ fn run_non_source_artifact(
 
     if has_blocking {
         if matches!(mode, OutputMode::Plain | OutputMode::Tui) {
-            output::plain::error("Blocking warnings found (severity meets threshold)");
+            output::plain::error(BLOCKING_FINDINGS_BANNER);
         }
         Err(output::AlreadyReported.into())
     } else {
@@ -1440,6 +1445,14 @@ fn render_warning(w: &Warning, verbose: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn blocking_banner_uses_neutral_finding_vocabulary() {
+        assert_eq!(
+            BLOCKING_FINDINGS_BANNER,
+            "Blocking findings (severity meets threshold)"
+        );
+    }
 
     // ── Severity parsing ────────────────────────────────────────
 

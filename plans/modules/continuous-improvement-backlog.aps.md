@@ -6401,7 +6401,7 @@ archive.
 
 ### CIB-238: Clarify "Blocking warnings" means threshold-block, not severity=warning
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 polish (Dave UX-2; re-triaged 2026-08-04)
 - **Intent:** Banner text is already "Blocking warnings found **(severity meets
   threshold)**" — "warnings" means findings that trip the block threshold, not
@@ -6421,7 +6421,7 @@ archive.
 
 ### CIB-239: Label pre-existing tree debt in pre-commit gate (keep full-tree scan)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2 UX (Dave UX-3; re-triaged 2026-08-04)
 - **Intent:** Gate blocks a staged-clean commit citing already-committed `.env`
   without a "pre-existing" qualifier — first-block experience blames the

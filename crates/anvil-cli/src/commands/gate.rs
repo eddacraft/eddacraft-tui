@@ -1004,6 +1004,133 @@ fn run_check_secret(
     root: &Path,
     plan_files: &std::collections::HashSet<String>,
 ) -> CheckResult {
+    let hook_mode = std::env::var("ANVIL_HOOK").is_ok_and(|value| value == "1");
+    run_check_secret_with_hook_mode(name, root, plan_files, hook_mode)
+}
+
+fn staged_gate_paths(root: &Path) -> Option<std::collections::HashSet<String>> {
+    let output = std::process::Command::new("git")
+        .args([
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--diff-filter=ACMR",
+            "--",
+        ])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(
+        output
+            .stdout
+            .split(|byte| *byte == b'\0')
+            .filter(|path| !path.is_empty())
+            .map(|path| String::from_utf8_lossy(path).replace('\\', "/"))
+            .collect(),
+    )
+}
+
+fn finding_workspace_path(root: &Path, file: &str) -> String {
+    Path::new(file).strip_prefix(root).map_or_else(
+        |_| file.trim_start_matches(['/', '\\']).replace('\\', "/"),
+        |relative| relative.to_string_lossy().replace('\\', "/"),
+    )
+}
+
+type SecretFindingKey = (u8, String, String, String);
+
+fn secret_finding_key(finding: &anvil_checks::secret::SecretFinding) -> SecretFindingKey {
+    let finding_type = match finding.finding_type {
+        anvil_checks::secret::FindingType::Pattern => 0,
+        anvil_checks::secret::FindingType::Entropy => 1,
+    };
+    (
+        finding_type,
+        finding.pattern_name.clone(),
+        finding.redacted_match.clone(),
+        finding.redacted_line.clone(),
+    )
+}
+
+fn git_blob_content(root: &Path, object: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["cat-file", "blob", object])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8(output.stdout).ok())
+        .flatten()
+}
+
+fn staged_finding_counts(
+    root: &Path,
+    findings: &[anvil_checks::secret::SecretFinding],
+    config: &anvil_checks::secret::SecretCheckConfig,
+) -> Option<BTreeMap<String, BTreeMap<SecretFindingKey, usize>>> {
+    let staged_paths = staged_gate_paths(root)?;
+    let finding_paths = findings
+        .iter()
+        .map(|finding| finding_workspace_path(root, &finding.file))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut introduced_by_path = BTreeMap::new();
+
+    for path in finding_paths {
+        if !staged_paths.contains(&path) {
+            continue;
+        }
+        let index_content = git_blob_content(root, &format!(":{path}"))?;
+        let head_content = git_blob_content(root, &format!("HEAD:{path}")).unwrap_or_default();
+        let mut base_counts = BTreeMap::<SecretFindingKey, usize>::new();
+        for finding in anvil_checks::secret::scan_content(&head_content, &path, config) {
+            *base_counts.entry(secret_finding_key(&finding)).or_default() += 1;
+        }
+
+        let mut introduced = BTreeMap::<SecretFindingKey, usize>::new();
+        for finding in anvil_checks::secret::scan_content(&index_content, &path, config) {
+            let key = secret_finding_key(&finding);
+            if let Some(count) = base_counts.get_mut(&key)
+                && *count > 0
+            {
+                *count -= 1;
+            } else {
+                *introduced.entry(key).or_default() += 1;
+            }
+        }
+        introduced_by_path.insert(path, introduced);
+    }
+
+    Some(introduced_by_path)
+}
+
+fn consume_staged_finding(
+    counts: &mut BTreeMap<String, BTreeMap<SecretFindingKey, usize>>,
+    root: &Path,
+    finding: &anvil_checks::secret::SecretFinding,
+) -> bool {
+    let path = finding_workspace_path(root, &finding.file);
+    let key = secret_finding_key(finding);
+    let Some(count) = counts
+        .get_mut(&path)
+        .and_then(|path_counts| path_counts.get_mut(&key))
+    else {
+        return false;
+    };
+    if *count == 0 {
+        return false;
+    }
+    *count -= 1;
+    true
+}
+
+fn secret_scan_files(root: &Path, plan_files: &std::collections::HashSet<String>) -> Vec<String> {
     let mut files_to_scan: Vec<String> = Vec::new();
 
     // SCAN-001: gate-secret discovery uses `ignore::WalkBuilder`. Per-file
@@ -1087,6 +1214,17 @@ fn run_check_secret(
         files_to_scan.push(path.to_string_lossy().into_owned());
     }
 
+    files_to_scan
+}
+
+fn run_check_secret_with_hook_mode(
+    name: &str,
+    root: &Path,
+    plan_files: &std::collections::HashSet<String>,
+    hook_mode: bool,
+) -> CheckResult {
+    let files_to_scan = secret_scan_files(root, plan_files);
+
     let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
     let config = crate::util::secret_check_config(root);
     let root_str = root.to_string_lossy();
@@ -1108,10 +1246,30 @@ fn run_check_secret(
             requires_config: false,
         }
     } else {
+        // CIB-239: a managed pre-commit gate deliberately scans the full tree.
+        // Compare finding multisets from HEAD and the staged index so only debt
+        // actually introduced in the index remains primary. A committed secret
+        // in a staged path, or a secret added only to the working tree after a
+        // clean staged edit, is still qualified as pre-existing. If Git index
+        // truth is unavailable, retain the established output rather than
+        // guessing. Non-hook output is unchanged.
+        let mut staged_findings = hook_mode
+            .then(|| staged_finding_counts(root, &result.findings, &config))
+            .flatten();
         let locations: Vec<String> = result
             .findings
             .iter()
-            .map(|f| secret_finding_location(f, &file_refs, root))
+            .map(|f| {
+                let location = secret_finding_location(f, &file_refs, root);
+                if staged_findings
+                    .as_mut()
+                    .is_some_and(|counts| !consume_staged_finding(counts, root, f))
+                {
+                    format!("{location} (pre-existing; not staged)")
+                } else {
+                    location
+                }
+            })
             .collect();
         CheckResult {
             name: name.to_string(),
@@ -3796,6 +3954,262 @@ mod tests {
     struct Wrapper {
         #[command(flatten)]
         inner: GateArgs,
+    }
+
+    fn git_for_hook_fixture(root: &Path, args: &[&str]) {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .expect("git should be available for hook fixture");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn write_detectable_env(path: &Path) {
+        let value = "abcd".repeat(10);
+        std::fs::write(path, format!("aws_secret_access_key='{value}'\n")).unwrap();
+    }
+
+    #[test]
+    fn hook_secret_check_labels_committed_finding_pre_existing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        write_detectable_env(&tmp.path().join(".env"));
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::write(
+            tmp.path().join("clean.rs"),
+            "pub const CLEAN: bool = true;\n",
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "clean.rs"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed, "committed secret must still block the gate");
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env:1") && line.contains("pre-existing")),
+            "committed finding should be qualified in hook output: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_labels_unstaged_finding_pre_existing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join(".env"), "SAFE_VALUE=local\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        write_detectable_env(&tmp.path().join(".env"));
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed, "unstaged secret must still block the gate");
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env:1") && line.contains("pre-existing")),
+            "unstaged finding should be qualified in hook output: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_labels_committed_finding_with_unrelated_staged_edit() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env");
+        write_detectable_env(&env_path);
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        let value = "abcd".repeat(10);
+        std::fs::write(
+            &env_path,
+            format!("aws_secret_access_key='{value}'\nSAFE_VALUE=staged\n"),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env:1") && line.contains("pre-existing")),
+            "a staged path must not make committed debt primary: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_labels_unstaged_finding_with_clean_staged_edit() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env");
+        std::fs::write(&env_path, "SAFE_VALUE=committed\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::write(&env_path, "SAFE_VALUE=staged\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        let value = "abcd".repeat(10);
+        std::fs::write(
+            &env_path,
+            format!("SAFE_VALUE=staged\naws_secret_access_key='{value}'\n"),
+        )
+        .unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env:2") && line.contains("pre-existing")),
+            "unstaged debt must not become primary because its path is staged: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_keeps_staged_finding_primary() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        write_detectable_env(&tmp.path().join(".env.local"));
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.local"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed, "staged secret must block the gate");
+        let staged_line = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env.local:1"))
+            .expect("staged finding should be rendered");
+        assert!(
+            !staged_line.contains("pre-existing"),
+            "staged finding must remain primary: {staged_line}"
+        );
+    }
+
+    #[test]
+    fn non_hook_secret_check_keeps_existing_location_copy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_detectable_env(&tmp.path().join(".env"));
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(!result.passed);
+        assert!(result.message.lines().any(|line| line.contains(".env:1")));
+        assert!(
+            !result.message.contains("pre-existing"),
+            "non-hook output must retain established location copy: {}",
+            result.message
+        );
     }
 
     #[test]
