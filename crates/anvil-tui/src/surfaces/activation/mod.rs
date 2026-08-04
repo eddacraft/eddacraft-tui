@@ -461,6 +461,11 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
                 Some(consent) if consent.unsafe_confirm_index.is_some() => {
                     "y confirm  n/esc cancel  q quit"
                 }
+                // CIB-245: `h`/`l` step between consent sections when the run
+                // offers more than one.
+                Some(consent) if consent.steps().len() > 1 => {
+                    "j/k navigate  h/l section  space toggle  a apply  esc/q quit"
+                }
                 Some(_) => "j/k navigate  space toggle  enter select  a apply  esc/q quit",
                 None => "esc/q quit",
             }
@@ -491,6 +496,11 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
             match action {
                 Action::Up => consent.previous(),
                 Action::Down => consent.next(),
+                // CIB-245: section stepping. Inert while the unsafe-drift
+                // overlay owns the keys, so a stray `h` cannot skip the
+                // decision the overlay is asking for.
+                Action::Left if consent.unsafe_confirm_index.is_none() => consent.previous_step(),
+                Action::Right if consent.unsafe_confirm_index.is_none() => consent.next_step(),
                 Action::Toggle => consent.toggle_current(),
                 Action::Select => consent.select_current(),
                 Action::Character('y' | 'Y') if consent.unsafe_confirm_index.is_some() => {

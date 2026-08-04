@@ -478,8 +478,12 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             ) {
                 prepare_consent_progress_steps(&mut progress_steps);
             }
-            let verdict_model =
-                activation_verdict_model(&diagnostic, &install_report, consent_plan.settled_mcp());
+            let verdict_model = activation_verdict_model(
+                &diagnostic,
+                &install_report,
+                consent_plan.settled_mcp(),
+                None,
+            );
             let tier_evidence = activation_tier_evidence(
                 &diagnostic,
                 &install_report,
@@ -829,7 +833,7 @@ fn activation_post_consent_surface(
     // Verdict phase: drop Working progress rows (ACTTUI-014 hand-off).
     ActivationSurface::from_typed_with_progress(
         human_output,
-        activation_verdict_model(diagnostic, install_report, settled_mcp)
+        activation_verdict_model(diagnostic, install_report, settled_mcp, Some(applied))
             .with_first_success(first_success),
         activation_post_consent_evidence(diagnostic, install_report, run, applied),
         project_writes_gated,
@@ -1031,13 +1035,17 @@ fn activation_consent_state(
                 TuiConsentOfferKind::Mcp => ConsentKind::Mcp,
                 TuiConsentOfferKind::Workflow => ConsentKind::Workflow,
                 TuiConsentOfferKind::Project => ConsentKind::Project,
+                TuiConsentOfferKind::Hooks => ConsentKind::Hooks,
             };
             let mut item = ConsentItem::new(
                 offer.id.clone(),
                 offer.label.clone(),
                 offer.description.clone(),
                 kind,
-            );
+            )
+            // CIB-245: the blurb is authored beside the offer, never here, so
+            // the plain and TUI paths cannot drift.
+            .blurb(offer.blurb.clone());
             if offer.repo_scoped {
                 item = item.repo_scoped();
             }
@@ -1050,10 +1058,75 @@ fn activation_consent_state(
     ConsentState::new(items, project_writes_gated)
 }
 
+/// CIB-244: whether a dual-era install outcome is a **this-run** result the
+/// operator asked for, or merely the standing state of a client they did not
+/// select. Only the former belongs in the Install list; the rest collapse to a
+/// single "unchanged" line so the section reads as "what you installed".
+fn is_this_run_install_outcome(outcome: &InstallOutcome) -> bool {
+    use activation::orchestrator::SkipReason;
+    matches!(
+        outcome,
+        InstallOutcome::Installed { .. }
+            | InstallOutcome::Failed { .. }
+            // Refusing to overwrite a foreign entry is a this-run decision the
+            // operator must see; the other skips are "nothing happened".
+            | InstallOutcome::Skipped {
+                reason: SkipReason::UnsafeDrift(_),
+            }
+    )
+}
+
+/// CIB-244: build the verdict Install rows from what this run actually did.
+///
+/// `applied` is the post-consent apply outcome and carries the registry
+/// (`AgentClientId`) clients the operator selected — Grok, Codex, `OpenCode`
+/// and friends — which the dual-era `install_report.per_client` map cannot
+/// express.
+fn activation_install_rows(
+    install_report: &activation::orchestrator::InstallReport,
+    settled_mcp: &[String],
+    applied: Option<&activation::orchestrator::TuiConsentApplyOutcome>,
+) -> Vec<String> {
+    let mut rows: Vec<String> = Vec::new();
+    let mut unchanged = 0usize;
+    for (client, outcome) in &install_report.per_client {
+        if is_undetected_editor(outcome) {
+            continue;
+        }
+        if is_this_run_install_outcome(outcome) {
+            rows.push(format!(
+                "{}: {}",
+                client.display_name(),
+                install_outcome_label(outcome),
+            ));
+        } else {
+            unchanged += 1;
+        }
+    }
+    // Registry clients chosen in consent: first-class rows, named by client.
+    if let Some(applied) = applied {
+        for row in &applied.registry_installs {
+            rows.push(format!("{}: {}", row.display_name, row.label()));
+        }
+    }
+    rows.extend(settled_mcp.iter().cloned());
+    if unchanged > 0 {
+        rows.push(format!(
+            "{unchanged} other detected {} unchanged (see Evidence)",
+            if unchanged == 1 { "client" } else { "clients" },
+        ));
+    }
+    if rows.is_empty() {
+        rows.push("no MCP or project install actions this run".to_string());
+    }
+    rows
+}
+
 fn activation_verdict_model(
     diagnostic: &activation::ActivationDiagnostic,
     install_report: &activation::orchestrator::InstallReport,
     settled_mcp: &[String],
+    applied: Option<&activation::orchestrator::TuiConsentApplyOutcome>,
 ) -> anvil_tui::surfaces::activation::VerdictModel {
     use anvil_tui::surfaces::activation::{VerdictModel, VerdictSection};
 
@@ -1075,6 +1148,20 @@ fn activation_verdict_model(
             probe.transport.label(),
         )
     }));
+    // CIB-244: the live MCP probe is still dual-era, so Layers says which
+    // clients it covers rather than implying the Install list is unprobed
+    // or that unlisted clients failed.
+    if !diagnostic.mcp.is_empty() {
+        layer_rows.push(format!(
+            "MCP probe coverage: {} only — other clients report under Install",
+            diagnostic
+                .mcp
+                .keys()
+                .map(|client| client.display_name())
+                .collect::<Vec<_>>()
+                .join(" and "),
+        ));
+    }
     layer_rows.push(format!("watch: {}", diagnostic.watch.label()));
     // ACTTUI-019: shared subordinate facts (same strings as `anvil status`).
     let posture = activation::SharedPostureFacts::from_diagnostic(diagnostic);
@@ -1088,23 +1175,10 @@ fn activation_verdict_model(
         },
     ));
 
-    // ACTTUI-020: this-run install outcomes first, then settled (no-write) rows.
-    let mut install_rows: Vec<String> = install_report
-        .per_client
-        .iter()
-        .filter(|(_, outcome)| !is_undetected_editor(outcome))
-        .map(|(client, outcome)| {
-            format!(
-                "{}: {}",
-                client.display_name(),
-                install_outcome_label(outcome),
-            )
-        })
-        .collect();
-    install_rows.extend(settled_mcp.iter().cloned());
-    if install_rows.is_empty() {
-        install_rows.push("no MCP or project install actions this run".to_string());
-    }
+    // ACTTUI-020 / CIB-244: this-run outcomes (dual-era + registry clients)
+    // first, then settled (no-write) rows, then one collapsed line for
+    // detected clients this run left alone.
+    let install_rows = activation_install_rows(install_report, settled_mcp, applied);
 
     let mut language_rows: Vec<String> = diagnostic
         .language_profile
@@ -3022,10 +3096,21 @@ mod tests {
 
         let applied =
             run_activation_surface_with(test_activation_surface(), &plan, false, |mut surface| {
+                // CIB-245: consent is stepped by section, so reaching an MCP
+                // row means walking to the MCP section first (`l`/Right) and
+                // then down inside it — both through the production key map.
+                for _ in 0..surface.consent().unwrap().steps().len() {
+                    if surface.consent().unwrap().current_step()
+                        == Some(anvil_tui::surfaces::activation::ConsentKind::Mcp)
+                    {
+                        break;
+                    }
+                    surface.handle_key(Action::Right);
+                }
                 let cursor_index = surface
                     .consent()
                     .unwrap()
-                    .items
+                    .step_items()
                     .iter()
                     .position(|item| item.id == "mcp:cursor")
                     .unwrap();
@@ -3041,6 +3126,61 @@ mod tests {
         assert!(applied.is_some());
         assert!(home.path().join(".cursor/mcp.json").exists());
         assert!(!home.path().join(".claude.json").exists());
+    }
+
+    /// CIB-245: stepping across sections and ticking in more than one keeps
+    /// every selection, so an operator cannot lose a choice by navigating.
+    #[test]
+    fn production_tui_boundary_retains_selections_across_consent_sections() {
+        use anvil_tui::surfaces::activation::ConsentKind;
+
+        let root = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let plan = test_tui_consent_plan(root.path(), home.path());
+
+        // The first (cursor) row of each section, when it is selectable — the
+        // exact set the walk below ticks.
+        let reference = activation_consent_state(plan.offers(), false);
+        let expected: std::collections::BTreeSet<String> = reference
+            .steps()
+            .iter()
+            .filter_map(|kind| {
+                reference
+                    .items
+                    .iter()
+                    .find(|item| item.kind == *kind)
+                    .filter(|item| item.selectable())
+                    .map(|item| item.id.clone())
+            })
+            .collect();
+        assert!(
+            reference.steps().len() > 1 && reference.steps().contains(&ConsentKind::Mcp),
+            "fixture must span more than one consent section: {:?}",
+            reference.steps(),
+        );
+
+        let applied =
+            run_activation_surface_with(test_activation_surface(), &plan, false, |mut surface| {
+                let sections = surface.consent().unwrap().steps().len();
+                // Tick the cursor row of every section, stepping forward.
+                for _ in 0..sections {
+                    surface.handle_key(Action::Toggle);
+                    surface.handle_key(Action::Right);
+                }
+                // Step back through every section; earlier ticks must survive.
+                for _ in 0..sections {
+                    surface.handle_key(Action::Left);
+                }
+                surface.handle_key(Action::Character('a'));
+                Ok(surface)
+            })
+            .unwrap()
+            .expect("consent applied");
+
+        assert_eq!(
+            applied.selected_ids, expected,
+            "one row ticked per section survives the round trip",
+        );
     }
 
     #[test]
@@ -3464,7 +3604,7 @@ mod tests {
 
         let diagnostic = daemon_attested_diagnostic();
         let report = activation::orchestrator::InstallReport::default();
-        let model = activation_verdict_model(&diagnostic, &report, &[]);
+        let model = activation_verdict_model(&diagnostic, &report, &[], None);
         let surface = ActivationSurface::from_typed_with_progress(
             "copy changed completely; state: error",
             model.clone(),
@@ -3897,6 +4037,185 @@ mod tests {
         ));
     }
 
+    /// CIB-244: the operator selects a registry client (Codex) and deselects
+    /// Cursor. Install must name Codex; the Cursor `not selected` row must not
+    /// headline the section.
+    #[test]
+    fn install_section_names_selected_registry_clients_not_deselected_dual_era() {
+        use activation::orchestrator::{
+            RegistryInstallRow, RegistryInstallStatus, SkipReason, TuiConsentApplyOutcome,
+        };
+
+        let mut report = activation::orchestrator::InstallReport::default();
+        report.per_client.insert(
+            activation::diagnostic::McpClientId::Cursor,
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected,
+            },
+        );
+        report.per_client.insert(
+            activation::diagnostic::McpClientId::ClaudeCode,
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate,
+            },
+        );
+        let applied = TuiConsentApplyOutcome {
+            registry_installs: vec![RegistryInstallRow {
+                display_name: "Codex".to_string(),
+                status: RegistryInstallStatus::Installed {
+                    path: std::path::PathBuf::from("/home/dev/.codex/config.toml"),
+                },
+            }],
+            ..TuiConsentApplyOutcome::default()
+        };
+
+        let rows = activation_install_rows(&report, &[], Some(&applied));
+
+        assert_eq!(
+            rows.first().map(String::as_str),
+            Some("Codex: MCP installed at /home/dev/.codex/config.toml"),
+            "the client the operator chose must lead the Install list: {rows:?}",
+        );
+        assert!(
+            !rows.iter().any(|row| row.contains("not selected")),
+            "deselected dual-era clients must not appear as Install rows: {rows:?}",
+        );
+        assert!(
+            !rows.iter().any(|row| row.contains("already up to date")),
+            "untouched dual-era clients must not appear as Install rows: {rows:?}",
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row == "2 other detected clients unchanged (see Evidence)"),
+            "unselected detected clients collapse to one honest line: {rows:?}",
+        );
+    }
+
+    /// CIB-244: this-run outcomes stay first-class — an install and an
+    /// unsafe-drift refusal are both decisions the operator must see.
+    #[test]
+    fn install_section_keeps_this_run_dual_era_outcomes() {
+        use activation::diagnostic::McpClientId;
+        use activation::mcp_client::DriftClass;
+        use activation::orchestrator::SkipReason;
+
+        let mut report = activation::orchestrator::InstallReport::default();
+        report.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Installed {
+                path: std::path::PathBuf::from("/home/dev/.cursor/mcp.json"),
+                drift: DriftClass::NotPresent,
+            },
+        );
+        report.per_client.insert(
+            McpClientId::ClaudeCode,
+            InstallOutcome::Skipped {
+                reason: SkipReason::UnsafeDrift("foreign mcpServers.anvil entry".to_string()),
+            },
+        );
+
+        let rows = activation_install_rows(&report, &[], None);
+
+        assert!(
+            rows.iter().any(|row| row.contains("installed at")),
+            "{rows:?}",
+        );
+        assert!(
+            rows.iter().any(|row| row.contains("refused to overwrite")),
+            "{rows:?}",
+        );
+        assert!(
+            !rows.iter().any(|row| row.contains("unchanged")),
+            "nothing was left alone, so no collapsed line: {rows:?}",
+        );
+    }
+
+    /// CIB-244: a registry install that failed or was gated is reported as such
+    /// under Install, not buried in the evidence log.
+    #[test]
+    fn install_section_reports_registry_failures_and_skips() {
+        use activation::orchestrator::{
+            RegistryInstallRow, RegistryInstallStatus, TuiConsentApplyOutcome,
+        };
+
+        let applied = TuiConsentApplyOutcome {
+            registry_installs: vec![
+                RegistryInstallRow {
+                    display_name: "OpenCode".to_string(),
+                    status: RegistryInstallStatus::Failed {
+                        error: "permission denied".to_string(),
+                    },
+                },
+                RegistryInstallRow {
+                    display_name: "Zed".to_string(),
+                    status: RegistryInstallStatus::Skipped {
+                        reason: "project writes are gated for this ANVIL_HOME".to_string(),
+                    },
+                },
+            ],
+            ..TuiConsentApplyOutcome::default()
+        };
+
+        let rows = activation_install_rows(
+            &activation::orchestrator::InstallReport::default(),
+            &[],
+            Some(&applied),
+        );
+
+        assert!(
+            rows.iter()
+                .any(|row| row == "OpenCode: MCP install failed: permission denied"),
+            "{rows:?}",
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.starts_with("Zed: MCP install skipped:")),
+            "{rows:?}",
+        );
+    }
+
+    /// CIB-244: with nothing selected and nothing settled, the section still
+    /// refuses to imply work happened.
+    #[test]
+    fn install_section_is_honest_when_nothing_happened() {
+        let rows = activation_install_rows(
+            &activation::orchestrator::InstallReport::default(),
+            &[],
+            None,
+        );
+        assert_eq!(rows, ["no MCP or project install actions this run"]);
+    }
+
+    /// CIB-244: Layers scopes its dual-era MCP probe rather than implying the
+    /// clients named under Install were probed and found missing.
+    #[test]
+    fn layers_scopes_the_dual_era_mcp_probe() {
+        let diagnostic = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        assert!(
+            !diagnostic.mcp.is_empty(),
+            "fixture must carry MCP probe rows for this assertion to mean anything",
+        );
+        let model = activation_verdict_model(
+            &diagnostic,
+            &activation::orchestrator::InstallReport::default(),
+            &[],
+            None,
+        );
+        let layers = &model
+            .sections
+            .iter()
+            .find(|section| section.id == "layers")
+            .expect("layers section")
+            .rows;
+        assert!(
+            layers.iter().any(|row| {
+                row.starts_with("MCP probe coverage")
+                    && row.ends_with("other clients report under Install")
+            }),
+            "{layers:?}",
+        );
+    }
+
     #[test]
     fn tui_verdict_headline_and_next_step_render_the_arbitrated_copy() {
         // Cross-surface literal pin: at ready_restart_required with the
@@ -3906,7 +4225,7 @@ mod tests {
         // generic restart headline.
         let mut diag = restart_required_diagnostic();
         diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
-        let model = activation_verdict_model(&diag, &up_to_date_install_report(), &[]);
+        let model = activation_verdict_model(&diag, &up_to_date_install_report(), &[], None);
         let rows = &model
             .sections
             .iter()
@@ -4387,6 +4706,7 @@ mod tests {
                 &diag,
                 &activation::orchestrator::InstallReport::default(),
                 &[],
+                None,
             );
             let activation_section = model
                 .sections

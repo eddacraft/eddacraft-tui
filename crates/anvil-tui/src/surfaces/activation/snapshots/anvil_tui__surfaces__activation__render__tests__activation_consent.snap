@@ -1,14 +1,13 @@
 ---
 source: crates/anvil-tui/src/surfaces/activation/render.rs
-assertion_line: 432
 expression: "render_to_string(&consent_surface, 100, 22)"
 ---
                                                                                                     
   Preflight > Working > [Consent] > Verdict > Done                                                  
                                                                                                     
   ────────────────────────────────────────────────────────────────────────────────────────────────  
-  ┌ Consent ─────────────────────────────────────────────────────────────────────────────────────┐  
-  │▸ [ ] Cursor MCP  MCP — Write ~/.cursor/mcp.json                                              │  
+  ┌ Consent — MCP clients (1/1) ─────────────────────────────────────────────────────────────────┐  
+  │▸ [ ] Cursor MCP  Write ~/.cursor/mcp.json                                                    │  
   │                                                                                              │  
   │                                                                                              │  
   │                                                                                              │  
@@ -22,4 +21,5 @@ expression: "render_to_string(&consent_surface, 100, 22)"
   │                                                                                              │  
   │                                                                                              │  
   └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  0 selected
+  Editors and agent CLIs that should be able to call anvil.                                         
+  0 selected in total

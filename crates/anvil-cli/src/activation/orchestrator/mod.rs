@@ -334,11 +334,16 @@ pub enum McpInstallPolicy {
 }
 
 /// Write category presented by the activation TUI consent surface.
+///
+/// CIB-245: the categories double as consent **sections/steps**, so git hook
+/// installation is its own kind rather than a `Project` row — operators read
+/// "change my git workflow" as a different decision from "seed project files".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TuiConsentOfferKind {
     Mcp,
     Workflow,
     Project,
+    Hooks,
 }
 
 #[derive(Debug, Clone)]
@@ -367,11 +372,17 @@ impl TuiProjectAction {
 }
 
 /// One stable, unticked-by-default write offer for the activation TUI.
+///
+/// CIB-245: `blurb` is the plain-language "what is this" — why anvil wants the
+/// write and what happens if it is skipped. It is owned here, next to offer
+/// construction, so the TUI and plain paths cannot drift. `description` stays
+/// the path/action detail and is rendered as the secondary line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TuiConsentOffer {
     pub id: String,
     pub label: String,
     pub description: String,
+    pub blurb: String,
     pub kind: TuiConsentOfferKind,
     pub repo_scoped: bool,
     pub unsafe_drift: Option<String>,
@@ -409,6 +420,53 @@ pub(crate) struct RegistryMcpSelection<'a> {
     pub explicit_clients: &'a [AgentClientId],
 }
 
+/// CIB-244: what actually happened to one registry MCP client this run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RegistryInstallStatus {
+    Installed { path: PathBuf },
+    AlreadyConfigured { path: PathBuf },
+    Skipped { reason: String },
+    Failed { error: String },
+}
+
+/// CIB-244: one typed this-run install outcome for a registry (`AgentClientId`)
+/// MCP client, so the verdict Install section can name the clients the operator
+/// actually selected instead of only the dual-era `McpClientId` pair.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RegistryInstallRow {
+    pub display_name: String,
+    pub status: RegistryInstallStatus,
+}
+
+impl RegistryInstallRow {
+    /// Human-readable row body, shared by the Install verdict section and the
+    /// evidence log so the two cannot drift.
+    pub(crate) fn label(&self) -> String {
+        match &self.status {
+            RegistryInstallStatus::Installed { path } => {
+                format!("MCP installed at {}", path.display())
+            }
+            RegistryInstallStatus::AlreadyConfigured { path } => {
+                format!("MCP already configured at {}", path.display())
+            }
+            RegistryInstallStatus::Skipped { reason } => format!("MCP install skipped: {reason}"),
+            RegistryInstallStatus::Failed { error } => format!("MCP install failed: {error}"),
+        }
+    }
+
+    /// Full evidence/log line (`"<client> MCP installed at …"`).
+    pub(crate) fn line(&self) -> String {
+        format!("{} {}", self.display_name, self.label())
+    }
+
+    pub(crate) fn is_error(&self) -> bool {
+        matches!(
+            self.status,
+            RegistryInstallStatus::Skipped { .. } | RegistryInstallStatus::Failed { .. }
+        )
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TuiConsentApplyOutcome {
     pub install_report: InstallReport,
@@ -418,6 +476,9 @@ pub(crate) struct TuiConsentApplyOutcome {
     pub project_applied: BTreeSet<ActivationStep>,
     pub project_skipped: std::collections::BTreeMap<ActivationStep, String>,
     pub project_errors: std::collections::BTreeMap<ActivationStep, String>,
+    /// CIB-244: typed this-run registry MCP outcomes. `first_wave_mcp_lines`
+    /// and `first_wave_mcp_errors` are rendered projections of these rows.
+    pub registry_installs: Vec<RegistryInstallRow>,
     pub first_wave_mcp_lines: Vec<String>,
     pub first_wave_mcp_errors: Vec<String>,
 }
@@ -504,8 +565,20 @@ impl TuiConsentPlan {
         install_report.hooks_active = project_applied.contains(&ActivationStep::GitHooks)
             && hooks::activation_hooks_active(root).unwrap_or(false);
 
-        let (first_wave_mcp_lines, first_wave_mcp_errors) =
-            self.apply_registry_mcp_candidates(&selected);
+        let registry_installs = self.apply_registry_mcp_candidates(&selected);
+        // CIB-244: the log/evidence projections stay derived from the typed
+        // rows so Install, Evidence, and the load-bearing failure check can
+        // never disagree about what happened this run.
+        let first_wave_mcp_lines = registry_installs
+            .iter()
+            .filter(|row| !row.is_error())
+            .map(RegistryInstallRow::line)
+            .collect();
+        let first_wave_mcp_errors = registry_installs
+            .iter()
+            .filter(|row| row.is_error())
+            .map(RegistryInstallRow::line)
+            .collect();
 
         TuiConsentApplyOutcome {
             install_report,
@@ -515,29 +588,28 @@ impl TuiConsentPlan {
             project_applied,
             project_skipped,
             project_errors,
+            registry_installs,
             first_wave_mcp_lines,
             first_wave_mcp_errors,
         }
     }
 
-    fn apply_registry_mcp_candidates(
-        &self,
-        selected: &BTreeSet<&str>,
-    ) -> (Vec<String>, Vec<String>) {
-        let mut lines = Vec::new();
-        let mut errors = Vec::new();
+    fn apply_registry_mcp_candidates(&self, selected: &BTreeSet<&str>) -> Vec<RegistryInstallRow> {
+        let mut rows: Vec<RegistryInstallRow> = Vec::new();
         let command = match std::env::current_exe() {
             Ok(command) => command,
             Err(error) => {
-                if selected
-                    .iter()
-                    .any(|id| self.registry_mcp_candidates.contains_key(*id))
-                {
-                    errors.push(format!(
-                        "MCP install failed: resolving anvil executable: {error}"
-                    ));
+                for (id, candidate) in &self.registry_mcp_candidates {
+                    if selected.contains(id.as_str()) {
+                        rows.push(RegistryInstallRow {
+                            display_name: candidate.client.entry().display_name.to_string(),
+                            status: RegistryInstallStatus::Failed {
+                                error: format!("resolving anvil executable: {error}"),
+                            },
+                        });
+                    }
                 }
-                return (lines, errors);
+                return rows;
             }
         };
         let command = command.to_string_lossy();
@@ -545,27 +617,32 @@ impl TuiConsentPlan {
             if !selected.contains(id.as_str()) {
                 continue;
             }
+            let display_name = candidate.client.entry().display_name.to_string();
             if self.project_writes_gated && candidate.scope == InstallScope::Project {
-                errors.push(format!(
-                    "{} MCP install skipped: project writes are gated for this ANVIL_HOME",
-                    candidate.client.entry().display_name
-                ));
+                rows.push(RegistryInstallRow {
+                    display_name,
+                    status: RegistryInstallStatus::Skipped {
+                        reason: "project writes are gated for this ANVIL_HOME".to_string(),
+                    },
+                });
                 continue;
             }
             let root = match candidate.scope {
                 InstallScope::Global => {
                     let Some(home) = self.home.as_deref() else {
-                        errors.push(format!(
-                            "{} MCP install failed: could not determine home directory",
-                            candidate.client.entry().display_name
-                        ));
+                        rows.push(RegistryInstallRow {
+                            display_name,
+                            status: RegistryInstallStatus::Failed {
+                                error: "could not determine home directory".to_string(),
+                            },
+                        });
                         continue;
                     };
                     home
                 }
                 InstallScope::Project => self.root.as_path(),
             };
-            match mcp_installer::install(
+            let status = match mcp_installer::install(
                 candidate.client,
                 candidate.scope,
                 root,
@@ -573,23 +650,20 @@ impl TuiConsentPlan {
                 false,
                 false,
             ) {
-                Ok(report) => lines.push(format!(
-                    "{} MCP {} at {}",
-                    candidate.client.entry().display_name,
-                    if report.wrote {
-                        "installed"
-                    } else {
-                        "already configured"
-                    },
-                    report.path.display()
-                )),
-                Err(error) => errors.push(format!(
-                    "{} MCP install failed: {error:#}",
-                    candidate.client.entry().display_name
-                )),
-            }
+                Ok(report) if report.wrote => {
+                    RegistryInstallStatus::Installed { path: report.path }
+                }
+                Ok(report) => RegistryInstallStatus::AlreadyConfigured { path: report.path },
+                Err(error) => RegistryInstallStatus::Failed {
+                    error: format!("{error:#}"),
+                },
+            };
+            rows.push(RegistryInstallRow {
+                display_name,
+                status,
+            });
         }
-        (lines, errors)
+        rows
     }
 }
 
@@ -751,6 +825,7 @@ fn build_tui_consent_plan_with_project_options(
             id: id.clone(),
             label: workflow.to_string(),
             description: workflow.label(root),
+            blurb: workflow.blurb().to_string(),
             kind: TuiConsentOfferKind::Workflow,
             repo_scoped: true,
             unsafe_drift: None,
@@ -794,6 +869,7 @@ fn build_tui_consent_plan_with_project_options(
                 id: id.clone(),
                 label: format!("{} MCP", candidate.id.display_name()),
                 description: format!("{action} {}", candidate.target_path.display()),
+                blurb: mcp_offer_blurb(candidate.id.display_name()),
                 kind: TuiConsentOfferKind::Mcp,
                 repo_scoped: candidate.scope
                     == crate::activation::mcp_client::ConfigScope::Workspace,
@@ -912,6 +988,11 @@ impl TuiConsentPlan {
             id: id.clone(),
             label: format!("{} MCP", entry.display_name),
             description: format!("Write {}", path.display()),
+            blurb: format!(
+                "{} {}",
+                mcp_offer_blurb(entry.display_name),
+                entry.reload_hint,
+            ),
             kind: TuiConsentOfferKind::Mcp,
             repo_scoped: scope == InstallScope::Project,
             unsafe_drift: None,
@@ -926,6 +1007,52 @@ impl TuiConsentPlan {
     }
 }
 
+/// CIB-245: one-line class blurb for an MCP client row. MCP names are already
+/// legible, so this stays short — it says what wiring the client up buys.
+fn mcp_offer_blurb(display_name: &str) -> String {
+    format!("Lets {display_name} call anvil's tools directly instead of guessing about your code.")
+}
+
+fn add_tui_config_offer(
+    root: &Path,
+    config_format: Option<anvil_config::ConfigFormat>,
+    offers: &mut Vec<TuiConsentOffer>,
+    actions: &mut Vec<(String, TuiProjectAction)>,
+) {
+    let id = "project:init-config".to_string();
+    let target = config_format.map_or_else(
+        || root.join(".anvilrc"),
+        |format| root.join(format!(".anvil.{}", format.extension())),
+    );
+    let description = config_format.map_or_else(
+        || {
+            format!(
+                "Create {} and its documented local project support files",
+                target.display(),
+            )
+        },
+        |_| format!("Create {}", target.display()),
+    );
+    offers.push(TuiConsentOffer {
+        id: id.clone(),
+        label: "Project configuration".to_string(),
+        description,
+        blurb: "anvil's settings file for this repo — which checks run and how \
+                strict they are. Skip it and anvil runs on built-in defaults \
+                with nothing to tune or commit."
+            .to_string(),
+        kind: TuiConsentOfferKind::Project,
+        repo_scoped: true,
+        unsafe_drift: None,
+    });
+    actions.push((
+        id,
+        TuiProjectAction::InitConfig {
+            format: config_format,
+        },
+    ));
+}
+
 fn add_tui_project_offers(
     root: &Path,
     home: Option<&Path>,
@@ -936,34 +1063,7 @@ fn add_tui_project_offers(
 ) {
     let initial = verify_with_home(root, home);
     if matches!(initial.config, ConfigStatus::Absent) {
-        let id = "project:init-config".to_string();
-        let target = config_format.map_or_else(
-            || root.join(".anvilrc"),
-            |format| root.join(format!(".anvil.{}", format.extension())),
-        );
-        let description = config_format.map_or_else(
-            || {
-                format!(
-                    "Create {} and its documented local project support files",
-                    target.display(),
-                )
-            },
-            |_| format!("Create {}", target.display()),
-        );
-        offers.push(TuiConsentOffer {
-            id: id.clone(),
-            label: "Project configuration".to_string(),
-            description,
-            kind: TuiConsentOfferKind::Project,
-            repo_scoped: true,
-            unsafe_drift: None,
-        });
-        actions.push((
-            id,
-            TuiProjectAction::InitConfig {
-                format: config_format,
-            },
-        ));
+        add_tui_config_offer(root, config_format, offers, actions);
     }
 
     let project_id = identity::project_id_path(root);
@@ -977,6 +1077,10 @@ fn add_tui_project_offers(
                 if rotate_identity { "Replace" } else { "Create" },
                 project_id.display(),
             ),
+            blurb: "A stable id so anvil can tell this project's history apart \
+                    from other checkouts on this machine. Skip it and \
+                    per-project evidence cannot be attributed across runs."
+                .to_string(),
             kind: TuiConsentOfferKind::Project,
             repo_scoped: true,
             unsafe_drift: None,
@@ -995,6 +1099,10 @@ fn add_tui_project_offers(
             id: id.clone(),
             label: "Witness merge attributes".to_string(),
             description: format!("Update {}", root.join(".gitattributes").display()),
+            blurb: "Tells git how to merge anvil's evidence files so two \
+                    branches do not produce conflict markers in them. Skip it \
+                    and you resolve those conflicts by hand."
+                .to_string(),
             kind: TuiConsentOfferKind::Project,
             repo_scoped: true,
             unsafe_drift: None,
@@ -1008,7 +1116,11 @@ fn add_tui_project_offers(
             id: id.clone(),
             label: "Commit and push hooks".to_string(),
             description: "Install anvil-managed pre-commit and pre-push hooks".to_string(),
-            kind: TuiConsentOfferKind::Project,
+            blurb: "Runs anvil's checks automatically when you commit or push, \
+                    so new problems are caught before they leave your machine. \
+                    Skip it and checks only run when you ask for them."
+                .to_string(),
+            kind: TuiConsentOfferKind::Hooks,
             repo_scoped: true,
             unsafe_drift: None,
         });
@@ -1024,6 +1136,10 @@ fn add_tui_project_offers(
                 "Record current findings at {} when analysable files exist",
                 root.join(".anvil/baseline.json").display(),
             ),
+            blurb: "Records today's findings as accepted, so anvil only warns \
+                    about new problems instead of your whole backlog. Skip it \
+                    and the first checks report existing code too."
+                .to_string(),
             kind: TuiConsentOfferKind::Project,
             repo_scoped: true,
             unsafe_drift: None,
@@ -1854,6 +1970,23 @@ impl WorkflowTemplate {
         match self {
             Self::PrValidation => format!("PR validation ({target}) [pull_request]"),
             Self::Audit => format!("Nightly audit ({target}) [schedule]"),
+        }
+    }
+
+    /// CIB-245: plain-language "what is this" for the consent row. Owned here
+    /// beside the template so the TUI cannot invent its own wording.
+    fn blurb(self) -> &'static str {
+        match self {
+            Self::PrValidation => {
+                "A GitHub Actions job that runs anvil's checks on every pull \
+                 request, so problems are visible in review. Skip it and \
+                 nothing runs anvil in CI."
+            }
+            Self::Audit => {
+                "A nightly GitHub Actions job that re-runs anvil across the \
+                 whole repo and records the result. Skip it and you only see \
+                 the files each change touches."
+            }
         }
     }
 
