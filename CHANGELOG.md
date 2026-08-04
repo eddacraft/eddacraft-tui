@@ -24,6 +24,13 @@ engineering maintenance are recorded in the
   committed `.env`, say — as `.env:0`, which read like a line number counting
   from zero. Whole-file findings now show just the filename, and `--format json`
   reports `"line": null` for them. Every line number anvil prints is 1-based.
+- **Secrets found outside your project keep their real path.** A secret detected
+  outside the workspace could be reported with its leading `/` removed, naming a
+  file that was not the one scanned.
+
+  On Windows only, because the paths in SARIF output change, code-scanning
+  alerts for secret findings are fingerprinted afresh: expect existing alerts to
+  close and reappear once after upgrading.
 
 ## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
 
