@@ -6479,7 +6479,7 @@ archive.
 
 ### CIB-242: Optional status hint for daemon/MCP binary version skew after upgrade
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3541](https://github.com/eddacraft/anvil-001/pull/3541) (`39e4dc2e4`)
 - **Priority:** P3 enhancement (Dave stack note; re-triaged 2026-08-04)
 - **Intent:** After a rename-swap binary upgrade, open editor/agent MCP sessions
   keep the old anvil image — normal OS process behaviour, not an anvil
@@ -6500,7 +6500,7 @@ archive.
 
 ### CIB-243: Skill install docs — multi-client `--client` + move outside skills dir
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3541](https://github.com/eddacraft/anvil-001/pull/3541) (`39e4dc2e4`)
 - **Priority:** P3 docs (Dave stack notes; re-triaged 2026-08-04)
 - **Intent:** (a) Requiring explicit `--client` when several clients are
   detected is **correct** non-interactive behaviour (no silent multi-write) —
