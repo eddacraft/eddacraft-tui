@@ -763,6 +763,24 @@ impl TutorialState {
         self.editor = None;
     }
 
+    /// Recover from an autoplay failure **without leaving the TUI** (CIB-248).
+    ///
+    /// The old behaviour returned `Err` out of the welcome tutorial loop, so a
+    /// failed demo step dropped the user to scrollback with
+    /// `Error: autoplay command failed: ...`. A demo that cannot finish is not
+    /// a reason to end the session: tear the sandbox session down, return to
+    /// the path picker, and say what happened.
+    ///
+    /// CIB-249's teardown criteria ride along here — the surface stays owned by
+    /// the TUI, so the terminal is restored by the ordinary exit path rather
+    /// than by unwinding through an error.
+    pub fn recover_from_autoplay_failure(&mut self, message: impl Into<String>) {
+        self.abort_autoplay_session();
+        self.autoplay_failure = None;
+        self.phase = TutorialPhase::PathSelect;
+        self.resuming_notice = Some(message.into());
+    }
+
     pub fn autoplay_session_active(&self) -> bool {
         self.autoplay_session
     }
@@ -3401,6 +3419,29 @@ mod tests {
         assert_eq!(
             state.static_notice.as_deref(),
             Some("Interactive mode unavailable \u{2014} showing guided walkthrough.")
+        );
+    }
+
+    /// CIB-248: an autoplay failure used to unwind out of the welcome loop as
+    /// an `Err`, dropping the user to scrollback. Recovery must keep the
+    /// session alive and hand them back to the picker with an explanation.
+    #[test]
+    fn autoplay_failure_recovers_to_the_path_picker_instead_of_exiting() {
+        let mut state = TutorialState::new_autoplay();
+        state.fail_autoplay("autoplay command failed: boom".to_string());
+        assert!(state.autoplay_failure().is_some());
+
+        state.recover_from_autoplay_failure("The hands-free demo stopped: boom.");
+
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.autoplay_session_active());
+        assert!(!state.autoplay_driver_active());
+        // The failure is consumed by the recovery, so the welcome loop cannot
+        // observe it again and treat it as fatal on the next tick.
+        assert!(state.autoplay_failure().is_none());
+        assert_eq!(
+            state.resuming_notice.as_deref(),
+            Some("The hands-free demo stopped: boom.")
         );
     }
 

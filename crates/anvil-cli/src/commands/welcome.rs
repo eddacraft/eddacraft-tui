@@ -1116,11 +1116,21 @@ fn run_tutorial_with_fix(
             return Err(error);
         }
 
+        // CIB-248: a failed demo step must not end the welcome session. Tear
+        // the sandbox down, tell the user what happened, and hand them back to
+        // the path picker still inside the TUI.
         if let Some(failure) = tutorial_state.take_autoplay_failure() {
-            tutorial_state.abort_autoplay_session();
-            drop(watcher.take());
             drop(autoplay_sandbox.take());
-            return Err(anyhow::anyhow!(failure));
+            tutorial_state.recover_from_autoplay_failure(format!(
+                "The hands-free demo stopped: {failure}. Your repo was not touched — pick a path to continue."
+            ));
+            watcher = try_start_tutorial_watcher();
+            if watcher.is_none() {
+                tutorial_state.enable_static_mode_with_reason(
+                    anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
+                );
+            }
+            continue;
         }
 
         if tutorial_state.take_autoplay_teardown_requested() {
