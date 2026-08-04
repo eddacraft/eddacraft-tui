@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 189/269  |
+| CIB | —     | In Progress | 191/272  |
 
 ## Purpose
 
@@ -6751,9 +6751,8 @@ contract semantics). Pack-02 does **not** re-file those IDs.
 **RETRACT-1 (binding):** Pack-01 verified-good "hooks install then committing a
 secret is blocked" was unconditional. It holds only for **file-mode** hooks and
 **extensions gate scans**. Replacement anchors (no standalone CIB — **CIB-250
-remains free / reserved** for concurrent work such as the lint-staged
-absolute-path ignore inconsistency and must not be consumed or redefined by
-pack-02):
+was held free after collision closeout, then **claimed by pack-03 CIB-250**
+(tutorial safety chain — not lint-staged, not RETRACT-1). Do not reassign):
 - **Anchor A** (file-mode + scanned extension, e.g. `.env` asserts block) lives
   with **CIB-251** validation (file-mode path stays green; do not treat
   `--config` as covered without a verified hook fire).
@@ -6765,7 +6764,7 @@ pack-02):
 
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
-| RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); **CIB-250 free** (reserved — e.g. lint-staged absolute-path ignore) |
+| RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); pack-03 uses **CIB-250** for tutorial safety chain (unrelated) |
 | HOOK-1 | net-new honesty (opt-in `--config`; one git) | **CIB-251** Ready P1 |
 | WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
 | STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
@@ -6795,6 +6794,47 @@ pack-02):
 | TUI-N1/N2 | nitpicks | deliberate non-scope |
 | R1..R8 | suggestions | deliberate non-scope (not release work) |
 | Pack-01 UPD/TRUST/UX/CONF/AUTH | preserve prior disposition | CIB-228..243; AUTH untracked |
+
+### CIB-250: Tutorial safety chain — esc-as-back → forced resume → wrong-repo activate (pack-03)
+
+- **Status:** Ready
+- **Priority:** P0 for `v0.9.3-beta` (first-time walkthrough safety — wrong-repo
+  irreversible activate)
+- **Intent:** Four small behaviours form **one causal chain** that walks a
+  first-time user onto baseline activation aimed at the **wrong repo**, with no
+  decline path (Dave pack-03 §3, Windows PowerShell, hand-driven as a beginner):
+  1. Help bar labels `esc` as **back**, but `esc` **quits** the whole tutorial
+     (pack-02 TUI-1 / former CIB-265).
+  2. Mid-path there is **no route back to the path menu**; the escape hatch
+     (`anvil tutorial --reset`) is documented only in `--help` (pack-02 TUI-3).
+  3. Re-open lands on global resume — **"Press enter to activate in this repo"**
+     in whatever folder the user is in now, not the path origin (pack-02 TUI-2 /
+     former CIB-258: `~/.anvil/tutorial-progress.json` unscoped).
+  4. That activation step has **no "writes X" disclosure** and **no decline** —
+     only "press enter" — and rewrites the repo baseline.
+- **Expected Outcome:** Fix as one chain, not partials —
+  - Label/behaviour match for esc on tutorial chrome (`back` goes back **or**
+    label says quit).
+  - User can always reach the path menu without `--help` archaeology.
+  - Progress is repo/workspace-scoped **or** resume always re-confirms the
+    absolute target path before any write.
+  - Activation step uses existing blast-radius tags (`[writes to your repo]`)
+    and offers decline/skip; wrong-tree activate without confirmation is a fail.
+- **Non-scope:** Redesign of the whole 60-second curriculum (see pack-03 §4
+  deliberate non-scope / editorial later); other esc contexts outside tutorial.
+- **Files:** tutorial chrome / help bar, progress store
+  (`tutorial-progress.json`), resume landing, activation step consent.
+- **Validation:** (a) esc labelled back does not silent-quit into wrong-repo
+  activate; (b) complete path in repo A, `cd` to repo B, reopen tutorial → no
+  activate-into-B without naming B and offering decline; (c) activation step
+  shows write disclosure.
+- **Identified From:** Dave pack-03 field report 2026-08-04
+  (`/tmp/dave-beta-report-3.md` §3); absorbs pack-02 TUI-1/TUI-2/TUI-3.
+- **Supersedes:** CIB-258, CIB-265
+- **Coordinates with:** CIB-261 (Windows re-run snag on resume path), CIB-246,
+  CIB-245 blast-radius tags
+- **Confidence:** high — operator-observed chain; file shape for progress
+  previously confirmed.
 
 ### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
 
@@ -6977,19 +7017,13 @@ pack-02):
 
 ### CIB-258: Scope tutorial progress to repo/workspace (TUI-2)
 
-- **Status:** Ready
-- **Priority:** P1 (scoping / activation footgun — Dave weights with WS-1)
-- **Intent:** `~/.anvil/tutorial-progress.json` has no repo/project/workspace
-  key. Resume lands on "Press enter to activate in **this** repo" wherever the
-  operator now stands — can write activation into the wrong tree.
-- **Expected Outcome:** Progress is scoped (repo root identity or explicit
-  workspace id), or resume always re-confirms target path before activate.
-  Wrong-repo activation without confirmation is a fail.
-- **Validation:** complete path in repo A; open tutorial in repo B → no silent
-  activate into B without naming B.
-- **Identified From:** Dave pack-02 TUI-2 (file inspected + operator).
-- **Coordinates with:** CIB-246 hub naming, R4 suggestion (non-binding)
-- **Confidence:** high on global file shape.
+- **Status:** Done 2026-08-05 — superseded by CIB-250 (pack-03 tutorial safety
+  chain folds resume scope + wrong-repo activate into one causal item with
+  esc-as-back and undisclosed activation).
+- **Summary:** Pack-02 TUI-2 global progress footgun absorbed into CIB-250 so
+  esc-back → forced resume → activate-without-decline is fixed as one chain.
+- **Superseded by:** CIB-250
+- **Identified From:** Dave pack-02 TUI-2; pack-03 section 3.
 
 ### CIB-259: Learning-path copy must not claim configuration the walk did not perform (TUI-8)
 
@@ -7005,7 +7039,10 @@ pack-02):
 - **Validation:** string audit of path completion copy vs walk side effects.
 - **Identified From:** Dave pack-02 TUI-8 (binary-verified).
 - **Coordinates with:** R8 editorial rule (non-binding), CIB-246
-- **Confidence:** high on strings; medium on product intent.
+- **Pack-03 note:** Dave page-3 §6 deliberately did not rule — strings may be
+  true if the walk wrote config. Keep as "verify side effects before rewriting
+  copy," not a confirmed false claim.
+- **Confidence:** high on strings; medium on product intent (unverified writes).
 
 ### CIB-260: Welcome must not promise save-time that `start` does not attach (WELCOME-1)
 
@@ -7034,8 +7071,10 @@ pack-02):
 - **Caveat:** Report Windows copy behaviour only until Unix re-verified.
 - **Validation:** run Policy-checks path twice on Windows; second pass green
   or guided skip.
-- **Identified From:** Dave pack-02 TUI-4.
-- **Coordinates with:** tutorial executor
+- **Identified From:** Dave pack-02 TUI-4; **reconfirmed pack-03** §5 (normal
+  path re-run hard-stops at step 2 of 6).
+- **Coordinates with:** tutorial executor, CIB-250 (resume path lands users
+  back into re-runs)
 - **Confidence:** high on Windows observation.
 
 ### CIB-262: Honour `--json` for `workspace list` and `tutorial` (JSON-1)
@@ -7084,18 +7123,12 @@ pack-02):
 
 ### CIB-265: Tutorial `esc back` exits instead of going back (TUI-1)
 
-- **Status:** Proposed
-- **Priority:** P3 polish (operator-observed; labels binary-verified)
-- **Intent:** Esc is advertised under nine labels; where the bar reads
-  `esc back`, press exits the tutorial across several paths. Other esc
-  meanings not fully tested.
-- **Expected Outcome:** Label matches behaviour (back goes back, quit quits)
-  on tutorial chrome, or label is corrected to quit.
-- **Validation:** operator walk of learning paths; bar label vs key result.
-- **Identified From:** Dave pack-02 TUI-1.
-- **Confidence:** medium — confirmed labels + repeated back/exit; full matrix
-  untested.
-- **Non-scope tonight:** not a release ship gate.
+- **Status:** Done 2026-08-05 — superseded by CIB-250 (pack-03 tutorial safety
+  chain; esc labelled "back" but quitting is link 1 of the causal chain).
+- **Summary:** Pack-02 TUI-1 / pack-03 section 3 step 1 absorbed into CIB-250
+  with resume scope and activation disclosure.
+- **Superseded by:** CIB-250
+- **Identified From:** Dave pack-02 TUI-1; pack-03 section 3.
 
 ### CIB-266: Watch dashboard live timestamps should not read as stale UTC (TUI-7)
 
@@ -7131,13 +7164,15 @@ pack-02):
 - **Coordinates with:** CIB-252, CIB-216 pre-push runtime
 - **Confidence:** low–medium — plausible; caveat may explain all of it.
 
-### CIB-250 collision closeout (2026-08-04)
+### CIB-250 collision closeout (2026-08-04) / pack-03 claim (2026-08-05)
 
 - Pack-02 originally numbered RETRACT-1 as CIB-250 (#3535); corrected in #3537
-  (absorb into CIB-251/255). **CIB-250 is free** for reserved concurrent work.
-- Welcome follow-ups from CIB-246..248 verification were renumbered to
-  **CIB-268..274** (#3536) so they do not collide with pack-02 **CIB-251..267**.
-- No renumber of pack-02 251+ (stable).
+  (absorb into CIB-251/255). CIB-250 was left free after that correction.
+- Welcome follow-ups renumbered to **CIB-268..274** (#3536); pack-02 stayed
+  **CIB-251..267**.
+- **2026-08-05 pack-03:** free **CIB-250** claimed for the **tutorial safety
+  chain** (esc-as-back → forced resume → wrong-repo activate). Not a redefinition
+  of RETRACT-1. Pack-02 251+ numbering unchanged.
 
 ### Pack-02 deliberate non-scope (do not auto-file work)
 
@@ -7331,3 +7366,84 @@ pack-02):
 - **Coordinates with:** CIB-248
 - **Confidence:** medium — not a live defect; a trap for the next change.
 
+
+## Pack-03 intake (Dave start + walkthrough first-timer, 2026-08-05)
+
+Source: `/tmp/dave-beta-report-3.md` (Windows 11 · PowerShell 5.1 · anvil
+0.9.2-beta x86_64-msvc). Scope: **`anvil start`** and **`anvil tutorial`** only;
+hand-driven as a first-time user. Protection "warming" set aside. Not macOS/Linux.
+
+**Cutline:** file only **high-traffic first-time-user** defects on the normal
+path. Do not open tickets for contrived edge cases or every editorial nit.
+Suggestions in report §4 (curriculum shape) are deliberate non-scope for the
+release claim unless pulled in as a separate editorial pass.
+
+**CIB-250 reservation:** the free ID after pack-02 collision closeout is used
+here for the **tutorial safety chain** (report §3). RETRACT-1 remains on
+CIB-251/255 only.
+
+### Pack-03 disposition map
+
+| Dave § | Observation | Disposition | Tracking |
+| --- | --- | --- | --- |
+| §3 chain | esc-as-back → no menu → global resume → activate no decline | **net-new one item** | **CIB-250** Ready P0 (supersedes 258, 265) |
+| §2 dual help bars | start result two bars disagree keys | net-new polish | **CIB-275** Ready P2 |
+| §2 `next:` truncates | guidance line unreadable | absorb with dual bars | **CIB-275** |
+| §2 Prove "the fixture" | reads as this repo | net-new honesty | **CIB-276** Ready P1 |
+| §2 label clip | mid-word progress labels | deliberate non-scope (minor) | — |
+| §5 Windows policy mkdir | re-run hard-stop | absorbed | **CIB-261** (reconfirmed) |
+| §5 autoplay auth | symptom only | absorbed | CIB-248 / CIB-271 |
+| §5 watch UTC | bare Z on live view | absorbed | **CIB-266** |
+| §5 watch demo n=1 | nitpick | deliberate non-scope | — |
+| §5 6 vs 7 paths | unconfirmed intent | deliberate non-scope | — |
+| §4 teaching | loop not walked, etc. | deliberate non-scope (editorial) | not release claim |
+| §6 config claims | unverified | already filed; soft note | **CIB-259** |
+| §6 status warming | may be intentional | already filed | **CIB-235** |
+| §7 RETRACT hooks | condition anchors | already absorbed | CIB-251 / CIB-255 |
+| consent/Prove/Evidence | verified good | preserve | no CIB |
+
+### CIB-275: Start result screen — one help bar and a full `next:` line
+
+- **Status:** Ready
+- **Priority:** P2 first-run UX (every `anvil start` result screen)
+- **Intent:** On the activation result screen two keyboard help bars render at
+  once and disagree (arrows vs `j/k`). The `next:` guidance line truncates
+  mid-sentence at the panel edge — the one line telling the user what to do
+  next is unreadable. Pack-02 flagged width-dependence; pack-03 confirms on the
+  normal Windows console path without seeking edge widths.
+- **Expected Outcome:** A single coherent help bar; `next:` fully readable
+  (wrap, scroll, or shorter line). Strings already exist in the binary for the
+  full `next:` text.
+- **Validation:** `anvil start` result screen on a typical console width shows
+  one help bar and complete next guidance.
+- **Identified From:** Dave pack-03 §2 (and pack-02 TUI-5/TUI-6 elevated from
+  non-scope for normal-path confirmation).
+- **Coordinates with:** ACTTUI help bar, CIB-244/245 verdict chrome
+- **Confidence:** high on observation.
+
+### CIB-276: Prove toast must not read as scanning the user's project
+
+- **Status:** Ready
+- **Priority:** P1 honesty (normal start path; first-timer misread)
+- **Intent:** Prove reports "caught 1 finding(s) on the fixture …" — standing
+  in a project folder, "the fixture" reads as **this repo**, so a user thinks
+  their project has one issue when Prove only checked the built-in sample.
+  Bounded MCP claim language is otherwise excellent; the noun is the gap.
+- **Expected Outcome:** Copy names a **built-in/sample fixture** (or equivalent)
+  so it cannot be skimmed as a live-repo scan. Tutorial step 1 already explains
+  the term; the toast must not require that prior lesson.
+- **Validation:** cold `anvil start` Prove path; no first-timer-readable claim
+  that the working tree was scanned.
+- **Identified From:** Dave pack-03 §2 (also pack-02 VG-2 caveat).
+- **Coordinates with:** activation Prove path, CIB-222 honesty tone
+- **Confidence:** high.
+
+### Pack-03 deliberate non-scope (do not auto-file release work)
+
+- Report **§4** curriculum / Scan·Surface·React editorial (same family as pack-02
+  R1..R8) — valuable, not a ship gate for v0.9.3
+- Progress label mid-word clip ("Project identi") — minor polish
+- Watch demo sample size n=1 / empty queue — demo data nitpick
+- Finish screen 6 vs 7 path counts — unconfirmed product intent
+- Status "warming" vs five-state vocabulary — leave to **CIB-235** product call
+- Config-claim paths without side-effect proof — **CIB-259** with pack-03 soft note

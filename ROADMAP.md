@@ -3,9 +3,9 @@
 **Last updated:** 2026-08-04 (`v0.9.2-beta` published; active cut is
 `v0.9.3-beta` — Morgan honesty CIB-220..227 / #3510 **and** Dave Windows
 install/path CIB-228..245 / #3514 **plus** pack-02 commissioning/TUI
-CIB-251..267 (RETRACT-1→251/255; CIB-250 free; preserve pack-01 disposition).
-See `RELEASE-PLAN.md`. Module status lives in the SOT files below; this roadmap
-stays thematic.)
+CIB-251..267 + pack-03 CIB-250 safety chain / 275..276 (preserve pack-01
+disposition). See `RELEASE-PLAN.md`. Module status lives in the SOT files below;
+this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of

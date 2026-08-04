@@ -117,9 +117,9 @@ Full report: `Projects/tmp/20260804-anvil-beta-0.9.2-test-{josh,agent}.md`.
 Sources: operator pack `/tmp/anvil-dave-pack02/` (Windows-only scope binding).
 **Pack-01 disposition preserved** (do not re-file UPD/TRUST/UX/CONF/AUTH).
 **RETRACT-1** (binding) conditions pack-01 hook-block regression anchors;
-absorbed into **CIB-251** (Anchor A) + **CIB-255** (Anchor B). **CIB-250 is not
-used** (reserved by concurrent Claude lane — do not redefine). Pack-02 IDs are
-**CIB-251..267** (251+ stable after free-250 correction).
+absorbed into **CIB-251** (Anchor A) + **CIB-255** (Anchor B). Pack-02 IDs are
+**CIB-251..267**. Free **CIB-250** was claimed by **pack-03** tutorial safety
+chain (not RETRACT-1).
 
 | ID          | Item                                 | Pri      | Dave ID                 | Tonight?          | Notes                         |
 | ----------- | ------------------------------------ | -------- | ----------------------- | ----------------- | ----------------------------- |
@@ -130,21 +130,35 @@ used** (reserved by concurrent Claude lane — do not redefine). Pack-02 IDs are
 | **CIB-255** | gate / check --all domain disclosure | P1       | GATE-1, CHECK-1, GATE-2 | Yes (if capacity) | Same stance as CIB-234        |
 | **CIB-256** | start --verify meaning honesty       | P2       | START-1                 | If green          |                               |
 | **CIB-257** | Init sample + language honesty       | P2       | INIT-2, INIT-3          | If green          |                               |
-| **CIB-258** | Tutorial progress repo scoping       | P1       | TUI-2                   | Yes (if capacity) | Wrong-repo activate           |
+| **CIB-258** | ~~Tutorial progress repo scoping~~   | —        | TUI-2                   | —                 | **Done** — superseded by 250  |
 | **CIB-259** | Learning-path overclaim copy         | P2       | TUI-8                   | If green          |                               |
 | **CIB-260** | Welcome save-time promise            | P3       | WELCOME-1               | No                |                               |
 | **CIB-261** | Windows policy-path idempotent       | P2       | TUI-4                   | If green          | Windows                       |
 | **CIB-262** | --json for workspace list / tutorial | P3       | JSON-1                  | No                |                               |
 | **CIB-263** | Init lists .gitignore                | P3       | INIT-1                  | No                |                               |
 | **CIB-264** | status no project cache side effect  | P3       | STATUS-3                | No                |                               |
-| **CIB-265** | esc back vs exit                     | P3       | TUI-1                   | No                | Status Proposed               |
+| **CIB-265** | ~~esc back vs exit~~                 | —        | TUI-1                   | —                 | **Done** — superseded by 250  |
 | **CIB-266** | Watch dashboard local/relative time  | P3       | TUI-7                   | No                |                               |
 | **CIB-267** | Pre-push silent pass                 | Proposed | PUSH-1                  | No                | Needs repro after 252         |
 
 **Welcome follow-ups (separate):** CIB-268..274 (#3536; not pack-02).
-**CIB-250:** free/reserved (not pack-02; collision closeout #3537).
+**CIB-250:** claimed by pack-03 tutorial safety chain (2026-08-05); not
+RETRACT-1.
 
 **Absorbed / non-scope:** STATUS-2→CIB-235; PATH-1→CIB-237; TUI-9→CIB-248;
+
+### Dave pack-03 intake (start + walkthrough first-timer; 2026-08-05)
+
+Source: `/tmp/dave-beta-report-3.md`. **Normal-path cutline only.**
+
+| ID          | Item                                                       | Pri | Tonight?          | Notes                  |
+| ----------- | ---------------------------------------------------------- | --- | ----------------- | ---------------------- |
+| **CIB-250** | Tutorial safety chain (esc → resume → wrong-repo activate) | P0  | **Yes**           | Supersedes 258, 265    |
+| **CIB-276** | Prove fixture wording not "this repo"                      | P1  | Yes (if capacity) | Honesty                |
+| **CIB-275** | Start result one help bar + full next:                     | P2  | If green          | Dual bars + truncation |
+| CIB-261     | Windows policy mkdir re-run                                | P2  | If green          | Reconfirmed §5         |
+| §4 teaching | curriculum editorial                                       | —   | No                | Deliberate non-scope   |
+
 TUI-3/5/6/10, TUI-N1/N2, R1..R8 not automatic release work.
 
 ### Not a claim of this release
@@ -185,6 +199,8 @@ TUI-3/5/6/10, TUI-N1/N2, R1..R8 not automatic release work.
 - **CIB-221** and **CIB-222** validated (or explicit waive with issue).
 - **Pack-02 P0 if green tonight:** CIB-252 (register honesty), CIB-254
   (save-time daemon path) validated or explicitly waived with reason.
+- **Pack-03 P0 if green tonight:** CIB-250 tutorial safety chain (wrong-repo
+  activate) validated or explicitly waived with reason.
 - Changelog leads with install/update + honesty fixes, not new features.
 - Strategy: **direct** unless readiness forces stabilisation.
 - Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag
