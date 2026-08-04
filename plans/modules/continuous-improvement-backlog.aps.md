@@ -5991,7 +5991,7 @@ archive.
 
 ### CIB-223: Coherent non-git init vs worktree registration messaging
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3522](https://github.com/eddacraft/anvil-001/pull/3522) (`ce362650a`)
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** A non-Git directory can init successfully, then immediately hear
   there is no worktree and registration cannot proceed — jarring sequential
@@ -6013,7 +6013,7 @@ archive.
 
 ### CIB-224: Reject --no-mcp with explicit MCP client selection
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3522](https://github.com/eddacraft/anvil-001/pull/3522) (`ce362650a`)
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** `anvil start --no-mcp --mcp-client codex` (and similar) silently
   ignores the client instead of erroring. Operators cannot tell whether install
@@ -6032,7 +6032,7 @@ archive.
 
 ### CIB-225: Warn when --format is ignored because config already exists
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3522](https://github.com/eddacraft/anvil-001/pull/3522) (`ce362650a`)
 - **Priority:** P3 for `v0.9.3-beta` honesty pass
 - **Intent:** `--format toml` (etc.) on a tree that already has `.anvilrc` /
   `.anvil.*` is a silent no-op; users think format changed.
@@ -6051,7 +6051,7 @@ archive.
 
 ### CIB-226: Public CLI docs — current flags and auth exit code 3
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3525](https://github.com/eddacraft/anvil-001/pull/3525) (`36c01a243`)
 - **Priority:** P3 for `v0.9.3-beta` honesty pass
 - **Intent:** Public CLI reference / support docs omit current `anvil start`
   flags and the auth-required exit code **3** on action commands (status stays
@@ -6076,7 +6076,7 @@ archive.
 
 ### CIB-227: User-facing copy must not imply only Claude Code and Cursor
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via [#3525](https://github.com/eddacraft/anvil-001/pull/3525) (`36c01a243`)
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** Product still has twelve-client install (MCPX) but several live
   surfaces still describe MCP wiring as Claude Code + Cursor only (or those two
