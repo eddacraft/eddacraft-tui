@@ -1089,11 +1089,22 @@ fn activation_install_rows(
 ) -> Vec<String> {
     let mut rows: Vec<String> = Vec::new();
     let mut unchanged = 0usize;
+    // A client the operator explicitly ticked always gets a named row, even
+    // when the outcome is "nothing to do". Collapsing a *selected* client into
+    // the unchanged count would answer "what did you install?" with silence
+    // about a client they asked for.
+    let was_selected = |client: &activation::diagnostic::McpClientId| {
+        applied.is_some_and(|applied| {
+            applied
+                .selected_ids
+                .contains(&format!("mcp:{}", client.label()))
+        })
+    };
     for (client, outcome) in &install_report.per_client {
         if is_undetected_editor(outcome) {
             continue;
         }
-        if is_this_run_install_outcome(outcome) {
+        if is_this_run_install_outcome(outcome) || was_selected(client) {
             rows.push(format!(
                 "{}: {}",
                 client.display_name(),
@@ -4194,6 +4205,56 @@ mod tests {
             rows.iter()
                 .any(|row| row.starts_with("Zed: MCP install skipped:")),
             "{rows:?}",
+        );
+    }
+
+    /// CIB-244: a dual-era client the operator explicitly ticked keeps a named
+    /// row even when the apply-time re-check finds the entry already correct.
+    /// Collapsing it into "unchanged" would hide a client they asked for.
+    #[test]
+    fn install_section_names_a_selected_dual_era_client_that_was_already_up_to_date() {
+        use activation::diagnostic::McpClientId;
+        use activation::orchestrator::{SkipReason, TuiConsentApplyOutcome};
+
+        let mut report = activation::orchestrator::InstallReport::default();
+        report.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate,
+            },
+        );
+        report.per_client.insert(
+            McpClientId::ClaudeCode,
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate,
+            },
+        );
+        let applied = TuiConsentApplyOutcome {
+            // Only Cursor was ticked.
+            selected_ids: [format!("mcp:{}", McpClientId::Cursor.label())]
+                .into_iter()
+                .collect(),
+            ..TuiConsentApplyOutcome::default()
+        };
+
+        let rows = activation_install_rows(&report, &[], Some(&applied));
+
+        assert!(
+            rows.iter()
+                .any(|row| row.starts_with(McpClientId::Cursor.display_name())
+                    && row.contains("already up to date")),
+            "a selected client must be named even when nothing was written: {rows:?}",
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row == "1 other detected client unchanged (see Evidence)"),
+            "the unticked client still collapses: {rows:?}",
+        );
+        assert!(
+            !rows
+                .iter()
+                .any(|row| row.starts_with(McpClientId::ClaudeCode.display_name())),
+            "the unticked client must not get its own row: {rows:?}",
         );
     }
 
