@@ -6175,7 +6175,7 @@ archive.
 
 ### CIB-230: No internal GH issue numbers in public ship artefacts
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2 for `v0.9.3-beta` (release hygiene; land with CIB-228)
 - **Intent:** Private tracker ids (e.g. `GH #2885`) were baked into the public
   PowerShell installer banner and help text. Anyone who downloads the asset sees

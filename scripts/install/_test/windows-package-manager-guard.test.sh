@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Contract tests for the Windows package-manager dual-install guard (#2885 / CIB-228).
+# Contract tests for the Windows package-manager dual-install guard (CIB-228/230).
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 GUARD="$ROOT/scripts/install/windows-package-manager-guard.ps1"
+INJECT="$ROOT/scripts/install/inject-windows-pm-guard.py"
 RELEASE_YML="$ROOT/.github/workflows/release.yml"
 
 fail() {
@@ -12,7 +13,15 @@ fail() {
 }
 
 [[ -f "$GUARD" ]] || fail "guard script missing: $GUARD"
+[[ -f "$INJECT" ]] || fail "inject script missing: $INJECT"
 [[ -f "$RELEASE_YML" ]] || fail "release workflow missing: $RELEASE_YML"
+
+# CIB-230: public ship artefacts must not embed private tracker ids.
+for public_file in "$GUARD" "$INJECT"; do
+  if grep -nE 'GH[[:space:]]*#[0-9]+|GitHub[[:space:]]*#[0-9]+' "$public_file" >/dev/null; then
+    fail "public install path must not contain GH/GitHub #NNNN (CIB-230): $public_file"
+  fi
+done
 
 for needle in \
   'Get-Command anvil -All' \
@@ -71,26 +80,7 @@ param (
 Write-Host "CARGO_DIST_BODY_REACHED"
 PS1
 
-# Simulate inject-after-param: keep param, then guard, then rest of body.
-python3 - "$GUARD" "$fake_ps1" <<'PY'
-import re, sys
-from pathlib import Path
-guard = Path(sys.argv[1]).read_text()
-ps1 = Path(sys.argv[2]).read_text()
-# Match first param (...) block non-greedily across newlines
-m = re.search(r"(?ms)^(\s*param\s*\(.*?\))\s*\r?\n", ps1)
-if not m:
-    raise SystemExit("fake installer has no param block")
-head, rest = m.group(0), ps1[m.end() :]
-out = (
-    head
-    + "\n# --- begin anvil package-manager dual-install guard (CIB-228) ---\n"
-    + guard
-    + "\n# --- end anvil package-manager dual-install guard ---\n\n"
-    + rest
-)
-Path(sys.argv[2]).write_text(out)
-PY
+python3 "$INJECT" "$fake_ps1" "$GUARD"
 
 # Assembled file: single *top-level* param (cargo-dist), guard present, body
 # marker present, no exit 0 before body. Function-level param() in the guard
@@ -103,6 +93,11 @@ grep -Fq 'CARGO_DIST_BODY_REACHED' "$fake_ps1" || fail "cargo-dist body marker m
 body_line=$(grep -n 'CARGO_DIST_BODY_REACHED' "$fake_ps1" | head -1 | cut -d: -f1)
 if awk -v n="$body_line" 'NR<n && /^\s*exit\s+0\s*$/ { found=1 } END { exit found?0:1 }' "$fake_ps1"; then
   fail "exit 0 appears before cargo-dist body in assembled installer"
+fi
+
+# CIB-230: assembled public installer body forbids private tracker ids.
+if grep -nE 'GH[[:space:]]*#[0-9]+|GitHub[[:space:]]*#[0-9]+' "$fake_ps1" >/dev/null; then
+  fail "assembled public installer must not contain GH/GitHub #NNNN (CIB-230)"
 fi
 
 echo "windows-package-manager-guard.test.sh: ok"

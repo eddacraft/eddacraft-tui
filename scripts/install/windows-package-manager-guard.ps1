@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Anvil package-manager dual-install guard (GH #2885 / CIB-228).
+# Anvil package-manager dual-install guard (CIB-228).
 #
 # INJECT SHAPE (critical): this fragment is inserted into
 # eddacraft-anvil-installer.ps1 *after* cargo-dist's top-level `param(...)`
