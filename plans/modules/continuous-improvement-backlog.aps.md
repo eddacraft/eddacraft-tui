@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 191/272  |
+| CIB | —     | In Progress | 205/273  |
 
 ## Purpose
 
@@ -6521,7 +6521,7 @@ archive.
 
 ### CIB-244: Verdict Install section must reflect this-run selection (not only Cursor/Claude noise)
 
-- **Status:** In Progress — flip to `Merged YYYY-MM-DD via PR #N` on merge
+- **Status:** Merged 2026-08-04 via PR #3543
 - **Priority:** P1 honesty / activation TUI (operator repro 2026-08-04)
 - **Intent:** On the activation verdict **Install** block, the user sees
   Cursor/Claude Code skip rows (`skipped — not selected`, `skipped — already
@@ -6563,7 +6563,7 @@ archive.
 
 ### CIB-245: Grouped multi-step consent with "what is this" on project/workflow bits
 
-- **Status:** In Progress — flip to `Merged YYYY-MM-DD via PR #N` on merge
+- **Status:** Merged 2026-08-04 via PR #3543
 - **Priority:** P2 activation TUI UX (operator repro 2026-08-04; clarified same day)
 - **Intent:** Consent is a **flat multi-select** of mixed write offers (project
   config, identity, witness attributes, git hooks, baseline, workflows, MCP).
