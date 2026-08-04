@@ -1641,8 +1641,17 @@ fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()
 /// ignored.
 fn existing_project_config_path(root: &Path) -> anyhow::Result<Option<std::path::PathBuf>> {
     let legacy = root.join(".anvilrc");
-    if legacy.exists() {
-        return Ok(Some(legacy));
+    // Prefer try_exists so permission/IO errors do not silently look like
+    // "absent" and allow a second config write (CIB-225 review).
+    match legacy.try_exists() {
+        Ok(true) => return Ok(Some(legacy)),
+        Ok(false) => {}
+        Err(err) => {
+            return Err(anyhow::Error::new(err).context(format!(
+                "checking for existing project config at {}",
+                legacy.display()
+            )));
+        }
     }
     if let Some(existing) = anvil_config::discover(root, ".anvil")
         .with_context(|| format!("scanning {} for .anvil.<ext>", root.display()))?
@@ -1650,6 +1659,16 @@ fn existing_project_config_path(root: &Path) -> anyhow::Result<Option<std::path:
         return Ok(Some(existing.path));
     }
     Ok(None)
+}
+
+/// CIB-225: one-line stderr warning when `--format` is ignored because a
+/// project config already exists. Pure so unit tests pin the wording without
+/// capturing process stderr.
+fn format_ignored_existing_config_warning(existing: &Path) -> String {
+    format!(
+        "anvil: --format ignored — project config already exists at {}",
+        existing.display()
+    )
 }
 
 /// CIB-223 soft path: one coherent next-step line when cwd is not a
@@ -1688,10 +1707,8 @@ pub(crate) fn pre_write_anvil_config_format(
     // first. CIB-225: surface one stderr warning naming the existing path
     // so `--format` is never a silent no-op when another config wins.
     if let Some(existing) = existing_project_config_path(root)? {
-        eprintln!(
-            "anvil: --format ignored — project config already exists at {}",
-            existing.display()
-        );
+        let warning = format_ignored_existing_config_warning(&existing);
+        eprintln!("{warning}");
         tracing::debug!(
             existing = %existing.display(),
             requested = ?format,
@@ -2138,12 +2155,12 @@ fn reject_no_mcp_with_client_selection(args: &StartArgs) -> anyhow::Result<()> {
     }
     if !args.mcp_client.is_empty() {
         bail!(
-            "`--no-mcp` / `ANVIL_NO_MCP` and `--mcp-client` are mutually exclusive — drop `--no-mcp` to install the selected client(s), or drop `--mcp-client` to skip MCP install."
+            "`--no-mcp` / `ANVIL_NO_MCP` and `--mcp-client` are mutually exclusive — drop `--no-mcp` or unset `ANVIL_NO_MCP` to install the selected client(s), or drop `--mcp-client` to skip MCP install."
         );
     }
     if force_all_mcp_clients(args) {
         bail!(
-            "`--no-mcp` / `ANVIL_NO_MCP` and `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS` are mutually exclusive — drop the no-mcp opt-out to install all clients, or drop the all-clients selection to skip MCP install."
+            "`--no-mcp` / `ANVIL_NO_MCP` and `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS` are mutually exclusive — drop `--no-mcp` or unset `ANVIL_NO_MCP` to install all clients, or drop the all-clients selection to skip MCP install."
         );
     }
     Ok(())
@@ -4888,11 +4905,14 @@ mod tests {
             !tmp.path().join(".anvil.toml").exists(),
             "pre-write must not convert .anvilrc when --format is set"
         );
-        // The helper names the path that caused the skip (call site warns).
+        let warning = format_ignored_existing_config_warning(&existing);
         assert!(
-            existing.ends_with(".anvilrc"),
-            "ignored-format warning must name the existing config path, got: {}",
-            existing.display()
+            warning.contains("--format ignored"),
+            "warning must name the ignored flag: {warning}"
+        );
+        assert!(
+            warning.contains(existing.to_string_lossy().as_ref()),
+            "warning must name the existing config path: {warning}"
         );
     }
 
@@ -4911,6 +4931,11 @@ mod tests {
 
         pre_write_anvil_config(tmp.path(), StartFormat::Toml).unwrap();
         assert!(!tmp.path().join(".anvil.toml").exists());
+        let warning = format_ignored_existing_config_warning(&existing);
+        assert!(
+            warning.contains(existing.to_string_lossy().as_ref()),
+            "warning must name the existing .anvil.yaml path: {warning}"
+        );
     }
 
     /// CIB-224: `--no-mcp` + `--mcp-client` fails with a one-line recovery.
@@ -4929,6 +4954,10 @@ mod tests {
             msg.contains("--mcp-client") && msg.contains("--no-mcp"),
             "recovery must name both flags: {msg}"
         );
+        assert!(
+            msg.contains("ANVIL_NO_MCP") && msg.contains("unset"),
+            "recovery must cover env opt-out: {msg}"
+        );
     }
 
     /// CIB-224: `--no-mcp` + `--all-mcp-clients` fails with recovery.
@@ -4946,6 +4975,10 @@ mod tests {
         assert!(
             msg.contains("--all-mcp-clients") || msg.contains("ANVIL_ALL_MCP_CLIENTS"),
             "recovery must name all-clients selection: {msg}"
+        );
+        assert!(
+            msg.contains("ANVIL_NO_MCP") && msg.contains("unset"),
+            "recovery must cover env opt-out: {msg}"
         );
     }
 
