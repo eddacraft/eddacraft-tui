@@ -81,8 +81,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let status_h = status_height as u16;
 
     // In compact mode: logo + blank(1) + menu(N) + optional hint(1)
-    // In full mode: logo + blank(1) + tagline(1) + note+spacer(2) + menu(N) —
-    // one row per option via the shared `Select` widget.
+    // In full mode: logo + blank(1) + tagline(1) + gap(2) + menu(N) — one row
+    // per option via the shared `Select` widget. The gap below the tagline is
+    // a fixed 2 rows whether or not the first-run note shows: the note takes
+    // `note_h` of it and the spacer keeps the remaining `2 - note_h`, so this
+    // total is independent of `show_note` (CIB-246).
     let content_height = if compact {
         LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint) + status_height
     } else {
