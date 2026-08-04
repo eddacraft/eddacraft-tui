@@ -560,9 +560,14 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
 ///   scans the same file and adds one entry per pattern match.
 /// - Findings are **not** summarised — each secret match is its own
 ///   `High` entry (see `scan_for_hardcoded_secrets`).
-/// - Audit and gate scan the **same** secret file set, deliberately and
-///   by documented invariant (see `SECRET_SCAN_EXTS`); claiming they
-///   differ would licence the drift that issue #1798 fixed.
+/// - Audit and gate select the **same file types** — the extension list
+///   and the `.env*` filename rule are kept in lock-step deliberately
+///   (see `SECRET_SCAN_EXTS`), and claiming they differ would licence
+///   the drift that issue #1798 fixed. Say "types", not "set": gate's
+///   full-codebase walk caps at `SECRET_SCAN_MAX_DEPTH` and narrows to
+///   plan files when a plan is present, neither of which audit does, so
+///   the two traversals are not identical and asserting set equality
+///   would be the same over-claim in the opposite direction.
 /// - The full check suite is `anvil gate`, not `anvil check --all` —
 ///   the planless `check` path runs only `PLANLESS_ELIGIBLE_CHECKS`
 ///   (`secret-detection`, `antipattern-scan`), so pointing a reader
@@ -574,7 +579,7 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
 /// surfaces stays out of scope — that needs a product decision.
 const SECURITY_SCOPE: &str = "audit is a project overview. Its security pass flags `.env` files \
      and runs the same secret-detection patterns as `anvil gate` over the same \
-     file set — one entry per match, plus one file-level flag per `.env`. It \
+     file types — one entry per match, plus one file-level flag per `.env`. It \
      does not run gate's architecture, policy, dependency or lint checks, so \
      finding counts are not comparable between surfaces and an audit with \
      nothing to report is not a passing `anvil gate`.";
@@ -1318,9 +1323,16 @@ mod tests {
         );
 
         // Guard against resurrecting claims that were checked and found
-        // false: `.env` reported "once", findings "summarised", or a
-        // file set differing from gate's (they share one by invariant).
-        for overclaim in ["reported once", "summarised", "different file set"] {
+        // false: `.env` reported "once", findings "summarised", a file
+        // set differing from gate's (the *types* match by invariant), or
+        // the mirror-image over-claim that the two traversals are
+        // identical (gate depth-caps and plan-scopes; audit does not).
+        for overclaim in [
+            "reported once",
+            "summarised",
+            "different file set",
+            "same file set",
+        ] {
             assert!(
                 !SECURITY_SCOPE.contains(overclaim),
                 "scope copy must not claim {overclaim:?}: {SECURITY_SCOPE}"

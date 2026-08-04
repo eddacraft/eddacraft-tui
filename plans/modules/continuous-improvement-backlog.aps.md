@@ -6315,13 +6315,21 @@ archive.
   note, because both live in `crates/anvil-tui/` (18 `AuditData` construction
   sites across two crates). Follow-up item owed for those surfaces — until
   then the Expected Outcome is met for plain/JSON, not for TUI/SARIF.
-- **Verified during implementation:** audit and `anvil gate` scan the **same**
-  secret file set by documented invariant (`SECRET_SCAN_EXTS` lock-step,
-  issue #1798), and planless `anvil check` runs only
-  `PLANLESS_ELIGIBLE_CHECKS` (`secret-detection`, `antipattern-scan`) — so the
-  disclosure routes readers to `anvil gate` as the full suite, and describes
-  the difference as *which checks run*, not which files are read. A `.env`
-  yields one file-level flag **plus** one entry per pattern match.
+- **Verified during implementation:** audit and `anvil gate` select the same
+  secret **file types** by documented invariant (`SECRET_SCAN_EXTS` lock-step
+  with gate's `matches!` arm, issue #1798) — but *not* the same file set:
+  gate's full-codebase walk caps at `SECRET_SCAN_MAX_DEPTH` (20) and narrows
+  to plan files under `anvil gate <plan>`, neither of which audit does. The
+  copy therefore says "types", not "set". Planless `anvil check` runs only
+  `PLANLESS_ELIGIBLE_CHECKS` (`secret-detection`, `antipattern-scan`), so the
+  disclosure routes readers to `anvil gate` as the full suite and frames the
+  difference as *which checks run*. A `.env` yields one file-level flag
+  **plus** one entry per pattern match.
+- **Follow-up found, not fixed here (out of scope):** the depth cap means a
+  `.env` nested deeper than 20 levels is flagged by `audit` and missed by
+  gate's `secret-detection` — audit flagging a file gate ignores, the exact
+  direction issue #1798's lock-step comment warns against. Needs its own item;
+  changing gate's traversal is out of scope for a presentation fix.
 - **Validation:** planted multi-file secret fixture; audit output names domain;
   no requirement that issue count equals `check --all`.
 - **Identified From:** Dave TRUST-2; re-triage.
