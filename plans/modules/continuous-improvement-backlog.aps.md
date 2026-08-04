@@ -5926,7 +5926,7 @@ archive.
 
 ### CIB-220: Project-scope interactive start must install MCP (not claim disabled)
 
-- **Status:** In Progress
+- **Status:** Merged via [#3520](https://github.com/eddacraft/anvil-001/pull/3520) (`202b9c743`)
 - **Priority:** P0 for `v0.9.3-beta` honesty pass
 - **Intent:** `anvil start --mcp-scope project` in the interactive TUI currently
   routes through `legacy_mcp_install_policy`, which returns
@@ -5950,7 +5950,7 @@ archive.
 
 ### CIB-221: Stop false auth-login prompts for already-authenticated pro users
 
-- **Status:** In Progress
+- **Status:** Merged via [#3520](https://github.com/eddacraft/anvil-001/pull/3520) (`202b9c743`)
 - **Priority:** P1 for `v0.9.3-beta` honesty pass
 - **Intent:** Authenticated / pro users still see copy directing them to
   `anvil auth login` during start or related surfaces, which undermines trust
@@ -5970,7 +5970,7 @@ archive.
 
 ### CIB-222: Value receipt must disclose machine-wide vs repo-scoped evidence
 
-- **Status:** In Progress
+- **Status:** Merged via [#3520](https://github.com/eddacraft/anvil-001/pull/3520) (`202b9c743`)
 - **Priority:** P1 for `v0.9.3-beta` honesty pass
 - **Intent:** Healthy repeat-start can show e.g. `value: N saves checked
   (dates)` drawn from machine-wide save-time aggregates (CIB-190). On a brand-new
@@ -5991,7 +5991,7 @@ archive.
 
 ### CIB-223: Coherent non-git init vs worktree registration messaging
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** A non-Git directory can init successfully, then immediately hear
   there is no worktree and registration cannot proceed — jarring sequential
@@ -5999,16 +5999,21 @@ archive.
 - **Expected Outcome:** Either (a) refuse durable init outside a git worktree
   with a clear error, or (b) allow init but one message: config written; git
   init/register before protection can attach. No success-then-contradiction.
+- **Product choice:** (b) soft path — allow durable init/config writes outside
+  git; one coherent next-step message (not success-then-contradiction).
 - **Files:** `crates/anvil-cli/src/commands/start.rs`,
   `crates/anvil-cli/src/registration.rs`, activation orchestrator init step
 - **Validation:** integration/unit for non-git cwd; message contract tests.
+- **Evidence (dev-loop):** soft-path worktree line names config-may-be-written +
+  `git init` / `anvil workspace register` before protection can attach; unit
+  message contract covers non-git cwd.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
 - **Coordinates with:** ACTMO-016, LAUNCH, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
 - **Confidence:** medium — product choice required (refuse vs soft path).
 
 ### CIB-224: Reject --no-mcp with explicit MCP client selection
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** `anvil start --no-mcp --mcp-client codex` (and similar) silently
   ignores the client instead of erroring. Operators cannot tell whether install
@@ -6019,13 +6024,15 @@ archive.
 - **Files:** `crates/anvil-cli/src/commands/start.rs` (early validation next to
   other mutual-exclusion bails)
 - **Validation:** `cargo test -p eddacraft-anvil start` conflict cases.
+- **Evidence (dev-loop):** early bail next to watch mutual-exclusion; unit tests
+  for `--no-mcp`+`--mcp-client`, `--no-mcp`+`--all-mcp-clients`, and env forms.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
 - **Coordinates with:** ACTMO, ADR-092, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
 - **Confidence:** high — pure validation gap.
 
 ### CIB-225: Warn when --format is ignored because config already exists
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 for `v0.9.3-beta` honesty pass
 - **Intent:** `--format toml` (etc.) on a tree that already has `.anvilrc` /
   `.anvil.*` is a silent no-op; users think format changed.
@@ -6036,6 +6043,8 @@ archive.
 - **Files:** `crates/anvil-cli/src/commands/start.rs` (`pre_write_anvil_config`
   call site)
 - **Validation:** unit test with existing `.anvilrc` + `--format toml`.
+- **Evidence (dev-loop):** pre-write returns existing path for skip; stderr
+  warning names path; unit test `.anvilrc` + `--format toml`.
 - **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
 - **Coordinates with:** MLP2-039, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
 - **Confidence:** high.

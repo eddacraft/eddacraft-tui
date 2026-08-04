@@ -169,6 +169,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
+    // CIB-224: `--no-mcp` / `ANVIL_NO_MCP` cannot be combined with an explicit
+    // client selection — silent ignore left operators unsure whether install
+    // was skipped by design. Fail fast with a one-line recovery.
+    reject_no_mcp_with_client_selection(args)?;
+
     // MLP2-033 — `--new-identity` mints a fresh `project_uuid` BEFORE
     // the orchestrator's idempotent `ensure_project_id` runs. The
     // orchestrator step is non-fatal and idempotent on whatever it
@@ -1631,30 +1636,66 @@ fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()
     pre_write_anvil_config_format(root, format.config_format())
 }
 
+/// Path of an existing project config (`.anvilrc` or any `.anvil.<ext>`), if
+/// present. Used by CIB-225 to name the path that caused `--format` to be
+/// ignored.
+fn existing_project_config_path(root: &Path) -> anyhow::Result<Option<std::path::PathBuf>> {
+    let legacy = root.join(".anvilrc");
+    if legacy.exists() {
+        return Ok(Some(legacy));
+    }
+    if let Some(existing) = anvil_config::discover(root, ".anvil")
+        .with_context(|| format!("scanning {} for .anvil.<ext>", root.display()))?
+    {
+        return Ok(Some(existing.path));
+    }
+    Ok(None)
+}
+
+/// CIB-223 soft path: one coherent next-step line when cwd is not a
+/// registerable Git worktree. Durable init/config may still run; protection
+/// cannot attach until the directory is a worktree (or registered).
+fn non_registerable_worktree_line(reason: &crate::registration::NotRegisterable) -> String {
+    use crate::registration::NotRegisterable;
+    match reason {
+        NotRegisterable::NotAWorktree(_) => {
+            "  worktree: project config may be written here; run `git init` (then re-run `anvil start`) or `anvil workspace register <path>` before protection can attach.\n"
+                .to_string()
+        }
+        NotRegisterable::BareRepository => {
+            "  worktree: project config may be written here; bare repositories have no working tree — check out or run from a worktree before protection can attach.\n"
+                .to_string()
+        }
+        NotRegisterable::InsideGitDir => {
+            "  worktree: project config may be written here; run from the repository working tree (not inside `.git`) before protection can attach.\n"
+                .to_string()
+        }
+    }
+}
+
 pub(crate) fn pre_write_anvil_config_format(
     root: &Path,
     format: anvil_config::ConfigFormat,
 ) -> anyhow::Result<()> {
     let target = root.join(format!(".anvil.{}", format.extension()));
     if target.exists() {
+        // Same format already on disk — idempotent no-op (flag already applied).
         return Ok(());
     }
     // If `.anvilrc` or any OTHER `.anvil.<ext>` already exists, do not
     // double-write — the operator should run `anvil migrate` to convert,
     // not `anvil start --format` to add a second config alongside the
-    // first.
-    if root.join(".anvilrc").exists() {
-        return Ok(());
-    }
-    if let Some(existing) = anvil_config::discover(root, ".anvil")
-        .with_context(|| format!("scanning {} for .anvil.<ext>", root.display()))?
-    {
-        // A different-format `.anvil.<ext>` is present. Leave it; the
-        // orchestrator's normal flow will probe it as the active config.
+    // first. CIB-225: surface one stderr warning naming the existing path
+    // so `--format` is never a silent no-op when another config wins.
+    if let Some(existing) = existing_project_config_path(root)? {
+        eprintln!(
+            "anvil: --format ignored — project config already exists at {}",
+            existing.display()
+        );
         tracing::debug!(
-            existing = %existing.path.display(),
+            existing = %existing.display(),
             requested = ?format,
-            "anvil start --format: skipping pre-write; existing .anvil.<ext> present"
+            "anvil start --format: skipping pre-write; existing project config present"
         );
         return Ok(());
     }
@@ -1990,15 +2031,12 @@ fn render_start_human_output(
         out.push_str(&render_daemon_lifecycle_line(outcome));
     }
 
-    // ACTMO-016 (ADR-094 decision 4): if cwd is not a registerable Git worktree,
-    // the daemon was ensured but nothing was registered — an honest state
-    // distinct from `protecting`.
+    // ACTMO-016 (ADR-094 decision 4) + CIB-223 soft path: if cwd is not a
+    // registerable Git worktree, the daemon was ensured but nothing was
+    // registered. Config init is still allowed; frame one coherent next step
+    // (not success-then-contradiction).
     if !read_only && let Err(reason) = crate::registration::registerable_worktree(root) {
-        let _ = writeln!(
-            out,
-            "  worktree: no worktree registered ({reason}). \
-             Run from inside a worktree, or `anvil workspace register <path>`."
-        );
+        out.push_str(&non_registerable_worktree_line(&reason));
     }
 
     if !read_only && matches!(mcp_policy, activation::orchestrator::McpInstallPolicy::Skip) {
@@ -2088,6 +2126,27 @@ fn start_daemon_opt_out(args: &StartArgs) -> bool {
 
 fn start_mcp_opt_out(args: &StartArgs) -> bool {
     args.no_mcp || std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
+}
+
+/// CIB-224: `--no-mcp` / `ANVIL_NO_MCP` is mutually exclusive with explicit
+/// MCP client selection (`--mcp-client`, `--all-mcp-clients`,
+/// `ANVIL_ALL_MCP_CLIENTS`). Fail with a one-line recovery rather than
+/// silently ignoring the selection.
+fn reject_no_mcp_with_client_selection(args: &StartArgs) -> anyhow::Result<()> {
+    if !start_mcp_opt_out(args) {
+        return Ok(());
+    }
+    if !args.mcp_client.is_empty() {
+        bail!(
+            "`--no-mcp` / `ANVIL_NO_MCP` and `--mcp-client` are mutually exclusive — drop `--no-mcp` to install the selected client(s), or drop `--mcp-client` to skip MCP install."
+        );
+    }
+    if force_all_mcp_clients(args) {
+        bail!(
+            "`--no-mcp` / `ANVIL_NO_MCP` and `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS` are mutually exclusive — drop the no-mcp opt-out to install all clients, or drop the all-clients selection to skip MCP install."
+        );
+    }
+    Ok(())
 }
 
 fn mcp_install_policy(args: &StartArgs) -> activation::orchestrator::McpInstallPolicy {
@@ -4808,6 +4867,187 @@ mod tests {
         // The pre-existing file is untouched.
         let raw = std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap();
         assert!(raw.contains("checks"));
+    }
+
+    /// CIB-225: when `.anvilrc` already exists, `--format toml` must not
+    /// rewrite/convert and must report the existing path as the reason the
+    /// flag was ignored.
+    #[test]
+    fn pre_write_format_ignored_when_legacy_anvilrc_present_names_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let legacy = tmp.path().join(".anvilrc");
+        std::fs::write(&legacy, r#"{"checks":[]}"#).unwrap();
+
+        let existing = existing_project_config_path(tmp.path())
+            .unwrap()
+            .expect("legacy .anvilrc must be discovered");
+        assert_eq!(existing, legacy);
+
+        pre_write_anvil_config(tmp.path(), StartFormat::Toml).unwrap();
+        assert!(
+            !tmp.path().join(".anvil.toml").exists(),
+            "pre-write must not convert .anvilrc when --format is set"
+        );
+        // The helper names the path that caused the skip (call site warns).
+        assert!(
+            existing.ends_with(".anvilrc"),
+            "ignored-format warning must name the existing config path, got: {}",
+            existing.display()
+        );
+    }
+
+    /// CIB-225: other-format `.anvil.<ext>` also causes `--format` to be
+    /// ignored with the existing path named (no second config written).
+    #[test]
+    fn pre_write_format_ignored_when_other_anvil_ext_present_names_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let existing_path = tmp.path().join(".anvil.yaml");
+        std::fs::write(&existing_path, "checks: []\n").unwrap();
+
+        let existing = existing_project_config_path(tmp.path())
+            .unwrap()
+            .expect("existing .anvil.yaml must be discovered");
+        assert_eq!(existing, existing_path);
+
+        pre_write_anvil_config(tmp.path(), StartFormat::Toml).unwrap();
+        assert!(!tmp.path().join(".anvil.toml").exists());
+    }
+
+    /// CIB-224: `--no-mcp` + `--mcp-client` fails with a one-line recovery.
+    #[test]
+    fn no_mcp_with_mcp_client_is_rejected() {
+        let mut args = start_args_default();
+        args.no_mcp = true;
+        args.mcp_client = vec![AgentClientId::Codex];
+        let err = reject_no_mcp_with_client_selection(&args).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("mutually exclusive"),
+            "must name mutual exclusion: {msg}"
+        );
+        assert!(
+            msg.contains("--mcp-client") && msg.contains("--no-mcp"),
+            "recovery must name both flags: {msg}"
+        );
+    }
+
+    /// CIB-224: `--no-mcp` + `--all-mcp-clients` fails with recovery.
+    #[test]
+    fn no_mcp_with_all_mcp_clients_is_rejected() {
+        let mut args = start_args_default();
+        args.no_mcp = true;
+        args.all_mcp_clients = true;
+        let err = reject_no_mcp_with_client_selection(&args).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("mutually exclusive"),
+            "must name mutual exclusion: {msg}"
+        );
+        assert!(
+            msg.contains("--all-mcp-clients") || msg.contains("ANVIL_ALL_MCP_CLIENTS"),
+            "recovery must name all-clients selection: {msg}"
+        );
+    }
+
+    /// CIB-224: env forms of the conflict also reject.
+    #[test]
+    fn no_mcp_env_with_all_mcp_clients_env_is_rejected() {
+        let args = start_args_default();
+        temp_env::with_vars(
+            [
+                ("ANVIL_NO_MCP", Some("1")),
+                ("ANVIL_ALL_MCP_CLIENTS", Some("1")),
+            ],
+            || {
+                let err = reject_no_mcp_with_client_selection(&args).unwrap_err();
+                let msg = format!("{err:#}");
+                assert!(
+                    msg.contains("mutually exclusive"),
+                    "env forms must also conflict: {msg}"
+                );
+            },
+        );
+    }
+
+    /// CIB-224: `--no-mcp` alone remains valid.
+    #[test]
+    fn no_mcp_alone_is_allowed() {
+        let mut args = start_args_default();
+        args.no_mcp = true;
+        reject_no_mcp_with_client_selection(&args).expect("--no-mcp alone must be allowed");
+    }
+
+    /// CIB-223 soft path: non-git cwd gets one coherent next-step line —
+    /// config may be written; git init / register before protection attaches.
+    /// No jarring "no worktree registered" success-then-contradiction framing.
+    #[test]
+    fn non_git_cwd_worktree_message_is_coherent_soft_path() {
+        let line = non_registerable_worktree_line(&crate::registration::NotRegisterable::NotAWorktree(
+            "not a git repository".to_string(),
+        ));
+        assert!(
+            line.contains("project config may be written"),
+            "soft path must allow durable init framing: {line}"
+        );
+        assert!(
+            line.contains("git init"),
+            "soft path must name `git init` as recovery: {line}"
+        );
+        assert!(
+            line.contains("anvil workspace register") || line.contains("register"),
+            "soft path must name registration recovery: {line}"
+        );
+        assert!(
+            line.contains("before protection can attach"),
+            "soft path must state protection requires git/worktree: {line}"
+        );
+        assert!(
+            !line.contains("no worktree registered"),
+            "must not use the old jarring phrasing: {line}"
+        );
+
+        // Full human output on a non-git tempdir carries the same contract.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let diag = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        let out = render_start_human_output(
+            tmp.path(),
+            false,
+            &diag,
+            &activation::orchestrator::InstallReport::default(),
+            None,
+            activation::orchestrator::McpInstallPolicy::Install,
+            &activation::detect_agents::AgentInventory::default(),
+            false,
+        );
+        assert!(
+            out.contains("project config may be written"),
+            "render_start_human_output must include soft-path framing for non-git cwd:
+{out}"
+        );
+        assert!(
+            out.contains("git init"),
+            "render_start_human_output must name git init for non-git cwd:
+{out}"
+        );
+        assert!(
+            !out.contains("no worktree registered"),
+            "render_start_human_output must not use the old jarring phrasing:
+{out}"
+        );
+    }
+
+    /// CIB-223: bare / inside-git-dir reasons stay coherent (config ok; protect later).
+    #[test]
+    fn non_registerable_bare_and_git_dir_messages_stay_soft() {
+        let bare = non_registerable_worktree_line(&crate::registration::NotRegisterable::BareRepository);
+        assert!(bare.contains("project config may be written"), "{bare}");
+        assert!(bare.contains("before protection can attach"), "{bare}");
+        assert!(!bare.contains("no worktree registered"), "{bare}");
+
+        let inside = non_registerable_worktree_line(&crate::registration::NotRegisterable::InsideGitDir);
+        assert!(inside.contains("project config may be written"), "{inside}");
+        assert!(inside.contains("before protection can attach"), "{inside}");
+        assert!(!inside.contains("no worktree registered"), "{inside}");
     }
 
     // DLIFE-003 daemon lifecycle wiring tests.
