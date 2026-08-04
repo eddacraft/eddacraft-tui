@@ -4982,9 +4982,9 @@ mod tests {
     /// No jarring "no worktree registered" success-then-contradiction framing.
     #[test]
     fn non_git_cwd_worktree_message_is_coherent_soft_path() {
-        let line = non_registerable_worktree_line(&crate::registration::NotRegisterable::NotAWorktree(
-            "not a git repository".to_string(),
-        ));
+        let line = non_registerable_worktree_line(
+            &crate::registration::NotRegisterable::NotAWorktree("not a git repository".to_string()),
+        );
         assert!(
             line.contains("project config may be written"),
             "soft path must allow durable init framing: {line}"
@@ -5039,12 +5039,14 @@ mod tests {
     /// CIB-223: bare / inside-git-dir reasons stay coherent (config ok; protect later).
     #[test]
     fn non_registerable_bare_and_git_dir_messages_stay_soft() {
-        let bare = non_registerable_worktree_line(&crate::registration::NotRegisterable::BareRepository);
+        let bare =
+            non_registerable_worktree_line(&crate::registration::NotRegisterable::BareRepository);
         assert!(bare.contains("project config may be written"), "{bare}");
         assert!(bare.contains("before protection can attach"), "{bare}");
         assert!(!bare.contains("no worktree registered"), "{bare}");
 
-        let inside = non_registerable_worktree_line(&crate::registration::NotRegisterable::InsideGitDir);
+        let inside =
+            non_registerable_worktree_line(&crate::registration::NotRegisterable::InsideGitDir);
         assert!(inside.contains("project config may be written"), "{inside}");
         assert!(inside.contains("before protection can attach"), "{inside}");
         assert!(!inside.contains("no worktree registered"), "{inside}");
