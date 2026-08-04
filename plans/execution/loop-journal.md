@@ -729,3 +729,21 @@ never with feature work.
 - Checkpoints raised: none. Shared `/tmp` is full, so backend generation used a
   worktree-local temporary directory without deleting other sessions' artefacts.
 - Next: publish the review-ready PR and wait for CI/review state.
+
+## Cycle — 2026-08-05 (CIB-252 register-honesty landing)
+
+- Item: CIB-252 (Dave pack-02 WS-1).
+- Outcome: `MERGED(2c54283953e58aa450cc572a3a46fea47fbb278a,
+  2026-08-05T02:59:40+08:00)` via rebase-merged PR #3552. The pre-merge
+  `LANDING` journal token was not persisted; recovery checked Git ground truth
+  and confirmed the merge commit is an ancestor of `origin/main` before APS
+  reconciliation.
+- Validation: focused registration tests (17), targeted clippy with warnings
+  denied, formatting, hermetic `cargo test --workspace`, docs/APS checks, and
+  hosted CI all passed; hosted Windows MSVC clippy passed. Independent verify
+  and Council converged with no remaining findings or review threads.
+- Plan changes: CIB-252 advances from In Progress to Merged with commit and PR
+  evidence. CIB-254 remains Ready; CIB-160 remains separate portable peer-exe
+  scope, while CIB-232 is already integrated.
+- Next: release evidence may advance CIB-252 later; do not mark it Released or
+  Complete from merge evidence alone.
