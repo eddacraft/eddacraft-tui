@@ -2,6 +2,69 @@ use std::path::Path;
 
 use anyhow::Context;
 
+use anvil_checks::antipattern::{
+    AntipatternCheckConfig, Warning, WarningSummary, run_antipattern_check,
+};
+use anvil_tui::surfaces::tutorial::{AutoplayRunner, CommandOutput};
+
+/// The in-process check the autoplay demo runs (CIB-248).
+///
+/// Autoplay used to spawn `anvil check <target>` as a child process with
+/// `env_clear()` and a sandbox `HOME`/`ANVIL_HOME`. `check` is in
+/// `CLI_GATED_COMMANDS`, and the sandbox env hid the host credentials, so every
+/// demo step failed `Authentication required` — signed out *and* signed in.
+///
+/// Running the check here means no CLI dispatch happens, so the licence gate is
+/// never consulted. That is the posture ADR-080 already records for the welcome
+/// hub ("runs gate / audit / doctor data collection ... in-process"), so no new
+/// bypass is introduced and `anvil check` itself stays gated for scripted use.
+///
+/// Output goes through [`crate::commands::check::render_human`] — the very
+/// function the real command prints — so the demo cannot drift into showing
+/// something `anvil check` would not.
+pub(crate) fn in_process_check_runner() -> AutoplayRunner {
+    std::sync::Arc::new(|target: &Path| {
+        let started = std::time::Instant::now();
+        let file = target.to_string_lossy().into_owned();
+        // The sandbox root owns the `.anvilrc` the demo scaffolds.
+        let workspace_root = target
+            .parent()
+            .and_then(Path::parent)
+            .map(|root| root.to_string_lossy().into_owned());
+
+        let result = run_antipattern_check(
+            &[file.as_str()],
+            &AntipatternCheckConfig::default(),
+            workspace_root.as_deref(),
+        );
+        // Reuse the scanner's own summary rather than recounting — the real
+        // command reports these numbers, so the demo must not compute its own.
+        let report = result.warnings;
+        let warnings: Vec<Warning> = report.warnings;
+        let summary: WarningSummary = report.summary;
+
+        let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let stdout = crate::commands::check::render_human(
+            &warnings,
+            &summary,
+            &[file],
+            false,
+            elapsed,
+            crate::commands::check::FileSource::Explicit,
+        );
+
+        // `anvil check` exits non-zero only on error-severity findings; the
+        // demo's repaired-fixture step asserts ExitCode(0).
+        let success = summary.errors == 0;
+        CommandOutput {
+            stdout,
+            stderr: String::new(),
+            success,
+            exit_code: Some(i32::from(!success)),
+        }
+    })
+}
+
 const ANVIL_CONFIG: &str = r#"{
   "checks": ["antipattern-scan"]
 }
@@ -125,6 +188,48 @@ mod tests {
         let first_findings = fixture_findings(&first);
         assert_eq!(first_findings, fixture_findings(&second));
         assert_eq!(first_findings, ["AP-003", "AP-004"]);
+    }
+
+    /// CIB-248: the demo step asserts `Verify::OutputContains("AP-003")`. It
+    /// used to get `Authentication required` instead, because the check ran as
+    /// a gated CLI child with a sandbox HOME that hid the user's credentials.
+    /// Running in-process means no CLI dispatch and therefore no licence gate.
+    #[test]
+    fn in_process_runner_reports_pinned_findings_without_authentication() {
+        let sandbox = AutoplaySandbox::new().expect("sandbox");
+        let target = sandbox.resolve_target("src/app.ts").expect("target");
+
+        let output = super::in_process_check_runner()(&target);
+
+        assert!(
+            output.stdout.contains("AP-003"),
+            "demo output must show the pinned finding, got: {}",
+            output.stdout
+        );
+        assert!(
+            !output.stdout.contains("Authentication")
+                && !output.stderr.contains("Authentication"),
+            "the demo must never surface an auth wall: {} / {}",
+            output.stdout,
+            output.stderr
+        );
+    }
+
+    /// The repaired-fixture step asserts `Verify::ExitCode(0)`.
+    #[test]
+    fn in_process_runner_exits_zero_once_the_fixture_is_repaired() {
+        let sandbox = AutoplaySandbox::new().expect("sandbox");
+        let target = sandbox.resolve_target("src/app.ts").expect("target");
+        std::fs::write(
+            &target,
+            "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+        )
+        .expect("repair fixture");
+
+        let output = super::in_process_check_runner()(&target);
+
+        assert_eq!(output.exit_code, Some(0), "stdout: {}", output.stdout);
+        assert!(output.success);
     }
 
     #[test]

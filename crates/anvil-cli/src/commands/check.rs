@@ -112,7 +112,7 @@ impl CheckArgs {
 
 /// Describes how files were selected, for user-facing messages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FileSource {
+pub(crate) enum FileSource {
     All,
     Changed,
     Explicit,
@@ -1286,19 +1286,51 @@ fn print_human(
     elapsed: u64,
     source: FileSource,
 ) {
+    print!(
+        "{}",
+        render_human(warnings, summary, files, verbose, elapsed, source)
+    );
+}
+
+/// String form of [`print_human`], shared with the welcome autoplay demo.
+///
+/// CIB-248: mirrors `output::plain`'s formats exactly (`section` underlines to
+/// 40 chars, `label` pads to 16, `item` prefixes an icon and two spaces) so the
+/// in-process demo output is byte-identical to the real `anvil check`.
+pub(crate) fn render_human(
+    warnings: &[Warning],
+    summary: &WarningSummary,
+    files: &[String],
+    verbose: bool,
+    elapsed: u64,
+    source: FileSource,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let section = |out: &mut String, title: &str| {
+        let _ = writeln!(out, "{title}");
+        let _ = writeln!(out, "{}", "\u{2500}".repeat(40));
+    };
+    let label = |out: &mut String, name: &str, value: &dyn std::fmt::Display| {
+        let _ = writeln!(out, "  {name:<16} {value}");
+    };
+
     match source {
-        FileSource::All => output::plain::dim(&format!("Checked {} file(s)", files.len())),
+        FileSource::All => {
+            let _ = writeln!(out, "  Checked {} file(s)", files.len());
+        }
         FileSource::Changed => {
-            output::plain::dim(&format!("Checked {} changed file(s)", files.len()));
+            let _ = writeln!(out, "  Checked {} changed file(s)", files.len());
         }
         FileSource::Explicit => {}
     }
 
-    output::plain::blank();
+    out.push('\n');
 
     if warnings.is_empty() {
-        output::plain::success("No warnings found");
-        return;
+        let _ = writeln!(out, "  \u{2713} No warnings found");
+        return out;
     }
 
     // Group by severity.
@@ -1316,60 +1348,69 @@ fn print_human(
         .collect();
 
     if !errors.is_empty() {
-        output::plain::section("Errors");
+        section(&mut out, "Errors");
         for w in &errors {
-            print_warning(w, verbose);
+            out.push_str(&render_warning(w, verbose));
         }
     }
 
     if !warns.is_empty() {
-        output::plain::section("Warnings");
+        section(&mut out, "Warnings");
         for w in &warns {
-            print_warning(w, verbose);
+            out.push_str(&render_warning(w, verbose));
         }
     }
 
     if !infos.is_empty() && verbose {
-        output::plain::section("Info");
+        section(&mut out, "Info");
         for w in &infos {
-            print_warning(w, verbose);
+            out.push_str(&render_warning(w, verbose));
         }
     }
 
-    output::plain::blank();
-    output::plain::section("Summary");
-    output::plain::label("Total", summary.total);
+    out.push('\n');
+    section(&mut out, "Summary");
+    label(&mut out, "Total", &summary.total);
     if summary.errors > 0 {
-        output::plain::label("Errors", summary.errors);
+        label(&mut out, "Errors", &summary.errors);
     }
     if summary.warnings > 0 {
-        output::plain::label("Warnings", summary.warnings);
+        label(&mut out, "Warnings", &summary.warnings);
     }
     if summary.info > 0 {
-        output::plain::label("Info", summary.info);
+        label(&mut out, "Info", &summary.info);
     }
     if summary.suppressed > 0 {
-        output::plain::label("Suppressed", summary.suppressed);
+        label(&mut out, "Suppressed", &summary.suppressed);
     }
-    output::plain::label("Time", format!("{elapsed}ms"));
+    label(&mut out, "Time", &format!("{elapsed}ms"));
+    out
 }
 
-fn print_warning(w: &Warning, verbose: bool) {
+/// Render one warning exactly as `anvil check` prints it.
+///
+/// CIB-248: the welcome autoplay demo renders the same findings in-process
+/// instead of shelling out to the licence-gated `anvil check`. Sharing this
+/// function is what keeps the demo honest — it cannot drift from what the
+/// real command prints, because it *is* what the real command prints.
+fn render_warning(w: &Warning, verbose: bool) -> String {
+    use std::fmt::Write as _;
+
     let diag = WarningReport::new(w);
-    let mut buf = String::new();
-    let _ = miette::GraphicalReportHandler::new().render_report(&mut buf, &diag);
-    print!("{buf}");
+    let mut out = String::new();
+    let _ = miette::GraphicalReportHandler::new().render_report(&mut out, &diag);
 
     if verbose {
         if let Some(nudge) = &w.nudge {
-            output::plain::dim(&format!("\u{2192} {nudge}"));
+            let _ = writeln!(out, "  \u{2192} {nudge}");
         }
-        output::plain::dim(&format!("Why: {}", w.explanation));
+        let _ = writeln!(out, "  Why: {}", w.explanation);
     }
 
     // Blank line between consecutive warnings (restores the spacing dropped when
     // the miette renderer replaced the per-field plain output).
-    output::plain::blank();
+    out.push('\n');
+    out
 }
 
 // ── Tests ───────────────────────────────────────────────────────────

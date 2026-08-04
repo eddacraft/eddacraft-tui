@@ -56,6 +56,10 @@ fn tutorial_state_with_scan(
     let mut state = anvil_tui::surfaces::tutorial::TutorialState::new();
     state.set_scan_results(results);
     state.set_completion_rescan(|| scan_project().ok());
+    // CIB-248: the autoplay demo runs its check in-process, so it never
+    // re-enters the licence-gated `anvil check` CLI with a sandbox HOME that
+    // hides the user's credentials.
+    state.set_autoplay_runner(crate::commands::tutorial::autoplay::in_process_check_runner());
     state
 }
 

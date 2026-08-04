@@ -188,6 +188,7 @@ fn run_tutorial_session<R, W>(
 
 fn run_explicit_autoplay() -> anyhow::Result<()> {
     let mut state = TutorialState::new();
+    state.set_autoplay_runner(autoplay::in_process_check_runner());
     state.start_autoplay();
     let mut sandbox = None;
     ensure_autoplay_setup(&mut state, &mut sandbox)?;
