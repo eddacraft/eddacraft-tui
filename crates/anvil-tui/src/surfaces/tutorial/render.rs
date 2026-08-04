@@ -719,34 +719,94 @@ fn findings_noun(count: usize) -> &'static str {
 
 /// WOW-004: one honest sentence about the re-scan result. The copy names
 /// the re-scan (it really ran) and never claims anvil fixed anything.
-fn completion_delta_line(delta: super::FindingsDelta, theme: &EddaCraftTheme) -> Line<'static> {
-    let super::FindingsDelta { before, after } = delta;
-    let (msg, color) = match after.cmp(&before) {
-        std::cmp::Ordering::Less => (
-            format!(
-                "Re-scanned your repo: {before} \u{2192} {after} {} in this domain \u{2014} {} fewer than when you started.",
-                findings_noun(after),
-                before - after
-            ),
-            theme.success(),
+///
+/// CIB-247: the count itself no longer carries "in this domain" — sitting
+/// under "you finished the {path} tutorial", that read as the path's own
+/// score. What was counted is said outright by `completion_scope_note`.
+fn completion_delta_text(delta: super::FindingsDelta) -> String {
+    let super::FindingsDelta { before, after, .. } = delta;
+    match after.cmp(&before) {
+        std::cmp::Ordering::Less => format!(
+            "Re-scanned your repo: {before} \u{2192} {after} {} \u{2014} {} fewer than when you started.",
+            findings_noun(after),
+            before - after
         ),
-        std::cmp::Ordering::Equal => (
-            format!(
-                "Re-scanned your repo: {before} {} in this domain \u{2014} same as when you started.",
-                findings_noun(before)
-            ),
-            theme.muted(),
+        std::cmp::Ordering::Equal => format!(
+            "Re-scanned your repo: {before} {} \u{2014} same as when you started.",
+            findings_noun(before)
         ),
-        std::cmp::Ordering::Greater => (
-            format!(
-                "Re-scanned your repo: {before} \u{2192} {after} {} in this domain \u{2014} {} more than when you started.",
-                findings_noun(after),
-                after - before
-            ),
-            theme.warning(),
+        std::cmp::Ordering::Greater => format!(
+            "Re-scanned your repo: {before} \u{2192} {after} {} \u{2014} {} more than when you started.",
+            findings_noun(after),
+            after - before
         ),
+    }
+}
+
+/// CIB-247: what the count above actually counted, and — said plainly — that
+/// it is not the chosen path's score. The rule families mirror
+/// `ScanResults::count_by_domain`, so this stays true if the filter changes.
+/// `None` (no chosen path) cannot produce a delta today; the unfiltered
+/// wording is the honest fallback if that ever changes.
+fn completion_scope_note(path: Option<TutorialPath>) -> String {
+    let rules = match path {
+        Some(TutorialPath::Policy) => "anti-pattern and secret rules",
+        Some(TutorialPath::Architecture) => "architecture rules",
+        Some(
+            TutorialPath::ProtectionLoop
+            | TutorialPath::DeveloperAcceleration
+            | TutorialPath::Drift
+            | TutorialPath::CI,
+        )
+        | None => "every scan rule",
     };
-    Line::from(Span::styled(msg, Style::default().fg(color)))
+    format!("Repo-wide count of {rules} \u{2014} not findings from this path.")
+}
+
+/// CIB-247: the test/fixture split. Deliberate test data trips the secret
+/// rules, and an unqualified count of those reads as a repo full of leaks.
+/// Nothing is hidden or downgraded — the findings still count, the user is
+/// just told where they live. `None` when no counted finding is under one.
+fn completion_test_path_note(delta: super::FindingsDelta) -> Option<String> {
+    match delta.after_in_test_paths {
+        0 => None,
+        1 => Some(
+            "1 of them is in a test or fixture path \u{2014} anvil scans those too.".to_string(),
+        ),
+        n => Some(format!(
+            "{n} of them are in test or fixture paths \u{2014} anvil scans those too."
+        )),
+    }
+}
+
+/// The WOW-004 re-scan block: the delta sentence plus its CIB-247 framing.
+fn completion_delta_lines(
+    delta: super::FindingsDelta,
+    path: Option<TutorialPath>,
+    theme: &EddaCraftTheme,
+) -> Vec<Line<'static>> {
+    let color = match delta.after.cmp(&delta.before) {
+        std::cmp::Ordering::Less => theme.success(),
+        std::cmp::Ordering::Equal => theme.muted(),
+        std::cmp::Ordering::Greater => theme.warning(),
+    };
+    let mut lines = vec![
+        Line::from(Span::styled(
+            completion_delta_text(delta),
+            Style::default().fg(color),
+        )),
+        Line::from(Span::styled(
+            completion_scope_note(path),
+            Style::default().fg(theme.muted()),
+        )),
+    ];
+    if let Some(note) = completion_test_path_note(delta) {
+        lines.push(Line::from(Span::styled(
+            note,
+            Style::default().fg(theme.muted()),
+        )));
+    }
+    lines
 }
 
 fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
@@ -796,7 +856,7 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
     // WOW-004: what the walk changed in the user's repo, from a read-only
     // re-scan against the session's opening scan. Absent without scan data.
     if let Some(delta) = state.completion_delta {
-        lines.push(completion_delta_line(delta, theme));
+        lines.extend(completion_delta_lines(delta, state.chosen_path, theme));
         lines.push(Line::default());
     }
 
@@ -1456,13 +1516,27 @@ mod tests {
 
     /// Build a completed-tutorial state with a WOW-004 findings delta set.
     fn complete_state_with_delta(before: usize, after: usize) -> TutorialState {
+        complete_state_with_delta_in_test_paths(before, after, 0)
+    }
+
+    /// As [`complete_state_with_delta`], with `in_test_paths` of the ending
+    /// count under test or fixture paths (CIB-247).
+    fn complete_state_with_delta_in_test_paths(
+        before: usize,
+        after: usize,
+        in_test_paths: usize,
+    ) -> TutorialState {
         let mut state = TutorialState::new();
         state.load_steps(TutorialPath::Policy);
         for step in &mut state.steps {
             step.completed = true;
         }
         state.phase = TutorialPhase::Complete;
-        state.completion_delta = Some(super::super::FindingsDelta { before, after });
+        state.completion_delta = Some(super::super::FindingsDelta {
+            before,
+            after,
+            after_in_test_paths: in_test_paths,
+        });
         state
     }
 
@@ -1522,6 +1596,115 @@ mod tests {
             "snapshot_complete_phase_delta_singular",
             &complete_state_with_delta(2, 1),
         );
+    }
+
+    /// CIB-247: the operator's case — a live repo whose count is dominated by
+    /// secret hits on test fixtures, reported after a path walk.
+    #[test]
+    fn snapshot_complete_phase_delta_test_paths() {
+        snapshot_complete_with_delta(
+            "snapshot_complete_phase_delta_test_paths",
+            &complete_state_with_delta_in_test_paths(11, 11, 11),
+        );
+    }
+
+    // --- CIB-247: re-scan framing ---
+
+    /// The whole re-scan block as plain text, for the honesty assertions.
+    fn delta_block_text(delta: super::super::FindingsDelta, path: Option<TutorialPath>) -> String {
+        completion_delta_lines(delta, path, &EddaCraftTheme)
+            .iter()
+            .flat_map(|line| line.spans.iter().map(|span| span.content.to_string()))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn delta(before: usize, after: usize, in_test_paths: usize) -> super::super::FindingsDelta {
+        super::super::FindingsDelta {
+            before,
+            after,
+            after_in_test_paths: in_test_paths,
+        }
+    }
+
+    /// The honesty property CIB-247 exists for: whatever the path, the count
+    /// is never presented as that path's own. Asserted on the property (no
+    /// path label anywhere in the block) rather than on one literal string,
+    /// so re-wording the copy cannot quietly re-introduce the attribution.
+    #[test]
+    fn rescan_block_never_attributes_the_count_to_the_chosen_path() {
+        for path in [
+            TutorialPath::ProtectionLoop,
+            TutorialPath::DeveloperAcceleration,
+            TutorialPath::Policy,
+            TutorialPath::Architecture,
+            TutorialPath::Drift,
+            TutorialPath::CI,
+        ] {
+            let text = delta_block_text(delta(11, 11, 11), Some(path));
+            assert!(
+                !text.contains(path.label()),
+                "re-scan block must not name the chosen path ({}): {text}",
+                path.label()
+            );
+            assert!(
+                text.contains("Repo-wide count of") && text.contains("not findings from this path"),
+                "re-scan block must say what was counted ({}): {text}",
+                path.label()
+            );
+            assert!(
+                !text.contains("in this domain"),
+                "'domain' framing reads as the path's own findings: {text}"
+            );
+        }
+    }
+
+    /// The scope note names the rule families actually counted, so a user can
+    /// tell a policy-filtered count from an everything count.
+    #[test]
+    fn rescan_scope_note_names_the_rules_counted() {
+        assert!(
+            completion_scope_note(Some(TutorialPath::Policy))
+                .contains("anti-pattern and secret rules")
+        );
+        assert!(
+            completion_scope_note(Some(TutorialPath::Architecture)).contains("architecture rules")
+        );
+        assert!(
+            completion_scope_note(Some(TutorialPath::DeveloperAcceleration))
+                .contains("every scan rule"),
+        );
+        // No chosen path cannot produce a delta today; the fallback must
+        // still describe an unfiltered count rather than claim a filter.
+        assert!(completion_scope_note(None).contains("every scan rule"));
+    }
+
+    /// The test/fixture split is reported, never used to shrink the count.
+    #[test]
+    fn rescan_test_path_note_reports_without_discounting() {
+        let text = delta_block_text(delta(11, 11, 11), Some(TutorialPath::Policy));
+        assert!(
+            text.contains("11 findings"),
+            "the full count must survive the framing: {text}"
+        );
+        assert!(
+            text.contains("11 of them are in test or fixture paths"),
+            "the test-path split must be reported: {text}"
+        );
+        assert_eq!(
+            completion_test_path_note(delta(4, 4, 1)).as_deref(),
+            Some("1 of them is in a test or fixture path — anvil scans those too.")
+        );
+        assert_eq!(completion_test_path_note(delta(4, 4, 0)), None);
+    }
+
+    /// The delta sentence itself still reports movement in both directions.
+    #[test]
+    fn rescan_delta_text_reports_both_directions() {
+        assert!(completion_delta_text(delta(5, 3, 0)).contains("2 fewer than when you started"));
+        assert!(completion_delta_text(delta(2, 4, 0)).contains("2 more than when you started"));
+        assert!(completion_delta_text(delta(4, 4, 0)).contains("same as when you started"));
+        assert!(completion_delta_text(delta(2, 1, 0)).contains("1 finding \u{2014}"));
     }
 
     // --- strip_ansi tests ---

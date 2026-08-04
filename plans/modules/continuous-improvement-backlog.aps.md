@@ -6549,7 +6549,17 @@ archive.
 
 ### CIB-247: First-run scan must not dump raw live-repo ERRORs as the tutorial "domain"
 
-- **Status:** Ready
+- **Status:** In Progress 2026-08-04 — welcome/tutorial framing landed on
+  `fix/cib-247-first-run-scan-framing`; flip to
+  `Merged YYYY-MM-DD via PR #N` when that PR merges.
+- **Implementation note (2026-08-04, In Progress):** took option **(b)**,
+  honest framing of the live-repo scan. Options (a) and (c) both change *what
+  is counted* — a sandbox domain or a `**/tests/**` exclusion would have made
+  the number smaller and friendlier without making it truer, against the
+  repo's no-over-claiming posture. The count now says what it counted
+  (repo-wide, which rule families) and that it is not the chosen path's, and
+  reports how many sit under test/fixture paths. No finding is hidden,
+  discounted, or re-severitied; production `check` is untouched.
 - **Priority:** P1 welcome honesty (operator 2026-08-04)
 - **Intent:** First-run discovery / first-win re-scan of the **live** repo
   (e.g. cognition monorepo) surfaces **11 ERROR** secret findings in test

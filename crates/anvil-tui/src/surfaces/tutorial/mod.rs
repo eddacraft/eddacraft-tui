@@ -232,6 +232,10 @@ impl CommandReveal {
 pub struct FindingsDelta {
     pub before: usize,
     pub after: usize,
+    /// CIB-247: how many of `after` sit under test or fixture paths. Reported
+    /// beside the count so a repo whose secret rules fire on deliberate test
+    /// data is not read as a repo with that many leaks.
+    pub after_in_test_paths: usize,
 }
 
 /// Output captured after running a step's command.
@@ -964,7 +968,11 @@ impl TutorialState {
             return;
         }
         let after = rescanned.count_by_domain(path);
-        self.completion_delta = Some(FindingsDelta { before, after });
+        self.completion_delta = Some(FindingsDelta {
+            before,
+            after,
+            after_in_test_paths: rescanned.count_in_test_paths_by_domain(path),
+        });
     }
 
     /// Returns true if the current step has failed command output or failed
@@ -1981,6 +1989,7 @@ mod tests {
         state.completion_delta = Some(FindingsDelta {
             before: 2,
             after: 1,
+            after_in_test_paths: 0,
         });
         state.set_completion_rescan(move || {
             observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -2010,6 +2019,7 @@ mod tests {
         state.completion_delta = Some(FindingsDelta {
             before: 2,
             after: 1,
+            after_in_test_paths: 0,
         });
         state.set_completion_rescan(move || {
             observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -2029,7 +2039,8 @@ mod tests {
             state.completion_delta,
             Some(FindingsDelta {
                 before: 2,
-                after: 1
+                after: 1,
+                after_in_test_paths: 0
             })
         );
         state.completion_rescan.as_ref().expect("rescan")();
@@ -3108,7 +3119,8 @@ mod tests {
             state.completion_delta,
             Some(FindingsDelta {
                 before: 3,
-                after: 1
+                after: 1,
+                after_in_test_paths: 0
             })
         );
     }
@@ -3124,7 +3136,8 @@ mod tests {
             state.completion_delta,
             Some(FindingsDelta {
                 before: 2,
-                after: 2
+                after: 2,
+                after_in_test_paths: 0
             })
         );
     }
@@ -3140,7 +3153,8 @@ mod tests {
             state.completion_delta,
             Some(FindingsDelta {
                 before: 1,
-                after: 4
+                after: 4,
+                after_in_test_paths: 0
             })
         );
     }
@@ -3181,7 +3195,8 @@ mod tests {
             state.completion_delta,
             Some(FindingsDelta {
                 before: 3,
-                after: 2
+                after: 2,
+                after_in_test_paths: 0
             })
         );
     }
@@ -3197,6 +3212,39 @@ mod tests {
         complete_all_steps(&mut state);
 
         assert_eq!(state.completion_delta, None);
+    }
+
+    /// CIB-247: the re-scan carries the test/fixture split so the completion
+    /// screen can say where a secret-noisy count actually lives. The total is
+    /// untouched — the split explains it, it does not discount it.
+    #[test]
+    fn completion_delta_carries_the_test_path_split() {
+        let mut state = delta_state(policy_scan_results(2));
+        state.set_completion_rescan(|| {
+            let mut results = policy_scan_results(1);
+            results.findings.push(Finding {
+                file: "tests/fixtures/creds.rs".to_string(),
+                line: Some(1),
+                severity: FindingSeverity::Error,
+                source: FindingSource::Secret,
+                title: "hardcoded secret".to_string(),
+                message: "test".to_string(),
+                suggestion: "fix".to_string(),
+                warning_id: None,
+            });
+            Some(results)
+        });
+
+        complete_all_steps(&mut state);
+
+        assert_eq!(
+            state.completion_delta,
+            Some(FindingsDelta {
+                before: 2,
+                after: 2,
+                after_in_test_paths: 1
+            })
+        );
     }
 
     #[test]

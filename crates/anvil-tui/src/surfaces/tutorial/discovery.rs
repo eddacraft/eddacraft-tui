@@ -108,6 +108,34 @@ pub struct ScanResults {
     pub is_showcase: bool,
 }
 
+/// Whether a scanned file lives under a conventional test or fixture path.
+///
+/// Deliberately a local predicate rather than a reach into the secret check's
+/// own path heuristics: this drives welcome *copy* only, and must not become a
+/// second caller that constrains production rule behaviour (CIB-247 non-scope).
+fn is_test_or_fixture_path(file: &str) -> bool {
+    let norm = file.replace('\\', "/").to_ascii_lowercase();
+    let name = norm.rsplit('/').next().unwrap_or(norm.as_str());
+    name.starts_with("test_")
+        || name.ends_with("_test.go")
+        || [".test.", ".spec.", "_test.", "_spec."]
+            .iter()
+            .any(|marker| name.contains(marker))
+        || norm.split('/').any(|segment| {
+            matches!(
+                segment,
+                "test"
+                    | "tests"
+                    | "__tests__"
+                    | "testdata"
+                    | "test-data"
+                    | "fixture"
+                    | "fixtures"
+                    | "__fixtures__"
+            )
+        })
+}
+
 impl ScanResults {
     /// Return all findings sorted by severity descending (Error first).
     pub fn sorted_findings(&self) -> Vec<&Finding> {
@@ -153,6 +181,32 @@ impl ScanResults {
         self.findings
             .iter()
             .filter(|f| Self::domain_includes(path, f.source))
+            .count()
+    }
+
+    /// Count the findings whose file sits under a test or fixture path.
+    ///
+    /// CIB-247: a live repo's secret rules fire hard on deliberate test data
+    /// (fake tokens, password-assignment strings in `tests/`), so a bare
+    /// "11 findings" reads as eleven leaks. The welcome surfaces report this
+    /// split so the user can tell noise from news — the findings themselves
+    /// are still shown and still counted.
+    #[must_use]
+    pub fn count_in_test_paths(&self) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| is_test_or_fixture_path(&f.file))
+            .count()
+    }
+
+    /// Same split as [`count_in_test_paths`](Self::count_in_test_paths),
+    /// restricted to `path`'s tutorial domain so it lines up with
+    /// [`count_by_domain`](Self::count_by_domain).
+    #[must_use]
+    pub fn count_in_test_paths_by_domain(&self, path: TutorialPath) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| Self::domain_includes(path, f.source) && is_test_or_fixture_path(&f.file))
             .count()
     }
 
@@ -843,6 +897,85 @@ mod tests {
         // should_quit() returns true when wants_continue is set so the surface
         // loop exits; caller distinguishes continue vs quit by checking wants_continue
         assert!(Surface::should_quit(&state));
+    }
+
+    // ── CIB-247: test/fixture path split ─────────────────────────────────
+
+    fn make_finding_in(file: &str, source: FindingSource) -> Finding {
+        Finding {
+            file: file.to_string(),
+            ..make_finding_with_source(FindingSeverity::Error, source, "hardcoded secret")
+        }
+    }
+
+    #[test]
+    fn test_or_fixture_paths_are_recognised() {
+        for path in [
+            "tests/fixtures/creds.rs",
+            "crates/x/tests/secret_cases.rs",
+            "src/__tests__/auth.ts",
+            "packages/api/src/auth.test.ts",
+            "internal/store/store_test.go",
+            "app/testdata/tokens.json",
+            "src/adapters/__fixtures__/token.json",
+            r"windows\tests\creds.rs",
+        ] {
+            assert!(
+                is_test_or_fixture_path(path),
+                "{path} should read as a test"
+            );
+        }
+    }
+
+    #[test]
+    fn production_paths_are_not_test_paths() {
+        for path in [
+            "src/main.rs",
+            "src/services/auth.rs",
+            "crates/anvil-cli/src/commands/welcome.rs",
+            "docs/examples/demo.ts",
+            "src/latest/handler.rs",
+        ] {
+            assert!(
+                !is_test_or_fixture_path(path),
+                "{path} should NOT read as a test"
+            );
+        }
+    }
+
+    #[test]
+    fn count_in_test_paths_counts_only_test_and_fixture_files() {
+        let results = make_results(vec![
+            make_finding_in("tests/fixtures/creds.rs", FindingSource::Secret),
+            make_finding_in("src/auth.test.ts", FindingSource::Secret),
+            make_finding_in("src/services/auth.rs", FindingSource::Secret),
+        ]);
+        assert_eq!(results.count_in_test_paths(), 2);
+        assert_eq!(
+            results.findings.len(),
+            3,
+            "nothing is dropped from the scan"
+        );
+    }
+
+    #[test]
+    fn count_in_test_paths_by_domain_applies_the_same_filter_as_count_by_domain() {
+        let results = make_results(vec![
+            make_finding_in("tests/fixtures/creds.rs", FindingSource::Secret),
+            make_finding_in("tests/layers.rs", FindingSource::Architecture),
+            make_finding_in("src/services/auth.rs", FindingSource::Secret),
+        ]);
+        // Policy counts anti-pattern + secret: only the fixture secret.
+        assert_eq!(results.count_by_domain(TutorialPath::Policy), 2);
+        assert_eq!(
+            results.count_in_test_paths_by_domain(TutorialPath::Policy),
+            1
+        );
+        // Cross-cutting paths count everything, so both test-path hits show.
+        assert_eq!(
+            results.count_in_test_paths_by_domain(TutorialPath::DeveloperAcceleration),
+            2
+        );
     }
 
     // ── ScanResults::filter_by_domain ───────────────────────────────────

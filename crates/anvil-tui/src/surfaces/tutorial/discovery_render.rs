@@ -420,10 +420,32 @@ fn render_continue(frame: &mut Frame, area: Rect, state: &DiscoveryState, theme:
         .as_ref()
         .map_or(0, |r| r.files_skipped_by_ignore);
 
+    // CIB-247: on a real repo the secret rules fire on deliberate test data,
+    // so the opening count can be dominated by fixtures. Say where they live
+    // instead of letting an unframed ERROR count be the first impression.
+    // Showcase results are excluded — they are not the user's files at all,
+    // and CIB-170 already badges them.
+    let in_test_paths = state
+        .results
+        .as_ref()
+        .filter(|r| !r.is_showcase)
+        .map_or(0, super::discovery::ScanResults::count_in_test_paths);
+
     let mut lines = vec![
         Line::default(),
         Line::from(Span::styled(summary_line, Style::default().fg(theme.fg()))),
     ];
+    if in_test_paths > 0 {
+        let note = if in_test_paths == 1 {
+            "1 of them is in a test or fixture path — anvil scans those too.".to_string()
+        } else {
+            format!("{in_test_paths} of them are in test or fixture paths — anvil scans those too.")
+        };
+        lines.push(Line::from(Span::styled(
+            note,
+            Style::default().fg(theme.muted()),
+        )));
+    }
     if truncated_note {
         lines.push(Line::from(Span::styled(
             "Scan was limited — re-run on a subdirectory for complete coverage.",
@@ -685,6 +707,97 @@ mod tests {
         assert!(
             !rendered.contains(".gitignore"),
             "no gitignore skips means no skip note should render: {rendered}"
+        );
+    }
+
+    /// CIB-247: the opening count on a live repo is often dominated by secret
+    /// hits on deliberate test data. The continue screen says where they live
+    /// — without shrinking the count the user is shown.
+    #[test]
+    fn continue_screen_notes_test_and_fixture_paths() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: vec![
+                Finding {
+                    file: "tests/fixtures/creds.rs".to_string(),
+                    ..make_finding(FindingSeverity::Error, "hardcoded secret")
+                },
+                Finding {
+                    file: "src/adapters/token.spec.ts".to_string(),
+                    ..make_finding(FindingSeverity::Error, "high-entropy token")
+                },
+                Finding {
+                    file: "src/services/auth.rs".to_string(),
+                    ..make_finding(FindingSeverity::Warning, "anti-pattern")
+                },
+            ],
+            files_scanned: 500,
+            duration_ms: 900,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase: false,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains("Found 3 issues"),
+            "the full count must still lead: {rendered}"
+        );
+        assert!(
+            rendered.contains("2 of them are in test or fixture paths"),
+            "continue screen should report the test/fixture split: {rendered}"
+        );
+    }
+
+    /// A clean-repo showcase substitution is not the user's code, so the
+    /// test-path split would be meaningless there (CIB-170 badges it instead).
+    #[test]
+    fn continue_screen_omits_test_path_note_for_showcase_results() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = DiscoveryState::new();
+        state.set_results(ScanResults {
+            findings: vec![Finding {
+                file: "tests/fixtures/creds.rs".to_string(),
+                ..make_finding(FindingSeverity::Error, "hardcoded secret")
+            }],
+            files_scanned: 40,
+            duration_ms: 900,
+            truncated: false,
+            files_skipped_by_ignore: 0,
+            is_showcase: true,
+        });
+        state.handle_key(Action::Select);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            !rendered.contains("test or fixture paths"),
+            "showcase results should not carry the test-path split: {rendered}"
         );
     }
 
