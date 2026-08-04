@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 172/223  |
+| CIB | —     | In Progress | 173/241  |
 
 ## Purpose
 
@@ -6062,3 +6062,460 @@ archive.
   Morgan multi-client pass on Deus.
 - **Coordinates with:** MCPX, DOCSYNC, CIB-219, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
 - **Confidence:** high — inventory already enumerated.
+
+### CIB-228: Fix PowerShell dual-install guard inject (silent no-op)
+
+- **Status:** Ready
+- **Priority:** P0 for `v0.9.3-beta` (Windows install path)
+- **Intent:** The official Windows `irm … | iex` installer is a silent no-op on
+  clean machines because the package-manager dual-install guard was written as a
+  standalone pre-check (`exit 0` = continue) and is prepended verbatim to
+  cargo-dist's `eddacraft-anvil-installer.ps1` at release publish time.
+- **Expected Outcome:** Clean PATH (no WinGet/Scoop `anvil`) runs the full
+  cargo-dist install body (download, checksum, place, receipt). Dual-install
+  still refuses with upgrade guidance and non-zero exit. No second top-level
+  `param` block before cargo-dist's params. Contract tests cover (a) fall-through
+  on clean PATH and (b) refuse-on-dual-install. Still present on published
+  `v0.9.2-beta` installer — must ship in the next Windows-facing cut.
+- **Files:** `scripts/install/windows-package-manager-guard.ps1`,
+  `.github/workflows/release.yml` (global-artifacts inject),
+  `scripts/install/_test/windows-package-manager-guard.test.sh` (and any inject
+  assembly fixture)
+- **Validation:** `pnpm test:windows-pm-guard` (or successor); fixture that
+  concatenates/injects the way release.yml does and asserts the cargo-dist body
+  remains reachable; manual `irm` against a pre-release asset on a clean Windows
+  VM when available.
+- **Identified From:** Dave beta feedback on v0.9.1 (2026-08); re-verified on
+  published v0.9.2-beta installer asset.
+- **Coordinates with:** closed dual-install intent [#2885](https://github.com/eddacraft/anvil-001/issues/2885)
+  (regression of the inject shape), CIB-230, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high — live public asset still has happy-path `exit 0` at the
+  top of the injected guard.
+
+### CIB-229: Align cargo-dist receipt layout with update + install-method detection
+
+- **Status:** Ready
+- **Priority:** P0 for `v0.9.3-beta` (self-update + version honesty)
+- **Intent:** Three symptoms share one root cause family: (1) `anvil update
+  --check` fails with axoupdater "The updater isn't properly configured";
+  (2) `anvil version` labels a cargo-dist install under `CARGO_HOME/bin` as
+  "cargo install" and suggests `cargo install --git --force` on hosts with no
+  Rust; (3) receipt path / app name in code do not match what cargo-dist
+  installers write (`eddacraft-anvil-receipt.json` under the
+  `eddacraft-anvil` config dir). Absorbs former CIB-231 (UPD-3).
+- **Root cause (do not fix half):**
+  - `AxoUpdater::new_for("anvil")` while installers write app name
+    `eddacraft-anvil`.
+  - `has_cargo_dist_receipt` looks for `…/anvil/anvil-receipt.json`.
+  - `classify_exe_path` returns `CargoInstall` for any `CARGO_HOME/bin` path
+    **before** consulting a receipt — cargo-dist's default layout is that
+    path, so classification can never win even with a correct receipt.
+  - No-receipt library fallback sets version + source but not
+    `install_prefix`, so `is_update_needed*` still NotConfigured.
+- **Expected Outcome:**
+  - After a cargo-dist shell/PowerShell install: `anvil update --check`
+    reports current vs available (or up-to-date) without bare NotConfigured.
+  - Same install: `anvil version` / install-method is cargo-dist (not cargo
+    install); upgrade guidance is installer / `anvil update`, not
+    `cargo install --git`.
+  - True `cargo install` builds remain classified correctly.
+  - Receipt load tries `eddacraft-anvil` (and legacy `anvil` if needed).
+  - No-receipt / dev builds: actionable message or fully configured check
+    path — never bare NotConfigured as the only signal.
+  - Package-manager paths (Homebrew/WinGet/Scoop) unchanged.
+- **Non-scope:** Restoring `install-updater` sidecar while
+  `aarch64-pc-windows-msvc` axoupdater is missing; Authenticode.
+- **Files:** `crates/anvil-cli/src/commands/update.rs`,
+  `crates/anvil-cli/src/commands/version.rs` (`classify_exe_path`,
+  `has_cargo_dist_receipt`, upgrade command strings),
+  `crates/anvil-cli/tests/update_resolution_chain.rs`, version unit tests
+- **Validation:** unit tests for receipt name + classify order (CARGO_HOME +
+  eddacraft-anvil receipt → CargoDist; CARGO_HOME without receipt stays
+  CargoInstall when that is true); `cargo test -p eddacraft-anvil
+  commands::update::tests`; `commands::version` classification tests;
+  optional manual `--check` on a receipt-backed install.
+- **Identified From:** Dave field report UPD-1 + UPD-3 (2026-08); re-triage
+  2026-08-04 merged UPD-3 into this item.
+- **Supersedes:** CIB-231
+- **Coordinates with:** ADR-045, CIB-200, CIB-228, dist-workspace
+  `install-updater = false`, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high — all three defects visible in source.
+
+### CIB-230: No internal GH issue numbers in public ship artefacts
+
+- **Status:** Ready
+- **Priority:** P2 for `v0.9.3-beta` (release hygiene; land with CIB-228)
+- **Intent:** Private tracker ids (e.g. `GH #2885`) were baked into the public
+  PowerShell installer banner and help text. Anyone who downloads the asset sees
+  the internal number even though the private issue stays 404 unauthenticated.
+- **Expected Outcome:** Public installers, release notes that ship to
+  `eddacraft/anvil`, binary user-facing strings, and published changelogs use
+  neutral wording (e.g. "package-manager dual-install guard") without
+  `GH #NNNN` unless the tracker is intentionally public. A lightweight check
+  (script or test needle) fails CI/release when a known private-id pattern
+  appears in release-injected installer text. Internal plans/APS may still
+  reference issue numbers.
+- **Files:** `scripts/install/windows-package-manager-guard.ps1`,
+  `.github/workflows/release.yml` inject banners, any release-note generators
+  that copy APS issue refs into public assets
+- **Validation:** `rg` / contract test on the inject pipeline output forbids
+  `GH #` / `GitHub #` in the published installer body; spot-check next pre-release
+  asset.
+- **Identified From:** Dave beta feedback research note (2026-08) — they cited
+  #2885 because it was in the public installer, not because of private repo
+  access.
+- **Coordinates with:** CIB-228, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high — live on v0.9.1-beta and v0.9.2-beta assets.
+
+### CIB-231: Report cargo-dist installs as cargo-dist (not cargo install)
+
+- **Status:** Done 2026-08-04 — superseded by CIB-229 (same root-cause family:
+  receipt path + `classify_exe_path` order; re-triage after Dave field review).
+- **Summary:** UPD-3 folded into CIB-229 so agents fix receipt name,
+  classification order, and update --check together rather than half-fixing
+  either surface.
+- **Superseded by:** CIB-229
+- **Identified From:** Dave field report UPD-3.
+
+### CIB-232: Disclose open admission mode honestly (do not flip factory default)
+
+- **Status:** Ready
+- **Priority:** P3 presentation (Dave CONF-1; re-triaged 2026-08-04)
+- **Intent:** Fresh home reports `Admission mode: open` with no entries. Open
+  is the **intentional** factory posture (`Open` = first-touch adopt; missing
+  config → `open_default()`; fail-closed is only for untrusted config). Dave
+  read open + empty allow as "decorative ceremony" against an enforcement
+  pitch — the defect is **undisclosed posture**, not the default itself.
+- **Non-scope / do not:** Silently change factory default to allowlist-empty
+  (that bricks intercept until every root is registered). A default flip
+  requires an explicit product ADR and is out of this item.
+- **Expected Outcome:** `workspace list` / related surfaces state in one plain
+  line that open mode means confinement is off (first-touch adopt) until the
+  operator sets allowlist — without implying a bug. Docs already call open the
+  default; keep them aligned. Optional later ADR if product wants closed-by-
+  default.
+- **Files:** `crates/anvil-cli/src/commands/workspace.rs` list/status copy;
+  any onboarding string that names admission mode
+- **Validation:** fresh home `anvil workspace list --no-tui` includes honesty
+  that open = not confined; default mode remains open in tests.
+- **Identified From:** Dave CONF-1; operator re-triage: intentional default.
+- **Coordinates with:** confinement `open_default`, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high on product stance; fix is copy-only.
+
+### CIB-233: audit-chain summary must disclose coverage (do not redefine chain_intact)
+
+- **Status:** Ready
+- **Priority:** P2 presentation (Dave TRUST-1; re-triaged 2026-08-04)
+- **Intent:** With all commits unwitnessed under default `--threshold 5`,
+  `chain_intact: true` and `degraded_audit_drift: false` are **correct** under
+  the current contract: `chain_intact` = witness file DAG not tampered;
+  `degraded_audit_drift` = unwitnessed count ≥ threshold. Dave read the multi-
+  field report as a green health pass. Fix presentation / summary, not field
+  semantics.
+- **Non-scope / do not:** Redefine `chain_intact` to mean "every commit was
+  witnessed" (breaks existing tests and kindling observation consumers). Do
+  not change default threshold solely to make N=2 fail without a separate
+  product decision.
+- **Expected Outcome:** Human (and JSON summary if present) lead with
+  **coverage** (e.g. witnessed 0/N, unwitnessed list or count) so zero-coverage
+  cannot be skimmed as "all good". Keep `chain_intact` / `degraded_audit_drift`
+  meanings stable and documented in help or report schema notes. Optional:
+  document that `--no-tui` is JSON for this command if that stays intentional.
+- **Files:** `crates/anvil-cli/src/commands/audit_chain.rs` human print path /
+  summary fields
+- **Validation:** fixture 0/2 witnessed, threshold 5: output clearly states
+  unwitnessed coverage; `chain_intact` may still be true; regression tests for
+  field semantics unchanged.
+- **Identified From:** Dave TRUST-1; re-triage against audit-chain module docs.
+- **Coordinates with:** CIB-234..236, ADR-037 audit-chain,
+  [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high on presentation gap; contract must stay.
+
+### CIB-234: `audit` must disclose its secret domain vs `check` (not force count parity)
+
+- **Status:** Ready
+- **Priority:** P2 presentation (Dave TRUST-2; re-triaged 2026-08-04)
+- **Intent:** Same planted-secret tree: `check --all` showed 4 secret findings;
+  `audit` showed 2 (file-level `.env` + summary). `audit` and `check` are
+  **different product surfaces** (overview vs rule-engine findings); identical
+  counts are not a requirement. Silent under-count that looks like a cleaner
+  bill of health is the problem.
+- **Non-scope / do not:** Force audit to emit one issue per check finding
+  without a product decision; do not change gate/check secret rules solely to
+  match audit aggregation.
+- **Expected Outcome:** Prefer (b): audit states its domain (e.g. security
+  overview, file-level `.env`, summarised source secrets) so a lower count
+  cannot be read as "check is wrong" or "tree is cleaner". If a real secret
+  missed entirely by audit's stated domain, fix that as a separate finding.
+  Optional later: product ADR for full parity.
+- **Files:** `crates/anvil-cli/src/commands/audit.rs` messaging / aggregation
+  summary
+- **Validation:** planted multi-file secret fixture; audit output names domain;
+  no requirement that issue count equals `check --all`.
+- **Identified From:** Dave TRUST-2; re-triage.
+- **Coordinates with:** CIB-233, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high on presentation; medium if residual true misses found.
+
+### CIB-235: `status` Protection:warming must name next step or refuse that label
+
+- **Status:** Ready
+- **Priority:** P2 (Dave TRUST-3)
+- **Intent:** `status` can show `Protection: warming` in a state that will never
+  warm, with no named next step, while leaking internals
+  (`subordinate:`, `ready_restart_required`). `start --verify` meaning lines are
+  already actionable — status should match that bar.
+- **Expected Outcome:** Warming/degraded postures either include a concrete next
+  command or use a posture label that cannot be read as "wait and it will
+  finish". Internals stay out of default human output (verbose/json ok).
+- **Files:** `anvil status` protection posture rendering
+- **Validation:** fixture never-attach context; human status has next step or
+  non-warming label.
+- **Identified From:** Dave field report 2026-08-04 TRUST-3.
+- **Coordinates with:** CIB-220 honesty, start --verify meaning lines,
+  [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high.
+
+### CIB-236: `insights` zeros must disclose the counted domain
+
+- **Status:** Ready
+- **Priority:** P3 (Dave TRUST-4)
+- **Intent:** All-zero insights counters do not say what domain was counted
+  (zeros may be true for unattested contexts; rendering gap).
+- **Expected Outcome:** Zero and non-zero insights lines name the evidence
+  domain (e.g. this machine / this repo / unattested) in plain language,
+  consistent with CIB-222 value-receipt scope wording where applicable.
+- **Files:** insights command / start insights surfaces
+- **Validation:** clean unattested home shows domain disclosure with zeros.
+- **Identified From:** Dave field report 2026-08-04 TRUST-4.
+- **Coordinates with:** CIB-222, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high.
+
+### CIB-237: Consistent path and line rendering across CLI surfaces
+
+- **Status:** Ready
+- **Priority:** P3 (Dave UX-1)
+- **Intent:** Three path styles across surfaces — relative (`src/app.py`),
+  NT-extended (`\\?\C:\...`), unix-ish (`/.env:1`) — plus `.env:0` zero-based
+  line in audit and mixed separators in skill-install output.
+- **Expected Outcome:** User-facing paths prefer one style per platform
+  (relative when in-repo, normalised absolute otherwise); line numbers are
+  1-based in all human/json locations; skill-install paths use consistent
+  separators.
+- **Files:** check/audit/gate location formatters, skill install messages
+- **Validation:** Windows fixture covering check --all, check <file>, pre-commit
+  gate, audit, skill install.
+- **Identified From:** Dave field report 2026-08-04 UX-1.
+- **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high.
+
+### CIB-238: Clarify "Blocking warnings" means threshold-block, not severity=warning
+
+- **Status:** Ready
+- **Priority:** P3 polish (Dave UX-2; re-triaged 2026-08-04)
+- **Intent:** Banner text is already "Blocking warnings found **(severity meets
+  threshold)**" — "warnings" means findings that trip the block threshold, not
+  `severity == warning`. Dave read it as mislabeling errors. Logic is fine;
+  vocabulary is overloaded.
+- **Non-scope / do not:** Change exit codes or which severities block.
+- **Expected Outcome:** Prefer neutral phrasing ("Blocking findings" /
+  `hasBlockingFindings` with alias if schema must stay) or keep the threshold
+  parenthetical but drop "warnings" where it confuses. Schema rename is
+  optional and must stay backward-compatible for MCP clients if changed.
+- **Files:** `crates/anvil-cli/src/commands/check.rs` plain banner; optional
+  JSON field alias
+- **Validation:** fixture with blocking findings; human copy unambiguous.
+- **Identified From:** Dave UX-2; re-triage: not a severity bug.
+- **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high — polish only.
+
+### CIB-239: Label pre-existing tree debt in pre-commit gate (keep full-tree scan)
+
+- **Status:** Ready
+- **Priority:** P2 UX (Dave UX-3; re-triaged 2026-08-04)
+- **Intent:** Gate blocks a staged-clean commit citing already-committed `.env`
+  without a "pre-existing" qualifier — first-block experience blames the
+  committer for a file they did not stage. Full-tree gate remains a valid
+  security posture (clean the yard on first hook install).
+- **Non-scope / do not:** Switch to staged-diff-only scanning without an ADR;
+  that is a product/security decision, not this item.
+- **Expected Outcome:** Findings on already-committed / unstaged paths are
+  labeled pre-existing (or equivalent); staged new debt remains primary. Copy
+  does not imply the current commit introduced the whole tree debt. Blocking
+  behaviour may stay.
+- **Files:** pre-commit / gate messaging (and classification if needed)
+- **Validation:** committed `.env` + empty staged change still blocks with
+  pre-existing qualifier.
+- **Identified From:** Dave UX-3; re-triage: label, not scope shrink.
+- **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high.
+
+### CIB-240: `tutorial` non-interactive refusal must exit non-zero with accurate copy
+
+- **Status:** Ready
+- **Priority:** P3 (Dave UX-4)
+- **Intent:** `anvil tutorial` with no TTY (no `--no-tui` flag) refuses honestly
+  but exits 0 (so `&&` chains proceed) and says "Run without `--no-tui`" even
+  when that flag was not passed — cause is non-tty.
+- **Expected Outcome:** Non-interactive refusal exits non-zero; message tells
+  the user a TTY/interactive session is required (not "drop `--no-tui`" unless
+  that flag was actually set).
+- **Files:** tutorial command entry / TUI gate
+- **Validation:** `anvil tutorial </dev/null` or equivalent non-tty; exit != 0;
+  message without false flag claim.
+- **Identified From:** Dave field report 2026-08-04 UX-4.
+- **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high.
+
+### CIB-241: Clarify antipattern-scan name vs architectural-rule scope
+
+- **Status:** Ready
+- **Priority:** P3 docs (Dave UX-5; re-triaged — by design, not scope creep)
+- **Intent:** "antipattern-scan" is the architectural anti-pattern family
+  (api-expansion, cross-layer, privilege, …). Injection/`eval` detection is a
+  different product surface by design; the name can invite the wrong mental
+  model.
+- **Non-scope / do not:** Add injection rules under this label to "match the
+  name."
+- **Expected Outcome:** Help / one-line description makes architectural-rule
+  scope explicit; docs do not promise injection detection under that label.
+- **Files:** check help / public docs / rule family labels
+- **Validation:** wording review only.
+- **Identified From:** Dave UX-5; re-triage.
+- **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high on naming; low urgency.
+
+### CIB-242: Optional status hint for daemon/MCP binary version skew after upgrade
+
+- **Status:** Ready
+- **Priority:** P3 enhancement (Dave stack note; re-triaged 2026-08-04)
+- **Intent:** After a rename-swap binary upgrade, open editor/agent MCP sessions
+  keep the old anvil image — normal OS process behaviour, not an anvil
+  install-path bug. Multi-client fleets can accumulate stale processes; operators
+  want visibility.
+- **Non-scope / do not:** Auto-kill foreign MCP/editor sessions; treat long-lived
+  process retention as a release defect.
+- **Expected Outcome:** Best-effort: `status` (or related) discloses when a
+  known daemon/MCP helper path or version differs from the CLI on PATH, with a
+  restart hint. Missing process enumeration on some platforms is acceptable if
+  documented.
+- **Files:** status / process inventory helpers
+- **Validation:** mocked process list or two versioned binaries; status shows
+  skew + restart guidance when detection works.
+- **Identified From:** Dave stack notes; re-triage: enhancement.
+- **Coordinates with:** MCPX, multi-client, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** medium — shape open; not a ship gate.
+
+### CIB-243: Skill install docs — multi-client `--client` + move outside skills dir
+
+- **Status:** Ready
+- **Priority:** P3 docs (Dave stack notes; re-triaged 2026-08-04)
+- **Intent:** (a) Requiring explicit `--client` when several clients are
+  detected is **correct** non-interactive behaviour (no silent multi-write) —
+  not a bug. Scripted fleets need documented enumeration. (b) Unmanaged-skill
+  "move it aside" that stays under `~/.claude/skills` still shows as a live
+  skill in Claude Code — copy should say move **outside** the skills directory.
+- **Non-scope / do not:** Auto-install into every detected client without
+  `--client` / `--all`.
+- **Expected Outcome:** Help/docs state multi-client `--client` requirement;
+  unmanaged-skill message says move outside the skills tree (or equivalent
+  non-scanned path).
+- **Files:** skill install help, error copy, public/install docs
+- **Validation:** message text review; multi-client without `--client` still
+  errors (behaviour preserved).
+- **Identified From:** Dave stack notes; re-triage: docs/copy.
+- **Coordinates with:** skill packaging, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+- **Confidence:** high.
+
+### CIB-244: Verdict Install section must reflect this-run selection (not only Cursor/Claude noise)
+
+- **Status:** Ready
+- **Priority:** P1 honesty / activation TUI (operator repro 2026-08-04)
+- **Intent:** On the activation verdict **Install** block, the user sees
+  Cursor/Claude Code skip rows (`skipped — not selected`, `skipped — already
+  up to date`) rather than the MCP clients they actually chose in consent.
+  Root cause: `InstallReport.per_client` is keyed by dual-era
+  `McpClientId` (Cursor + Claude Code only) while multi-client consent offers
+  come from the agent registry (`AgentClientId` / `registry_mcp_candidates`).
+  Verdict assembly (`activation_verdict_model`) maps only
+  `install_report.per_client` plus `settled_mcp` strings — so registry
+  installs/selections do not appear as first-class Install rows, and
+  deselected dual-era clients still dominate the list.
+- **Expected Outcome:**
+  - Install lists **this-run outcomes** for every client the user selected
+    (installed / failed / unsafe skip), including registry clients (Grok,
+    Codex, OpenCode, …), with clear labels.
+  - Unselected detected dual-era clients are omitted or collapsed (e.g. one
+    line "N other detected clients unchanged") — not a parade of
+    `not selected` / `already up to date` that looks like "what you installed".
+  - Layers MCP probes and Install stay consistent with multi-client truth
+    (or Layers clearly scopes dual-era if probe still dual-only).
+  - Regression test: consent selects a non-Cursor/Claude registry client →
+    Install names that client; Cursor `UserDeselected` does not headline.
+- **Non-scope:** Expanding live MCP probe tiers for every registry client in
+  the same PR if that is a larger MCPX slice — Install honesty can land first
+  with typed this-run rows from the applied consent plan.
+- **Files:** `crates/anvil-cli/src/commands/start.rs` (`activation_verdict_model`,
+  post-consent apply), `crates/anvil-cli/src/activation/orchestrator/`
+  (InstallReport / registry apply), possibly `activation/render.rs` plain path
+- **Validation:** unit/integration around `activation_verdict_model` + consent
+  apply; manual `anvil start` TUI with a multi-client host selecting a
+  non-Cursor client.
+- **Identified From:** Operator screenshot
+  `Projects/tmp/anvil-start-verdict.png` (2026-08-04) — Install shows only
+  Cursor/Claude Code skips.
+- **Coordinates with:** CIB-227, MCPX, ACTTUI-020, ACTMO-012,
+  [#3514](https://github.com/eddacraft/anvil-001/issues/3514) (adjacent
+  honesty), activation-tui
+- **Confidence:** high — code path is dual-era-only; screenshot matches.
+
+### CIB-245: Grouped multi-step consent with "what is this" on project/workflow bits
+
+- **Status:** Ready
+- **Priority:** P2 activation TUI UX (operator repro 2026-08-04; clarified same day)
+- **Intent:** Consent is a **flat multi-select** of mixed write offers (project
+  config, identity, witness attributes, git hooks, baseline, workflows, MCP).
+  Path-only descriptions (`Write …`, `Create …`) make the **non-MCP** rows hard
+  to understand — operator (product designer) did not recognise at least one
+  project/workflow offer. MCP client names are comparatively clear; the
+  confusing set was the **other bits**, not the MCP servers. Verdict already
+  groups evidence by section (Activation / Layers / Install / Languages /
+  Config); consent should be equally scannable.
+- **Expected Outcome:**
+  1. **Grouped consent**, not one undifferentiated list. Prefer sections
+     aligned with what users think they are approving, e.g.:
+     - **Project** — config seed, identity, baseline, witness attributes
+     - **Hooks / git** — pre-commit / pre-push (if offered)
+     - **Workflows** — GitHub (or other) workflow writes
+     - **MCP clients** — per-client wiring (can stay denser)
+  2. **Multi-step / multi-screen is allowed and preferred** if one screen is
+     too crowded: e.g. step through Project → Hooks → Workflows → MCP, with a
+     clear progress cue (same spirit as Preflight > Working > Consent >
+     Verdict). Unticked-by-default and explicit submit still apply per step or
+     at a final review.
+  3. **"What is this" for every non-MCP offer at minimum:** short plain-language
+     blurb (why anvil wants this write + what happens if skipped), plus path
+     on expand or secondary line. Path-only is not enough for Project /
+     Workflow / Hooks rows.
+  4. **MCP rows:** still get a one-line class blurb when cheap (editor vs agent
+     CLI + attach model), but that is secondary to (1)–(3).
+  5. Blurbs are owned next to offer construction (`TuiConsentOffer` /
+     `TuiProjectAction` / workflow labels), not ad-hoc in the TUI renderer, so
+     plain and TUI cannot drift.
+- **Non-scope:** Auto-ticking any row; full tutorials; changing which writes
+  are offered; MCP install dual-era honesty (CIB-244).
+- **Files:** `crates/anvil-cli/src/activation/orchestrator/mod.rs`
+  (`TuiConsentOffer`, `add_tui_project_offers`, workflow/MCP offer builders),
+  `crates/anvil-cli/src/commands/start.rs` (consent plan → TUI),
+  `crates/anvil-tui/src/surfaces/activation/consent.rs` (grouping / multi-step
+  chrome + expand)
+- **Validation:** snapshot or model tests: offers group by kind/section;
+  each Project/Workflow/Hooks offer has a non-path-only blurb; multi-step
+  navigation reaches MCP step with prior selections retained; manual
+  `anvil start` consent walkthrough.
+- **Identified From:** Operator clarification 2026-08-04: confusing consent
+  rows were project/other bits, not MCP servers; group like verdict; multi-
+  screen OK.
+- **Coordinates with:** CIB-244, ACTTUI-004, ACTTUI-015 (help bar), CIB-222
+  honesty tone
+- **Confidence:** high — product direction explicit after first-pass mis-scope.
+

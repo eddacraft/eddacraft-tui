@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                     |
-| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-04: **`v0.9.3-beta` honesty pass** scoped from Morgan Deus 0.9.1 findings (CIB-220..227 / #3510). Prior cut `v0.9.2-beta` MCP reconnect is published. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                     |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-04: **`v0.9.3-beta`** = honesty pass (Morgan CIB-220..227 / #3510) + Windows install/update path (Dave CIB-228..243 / #3514; auth wall excluded). Prior cut `v0.9.2-beta` MCP reconnect is published. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -40,23 +40,30 @@ nothing else.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
 - **Active window:** **`v0.9.3-beta`** — honesty pass on the daily path (Morgan
-  Deus findings from 0.9.1). Not a new product theme; not Graph Trust Surfaces /
-  dashboard.
+  Deus findings from 0.9.1) **and** Windows install/update path (Dave 0.9.1
+  feedback; still live on 0.9.2). Not a new product theme; not Graph Trust
+  Surfaces / dashboard.
 
 ---
 
-## Active window — `v0.9.3-beta` (honesty pass)
+## Active window — `v0.9.3-beta` (honesty + Windows path)
 
-**Theme:** Daily-path honesty — what anvil says matches what it does (MCP scope,
-auth, value receipt, flags, multi-client docs).
+**Theme:** Daily-path honesty (what anvil says matches what it does) **and**
+restore the Windows install / self-update path for cargo-dist users.
 
-**Tracking:** [#3510](https://github.com/eddacraft/anvil-001/issues/3510) · APS
-**CIB-220..227**
+**Tracking:**
+
+- Morgan honesty: [#3510](https://github.com/eddacraft/anvil-001/issues/3510) ·
+  APS **CIB-220..227**
+- Dave field report: [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
+  · APS **CIB-228..243** (auth wall excluded by operator)
 
 ### Primary claim (must ship)
 
 | ID          | Item                                                                                                                                   | Pri |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| **CIB-228** | PowerShell dual-install guard inject no longer makes `irm \| iex` a silent no-op on clean Windows machines                             | P0  |
+| **CIB-229** | cargo-dist receipt layout: `update --check` + install-method (not cargo install) + correct receipt path/name                           | P0  |
 | **CIB-220** | Interactive `anvil start --mcp-scope project` installs / offers MCP; never claims "MCP installation disabled" solely for project scope | P0  |
 | **CIB-221** | No false `anvil auth login` nag for already-authenticated / pro users                                                                  | P1  |
 | **CIB-222** | Start value receipt discloses machine-wide vs repo-scoped evidence                                                                     | P1  |
@@ -65,8 +72,11 @@ auth, value receipt, flags, multi-client docs).
 
 | ID          | Item                                                           | Pri |
 | ----------- | -------------------------------------------------------------- | --- |
+| **CIB-230** | No internal `GH #NNNN` in public installers / ship artefacts   | P2  |
 | **CIB-224** | `--no-mcp` + `--mcp-client` / `--all-mcp-clients` fails loudly | P2  |
 | **CIB-227** | User-facing copy not exclusive to Claude Code + Cursor         | P2  |
+| **CIB-244** | Verdict Install reflects multi-client this-run choice          | P1  |
+| **CIB-245** | Grouped multi-step consent + what-is-this on project bits      | P2  |
 | **CIB-223** | Non-git init vs no-worktree messaging coherent                 | P2  |
 
 ### Nice-to-have in this cut (else next)
@@ -76,32 +86,66 @@ auth, value receipt, flags, multi-client docs).
 | **CIB-225** | `--format` warns when config already exists | P3  |
 | **CIB-226** | Public CLI docs: flags + auth exit code 3   | P3  |
 
+### Dave field follow-ups (filed; not primary 0.9.3 claim unless pulled in)
+
+Full report: `Projects/tmp/20260804-anvil-beta-0.9.2-test-{josh,agent}.md`.
+**AUTH day-zero wall intentionally not tracked.**
+
+| ID          | Item                                                          | Pri | Dave ID   | Notes                                |
+| ----------- | ------------------------------------------------------------- | --- | --------- | ------------------------------------ |
+| **CIB-229** | (primary) receipt + classify + update --check                 | P0  | UPD-1+3   | Absorbs CIB-231                      |
+| **CIB-231** | ~~cargo-dist as cargo install~~                               | —   | UPD-3     | **Done** — superseded by 229         |
+| **CIB-232** | Disclose open admission (do not flip default)                 | P3  | CONF-1    | Intentional open                     |
+| **CIB-233** | audit-chain coverage summary (keep field semantics)           | P2  | TRUST-1   | Presentation                         |
+| **CIB-234** | audit domain disclosure (not count parity)                    | P2  | TRUST-2   | Presentation                         |
+| **CIB-235** | status Protection:warming next step                           | P2  | TRUST-3   | Keep                                 |
+| **CIB-236** | insights zeros disclose domain                                | P3  | TRUST-4   | Keep                                 |
+| **CIB-237** | path/line rendering consistency                               | P3  | UX-1      | Polish                               |
+| **CIB-238** | "Blocking warnings" vocabulary                                | P3  | UX-2      | Polish — not severity bug            |
+| **CIB-239** | Label pre-existing tree debt (keep full-tree)                 | P2  | UX-3      | Label only                           |
+| **CIB-240** | tutorial non-tty exit non-zero + accurate message             | P3  | UX-4      | Keep                                 |
+| **CIB-241** | antipattern-scan naming (docs)                                | P3  | UX-5      | By design                            |
+| **CIB-242** | status skew hint after upgrade                                | P3  | stack     | Enhancement, not defect              |
+| **CIB-243** | skill install docs multi-client + move-outside                | P3  | stack     | Docs; require --client is correct    |
+| **CIB-244** | Verdict Install reflects this-run multi-client choice         | P1  | start TUI | Dual-era Install vs registry consent |
+| **CIB-245** | Grouped multi-step consent; blurbs on project/hooks/workflows | P2  | start TUI | MCP secondary; multi-screen OK       |
+
 ### Not a claim of this release
 
 - Browser dashboard default-on
 - Graph Trust Surfaces / CGBDG programme
 - Full `rmcp` adoption (MCP26-012)
+- Restoring cargo-dist `install-updater` sidecar (blocked on aarch64 Windows
+  axoupdater)
 - New feature narrative (that remains a later minor / `v0.10.0-beta` when
   scoped)
 
 ### Phase plan
 
-| Phase               | Scope                                        | State                       |
-| ------------------- | -------------------------------------------- | --------------------------- |
-| **0.9.2 publish**   | MCP reconnect + openapi retag                | Done 2026-08-03             |
-| **Intake honesty**  | File CIB-220..227 + #3510; scope this window | Done 2026-08-04             |
-| **P0/P1 implement** | CIB-220, 221, 222                            | Next                        |
-| **P2 implement**    | CIB-223, 224, 227                            | Same cut if unblocked       |
-| **P3**              | CIB-225, 226                                 | Same cut or follow-up patch |
-| **Cut**             | Preflight → prepare → readiness → tag        | After claim green           |
+| Phase                   | Scope                                                     | State                       |
+| ----------------------- | --------------------------------------------------------- | --------------------------- |
+| **0.9.2 publish**       | MCP reconnect + openapi retag                             | Done 2026-08-03             |
+| **Intake honesty**      | File CIB-220..227 + #3510; scope this window              | Done 2026-08-04             |
+| **Intake Windows path** | File CIB-228..230 + #3514 (Dave; still live on 0.9.2)     | Done 2026-08-04             |
+| **Intake Dave field**   | File CIB-231..243; **exclude auth wall**                  | Done 2026-08-04             |
+| **Re-triage Dave**      | Merge UPD-3→229; demote CONF/trust/UX per operator review | Done 2026-08-04             |
+| **P0 implement**        | CIB-228, 229 (receipt+classify+check); then CIB-220       | Next                        |
+| **P1 implement**        | CIB-221, 222                                              | Same cut                    |
+| **P2 implement**        | CIB-230 (with 228), 223, 224, 227                         | Same cut if unblocked       |
+| **P3**                  | CIB-225, 226                                              | Same cut or follow-up patch |
+| **Cut**                 | Preflight → prepare → readiness → tag                     | After claim green           |
 
 ### Cut criteria
 
 - Standing base bar: full Cross matrix, release-readiness on source SHA,
   ACKNOWLEDGEMENTS fresh, dashboard openapi `check:api` green (0.9.2 lesson).
+- **CIB-228** validated (clean-PATH install body runs; dual-install still
+  refuses; published pre-release asset checked when available).
+- **CIB-229** validated (`update --check` + `version` install-method on
+  cargo-dist receipt layout).
 - **CIB-220** validated (TUI project-scope MCP path).
 - **CIB-221** and **CIB-222** validated (or explicit waive with issue).
-- Claim honesty: changelog leads with honesty fixes, not new features.
+- Changelog leads with install/update + honesty fixes, not new features.
 - Strategy: **direct** unless readiness forces stabilisation.
 - Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag
   class).
@@ -110,6 +154,8 @@ auth, value receipt, flags, multi-client docs).
 
 | Risk                                           | Mitigation                                                                                   |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Guard inject still breaks cargo-dist `param`   | Insert after cargo-dist `param` as fall-through; assembly fixture in CI                      |
+| Receipt rename misses legacy names             | Try `eddacraft-anvil` then `anvil`; actionable error if neither configures                   |
 | Project-scope MCP reopens installer edge cases | Prefer thin path: stop `Skip` for project; reuse scope-aware installer already used headless |
 | Auth false-negative hides real login need      | Fixture matrix: no token / expired / valid / pro                                             |
 | Scope copy on value line confuses              | One short parenthetical; match insights scorecard language                                   |
