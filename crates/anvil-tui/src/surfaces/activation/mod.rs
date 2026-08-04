@@ -463,8 +463,11 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
                 }
                 // CIB-245: `h`/`l` step between consent sections when the run
                 // offers more than one.
+                // `enter select` must stay advertised in both arms: it is the
+                // only key that opens the unsafe-drift confirm overlay, and
+                // ACTTUI-015 makes this bar the sole key legend.
                 Some(consent) if consent.steps().len() > 1 => {
-                    "j/k navigate  h/l section  space toggle  a apply  esc/q quit"
+                    "j/k navigate  h/l section  space toggle  enter select  a apply  esc/q quit"
                 }
                 Some(_) => "j/k navigate  space toggle  enter select  a apply  esc/q quit",
                 None => "esc/q quit",
@@ -645,6 +648,38 @@ mod tests {
         assert_eq!(surface.phase(), ActivationPhase::Consent);
         surface.handle_key(Action::Toggle);
         assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
+    }
+
+    /// CIB-245 regression: grouping consent into steps must not drop
+    /// `enter select` from the help bar. Unsafe-drift rows are unselectable,
+    /// so Enter is the only key that opens their confirm overlay — and this
+    /// bar is the only place any consent key is advertised (ACTTUI-015).
+    #[test]
+    fn multi_section_consent_help_still_advertises_enter_select() {
+        let consent = ConsentState::new(
+            vec![
+                ConsentItem::new(
+                    "project",
+                    "Project configuration",
+                    "Create .anvilrc",
+                    ConsentKind::Project,
+                )
+                .repo_scoped(),
+                ConsentItem::new(
+                    "cursor",
+                    "Cursor MCP",
+                    "Write ~/.cursor/mcp.json",
+                    ConsentKind::Mcp,
+                )
+                .unsafe_drift("existing foreign mcpServers.anvil entry"),
+            ],
+            false,
+        );
+        let surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        assert!(surface.consent().unwrap().steps().len() > 1);
+        let help = surface.help_text();
+        assert!(help.contains("enter select"), "{help}");
+        assert!(help.contains("h/l section"), "{help}");
     }
 
     #[test]

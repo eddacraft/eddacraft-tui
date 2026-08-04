@@ -1110,9 +1110,17 @@ fn activation_install_rows(
         }
     }
     rows.extend(settled_mcp.iter().cloned());
+    // "other" only reads honestly when something else is listed above it;
+    // when the collapsed line stands alone it is the whole story.
+    let collapsed_is_the_only_row = rows.is_empty();
     if unchanged > 0 {
         rows.push(format!(
-            "{unchanged} other detected {} unchanged (see Evidence)",
+            "{unchanged}{} detected {} unchanged (see Evidence)",
+            if collapsed_is_the_only_row {
+                ""
+            } else {
+                " other"
+            },
             if unchanged == 1 { "client" } else { "clients" },
         ));
     }
@@ -1372,7 +1380,17 @@ fn append_mcp_consent_evidence(
 ) {
     use eddacraft_tui::prelude::LogLevel;
     if consent_step_was_deferred(run, ActivationStep::McpConsent) {
-        let mcp_failure = applied.install_report.aggregated_failure();
+        // CIB-244: `selected` spans every `mcp:` offer, so the write count and
+        // the failure signal must span registry clients too — otherwise a
+        // registry-only run reports "2 selected; 0 MCP write(s)" while the
+        // Install section names two clients it just installed.
+        let mcp_failure = applied.install_report.aggregated_failure().or_else(|| {
+            applied
+                .registry_installs
+                .iter()
+                .find(|row| row.is_error())
+                .map(activation::orchestrator::RegistryInstallRow::line)
+        });
         let selected = applied
             .selected_ids
             .iter()
@@ -1383,7 +1401,12 @@ fn append_mcp_consent_evidence(
             .per_client
             .values()
             .filter(|outcome| matches!(outcome, InstallOutcome::Installed { .. }))
-            .count();
+            .count()
+            + applied
+                .registry_installs
+                .iter()
+                .filter(|row| row.wrote())
+                .count();
         push_evidence(
             rows,
             if mcp_failure.is_some() {
@@ -4174,6 +4197,103 @@ mod tests {
         );
     }
 
+    /// CIB-244: the Install rows point the operator at Evidence, so the
+    /// `consent/mcp` evidence count must span registry clients too. Before the
+    /// fix a registry-only run read "2 selected; 0 MCP write(s)" beside an
+    /// Install section naming two freshly installed clients.
+    #[test]
+    fn mcp_consent_evidence_counts_registry_writes() {
+        use activation::orchestrator::{
+            RegistryInstallRow, RegistryInstallStatus, TuiConsentApplyOutcome,
+        };
+
+        // `consent_step_was_deferred` treats a missing run as deferred.
+
+        let applied = TuiConsentApplyOutcome {
+            selected_ids: ["mcp:codex".to_string(), "mcp:opencode".to_string()]
+                .into_iter()
+                .collect(),
+            registry_installs: vec![
+                RegistryInstallRow {
+                    display_name: "Codex".to_string(),
+                    status: RegistryInstallStatus::Installed {
+                        path: std::path::PathBuf::from("/home/dev/.codex/config.toml"),
+                    },
+                },
+                RegistryInstallRow {
+                    display_name: "OpenCode".to_string(),
+                    status: RegistryInstallStatus::Installed {
+                        path: std::path::PathBuf::from("/home/dev/.opencode.json"),
+                    },
+                },
+            ],
+            ..TuiConsentApplyOutcome::default()
+        };
+
+        let mut rows = Vec::new();
+        append_mcp_consent_evidence(&mut rows, None, &applied);
+
+        let message = rows
+            .iter()
+            .map(|row| row.message.clone())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        assert!(
+            message.contains("2 selected; 2 MCP write(s)"),
+            "evidence must not contradict the Install rows: {message}",
+        );
+    }
+
+    /// CIB-244: a registry install failure must reach the `consent/mcp`
+    /// evidence row, not only the dual-era aggregate.
+    #[test]
+    fn mcp_consent_evidence_surfaces_registry_failures() {
+        use activation::orchestrator::{
+            RegistryInstallRow, RegistryInstallStatus, TuiConsentApplyOutcome,
+        };
+
+        // `consent_step_was_deferred` treats a missing run as deferred.
+
+        let applied = TuiConsentApplyOutcome {
+            selected_ids: ["mcp:opencode".to_string()].into_iter().collect(),
+            registry_installs: vec![RegistryInstallRow {
+                display_name: "OpenCode".to_string(),
+                status: RegistryInstallStatus::Failed {
+                    error: "permission denied".to_string(),
+                },
+            }],
+            ..TuiConsentApplyOutcome::default()
+        };
+
+        let mut rows = Vec::new();
+        append_mcp_consent_evidence(&mut rows, None, &applied);
+
+        assert!(
+            rows.iter()
+                .any(|row| row.message.contains("OpenCode") && row.message.contains("failed")),
+            "{rows:?}",
+        );
+    }
+
+    /// CIB-244: the collapsed line only says "other" when there is something
+    /// else above it to be other than.
+    #[test]
+    fn collapsed_line_drops_other_when_it_stands_alone() {
+        use activation::diagnostic::McpClientId;
+        use activation::orchestrator::SkipReason;
+
+        let mut report = activation::orchestrator::InstallReport::default();
+        report.per_client.insert(
+            McpClientId::Cursor,
+            InstallOutcome::Skipped {
+                reason: SkipReason::UserDeselected,
+            },
+        );
+
+        let rows = activation_install_rows(&report, &[], None);
+        assert_eq!(rows, ["1 detected client unchanged (see Evidence)"]);
+    }
+
     /// CIB-244: with nothing selected and nothing settled, the section still
     /// refuses to imply work happened.
     #[test]
@@ -5574,19 +5694,25 @@ mod tests {
 
     #[test]
     fn no_mcp_flag_sets_mcp_install_policy_to_skip() {
-        assert_eq!(
-            mcp_install_policy(&start_args_default()),
-            activation::orchestrator::McpInstallPolicy::Install,
-        );
-        let opted_out = StartArgs {
-            no_mcp: true,
-            ..start_args_default()
-        };
-        assert!(start_mcp_opt_out(&opted_out));
-        assert_eq!(
-            mcp_install_policy(&opted_out),
-            activation::orchestrator::McpInstallPolicy::Skip,
-        );
+        // `start_mcp_opt_out` also reads the process-global `ANVIL_NO_MCP`,
+        // which `no_tui_empty_value_semantics_match_sibling_env_hatches` sets
+        // while this test runs on another thread. Pin the variable so the
+        // no-flag assertion below tests the flag, not the ambient environment.
+        temp_env::with_var("ANVIL_NO_MCP", None::<&str>, || {
+            assert_eq!(
+                mcp_install_policy(&start_args_default()),
+                activation::orchestrator::McpInstallPolicy::Install,
+            );
+            let opted_out = StartArgs {
+                no_mcp: true,
+                ..start_args_default()
+            };
+            assert!(start_mcp_opt_out(&opted_out));
+            assert_eq!(
+                mcp_install_policy(&opted_out),
+                activation::orchestrator::McpInstallPolicy::Skip,
+            );
+        });
     }
 
     #[test]

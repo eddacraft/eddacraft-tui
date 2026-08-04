@@ -459,6 +459,11 @@ impl RegistryInstallRow {
         format!("{} {}", self.display_name, self.label())
     }
 
+    /// Whether this run actually wrote the client's config.
+    pub(crate) fn wrote(&self) -> bool {
+        matches!(self.status, RegistryInstallStatus::Installed { .. })
+    }
+
     pub(crate) fn is_error(&self) -> bool {
         matches!(
             self.status,

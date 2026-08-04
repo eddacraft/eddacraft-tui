@@ -284,18 +284,18 @@ impl ConsentState {
     pub fn next(&mut self) {
         let (start, end) = self.step_range();
         if end > start {
-            self.selected_index = start + (self.selected_index + 1 - start) % (end - start);
+            // `selected_index` is public; clamp into the step before the
+            // modulo so an out-of-range write cannot underflow here.
+            let cursor = self.selected_index.clamp(start, end - 1);
+            self.selected_index = start + (cursor + 1 - start) % (end - start);
         }
     }
 
     pub fn previous(&mut self) {
         let (start, end) = self.step_range();
         if end > start {
-            self.selected_index = if self.selected_index > start {
-                self.selected_index - 1
-            } else {
-                end - 1
-            };
+            let cursor = self.selected_index.clamp(start, end - 1);
+            self.selected_index = if cursor > start { cursor - 1 } else { end - 1 };
         }
     }
 
@@ -590,6 +590,25 @@ mod tests {
         assert_eq!(state.current().unwrap().id, "unsafe");
         state.next();
         assert_eq!(state.current().unwrap().id, "cursor");
+    }
+
+    /// `selected_index` is public, so navigation must survive an out-of-range
+    /// write rather than underflow-panicking.
+    #[test]
+    fn navigation_clamps_an_out_of_range_cursor() {
+        let mut state = ConsentState::new(sample_items(), false);
+        state.next_step();
+        state.selected_index = 0; // before this step's first row
+        state.next();
+        assert!(
+            state
+                .step_items()
+                .iter()
+                .any(|item| item.id == state.current().unwrap().id)
+        );
+        state.selected_index = 99; // past the end
+        state.previous();
+        assert!(state.current().is_some());
     }
 
     /// CIB-245: a run with a single section still works and shows no stepping.
