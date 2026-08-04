@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 188/269  |
+| CIB | —     | In Progress | 189/269  |
 
 ## Purpose
 
@@ -7150,7 +7150,6 @@ pack-02):
 - **Untested surfaces** — lsp, capsule, exception, edda/ember, drift, uninstall,
   wizard, new, dashboard, real remote push, three learning paths E2E, macOS,
   Linux, other gits
-||||||| parent of 1fd14ff0f (docs(aps): mark CIB-246..248 merged and file follow-ups)
 ### CIB-268: Autoplay worker panics are silent in the terminal, hurting debuggability
 
 - **Status:** Ready
