@@ -1010,6 +1010,7 @@ fn run_check_secret(
 
 struct StagedGateChange {
     head_path: Option<String>,
+    head_path_unavailable: bool,
     index_oid: String,
     head_oid: Option<String>,
 }
@@ -1199,23 +1200,19 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
         if path.is_err() {
             quarantined_paths.insert(path_bytes.to_vec());
         }
-        if let Some(Err(_)) = &head_path
-            && let Some(head_path_bytes) = head_path_bytes
-        {
-            quarantined_paths.insert(head_path_bytes.to_vec());
-        }
+        let head_path_unavailable = matches!(head_path, Some(Err(_)));
         let Ok(path) = path else {
             continue;
         };
         let head_path = match head_path {
             Some(Ok(head_path)) => Some(head_path),
-            None => None,
-            Some(Err(_)) => continue,
+            None | Some(Err(_)) => None,
         };
         changes.insert(
             path,
             StagedGateChange {
                 head_path,
+                head_path_unavailable,
                 index_oid: index_oid.to_string(),
                 head_oid: (head_mode == GitInventoryMode::Blob
                     && head_oid.bytes().any(|byte| byte != b'0'))
@@ -1658,14 +1655,25 @@ fn path_line_hunks<'a>(
     Some(PathLineHunks { staged, worktree })
 }
 
+fn staged_head_path_in_scan_domain<'a>(
+    root: &Path,
+    change: &'a StagedGateChange,
+    plan_files: &std::collections::HashSet<String>,
+    skip_extensions: &[String],
+) -> Option<&'a str> {
+    change.head_path.as_deref().filter(|head_path| {
+        secret_path_in_scan_domain(root, Path::new(head_path), plan_files, skip_extensions)
+    })
+}
+
 fn staged_head_content<'a>(
+    root: &Path,
     change: &StagedGateChange,
     blobs: &'a BTreeMap<String, GitBlobContent>,
+    plan_files: &std::collections::HashSet<String>,
+    skip_extensions: &[String],
 ) -> &'a str {
-    change
-        .head_path
-        .as_deref()
-        .filter(|head_path| secret_path_scannable(Path::new(head_path)))
+    staged_head_path_in_scan_domain(root, change, plan_files, skip_extensions)
         .and(change.head_oid.as_deref())
         .and_then(|head_oid| blobs.get(head_oid))
         .and_then(|blob| match blob {
@@ -1712,16 +1720,23 @@ fn staged_provenance_snapshot(
             secret_path_in_scan_domain(root, path, plan_files, skip_extensions)
         })
         .collect::<Vec<_>>();
-    let (changes, overflow_paths) = split_bounded_paths(changes, MAX_PROVENANCE_PATH_COUNT);
+    let (mut changes, overflow_paths) = split_bounded_paths(changes, MAX_PROVENANCE_PATH_COUNT);
     indeterminate_paths.extend(overflow_paths);
+    changes.retain(|(path, change)| {
+        if change.head_path_unavailable {
+            indeterminate_paths.insert(path.clone());
+            false
+        } else {
+            true
+        }
+    });
     let mut objects = std::collections::BTreeSet::new();
     for (path, change) in &changes {
         if !git_patch_path_safe(path) {
             continue;
         }
         objects.insert(change.index_oid.clone());
-        if let Some(head_path) = &change.head_path
-            && secret_path_scannable(Path::new(head_path))
+        if staged_head_path_in_scan_domain(root, change, plan_files, skip_extensions).is_some()
             && let Some(head_oid) = &change.head_oid
         {
             objects.insert(head_oid.clone());
@@ -1735,10 +1750,7 @@ fn staged_provenance_snapshot(
         .filter(|(path, change)| {
             git_patch_path_safe(path)
                 && blob_is_bounded_text(&blobs, &change.index_oid)
-                && change
-                    .head_path
-                    .as_deref()
-                    .filter(|head_path| secret_path_scannable(Path::new(head_path)))
+                && staged_head_path_in_scan_domain(root, change, plan_files, skip_extensions)
                     .zip(change.head_oid.as_deref())
                     .is_none_or(|(head_path, head_oid)| {
                         git_patch_path_safe(head_path) && blob_is_bounded_text(&blobs, head_oid)
@@ -1749,10 +1761,11 @@ fn staged_provenance_snapshot(
     let mut cached_pathspecs = cached_result_paths.clone();
     for (path, change) in &changes {
         if cached_result_paths.contains(path)
-            && let Some(head_path) = &change.head_path
+            && let Some(head_path) =
+                staged_head_path_in_scan_domain(root, change, plan_files, skip_extensions)
             && git_patch_path_safe(head_path)
         {
-            cached_pathspecs.insert(head_path.clone());
+            cached_pathspecs.insert(head_path.to_string());
         }
     }
     let worktree_result_paths = changes
@@ -1902,10 +1915,8 @@ fn staged_secret_provenance(
                 continue;
             }
         };
-        if change
-            .head_path
-            .as_deref()
-            .is_some_and(|head_path| secret_path_scannable(Path::new(head_path)))
+        if staged_head_path_in_scan_domain(root, &change, plan_files, &config.skip_extensions)
+            .is_some()
             && change.head_oid.as_deref().is_some_and(|head_oid| {
                 !matches!(blobs.get(head_oid), Some(GitBlobContent::Text(_)))
             })
@@ -1913,7 +1924,8 @@ fn staged_secret_provenance(
             provenance.indeterminate_paths.insert(path);
             continue;
         }
-        let head_content = staged_head_content(&change, &blobs);
+        let head_content =
+            staged_head_content(root, &change, &blobs, plan_files, &config.skip_extensions);
         let index_lines = ContentLineIndex::new(index_content, &mut line_index_stats);
         let head_lines = ContentLineIndex::new(head_content, &mut line_index_stats);
         let Some(path_scan_size) = index_content.len().checked_add(head_content.len()) else {
@@ -5884,6 +5896,140 @@ mod tests {
             !renamed_finding.contains("pre-existing"),
             "renaming a secret into scan scope introduces gate debt: {renamed_finding}"
         );
+    }
+
+    #[test]
+    fn hook_secret_check_treats_excluded_head_rename_as_new_staged_debt() {
+        let cases = [
+            ("node_modules/source.js".to_string(), "src/source.js", None),
+            ("bundle.min.js".to_string(), "bundle.js", None),
+            (
+                format!("{}source.js", "deep/".repeat(SECRET_SCAN_MAX_DEPTH)),
+                "source.js",
+                None,
+            ),
+            (
+                "src/out_of_scope.js".to_string(),
+                "src/in_scope.js",
+                Some("src/in_scope.js"),
+            ),
+        ];
+        for (old_path, new_path, plan_path) in cases {
+            let tmp = tempfile::TempDir::new().unwrap();
+            git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+            std::fs::create_dir_all(tmp.path().join(&old_path).parent().unwrap()).unwrap();
+            write_detectable_env(&tmp.path().join(&old_path));
+            git_for_hook_fixture(tmp.path(), &["add", "-f", &old_path]);
+            git_for_hook_fixture(
+                tmp.path(),
+                &[
+                    "-c",
+                    "user.name=anvil test",
+                    "-c",
+                    "user.email=anvil@example.invalid",
+                    "commit",
+                    "--quiet",
+                    "-m",
+                    "fixture",
+                ],
+            );
+            std::fs::create_dir_all(tmp.path().join(new_path).parent().unwrap()).unwrap();
+            git_for_hook_fixture(tmp.path(), &["mv", &old_path, new_path]);
+            std::fs::write(tmp.path().join(new_path), "export const safe = true;\n").unwrap();
+            let plan_files = plan_path
+                .map(|path| std::collections::HashSet::from([path.to_string()]))
+                .unwrap_or_default();
+
+            let result = run_check_secret_with_hook_mode("secret", tmp.path(), &plan_files, true);
+
+            let finding = result
+                .message
+                .lines()
+                .find(|line| line.contains(&format!("{new_path}:1")))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "renamed staged debt must be rendered for {old_path}: {}",
+                        result.message
+                    )
+                });
+            assert!(!result.passed);
+            assert!(!finding.contains("pre-existing"), "{finding}");
+            assert!(
+                !finding.contains("[staged content unavailable]"),
+                "{finding}"
+            );
+        }
+    }
+
+    #[test]
+    fn hook_secret_check_associates_unsafe_old_rename_with_new_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let old_path = "source\n.js";
+        write_detectable_env(&tmp.path().join(old_path));
+        git_for_hook_fixture(tmp.path(), &["add", old_path]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        git_for_hook_fixture(tmp.path(), &["mv", old_path, "source.js"]);
+        std::fs::write(tmp.path().join("source.js"), "export const safe = true;\n").unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(!result.passed, "unsafe HEAD attribution must fail closed");
+        assert!(result.message.contains("source.js"));
+        assert!(!result.message.contains("source\\n.js"));
+    }
+
+    #[test]
+    fn hook_secret_check_ignores_unsafe_new_rename_outside_domain() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        write_detectable_env(&tmp.path().join("source.js"));
+        git_for_hook_fixture(tmp.path(), &["add", "source.js"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        git_for_hook_fixture(tmp.path(), &["mv", "source.js", "notes\n.txt"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "out-of-domain rename must not expand the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("[staged content unavailable]"));
     }
 
     #[test]
