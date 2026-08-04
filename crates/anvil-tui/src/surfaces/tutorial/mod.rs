@@ -777,6 +777,10 @@ impl TutorialState {
     /// than by unwinding through an error.
     pub fn recover_from_autoplay_failure(&mut self, message: impl Into<String>) {
         self.abort_autoplay_session();
+        // `start_autoplay` stashes the pre-demo scan context so the sandbox
+        // cannot masquerade as the user's repo. Recovery has to put it back,
+        // or the picker returns stripped of its per-domain finding counts.
+        self.restore_autoplay_context();
         self.autoplay_failure = None;
         self.phase = TutorialPhase::PathSelect;
         self.resuming_notice = Some(message.into());
@@ -3444,6 +3448,29 @@ mod tests {
             state.resuming_notice.as_deref(),
             Some("The hands-free demo stopped: boom.")
         );
+    }
+
+    /// `start_autoplay` stashes the pre-demo scan context. Recovery must
+    /// restore it, or the picker comes back without its per-domain counts.
+    #[test]
+    fn autoplay_recovery_restores_the_pre_demo_scan_context() {
+        let mut state = TutorialState::new();
+        state.set_scan_results(discovery::ScanResults::default());
+        assert!(state.scan_results.is_some());
+
+        state.start_autoplay();
+        assert!(
+            state.scan_results.is_none(),
+            "the demo must not present the sandbox as the user's repo"
+        );
+
+        state.recover_from_autoplay_failure("demo stopped");
+
+        assert!(
+            state.scan_results.is_some(),
+            "recovery must restore the user's own scan results"
+        );
+        assert!(state.autoplay_saved_context.is_none());
     }
 
     #[test]
