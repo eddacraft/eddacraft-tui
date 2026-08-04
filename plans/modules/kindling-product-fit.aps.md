@@ -251,7 +251,7 @@ governance record.
 
 #### KFIT-005: Harden the published embedded downstream runtime
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Rust consumers should get one supported dependency for lifecycle,
   durable append, capability negotiation, reads, and diagnostics.
 - **Expected Outcome:** Planned `kindling-runtime` 0.4.0 exposes
@@ -263,6 +263,23 @@ governance record.
   negotiation, shutdown semantics, and replay behaviour are documented and
   tested for Anvil; releases through 0.3.x remain explicitly incompatible.
 - **Validation:** `cargo test -p kindling-runtime --all-features && cargo clippy -p kindling-runtime --all-features -- -D warnings`, package-content check, and clean scratch-crate install.
+- **Performance Contract:** On the 2026-08-03 16-logical-CPU Linux reference
+  host, release-mode cold start p95 stays below 50 ms; warm append p95 below 1
+  ms; 500-row daemon page p95 below 10 ms; ranked retrieval p95 below 50 ms at
+  about 25k rows; outage append p95 below 5 ms with no positive backlog slope
+  through 100k rows; replay above 2k rows/s. Full scans are export/projection
+  rebuild operations, not interactive query primitives. Resource release gates
+  require isolated-process deltas; shared-process values remain directional.
+- **Current Slice:** Kindling PR
+  [#143](https://github.com/eddacraft/kindling/pull/143) **merged** to `main`
+  at `f6dcd7d` (KINTEG-013/014, private `kindling-bench`, isolated-process +
+  logical I/O). Post-merge isolated re-bench filed as
+  `benchmarks/history/kindling/2026-08-04.json` (all budgeted workloads pass).
+  Anvil evidence PR
+  [#3515](https://github.com/eddacraft/anvil-001/pull/3515). `cargo package
+  --no-verify` succeeds for core crates; full `--verify` + clean scratch
+  install + **0.4.0-class publish** under release authority remain open before
+  KFIT-006 activation.
 - **Dependencies:** KFIT-001; KFIT-006 completion, KFIT-007 implementation, and
   KFIT-011 release activation require the published 0.4.0-or-newer compatible
   release, not merely this draft contract.
@@ -430,7 +447,11 @@ governance record.
   runtime health, canonical scope, store/repository quotas, reserved integrity
   space, spool depth, replay failures, redaction evidence, prune receipts, and
   `recording_gap` rows. KFIT-007's minimum gap-health surface is a prerequisite,
-  not work deferred to this item. DPO-003 consumes this foundation;
+  not work deferred to this item. Aggregation policy remains in Anvil:
+  interactive counts use an Anvil-owned incremental projection/cache fed by
+  typed observations, while bounded Kindling repo/kind/time pages support recent
+  history and projection rebuilds. No Kindling server-side
+  command/flag/principal vocabulary is added. DPO-003 consumes this foundation;
   DPO-004/-005 remain DPO-owned.
 - **Validation:** CLI integration tests cover every view, daemon-down/read-only
   degradation, pagination completeness, JSON stability, repository isolation,

@@ -1,0 +1,23 @@
+ M CONTRIBUTING.md
+ M Cargo.lock
+ M README.md
+ M crates/kindling-client/schema/version.json
+ M crates/kindling-client/src/config.rs
+ M crates/kindling-client/src/spool.rs
+ M crates/kindling-client/tests/spool.rs
+ M crates/kindling-store/schema/schema.sql
+ M crates/kindling-store/schema/version.json
+ M crates/kindling-store/src/db.rs
+ M crates/kindling-store/tests/store_integration.rs
+ M crates/kindling/tests/publish_readiness.rs
+ M docs/data-model.md
+ M packages/kindling/schema/version.json
+ M plans/modules/06-downstream-integration-surface.aps.md
+ M schema/schema.sql
+ M schema/version.json
+?? .dev-loop/
+?? crates/kindling-bench/
+?? kindling-perf.json
+?? kindling-stress.json
+?? plans/specs/2026-08-03-kindling-performance-hardening-design.md
+?? plans/specs/2026-08-03-kindling-scoped-read-index-design.md

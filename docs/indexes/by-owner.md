@@ -271,6 +271,12 @@
 | [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)                              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Derived       | KERN  | Proposed |
 | [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                                      | `docs/architecture/kernel-as-built.md`              | As-built | Derived       | KERN  | Live     |
 
+## KFIT
+
+| Document                                                                                                                 | Path                                                              | Type  | Authority | Owner | Status |
+| ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ----- | --------- | ----- | ------ |
+| [Kindling Performance and Integration Assessment](../../docs/reviews/kindling-performance-and-integration-assessment.md) | `docs/reviews/kindling-performance-and-integration-assessment.md` | Guide | Advisory  | KFIT  | Draft  |
+
 ## KIND
 
 | Document                                                                                 | Path                                                      | Type  | Authority | Owner | Status |
@@ -394,10 +400,15 @@
 
 ## RLB (plans/modules/resource-load-benchmarking.aps.md)
 
-| Document                                                                                  | Path                                | Type  | Authority     | Owner                                                 | Status |
-| ----------------------------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----------------------------------------------------- | ------ |
-| [Benchmark Results](../../docs/testing/benchmark-results.md)                              | `docs/testing/benchmark-results.md` | Guide | Advisory      | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
-| [Resource Budgets — long-running Anvil processes](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`  | Guide | Authoritative | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
+| Document                                                                                  | Path                               | Type  | Authority     | Owner                                                 | Status |
+| ----------------------------------------------------------------------------------------- | ---------------------------------- | ----- | ------------- | ----------------------------------------------------- | ------ |
+| [Resource Budgets — long-running Anvil processes](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md` | Guide | Authoritative | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
+
+## RLB (plans/modules/resource-load-benchmarking.aps.md); KFIT kindling section
+
+| Document                                                     | Path                                | Type  | Authority | Owner                                                                        | Status |
+| ------------------------------------------------------------ | ----------------------------------- | ----- | --------- | ---------------------------------------------------------------------------- | ------ |
+| [Benchmark Results](../../docs/testing/benchmark-results.md) | `docs/testing/benchmark-results.md` | Guide | Advisory  | RLB (plans/modules/resource-load-benchmarking.aps.md); KFIT kindling section | Live   |
 
 ## RMCP/MCP26
 

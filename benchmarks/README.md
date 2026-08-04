@@ -81,3 +81,69 @@ trend line, or as-is under a clearly-named file if the format differs.
 
 Marketing collateral (pitch numbers, positioning) is intentionally **not** kept
 here — this directory is raw benchmark data only.
+
+## Kindling (consumer-side adoption evidence)
+
+Kindling performance numbers that decide **anvil** adoption, packaging, or KFIT
+gates live **here in anvil**, not in the public kindling repository. The public
+product must not carry anvil-specific benchmark dumps or marketing tables.
+
+### Layout
+
+- `history/kindling/<YYYY-MM-DD>.json` — normalised run: host metadata, every
+  workload p50/p95/p99, proposed budgets, verdicts, and optional Criterion
+  summary.
+- `history/kindling/raw/` — compact source artefacts kept for forensics
+  (standard/stress profile JSON, Criterion summary, query plans, status). Full
+  Criterion HTML/SVG trees stay under gitignored `benchmark-results/`.
+
+### Schema (`schema_version: 1`, `suite: "kindling"`)
+
+```jsonc
+{
+  "schema_version": 1,
+  "suite": "kindling",
+  "run": {
+    "date", "kindling_commit", "anvil_commit", "trigger", "host", "source",
+    // optional: "partial": true, "caveats": [...]
+  },
+  "profiles": { "standard": { "config", ... }, "stress": { ... } },
+  "workloads": [
+    {
+      "id": "daemon/list-page",
+      "profile": "standard",
+      "p50_us", "p95_us", "p95_ms", "rows_processed", "verdict", "budget"
+    }
+  ],
+  "resources": [ { "profile", "group", "peak_rss_mib", "spool_bytes", ... } ],
+  "criterion": { "benchmarks": [ { "benchmark", "mean_ns", "median_ns", ... } ] }
+}
+```
+
+### Adding a kindling run
+
+1. Run the kindling harness on a quiet box (release build). Drop the scratch
+   tree under `benchmark-results/manual-<timestamp>-kindling/` (gitignored).
+2. Promote compact profiles into history:
+
+   ```bash
+   python3 scripts/bench/kindling-to-history.py \
+     --date YYYY-MM-DD \
+     --standard path/to/kindling-perf.json \
+     --stress path/to/kindling-stress.json \
+     --criterion path/to/criterion-summary.json \
+     --kindling-commit <sha> \
+     --source "benchmark-results/manual-<timestamp>-kindling"
+   ```
+
+3. Optionally copy the compact JSON/text extracts into `history/kindling/raw/`
+   (do **not** force-add Criterion HTML reports).
+4. Append a dated table to
+   [`docs/testing/benchmark-results.md`](../docs/testing/benchmark-results.md)
+   (Kindling section).
+
+### Comparability
+
+Same rules as anvil benches: compare runs on the **same host class**. Cross-host
+deltas are indicative only. Uncommitted kindling worktrees and shared-process
+RSS figures must carry `partial` + `caveats`.

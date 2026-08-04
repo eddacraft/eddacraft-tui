@@ -1,8 +1,8 @@
 # Benchmark Results
 
-| Type  | Authority | Owner                                                                                                            | Status | Freshness                                                                     |
-| ----- | --------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------- |
-| Guide | Advisory  | RLB ([`plans/modules/resource-load-benchmarking.aps.md`](../../plans/modules/resource-load-benchmarking.aps.md)) | Live   | RLB-002/003/004/005 resource-budget run added 2026-06-04 (created 2026-06-03) |
+| Type  | Authority | Owner                                                                                                                                   | Status | Freshness                                                            |
+| ----- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------- |
+| Guide | Advisory  | RLB ([`plans/modules/resource-load-benchmarking.aps.md`](../../plans/modules/resource-load-benchmarking.aps.md)); KFIT kindling section | Live   | Kindling history seed 2026-08-03; RLB resource-budget run 2026-06-04 |
 
 | Upstream                                                                                                             | Downstream                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -120,6 +120,123 @@ cores against the 8-core (800%) ceiling. The multi-agent watch load ramp
 (RLB-001, `scripts/bench/load-ramp.sh`) is a separate dispatch-only / quiet-box
 harness, not run here.
 
+## Kindling (bundled runtime — consumer evidence, KFIT)
+
+Kindling performance that gates **anvil** adoption is filed **in this repo**,
+not on the public kindling site. Machine-readable history:
+
+- [`benchmarks/history/kindling/`](../../benchmarks/history/kindling/) — one
+  JSON run per date (`schema_version: 1`, `suite: "kindling"`)
+- [`benchmarks/history/kindling/raw/`](../../benchmarks/history/kindling/raw/) —
+  compact profile + Criterion summary extracts
+- Promote with `python3 scripts/bench/kindling-to-history.py` (see
+  [`benchmarks/README.md`](../../benchmarks/README.md))
+- Narrative assessment:
+  [`docs/reviews/kindling-performance-and-integration-assessment.md`](../reviews/kindling-performance-and-integration-assessment.md)
+
+Scratch Criterion HTML and full dumps stay under gitignored
+`benchmark-results/manual-*-kindling/`.
+
+Proposed budgets (KFIT-005 contract from the 2026-08-03 assessment): cold start
+p95 ≤ 50 ms; direct append p95 ≤ 500 µs; warm daemon append p95 ≤ 1 ms;
+concurrent daemon append p95 ≤ 5 ms; daemon page p95 ≤ 10 ms; ranked retrieve
+p95 ≤ 50 ms at standard (~25k) scale; outage append p95 ≤ 5 ms; replay ≥ 2k
+rows/s. Full scans are report-only. Prefer **`--isolated-process`**
+RSS/thread/FD deltas for release resource series; shared-process runs stay
+directional only.
+
+### Run — 2026-08-03, 16-logical-CPU Linux reference box
+
+Source: kindling `c15089df2` (+ uncommitted KINTEG-013/014 worktree), filed via
+history
+[`benchmarks/history/kindling/2026-08-03.json`](../../benchmarks/history/kindling/2026-08-03.json).
+`partial: true` — not a published runtime floor.
+
+#### Latency / throughput (standard + stress)
+
+| Workload                         | Std p50  | Std p95  | Stress p50 | Stress p95 | Budget (p95)    | Verdict                     |
+| -------------------------------- | -------- | -------- | ---------- | ---------- | --------------- | --------------------------- |
+| cold-start / runtime-start       | 11.24 ms | 11.34 ms | 11.23 ms   | 11.33 ms   | ≤ 50 ms         | pass                        |
+| direct-service / append          | 60.6 µs  | 111.8 µs | 63.0 µs    | 123.2 µs   | ≤ 500 µs        | pass                        |
+| daemon / spooled-append-warm     | 163 µs   | 230 µs   | 168 µs     | 237 µs     | ≤ 1 ms          | pass                        |
+| daemon / append-concurrent       | 817 µs   | 1.39 ms  | 1.69 ms    | 3.47 ms    | ≤ 5 ms          | pass                        |
+| daemon / list-page               | 1.21 ms  | 1.28 ms  | 2.05 ms    | 2.49 ms    | ≤ 10 ms         | pass                        |
+| direct-service / list-page       | 427 µs   | 590 µs   | 793 µs     | 1.12 ms    | report          | report                      |
+| direct-service / list-full-scan  | 42.9 ms  | 43.3 ms  | 1.42 s     | 1.45 s     | report (export) | report                      |
+| daemon / list-full-scan          | 94.9 ms  | 95.8 ms  | 2.14 s     | 2.21 s     | report (export) | report                      |
+| direct-service / ranked-retrieve | 14.3 ms  | 15.2 ms  | 152.5 ms   | 156.5 ms   | ≤ 50 ms (std)   | pass / report               |
+| daemon / ranked-retrieve         | 17.3 ms  | 19.2 ms  | 178.3 ms   | 185.7 ms   | ≤ 50 ms (std)   | pass / report               |
+| outage / spool-append            | 5.19 µs  | 6.49 µs  | 5.16 µs    | 6.58 µs    | ≤ 5 ms          | pass                        |
+| outage / spool-append-early      | 5.23 µs  | 6.59 µs  | 5.19 µs    | 6.67 µs    | ≤ 5 ms          | pass                        |
+| outage / spool-append-late       | 5.15 µs  | 6.49 µs  | 5.15 µs    | 6.45 µs    | ≤ 5 ms          | pass                        |
+| outage / spool-replay            | 168 ms   | 168 ms   | 18.3 s     | 18.3 s     | ≥ 2k rows/s     | pass (5.96k / 5.45k rows/s) |
+
+#### Resources (directional, shared process)
+
+| Profile  | Group           | Peak RSS (MiB) | Spool (bytes) | Storage (bytes) |
+| -------- | --------------- | -------------- | ------------- | --------------- |
+| standard | cold-start      | 6.4            | 0             | 0               |
+| standard | direct-service  | 25.3           | 0             | ~17.4 M         |
+| standard | daemon          | 46.4           | 0             | ~19.7 M         |
+| standard | outage-recovery | 46.4           | ~285 K        | ~4.9 M          |
+| stress   | cold-start      | 6.5            | 0             | 0               |
+| stress   | direct-service  | 88.2           | 0             | ~137 M          |
+| stress   | daemon          | 193.3          | 0             | ~155 M          |
+| stress   | outage-recovery | 258.5          | ~28.7 M       | ~65.8 M         |
+
+### Run — 2026-08-04, 16-logical-CPU Linux reference box (post-merge)
+
+Source: kindling `f6dcd7d` (merged KINTEG-013/014 + isolated bench, PR
+[#143](https://github.com/eddacraft/kindling/pull/143)),
+`kindling-bench --isolated-process` standard + stress. History:
+[`benchmarks/history/kindling/2026-08-04.json`](../../benchmarks/history/kindling/2026-08-04.json).
+**Not partial** for source state (published `main`); still a single-host series.
+
+#### Latency / throughput (standard + stress, isolated-process)
+
+| Workload                         | Std p50  | Std p95  | Stress p50 | Stress p95 | Budget (p95)    | Verdict                     |
+| -------------------------------- | -------- | -------- | ---------- | ---------- | --------------- | --------------------------- |
+| cold-start / runtime-start       | 11.30 ms | 11.41 ms | 11.33 ms   | 11.44 ms   | ≤ 50 ms         | pass                        |
+| direct-service / append          | 79.6 µs  | 142.5 µs | 99.1 µs    | 181.8 µs   | ≤ 500 µs        | pass                        |
+| daemon / spooled-append-warm     | 221 µs   | 320 µs   | 212 µs     | 317 µs     | ≤ 1 ms          | pass                        |
+| daemon / append-concurrent       | 1.15 ms  | 1.62 ms  | 2.37 ms    | 4.11 ms    | ≤ 5 ms          | pass                        |
+| daemon / list-page               | 1.90 ms  | 2.35 ms  | 2.54 ms    | 3.58 ms    | ≤ 10 ms         | pass                        |
+| direct-service / list-page       | 454 µs   | 747 µs   | 0.83 ms    | 1.40 ms    | report          | report                      |
+| direct-service / list-full-scan  | 55.0 ms  | 61.4 ms  | 1.92 s     | 2.04 s     | report (export) | report                      |
+| daemon / list-full-scan          | 141 ms   | 185 ms   | 2.68 s     | 2.92 s     | report (export) | report                      |
+| direct-service / ranked-retrieve | 17.5 ms  | 19.6 ms  | 167 ms     | 181 ms     | ≤ 50 ms (std)   | pass / report               |
+| daemon / ranked-retrieve         | 22.0 ms  | 23.3 ms  | 188 ms     | 197 ms     | ≤ 50 ms (std)   | pass / report               |
+| outage / spool-append            | 4.7 µs   | 6.8 µs   | 6.7 µs     | 9.8 µs     | ≤ 5 ms          | pass                        |
+| outage / spool-append-early      | 4.7 µs   | 6.8 µs   | 4.8 µs     | 6.7 µs     | ≤ 5 ms          | pass                        |
+| outage / spool-append-late       | 4.7 µs   | 6.1 µs   | 6.7 µs     | 9.4 µs     | ≤ 5 ms          | pass                        |
+| outage / spool-replay            | 231 ms   | 231 ms   | 25.3 s     | 25.3 s     | ≥ 2k rows/s     | pass (4.33k / 3.95k rows/s) |
+
+#### Resources (isolated-child peak RSS)
+
+| Profile  | Group           | Peak RSS (MiB) | Scope          |
+| -------- | --------------- | -------------- | -------------- |
+| standard | cold-start      | 6.5            | isolated-child |
+| standard | direct-service  | 23.9           | isolated-child |
+| standard | daemon          | 33.8           | isolated-child |
+| standard | outage-recovery | 11.7           | isolated-child |
+| stress   | cold-start      | 6.6            | isolated-child |
+| stress   | direct-service  | 87.1           | isolated-child |
+| stress   | daemon          | 116.1          | isolated-child |
+| stress   | outage-recovery | 173.8          | isolated-child |
+
+Physical `writeBytes` often stayed 0; use `logicalWriteBytes` in the history
+JSON for syscall-level I/O. Concurrent daemon append stress p95 **4.11 ms**
+remains the tightest write budget (5 ms).
+
+### Kindling history index
+
+| Date       | Kindling commit | Host class           | Notes                                  | File                                                                   |
+| ---------- | --------------- | -------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| 2026-08-04 | `f6dcd7d`       | 16-logical-CPU Linux | post-merge, `--isolated-process`       | [`2026-08-04.json`](../../benchmarks/history/kindling/2026-08-04.json) |
+| 2026-08-03 | `c15089df2`\*   | 16-logical-CPU Linux | pre-merge worktree; shared-process RSS | [`2026-08-03.json`](../../benchmarks/history/kindling/2026-08-03.json) |
+
+\*Uncommitted KINTEG-013/014 worktree on that base — see run `caveats`.
+
 ## Run index
 
 - Latency (intercept):
@@ -131,3 +248,7 @@ harness, not run here.
   `cargo bench -p anvil-bench --bench <name>`.
 - Resource budgets: the `Resource Budget` workflow (push/PR for per-process;
   `workflow_dispatch` for the concurrent + load-ramp tier).
+- Kindling (consumer): local kindling harness →
+  `benchmark-results/manual-*-kindling/` →
+  `python3 scripts/bench/kindling-to-history.py` →
+  `benchmarks/history/kindling/`.

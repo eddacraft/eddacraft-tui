@@ -1,0 +1,14 @@
+Schema: kindling v6 (uncommitted KINTEG-014)
+Command: sqlite3 /tmp/kindling-query-plan-v6.db with canonical schema/schema.sql
+
+Repo-scoped keyset list:
+QUERY PLAN
+`--SEARCH observations USING INDEX idx_obs_repo_ts (repo_id=? AND ts>?)
+
+Ranked FTS candidate lookup:
+QUERY PLAN
+`--SCAN observations_fts VIRTUAL TABLE INDEX 0:M1
+
+Regression test:
+cargo test -p kindling-store --test store_integration repo_keyset_list_uses_covering_order_without_temp_sort -- --exact
+Result: exit 0; no TEMP B-TREE in plan.

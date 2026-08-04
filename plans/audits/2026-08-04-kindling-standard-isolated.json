@@ -1,0 +1,350 @@
+{
+  "schemaVersion": 1,
+  "generatedAtEpochMs": 1785835888125,
+  "profile": {
+    "name": "standard",
+    "coldStarts": 10,
+    "warmupOperations": 100,
+    "writeOperations": 2000,
+    "seedObservations": 20000,
+    "readRepetitions": 5,
+    "pageLimit": 500,
+    "concurrentWriters": 8,
+    "writesPerTask": 500,
+    "spoolOperations": 1000
+  },
+  "system": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "logicalCpus": 16,
+    "releaseBuild": true
+  },
+  "groups": [
+    {
+      "name": "cold-start",
+      "description": "Fresh bundled daemon startup through a health-ready runtime",
+      "metrics": [
+        {
+          "name": "runtime-start",
+          "operationCount": 10,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 10,
+            "minUs": 11246.844,
+            "meanUs": 11314.9178,
+            "p50Us": 11299.953,
+            "p95Us": 11407.924,
+            "p99Us": 11407.924,
+            "maxUs": 11407.924,
+            "operationsPerSecond": 87.54159725019237
+          }
+        }
+      ],
+      "resources": {
+        "platform": "linux",
+        "available": true,
+        "measurementScope": "isolated-child",
+        "rssStartMib": 4.34375,
+        "rssEndMib": 6.50390625,
+        "peakRssMib": 6.50390625,
+        "rssGrowthMib": 2.16015625,
+        "peakRssOverStartMib": 2.16015625,
+        "threadsStart": 17,
+        "peakThreads": 18,
+        "peakThreadsOverStart": 1,
+        "fileDescriptorsStart": 13,
+        "peakFileDescriptors": 14,
+        "peakFileDescriptorsOverStart": 1,
+        "cpuCores": 0.08743169398907104,
+        "readBytes": 0,
+        "writeBytes": 0,
+        "logicalReadBytes": 309230,
+        "logicalWriteBytes": 13832
+      },
+      "storageBytes": 0,
+      "spoolBytes": 0
+    },
+    {
+      "name": "direct-service",
+      "description": "SQLite/service baseline without daemon transport",
+      "metrics": [
+        {
+          "name": "append",
+          "operationCount": 2000,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 2000,
+            "minUs": 51.56,
+            "meanUs": 86.57197950000003,
+            "p50Us": 79.56,
+            "p95Us": 142.52,
+            "p99Us": 241.35,
+            "maxUs": 733.57,
+            "operationsPerSecond": 11547.278174029365
+          }
+        },
+        {
+          "name": "list-page",
+          "operationCount": 5,
+          "rowsProcessed": 2500,
+          "latency": {
+            "samples": 5,
+            "minUs": 446.78,
+            "meanUs": 514.2662,
+            "p50Us": 453.49,
+            "p95Us": 747.4200000000001,
+            "p99Us": 747.4200000000001,
+            "maxUs": 747.4200000000001,
+            "operationsPerSecond": 1944.1931034804556
+          }
+        },
+        {
+          "name": "list-full-scan",
+          "operationCount": 5,
+          "rowsProcessed": 110500,
+          "latency": {
+            "samples": 5,
+            "minUs": 53023.988,
+            "meanUs": 56923.6234,
+            "p50Us": 55029.458000000006,
+            "p95Us": 61419.051,
+            "p99Us": 61419.051,
+            "maxUs": 61419.051,
+            "operationsPerSecond": 17.567355092781685
+          }
+        },
+        {
+          "name": "ranked-retrieve",
+          "operationCount": 5,
+          "rowsProcessed": 100,
+          "latency": {
+            "samples": 5,
+            "minUs": 16720.184999999998,
+            "meanUs": 17878.3622,
+            "p50Us": 17533.407,
+            "p95Us": 19630.437,
+            "p99Us": 19630.437,
+            "maxUs": 19630.437,
+            "operationsPerSecond": 55.933022040709375
+          }
+        }
+      ],
+      "resources": {
+        "platform": "linux",
+        "available": true,
+        "measurementScope": "isolated-child",
+        "rssStartMib": 7.81640625,
+        "rssEndMib": 23.66796875,
+        "peakRssMib": 23.921875,
+        "rssGrowthMib": 15.8515625,
+        "peakRssOverStartMib": 16.10546875,
+        "threadsStart": 17,
+        "peakThreads": 18,
+        "peakThreadsOverStart": 1,
+        "fileDescriptorsStart": 16,
+        "peakFileDescriptors": 16,
+        "peakFileDescriptorsOverStart": 0,
+        "cpuCores": 1.0862186014935509,
+        "readBytes": 0,
+        "writeBytes": 0,
+        "logicalReadBytes": 131406008,
+        "logicalWriteBytes": 1363900192
+      },
+      "storageBytes": 17440848,
+      "spoolBytes": 0
+    },
+    {
+      "name": "daemon",
+      "description": "Bundled daemon round trips, exhaustive reads, and concurrent writers",
+      "metrics": [
+        {
+          "name": "spooled-append-warm",
+          "operationCount": 2000,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 2000,
+            "minUs": 155.48,
+            "meanUs": 233.44609949999975,
+            "p50Us": 221.19,
+            "p95Us": 320.25,
+            "p99Us": 492.081,
+            "maxUs": 1025.871,
+            "operationsPerSecond": 4282.505963780333
+          }
+        },
+        {
+          "name": "append-concurrent",
+          "operationCount": 4000,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 4000,
+            "minUs": 176.3,
+            "meanUs": 1198.5027359999992,
+            "p50Us": 1147.991,
+            "p95Us": 1615.58,
+            "p99Us": 2313.151,
+            "maxUs": 7628.613,
+            "operationsPerSecond": 6625.812612849184
+          }
+        },
+        {
+          "name": "list-page",
+          "operationCount": 5,
+          "rowsProcessed": 2500,
+          "latency": {
+            "samples": 5,
+            "minUs": 1361.481,
+            "meanUs": 1866.1706,
+            "p50Us": 1901.431,
+            "p95Us": 2350.7799999999997,
+            "p99Us": 2350.7799999999997,
+            "maxUs": 2350.7799999999997,
+            "operationsPerSecond": 535.7946740509174
+          }
+        },
+        {
+          "name": "list-full-scan",
+          "operationCount": 5,
+          "rowsProcessed": 130500,
+          "latency": {
+            "samples": 5,
+            "minUs": 124562.913,
+            "meanUs": 146427.9302,
+            "p50Us": 140720.29799999998,
+            "p95Us": 184716.164,
+            "p99Us": 184716.164,
+            "maxUs": 184716.164,
+            "operationsPerSecond": 6.829289710668004
+          }
+        },
+        {
+          "name": "ranked-retrieve",
+          "operationCount": 5,
+          "rowsProcessed": 100,
+          "latency": {
+            "samples": 5,
+            "minUs": 20990.397,
+            "meanUs": 22071.8734,
+            "p50Us": 21980.277,
+            "p95Us": 23342.428,
+            "p99Us": 23342.428,
+            "maxUs": 23342.428,
+            "operationsPerSecond": 45.30627161941659
+          }
+        }
+      ],
+      "resources": {
+        "platform": "linux",
+        "available": true,
+        "measurementScope": "isolated-child",
+        "rssStartMib": 10.03125,
+        "rssEndMib": 33.75,
+        "peakRssMib": 33.75,
+        "rssGrowthMib": 23.71875,
+        "peakRssOverStartMib": 23.71875,
+        "threadsStart": 17,
+        "peakThreads": 18,
+        "peakThreadsOverStart": 1,
+        "fileDescriptorsStart": 17,
+        "peakFileDescriptors": 35,
+        "peakFileDescriptorsOverStart": 18,
+        "cpuCores": 1.402013942680093,
+        "readBytes": 0,
+        "writeBytes": 0,
+        "logicalReadBytes": 169716345,
+        "logicalWriteBytes": 1676615278
+      },
+      "storageBytes": 19915654,
+      "spoolBytes": 0
+    },
+    {
+      "name": "outage-recovery",
+      "description": "Unavailable-daemon buffering followed by durable replay",
+      "metrics": [
+        {
+          "name": "spool-append",
+          "operationCount": 1000,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 1000,
+            "minUs": 4.65,
+            "meanUs": 5.179722,
+            "p50Us": 4.72,
+            "p95Us": 6.81,
+            "p99Us": 9.25,
+            "maxUs": 106.9,
+            "operationsPerSecond": 191886.94328320865
+          }
+        },
+        {
+          "name": "spool-append-early",
+          "operationCount": 100,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 100,
+            "minUs": 4.66,
+            "meanUs": 6.0920000000000005,
+            "p50Us": 4.72,
+            "p95Us": 6.8,
+            "p99Us": 9.49,
+            "maxUs": 106.9,
+            "operationsPerSecond": 164149.70453053186
+          }
+        },
+        {
+          "name": "spool-append-late",
+          "operationCount": 100,
+          "rowsProcessed": null,
+          "latency": {
+            "samples": 100,
+            "minUs": 4.68,
+            "meanUs": 4.9235999999999995,
+            "p50Us": 4.7299999999999995,
+            "p95Us": 6.14,
+            "p99Us": 8.8,
+            "maxUs": 8.83,
+            "operationsPerSecond": 203103.42026159723
+          }
+        },
+        {
+          "name": "spool-replay",
+          "operationCount": 1000,
+          "rowsProcessed": 1000,
+          "latency": {
+            "samples": 1,
+            "minUs": 230842.759,
+            "meanUs": 230842.759,
+            "p50Us": 230842.759,
+            "p95Us": 230842.759,
+            "p99Us": 230842.759,
+            "maxUs": 230842.759,
+            "operationsPerSecond": 4331.95307633626
+          }
+        }
+      ],
+      "resources": {
+        "platform": "linux",
+        "available": true,
+        "measurementScope": "isolated-child",
+        "rssStartMib": 4.3359375,
+        "rssEndMib": 11.73046875,
+        "peakRssMib": 11.73046875,
+        "rssGrowthMib": 7.39453125,
+        "peakRssOverStartMib": 7.39453125,
+        "threadsStart": 17,
+        "peakThreads": 18,
+        "peakThreadsOverStart": 1,
+        "fileDescriptorsStart": 13,
+        "peakFileDescriptors": 20,
+        "peakFileDescriptorsOverStart": 7,
+        "cpuCores": 1.3128205128205128,
+        "readBytes": 0,
+        "writeBytes": 4096,
+        "logicalReadBytes": 3176956,
+        "logicalWriteBytes": 52596731
+      },
+      "storageBytes": 4915016,
+      "spoolBytes": 284890
+    }
+  ]
+}
