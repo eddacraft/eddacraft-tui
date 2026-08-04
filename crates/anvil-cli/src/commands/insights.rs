@@ -295,18 +295,80 @@ fn print_suppressions(health: &suppressions::SuppressionHealth) {
 }
 
 fn print_plain(summary: &aggregator::WeeklyInsights) {
-    println!("anvil insights (last 7 days)");
-    println!("Window: {} to {}", summary.window_start, summary.window_end);
-    println!(
-        "Witness events observed: {}",
+    print!("{}", render_plain(summary));
+}
+
+/// Render the weekly human summary with the evidence boundary on every count.
+///
+/// Witness evidence is repository-local. Save-time evidence is retained by the
+/// per-user daemon and therefore machine-local. The remaining weekly counters
+/// are schema placeholders today, so their zero values must say that they have
+/// not yet been measured rather than reading as an attested absence.
+fn render_plain(summary: &aggregator::WeeklyInsights) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "anvil insights (last 7 days)");
+    let _ = writeln!(
+        out,
+        "Window: {} to {}",
+        summary.window_start, summary.window_end
+    );
+    let _ = writeln!(
+        out,
+        "Witness events recorded for this repository: {}",
         summary.witness_events_observed
     );
-    println!("Saves observed: {}", summary.total_saves_observed);
-    println!("Findings raised: {}", summary.findings_raised);
-    println!("Suppressions applied: {}", summary.suppressions_applied);
-    println!("Suppressions resolved: {}", summary.suppressions_resolved);
-    println!("Baseline edges added: {}", summary.baseline_edges_added);
-    println!("{}", uptime_line(summary.daemon_uptime_percentage));
+    let _ = writeln!(
+        out,
+        "{}",
+        placeholder_metric_line(
+            "Saves observed on this machine",
+            summary.total_saves_observed
+        )
+    );
+    let _ = writeln!(
+        out,
+        "{}",
+        placeholder_metric_line(
+            "Findings raised for this repository",
+            summary.findings_raised
+        )
+    );
+    let _ = writeln!(
+        out,
+        "{}",
+        placeholder_metric_line(
+            "Suppressions applied for this repository",
+            summary.suppressions_applied
+        )
+    );
+    let _ = writeln!(
+        out,
+        "{}",
+        placeholder_metric_line(
+            "Suppressions resolved for this repository",
+            summary.suppressions_resolved
+        )
+    );
+    let _ = writeln!(
+        out,
+        "{}",
+        placeholder_metric_line(
+            "Baseline edges added for this repository",
+            summary.baseline_edges_added
+        )
+    );
+    let _ = writeln!(out, "{}", uptime_line(summary.daemon_uptime_percentage));
+    out
+}
+
+fn placeholder_metric_line(label: &str, value: u64) -> String {
+    if value == 0 {
+        format!("{label}: 0 (weekly metric not yet measured)")
+    } else {
+        format!("{label}: {value}")
+    }
 }
 
 /// Human-facing daemon-uptime line.
@@ -320,9 +382,9 @@ fn print_plain(summary: &aggregator::WeeklyInsights) {
 /// special-case alongside the aggregation change.
 fn uptime_line(pct: u8) -> String {
     if pct == 0 {
-        "Daemon uptime: not yet measured".to_string()
+        "Daemon uptime on this machine: not yet measured".to_string()
     } else {
-        format!("Daemon uptime: {pct}%")
+        format!("Daemon uptime on this machine: {pct}%")
     }
 }
 
@@ -394,9 +456,74 @@ mod tests {
     fn uptime_line_renders_placeholder_as_not_yet_measured() {
         // ACTMO-011: the schema-locked `0` placeholder must read as "not
         // yet measured", never a misleading "0%".
-        assert_eq!(uptime_line(0), "Daemon uptime: not yet measured");
+        assert_eq!(
+            uptime_line(0),
+            "Daemon uptime on this machine: not yet measured"
+        );
         // A real (future) measurement renders as a percentage.
-        assert_eq!(uptime_line(97), "Daemon uptime: 97%");
+        assert_eq!(uptime_line(97), "Daemon uptime on this machine: 97%");
+    }
+
+    #[test]
+    fn weekly_plain_render_names_evidence_domains_for_zero_and_non_zero_summaries() {
+        let mut summary = aggregator::WeeklyInsights {
+            schema_version: aggregator::INSIGHTS_SCHEMA_VERSION,
+            window_start: "2026-05-10T00:00:00Z".to_string(),
+            window_end: "2026-05-17T00:00:00Z".to_string(),
+            witness_events_observed: 0,
+            total_saves_observed: 0,
+            findings_raised: 0,
+            suppressions_applied: 0,
+            suppressions_resolved: 0,
+            baseline_edges_added: 0,
+            daemon_uptime_percentage: 0,
+        };
+
+        let zero = render_plain(&summary);
+        assert!(
+            zero.contains("Witness events recorded for this repository: 0"),
+            "witness zero must name its repository evidence domain: {zero}"
+        );
+        assert!(
+            zero.contains("Saves observed on this machine: 0 (weekly metric not yet measured)"),
+            "save-time zero must name its machine domain and placeholder status: {zero}"
+        );
+        for line in [
+            "Findings raised for this repository: 0 (weekly metric not yet measured)",
+            "Suppressions applied for this repository: 0 (weekly metric not yet measured)",
+            "Suppressions resolved for this repository: 0 (weekly metric not yet measured)",
+            "Baseline edges added for this repository: 0 (weekly metric not yet measured)",
+        ] {
+            assert!(
+                zero.contains(line),
+                "missing bounded zero line {line:?}: {zero}"
+            );
+        }
+
+        summary.witness_events_observed = 2;
+        summary.total_saves_observed = 3;
+        summary.findings_raised = 4;
+        summary.suppressions_applied = 5;
+        summary.suppressions_resolved = 6;
+        summary.baseline_edges_added = 7;
+        summary.daemon_uptime_percentage = 98;
+
+        let non_zero = render_plain(&summary);
+        for line in [
+            "Witness events recorded for this repository: 2",
+            "Saves observed on this machine: 3",
+            "Findings raised for this repository: 4",
+            "Suppressions applied for this repository: 5",
+            "Suppressions resolved for this repository: 6",
+            "Baseline edges added for this repository: 7",
+            "Daemon uptime on this machine: 98%",
+        ] {
+            assert!(
+                non_zero.contains(line),
+                "missing bounded non-zero line {line:?}: {non_zero}"
+            );
+        }
+        assert!(!non_zero.contains("weekly metric not yet measured"));
     }
 
     #[test]

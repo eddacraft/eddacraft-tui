@@ -6308,7 +6308,7 @@ archive.
 
 ### CIB-235: `status` Protection:warming must name next step or refuse that label
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2 (Dave TRUST-3)
 - **Intent:** `status` can show `Protection: warming` in a state that will never
   warm, with no named next step, while leaking internals
@@ -6317,9 +6317,10 @@ archive.
 - **Expected Outcome:** Warming/degraded postures either include a concrete next
   command or use a posture label that cannot be read as "wait and it will
   finish". Internals stay out of default human output (verbose/json ok).
-- **Files:** `anvil status` protection posture rendering
-- **Validation:** fixture never-attach context; human status has next step or
-  non-warming label.
+- **Files:** `crates/anvil-cli/src/activation/posture.rs`,
+  `crates/anvil-cli/src/commands/status.rs`
+- **Validation:** fixture never-attach context; human status names the restart
+  or setup action and does not expose internal posture labels.
 - **Identified From:** Dave field report 2026-08-04 TRUST-3.
 - **Coordinates with:** CIB-220 honesty, start --verify meaning lines,
   [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
@@ -6332,15 +6333,16 @@ archive.
 
 ### CIB-236: `insights` zeros must disclose the counted domain
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 (Dave TRUST-4)
 - **Intent:** All-zero insights counters do not say what domain was counted
   (zeros may be true for unattested contexts; rendering gap).
 - **Expected Outcome:** Zero and non-zero insights lines name the evidence
   domain (e.g. this machine / this repo / unattested) in plain language,
   consistent with CIB-222 value-receipt scope wording where applicable.
-- **Files:** insights command / start insights surfaces
-- **Validation:** clean unattested home shows domain disclosure with zeros.
+- **Files:** `crates/anvil-cli/src/commands/insights.rs`
+- **Validation:** zero and non-zero weekly-summary fixtures name repository or
+  machine evidence domains; JSON/schema output remains unchanged.
 - **Identified From:** Dave field report 2026-08-04 TRUST-4.
 - **Coordinates with:** CIB-222, [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
 - **Confidence:** high.

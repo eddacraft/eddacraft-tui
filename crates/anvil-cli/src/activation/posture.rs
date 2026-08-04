@@ -101,20 +101,16 @@ impl SharedPostureFacts {
         let facts = self.fact_lines().join("; ");
         match claim {
             "warming" if self.mcp.is_live() => Some(format!(
-                "status claim is warming while MCP is live (start may say {}); subordinate: {facts}",
-                self.protection_label
+                "Protection is warming even though MCP is live. Current posture: {facts}"
             )),
             "warming" if self.mcp.is_wired_or_live() => Some(format!(
-                "status claim is warming; MCP is wired but not live (start may say {}); subordinate: {facts}",
-                self.protection_label
+                "Protection is warming because MCP is configured but not attached. Current posture: {facts}"
             )),
             "warming" => Some(format!(
-                "status claim is warming (start may say {}); subordinate: {facts}",
-                self.protection_label
+                "Protection is warming because MCP is not attached. Current posture: {facts}"
             )),
             "full" | "pre_write_daemon" if !self.save_time_attached => Some(format!(
-                "status claim is {claim}; save-time is not attached — start may still say {}; subordinate: {facts}",
-                self.protection_label
+                "Protection is {claim}, but save-time is not attached. Current posture: {facts}"
             )),
             _ => {
                 // Always surface facts when start protection word is not a
@@ -124,8 +120,7 @@ impl SharedPostureFacts {
                     && !(claim == "pre_write_daemon" && self.protection_label == "protecting")
                 {
                     Some(format!(
-                        "status claim is {claim}; start protection is {}; subordinate: {facts}",
-                        self.protection_label
+                        "Protection layers report different stages for {claim}. Current posture: {facts}"
                     ))
                 } else {
                     None
