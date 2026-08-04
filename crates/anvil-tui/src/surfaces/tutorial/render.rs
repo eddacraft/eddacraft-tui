@@ -355,7 +355,7 @@ fn render_path_select(
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.accent()))
         .padding(Padding::new(1, 1, 1, 1))
-        .title(" Choose a Learning Path ");
+        .title(format!(" {} ", super::PATH_PICKER_TITLE));
     let inner = block.inner(box_area);
     frame.render_widget(block, box_area);
 

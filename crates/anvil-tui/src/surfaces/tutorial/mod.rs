@@ -26,6 +26,14 @@ use crate::surfaces::notifications::{NotificationSource, surface_notification};
 pub const STATIC_MODE_WATCHER_UNAVAILABLE: &str =
     "Live file watcher unavailable \u{2014} file saves won't retrigger checks.";
 
+/// Title of the tutorial path picker, and the single source of truth for how
+/// that surface is named. CIB-246: the return-visit welcome hub used to coin
+/// its own name for the tutorial ("Learn the anvil model"), so the same
+/// mental object carried two names across first run and return visit. The hub
+/// entry is now named after this constant and a test in the welcome surface
+/// pins the two together.
+pub const PATH_PICKER_TITLE: &str = "Choose a Learning Path";
+
 pub const AUTOPLAY_DEMO_LABEL: &str = "Watch anvil work (demo)";
 const AUTOPLAY_DEMO_DESCRIPTION: &str =
     "A hands-free sandbox demonstration of anvil's protection loop";

@@ -3,6 +3,16 @@ pub mod render;
 use eddacraft_tui::prelude::*;
 
 /// Quick-start options shown on the welcome screen.
+///
+/// CIB-246: the hub and the tutorial path picker are two menus over one
+/// product, so they must not coin two names for the same thing. Only
+/// [`Self::RunTutorial`] crosses into tutorial vocabulary — and it opens the
+/// picker rather than any single path, so it is named after
+/// [`crate::surfaces::tutorial::PATH_PICKER_TITLE`] rather than after a path.
+/// The other options run commands (gate, watch, audit, doctor, docs) that the
+/// tutorial has no name for, so a shared hub/path catalogue would force them
+/// into a taxonomy they don't belong to; the one crossing point is pinned by
+/// `tutorial_entry_is_named_after_the_path_picker` instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuickStartOption {
     RunAudit,
@@ -31,7 +41,7 @@ impl QuickStartOption {
             Self::StartWatch => "Watch checks live",
             Self::RunAudit => "Explore project findings",
             Self::RunDoctor => "Check setup health",
-            Self::RunTutorial => "Learn the anvil model",
+            Self::RunTutorial => "Choose a learning path",
             Self::ViewDocs => "View documentation",
             Self::RestartOnboarding => "Restart onboarding",
         }
@@ -43,7 +53,10 @@ impl QuickStartOption {
             Self::StartWatch => "Run checks continuously and watch findings update on save",
             Self::RunAudit => "Inspect the findings anvil collects across your project",
             Self::RunDoctor => "Verify your environment before relying on checks and gates",
-            Self::RunTutorial => "Start with scan -> checks -> findings -> gate, then pick a path",
+            // The label already says the picker is what opens, so the
+            // description spends its width on the loop the paths teach — and
+            // stays short enough to survive an 80-column row (CIB-246).
+            Self::RunTutorial => "Start with scan -> checks -> findings -> gate",
             Self::ViewDocs => "Open the anvil documentation in your browser",
             Self::RestartOnboarding => "Reset and re-run the first-time setup experience",
         }
@@ -192,6 +205,28 @@ mod tests {
             QuickStartOption::RunTutorial
                 .description()
                 .contains("scan -> checks -> findings -> gate")
+        );
+    }
+
+    /// CIB-246: the hub entry that opens the tutorial must be named after the
+    /// picker it opens — not after one of the paths inside it, and not with a
+    /// third name of its own ("Learn the anvil model" was exactly that). Both
+    /// halves are pinned so either surface drifting alone fails here instead
+    /// of in the user's head on their second `anvil welcome`.
+    #[test]
+    fn tutorial_entry_is_named_after_the_path_picker() {
+        use crate::surfaces::tutorial::{PATH_PICKER_TITLE, TutorialPath};
+
+        let label = QuickStartOption::RunTutorial.label();
+        assert!(
+            label.eq_ignore_ascii_case(PATH_PICKER_TITLE),
+            "hub tutorial entry {label:?} must name the picker it opens \
+             ({PATH_PICKER_TITLE:?})",
+        );
+        assert!(
+            TutorialPath::from_label(label).is_none(),
+            "hub tutorial entry opens the picker, so it must not shadow a \
+             single path label ({label:?})",
         );
     }
 }

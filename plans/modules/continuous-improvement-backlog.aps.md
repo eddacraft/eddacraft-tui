@@ -6553,7 +6553,9 @@ archive.
 
 ### CIB-246: Align first-run tutorial path names with return-visit welcome hub
 
-- **Status:** Ready
+- **Status:** In Progress 2026-08-04 — hub tutorial entry renamed to the path
+  picker's own title (`PATH_PICKER_TITLE`) and the hub now names the first-run
+  marker in one line. On merge, flip to `Merged YYYY-MM-DD via PR #N`.
 - **Priority:** P2 welcome UX (operator screenshots 2026-08-04)
 - **Intent:** `anvil welcome` presents two different menu taxonomies for the
   same product journey. First-run / path-select uses tutorial labels

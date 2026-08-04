@@ -31,6 +31,18 @@ const TAGLINE: &str = "Structural governance for AI-assisted development";
 /// terminal restores the per-item descriptions dropped to save space (CIB-179).
 const COMPACT_HINT: &str = "resize for descriptions";
 
+/// Muted one-line explanation of the first-run marker (CIB-246). A returning
+/// user lands here instead of the first-run walk they remember, and nothing on
+/// screen said why; this names the marker behaviour and the way back.
+const FIRST_RUN_NOTE: &str =
+    "First run is done, so anvil opens this hub. Restart onboarding replays it.";
+
+/// Width the note needs before it is worth rendering: the note itself plus the
+/// left pad. Below this it would be clipped mid-sentence, which reads worse
+/// than omitting it.
+#[allow(clippy::cast_possible_truncation)]
+const FIRST_RUN_NOTE_MIN_WIDTH: u16 = FIRST_RUN_NOTE.len() as u16 + PAD_WIDTH;
+
 /// Left padding for content within the welcome screen.
 const PAD: &str = "    ";
 const PAD_WIDTH: u16 = 4;
@@ -48,6 +60,12 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
 
     let menu_height = full_menu_height;
 
+    // CIB-246: the first-run note is carved out of the tagline spacer rather
+    // than added to the layout, so total content height is unchanged and the
+    // compact/logo-integrity maths below stays exactly as CIB-179 left it.
+    let show_note = !compact && area.width >= FIRST_RUN_NOTE_MIN_WIDTH;
+    let note_h = u16::from(show_note);
+
     // In compact mode, surface a one-line resize hint — but only when the
     // terminal has genuine spare height for it: top padding(1) + logo +
     // blank(1) + the full compact menu + optional status + hint(1). Showing it
@@ -63,8 +81,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let status_h = status_height as u16;
 
     // In compact mode: logo + blank(1) + menu(N) + optional hint(1)
-    // In full mode: logo + blank(1) + tagline(1) + spacer(2) + menu(N) — one
-    // row per option via the shared `Select` widget.
+    // In full mode: logo + blank(1) + tagline(1) + note+spacer(2) + menu(N) —
+    // one row per option via the shared `Select` widget.
     let content_height = if compact {
         LOGO_HEIGHT + 1 + menu_height + usize::from(show_hint) + status_height
     } else {
@@ -94,7 +112,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
             Constraint::Length(LOGO_HEIGHT_U16), // Logo
             Constraint::Length(1),               // Blank
             Constraint::Length(1),               // Tagline
-            Constraint::Length(2),               // Spacer
+            Constraint::Length(note_h),          // First-run note (0 when too narrow)
+            Constraint::Length(2 - note_h),      // Spacer (absorbs the note's row)
             Constraint::Min(menu_h),             // Menu items (flexible — absorbs overflow)
             Constraint::Length(status_h),        // Optional status message
         ])
@@ -125,31 +144,26 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let logo = Paragraph::new(Text::from(logo_lines));
     frame.render_widget(logo, chunks[1]);
 
-    // Tagline (hidden in compact mode)
+    // Tagline and first-run note (both hidden in compact mode)
     let menu_chunk_idx = if compact {
         3
     } else {
-        let tagline = Paragraph::new(Line::from(vec![
-            Span::styled(PAD, Style::default()),
-            Span::styled(TAGLINE, Style::default().fg(theme.muted())),
-        ]));
-        frame.render_widget(tagline, chunks[3]);
-        5
+        frame.render_widget(muted_line(TAGLINE, theme), chunks[3]);
+        if show_note {
+            frame.render_widget(muted_line(FIRST_RUN_NOTE, theme), chunks[4]);
+        }
+        6
     };
 
     render_menu(frame, chunks[menu_chunk_idx], state, theme, compact);
 
     // Compact-mode resize hint occupies the reserved trailing chunk.
     if show_hint {
-        let hint = Paragraph::new(Line::from(vec![
-            Span::styled(PAD, Style::default()),
-            Span::styled(COMPACT_HINT, Style::default().fg(theme.muted())),
-        ]));
-        frame.render_widget(hint, chunks[4]);
+        frame.render_widget(muted_line(COMPACT_HINT, theme), chunks[4]);
     }
 
     if let Some(ref msg) = state.status_message {
-        let status_idx = if compact { 5 } else { 6 };
+        let status_idx = if compact { 5 } else { 7 };
         let status = Paragraph::new(Text::from(vec![
             Line::default(),
             Line::from(vec![
@@ -159,6 +173,15 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         ]));
         frame.render_widget(status, chunks[status_idx]);
     }
+}
+
+/// A padded, muted one-liner — the shared shape of the tagline, the first-run
+/// note, and the compact resize hint.
+fn muted_line<'a>(text: &'a str, theme: &EddaCraftTheme) -> Paragraph<'a> {
+    Paragraph::new(Line::from(vec![
+        Span::styled(PAD, Style::default()),
+        Span::styled(text, Style::default().fg(theme.muted())),
+    ]))
 }
 
 fn render_menu(
@@ -385,6 +408,81 @@ mod tests {
             !text.contains(COMPACT_HINT),
             "full mode should not show the resize hint; got:\n{text}"
         );
+    }
+
+    /// CIB-246: a returning user lands on the hub instead of the first-run
+    /// walk they remember. The hub has to say why, and say how to get back,
+    /// without costing the brandmark a row.
+    #[test]
+    fn full_mode_names_first_run_marker_behaviour() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = WelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let text = plain(terminal.backend().buffer());
+        assert!(
+            text.contains(FIRST_RUN_NOTE),
+            "hub should explain the first-run marker; got:\n{text}"
+        );
+        assert_eq!(
+            logo_rows(&text),
+            LOGO_LINES.len(),
+            "note must not squeeze the logo; got:\n{text}"
+        );
+    }
+
+    /// Compact mode already drops the per-item descriptions, so the note goes
+    /// with them rather than competing with the menu for rows.
+    #[test]
+    fn compact_mode_omits_first_run_note() {
+        let backend = TestBackend::new(40, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = WelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let text = plain(terminal.backend().buffer());
+        assert!(
+            !text.contains(FIRST_RUN_NOTE),
+            "compact mode should omit the first-run note; got:\n{text}"
+        );
+    }
+
+    /// The note is carved out of the tagline spacer, so it costs no height —
+    /// but it must still be withheld at widths where it would render clipped
+    /// mid-sentence, which reads worse than saying nothing.
+    #[test]
+    fn first_run_note_withheld_when_it_would_clip() {
+        let theme = EddaCraftTheme;
+        for width in 60u16..=100 {
+            let backend = TestBackend::new(width, 30);
+            let mut terminal = Terminal::new(backend).unwrap();
+            let state = WelcomeState::new();
+            terminal
+                .draw(|frame| render(frame, frame.area(), &state, &theme))
+                .unwrap();
+
+            let text = plain(terminal.backend().buffer());
+            if text.contains(FIRST_RUN_NOTE) {
+                assert!(
+                    width >= FIRST_RUN_NOTE_MIN_WIDTH,
+                    "at width {width}: note rendered below its minimum width; got:\n{text}"
+                );
+            }
+            assert_eq!(
+                logo_rows(&text),
+                LOGO_LINES.len(),
+                "at width {width}: logo must stay intact; got:\n{text}"
+            );
+        }
     }
 
     #[test]
