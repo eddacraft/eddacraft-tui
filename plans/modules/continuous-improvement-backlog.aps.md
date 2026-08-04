@@ -7648,6 +7648,61 @@ CIB-251/255 only.
 - **Coordinates with:** activation Prove path, CIB-222 honesty tone
 - **Confidence:** high.
 
+### CIB-277: Fresh worktree pre-commit gate is silently absent or opaquely broken
+
+- **Status:** Proposed — promotion to `Ready` is the operator's call (membrane
+  checkpoint); filed from a dev-loop run, not self-authorised for execution.
+- **Priority:** P2 tooling (a CI-enforced format gate can be bypassed with no
+  signal; contributor-facing, not user-facing)
+- **Intent:** `core.hooksPath = .husky/_` is set in the **shared** repo config
+  (`file:…/anvil-001/.git/config`), so it applies to every worktree — but
+  `.husky/_` is generated and gitignored (`.husky/_/.gitignore` is `*`), created
+  by husky during `pnpm install`. A fresh Worktrunk worktree runs `install` as a
+  background post-start hook, so between worktree creation and a completed
+  install the gate is in one of two bad states, and neither is legible:
+  - **Silent bypass** — when `.husky/_` has no `pre-commit`, Git runs no hook and
+    prints nothing. Probe: staged a deliberately malformed
+    `{"a":   1,\n\n   "b":2}` JSON and ran
+    `git -c core.hooksPath=.husky/_absent commit` → **committed, exit 0, zero
+    output**. lint-staged and the oxfmt re-check in `.husky/pre-commit` never
+    ran.
+  - **Opaque hard failure** — with `.husky/_` present but `pnpm` unusable in a
+    non-interactive shell, `.husky/pre-commit` runs `pnpm exec lint-staged` and
+    dies with `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` thrown from
+    `/usr/share/nodejs/corepack` loading
+    `~/.cache/node/corepack/pnpm/11.9.0/bin/pnpm.cjs`. The trace names neither
+    husky nor lint-staged nor a remedy. The identical commit succeeds under
+    `zsh -ic`, where fnm initialises Node v24.18.0.
+- **Non-scope / do not:** Do not disable, bypass, or `--no-verify` the hook. Do
+  not document "re-run `pnpm install`" as the remedy — unreliable install
+  completion **is** the defect. Do not pin a global Node/pnpm to paper over the
+  non-interactive shell gap.
+- **Expected Outcome:** A commit in a fresh worktree can never silently skip the
+  gate. Either the gate runs, or the commit fails with a message naming the gate
+  and the remedy. Note the two halves need different owners: the silent-skip half
+  cannot be fixed inside `.husky/pre-commit` (Git skips a missing hook before any
+  hook code runs), so it needs the worktree bootstrap to guarantee `.husky/_`
+  before the worktree is handed over, or a repo-side check that fails closed. The
+  opaque-failure half is a `.husky/pre-commit` message quality fix: detect an
+  unusable `pnpm`/`npx` and say so in one actionable line.
+- **Files:** `.husky/pre-commit` (tooling-unavailable branch and message),
+  Worktrunk project post-start hook config (make `install` blocking or report
+  failure), dev-environment runbook under `docs/`
+- **Validation:** Create a fresh worktree; stage a deliberately malformed JSON;
+  attempt a commit both before and after install completes. The commit must never
+  succeed silently in either window, and any failure must name the gate and the
+  remedy. Re-run the two probes above and show the bypass no longer reproduces.
+- **Identified From:** dev-loop run on CIB-232 (2026-08-04) — the feature
+  worktree had no `node_modules` ~50 minutes after creation and its commits
+  produced no hook output; the sibling bookkeeping worktree had a partial install
+  (36 entries) and hard-failed until the commit was routed through `zsh -ic`.
+  Both probes above were then run deliberately to isolate the two modes.
+- **Coordinates with:** CIB-250 lint-staged `ignorePath` work, DEVENV worktree
+  bootstrap, CI Docs Lint (the gate being bypassed)
+- **Confidence:** high on both failure modes — each reproduced deliberately with
+  a recorded probe. Medium on the fix shape: whether the bootstrap should block
+  on install or the repo should fail closed is a design call.
+
 ### Pack-03 deliberate non-scope (do not auto-file release work)
 
 - Report **§4** curriculum / Scan·Surface·React editorial (same family as pack-02
