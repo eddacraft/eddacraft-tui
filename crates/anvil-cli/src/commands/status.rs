@@ -2651,135 +2651,160 @@ mod tests {
         );
     }
 
-    #[test]
-    fn warming_full_render_keeps_recovery_actions_only_in_next() {
+    struct WarmingRenderCase {
+        name: &'static str,
+        attestation: activation::daemon_evidence::DaemonAttestation,
+        mcp_live: bool,
+        expected_next: &'static str,
+    }
+
+    fn warming_render_cases() -> [WarmingRenderCase; 11] {
         use activation::daemon_evidence::DaemonAttestation;
+
+        [
+            WarmingRenderCase {
+                name: "restart pending",
+                attestation: DaemonAttestation::NotProbed,
+                mcp_live: false,
+                expected_next: "Next: Restart your editor or agent, then run `anvil start --verify`.",
+            },
+            WarmingRenderCase {
+                name: "daemon unreachable",
+                attestation: DaemonAttestation::Unreachable,
+                mcp_live: false,
+                expected_next: "Next: No intercept daemon is answering. Run `anvil start`",
+            },
+            WarmingRenderCase {
+                name: "worktree unenforced",
+                attestation: DaemonAttestation::Unenforced,
+                mcp_live: false,
+                expected_next: "Next: Run `anvil intercept status`",
+            },
+            WarmingRenderCase {
+                name: "no participating surface",
+                attestation: DaemonAttestation::NoParticipatingSurface,
+                mcp_live: false,
+                expected_next: "Next: Run `anvil intercept status`",
+            },
+            WarmingRenderCase {
+                name: "stale heartbeat",
+                attestation: DaemonAttestation::StaleHeartbeat,
+                mcp_live: false,
+                expected_next: "Next: Restart the intercept daemon",
+            },
+            WarmingRenderCase {
+                name: "all surfaces quarantined",
+                attestation: DaemonAttestation::AllSurfacesQuarantined,
+                mcp_live: false,
+                expected_next: "Next: Restart the fenced intercept daemon",
+            },
+            WarmingRenderCase {
+                name: "daemon warming",
+                attestation: DaemonAttestation::Warming,
+                mcp_live: false,
+                expected_next: "Next: Wait a few seconds",
+            },
+            WarmingRenderCase {
+                name: "daemon enforced",
+                attestation: DaemonAttestation::Enforced,
+                mcp_live: false,
+                expected_next: "Next: Protection evidence is live.",
+            },
+            WarmingRenderCase {
+                name: "daemon promoted",
+                attestation: DaemonAttestation::Promoted,
+                mcp_live: false,
+                expected_next: "Next: Protection evidence is live.",
+            },
+            WarmingRenderCase {
+                name: "live MCP not probed",
+                attestation: DaemonAttestation::NotProbed,
+                mcp_live: true,
+                expected_next: "Next: MCP is live. Run `anvil start --verify`",
+            },
+            WarmingRenderCase {
+                name: "live MCP attested",
+                attestation: DaemonAttestation::Enforced,
+                mcp_live: true,
+                expected_next: "Next: Protection evidence is live.",
+            },
+        ]
+    }
+
+    fn render_warming_case(case: &WarmingRenderCase) -> String {
         use activation::diagnostic::{McpClientId, McpTier};
 
-        let cases = [
-            (
-                "restart pending",
-                DaemonAttestation::NotProbed,
-                false,
-                "Next: Restart your editor or agent, then run `anvil start --verify`.",
-            ),
-            (
-                "daemon unreachable",
-                DaemonAttestation::Unreachable,
-                false,
-                "Next: No intercept daemon is answering. Run `anvil start`",
-            ),
-            (
-                "worktree unenforced",
-                DaemonAttestation::Unenforced,
-                false,
-                "Next: Run `anvil intercept status`",
-            ),
-            (
-                "no participating surface",
-                DaemonAttestation::NoParticipatingSurface,
-                false,
-                "Next: Run `anvil intercept status`",
-            ),
-            (
-                "stale heartbeat",
-                DaemonAttestation::StaleHeartbeat,
-                false,
-                "Next: Restart the intercept daemon",
-            ),
-            (
-                "all surfaces quarantined",
-                DaemonAttestation::AllSurfacesQuarantined,
-                false,
-                "Next: Restart the fenced intercept daemon",
-            ),
-            (
-                "daemon warming",
-                DaemonAttestation::Warming,
-                false,
-                "Next: Wait a few seconds",
-            ),
-            (
-                "daemon enforced",
-                DaemonAttestation::Enforced,
-                false,
-                "Next: Protection evidence is live.",
-            ),
-            (
-                "daemon promoted",
-                DaemonAttestation::Promoted,
-                false,
-                "Next: Protection evidence is live.",
-            ),
-            (
-                "live MCP not probed",
-                DaemonAttestation::NotProbed,
-                true,
-                "Next: MCP is live. Run `anvil start --verify`",
-            ),
-            (
-                "live MCP attested",
-                DaemonAttestation::Enforced,
-                true,
-                "Next: Protection evidence is live.",
-            ),
-        ];
-
-        for (name, attestation, mcp_live, expected_next) in cases {
-            let mut diag = test_activation_diagnostic();
-            diag.daemon_attestation = attestation;
-            diag.mcp.insert(
-                McpClientId::ClaudeCode,
-                if mcp_live {
-                    McpTier::LiveValidation
-                } else {
-                    McpTier::RestartRequired
-                }
-                .into(),
-            );
-            let facts = activation::SharedPostureFacts::from_diagnostic(&diag);
-            let mut snapshot = legible_test_snapshot(WorktreeClaimState::Warming);
-            snapshot.next_action = next_action_for_diagnostic(
-                WorktreeClaimState::Warming,
-                &DaemonSummary::NotRunning,
-                &diag,
-            )
-            .to_string();
-            snapshot.posture_facts = facts.fact_lines();
-            snapshot.posture_meaning = facts.meaning_for_status_claim("warming");
-
-            let rendered = render_plain_legible(&snapshot);
-            assert!(
-                rendered.contains(expected_next),
-                "{name} rendered the wrong recovery action: {rendered}"
-            );
-            let meaning = rendered
-                .lines()
-                .find(|line| line.trim_start().starts_with("meaning:"))
-                .unwrap_or_else(|| panic!("{name} missing meaning line: {rendered}"));
-            for competing in ["Restart ", "Run `", "Wait ", "setup", "verify"] {
-                assert!(
-                    !meaning.contains(competing),
-                    "{name} meaning competes with Next via {competing:?}: {rendered}"
-                );
-            }
-            assert!(!rendered.contains("subordinate:"), "{name}: {rendered}");
-            assert!(
-                !rendered.contains("ready_restart_required"),
-                "{name}: {rendered}"
-            );
-            if name == "restart pending" {
-                assert_eq!(
-                    rendered.matches("Restart your editor or agent").count(),
-                    1,
-                    "restart action must appear once, in Next: {rendered}"
-                );
+        let mut diag = test_activation_diagnostic();
+        diag.daemon_attestation = case.attestation;
+        diag.mcp.insert(
+            McpClientId::ClaudeCode,
+            if case.mcp_live {
+                McpTier::LiveValidation
             } else {
-                assert!(
-                    !rendered.contains("Restart your editor or agent"),
-                    "{name} must not prescribe a generic editor restart: {rendered}"
-                );
+                McpTier::RestartRequired
             }
+            .into(),
+        );
+        let facts = activation::SharedPostureFacts::from_diagnostic(&diag);
+        let mut snapshot = legible_test_snapshot(WorktreeClaimState::Warming);
+        snapshot.next_action = next_action_for_diagnostic(
+            WorktreeClaimState::Warming,
+            &DaemonSummary::NotRunning,
+            &diag,
+        )
+        .to_string();
+        snapshot.posture_facts = facts.fact_lines();
+        snapshot.posture_meaning = facts.meaning_for_status_claim("warming");
+        render_plain_legible(&snapshot)
+    }
+
+    fn assert_warming_render_case(case: &WarmingRenderCase) {
+        let rendered = render_warming_case(case);
+        assert!(
+            rendered.contains(case.expected_next),
+            "{} rendered the wrong recovery action: {rendered}",
+            case.name
+        );
+        let meaning = rendered
+            .lines()
+            .find(|line| line.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("{} missing meaning line: {rendered}", case.name));
+        for competing in ["Restart ", "Run `", "Wait ", "setup", "verify"] {
+            assert!(
+                !meaning.contains(competing),
+                "{} meaning competes with Next via {competing:?}: {rendered}",
+                case.name
+            );
+        }
+        assert!(
+            !rendered.contains("subordinate:"),
+            "{}: {rendered}",
+            case.name
+        );
+        assert!(
+            !rendered.contains("ready_restart_required"),
+            "{}: {rendered}",
+            case.name
+        );
+        if case.name == "restart pending" {
+            assert_eq!(
+                rendered.matches("Restart your editor or agent").count(),
+                1,
+                "restart action must appear once, in Next: {rendered}"
+            );
+        } else {
+            assert!(
+                !rendered.contains("Restart your editor or agent"),
+                "{} must not prescribe a generic editor restart: {rendered}",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn warming_full_render_keeps_recovery_actions_only_in_next() {
+        for case in warming_render_cases() {
+            assert_warming_render_case(&case);
         }
     }
 
