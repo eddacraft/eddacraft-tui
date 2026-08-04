@@ -6973,7 +6973,106 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 - **Identified From:** Dave pack-02 WATCH-1.
 - **Coordinates with:** DSV/watch daemon routing, CIB-255 domain if extension
   interacts
-- **Confidence:** high on behaviour gap; medium on root cause.
+- **Confidence:** high on behaviour gap; **high on root cause** (raised from
+  medium 2026-08-05 — mechanism traced to source, see below).
+
+#### Root cause (traced 2026-08-05, read-only investigation)
+
+Not a race. A check-family coverage gap between the two save-time delivery
+paths, plus a surface that drops the family label:
+
+- The daemon `validate_paths` verb runs **only** the antipattern family:
+  `check_families: vec![CheckFamily::Antipattern]`
+  (`crates/anvil-intercept/src/validate_paths.rs:418`), and `CheckFamily` has
+  exactly one variant (`crates/anvil-intercept-proto/src/protocol.rs:393-396`).
+  Secret detection has no representation on that wire.
+- The fallback runs a scoped `anvil check <paths>` subprocess, whose planless
+  dispatcher runs `["secret-detection", "antipattern-scan"]`
+  (`crates/anvil-cli/src/commands/check.rs:38`) — so it *does* detect secrets.
+- A daemon verdict returns early and skips the subprocess entirely
+  (`crates/anvil-cli/src/commands/watch.rs:1213-1215`, ADR-061 §3 "never
+  double-scans").
+- `render_daemon_verdict_plain`
+  (`crates/anvil-cli/src/commands/watch_save_time.rs:431-437`) prints state +
+  finding count and **drops `check_families`**. Every `check_families`
+  reference in `anvil-cli` sits inside a `#[cfg(test)]` module — no production
+  surface renders the family scope.
+
+ADR-061 §6 already binds this: "A correctly-labelled antipattern-only verdict
+is sound; **an unlabelled one would be a false attestation.**" The wire is
+honest; the surfaces are not. Fixing this must **not** widen the hot path —
+ADR-061 exists to remove that CPU regression; narrow the claim instead.
+
+#### Reproduction (verified 2026-08-05, isolated temp repo + private daemon)
+
+Isolated `ANVIL_HOME` (own socket per DISTRIB-006); the shared daemon was never
+contacted. Identical `sk-ant-…` write into a watched `.ts` each run:
+
+| # | Routing | Daemon live | Secret detected | Surface |
+| --- | --- | --- | --- | --- |
+| R1 | default (unset) | yes | **no** | `anvil watch: clean (0 finding(s))` |
+| R2 | `ANVIL_WATCH_DAEMON=0` | yes | yes | blocking, exit 1 |
+| R3 | `--no-daemon` flag | yes | **no** | `anvil watch: clean (0 finding(s))` |
+| R4 | `ANVIL_WATCH_DAEMON=1` | yes | **no** | `anvil watch: clean (0 finding(s))` |
+| R5 | default (repeat) | yes | **no** | `anvil watch: clean (0 finding(s))` |
+| R6 | `ANVIL_WATCH_DAEMON=0` (repeat) | yes | yes | blocking |
+| R7 | default | no | yes | fallback → blocking |
+
+Note R1/R5 rendered `clean`, not the `stale{cross-file-resolution-needed}` Dave
+saw — on this fixture the daemon reached a certified-clean assurance, so the
+verdict read as fully clean with no degraded label at all. That is a strictly
+worse presentation than the one originally reported.
+
+#### Sub-findings not in the original report
+
+- **`--no-daemon` alone does not avoid the gap (R3).** `watch_daemon_plan`
+  ranks `ReuseLive` above the soft opt-out
+  (`crates/anvil-cli/src/commands/watch.rs:578-582`), so a live daemon is still
+  reused and the secret still missed. Only `ANVIL_WATCH_DAEMON=0` works. Dave's
+  repro set both together, so the flag's no-op behaviour was masked. Either the
+  flag or its help text is wrong.
+- **`watch --json` suppresses the verdict entirely**
+  (`crates/anvil-cli/src/commands/watch.rs:1417-1425` routes it to
+  `tracing::debug!` to protect the NDJSON stream), so agent and CI consumers
+  see no save-time finding at all on the daemon path.
+- **The parity gate is structurally blind to this.**
+  `crates/anvil-intercept/tests/diagnostic_parity.rs:64` filters both sides
+  through `antipattern_only(...)` before comparing, so `watch+daemon` vs
+  `watch+fallback` parity is green by construction and can never catch a secret
+  divergence. ADR-061 §8 describes those two surfaces as running the same
+  family set; that is inaccurate — the fallback also runs secret-detection.
+  This is the missing negative test.
+
+#### Non-determinism caveat — still binding, now partly explained
+
+Dave's caveat stands and is **not** retired by the matrix above. What the matrix
+establishes is narrower: *given a live daemon*, the miss is deterministic (R1,
+R4, R5). The variance sits one level up — `daemon_routing_mode()` defaults to
+`DefaultOnWhenLive`
+(`crates/anvil-cli/src/commands/watch_save_time.rs:74-86`), so routing depends
+on whether a daemon happens to answer, which varies by machine, session,
+whether `anvil start` ran, and daemon health. Same command, same file, opposite
+outcome — which is consistent with Dave's one passing `--action gate` run.
+
+Explicitly **not** exercised, so residual races remain possible: debounce
+coalescing, the warm-up / `request_full_scan` reconnect window, and the
+`restored_window` path (`crates/anvil-intercept/src/validate_paths.rs:397`).
+Treat this as confirming Dave's floor, not bounding his ceiling. Expected
+Outcome (3) still applies.
+
+Separately: a secret **already on disk when watch starts** is reported by
+neither mode — watch only scopes to changed paths. That is the "stale / 0
+findings" complement and needs its own answer.
+
+#### Beta-blocker rationale (`v0.9.3-beta`)
+
+The window's stated purpose is the honesty pass on the daily path
+(`RELEASE-PLAN.md:42,49`). Watch is the daily path, and it currently prints
+`clean (0 finding(s))` over a live credential with no family label — what
+ADR-061 §6 calls, in its own words, a false attestation. Shipping that inside
+an honesty release is the worst available outcome. The disclosure fix is cheap
+(label the surface from the `check_families` the wire already carries) and
+needs no engine work.
 
 ### CIB-255: Disclose `gate` / `check --all` secret file domains (GATE-1, CHECK-1, GATE-2)
 
@@ -7012,8 +7111,83 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
   disclosure strings; Anchor B fixture as above.
 - **Identified From:** Dave pack-02 GATE-1, CHECK-1, GATE-2; RETRACT-1 Anchor B
   absorbed 2026-08-04 (CIB-250 left free — reserved by concurrent Claude lane).
-- **Coordinates with:** CIB-234, CIB-239, CIB-251 (RETRACT-1 Anchor A)
-- **Confidence:** high on GATE-1/CHECK-1; medium on GATE-2 mechanism.
+- **Coordinates with:** CIB-234, CIB-239, CIB-251 (RETRACT-1 Anchor A), CIB-254
+  (same release-honesty theme; independent defect)
+- **Confidence:** **high on GATE-1/CHECK-1 root cause** (raised 2026-08-05 —
+  mechanism traced to source, see below); medium on GATE-2 mechanism.
+
+#### Root cause (traced 2026-08-05, read-only investigation)
+
+An **allow-list / deny-list asymmetry**. Gate is the only surface that
+allow-lists:
+
+- `run_check_secret` (`crates/anvil-cli/src/commands/gate.rs:1071-1085`)
+  filters candidates to `.env*` filenames plus the extensions
+  `ts | js | rs | json | yaml | yml | toml | env` **before** handing anything
+  to the scanner.
+- The scanner itself deny-lists: `SecretCheckConfig::skip_extensions`
+  (`crates/anvil-checks/src/secret/types.rs:53-68`) skips only lockfiles,
+  minified bundles and binary assets — it would happily scan any text file.
+- `anvil check` mirrors that deny-list via `is_secret_scannable`
+  (`crates/anvil-cli/src/commands/check.rs:517`), which is exactly why per-file
+  `check` finds what `gate` misses. The divergence is one predicate, not two
+  engines.
+
+#### Reproduction (verified 2026-08-05, isolated temp repo)
+
+16 files, byte-identical `sk-ant-…` literal in each, one per extension:
+
+```
+$ anvil gate --only-checks secret-detection
+✗ secret-detection  FAIL — Potential secrets found in 3 location(s):
+  /src/leak.js   /src/leak.rs   /src/leak.ts
+```
+
+**3 of 16 detected.** Missed: `.py .tsx .jsx .go .sh .tf .java .rb .php .cs
+.mjs .cjs .md`. With only missed extensions present:
+
+```
+$ anvil gate --only-checks secret-detection
+✓ secret-detection     PASS
+✓ All quality gates passed! (score: 100%)      → exit 0
+```
+
+while `anvil check` flags each of those files individually as a blocking error.
+
+Adds to Dave's observed set: **`.tsx` and `.jsx` are missed while `.ts` and
+`.js` are detected.** Not in the original report, and it is the widest blast
+radius here — every React/Next codebase gets a green secret gate on its
+component files.
+
+#### GATE-2 — hypothesis only (unverified)
+
+Dave's "3 files scanned" count matches the *shape* of the GATE-1 allow-list
+result exactly (3 of 16 survived filtering here). Plausible that the
+antipattern path carries its own independent filter producing the same
+symptom. **Not verified** — the antipattern scan's file selection was not
+traced. Recording the lead only; GATE-2 stays medium-confidence and must not
+be marked explained on this basis.
+
+#### Fix shape and blast radius
+
+Minimal fix is to replace gate's allow-list with the same predicate `check`
+already uses (`is_secret_scannable` / `should_skip_file`) — small in code,
+**not** small in effect: it will surface real pre-existing findings across
+existing repos. Per ADR-002 (warnings over blocks) and the new-edges-only
+baseline, the widening must land behind baseline handling rather than flipping
+CI red on merge, and it changes gate's coverage contract enough to deserve an
+ADR note. That is a live argument for shipping the **disclosure** half first
+(this item's stated preference) and the domain expansion after.
+
+#### Beta-blocker rationale (`v0.9.3-beta`)
+
+`anvil gate` is the CI enforcement point and secret leakage is anvil's flagship
+claim; it currently returns **exit 0 with "score: 100%"** over a live
+credential in a `.py` or `.tsx` file, with no statement of what it scanned. In
+isolation this is the more severe of the two release findings (CIB-254 is the
+other). If sequencing is too tight for the full domain fix, the acceptable
+minimum for the beta is **disclosure in full** — gate must state the domain it
+scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-256: `start --verify` meaning must not claim writes that did not run (START-1)
 
