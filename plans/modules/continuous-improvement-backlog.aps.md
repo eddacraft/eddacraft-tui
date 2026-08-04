@@ -6408,7 +6408,7 @@ archive.
 
 ### CIB-240: `tutorial` non-interactive refusal must exit non-zero with accurate copy
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3542
 - **Priority:** P3 (Dave UX-4)
 - **Intent:** `anvil tutorial` with no TTY (no `--no-tui` flag) refuses honestly
   but exits 0 (so `&&` chains proceed) and says "Run without `--no-tui`" even
@@ -6425,7 +6425,7 @@ archive.
 
 ### CIB-241: Clarify antipattern-scan name vs built-in rule catalogue scope
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3542
 - **Priority:** P3 docs (Dave UX-5; re-triaged — by design, not scope creep)
 - **Intent:** "antipattern-scan" is the registry-backed built-in rule catalogue,
   spanning architectural/code-quality smells, reliability rules, and the
