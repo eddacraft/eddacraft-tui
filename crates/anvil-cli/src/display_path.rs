@@ -22,6 +22,7 @@
 //! and it keeps the logic testable on every platform rather than only on
 //! Windows CI.
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 /// The Windows NT-extended ("verbatim") prefix, e.g. `\\?\C:\project`.
@@ -33,16 +34,15 @@ const VERBATIM_UNC_PREFIX: &str = r"\\?\UNC\";
 ///
 /// `\\?\UNC\server\share` becomes `\\server\share`; `\\?\C:\x` becomes `C:\x`.
 /// Any other input is returned untouched, so this is a no-op on Unix paths.
-pub fn strip_verbatim_prefix(path: &str) -> &str {
+///
+/// Returns [`Cow`] because the UNC form has to regain the leading `\\` that
+/// the verbatim prefix subsumes — without it, `\\?\UNC\server\share` would
+/// render as `server\share`, which reads as a relative path.
+pub fn strip_verbatim_prefix(path: &str) -> Cow<'_, str> {
     if let Some(rest) = path.strip_prefix(VERBATIM_UNC_PREFIX) {
-        // The UNC form loses its leading `\\` with the prefix; the caller
-        // wants a usable path back, and `\\` is what the shell accepts.
-        return rest
-            .strip_prefix('\\')
-            .map_or(rest, |r| r)
-            .trim_start_matches('/');
+        return Cow::Owned(format!(r"\\{rest}"));
     }
-    path.strip_prefix(VERBATIM_PREFIX).unwrap_or(path)
+    Cow::Borrowed(path.strip_prefix(VERBATIM_PREFIX).unwrap_or(path))
 }
 
 /// Normalise separators to `/` for display of workspace-relative paths.
@@ -97,14 +97,15 @@ fn strip_root(path: &str, root: &str) -> Option<String> {
 /// relative is passed through with its separators normalised.
 pub fn render(path: &str, root: Option<&Path>) -> String {
     let path = strip_verbatim_prefix(path);
+    let path = path.as_ref();
 
     if let Some(root) = root {
         let root = root.to_string_lossy();
         let root = strip_verbatim_prefix(&root);
-        if let Some(relative) = strip_root(path, root) {
-            if !relative.is_empty() {
-                return relative;
-            }
+        if let Some(relative) = strip_root(path, root.as_ref())
+            && !relative.is_empty()
+        {
+            return relative;
         }
     }
 
@@ -157,11 +158,14 @@ fn strip_secret_scanner_marker(file: &str) -> &str {
 pub fn render_secret_finding(file: &str, root: Option<&Path>) -> String {
     if let Some(root) = root {
         let root = root.to_string_lossy();
-        let relative = strip_root(strip_verbatim_prefix(file), strip_verbatim_prefix(&root));
-        if let Some(relative) = relative {
-            if !relative.is_empty() {
-                return relative;
-            }
+        let relative = strip_root(
+            strip_verbatim_prefix(file).as_ref(),
+            strip_verbatim_prefix(&root).as_ref(),
+        );
+        if let Some(relative) = relative
+            && !relative.is_empty()
+        {
+            return relative;
         }
     }
     render(strip_secret_scanner_marker(file), root)
@@ -223,8 +227,12 @@ mod tests {
     fn strips_verbatim_unc_prefix_to_usable_unc_path() {
         assert_eq!(
             strip_verbatim_prefix(r"\\?\UNC\server\share\file.txt"),
-            r"server\share\file.txt"
+            r"\\server\share\file.txt",
+            "a UNC path must keep its leading `\\\\` or it reads as relative"
         );
+        assert!(is_absolute_display(&strip_verbatim_prefix(
+            r"\\?\UNC\server\share\file.txt"
+        )));
     }
 
     #[test]

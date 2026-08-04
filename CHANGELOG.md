@@ -22,9 +22,8 @@ engineering maintenance are recorded in the
   mixed slashes.
 - **No more line `0`.** `audit` reported findings about a whole file — a
   committed `.env`, say — as `.env:0`, which read like a line number counting
-  from zero. Whole-file findings now show just the filename, and `--format
-  json` reports `"line": null` for them. Every line number anvil prints is
-  1-based.
+  from zero. Whole-file findings now show just the filename, and `--format json`
+  reports `"line": null` for them. Every line number anvil prints is 1-based.
 
 ## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
 
