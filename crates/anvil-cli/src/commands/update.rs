@@ -562,11 +562,20 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         return Ok(());
     }
 
-    let mut updater = axoupdater::AxoUpdater::new_for("anvil");
+    // App name must match cargo-dist / install receipt (`eddacraft-anvil`),
+    // not the binary short name `anvil` (CIB-229).
+    const DIST_APP_NAME: &str = "eddacraft-anvil";
+    let mut updater = axoupdater::AxoUpdater::new_for(DIST_APP_NAME);
 
     // Try loading the cargo-dist install receipt (created by shell/powershell installers).
-    // If missing (dev build, manual install), configure the release source manually.
-    if updater.load_receipt().is_err() {
+    // Prefer the package name; also try legacy `anvil` receipt paths.
+    let receipt_loaded = updater.load_receipt().is_ok()
+        || updater.load_receipt_as("anvil").is_ok();
+
+    // If missing (dev build, manual install), configure the release source
+    // manually *and* set install_prefix so is_update_needed is configured
+    // (axoupdater NotConfigured when prefix is absent).
+    if !receipt_loaded {
         if global.verbose {
             eprintln!("No install receipt found, configuring GitHub release source manually");
         }
@@ -578,8 +587,16 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
             release_type: axoupdater::ReleaseSourceType::GitHub,
             owner: GITHUB_OWNER.to_string(),
             name: GITHUB_REPO.to_string(),
-            app_name: "anvil".to_string(),
+            app_name: DIST_APP_NAME.to_string(),
         });
+        // Prefix = parent of the running binary when available (often …/bin).
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                if let Some(s) = parent.to_str() {
+                    updater.set_install_dir(s);
+                }
+            }
+        }
     }
 
     if args.force {

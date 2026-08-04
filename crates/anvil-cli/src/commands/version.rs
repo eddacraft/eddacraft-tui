@@ -496,11 +496,11 @@ pub fn detect_install_method_cached() -> InstallMethod {
 /// the helper is deterministic, so fixture tests do not need to
 /// fork or set environment variables.
 ///
-/// Detection order matters:
+/// Detection order matters (CIB-229):
 /// 1. Package managers by absolute / fragment path (Homebrew, Scoop, `WinGet`).
-/// 2. `cargo install` location (`$CARGO_HOME/bin` or `~/.cargo/bin`).
+/// 2. cargo-dist receipt (must beat `$CARGO_HOME/bin` — cargo-dist default layout).
 /// 3. Developer build under `target/{debug,release}/`.
-/// 4. cargo-dist receipt presence.
+/// 4. `cargo install` location (`$CARGO_HOME/bin` or `~/.cargo/bin`) without receipt.
 /// 5. Fall through to `Unknown`.
 pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
     let s = exe.to_string_lossy();
@@ -514,14 +514,15 @@ pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
     if WINGET_MARKERS.iter().any(|m| s.contains(m)) {
         return InstallMethod::Winget;
     }
-    if is_cargo_install(exe) {
-        return InstallMethod::CargoInstall;
+    // Receipt before CARGO_HOME/bin: shell/PowerShell installers use that path.
+    if has_cargo_dist_receipt(exe) {
+        return InstallMethod::CargoDist;
     }
     if is_dev_build(exe) {
         return InstallMethod::DevBuild;
     }
-    if has_cargo_dist_receipt(exe) {
-        return InstallMethod::CargoDist;
+    if is_cargo_install(exe) {
+        return InstallMethod::CargoInstall;
     }
 
     InstallMethod::Unknown
@@ -566,15 +567,28 @@ fn is_dev_build(exe: &Path) -> bool {
 }
 
 fn has_cargo_dist_receipt(exe: &Path) -> bool {
-    // cargo-dist's install receipt is `~/.config/anvil/anvil-receipt.json`
-    // (the platform user-config dir per `dirs::config_dir`). The
-    // axoupdater crate's `load_receipt` consults the same location;
-    // we just check existence rather than parsing.
+    // cargo-dist / axoupdater write `{config_dir}/{app_name}/{app_name}-receipt.json`.
+    // Our package/app name is `eddacraft-anvil` (not `anvil`). Also probe the
+    // legacy `anvil/anvil-receipt.json` path in case older tools wrote it.
+    // See CIB-229.
     let _ = exe; // path may be useful in future heuristics
     let Some(config_dir) = dirs::config_dir() else {
         return false;
     };
-    config_dir.join("anvil").join("anvil-receipt.json").exists()
+    cargo_dist_receipt_candidates(&config_dir)
+        .into_iter()
+        .any(|p| p.exists())
+}
+
+/// Possible install-receipt paths under a user config root (testable).
+pub(crate) fn cargo_dist_receipt_candidates(config_dir: &Path) -> Vec<std::path::PathBuf> {
+    vec![
+        config_dir
+            .join("eddacraft-anvil")
+            .join("eddacraft-anvil-receipt.json"),
+        // Legacy / mistaken path used before CIB-229.
+        config_dir.join("anvil").join("anvil-receipt.json"),
+    ]
 }
 
 // ─── Latest-version probe ────────────────────────────────────────────
@@ -1229,10 +1243,55 @@ mod tests {
         // the env var is restored after the test.
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bin").join("anvil");
-        let result = temp_env::with_var("CARGO_HOME", Some(dir.path().as_os_str()), || {
-            classify_exe_path(&bin)
-        });
+        // Isolate config so no cargo-dist receipt is visible (CIB-229 order).
+        let result = temp_env::with_vars(
+            [
+                ("CARGO_HOME", Some(dir.path().as_os_str())),
+                (
+                    "XDG_CONFIG_HOME",
+                    Some(dir.path().join("config").as_os_str()),
+                ),
+                ("HOME", Some(dir.path().as_os_str())),
+            ],
+            || classify_exe_path(&bin),
+        );
         assert_eq!(result, InstallMethod::CargoInstall);
+    }
+
+    #[test]
+    fn classify_exe_path_cargo_home_with_eddacraft_receipt_is_cargo_dist() {
+        // CIB-229: cargo-dist default layout is CARGO_HOME/bin + receipt
+        // under eddacraft-anvil/. Receipt must win over CargoInstall.
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config");
+        let receipt_dir = config.join("eddacraft-anvil");
+        std::fs::create_dir_all(&receipt_dir).unwrap();
+        std::fs::write(
+            receipt_dir.join("eddacraft-anvil-receipt.json"),
+            r#"{"install_prefix":"/tmp","binaries":["anvil"],"source":{"app_name":"eddacraft-anvil","name":"anvil","owner":"eddacraft","release_type":"github"},"version":"0.9.2-beta","provider":{"source":"cargo-dist","version":"0.31.0"}}"#,
+        )
+        .unwrap();
+        let bin = dir.path().join("cargo").join("bin").join("anvil");
+        let result = temp_env::with_vars(
+            [
+                ("CARGO_HOME", Some(dir.path().join("cargo").as_os_str())),
+                ("XDG_CONFIG_HOME", Some(config.as_os_str())),
+                ("HOME", Some(dir.path().as_os_str())),
+            ],
+            || classify_exe_path(&bin),
+        );
+        assert_eq!(result, InstallMethod::CargoDist);
+    }
+
+    #[test]
+    fn cargo_dist_receipt_candidates_prefer_eddacraft_anvil_name() {
+        let root = PathBuf::from("/tmp/cfg");
+        let c = cargo_dist_receipt_candidates(&root);
+        assert_eq!(
+            c[0],
+            PathBuf::from("/tmp/cfg/eddacraft-anvil/eddacraft-anvil-receipt.json")
+        );
+        assert!(c.iter().any(|p| p.ends_with("anvil/anvil-receipt.json")));
     }
 
     #[test]

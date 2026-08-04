@@ -6097,7 +6097,7 @@ archive.
 
 ### CIB-228: Fix PowerShell dual-install guard inject (silent no-op)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P0 for `v0.9.3-beta` (Windows install path)
 - **Intent:** The official Windows `irm … | iex` installer is a silent no-op on
   clean machines because the package-manager dual-install guard was written as a
@@ -6126,7 +6126,7 @@ archive.
 
 ### CIB-229: Align cargo-dist receipt layout with update + install-method detection
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P0 for `v0.9.3-beta` (self-update + version honesty)
 - **Intent:** Three symptoms share one root cause family: (1) `anvil update
   --check` fails with axoupdater "The updater isn't properly configured";

@@ -345,21 +345,15 @@ jobs:
           dist build ${{ needs.plan.outputs.tag-flag }} --output-format=json "--artifacts=global" > dist-manifest.json
           echo "dist ran successfully"
 
-          # GH #2885: prepend package-manager dual-install guard to the
-          # PowerShell installer so a cargo-dist install refuses when WinGet
-          # or Scoop already owns `anvil` on PATH.
+          # CIB-228 / GH #2885: inject package-manager dual-install guard
+          # *after* cargo-dist's top-level param(...) block (insert_after_param).
+          # Prepending a full script (second param + exit 0) made clean installs a
+          # silent no-op on Windows.
           ps1="$(find target/distrib -name 'eddacraft-anvil-installer.ps1' -print -quit 2>/dev/null || true)"
           guard="scripts/install/windows-package-manager-guard.ps1"
-          if [ -n "$ps1" ] && [ -f "$ps1" ] && [ -f "$guard" ]; then
-            {
-              echo "# --- begin anvil package-manager dual-install guard (GH #2885) ---"
-              cat "$guard"
-              echo "# --- end anvil package-manager dual-install guard ---"
-              echo ""
-              cat "$ps1"
-            } >"${ps1}.guarded"
-            mv "${ps1}.guarded" "$ps1"
-            echo "Injected Windows package-manager guard into ${ps1}"
+          inject="scripts/install/inject-windows-pm-guard.py"
+          if [ -n "$ps1" ] && [ -f "$ps1" ] && [ -f "$guard" ] && [ -f "$inject" ]; then
+            python3 "$inject" "$ps1" "$guard"
           else
             echo "::warning::PowerShell installer or guard script missing; dual-install guard not injected"
           fi
