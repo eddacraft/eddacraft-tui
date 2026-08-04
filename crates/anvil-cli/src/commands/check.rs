@@ -1295,8 +1295,15 @@ fn print_human(
 /// String form of [`print_human`], shared with the welcome autoplay demo.
 ///
 /// CIB-248: mirrors `output::plain`'s formats exactly (`section` underlines to
-/// 40 chars, `label` pads to 16, `item` prefixes an icon and two spaces) so the
-/// in-process demo output is byte-identical to the real `anvil check`.
+/// 40 chars, `label` pads to 16, `item` prefixes an icon and two spaces), so
+/// the same warnings render byte-identically here and on the real command's
+/// stdout.
+///
+/// That is a guarantee about *formatting only*. Whether a caller's output
+/// matches `anvil check` also depends on the warnings it passes in — the CLI
+/// path feeds warnings rebuilt by [`aggregated_warnings_for_print`] after a
+/// full analysis run. See `tutorial::autoplay::in_process_check_runner` for
+/// what the welcome demo does and does not reproduce.
 pub(crate) fn render_human(
     warnings: &[Warning],
     summary: &WarningSummary,
@@ -1389,10 +1396,15 @@ pub(crate) fn render_human(
 
 /// Render one warning exactly as `anvil check` prints it.
 ///
-/// CIB-248: the welcome autoplay demo renders the same findings in-process
-/// instead of shelling out to the licence-gated `anvil check`. Sharing this
-/// function is what keeps the demo honest — it cannot drift from what the
-/// real command prints, because it *is* what the real command prints.
+/// CIB-248: the welcome autoplay demo renders its findings in-process instead
+/// of shelling out to the licence-gated `anvil check`, and shares this function
+/// so a given `Warning` is presented identically on both paths.
+///
+/// Note that the presentation depends on the `Warning`: [`WarningReport::new`]
+/// attaches a source excerpt whenever `location.column` is set, reading
+/// `location.file` relative to the process CWD. The CLI path never hits that
+/// because [`aggregated_warnings_for_print`] clears the column; any other
+/// caller must do the same or accept a CWD-relative file read.
 fn render_warning(w: &Warning, verbose: bool) -> String {
     use std::fmt::Write as _;
 

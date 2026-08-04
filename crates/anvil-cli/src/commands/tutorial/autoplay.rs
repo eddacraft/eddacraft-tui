@@ -7,6 +7,28 @@ use anvil_checks::antipattern::{
 };
 use anvil_tui::surfaces::tutorial::{AutoplayRunner, CommandOutput};
 
+/// Drop the byte columns before the demo renders a finding.
+///
+/// `WarningReport::new` loads a source excerpt whenever `location.column` is
+/// populated, and it reads `location.file` — a **workspace-relative** path —
+/// with a plain `fs::read_to_string`. That resolves against the *process* CWD,
+/// which for `anvil welcome` is the user's own repository, not the demo
+/// sandbox. A finding detected in the sandbox fixture `src/app.ts` would then
+/// be rendered with the contents of the user's `src/app.ts`.
+///
+/// The real `anvil check` never renders an excerpt on this path: its human
+/// printer rebuilds every warning through `check::aggregated_warnings_for_print`,
+/// which hardcodes `column: None`. Mirroring that here is what actually makes
+/// the demo's findings identical to the real command's, rather than merely
+/// similar.
+fn strip_excerpt_columns(warnings: &mut [Warning]) {
+    for warning in warnings {
+        warning.location.column = None;
+        warning.location.end_line = None;
+        warning.location.end_column = None;
+    }
+}
+
 /// The in-process check the autoplay demo runs (CIB-248).
 ///
 /// Autoplay used to spawn `anvil check <target>` as a child process with
@@ -19,9 +41,21 @@ use anvil_tui::surfaces::tutorial::{AutoplayRunner, CommandOutput};
 /// hub ("runs gate / audit / doctor data collection ... in-process"), so no new
 /// bypass is introduced and `anvil check` itself stays gated for scripted use.
 ///
-/// Output goes through [`crate::commands::check::render_human`] — the very
-/// function the real command prints — so the demo cannot drift into showing
-/// something `anvil check` would not.
+/// # What is and is not guaranteed to match `anvil check`
+///
+/// **Rendering** is shared: findings and the summary go through
+/// [`crate::commands::check::render_human`], the same function the real command
+/// prints, and the warnings are normalised the same way (see
+/// [`strip_excerpt_columns`]). So the demo cannot show a *differently formatted*
+/// finding.
+///
+/// **Analysis is deliberately narrower**, and sharing the renderer does not
+/// change that. Against the same file `anvil check` additionally runs the AST
+/// tier (`anvil_checks_ast::scan_paths`), applies `.anvilrc` exclude globs and
+/// generated-path filtering, and prints a trailing "Blocking warnings found"
+/// notice. None of those run here. That is fine for a pinned single-file
+/// fixture whose findings are asserted by test, but it is not a general claim
+/// that the demo reproduces `anvil check` on arbitrary input.
 pub(crate) fn in_process_check_runner() -> AutoplayRunner {
     std::sync::Arc::new(|target: &Path| {
         let started = std::time::Instant::now();
@@ -40,8 +74,9 @@ pub(crate) fn in_process_check_runner() -> AutoplayRunner {
         // Reuse the scanner's own summary rather than recounting — the real
         // command reports these numbers, so the demo must not compute its own.
         let report = result.warnings;
-        let warnings: Vec<Warning> = report.warnings;
+        let mut warnings: Vec<Warning> = report.warnings;
         let summary: WarningSummary = report.summary;
+        strip_excerpt_columns(&mut warnings);
 
         let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let stdout = crate::commands::check::render_human(
@@ -212,6 +247,119 @@ mod tests {
             output.stdout,
             output.stderr
         );
+    }
+
+    /// A sentinel standing in for the user's own source file.
+    const HOST_SENTINEL: &str = "HOST_ONLY_SENTINEL_CIB248";
+
+    /// Build one warning whose location points at `file`, with a byte column —
+    /// exactly the shape the raw scanner produces.
+    fn warning_pointing_at(file: &str) -> super::Warning {
+        use anvil_checks::antipattern::{Confidence, Location, WarningCategory, WarningSeverity};
+
+        super::Warning {
+            id: "AP-003".to_string(),
+            fingerprint: None,
+            category: WarningCategory::AntiPattern,
+            severity: WarningSeverity::Warning,
+            confidence: Confidence::High,
+            title: "Explicit any type usage".to_string(),
+            message: "Found Explicit any type usage at line 1".to_string(),
+            explanation: String::new(),
+            suggestion: String::new(),
+            nudge: None,
+            location: Location {
+                file: file.to_string(),
+                line: 1,
+                column: Some(0),
+                end_line: None,
+                end_column: None,
+            },
+            pattern: None,
+            suppressed: None,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+        }
+    }
+
+    fn render_for_demo(warnings: &[super::Warning]) -> String {
+        crate::commands::check::render_human(
+            warnings,
+            &super::WarningSummary::default(),
+            &["src/app.ts".to_string()],
+            false,
+            0,
+            crate::commands::check::FileSource::Explicit,
+        )
+    }
+
+    /// CIB-248 (verification finding): the demo must never render the contents
+    /// of a file it did not scan.
+    ///
+    /// `WarningReport::new` loads a source excerpt whenever `location.column`
+    /// is set, reading the **workspace-relative** `location.file` relative to
+    /// the process CWD. `anvil welcome` is ungated and runs inside the user's
+    /// own repository, where `src/app.ts` is an ordinary path, so a finding
+    /// detected in the sandbox fixture would be rendered with the *host*
+    /// file's contents. `strip_excerpt_columns` closes that by matching what
+    /// `check::aggregated_warnings_for_print` already does.
+    ///
+    /// The decoy is referenced by **absolute** path rather than by staging a
+    /// relative one and changing the process CWD: `cargo test` runs every test
+    /// in one process and in parallel, and `set_current_dir` is process-wide,
+    /// so a scoped change would race every other test that touches a relative
+    /// path. An absolute path exercises the same `fs::read_to_string` in
+    /// `load_source_and_span` — the read that leaks — without that hazard.
+    #[test]
+    fn demo_render_never_embeds_the_contents_of_the_located_file() {
+        let decoy = tempfile::NamedTempFile::new().expect("decoy file");
+        std::fs::write(
+            decoy.path(),
+            format!("const x: any = \"{HOST_SENTINEL}\";\n"),
+        )
+        .expect("stage decoy");
+        let decoy_path = decoy.path().to_string_lossy().into_owned();
+
+        // Control: with the scanner's column intact, the renderer *does* read
+        // and embed the file. This is the leak, reproduced.
+        let mut warnings = vec![warning_pointing_at(&decoy_path)];
+        assert!(
+            render_for_demo(&warnings).contains(HOST_SENTINEL),
+            "control failed: the renderer no longer embeds excerpts, so this \
+             test would pass vacuously"
+        );
+
+        // Fix: the demo strips columns, so no file is read at all.
+        super::strip_excerpt_columns(&mut warnings);
+        let rendered = render_for_demo(&warnings);
+        assert!(
+            !rendered.contains(HOST_SENTINEL),
+            "host file contents leaked into the demo pane: {rendered}"
+        );
+    }
+
+    /// End-to-end on the real runner: the pinned fixture's findings render
+    /// with no excerpt block, so no source file is read for display at all.
+    #[test]
+    fn in_process_runner_renders_no_source_excerpt_block() {
+        let sandbox = AutoplaySandbox::new().expect("sandbox");
+        let target = sandbox.resolve_target("src/app.ts").expect("target");
+
+        let output = super::in_process_check_runner()(&target);
+
+        // miette's graphical handler draws a snippet header only when a source
+        // excerpt is attached. Both themes are checked because the handler
+        // picks unicode or ASCII box drawing from the environment.
+        for marker in ["\u{256d}\u{2500}[", ",-[", "\u{2570}\u{2500}", "`---"] {
+            assert!(
+                !output.stdout.contains(marker),
+                "demo output must carry no source excerpt, found {marker:?} in: {}",
+                output.stdout
+            );
+        }
+        // Sanity: the findings themselves are still shown.
+        assert!(output.stdout.contains("AP-003"), "{}", output.stdout);
     }
 
     /// The repaired-fixture step asserts `Verify::ExitCode(0)`.
