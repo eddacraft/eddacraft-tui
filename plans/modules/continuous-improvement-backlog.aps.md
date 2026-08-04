@@ -6579,10 +6579,11 @@ archive.
 
 ### CIB-246: Align first-run tutorial path names with return-visit welcome hub
 
-- **Status:** In Progress 2026-08-04 — hub tutorial entry renamed to the path
-  picker's own title (`PATH_PICKER_TITLE`) and the hub now names the first-run
-  marker in one line on PR #3523. On merge, flip this to
-  `Merged YYYY-MM-DD via PR #3523`.
+- **Status:** Merged 2026-08-04 via PR #3523 — hub tutorial entry renamed to
+  the path picker's own title (`PATH_PICKER_TITLE`) and the hub now names the
+  first-run marker in one line. Scope note: the hub↔picker crossing is closed
+  and test-pinned, but the onboarding surface still offers a third name for
+  the same object (see CIB-273), so the defect *class* is not fully closed.
 - **Priority:** P2 welcome UX (operator screenshots 2026-08-04)
 - **Intent:** `anvil welcome` presents two different menu taxonomies for the
   same product journey. First-run / path-select uses tutorial labels
@@ -6607,9 +6608,8 @@ archive.
 
 ### CIB-247: First-run scan must not dump raw live-repo ERRORs as the tutorial "domain"
 
-- **Status:** In Progress 2026-08-04 — welcome/tutorial framing open in PR
-  #3524; flip to `Merged YYYY-MM-DD via PR #3524` when that PR merges.
-- **Implementation note (2026-08-04, In Progress):** took option **(b)**,
+- **Status:** Merged 2026-08-04 via PR #3524 — welcome/tutorial framing landed.
+- **Implementation note (2026-08-04):** took option **(b)**,
   honest framing of the live-repo scan. Options (a) and (c) both change *what
   is counted* — a sandbox domain or a `**/tests/**` exclusion would have made
   the number smaller and friendlier without making it truer, against the
@@ -6647,11 +6647,16 @@ archive.
 
 ### CIB-248: Autoplay failures must stay in the TUI (auth root cause + recovery UX)
 
-- **Status:** In Progress — on merge, set to `Merged YYYY-MM-DD via PR #N`.
-  Expected outcomes 2 and 3 land in full; outcome 1 lands as "never exits the
-  TUI" (recovery returns to the path picker with an explanation), **without**
-  the richer in-path *retry / skip* affordances. Re-file that affordance
-  separately if still wanted now the auth cause is removed.
+- **Status:** Merged 2026-08-04 via PR #3521. Expected outcomes 2 and 3 land
+  in full; outcome 1 lands as "never exits the TUI" (recovery returns to the
+  path picker with an explanation), **without** the richer in-path *retry /
+  skip* affordances. Re-file that affordance separately if still wanted now
+  the auth cause is removed.
+  **Coverage correction (2026-08-04):** outcome 1 landed for the **`anvil
+  welcome` entry point only**. The standalone `anvil tutorial --autoplay`
+  path (`crates/anvil-cli/src/commands/tutorial.rs:150-153`) still returns
+  `Err` and leaves the TUI on autoplay failure. Tracked as CIB-271; the
+  wording above should not be read as a general guarantee.
 - **Approach:** ADR-080's in-process posture (option (a)/(c) family) — the demo
   calls the check directly and the licence gate is never consulted. No bypass
   env var, no credential pass-through, no ADR amendment required.
@@ -7136,3 +7141,185 @@ is reserved for a concurrent Claude lane** and must not be consumed here):
 - **Untested surfaces** — lsp, capsule, exception, edda/ember, drift, uninstall,
   wizard, new, dashboard, real remote push, three learning paths E2E, macOS,
   Linux, other gits
+||||||| parent of 1fd14ff0f (docs(aps): mark CIB-246..248 merged and file follow-ups)
+### CIB-268: Autoplay worker panics are silent in the terminal, hurting debuggability
+
+- **Status:** Ready
+- **Priority:** P3 developer experience (CIB-248 verification advisory 2026-08-04)
+- **Intent:** `install_panic_hook` in `crates/anvil-cli/src/tui.rs` returns
+  early — printing nothing and skipping `restore_terminal` — when the
+  panicking thread is `AUTOPLAY_WORKER_THREAD`. That is correct for the live
+  TUI (a backtrace over the frame would corrupt it), but it means a panic in
+  the in-process demo check produces **no terminal output at all**. The text
+  survives only in the step's `stderr`, shown in the recovery notice, which is
+  truncated framing rather than a diagnostic.
+- **Expected Outcome:** Panic detail from the autoplay worker reaches somewhere
+  a developer will find it without corrupting the frame — e.g. the existing
+  debug log sink, `ANVIL_LOG`, or a file under the sandbox root. Suppression
+  stays the default for the live frame; the information does not vanish.
+- **Non-scope:** Restoring the terminal from that thread, or printing over a
+  live frame.
+- **Files:** `crates/anvil-cli/src/tui.rs` (`install_panic_hook`),
+  `crates/anvil-tui/src/surfaces/tutorial/executor.rs` (worker + `catch_unwind`)
+- **Validation:** an injected panic in the autoplay worker leaves a retrievable
+  message; the TUI frame is still not corrupted.
+- **Identified From:** CIB-248 independent verification advisory (PR #3521).
+- **Coordinates with:** CIB-248, CIB-269
+- **Confidence:** high — behaviour is explicit in the hook.
+
+### CIB-269: Panic-hook thread-name suppression is latent coupling if the name is reused
+
+- **Status:** Ready
+- **Priority:** P3 robustness (CIB-248 verification advisory 2026-08-04)
+- **Intent:** The panic hook suppresses output purely by matching the thread
+  **name** `AUTOPLAY_WORKER_THREAD`. Suppression is only safe because that
+  thread is wrapped in `catch_unwind` and reports failure as a demo step. Any
+  future thread spawned with the same name but **without** `catch_unwind`
+  would silently swallow its panic and leave the terminal unrestored — a
+  failure that is invisible rather than loud.
+- **Expected Outcome:** Make the coupling explicit rather than nominal. Options:
+  key suppression off a thread-local or atomic set by the `catch_unwind`
+  wrapper rather than the name; or assert at the single spawn site that the
+  name and the wrapper are introduced together, with a comment stating the
+  invariant.
+- **Files:** `crates/anvil-cli/src/tui.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/executor.rs`
+- **Validation:** a thread bearing the name without `catch_unwind` either
+  cannot be constructed or does not get suppression.
+- **Identified From:** CIB-248 independent verification advisory (PR #3521).
+- **Coordinates with:** CIB-248, CIB-268
+- **Confidence:** high — the invariant is real but unenforced.
+
+### CIB-270: Recorded environmental test baseline is understated and hides real failures
+
+- **Status:** Ready
+- **Priority:** P2 validation honesty (observed across PR #3521/#3523 2026-08-04)
+- **Intent:** The baseline agents are handed ("the `mcp::tools::*` daemon
+  family") omits members that do fail routinely, so a genuine regression can
+  be waved through as "known". Three concrete gaps:
+  1. `mcp_serve_stdio_resources_read_stats_returns_contents`
+     (`crates/anvil-cli/tests/mcp_serve_stdio.rs:613`) fails for the same
+     no-daemon reason (`not_ready` vs `unavailable`) but sits in a separate
+     integration binary, so it reads as "outside the family".
+  2. `telemetry::tests::reservation_commit_enforces_one_success_per_install_per_day`
+     fails under parallel runs and passes in isolation; it is a known flake
+     but is not written down.
+  3. `cargo test -p eddacraft-anvil` **fail-fast** exits after the lib binary
+     and never reaches the integration tests, so the suite silently
+     under-reports unless `--no-fail-fast` is passed.
+- **Expected Outcome:** One recorded baseline that names every expected
+  failure and the reason, plus the `--no-fail-fast` requirement, in the place
+  agents actually read (`AGENTS.md` or the probe manifest). Better still, make
+  the daemon-dependent tests skip explicitly when no daemon is present so the
+  baseline is empty rather than memorised.
+- **Files:** `AGENTS.md` validation section, `crates/anvil-cli/tests/`
+  daemon-dependent tests, `crates/anvil-cli/src/telemetry.rs` tests
+- **Validation:** a fresh agent running the documented command sees either
+  zero failures or exactly the documented set, and cannot mistake a real
+  failure for an environmental one.
+- **Identified From:** gate runs on PR #3521 and PR #3523 (2026-08-04).
+- **Coordinates with:** CIB-248, aps-probe
+- **Confidence:** high — reproduced on both lanes.
+
+### CIB-271: `anvil tutorial --autoplay` still exits the TUI on autoplay failure
+
+- **Status:** Ready
+- **Priority:** P2 welcome reliability (CIB-248 coverage gap 2026-08-04)
+- **Intent:** CIB-248 made autoplay failure non-fatal for the **`anvil
+  welcome`** entry point: `welcome.rs:1137-1139` calls
+  `recover_from_autoplay_failure` and returns to the path picker. The
+  standalone `anvil tutorial --autoplay` loop was not changed —
+  `crates/anvil-cli/src/commands/tutorial.rs:150-153` still does
+  `abort_autoplay_session()` then `return Err(anyhow!(failure))`, dropping the
+  user to scrollback exactly as the original defect described.
+- **Expected Outcome:** The `tutorial` loop recovers the same way `welcome`
+  does — stay in the TUI, restore the pre-demo context, return to the path
+  picker with an explanation — or the divergence is deliberately documented
+  with a reason.
+- **Non-scope:** The richer in-path retry / skip affordances explicitly
+  descoped by CIB-248.
+- **Files:** `crates/anvil-cli/src/commands/tutorial.rs` (autoplay failure
+  branch), `crates/anvil-tui/src/surfaces/tutorial/mod.rs`
+  (`recover_from_autoplay_failure`)
+- **Validation:** an injected autoplay failure under `anvil tutorial
+  --autoplay` stays in the TUI and restores the pre-demo scan context.
+- **Identified From:** CIB-248 verification advisory A1; confirmed against
+  `main` after PR #3521 merged.
+- **Coordinates with:** CIB-248
+- **Confidence:** high — verified in the merged source.
+
+### CIB-272: Full-mode welcome can squeeze the logo at exactly `height == content_height`
+
+- **Status:** Ready
+- **Priority:** P3 welcome layout (CIB-246 verification advisory 2026-08-04)
+- **Intent:** In full mode at exactly `height == content_height` (18 without a
+  status line, 20 with) and any width ≥ 72, the layout constraints total one
+  row more than the available area because `top_pad` is floored at 1
+  (`crates/anvil-tui/src/surfaces/welcome/render.rs:98`), and the logo renders
+  at 6 rows instead of 7. This is **pre-existing and unchanged** by PR #3523 —
+  base and head both squeeze identically — but CIB-179's guard
+  (`compact_hint_never_squeezes_logo`) only sweeps *compact* mode at width 40,
+  so full mode has no equivalent height sweep protecting it.
+- **Expected Outcome:** Either full mode stops squeezing at that boundary, or a
+  CIB-179-style height sweep for full mode pins the current behaviour so it
+  cannot silently worsen.
+- **Files:** `crates/anvil-tui/src/surfaces/welcome/render.rs` (`top_pad`,
+  full-mode constraints and tests)
+- **Validation:** a width × height sweep over full mode asserts the logo keeps
+  its intended row count, or documents the exact boundary where it cannot.
+- **Identified From:** CIB-246 independent verification advisory (PR #3523),
+  reproduced with a standalone ratatui layout probe.
+- **Coordinates with:** CIB-179, CIB-246
+- **Confidence:** high for the constraint model; the real renderer is untested
+  at 80×18.
+
+### CIB-273: Onboarding still offers a third name for the tutorial ("Explore the tutorial")
+
+- **Status:** Ready
+- **Priority:** P2 welcome naming honesty (CIB-246 verification advisory 2026-08-04)
+- **Intent:** CIB-246 aligned the return-visit hub with the path picker, but
+  the first-run onboarding surface was not covered.
+  `crates/anvil-tui/src/surfaces/onboarding/welcome.rs:20` labels
+  `OnboardingChoice::SkipToTutorial` as **"Explore the tutorial"**, and it
+  routes to `OnboardingOutcome::Tutorial`
+  (`crates/anvil-cli/src/commands/welcome.rs:419`) — landing on the same path
+  picker the hub now calls "Choose a learning path". First-run users therefore
+  still meet a different name for the object returning users meet, which is
+  the exact defect class CIB-246 was filed against.
+- **Expected Outcome:** The onboarding entry names the picker it opens, the
+  same way the hub entry now does, and the crossing is pinned by a test
+  against `PATH_PICKER_TITLE` so it cannot drift back.
+- **Non-scope:** Re-litigating sentence-case vs title-case per surface; the
+  existing pin is deliberately case-insensitive.
+- **Files:** `crates/anvil-tui/src/surfaces/onboarding/welcome.rs`,
+  `crates/anvil-tui/src/surfaces/welcome/mod.rs` (existing pin to mirror)
+- **Validation:** a test asserts the onboarding tutorial entry matches
+  `PATH_PICKER_TITLE` case-insensitively, mirroring
+  `tutorial_entry_is_named_after_the_path_picker`.
+- **Identified From:** CIB-246 independent verification advisory (PR #3523).
+- **Coordinates with:** CIB-246, UJ, WOW
+- **Confidence:** high — third label confirmed in source.
+
+### CIB-274: `TutorialState::reset` drops the stashed autoplay context without restoring
+
+- **Status:** Ready
+- **Priority:** P4 latent correctness (CIB-248 review 2026-08-04)
+- **Intent:** `reset` sets `autoplay_saved_context = None`
+  (`crates/anvil-tui/src/surfaces/tutorial/mod.rs:1536`) rather than calling
+  `restore_autoplay_context()`. That is correct **today** only because `reset`
+  also clears `scan_results` and the completion fields, so there is nothing to
+  restore into. It is a silent-drop shape: if `reset` ever stops clearing
+  those fields, a reset mid-autoplay would permanently discard the user's
+  pre-demo scan results with no error and no test failure.
+- **Expected Outcome:** Make the intent explicit — either call
+  `restore_autoplay_context()` before clearing, or comment the invariant that
+  `reset` must clear every field the stash owns, ideally with a test that
+  fails if the two field sets drift apart.
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/mod.rs` (`reset`,
+  `stash_autoplay_context`, `restore_autoplay_context`)
+- **Validation:** a test pins that the fields cleared by `reset` are a
+  superset of the fields captured by `AutoplaySavedContext`.
+- **Identified From:** owner review of the CIB-248 restore delta (PR #3521).
+- **Coordinates with:** CIB-248
+- **Confidence:** medium — not a live defect; a trap for the next change.
+
