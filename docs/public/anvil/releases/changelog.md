@@ -56,7 +56,7 @@ flag-gated and is not a claim of this release.
 - Optional anonymous usage telemetry (opt-out). Inspect with `anvil telemetry`;
   turn off with `anvil telemetry off`, `ANVIL_TELEMETRY=off`, or
   `DO_NOT_TRACK=1`. See [anonymous usage telemetry](../operations/telemetry.md).
-- `anvil mcp install --client` configures twelve AI clients (Claude Code,
+- `anvil mcp install --client <id>` configures twelve AI clients (Claude Code,
   Cursor, Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, Copilot
   CLI, Grok, Warp, Zed), with `--verify` and `--dry-run`. Interactive start
   lists them with nothing ticked until you choose; scripts can use

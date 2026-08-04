@@ -150,13 +150,20 @@ function parseClients(source) {
 }
 
 function clientDisplayName(variant) {
+  // Must match AgentClient.display_name in agent_registry.rs (enum fallback only).
   const names = {
     ClaudeCode: 'Claude Code',
-    GeminiCli: 'Gemini CLI',
-    VsCode: 'VS Code',
-    CopilotCli: 'Copilot CLI',
+    Cursor: 'Cursor',
+    Codex: 'Codex',
     OpenCode: 'OpenCode',
+    GeminiCli: 'Gemini CLI',
+    Antigravity: 'Antigravity',
     OpenClaw: 'OpenClaw',
+    VsCode: 'VS Code',
+    CopilotCli: 'GitHub Copilot CLI',
+    Grok: 'Grok Build',
+    Warp: 'Warp',
+    Zed: 'Zed',
   };
   return names[variant] ?? variant;
 }
@@ -168,8 +175,13 @@ function parseStartFlags(source) {
   if (start < 0) fail('could not locate StartArgs');
   // End at the next top-level item after the struct body.
   const after = source.slice(start);
-  const endRel = after.search(/\n}\n\n(?:\/\/\/|#\[|pub |fn |const |struct |enum |impl )/);
-  if (endRel < 0) fail('could not locate end of StartArgs');
+  let endRel = after.search(/\n}\n\n(?:\/\/\/|#\[|pub |fn |const |struct |enum |impl )/);
+  if (endRel < 0) {
+    // Fixture / end-of-file structs: close on the first top-level `}`.
+    const close = after.search(/\n}\s*$/);
+    if (close < 0) fail('could not locate end of StartArgs');
+    endRel = close;
+  }
   const end = start + endRel;
 
   const flags = [];
@@ -382,7 +394,7 @@ function renderSupport(languages, targets, ruleExtensions, clients) {
     `| Platform | Release target |\n| --- | --- |\n${platformRows}\n\n` +
     `## Language coverage\n\n| Language | File extensions | Current depth |\n| --- | --- | --- |\n${languageRows}\n\n` +
     `## AI clients\n\n` +
-    `\`anvil start\` and \`anvil mcp install --client\` configure supported AI clients for MCP-backed pre-write validation. ` +
+    `\`anvil start\` and \`anvil mcp install --client <id>\` configure supported AI clients for MCP-backed pre-write validation. ` +
     `The install registry currently includes **${clients.join('**, **')}** (${clients.length} clients). ` +
     `Interactive \`anvil start\` offers every registry client (unticked by default); scripted installs use \`anvil start --mcp-client <id>\`, \`anvil start --all-mcp-clients\`, or \`anvil mcp install --client <id>\`. ` +
     `Client ids and scope notes change with the binary — always run \`anvil mcp install --help\` on your install for the authoritative list. ` +

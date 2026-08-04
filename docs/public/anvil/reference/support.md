@@ -51,9 +51,9 @@ assuming that every target is present in every beta.
 
 ## AI clients
 
-`anvil start` and `anvil mcp install --client` configure supported AI clients
-for MCP-backed pre-write validation. The install registry currently includes
-**Claude Code**, **Cursor**, **Codex**, **OpenCode**, **Gemini CLI**,
+`anvil start` and `anvil mcp install --client <id>` configure supported AI
+clients for MCP-backed pre-write validation. The install registry currently
+includes **Claude Code**, **Cursor**, **Codex**, **OpenCode**, **Gemini CLI**,
 **Antigravity**, **OpenClaw**, **VS Code**, **GitHub Copilot CLI**, **Grok
 Build**, **Warp**, **Zed** (12 clients). Interactive `anvil start` offers every
 registry client (unticked by default); scripted installs use

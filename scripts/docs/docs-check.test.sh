@@ -439,6 +439,7 @@ generated_root="${tmp_root}/generated-reference-fixture"
 mkdir -p \
   "${generated_root}/patterns/compiled" \
   "${generated_root}/crates/anvil-cli/src" \
+  "${generated_root}/crates/anvil-cli/src/commands" \
   "${generated_root}/crates/anvil-cli/src/activation" \
   "${generated_root}/crates/anvil-kernel/src/parser"
 cat >"${generated_root}/patterns/compiled/registry.json" <<'EOF'
@@ -455,6 +456,10 @@ cat >"${generated_root}/patterns/compiled/registry.json" <<'EOF'
 }
 EOF
 cat >"${generated_root}/crates/anvil-cli/src/main.rs" <<'EOF'
+pub const EXIT_OK: u8 = 0;
+pub const EXIT_ERROR: u8 = 1;
+pub const EXIT_AUTH_REQUIRED: u8 = 3;
+
 enum Commands {
     /// Check one file.
     #[command(name = "run-check")]
@@ -472,11 +477,35 @@ enum Commands {
 
 /// Canonical stable name for a command.
 EOF
-cat >"${generated_root}/crates/anvil-cli/src/activation/diagnostic.rs" <<'EOF'
-pub enum McpClientId {
+cat >"${generated_root}/crates/anvil-cli/src/activation/agent_registry.rs" <<'EOF'
+pub enum AgentClientId {
     Cursor,
     ClaudeCode,
 }
+
+// Registry table form used by the live generator (display_name wins).
+const CLIENTS: &[AgentClient] = &[
+    AgentClient {
+        display_name: "Cursor",
+    },
+    AgentClient {
+        display_name: "Claude Code",
+    },
+];
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/start.rs" <<'EOF'
+/// CLI args for anvil start.
+pub struct StartArgs {
+    /// Run a read-only activation probe.
+    #[arg(long)]
+    pub verify: bool,
+    /// Skip MCP install.
+    #[arg(long = "no-mcp")]
+    pub no_mcp: bool,
+}
+
+/// Sentinel so the public-reference parser can close the struct body.
+pub fn start_args_fixture_end() {}
 EOF
 cat >"${generated_root}/crates/anvil-kernel/src/parser/languages.rs" <<'EOF'
 pub fn from_path(path: &Path) -> Option<Self> {
