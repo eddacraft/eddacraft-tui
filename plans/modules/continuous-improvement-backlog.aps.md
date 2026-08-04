@@ -6308,7 +6308,7 @@ archive.
 
 ### CIB-235: `status` Protection:warming must name next step or refuse that label
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3544
 - **Priority:** P2 (Dave TRUST-3)
 - **Intent:** `status` can show `Protection: warming` in a state that will never
   warm, with no named next step, while leaking internals
@@ -6333,7 +6333,7 @@ archive.
 
 ### CIB-236: `insights` zeros must disclose the counted domain
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3544
 - **Priority:** P3 (Dave TRUST-4)
 - **Intent:** All-zero insights counters do not say what domain was counted
   (zeros may be true for unattested contexts; rendering gap).
