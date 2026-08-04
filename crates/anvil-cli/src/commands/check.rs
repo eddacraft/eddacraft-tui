@@ -376,10 +376,13 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 let file_refs: Vec<&str> = scannable_files.iter().map(String::as_str).collect();
                 let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
                 for finding in &result.findings {
-                    aggregated_warnings
-                        .push(secret_finding_to_json(finding, workspace_root.as_deref()));
+                    aggregated_warnings.push(secret_finding_to_json(
+                        finding,
+                        &file_refs,
+                        workspace_root.as_deref(),
+                    ));
                     if mode == OutputMode::Sarif {
-                        sarif.add_secret(finding, workspace_root.as_deref());
+                        sarif.add_secret(finding, &file_refs, workspace_root.as_deref());
                     }
                 }
                 checks_run.push((*check_name).to_string());
@@ -562,9 +565,17 @@ fn secret_rule_id(pattern_name: &str) -> String {
     )
 }
 
-fn secret_finding_to_json(f: &SecretFinding, workspace_root: Option<&str>) -> JsonWarning {
+fn secret_finding_to_json(
+    f: &SecretFinding,
+    scanned: &[&str],
+    workspace_root: Option<&str>,
+) -> JsonWarning {
     let id = secret_rule_id(&f.pattern_name);
-    let file = crate::display_path::render_secret_finding(&f.file, workspace_root.map(Path::new));
+    let file = crate::display_path::render_secret_finding(
+        &f.file,
+        scanned,
+        workspace_root.map(Path::new),
+    );
     JsonWarning {
         id,
         category: "secret".to_string(),
@@ -641,10 +652,13 @@ impl SarifAccumulator {
         self.results.push(result);
     }
 
-    fn add_secret(&mut self, f: &SecretFinding, workspace_root: Option<&str>) {
+    fn add_secret(&mut self, f: &SecretFinding, scanned: &[&str], workspace_root: Option<&str>) {
         let id = secret_rule_id(&f.pattern_name);
-        let file =
-            crate::display_path::render_secret_finding(&f.file, workspace_root.map(Path::new));
+        let file = crate::display_path::render_secret_finding(
+            &f.file,
+            scanned,
+            workspace_root.map(Path::new),
+        );
         self.rules.entry(id.clone()).or_insert_with(|| {
             sarif::ReportingDescriptor::new(id.clone())
                 .short_description(format!("Potential secret: {}", f.pattern_name))
@@ -1927,7 +1941,7 @@ mod tests {
             redacted_match: "sk-***".to_string(),
             redacted_line: "const apiKey = \"sk-***\";".to_string(),
         };
-        let json = secret_finding_to_json(&finding, None);
+        let json = secret_finding_to_json(&finding, &[], None);
         assert_eq!(json.category, "secret");
         // Issue #1797 hinges on `--severity error` (the default) treating
         // a hardcoded secret as blocking — same semantic as `anvil gate`.
@@ -2051,11 +2065,38 @@ mod tests {
             redacted_match: "[REDACTED]".to_string(),
             redacted_line: "const apiKey = \"[REDACTED]\";".to_string(),
         };
-        let json = secret_finding_to_json(&finding, None);
+        let json = secret_finding_to_json(
+            &finding,
+            &["/home/dev/project/src/smelly.ts"],
+            Some("/home/dev/project"),
+        );
         assert_eq!(
             json.file, "src/smelly.ts",
             "leading slash from secret scanner must be stripped"
         );
+    }
+
+    /// CIB-237: the marker strip is only safe once the finding is resolved
+    /// against the files actually scanned. A secret outside the workspace
+    /// keeps its absolute path rather than being rewritten into a relative
+    /// one naming a different file.
+    #[test]
+    fn secret_finding_outside_the_workspace_keeps_its_absolute_path() {
+        use anvil_checks::secret::{FindingType, SecretFinding};
+        let finding = SecretFinding {
+            file: "/etc/secrets/prod.env".to_string(),
+            line: 1,
+            finding_type: FindingType::Pattern,
+            pattern_name: "High Entropy String".to_string(),
+            redacted_match: "[REDACTED]".to_string(),
+            redacted_line: "API_KEY=[REDACTED]".to_string(),
+        };
+        let json = secret_finding_to_json(
+            &finding,
+            &["/etc/secrets/prod.env"],
+            Some("/home/dev/project"),
+        );
+        assert_eq!(json.file, "/etc/secrets/prod.env");
     }
 
     #[test]
@@ -2208,7 +2249,8 @@ mod tests {
                 redacted_match: "sk-…".to_string(),
                 redacted_line: "const k = \"sk-…\"".to_string(),
             },
-            None,
+            &["/home/dev/project/src/config.ts"],
+            Some("/home/dev/project"),
         );
         let value = serde_json::to_value(acc.into_log()).expect("serialise");
 

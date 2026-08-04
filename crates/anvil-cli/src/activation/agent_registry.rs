@@ -463,13 +463,18 @@ mod tests {
         }
     }
 
-    /// A path is natively separated when rebuilding it component-wise is a
-    /// no-op — the check that fails on Windows for an embedded `/`.
+    /// A path is natively separated when rebuilding it component-wise yields
+    /// the same STRING.
+    ///
+    /// Comparing `PathBuf`s here would be useless: `Path` equality is
+    /// component-wise and Windows accepts `/` as a separator, so
+    /// `C:\\x\\.claude/skills` and `C:\\x\\.claude\\skills` compare equal on every
+    /// platform. Only the string form can catch the mixed-separator bug.
     fn assert_native_separators(path: &Path, client: &str, what: &str) {
         let rebuilt: PathBuf = path.components().collect();
         assert_eq!(
-            &rebuilt,
-            path,
+            rebuilt.to_str(),
+            path.to_str(),
             "{client} {what} has mixed separators: {}",
             path.display()
         );

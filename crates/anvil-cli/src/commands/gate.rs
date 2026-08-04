@@ -1111,7 +1111,7 @@ fn run_check_secret(
         let locations: Vec<String> = result
             .findings
             .iter()
-            .map(|f| secret_finding_location(f, root))
+            .map(|f| secret_finding_location(f, &file_refs, root))
             .collect();
         CheckResult {
             name: name.to_string(),
@@ -1147,8 +1147,12 @@ fn warning_location(file: &str, line: usize, id: &str) -> String {
 /// family in the same gate run returns `{relative}`, so an unfiltered format
 /// printed `/.env:1` directly above `src/app.py:12`. Routing through
 /// [`crate::display_path`] gives the whole gate output one path style.
-fn secret_finding_location(f: &anvil_checks::secret::SecretFinding, root: &Path) -> String {
-    let file = crate::display_path::render_secret_finding(&f.file, Some(root));
+fn secret_finding_location(
+    f: &anvil_checks::secret::SecretFinding,
+    scanned: &[&str],
+    root: &Path,
+) -> String {
+    let file = crate::display_path::render_secret_finding(&f.file, scanned, Some(root));
     format!(
         "{} [{}]",
         crate::display_path::format_location(&file, f.line),
@@ -6041,7 +6045,7 @@ rules: []
         let locations: Vec<String> = result
             .findings
             .iter()
-            .map(|f| secret_finding_location(f, tmp.path()))
+            .map(|f| secret_finding_location(f, &file_refs, tmp.path()))
             .collect();
         assert!(!locations.is_empty());
         assert!(
@@ -6071,7 +6075,7 @@ rules: []
         let root_str = tmp.path().to_string_lossy().to_string();
         let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
 
-        let secret_location = secret_finding_location(&result.findings[0], tmp.path());
+        let secret_location = secret_finding_location(&result.findings[0], &file_refs, tmp.path());
         let antipattern_location = warning_location("src/app.py", 12, "AP-003");
 
         assert!(

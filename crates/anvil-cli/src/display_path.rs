@@ -55,6 +55,12 @@ fn to_display_separators(path: &str) -> String {
 /// Windows path comparison is case-insensitive, so `C:/Project` and
 /// `c:/project` name the same directory and must strip. Unix is
 /// case-sensitive and folding there would strip prefixes that do not match.
+///
+/// Known limitation: the fold is ASCII-only, while NTFS folds Unicode. A root
+/// containing non-ASCII letters whose case differs between `git rev-parse` and
+/// the directory walker still degrades to an absolute path on Windows. Fixing
+/// it needs a Unicode-aware fold; the failure mode is a less tidy path, not a
+/// wrong one.
 fn segments_match(left: &str, right: &str) -> bool {
     if cfg!(windows) {
         left.eq_ignore_ascii_case(right)
@@ -87,7 +93,10 @@ fn strip_root(path: &str, root: &str) -> Option<String> {
         return Some(String::new());
     }
     let rest = rest.strip_prefix('/')?;
-    Some(rest.to_string())
+    // Collapse a leading `./`, which `Path::strip_prefix` used to drop for us.
+    // `check` feeds this value to a `git check-attr` set lookup, so a stray
+    // `./` would miss the generated-file set and un-suppress a finding.
+    Some(rest.trim_start_matches("./").to_string())
 }
 
 /// Render a finding location path for human and JSON output.
@@ -135,40 +144,53 @@ fn is_absolute_display(path: &str) -> bool {
         && (bytes[2] == b'\\' || bytes[2] == b'/')
 }
 
-/// Strip the leading `/` that the `anvil-checks` secret scanner prefixes onto
-/// workspace-relative finding paths.
+/// Whether the secret scanner, given `root`, would report `scanned` as `emitted`.
 ///
-/// Private on purpose: applied blindly it corrupts the scanner's *other*
-/// output shape (see [`render_secret_finding`]). Callers want that function.
-fn strip_secret_scanner_marker(file: &str) -> &str {
-    file.strip_prefix('/').unwrap_or(file)
+/// Mirrors `anvil_checks::secret::normalise_file_path`, which is private to
+/// that crate: it returns `/{relative}` when it can strip the root and the raw
+/// path when it cannot.
+fn scanner_would_report(scanned: &str, emitted: &str, root: Option<&Path>) -> bool {
+    if scanned == emitted {
+        return true;
+    }
+    let Some(root) = root else { return false };
+    let root = root.to_string_lossy();
+    strip_root(
+        strip_verbatim_prefix(scanned).as_ref(),
+        strip_verbatim_prefix(&root).as_ref(),
+    )
+    .is_some_and(|relative| {
+        !relative.is_empty() && emitted.strip_prefix('/') == Some(relative.as_str())
+    })
 }
 
-/// Render a secret-scanner finding path in the shared style.
+/// Render a secret-scanner finding path, resolved against the files that were
+/// actually scanned.
 ///
-/// The scanner's `normalise_file_path` returns `/{relative}` while every other
-/// check family returns `{relative}`. That contract is load-bearing elsewhere —
-/// `activation::baseline` keys findings on it — so it is corrected here at the
-/// render boundary rather than at the source.
+/// The scanner emits two shapes: `/{relative}` when it could strip the
+/// workspace root, and the raw **absolute** path when it could not. From the
+/// string alone these are indistinguishable — `/etc/secrets/prod.env` is a
+/// valid instance of either — so stripping the leading `/` unconditionally
+/// turns a genuine absolute path into a relative one pointing somewhere else
+/// entirely. On a secret-reporting surface that is worse than the
+/// inconsistency it fixes.
 ///
-/// It has a second shape, though: when its own prefix strip fails it returns
-/// the raw **absolute** path. Relativising against `root` first is what keeps
-/// `/home/dev/project/src/keys.ts` from being mistaken for a marker and
-/// mangled into `home/dev/project/src/keys.ts`.
-pub fn render_secret_finding(file: &str, root: Option<&Path>) -> String {
-    if let Some(root) = root {
-        let root = root.to_string_lossy();
-        let relative = strip_root(
-            strip_verbatim_prefix(file).as_ref(),
-            strip_verbatim_prefix(&root).as_ref(),
-        );
-        if let Some(relative) = relative
-            && !relative.is_empty()
-        {
-            return relative;
-        }
+/// `scanned` settles it: whichever path produced this finding is the truth, and
+/// it then renders like any other path. This mirrors how `audit` maps findings
+/// back through its own `rel_by_abs` index. When nothing matches, the fallback
+/// never strips a leading `/`, because an unproven marker is not a marker.
+///
+/// The scanner's `/`-prefix contract is corrected here rather than at source
+/// because `activation::baseline` keys stored findings on it.
+pub fn render_secret_finding(file: &str, scanned: &[&str], root: Option<&Path>) -> String {
+    if let Some(origin) = scanned
+        .iter()
+        .copied()
+        .find(|candidate| scanner_would_report(candidate, file, root))
+    {
+        return render(origin, root);
     }
-    render(strip_secret_scanner_marker(file), root)
+    render(file, root)
 }
 
 /// Join a `/`-separated relative literal onto `base`, one component at a time.
@@ -305,17 +327,12 @@ mod tests {
         assert_eq!(render("./src/app.py", Some(&root)), "src/app.py");
     }
 
-    #[test]
-    fn strips_secret_scanner_leading_slash_marker() {
-        assert_eq!(strip_secret_scanner_marker("/.env"), ".env");
-        assert_eq!(strip_secret_scanner_marker("src/app.ts"), "src/app.ts");
-    }
-
     /// The two styles that appeared side by side in one gate run.
     #[test]
     fn secret_and_antipattern_findings_render_in_the_same_style() {
         let root = PathBuf::from("/home/dev/project");
-        let secret = render_secret_finding("/.env", Some(&root));
+        let scanned = ["/home/dev/project/.env"];
+        let secret = render_secret_finding("/.env", &scanned, Some(&root));
         let antipattern = render("src/app.py", Some(&root));
         assert_eq!(secret, ".env");
         assert_eq!(antipattern, "src/app.py");
@@ -328,10 +345,56 @@ mod tests {
     #[test]
     fn secret_finding_with_absolute_path_still_relativises() {
         let root = PathBuf::from("/home/dev/project");
+        let scanned = ["/home/dev/project/src/keys.ts"];
         assert_eq!(
-            render_secret_finding("/home/dev/project/src/keys.ts", Some(&root)),
+            render_secret_finding("/home/dev/project/src/keys.ts", &scanned, Some(&root)),
             "src/keys.ts"
         );
+    }
+
+    /// A secret found OUTSIDE the workspace must keep its absolute path.
+    /// Stripping the leading `/` as if it were the scanner's marker would
+    /// rewrite `/etc/secrets/prod.env` into a relative path naming a
+    /// different file — on a secret-reporting surface.
+    #[test]
+    fn secret_finding_outside_the_root_stays_absolute() {
+        let root = PathBuf::from("/home/dev/project");
+        let scanned = ["/etc/secrets/prod.env"];
+        assert_eq!(
+            render_secret_finding("/etc/secrets/prod.env", &scanned, Some(&root)),
+            "/etc/secrets/prod.env"
+        );
+    }
+
+    /// The symlinked-root case that makes the scanner fall back to a raw
+    /// absolute path: `/tmp` -> `/private/tmp` on macOS, or a symlinked
+    /// worktree. The finding must not be mangled into a relative path.
+    #[test]
+    fn secret_finding_survives_a_root_form_mismatch() {
+        let root = PathBuf::from("/private/tmp/real");
+        let scanned = ["/tmp/link/src/keys.ts"];
+        assert_eq!(
+            render_secret_finding("/tmp/link/src/keys.ts", &scanned, Some(&root)),
+            "/tmp/link/src/keys.ts"
+        );
+    }
+
+    /// With nothing to resolve against, an unproven marker is not a marker.
+    #[test]
+    fn secret_finding_never_strips_an_unproven_leading_slash() {
+        let root = PathBuf::from("/home/dev/project");
+        assert_eq!(
+            render_secret_finding("/etc/passwd", &[], Some(&root)),
+            "/etc/passwd"
+        );
+    }
+
+    /// CIB-199 generated-file filtering keys on this string, so an interior
+    /// `.` component must not survive into the lookup.
+    #[test]
+    fn collapses_a_leading_dot_segment() {
+        let root = PathBuf::from("/home/dev/project");
+        assert_eq!(render("/home/dev/project/./src/a.rs", Some(&root)), "src/a.rs");
     }
 
     #[test]
@@ -349,10 +412,16 @@ mod tests {
     fn join_relative_uses_native_separators_throughout() {
         let base = PathBuf::from("/home/dev");
         let joined = join_relative(&base, ".claude/skills");
-        // Rebuilt component-wise, the result equals the same path expressed
-        // natively — which is exactly what `base.join(".claude/skills")`
-        // fails to guarantee on Windows.
-        assert_eq!(joined, base.join(".claude").join("skills"));
+        // Compare STRINGS, not `PathBuf`s. `Path` equality is component-wise
+        // and Windows accepts `/` as a separator, so
+        // `C:\\x\\.claude/skills == C:\\x\\.claude\\skills` compares equal and
+        // the mixed-separator bug is invisible to it. Only the string form
+        // distinguishes them.
+        assert_eq!(
+            joined.to_str(),
+            base.join(".claude").join("skills").to_str(),
+            "join_relative must produce the same STRING as a component-wise join"
+        );
     }
 
     #[test]
