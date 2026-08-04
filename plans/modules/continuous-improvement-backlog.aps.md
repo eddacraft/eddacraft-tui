@@ -5611,7 +5611,7 @@ archive.
 
 ### CIB-209: Worktree-safe local validation path selection
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** `pnpm validate:changed` and agent-driven Rust/Nx checks repeatedly
   fail in Worktrunk worktrees for path-environment reasons that are not product
   defects: long Nx daemon sockets, read-only shared Cargo targets, `/tmp` as a
@@ -5628,13 +5628,30 @@ archive.
   wrapper completes a no-op or docs-only `validate:changed` without manual
   env surgery; fixture or documented dry-run proves short TMPDIR and non-tmpfs
   target selection when those conditions are simulated.
+- **Files:** `scripts/validate/local.sh` (the `validate:staged` / `:changed` /
+  `:full` entry), `.envrc` and `.config/wt.toml` (existing relocation
+  convention this must read rather than duplicate),
+  `docs/guides/worktree-policy.md`.
 - **Identified From:** CI-log themes `theme:sandbox-safe-local-validation`
   (2026-07-24 PR #3379), `theme:worktree-validation-paths` (2026-07-27 WOW-006),
   `theme:rust-validation-storage` (2026-07-30 PR #3444) — three independent
-  sessions, same class.
+  sessions, same class. Fourth occurrence 2026-08-04, and the first with a
+  measured cost: ~27 GB of abandoned per-session `CARGO_TARGET_DIR` trees on the
+  31 GB `/tmp` tmpfs (`mcp26-013-reverify-target`, `codex-mcp26-security-target`,
+  `kfit006-verify.OgDbNF`, `verify-p7-target` and similar) took `/tmp` to 100%
+  and broke unrelated tooling until cleared by hand. The same ad-hoc pattern is
+  recorded inline in `plans/reviews/2026-06-27-cib-079-rust-ast-rules.md` and
+  `plans/reviews/2026-06-26-cib-080-secret-fp-tuning.md`.
 - **Coordinates with:** CIB-032 (stale global oxfmt on fresh worktrees),
   CIB-048 (shared Cargo target disk oversubscription — related but about
-  capacity sharing, not path selection / sandbox writability).
+  capacity sharing, not path selection / sandbox writability). Sits directly on
+  the residual porousness DEVENV-002 accepted when the committed
+  `.cargo/config.toml` floor was dropped (cargo config `target-dir` does not
+  expand `$HOME`), leaving relocation env-driven and therefore bypassable by an
+  agent using neither direnv nor `wt`. `eddacraft/skills` PR #57 adds
+  cache-location guidance to the `isolate-workspace` and `evidence-gate` skills,
+  which narrows the agent-behaviour half but does not give the repository an
+  owned entry point — this item is the durable fix.
 - **Confidence:** high — recurring, multi-session, clear observable failures.
 
 ### CIB-210: Multi-worktree-safe PR merge cleanup
