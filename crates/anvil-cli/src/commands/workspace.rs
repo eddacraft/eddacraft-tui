@@ -582,7 +582,11 @@ fn persist_register_on_start_all(roots: &[std::path::PathBuf]) -> Result<()> {
 /// mode line alone ("Admission mode: open", "Allow entries: (none)") reads as
 /// enforcement that has simply not caught anything yet. State the posture so an
 /// operator cannot skim a fresh home as confined, without implying a defect.
-const OPEN_ADMISSION_DISCLOSURE: &str = "Open is the default: workspaces are adopted on first touch, so the daemon is \
+///
+/// It does not open with the word "open": every call site has already just
+/// printed the mode, and `anvil workspace mode open` would be telling the
+/// operator the name of the thing they typed.
+const OPEN_ADMISSION_DISCLOSURE: &str = "The default posture: workspaces are adopted on first touch, so the daemon is \
      not confined to specific roots — run `anvil workspace mode allowlist` to \
      confine it.";
 
@@ -898,9 +902,15 @@ mod tests {
             line.contains("default"),
             "the line frames open as the default posture: {line}"
         );
+        assert_eq!(line.lines().count(), 1, "one plain line, not a paragraph");
+        // `lines().count() == 1` only proves there is no newline in the string;
+        // a long enough line still soft-wraps into a paragraph on a narrow
+        // terminal. Bound the width so a later copy edit cannot grow it there
+        // unnoticed.
         assert!(
-            line.lines().count() == 1,
-            "one plain line, not a paragraph: {line}"
+            line.chars().count() <= 200,
+            "the disclosure stays skimmable ({} chars): {line}",
+            line.chars().count()
         );
     }
 

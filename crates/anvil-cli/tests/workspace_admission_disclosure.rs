@@ -65,6 +65,37 @@ fn fresh_home_list_discloses_that_open_is_not_confinement() {
 }
 
 #[test]
+fn open_mode_with_allow_entries_still_discloses_they_are_inert() {
+    // The worst case to misread: `Allow entries:` followed by real paths, under
+    // a mode that never consults them. Populated entries look far more like
+    // active enforcement than an empty list does.
+    let home = tempdir().expect("temp home");
+    let project = home.path().join("proj");
+    std::fs::create_dir(&project).expect("create project dir");
+
+    let (ok, stdout) = run_workspace(
+        home.path(),
+        &["allow", project.to_str().expect("utf-8 path")],
+    );
+    assert!(ok, "workspace allow succeeds: {stdout}");
+
+    let (ok, stdout) = run_workspace(home.path(), &["list"]);
+    assert!(ok, "workspace list succeeds: {stdout}");
+    assert!(
+        stdout.contains("Admission mode: open"),
+        "the mode is still open: {stdout}"
+    );
+    assert!(
+        stdout.contains("proj"),
+        "the allow entry is listed: {stdout}"
+    );
+    assert!(
+        stdout.contains("first touch") && stdout.contains("not confined"),
+        "listed entries do not suppress the disclosure that they are inert: {stdout}"
+    );
+}
+
+#[test]
 fn allowlist_mode_list_has_no_open_disclosure() {
     let home = tempdir().expect("temp home");
     let (ok, set_stdout) = run_workspace(home.path(), &["mode", "allowlist"]);

@@ -6220,8 +6220,16 @@ archive.
 
 ### CIB-232: Disclose open admission mode honestly (do not flip factory default)
 
-- **Status:** In Progress
+- **Status:** In Progress — PR [#3529](https://github.com/eddacraft/anvil-001/pull/3529)
+  open; on merge, set to `Merged YYYY-MM-DD via PR #3529`.
 - **Priority:** P3 presentation (Dave CONF-1; re-triaged 2026-08-04)
+- **Scope narrowing (recorded 2026-08-04):** delivered on `anvil workspace list`
+  and `anvil workspace mode open` only. `anvil status` is deliberately left
+  alone: its save-time line appends `· confined: N` **only** in allowlist mode
+  (`status.rs` `confinement_allow_count`), so in open mode it makes no
+  confinement claim at all — silence, not a misleading one. Adding posture copy
+  to the flagship one-line status block is a wider product-copy decision than
+  this P3 presentation item; file a follow-up if operators want it there.
 - **Intent:** Fresh home reports `Admission mode: open` with no entries. Open
   is the **intentional** factory posture (`Open` = first-touch adopt; missing
   config → `open_default()`; fail-closed is only for untrusted config). Dave
