@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 173/245  |
+| CIB | —     | In Progress | 174/245  |
 
 ## Purpose
 
@@ -6623,7 +6623,14 @@ archive.
 
 ### CIB-249: Keep clean TTY teardown when welcome *does* exit (secondary to stay-in-TUI)
 
-- **Status:** Ready
+- **Status:** Done 2026-08-04 — superseded by CIB-248 (same root-cause family:
+  the reported "crash" was the autoplay auth `Err` path, and the residual
+  teardown expectations below are carried by CIB-248's stay-in-TUI work).
+- **Summary:** Folded into CIB-248 so the recovery UX and the teardown
+  guarantee are fixed together rather than half-fixing either surface. Clean
+  teardown on intentional exit already holds on a fresh TTY; the expectations
+  below stand as acceptance criteria for CIB-248, not as separate work.
+- **Superseded by:** CIB-248
 - **Priority:** P3 reliability (operator 2026-08-04; demoted after clarification)
 - **Intent:** Initial report looked like a hard crash + session corruption.
   Clarification: the exit was the **autoplay auth `Err` path** (CIB-248); a
@@ -6643,6 +6650,5 @@ archive.
   regression if cheap).
 - **Identified From:** operator clarification on CIB-249 vs CIB-248.
 - **Coordinates with:** CIB-248 (owns recovery UX)
-- **Superseded in spirit by:** CIB-248 for the original "crash" report
 - **Confidence:** high on demotion; teardown already OK on clean TTY.
 
