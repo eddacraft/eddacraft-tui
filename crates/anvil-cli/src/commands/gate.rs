@@ -1095,13 +1095,15 @@ fn render_gate_path(path: &str) -> String {
 enum GitInventoryMode {
     Absent,
     Blob,
+    Symlink,
     Gitlink,
 }
 
 fn git_inventory_mode(mode: &str) -> Option<GitInventoryMode> {
     match mode {
         "000000" => Some(GitInventoryMode::Absent),
-        "100644" | "100755" | "120000" => Some(GitInventoryMode::Blob),
+        "100644" | "100755" => Some(GitInventoryMode::Blob),
+        "120000" => Some(GitInventoryMode::Symlink),
         "160000" => Some(GitInventoryMode::Gitlink),
         _ => None,
     }
@@ -1668,14 +1670,21 @@ fn split_bounded_paths<T>(
     (changes, overflow)
 }
 
-fn staged_provenance_snapshot(root: &Path) -> Option<StagedProvenanceSnapshot> {
+fn staged_provenance_snapshot(
+    root: &Path,
+    skip_extensions: &[String],
+    plan_files: &std::collections::HashSet<String>,
+) -> Option<StagedProvenanceSnapshot> {
     let mut git_subprocess_count = 0_usize;
     let inventory = staged_gate_changes(root, &mut git_subprocess_count)?;
     let mut indeterminate_paths = inventory.quarantined_paths;
     let changes = inventory
         .changes
         .into_iter()
-        .filter(|(path, _)| secret_path_scannable(Path::new(path)))
+        .filter(|(path, _)| {
+            let path = Path::new(path);
+            secret_path_in_scan_domain(root, path, plan_files, skip_extensions)
+        })
         .collect::<Vec<_>>();
     let (changes, overflow_paths) = split_bounded_paths(changes, MAX_PROVENANCE_PATH_COUNT);
     indeterminate_paths.extend(overflow_paths);
@@ -1817,6 +1826,7 @@ fn staged_secret_provenance(
     root: &Path,
     worktree_findings: &[anvil_checks::secret::SecretFinding],
     config: &anvil_checks::secret::SecretCheckConfig,
+    plan_files: &std::collections::HashSet<String>,
 ) -> Option<HookSecretProvenance> {
     let StagedProvenanceSnapshot {
         changes,
@@ -1825,7 +1835,7 @@ fn staged_secret_provenance(
         index_to_worktree,
         indeterminate_paths,
         git_subprocess_count,
-    } = staged_provenance_snapshot(root)?;
+    } = staged_provenance_snapshot(root, &config.skip_extensions, plan_files)?;
     let mut line_index_stats = ContentLineIndexStats::default();
     let (worktree_keys, worktree_indeterminate) = bounded_path_values(
         root,
@@ -1992,7 +2002,69 @@ fn secret_path_scannable(path: &Path) -> bool {
         })
 }
 
-fn secret_scan_files(root: &Path, plan_files: &std::collections::HashSet<String>) -> Vec<String> {
+fn secret_scan_directory_allowed(name: &std::ffi::OsStr) -> bool {
+    name.to_str()
+        .is_none_or(|name| !crate::util::is_ignored_dir_name(name))
+}
+
+fn secret_path_has_allowed_directories(path: &Path) -> bool {
+    path.parent().is_none_or(|parent| {
+        parent.components().all(|component| match component {
+            std::path::Component::Normal(name) => secret_scan_directory_allowed(name),
+            _ => true,
+        })
+    })
+}
+
+fn scan_path_config_eligible(path: &Path, skip_extensions: &[String]) -> bool {
+    anvil_checks::filter::is_lockfile(path)
+        || !skip_extensions
+            .iter()
+            .any(|extension| path.to_string_lossy().ends_with(extension))
+}
+
+fn secret_path_matches_plan_scope(
+    root: &Path,
+    path: &Path,
+    plan_files: &std::collections::HashSet<String>,
+) -> bool {
+    if plan_files.is_empty() {
+        return true;
+    }
+    let relative = path
+        .strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/");
+    plan_files.iter().any(|plan_file| {
+        if plan_file.ends_with('/') || root.join(plan_file).is_dir() {
+            relative.starts_with(plan_file.as_str())
+        } else {
+            relative == plan_file.as_str()
+        }
+    })
+}
+
+fn secret_path_in_scan_domain(
+    root: &Path,
+    path: &Path,
+    plan_files: &std::collections::HashSet<String>,
+    skip_extensions: &[String],
+) -> bool {
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    secret_path_scannable(relative)
+        && secret_path_has_allowed_directories(relative)
+        && (plan_files.is_empty() && relative.components().count() <= SECRET_SCAN_MAX_DEPTH
+            || !plan_files.is_empty())
+        && secret_path_matches_plan_scope(root, path, plan_files)
+        && scan_path_config_eligible(relative, skip_extensions)
+}
+
+fn secret_scan_files(
+    root: &Path,
+    plan_files: &std::collections::HashSet<String>,
+    skip_extensions: &[String],
+) -> Vec<String> {
     let mut files_to_scan: Vec<String> = Vec::new();
 
     // SCAN-001: gate-secret discovery uses `ignore::WalkBuilder`. Per-file
@@ -2018,10 +2090,8 @@ fn secret_scan_files(root: &Path, plan_files: &std::collections::HashSet<String>
             // file that happens to share a name with an ignore-dir. This
             // matches audit/check/drift, which gate the same check on
             // `is_dir()`.
-            if e.file_type().is_some_and(|ft| ft.is_dir())
-                && let Some(name) = e.file_name().to_str()
-            {
-                return !crate::util::is_ignored_dir_name(name);
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
+                return secret_scan_directory_allowed(e.file_name());
             }
             true
         });
@@ -2036,25 +2106,7 @@ fn secret_scan_files(root: &Path, plan_files: &std::collections::HashSet<String>
     {
         let path = entry.path();
 
-        // Plan scoping: skip files not referenced in the plan.
-        if !plan_files.is_empty() {
-            let rel = path
-                .strip_prefix(root)
-                .unwrap_or(path)
-                .to_string_lossy()
-                .replace('\\', "/");
-            if !plan_files.iter().any(|pf| {
-                if pf.ends_with('/') || root.join(pf).is_dir() {
-                    rel.starts_with(pf.as_str())
-                } else {
-                    rel == pf.as_str()
-                }
-            }) {
-                continue;
-            }
-        }
-
-        if !secret_path_scannable(path) {
+        if !secret_path_in_scan_domain(root, path, plan_files, skip_extensions) {
             continue;
         }
 
@@ -2100,10 +2152,9 @@ fn run_check_secret_with_hook_mode_and_provenance(
     hook_mode: bool,
     force_inventory_failure: bool,
 ) -> CheckResult {
-    let files_to_scan = secret_scan_files(root, plan_files);
-
-    let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
     let config = crate::util::secret_check_config(root);
+    let files_to_scan = secret_scan_files(root, plan_files, &config.skip_extensions);
+    let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
     let root_str = root.to_string_lossy();
     let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
 
@@ -2112,7 +2163,7 @@ fn run_check_secret_with_hook_mode_and_provenance(
 
     let pattern_errors_suffix = secret_pattern_errors_suffix(&result.pattern_errors);
     let mut hook_provenance = resolve_hook_provenance(hook_mode, force_inventory_failure, || {
-        staged_secret_provenance(root, &result.findings, &config)
+        staged_secret_provenance(root, &result.findings, &config, plan_files)
     });
     let index_only_count = hook_provenance
         .as_ref()
@@ -5767,8 +5818,9 @@ mod tests {
         git_for_hook_fixture(tmp.path(), &["add", "-f", "."]);
         let config = crate::util::secret_check_config(tmp.path());
 
-        let provenance = staged_secret_provenance(tmp.path(), &[], &config)
-            .expect("staged provenance should be available");
+        let provenance =
+            staged_secret_provenance(tmp.path(), &[], &config, &std::collections::HashSet::new())
+                .expect("staged provenance should be available");
 
         assert!(
             provenance.git_subprocess_count <= 5,
@@ -5791,7 +5843,8 @@ mod tests {
         .unwrap();
 
         let snapshot =
-            staged_provenance_snapshot(tmp.path()).expect("staged snapshot should be available");
+            staged_provenance_snapshot(tmp.path(), &[], &std::collections::HashSet::new())
+                .expect("staged snapshot should be available");
 
         assert!(
             !snapshot
@@ -5840,7 +5893,8 @@ mod tests {
         );
 
         let snapshot =
-            staged_provenance_snapshot(tmp.path()).expect("gitlink inventory should be supported");
+            staged_provenance_snapshot(tmp.path(), &[], &std::collections::HashSet::new())
+                .expect("gitlink inventory should be supported");
 
         assert!(snapshot.changes.is_empty());
         assert!(snapshot.indeterminate_paths.is_empty());
@@ -5897,8 +5951,13 @@ mod tests {
             &config,
         );
 
-        let provenance = staged_secret_provenance(tmp.path(), &findings, &config)
-            .expect("dense provenance should be available");
+        let provenance = staged_secret_provenance(
+            tmp.path(),
+            &findings,
+            &config,
+            &std::collections::HashSet::new(),
+        )
+        .expect("dense provenance should be available");
 
         assert_eq!(
             provenance.worktree_keys.iter().flatten().count(),
@@ -6229,6 +6288,123 @@ mod tests {
             !staged_line.contains("pre-existing"),
             "index-only staged debt must remain primary: {staged_line}"
         );
+    }
+
+    #[test]
+    fn hook_secret_check_ignores_index_only_secret_in_ignored_directory() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let ignored_dir = tmp.path().join("node_modules/package");
+        std::fs::create_dir_all(&ignored_dir).unwrap();
+        let ignored_path = ignored_dir.join("config.js");
+        write_detectable_env(&ignored_path);
+        git_for_hook_fixture(tmp.path(), &["add", "-f", "node_modules/package/config.js"]);
+        std::fs::write(&ignored_path, "export const safe = true;\n").unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "ignored staged paths must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("node_modules"));
+    }
+
+    #[test]
+    fn hook_secret_check_ignores_index_only_secret_in_skipped_extension() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let skipped_path = tmp.path().join("bundle.min.js");
+        write_detectable_env(&skipped_path);
+        git_for_hook_fixture(tmp.path(), &["add", "bundle.min.js"]);
+        std::fs::write(&skipped_path, "export const safe = true;\n").unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "skipped extensions must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("bundle.min.js"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_ignores_staged_symlink() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let target = format!("aws_secret_access_key={}", "abcd".repeat(10));
+        std::os::unix::fs::symlink(&target, tmp.path().join("linked.js")).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "linked.js"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result.passed,
+            "staged symlinks must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("linked.js"));
+    }
+
+    #[test]
+    fn hook_secret_check_respects_plan_scope_for_index_only_findings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        std::fs::write(tmp.path().join("src/in_scope.rs"), "fn safe() {}\n").unwrap();
+        let out_of_scope = tmp.path().join("src/out_of_scope.rs");
+        write_detectable_env(&out_of_scope);
+        git_for_hook_fixture(tmp.path(), &["add", "src"]);
+        std::fs::write(&out_of_scope, "fn also_safe() {}\n").unwrap();
+        let plan_files = std::collections::HashSet::from(["src/in_scope.rs".to_string()]);
+
+        let result = run_check_secret_with_hook_mode("secret", tmp.path(), &plan_files, true);
+
+        assert!(
+            result.passed,
+            "out-of-scope staged paths must stay outside the gate: {}",
+            result.message
+        );
+        assert!(!result.message.contains("out_of_scope.rs"));
+    }
+
+    #[test]
+    fn hook_secret_check_blocks_in_scope_index_only_finding() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+        let in_scope = tmp.path().join("src/in_scope.rs");
+        write_detectable_env(&in_scope);
+        git_for_hook_fixture(tmp.path(), &["add", "src/in_scope.rs"]);
+        std::fs::write(&in_scope, "fn safe() {}\n").unwrap();
+        let plan_files = std::collections::HashSet::from(["src/in_scope.rs".to_string()]);
+
+        let result = run_check_secret_with_hook_mode("secret", tmp.path(), &plan_files, true);
+
+        assert!(
+            !result.passed,
+            "an in-scope staged secret must block the hook"
+        );
+        assert!(result.message.contains("src/in_scope.rs:1"));
+        assert!(!result.message.contains("[staged content unavailable]"));
     }
 
     #[test]
