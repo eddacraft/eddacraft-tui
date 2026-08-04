@@ -83,6 +83,7 @@ security concerns.
 | SEC-008 | Named-pattern secret detection (GH #1800) | Merged |
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
+| SEC-011 | Remediate repository-wide JavaScript dependency advisories | In Progress |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -465,6 +466,47 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **Confidence:** High. The affected package is used only by development
   tooling in this repository, and upstream published dedicated maintained-line
   fixes for both selected majors.
+
+**changeType:** fix
+**releaseIntent:** none
+**releaseScope:** none
+
+### SEC-011: Remediate repository-wide JavaScript dependency advisories
+
+- **Status:** In Progress
+- **Intent:** Clear Dependabot alerts
+  [#238](https://github.com/eddacraft/anvil-001/security/dependabot/238)
+  through
+  [#248](https://github.com/eddacraft/anvil-001/security/dependabot/248),
+  plus the repository-wide audit findings for `socket.io-parser` and the
+  DeepSec `undici` consumers, in one CI-atomic remediation.
+- **Expected Outcome:** Root and DeepSec dependency graphs resolve
+  `fast-uri` to 3.1.5, `ip-address` to 10.4.0, and
+  `socket.io-parser` to 4.2.7. Root `node-gyp` resolves `undici` to
+  6.28.0; DeepSec's `@vercel/sandbox` and
+  `@earendil-works/pi-coding-agent` consumers resolve it to 7.29.0 and
+  8.9.0 respectively.
+- **In Scope:** Consumer-specific root and DeepSec dependency overrides,
+  generated lockfiles, and supersession of the three package-specific draft
+  pull requests.
+- **Out of Scope:** Runtime feature changes, dependency replacement, audit
+  scheduling, advisory dismissal, unrelated dependency refreshes, merging,
+  and release claims.
+- **Dependencies:** None. Every selected release remains in the direct
+  consumer's declared major line. The
+  `@earendil-works/pi-coding-agent` exact `undici` 8.5.0 pin is
+  intentionally overridden to the patched same-major 8.9.0 release.
+- **Validation:** Clean frozen installs for the root and DeepSec;
+  dependency-tree and lockfile assertions for all five vulnerable packages;
+  APS, documentation, formatting, lint, typecheck, JavaScript, and Rust
+  workspace gates; GitHub's repository-wide Dependency Audit check on the pull
+  request. A task-owned, offline invocation of the installed pi 0.79.10 CLI
+  reached `--help` successfully after configuring its imported `undici`
+  dispatcher, covering the intentional exact-pin override without credentials
+  or an external request.
+- **Confidence:** High. The vulnerable paths are transitive development or
+  security-tooling dependencies, and each override is scoped to its declaring
+  consumer rather than forcing a repository-wide major.
 
 **changeType:** fix
 **releaseIntent:** none
