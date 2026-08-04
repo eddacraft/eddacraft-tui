@@ -6550,8 +6550,9 @@ archive.
 - **Priority:** P1 welcome honesty (operator 2026-08-04)
 - **Intent:** First-run discovery / first-win re-scan of the **live** repo
   (e.g. cognition monorepo) surfaces **11 ERROR** secret findings in test
-  fixtures (`password=…` in `reflection.rs`, high-entropy strings in
-  adapters/spikes). Post-tutorial copy says "Re-scanned your repo: 11 findings
+  fixtures (literal password-assignment strings and high-entropy tokens under
+  `tests/` / adapter / spike paths). Post-tutorial copy says "Re-scanned your
+  repo: 11 findings
   in this domain — same as when you started" after **Developer acceleration**,
   which reads as "your acceleration path found 11 bugs" rather than fixture
   noise. Operator experienced this as scary/funky during onboarding.
