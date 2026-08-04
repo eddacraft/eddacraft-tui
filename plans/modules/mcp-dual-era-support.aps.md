@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| MCP26 | —     | In Progress | 11/12    |
+| MCP26 | —     | In Progress | 12/13    |
 
 **Last reviewed:** 2026-08-03 — dual-era MCP `2026-07-28` support (MCP26-001
 through MCP26-011) merged to `main` via PR #3444. Code lands under

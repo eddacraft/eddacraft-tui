@@ -16,9 +16,15 @@ contract below. Operator authorised **ATTRIB-018..-023** on 2026-08-03; all six
 landed, with ATTRIB-021 held back until PR #3495 fixed the macOS runner's
 missing Go and the first green both-legs run (30792191535) supplied its
 evidence. **ATTRIB-024 Released/Shipped via kit `v1.1.0` (2026-08-03)**, so the
-hardening is now in consumers' hands: the published kit no longer deletes
-curated content on a mis-ordered marker pair, nor reports green over stale
-attribution.
+hardening reached consumers' hands.
+
+`v1.1.0` did not hold. Independent review of the gates it shipped found the
+orphan gate could be silently disabled by a valid CommonMark document — leaving
+stale attribution passing `--check`, the exact defect the release claimed to
+close — and that it rejected prose merely mentioning a marker. **ATTRIB-026
+Released/Shipped via kit `v1.1.1` (2026-08-04)** repairs both, and its evidence
+was taken against the published artifact rather than `main`. The lesson is
+recorded on that item: verifying `main` is not verifying what shipped.
 
 Status tokens follow
 [`plans/project-context.md`](../project-context.md#project-status-extensions):
@@ -359,8 +365,20 @@ authorisation once the six land.
 
 ### ATTRIB-026: Repair the marker gates shipped in v1.1.0
 
-- **Status:** In Progress — operator authorised 2026-08-04 on the review
-  findings below. Flip to Released/Shipped once `v1.1.1` is cut and verified.
+- **Status:** Released/Shipped via kit `v1.1.1` (2026-08-04) — merged via PR
+  #3508; tag `acknowledgements-starter-v1.1.1` → `fcdfbe5f1`; release run
+  30868815281.
+- **Release evidence (2026-08-04), verified against the published artifact
+  rather than against `main`:** mirror tag `v1.1.1` → `569d9c7e1`; Release
+  published, not draft, not pre-release, `releases/latest` resolves to it;
+  `v1.1.0` and `v1.0.0` both still resolve, so append-only held. A
+  `git subtree add … v1.1.1 --squash` into a scratch repo yields a kit
+  reporting `VERSION` `1.1.1`, and **both defects were re-run against that
+  pulled copy**: an orphan hidden behind a mixed ` ``` `/`~~~` fence now exits
+  **1** (was 0 in `v1.1.0`, the gate silently disabled), and prose mentioning a
+  retired block's marker now exits **0** (was 1, failing a build over
+  hand-curated content). Checking the published artifact rather than `main` is
+  the step whose absence let `v1.1.0` ship broken.
 - **Intent:** The gates ATTRIB-018 added stop rejecting valid files and stop
   being silently disable-able, so consumers get the guarantee `v1.1.0` claimed.
 - **Expected Outcome:** One shared marker scan feeds the count gate, the order
