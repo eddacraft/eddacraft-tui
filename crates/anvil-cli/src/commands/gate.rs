@@ -1065,6 +1065,10 @@ fn escaped_inventory_path(path: &[u8]) -> String {
     escaped
 }
 
+fn quarantined_inventory_path(path: &[u8]) -> String {
+    std::str::from_utf8(path).map_or_else(|_| escaped_inventory_path(path), str::to_string)
+}
+
 fn strict_inventory_path(path: &[u8]) -> Result<String, String> {
     let path_text = std::str::from_utf8(path).map_err(|_| escaped_inventory_path(path))?;
     if path_text.bytes().any(|byte| byte.is_ascii_control()) {
@@ -1142,11 +1146,11 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
             }
             let old_path = strict_inventory_path(old_path_bytes);
             let new_path = strict_inventory_path(new_path_bytes);
-            if let Err(path) = &old_path {
-                quarantined_paths.insert(path.clone());
+            if old_path.is_err() {
+                quarantined_paths.insert(quarantined_inventory_path(old_path_bytes));
             }
-            if let Err(path) = &new_path {
-                quarantined_paths.insert(path.clone());
+            if new_path.is_err() {
+                quarantined_paths.insert(quarantined_inventory_path(new_path_bytes));
             }
             let (Ok(old_path), Ok(new_path)) = (old_path, new_path) else {
                 continue;
@@ -1157,12 +1161,9 @@ fn parse_staged_gate_inventory(raw: &[u8]) -> Option<StagedGateInventory> {
             if path_bytes.is_empty() {
                 return None;
             }
-            let path = match strict_inventory_path(path_bytes) {
-                Ok(path) => path,
-                Err(path) => {
-                    quarantined_paths.insert(path);
-                    continue;
-                }
+            let Ok(path) = strict_inventory_path(path_bytes) else {
+                quarantined_paths.insert(quarantined_inventory_path(path_bytes));
+                continue;
             };
             (path.clone(), (code != b'A').then_some(path))
         };
@@ -1208,41 +1209,63 @@ fn finding_workspace_path(root: &Path, file: &str) -> String {
 struct RawSecretFindingKey {
     finding_type: u8,
     pattern_name: String,
-    raw_line_digest: [u8; 32],
+    match_hash: [u8; 32],
 }
 
-fn raw_line_digests(content: &str) -> Vec<[u8; 32]> {
-    use sha2::{Digest as _, Sha256};
-
-    content
-        .lines()
-        .map(|line| Sha256::digest(line.as_bytes()).into())
-        .collect()
+fn finding_raw_match<'a>(line: &'a str, redacted_line: &str) -> Option<&'a str> {
+    let (prefix, _) = redacted_line.split_once("[REDACTED]")?;
+    let (_, suffix) = redacted_line.rsplit_once("[REDACTED]")?;
+    line.strip_prefix(prefix)?
+        .strip_suffix(suffix)
+        .filter(|matched| !matched.is_empty())
 }
 
 fn raw_secret_finding_key(
     finding: &anvil_checks::secret::SecretFinding,
-    line_digests: &[[u8; 32]],
-) -> Option<RawSecretFindingKey> {
+    line: &str,
+) -> RawSecretFindingKey {
+    use sha2::{Digest as _, Sha256};
+
     let finding_type = match finding.finding_type {
         anvil_checks::secret::FindingType::Pattern => 0,
         anvil_checks::secret::FindingType::Entropy => 1,
     };
-    Some(RawSecretFindingKey {
+    RawSecretFindingKey {
         finding_type,
         pattern_name: finding.pattern_name.clone(),
-        raw_line_digest: *line_digests.get(finding.line.checked_sub(1)?)?,
-    })
+        match_hash: Sha256::digest(
+            finding_raw_match(line, &finding.redacted_line)
+                .unwrap_or(finding.redacted_match.as_str())
+                .as_bytes(),
+        )
+        .into(),
+    }
+}
+
+fn content_line(content: &str, line: usize) -> Option<&str> {
+    content.lines().nth(line.checked_sub(1)?)
 }
 
 const MAX_STAGED_BLOB_SIZE: u64 = 1024 * 1024;
 // Hook provenance stays bounded even when a repository stages many unique
 // objects or produces an unexpectedly large patch/inventory stream.
 const MAX_STAGED_BLOB_COUNT: usize = 1024;
+const MAX_PROVENANCE_PATH_COUNT: usize = 1024;
 const MAX_STAGED_BLOB_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
+const MAX_WORKTREE_PROVENANCE_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
+const MAX_PROVENANCE_SCAN_TOTAL_SIZE: u64 = 16 * 1024 * 1024;
 const MAX_GIT_DIFF_OUTPUT_SIZE: usize = 8 * 1024 * 1024;
 const GIT_BATCH_CHECK_ARGS: [&str; 2] = ["cat-file", "--batch-check"];
 const GIT_BATCH_CONTENT_ARGS: [&str; 2] = ["cat-file", "--batch"];
+const GIT_PROVENANCE_DIFF_ARGS: [&str; 7] = [
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--no-prefix",
+    "--find-renames",
+    "--unified=0",
+    "--",
+];
 
 enum GitBlobContent {
     Text(String),
@@ -1415,14 +1438,7 @@ fn batch_diff_line_hunks(
     if cached {
         command.arg("--cached");
     }
-    command.args([
-        "--no-ext-diff",
-        "--no-color",
-        "--no-prefix",
-        "--find-renames",
-        "--unified=0",
-        "--",
-    ]);
+    command.args(GIT_PROVENANCE_DIFF_ARGS);
     command.args(pathspecs);
     command.current_dir(root);
     let diff = String::from_utf8(command_stdout_bounded(
@@ -1492,6 +1508,9 @@ fn map_index_line_to_worktree(index_line: usize, hunks: &[LineHunk]) -> Option<u
                 break;
             }
             if index_line < hunk.index_start.saturating_add(hunk.index_len) {
+                if hunk.index_len == hunk.worktree_len {
+                    return index_line.checked_add_signed(offset);
+                }
                 return None;
             }
         }
@@ -1506,6 +1525,7 @@ struct HookSecretProvenance {
     primary_worktree: BTreeMap<(String, usize, RawSecretFindingKey), usize>,
     index_only: Vec<anvil_checks::secret::SecretFinding>,
     indeterminate_paths: std::collections::BTreeSet<String>,
+    worktree_keys: Vec<Option<RawSecretFindingKey>>,
     global_indeterminate: bool,
     git_subprocess_count: usize,
 }
@@ -1577,15 +1597,31 @@ fn staged_head_content<'a>(
         .unwrap_or("")
 }
 
+fn split_bounded_paths<T>(
+    mut changes: Vec<(String, T)>,
+    limit: usize,
+) -> (Vec<(String, T)>, std::collections::BTreeSet<String>) {
+    if changes.len() <= limit {
+        return (changes, std::collections::BTreeSet::new());
+    }
+    let overflow = changes
+        .drain(limit..)
+        .map(|(path, _)| path)
+        .collect::<std::collections::BTreeSet<_>>();
+    (changes, overflow)
+}
+
 fn staged_provenance_snapshot(root: &Path) -> Option<StagedProvenanceSnapshot> {
     let mut git_subprocess_count = 0_usize;
     let inventory = staged_gate_changes(root, &mut git_subprocess_count)?;
-    let indeterminate_paths = inventory.quarantined_paths;
+    let mut indeterminate_paths = inventory.quarantined_paths;
     let changes = inventory
         .changes
         .into_iter()
         .filter(|(path, _)| secret_path_scannable(Path::new(path)))
         .collect::<Vec<_>>();
+    let (changes, overflow_paths) = split_bounded_paths(changes, MAX_PROVENANCE_PATH_COUNT);
+    indeterminate_paths.extend(overflow_paths);
     let mut objects = std::collections::BTreeSet::new();
     for (path, change) in &changes {
         if !git_patch_path_safe(path) {
@@ -1660,17 +1696,64 @@ fn staged_provenance_snapshot(root: &Path) -> Option<StagedProvenanceSnapshot> {
     })
 }
 
-fn index_by_path<T>(
+fn index_positions_by_path<T>(
     items: &[T],
     mut path_for: impl FnMut(&T) -> String,
-) -> BTreeMap<String, Vec<&T>> {
+) -> BTreeMap<String, Vec<usize>> {
     let mut indexed = BTreeMap::<String, Vec<_>>::new();
-    for item in items {
-        indexed.entry(path_for(item)).or_default().push(item);
+    for (index, item) in items.iter().enumerate() {
+        indexed.entry(path_for(item)).or_default().push(index);
     }
     indexed
 }
 
+fn bounded_path_values<T, K>(
+    root: &Path,
+    items: &[T],
+    mut path_for: impl FnMut(&T) -> String,
+    mut value_for: impl FnMut(&T, &str) -> Option<K>,
+    max_count: usize,
+    max_bytes: u64,
+) -> (Vec<Option<K>>, std::collections::BTreeSet<String>) {
+    let positions = index_positions_by_path(items, &mut path_for);
+    let mut values = std::iter::repeat_with(|| None)
+        .take(items.len())
+        .collect::<Vec<_>>();
+    let mut indeterminate = std::collections::BTreeSet::new();
+    let mut inspected_count = 0;
+    let mut inspected_bytes = 0;
+    for (path, path_positions) in positions {
+        let Some(size) = std::fs::metadata(root.join(&path))
+            .ok()
+            .map(|metadata| metadata.len())
+        else {
+            indeterminate.insert(path);
+            continue;
+        };
+        if size >= MAX_STAGED_BLOB_SIZE
+            || !blob_budget_admit(
+                size,
+                &mut inspected_count,
+                &mut inspected_bytes,
+                max_count,
+                max_bytes,
+            )
+        {
+            indeterminate.insert(path);
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(root.join(&path)) else {
+            indeterminate.insert(path);
+            continue;
+        };
+        for index in path_positions {
+            values[index] = value_for(&items[index], &content);
+        }
+    }
+    (values, indeterminate)
+}
+
+#[allow(clippy::too_many_lines)] // Linear, fail-closed attribution pipeline; splitting would hide phase ordering.
 fn staged_secret_provenance(
     root: &Path,
     worktree_findings: &[anvil_checks::secret::SecretFinding],
@@ -1684,13 +1767,29 @@ fn staged_secret_provenance(
         indeterminate_paths,
         git_subprocess_count,
     } = staged_provenance_snapshot(root)?;
-    let worktree_findings = index_by_path(worktree_findings, |finding| {
+    let (worktree_keys, worktree_indeterminate) = bounded_path_values(
+        root,
+        worktree_findings,
+        |finding| finding_workspace_path(root, &finding.file),
+        |finding, content| {
+            content_line(content, finding.line).map(|line| raw_secret_finding_key(finding, line))
+        },
+        MAX_STAGED_BLOB_COUNT,
+        MAX_WORKTREE_PROVENANCE_TOTAL_SIZE,
+    );
+    let worktree_positions = index_positions_by_path(worktree_findings, |finding| {
         finding_workspace_path(root, &finding.file)
     });
     let mut provenance = HookSecretProvenance {
         indeterminate_paths,
+        worktree_keys: worktree_keys.clone(),
         ..HookSecretProvenance::default()
     };
+    provenance
+        .indeterminate_paths
+        .extend(worktree_indeterminate);
+    let mut scanned_path_count = 0;
+    let mut scanned_bytes = 0;
 
     for (path, change) in changes {
         if !git_patch_path_safe(&path) {
@@ -1704,7 +1803,36 @@ fn staged_secret_provenance(
                 continue;
             }
         };
+        if change
+            .head_path
+            .as_deref()
+            .is_some_and(|head_path| secret_path_scannable(Path::new(head_path)))
+            && change.head_oid.as_deref().is_some_and(|head_oid| {
+                !matches!(blobs.get(head_oid), Some(GitBlobContent::Text(_)))
+            })
+        {
+            provenance.indeterminate_paths.insert(path);
+            continue;
+        }
         let head_content = staged_head_content(&change, &blobs);
+        let Some(path_scan_size) = index_content.len().checked_add(head_content.len()) else {
+            provenance.indeterminate_paths.insert(path);
+            continue;
+        };
+        let Ok(path_scan_size) = u64::try_from(path_scan_size) else {
+            provenance.indeterminate_paths.insert(path);
+            continue;
+        };
+        if !blob_budget_admit(
+            path_scan_size,
+            &mut scanned_path_count,
+            &mut scanned_bytes,
+            MAX_PROVENANCE_PATH_COUNT,
+            MAX_PROVENANCE_SCAN_TOTAL_SIZE,
+        ) {
+            provenance.indeterminate_paths.insert(path);
+            continue;
+        }
         let Some(PathLineHunks {
             staged: staged_hunks,
             worktree: worktree_hunks,
@@ -1713,11 +1841,11 @@ fn staged_secret_provenance(
             provenance.indeterminate_paths.insert(path);
             continue;
         };
-        let head_line_digests = raw_line_digests(head_content);
-        let index_line_digests = raw_line_digests(index_content);
         let mut base_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
         for finding in anvil_checks::secret::scan_content(head_content, &path, config) {
-            let Some(key) = raw_secret_finding_key(&finding, &head_line_digests) else {
+            let Some(key) = content_line(head_content, finding.line)
+                .map(|line| raw_secret_finding_key(&finding, line))
+            else {
                 continue;
             };
             let Some(index_line) =
@@ -1730,7 +1858,9 @@ fn staged_secret_provenance(
 
         let mut introduced = Vec::new();
         for mut finding in anvil_checks::secret::scan_content(index_content, &path, config) {
-            let Some(key) = raw_secret_finding_key(&finding, &index_line_digests) else {
+            let Some(key) = content_line(index_content, finding.line)
+                .map(|line| raw_secret_finding_key(&finding, line))
+            else {
                 finding.file.clone_from(&path);
                 provenance.index_only.push(finding);
                 continue;
@@ -1743,16 +1873,15 @@ fn staged_secret_provenance(
                 introduced.push((finding, key));
             }
         }
-        let worktree_content = if worktree_file_is_bounded(root, &path) {
-            std::fs::read_to_string(root.join(&path)).unwrap_or_default()
-        } else {
-            String::new()
-        };
-        let worktree_line_digests = raw_line_digests(&worktree_content);
         let mut worktree_counts = BTreeMap::<(usize, RawSecretFindingKey), usize>::new();
-        for finding in worktree_findings.get(&path).into_iter().flatten() {
-            if let Some(key) = raw_secret_finding_key(finding, &worktree_line_digests) {
-                *worktree_counts.entry((finding.line, key)).or_default() += 1;
+        let mut worktree_lines = std::collections::BTreeSet::new();
+        for position in worktree_positions.get(&path).into_iter().flatten() {
+            let finding = &worktree_findings[*position];
+            worktree_lines.insert(finding.line);
+            if let Some(key) = &worktree_keys[*position] {
+                *worktree_counts
+                    .entry((finding.line, key.clone()))
+                    .or_default() += 1;
             }
         }
 
@@ -1770,6 +1899,9 @@ fn staged_secret_provenance(
                     .entry((path.clone(), line, key))
                     .or_default() += 1;
             } else {
+                if mapped_line.is_some_and(|line| worktree_lines.contains(&line)) {
+                    provenance.indeterminate_paths.insert(path.clone());
+                }
                 finding.file.clone_from(&path);
                 provenance.index_only.push(finding);
             }
@@ -1930,36 +2062,33 @@ fn run_check_secret_with_hook_mode_and_provenance(
         }
     } else {
         // CIB-239: the hook still scans the full tree, but exact finding
-        // provenance comes from raw-line fingerprints held only in memory and
+        // provenance comes from raw-occurrence fingerprints held only in memory and
         // index-to-worktree line mapping. This keeps staged new occurrences
         // primary even when redaction collides or an identical unstaged
         // duplicate appears earlier. Index-only staged findings are appended
         // so an unstaged removal cannot make the hook pass. Unavailable Git
         // truth fails closed in hook mode. Non-hook output is unchanged.
-        let worktree_line_digests = result
-            .findings
-            .iter()
-            .map(|finding| finding_workspace_path(root, &finding.file))
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .filter_map(|path| {
-                std::fs::read_to_string(root.join(&path))
-                    .ok()
-                    .map(|content| (path, raw_line_digests(&content)))
-            })
-            .collect::<BTreeMap<_, _>>();
         let mut locations: Vec<String> = result
             .findings
             .iter()
-            .map(|f| {
+            .enumerate()
+            .map(|(index, f)| {
                 let location = secret_finding_location(f, &file_refs, root);
+                let location = if hook_mode {
+                    render_gate_path(&location)
+                } else {
+                    location
+                };
                 let path = finding_workspace_path(root, &f.file);
                 let is_indeterminate = hook_provenance.as_ref().is_some_and(|provenance| {
                     provenance.global_indeterminate
                         || provenance.indeterminate_paths.contains(&path)
                 });
-                let is_primary = worktree_line_digests.get(&path).and_then(|line_digests| {
-                    let key = raw_secret_finding_key(f, line_digests)?;
+                let key = hook_provenance
+                    .as_ref()
+                    .and_then(|provenance| provenance.worktree_keys.get(index))
+                    .and_then(Clone::clone);
+                let is_primary = key.and_then(|key| {
                     let count = hook_provenance
                         .as_mut()?
                         .primary_worktree
@@ -1980,7 +2109,9 @@ fn run_check_secret_with_hook_mode_and_provenance(
             locations.extend(provenance.index_only.iter().map(|finding| {
                 format!(
                     "{}:{} [{}]",
-                    finding.file, finding.line, finding.pattern_name
+                    render_gate_path(&finding.file),
+                    finding.line,
+                    finding.pattern_name
                 )
             }));
             locations.extend(
@@ -4802,10 +4933,13 @@ mod tests {
             .next()
             .expect("control path should be quarantined");
 
-        assert!(!diagnostic.contains('\n'));
-        assert!(!diagnostic.contains('\u{1b}'));
-        assert!(diagnostic.contains(r"\n"));
-        assert!(diagnostic.contains(r"\x1b"));
+        assert!(diagnostic.contains('\n'));
+        assert!(diagnostic.contains('\u{1b}'));
+        let rendered_diagnostic = render_gate_path(diagnostic);
+        assert!(!rendered_diagnostic.contains('\n'));
+        assert!(!rendered_diagnostic.contains('\u{1b}'));
+        assert!(rendered_diagnostic.contains(r"\n"));
+        assert!(rendered_diagnostic.contains(r"\x1b"));
         let rendered = render_gate_path(".env\n\u{1b}[31m");
         assert!(!rendered.contains('\n'));
         assert!(!rendered.contains('\u{1b}'));
@@ -4843,7 +4977,7 @@ mod tests {
     fn hook_worktree_finding_index_normalises_each_item_once() {
         let items = [".env", ".env", ".env.other"];
         let calls = std::cell::Cell::new(0);
-        let index = index_by_path(&items, |path| {
+        let index = index_positions_by_path(&items, |path| {
             calls.set(calls.get() + 1);
             (*path).to_string()
         });
@@ -4851,6 +4985,208 @@ mod tests {
         assert_eq!(calls.get(), items.len());
         assert_eq!(index[".env"].len(), 2);
         assert_eq!(index[".env.other"].len(), 1);
+    }
+
+    #[test]
+    fn hook_secret_check_keeps_committed_occurrence_pre_existing_after_same_line_comment_edit() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env");
+        let value = "abcd".repeat(10);
+        std::fs::write(
+            &env_path,
+            format!("aws_secret_access_key='{value}' # committed\n"),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::write(
+            &env_path,
+            format!("aws_secret_access_key='{value}' # staged comment\n"),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result
+                .message
+                .lines()
+                .any(|line| line.contains(".env:1") && line.contains("pre-existing"))
+        );
+    }
+
+    #[test]
+    fn hook_secret_check_marks_oversized_head_mapping_indeterminate() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env.large-head");
+        let value = "abcd".repeat(10);
+        let prefix = format!("aws_secret_access_key='{value}'\n");
+        std::fs::write(
+            &env_path,
+            format!(
+                "{prefix}{}",
+                "x".repeat(usize::try_from(MAX_STAGED_BLOB_SIZE).unwrap() - prefix.len())
+            ),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.large-head"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        std::fs::write(&env_path, prefix).unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.large-head"]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(
+            result
+                .message
+                .contains(".env.large-head [staged content unavailable]")
+        );
+        let finding = result
+            .message
+            .lines()
+            .find(|line| line.contains(".env.large-head:1"))
+            .unwrap();
+        assert!(!finding.contains("pre-existing"));
+    }
+
+    #[test]
+    fn hook_secret_check_leaves_partially_staged_modified_occurrence_unqualified() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let env_path = tmp.path().join(".env");
+        std::fs::write(&env_path, "SAFE_VALUE=committed\n").unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        git_for_hook_fixture(
+            tmp.path(),
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+        let staged_value = format!("abcd{}wxyz", "1".repeat(32));
+        std::fs::write(
+            &env_path,
+            format!("aws_secret_access_key='{staged_value}'\n"),
+        )
+        .unwrap();
+        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
+        let worktree_value = format!("abcd{}wxyz", "2".repeat(32));
+        std::fs::write(
+            &env_path,
+            format!("aws_secret_access_key='{worktree_value}'\n"),
+        )
+        .unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(result.message.contains(".env [staged content unavailable]"));
+        assert!(
+            result
+                .message
+                .lines()
+                .filter(|line| line.contains(".env:1"))
+                .all(|line| !line.contains("pre-existing"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hook_secret_check_escapes_control_path_in_finding_display() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        let exotic_path = ".env\n\u{1b}[31m";
+        write_detectable_env(&tmp.path().join(exotic_path));
+        git_for_hook_fixture(tmp.path(), &["add", "-f", exotic_path]);
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            true,
+        );
+
+        assert!(result.message.contains(r".env\n\x1b[31m:1"));
+        assert!(!result.message.contains(&format!("{exotic_path}:1")));
+        assert!(!result.message.contains("pre-existing"));
+    }
+
+    #[test]
+    fn hook_provenance_budgets_bound_paths_and_worktree_inspection() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("a"), "x").unwrap();
+        std::fs::write(tmp.path().join("b"), "yy").unwrap();
+        let items = ["a", "b"];
+        let (values, indeterminate) = bounded_path_values(
+            tmp.path(),
+            &items,
+            |path| (*path).to_string(),
+            |_path, content| Some(content.len()),
+            2,
+            2,
+        );
+        assert_eq!(values, vec![Some(1), None]);
+        assert!(indeterminate.contains("b"));
+
+        let changes = vec![
+            ("a".to_string(), ()),
+            ("b".to_string(), ()),
+            ("c".to_string(), ()),
+        ];
+        let (bounded, overflow) = split_bounded_paths(changes, 2);
+        assert_eq!(bounded.len(), 2);
+        assert_eq!(
+            overflow,
+            std::collections::BTreeSet::from(["c".to_string()])
+        );
+        assert!(GIT_PROVENANCE_DIFF_ARGS.contains(&"--no-textconv"));
     }
 
     #[test]
@@ -5386,13 +5722,14 @@ mod tests {
         let config = anvil_checks::secret::SecretCheckConfig::default();
         let findings = anvil_checks::secret::scan_content(&content, ".env", &config);
 
-        let line_digests = raw_line_digests(&content);
         let keyed = findings
             .iter()
-            .filter_map(|finding| raw_secret_finding_key(finding, &line_digests))
+            .filter_map(|finding| {
+                content_line(&content, finding.line)
+                    .map(|line| raw_secret_finding_key(finding, line))
+            })
             .count();
 
-        assert_eq!(line_digests.len(), 512);
         assert_eq!(keyed, findings.len());
     }
 

@@ -52,8 +52,9 @@ fn strip_excerpt_columns(warnings: &mut [Warning]) {
 /// **Analysis is deliberately narrower**, and sharing the renderer does not
 /// change that. Against the same file `anvil check` additionally runs the AST
 /// tier (`anvil_checks_ast::scan_paths`), applies `.anvilrc` exclude globs and
-/// generated-path filtering, and prints a trailing "Blocking warnings found"
-/// notice. None of those run here. That is fine for a pinned single-file
+/// generated-path filtering, and prints the trailing banner "Blocking findings
+/// (severity meets threshold)". None of those run here. That is fine for a
+/// pinned single-file
 /// fixture whose findings are asserted by test, but it is not a general claim
 /// that the demo reproduces `anvil check` on arbitrary input.
 pub(crate) fn in_process_check_runner() -> AutoplayRunner {
