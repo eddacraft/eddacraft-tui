@@ -31,7 +31,7 @@ ACTIVATION
   rule modes: public-api-expansion=warn, new-dependency-introduction=warn, cross-layer-violation=warn, privilege-expansion=warn
   config: .anvilrc
   daemon: not started (--no-daemon); save-time validation uses the scoped fallback.
-  worktree: no worktree registered (not a Git worktree: <GIT-NOT-A-REPO>). Run from inside a worktree, or `anvil workspace register <path>`.
+  worktree: project config may be written here; run `git init` (then re-run `anvil start`) or `anvil workspace register <path>` before protection can attach.
 
 verify:
   state: ready_restart_required
