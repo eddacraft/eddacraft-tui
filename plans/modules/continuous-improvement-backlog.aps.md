@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 173/241  |
+| CIB | —     | In Progress | 173/245  |
 
 ## Purpose
 
@@ -6518,4 +6518,131 @@ archive.
 - **Coordinates with:** CIB-244, ACTTUI-004, ACTTUI-015 (help bar), CIB-222
   honesty tone
 - **Confidence:** high — product direction explicit after first-pass mis-scope.
+
+### CIB-246: Align first-run tutorial path names with return-visit welcome hub
+
+- **Status:** Ready
+- **Priority:** P2 welcome UX (operator screenshots 2026-08-04)
+- **Intent:** `anvil welcome` presents two different menu taxonomies for the
+  same product journey. First-run / path-select uses tutorial labels
+  (`anvil's protection loop`, `Developer acceleration`, `Policy checks`, …).
+  Return-visit hub uses `QuickStartOption` labels (`Review gate decision`,
+  `Watch checks live`, `Learn the anvil model`, …). Same mental objects,
+  different names — operator assumed two products, not first-run vs marker.
+- **Expected Outcome:** Shared catalogue or explicit mapping: hub items that
+  open tutorials use the **same title** as `TutorialPath::label` (or show both
+  short hub title + path title). "Learn the anvil model" either renames to
+  match path-select or is clearly "open path picker". Docs/help name the
+  first-run marker behaviour in one line on the hub.
+- **Files:** `crates/anvil-tui/src/surfaces/welcome/mod.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/mod.rs` / `paths.rs`,
+  `crates/anvil-cli/src/commands/welcome.rs`
+- **Validation:** snapshot comparison hub vs path-select titles; manual first
+  run then second `anvil welcome` without mental rename.
+- **Identified From:** `Projects/tmp/anvil-beta/` screenshots 14-00 (path
+  complete / next path) vs 14-01 (return hub).
+- **Coordinates with:** UJ, WOW, ACTTUI naming honesty
+- **Confidence:** high — two label tables, no shared source of truth.
+
+### CIB-247: First-run scan must not dump raw live-repo ERRORs as the tutorial "domain"
+
+- **Status:** Ready
+- **Priority:** P1 welcome honesty (operator 2026-08-04)
+- **Intent:** First-run discovery / first-win re-scan of the **live** repo
+  (e.g. cognition monorepo) surfaces **11 ERROR** secret findings in test
+  fixtures (`password=…` in `reflection.rs`, high-entropy strings in
+  adapters/spikes). Post-tutorial copy says "Re-scanned your repo: 11 findings
+  in this domain — same as when you started" after **Developer acceleration**,
+  which reads as "your acceleration path found 11 bugs" rather than fixture
+  noise. Operator experienced this as scary/funky during onboarding.
+- **Expected Outcome:** Prefer one of: (a) first-win / path domain uses a
+  controlled fixture set or sandbox for onboarding counts; (b) live-repo scan
+  frames findings honestly ("secret rules on test fixtures", severity,
+  suppress/test-path note); (c) default exclude `**/tests/**` / fixtures for
+  first-run wow only (documented). Never imply the chosen tutorial path
+  *introduced* or uniquely owns the count. Detail panel stays redacted.
+- **Non-scope:** Changing secret-rule precision for production `check` (those
+  findings may be correct product behaviour outside welcome).
+- **Files:** `crates/anvil-cli/src/commands/welcome.rs` (discovery / first_win /
+  `tutorial_state_with_scan`), first-win surfaces under
+  `crates/anvil-tui/src/surfaces/tutorial/`
+- **Validation:** first-run on a secret-noisy monorepo does not open with an
+  unframed 11-ERROR list as the primary wow; re-scan line does not mis-attribute
+  domain to the tutorial path name alone.
+- **Identified From:** `anvil-beta` 13-57 findings list + 14-00 well-done
+  "11 findings in this domain" after Developer acceleration.
+- **Coordinates with:** WOW-005, secret check, UJ first-run
+- **Confidence:** high — screenshots + first_run scan path in welcome.rs.
+
+### CIB-248: Autoplay failures must stay in the TUI (auth root cause + recovery UX)
+
+- **Status:** Ready
+- **Priority:** P0 welcome reliability (operator 2026-08-04; root cause pinned)
+- **Intent:** Autoplay hits `Authentication required` mid-tutorial. Today
+  `welcome.rs` treats `take_autoplay_failure()` as a **hard abort**: drop
+  sandbox, `return Err(anyhow!(failure))`, leave the TUI, print
+  `Error: autoplay command failed: …` on scrollback. Operator screenshot
+  sequence is definitive: welcome fails → `anvil auth login` **succeeds**
+  (creds written to `~/.config/anvil/credentials.json`) → welcome again →
+  **identical** autoplay auth failure. Login did not fix it — so this is not
+  "user was signed out" and not a flaky credential write.
+- **Root cause (pinned):** `autoplay_process` in
+  `crates/anvil-tui/src/surfaces/tutorial/executor.rs` spawns
+  `current_exe() check <target>` with **`env_clear()`** and redirects
+  `HOME`, `XDG_CONFIG_HOME`, `ANVIL_HOME`, etc. into the **sandbox** tree
+  under the autoplay temp root. Real credentials live under the host
+  `~/.config/anvil/`; the child never sees them. Host login cannot fix
+  autoplay until isolation is reconciled with auth (by design today, wrong
+  for ADR-080 demo). Fresh TTY exits cleanly on the fatal path; messy
+  sessions can look "corrupted" after alt-screen leave — secondary.
+- **Expected Outcome:**
+  1. **Stay in TUI on autoplay failure** — in-path error with *retry* /
+     *skip* / *leave autoplay* / *back to path picker*. Do **not**
+     `return Err` from the welcome tutorial loop solely for autoplay fail.
+  2. **Make autoplay auth-correct under isolation** — choose and document
+     one of: demo-safe bypass for sandbox autoplay `check` (preferred for
+     ADR-080); pass-through / inject host credentials into the sandbox env
+     without breaking fixture isolation; or in-process check without a
+     gated CLI re-entry. After host login, autoplay must not fail
+     NotAuthenticated for sandbox demo steps.
+  3. Auth-related failure copy must **not** only say "run auth login" when
+     the child uses sandbox env that ignores host credentials — name that
+     the demo runs isolated, or fix isolation so login actually helps.
+- **Non-scope:** Weakening auth for ordinary non-sandbox `anvil check`.
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/executor.rs`
+  (`autoplay_process` env_clear + sandbox HOME/XDG),
+  `crates/anvil-cli/src/commands/welcome.rs` (`take_autoplay_failure` → Err),
+  tutorial `fail_autoplay`, CLI auth gate for child `check`
+- **Validation:** signed-out and signed-in welcome both complete autoplay
+  protection-loop demo without NotAuthenticated; after host login, re-run
+  still succeeds; injected autoplay failure stays in TUI.
+- **Identified From:** `anvil-beta` 14-03 (fail → login ok → fail again);
+  operator reiteration that post-auth failure is the smoking gun.
+- **Coordinates with:** ADR-080, AUTH, CIB-249, CIB-221
+- **Confidence:** high — screenshot sequence + source-level env isolation.
+
+### CIB-249: Keep clean TTY teardown when welcome *does* exit (secondary to stay-in-TUI)
+
+- **Status:** Ready
+- **Priority:** P3 reliability (operator 2026-08-04; demoted after clarification)
+- **Intent:** Initial report looked like a hard crash + session corruption.
+  Clarification: the exit was the **autoplay auth `Err` path** (CIB-248); a
+  **fresh terminal still exits but cleanly**. Messy prompt/ANSI was likely the
+  outer session (tmux / prior noise) not handling alternate-screen leave, not a
+  missing teardown on the happy error path. Primary fix is **do not exit**
+  (CIB-248). This item only covers residual hygiene when welcome legitimately
+  ends (quit, Ctrl-C, unrecoverable error).
+- **Expected Outcome:** Intentional welcome/tutorial exit always leaves cooked
+  mode / primary screen / cursor visible before scrollback errors print.
+  Panic hook best-effort restore remains nice-to-have. No requirement to treat
+  autoplay auth as process-fatal once CIB-248 lands.
+- **Files:** `crates/anvil-cli/src/commands/welcome.rs` teardown pairing,
+  shared TUI setup/teardown
+- **Validation:** autoplay failure after CIB-248 does not exit; intentional
+  quit leaves a clean prompt on a fresh TTY (already true today — keep a
+  regression if cheap).
+- **Identified From:** operator clarification on CIB-249 vs CIB-248.
+- **Coordinates with:** CIB-248 (owns recovery UX)
+- **Superseded in spirit by:** CIB-248 for the original "crash" report
+- **Confidence:** high on demotion; teardown already OK on clean TTY.
 
