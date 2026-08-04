@@ -1,4 +1,4 @@
-| SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |<!--
+<!--
 APS Module: Security
 ====================================
 Ongoing security posture management. Replaces archived security modules.
@@ -83,7 +83,7 @@ security concerns.
 | SEC-008 | Named-pattern secret detection (GH #1800) | Merged |
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
-| SEC-011 | Remediate repository-wide JavaScript dependency advisories | In Progress |
+| SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -473,7 +473,9 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-011: Remediate repository-wide JavaScript dependency advisories
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3528
+- **Pull Request:** [#3528](https://github.com/eddacraft/anvil-001/pull/3528)
+  (rebase-merged into `main`).
 - **Intent:** Clear Dependabot alerts
   [#238](https://github.com/eddacraft/anvil-001/security/dependabot/238)
   through
@@ -504,6 +506,12 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
   reached `--help` successfully after configuring its imported `undici`
   dispatcher, covering the intentional exact-pin override without credentials
   or an external request.
+- **Evidence:** Council `council-1cd25549` converged after scoped re-review,
+  and independent verification passed with no blockers. All 30 applicable
+  GitHub checks passed, including both repository-wide dependency audits, Node
+  unit tests, and the Rust test suite. PR #3528 was rebase-merged into `main`
+  as `3a46f2fab`; GitHub then marked Dependabot alerts #238 through #248 fixed
+  between 2026-08-04T13:42:20Z and 2026-08-04T13:42:23Z.
 - **Confidence:** High. The vulnerable paths are transitive development or
   security-tooling dependencies, and each override is scoped to its declaring
   consumer rather than forcing a repository-wide major.
