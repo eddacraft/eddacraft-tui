@@ -175,7 +175,7 @@ fn confirm_registration_membership(
 
 fn missing_durable_membership(canonical: &Path) -> WorktreeRegistration {
     WorktreeRegistration::Rejected(format!(
-        "daemon acknowledged registration for {}, but durable membership was absent from daemon status; retry registration and inspect `anvil intercept status`",
+        "daemon acknowledged the workspace request for {}, but durable membership was absent from daemon status; retry registration and inspect `anvil intercept status`",
         canonical.display(),
     ))
 }
@@ -713,9 +713,13 @@ mod tests {
 
     #[test]
     fn activation_session_id_is_stable_and_path_derived() {
-        let first = activation_session_id(Path::new("/tmp/repo"));
-        let second = activation_session_id(Path::new("/tmp/repo"));
-        let different = activation_session_id(Path::new("/tmp/other"));
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let other_dir = tempfile::tempdir().expect("other worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let other = canonicalise_for_registration(other_dir.path());
+        let first = activation_session_id(&worktree);
+        let second = activation_session_id(&worktree);
+        let different = activation_session_id(&other);
 
         assert_eq!(first, second);
         assert_ne!(first, different);
@@ -724,10 +728,12 @@ mod tests {
 
     #[test]
     fn register_params_use_activation_identity_without_lineage() {
-        let session_id = activation_session_id(Path::new("/tmp/repo"));
-        let params = session_register_params(&session_id, Path::new("/tmp/repo"));
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let session_id = activation_session_id(&worktree);
+        let params = session_register_params(&session_id, &worktree);
 
-        assert_eq!(params["worktree"], "/tmp/repo");
+        assert_eq!(params["worktree"], worktree.display().to_string());
         assert_eq!(params["agent_tag"]["driver_id"], "anvil-start");
         assert_eq!(params["agent_tag"]["claimed_agent_id"], "activation-spine");
         assert!(
@@ -738,38 +744,44 @@ mod tests {
 
     #[test]
     fn acknowledged_registration_without_durable_membership_is_rejected() {
-        let worktree = Path::new("/tmp/repo");
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
 
-        let outcome = confirm_durable_registration(worktree, &[]);
+        let outcome = confirm_durable_registration(&worktree, &[]);
 
         assert!(
             matches!(outcome, WorktreeRegistration::Rejected(ref message)
-                if message.contains("durable membership") && message.contains("/tmp/repo")),
+                if message.contains("durable membership")
+                    && message.contains(&worktree.display().to_string())),
             "an acknowledged registration must not report success when daemon status has no durable membership: {outcome:?}",
         );
     }
 
     #[test]
     fn refreshed_registration_without_durable_membership_is_rejected() {
-        let worktree = Path::new("/tmp/repo");
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
 
-        let outcome = confirm_durable_refresh(worktree, &[]);
+        let outcome = confirm_durable_refresh(&worktree, &[]);
 
         assert!(
             matches!(outcome, WorktreeRegistration::Rejected(ref message)
-                if message.contains("durable membership") && message.contains("/tmp/repo")),
+                if message.contains("workspace request")
+                    && message.contains("durable membership")
+                    && message.contains(&worktree.display().to_string())),
             "a successful heartbeat must not report refresh when daemon status has no durable membership: {outcome:?}",
         );
     }
 
     #[test]
     fn durable_membership_for_a_different_session_does_not_confirm_registration() {
-        let worktree = Path::new("/tmp/repo");
-        let expected = activation_session_id(worktree);
-        let other = durable_session(SessionId::new("sess_activation_other"), worktree);
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let expected = activation_session_id(&worktree);
+        let other = durable_session(SessionId::new("sess_activation_other"), &worktree);
 
         let outcome = confirm_registration_membership(
-            worktree,
+            &worktree,
             &expected,
             &[other],
             WorktreeRegistration::Registered,
@@ -817,15 +829,16 @@ mod tests {
 
     #[test]
     fn matching_durable_membership_preserves_registered_and_refreshed_outcomes() {
-        let worktree = Path::new("/tmp/repo");
-        let session = durable_session(activation_session_id(worktree), worktree);
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let session = durable_session(activation_session_id(&worktree), &worktree);
 
         assert_eq!(
-            confirm_durable_registration(worktree, std::slice::from_ref(&session)),
+            confirm_durable_registration(&worktree, std::slice::from_ref(&session)),
             WorktreeRegistration::Registered,
         );
         assert_eq!(
-            confirm_durable_refresh(worktree, std::slice::from_ref(&session)),
+            confirm_durable_refresh(&worktree, std::slice::from_ref(&session)),
             WorktreeRegistration::Refreshed,
         );
     }
