@@ -52,15 +52,32 @@ pub(crate) fn watch_demo_mode(state: &TutorialState) -> WatchDemoMode {
     }
 }
 
+fn tutorial_refusal_message(
+    no_tui: bool,
+    stdin_tty: bool,
+    stdout_tty: bool,
+) -> Option<&'static str> {
+    if no_tui {
+        Some("Tutorial cannot run with --no-tui. Run without --no-tui.")
+    } else if !stdin_tty || !stdout_tty {
+        Some("Tutorial requires an interactive terminal.")
+    } else {
+        None
+    }
+}
+
 pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if args.reset {
         let progress_path = progress_file_path()?;
         return reset_progress(&progress_path);
     }
 
-    if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
-        println!("Tutorial requires an interactive terminal. Run without --no-tui.");
-        return Ok(());
+    if let Some(message) = tutorial_refusal_message(
+        global.no_tui,
+        std::io::stdin().is_terminal(),
+        std::io::stdout().is_terminal(),
+    ) {
+        return Err(anyhow::anyhow!(message));
     }
 
     if args.autoplay {
@@ -421,6 +438,44 @@ mod tests {
         let parsed = TutorialParser::try_parse_from(["test", "--autoplay"]).expect("autoplay");
         assert!(parsed.tutorial.autoplay);
         assert!(TutorialParser::try_parse_from(["test", "--autoplay", "--reset"]).is_err());
+    }
+
+    #[test]
+    fn tutorial_refusal_copy_follows_the_explicit_cause() {
+        let cases = [
+            (
+                false,
+                false,
+                true,
+                Some("Tutorial requires an interactive terminal."),
+            ),
+            (
+                false,
+                true,
+                false,
+                Some("Tutorial requires an interactive terminal."),
+            ),
+            (
+                true,
+                true,
+                true,
+                Some("Tutorial cannot run with --no-tui. Run without --no-tui."),
+            ),
+            (
+                true,
+                false,
+                false,
+                Some("Tutorial cannot run with --no-tui. Run without --no-tui."),
+            ),
+            (false, true, true, None),
+        ];
+
+        for (no_tui, stdin_tty, stdout_tty, expected) in cases {
+            assert_eq!(
+                tutorial_refusal_message(no_tui, stdin_tty, stdout_tty),
+                expected
+            );
+        }
     }
 
     #[test]

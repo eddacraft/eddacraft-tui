@@ -61,7 +61,7 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         canonical_name: "antipattern-scan",
         internal_name: "antipattern-scan",
         aliases: &[],
-        description: "Detect common code antipatterns",
+        description: "Detect patterns covered by anvil's built-in rule catalogue",
         init_enabled: true,
         init_visible: true,
         gate_supported: true,
@@ -426,6 +426,16 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+
+    #[test]
+    fn antipattern_scan_description_names_its_built_in_rule_catalogue_scope() {
+        let definition = definition_by_canonical("antipattern-scan").expect("registered");
+
+        assert_eq!(
+            definition.description,
+            "Detect patterns covered by anvil's built-in rule catalogue"
+        );
+    }
 
     #[test]
     fn closest_registered_id_suggests_near_canonical_typo() {

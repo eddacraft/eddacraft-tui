@@ -6408,7 +6408,7 @@ archive.
 
 ### CIB-240: `tutorial` non-interactive refusal must exit non-zero with accurate copy
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 (Dave UX-4)
 - **Intent:** `anvil tutorial` with no TTY (no `--no-tui` flag) refuses honestly
   but exits 0 (so `&&` chains proceed) and says "Run without `--no-tui`" even
@@ -6423,23 +6423,25 @@ archive.
 - **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
 - **Confidence:** high.
 
-### CIB-241: Clarify antipattern-scan name vs architectural-rule scope
+### CIB-241: Clarify antipattern-scan name vs built-in rule catalogue scope
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 docs (Dave UX-5; re-triaged — by design, not scope creep)
-- **Intent:** "antipattern-scan" is the architectural anti-pattern family
-  (api-expansion, cross-layer, privilege, …). Injection/`eval` detection is a
-  different product surface by design; the name can invite the wrong mental
-  model.
-- **Non-scope / do not:** Add injection rules under this label to "match the
-  name."
-- **Expected Outcome:** Help / one-line description makes architectural-rule
-  scope explicit; docs do not promise injection detection under that label.
+- **Intent:** "antipattern-scan" is the registry-backed built-in rule catalogue,
+  spanning architectural/code-quality smells, reliability rules, and the
+  syntactic security-construction subset accepted by ADR-087. The broad name
+  can still invite an exhaustive SAST mental model that the product does not
+  implement.
+- **Non-scope / do not:** Add or move rule families to "match the name"; imply
+  taint analysis or exhaustive injection detection.
+- **Expected Outcome:** Help / one-line description points to anvil's built-in
+  rule catalogue without promising exhaustive injection/SAST coverage.
 - **Files:** check help / public docs / rule family labels
 - **Validation:** wording review only.
 - **Identified From:** Dave UX-5; re-triage.
 - **Coordinates with:** [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
-- **Confidence:** high on naming; low urgency.
+- **Confidence:** high after source-truth reconciliation against ADR-087 and
+  `docs/architecture/checks-as-built.md`; low urgency.
 
 ### CIB-242: Optional status hint for daemon/MCP binary version skew after upgrade
 
