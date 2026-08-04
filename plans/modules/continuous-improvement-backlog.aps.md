@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 174/245  |
+| CIB | —     | In Progress | 177/245  |
 
 ## Purpose
 
@@ -6106,7 +6106,7 @@ archive.
 
 ### CIB-228: Fix PowerShell dual-install guard inject (silent no-op)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3526
 - **Priority:** P0 for `v0.9.3-beta` (Windows install path)
 - **Intent:** The official Windows `irm … | iex` installer is a silent no-op on
   clean machines because the package-manager dual-install guard was written as a
@@ -6135,7 +6135,7 @@ archive.
 
 ### CIB-229: Align cargo-dist receipt layout with update + install-method detection
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3526
 - **Priority:** P0 for `v0.9.3-beta` (self-update + version honesty)
 - **Intent:** Three symptoms share one root cause family: (1) `anvil update
   --check` fails with axoupdater "The updater isn't properly configured";
@@ -6184,7 +6184,7 @@ archive.
 
 ### CIB-230: No internal GH issue numbers in public ship artefacts
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-04 via PR #3526
 - **Priority:** P2 for `v0.9.3-beta` (release hygiene; land with CIB-228)
 - **Intent:** Private tracker ids (e.g. `GH #2885`) were baked into the public
   PowerShell installer banner and help text. Anyone who downloads the asset sees
