@@ -13,6 +13,15 @@
 //!   exceeds the configured `--threshold` (inclusive, so
 //!   `--threshold 5` flips on the 5th unwitnessed commit).
 //!
+//! Output format: JSON when `--json` is passed **or** stdout is not a
+//! terminal (so pipes and CI get machine-readable output); the plain
+//! summary otherwise. `--no-tui` does not itself force JSON here —
+//! this command has no TUI surface, so on a terminal it stays plain.
+//!
+//! `chain_intact` and `degraded_audit_drift` are narrow signals and
+//! neither reports coverage: see their field docs on [`AuditReport`].
+//! The plain summary therefore leads with witnessed/walked coverage.
+//!
 //! Out of scope (deferred follow-ups, not part of v1):
 //!
 //! - Kindling `gate_evaluated` emission with `mode: audit` — owned by
@@ -128,10 +137,23 @@ pub struct RuleDriftEntry {
 pub struct AuditReport {
     pub schema_version: &'static str,
     pub branch: String,
+    /// Commits in the audited range. `witnessed + unwitnessed.len()`.
     pub commits_walked: usize,
+    /// Commits in the range that carry a witness record. Read together
+    /// with `commits_walked` this is the audit's **coverage** — the
+    /// figure the human summary leads on, because neither
+    /// `chain_intact` nor `degraded_audit_drift` reports it.
     pub witnessed: usize,
     pub unwitnessed: Vec<String>,
+    /// Tamper check on the witness records themselves: the chain-segment
+    /// DAG parses and verifies. **Not** a coverage claim — a repo where
+    /// no commit was ever witnessed has an intact (empty-ish) chain and
+    /// reports `true`. Consumers that want coverage read `witnessed` /
+    /// `commits_walked`.
     pub chain_intact: bool,
+    /// `unwitnessed.len() >= threshold`. A threshold breach only —
+    /// `false` means the count is under `--threshold`, not that the
+    /// unwitnessed commits are accounted for.
     pub degraded_audit_drift: bool,
     pub threshold: usize,
     /// Hex SHA-256 line-hash of the most recent witness line in the
@@ -515,30 +537,92 @@ fn compute_chain_head_hash(repo_root: &Path) -> Option<String> {
 }
 
 fn print_plain(r: &AuditReport) {
-    println!("anvil audit-chain — branch {}", r.branch);
-    println!("  commits walked: {}", r.commits_walked);
-    println!("  witnessed:      {}", r.witnessed);
-    println!("  unwitnessed:    {}", r.unwitnessed.len());
-    println!(
-        "  chain intact:   {}",
-        if r.chain_intact { "yes" } else { "NO" }
+    print!("{}", render_plain(r));
+}
+
+/// Render the human summary.
+///
+/// Coverage leads. `chain_intact` and `degraded_audit_drift` are both
+/// narrow, correct signals — a repo where no commit is witnessed still
+/// reports `chain intact: yes` (the witness records are unmodified) and
+/// no drift (unwitnessed count under `--threshold`). Stacked as a
+/// column of green-looking fields they skim as a clean health pass,
+/// which they are not. So the summary states witness coverage first and
+/// qualifies what `chain intact` actually asserts. The field semantics
+/// behind them are deliberately unchanged.
+fn render_plain(r: &AuditReport) -> String {
+    use std::fmt::Write as _;
+
+    // Writing into a String is infallible; `let _ =` keeps the render
+    // path free of unwrap noise.
+    let mut out = String::new();
+    let _ = writeln!(out, "anvil audit-chain — branch {}", r.branch);
+
+    // `checked_div` folds the empty-walk guard into the percentage:
+    // `None` is exactly the "nothing was audited" case. `saturating_mul`
+    // keeps a pathological commit count from wrapping the display.
+    let coverage_percent = r
+        .witnessed
+        .saturating_mul(100)
+        .checked_div(r.commits_walked);
+    match coverage_percent {
+        None => {
+            let _ = writeln!(out, "  witness coverage: no commits in range");
+        }
+        Some(percent) => {
+            let _ = writeln!(
+                out,
+                "  witness coverage: {}/{} commits witnessed ({percent}%)",
+                r.witnessed, r.commits_walked,
+            );
+            if r.witnessed == 0 {
+                let _ = writeln!(
+                    out,
+                    "  NO WITNESS COVERAGE: not one commit in this range carries a witness.",
+                );
+            }
+        }
+    }
+
+    let _ = writeln!(out, "  commits walked: {}", r.commits_walked);
+    let _ = writeln!(out, "  witnessed:      {}", r.witnessed);
+    let _ = writeln!(out, "  unwitnessed:    {}", r.unwitnessed.len());
+    let _ = writeln!(
+        out,
+        "  chain intact:   {} (witness records unmodified — not a coverage claim)",
+        if r.chain_intact { "yes" } else { "NO" },
     );
     if r.partial {
-        println!("  PARTIAL: max-runtime cap fired; rescan list is incomplete");
+        let _ = writeln!(
+            out,
+            "  PARTIAL: max-runtime cap fired; rescan list is incomplete",
+        );
     }
     if r.degraded_audit_drift {
-        println!(
+        let _ = writeln!(
+            out,
             "  DEGRADED: drift {} >= threshold {}",
             r.unwitnessed.len(),
-            r.threshold
+            r.threshold,
+        );
+    } else if !r.unwitnessed.is_empty() {
+        // A clear drift marker is a threshold statement, not a verdict
+        // on the unwitnessed commits. Say so, so a quiet marker is not
+        // read as "those commits are accounted for".
+        let _ = writeln!(
+            out,
+            "  (drift marker clear: {} unwitnessed < threshold {})",
+            r.unwitnessed.len(),
+            r.threshold,
         );
     }
     if !r.unwitnessed.is_empty() && r.unwitnessed.len() <= 20 {
-        println!("  unwitnessed SHAs:");
+        let _ = writeln!(out, "  unwitnessed SHAs:");
         for sha in &r.unwitnessed {
-            println!("    {sha}");
+            let _ = writeln!(out, "    {sha}");
         }
     }
+    out
 }
 
 /// List the commits to audit. When `since` is set, uses `git rev-list
@@ -770,6 +854,139 @@ mod tests {
         let mut copy = r.unwitnessed.clone();
         copy.sort();
         assert_eq!(r.unwitnessed, copy);
+    }
+
+    /// Build a report with `witnessed` of `walked` commits witnessed and
+    /// the remainder unwitnessed. Keeps the coverage-rendering tests
+    /// focused on presentation rather than chain plumbing.
+    fn coverage_report(walked: usize, witnessed: usize, threshold: usize) -> AuditReport {
+        let unwitnessed: Vec<String> = (0..walked.saturating_sub(witnessed))
+            .map(|i| format!("sha{i:03}"))
+            .collect();
+        AuditReport {
+            schema_version: "anvil.audit-chain.v1",
+            branch: "main".to_string(),
+            commits_walked: walked,
+            witnessed,
+            degraded_audit_drift: unwitnessed.len() >= threshold,
+            unwitnessed,
+            chain_intact: true,
+            threshold,
+            chain_head_hash: None,
+            partial: false,
+            rule_drift: Vec::new(),
+        }
+    }
+
+    /// The reported case: 2 commits, none witnessed, default threshold 5.
+    /// `chain_intact: true` / `degraded_audit_drift: false` are both
+    /// correct under the contract, so the *summary* has to lead with
+    /// coverage or a reader skims it as a clean bill of health.
+    #[test]
+    fn plain_summary_leads_with_witness_coverage() {
+        let r = coverage_report(2, 0, 5);
+        let out = render_plain(&r);
+        let coverage_line = out
+            .lines()
+            .find(|l| l.contains("witness coverage"))
+            .expect("summary must carry a witness-coverage line");
+        assert!(
+            coverage_line.contains("0/2"),
+            "coverage must show witnessed/walked, got: {coverage_line}"
+        );
+
+        // "Leads with" is load-bearing: coverage must precede the
+        // `chain intact` line, which is the field that reads green.
+        let coverage_at = out.find("witness coverage").expect("coverage line present");
+        let intact_at = out.find("chain intact").expect("chain intact line present");
+        assert!(
+            coverage_at < intact_at,
+            "coverage must appear before `chain intact`:\n{out}"
+        );
+    }
+
+    /// Zero coverage is the skim hazard — it must be called out
+    /// explicitly, not left to the reader to derive from `witnessed: 0`.
+    #[test]
+    fn plain_summary_calls_out_zero_coverage() {
+        let r = coverage_report(2, 0, 5);
+        let out = render_plain(&r);
+        assert!(
+            out.contains("NO WITNESS COVERAGE"),
+            "zero-coverage runs need an explicit callout:\n{out}"
+        );
+    }
+
+    /// `chain intact` must not be readable as "every commit was
+    /// witnessed". The rendered line has to say what it actually checks.
+    #[test]
+    fn plain_summary_qualifies_chain_intact_meaning() {
+        let r = coverage_report(2, 0, 5);
+        let out = render_plain(&r);
+        let intact_line = out
+            .lines()
+            .find(|l| l.contains("chain intact"))
+            .expect("chain intact line present");
+        assert!(
+            intact_line.contains("not a coverage claim"),
+            "`chain intact` must disclaim coverage, got: {intact_line}"
+        );
+    }
+
+    /// Full coverage renders the ratio and drops the zero-coverage
+    /// callout — the warning must not become background noise.
+    #[test]
+    fn plain_summary_reports_full_coverage_without_warning() {
+        let r = coverage_report(3, 3, 5);
+        let out = render_plain(&r);
+        assert!(
+            out.contains("3/3"),
+            "full coverage must still show the ratio:\n{out}"
+        );
+        assert!(
+            !out.contains("NO WITNESS COVERAGE"),
+            "fully witnessed runs must not warn about zero coverage:\n{out}"
+        );
+    }
+
+    /// An empty walk has no coverage to report and must not be dressed
+    /// up as a zero-coverage failure.
+    #[test]
+    fn plain_summary_handles_empty_walk() {
+        let r = coverage_report(0, 0, 5);
+        let out = render_plain(&r);
+        assert!(
+            !out.contains("NO WITNESS COVERAGE"),
+            "an empty walk is not a coverage breach:\n{out}"
+        );
+        assert!(
+            out.contains("no commits in range"),
+            "empty walk must say so plainly:\n{out}"
+        );
+    }
+
+    /// Guard the contract this item must NOT change: presentation work
+    /// on the summary must leave `chain_intact` and
+    /// `degraded_audit_drift` semantics exactly where they were.
+    /// `chain_intact` = witness DAG untampered (not coverage);
+    /// `degraded_audit_drift` = unwitnessed count >= threshold.
+    #[test]
+    fn zero_coverage_below_threshold_keeps_field_semantics() {
+        let r = coverage_report(2, 0, 5);
+        assert!(
+            r.chain_intact,
+            "chain_intact must stay a tamper check, not a coverage check"
+        );
+        assert!(
+            !r.degraded_audit_drift,
+            "2 unwitnessed under threshold 5 must not flip the drift marker"
+        );
+        // And the JSON contract is untouched by the presentation change.
+        let value = serde_json::to_value(&r).unwrap();
+        assert_eq!(value["chain_intact"], serde_json::json!(true));
+        assert_eq!(value["degraded_audit_drift"], serde_json::json!(false));
+        assert_eq!(value["witnessed"], serde_json::json!(0));
+        assert_eq!(value["schema_version"], "anvil.audit-chain.v1");
     }
 
     #[test]

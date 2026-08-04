@@ -527,7 +527,13 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
     }
 
     if steps.is_empty() {
-        steps.push("No issues found — project looks clean!".to_string());
+        // "Looks clean" over-claims: audit's passes are narrower than
+        // the rule engine's, so an empty audit is a statement about
+        // audit's scope, not about the tree (CIB-234).
+        steps.push(
+            "No issues in audit's scope — run `anvil check --all` for the full rule-engine report"
+                .to_string(),
+        );
     }
 
     steps
@@ -537,13 +543,57 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
 // Output: plain text
 // ---------------------------------------------------------------------------
 
-fn print_plain(data: &AuditData) {
-    println!("ANVIL AUDIT — {}\n", data.project_name);
-    println!("Total files scanned: {}", data.total_files);
-    println!("Issues found: {}\n", data.issues.len());
+/// What audit's security pass actually covers, in terms a reader can
+/// act on.
+///
+/// CIB-234: on a planted-secret tree `anvil check --all` reported four
+/// secret findings and `anvil audit` two, and the gap read as "the tree
+/// is cleaner than check says" or "check is wrong". Both counts are
+/// right for their surface — audit is a project overview that reports
+/// `.env` exposure at file level and summarises source-secret patterns,
+/// while check runs the full rule engine over its own file set. Audit
+/// simply never said so.
+///
+/// The disclosure is deliberately symmetric: the counts can differ in
+/// **either** direction (audit scans `.env` files that check's rule set
+/// skips, so audit can also report the larger number). Claiming check
+/// is always the bigger number would trade one wrong inference for
+/// another. Stating the scope is the fix; forcing the counts to match
+/// is out of scope — that needs a product decision, not a presentation
+/// change.
+const SECURITY_SCOPE: &str = "audit is a project overview — `.env` files are reported once at \
+     file level and source-secret patterns are summarised. `anvil check --all` \
+     and `anvil gate` run the full rule engine over a different file set, so \
+     their counts and audit's can differ in either direction. Neither count \
+     alone is a clean bill of health.";
 
+fn print_plain(data: &AuditData) {
+    print!("{}", render_plain(data));
+}
+
+fn render_plain(data: &AuditData) -> String {
+    use std::fmt::Write as _;
+
+    // Writing into a String is infallible; `let _ =` keeps the render
+    // path free of unwrap noise.
+    let mut out = String::new();
+    let _ = writeln!(out, "ANVIL AUDIT — {}\n", data.project_name);
+    let _ = writeln!(out, "Total files scanned: {}", data.total_files);
+    let _ = writeln!(out, "Issues found: {}", data.issues.len());
+    // Sits with the count, not in a footer: the count is what gets
+    // skimmed, so the qualifier has to travel with it.
+    let _ = writeln!(out, "Security scope: {SECURITY_SCOPE}\n");
+
+    out.push_str(&render_body(data));
+    out
+}
+
+fn render_body(data: &AuditData) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
     if !data.issues.is_empty() {
-        println!("ISSUES");
+        let _ = writeln!(out, "ISSUES");
         for issue in &data.issues {
             let badge = match issue.severity {
                 IssueSeverity::Critical => "[CRIT]",
@@ -553,18 +603,20 @@ fn print_plain(data: &AuditData) {
                 IssueSeverity::Info => "[INFO]",
             };
             let fix_tag = if issue.fixable { " (fixable)" } else { "" };
-            println!(
+            let _ = writeln!(
+                out,
                 "  {badge} {:<15} {}:{}{fix_tag}",
                 issue.category, issue.file, issue.line,
             );
-            println!("        {}", issue.message);
+            let _ = writeln!(out, "        {}", issue.message);
         }
     }
 
     if !data.historical_scores.is_empty() {
-        println!("\nHISTORICAL SCORES");
+        let _ = writeln!(out, "\nHISTORICAL SCORES");
         for score in &data.historical_scores {
-            println!(
+            let _ = writeln!(
+                out,
                 "  {}  score: {:.2}  issues: {}",
                 score.timestamp, score.score, score.issue_count,
             );
@@ -572,11 +624,12 @@ fn print_plain(data: &AuditData) {
     }
 
     if !data.next_steps.is_empty() {
-        println!("\nNEXT STEPS");
+        let _ = writeln!(out, "\nNEXT STEPS");
         for (i, step) in data.next_steps.iter().enumerate() {
-            println!("  {}. {step}", i + 1);
+            let _ = writeln!(out, "  {}. {step}", i + 1);
         }
     }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -594,6 +647,11 @@ fn print_plain(data: &AuditData) {
 struct AuditOutput {
     project_name: String,
     total_files: usize,
+    /// What audit's security pass covers, so a consumer comparing
+    /// `issues.len()` against `anvil check --all` can see the two
+    /// surfaces are scoped differently rather than infer a discrepancy.
+    /// Additive field; `issues[]` remains canonical.
+    security_scope: &'static str,
     issues: Vec<IssueOutput>,
     historical_scores: Vec<ScoreOutput>,
     next_steps: Vec<String>,
@@ -723,7 +781,10 @@ fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
         (
             NotificationClass::Info,
             NotificationPriority::Low,
-            format!("No issues across {} files", data.total_files),
+            format!(
+                "No issues in audit's scope across {} files; `anvil check --all` runs the full rule engine",
+                data.total_files
+            ),
         )
     } else {
         (
@@ -747,6 +808,7 @@ fn build_audit_output(data: &AuditData) -> AuditOutput {
     AuditOutput {
         project_name: data.project_name.clone(),
         total_files: data.total_files,
+        security_scope: SECURITY_SCOPE,
         issues: data
             .issues
             .iter()
@@ -1047,14 +1109,122 @@ mod tests {
         cleanup(&dir);
     }
 
+    /// A tree audit finds nothing in must not be reported as clean
+    /// outright — audit is an overview surface, and `anvil check --all`
+    /// runs rules audit never applies. The "nothing here" step has to
+    /// scope its claim and name the fuller surface.
     #[test]
-    fn clean_project_gets_positive_next_step() {
+    fn clean_project_next_step_scopes_its_claim() {
         let dir = make_temp_dir();
         std::fs::write(dir.join("clean.rs"), "fn main() {}\n").unwrap();
 
         let data = run_audit(&dir);
         assert_eq!(data.next_steps.len(), 1);
-        assert!(data.next_steps[0].contains("clean"));
+        let step = &data.next_steps[0];
+        assert!(
+            step.contains("audit's scope"),
+            "a clean audit must scope its claim, got: {step}"
+        );
+        assert!(
+            step.contains("anvil check --all"),
+            "a clean audit must point at the full rule-engine surface, got: {step}"
+        );
+        cleanup(&dir);
+    }
+
+    /// CIB-234: on the reported tree `check --all` surfaced 4 secret
+    /// findings and `audit` 2. Both are correct for their surface —
+    /// the failure is that audit never says so, letting a lower count
+    /// read as a cleaner tree. The plain summary must name the domain.
+    #[test]
+    fn plain_output_discloses_security_scope() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".env"), "API_KEY=sk-live-abcdefghijklmnop\n").unwrap();
+        let data = run_audit(&dir);
+        let out = render_plain(&data);
+
+        assert!(
+            out.contains("Security scope"),
+            "audit must name its security domain:\n{out}"
+        );
+        assert!(
+            out.contains("anvil check --all"),
+            "audit must point at the full rule-engine surface:\n{out}"
+        );
+        assert!(
+            out.contains("Neither count alone is a clean bill of health"),
+            "audit must refuse the 'count comparison = safety verdict' reading:\n{out}"
+        );
+        // Symmetry guard: audit scans `.env` files check's rule set
+        // skips, so it can report the larger number too. The copy must
+        // not assert a direction.
+        assert!(
+            out.contains("either direction"),
+            "scope note must not claim one surface always reports more:\n{out}"
+        );
+        cleanup(&dir);
+    }
+
+    /// The disclosure is a property of the surface, not of a populated
+    /// result — a zero-issue audit is exactly when the reader is most
+    /// likely to over-read it.
+    #[test]
+    fn plain_output_discloses_scope_even_with_no_issues() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join("clean.rs"), "fn main() {}\n").unwrap();
+        let data = run_audit(&dir);
+        let out = render_plain(&data);
+        assert!(
+            out.contains("Security scope"),
+            "scope disclosure must survive an empty finding list:\n{out}"
+        );
+        cleanup(&dir);
+    }
+
+    /// JSON consumers need the same disclosure the human reader gets.
+    #[test]
+    fn json_output_carries_the_security_scope() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".env"), "API_KEY=sk-live-abcdefghijklmnop\n").unwrap();
+        let data = run_audit(&dir);
+        let value = serde_json::to_value(build_audit_output(&data)).unwrap();
+
+        let scope = value["security_scope"]
+            .as_str()
+            .expect("JSON output must carry security_scope");
+        assert!(
+            scope.contains("anvil check --all"),
+            "security_scope must name the full rule-engine surface, got: {scope}"
+        );
+        // The canonical finding list stays exactly where it was.
+        assert!(value["issues"].is_array(), "issues[] must remain canonical");
+        cleanup(&dir);
+    }
+
+    /// Non-scope guard: this item disclosed the domain, it did NOT
+    /// change aggregation. `.env` stays one file-level finding rather
+    /// than being fanned out to match `check --all`'s per-rule count.
+    #[test]
+    fn scope_disclosure_does_not_change_env_aggregation() {
+        let dir = make_temp_dir();
+        std::fs::write(
+            dir.join(".env"),
+            "API_KEY=sk-live-abcdefghijklmnop\nDB_PASSWORD=hunter2hunter2hunter2\n",
+        )
+        .unwrap();
+        let data = run_audit(&dir);
+        let env_file_issues: Vec<_> = data
+            .issues
+            .iter()
+            .filter(|i| i.file == ".env" && i.message.contains("Environment file"))
+            .collect();
+        assert_eq!(
+            env_file_issues.len(),
+            1,
+            "`.env` stays a single file-level finding; forcing count parity with \
+             `check --all` is explicitly out of scope, got: {:?}",
+            data.issues
+        );
         cleanup(&dir);
     }
 
@@ -1333,11 +1503,23 @@ mod tests {
 
     // --- generate_next_steps ---
 
+    /// An empty finding list is a statement about audit's scope, not a
+    /// clean bill of health for the tree (CIB-234), so the single step
+    /// must qualify the claim and route to the fuller surface.
     #[test]
     fn next_steps_empty_issues() {
         let steps = generate_next_steps(&[]);
         assert_eq!(steps.len(), 1);
-        assert!(steps[0].contains("clean"));
+        assert!(
+            steps[0].contains("audit's scope"),
+            "empty result must scope its claim, got: {}",
+            steps[0]
+        );
+        assert!(
+            steps[0].contains("anvil check --all"),
+            "empty result must name the full rule-engine surface, got: {}",
+            steps[0]
+        );
     }
 
     #[test]
