@@ -1,4 +1,4 @@
-<!--
+| SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |<!--
 APS Module: Security
 ====================================
 Ongoing security posture management. Replaces archived security modules.
