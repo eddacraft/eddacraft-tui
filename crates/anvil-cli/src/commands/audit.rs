@@ -1149,10 +1149,11 @@ mod tests {
         cleanup(&dir);
     }
 
-    /// A tree audit finds nothing in must not be reported as clean
-    /// outright — audit is an overview surface, and `anvil check --all`
-    /// runs rules audit never applies. The "nothing here" step has to
-    /// scope its claim and name the fuller surface.
+    /// A tree that audit finds nothing in must not be reported as clean
+    /// outright — audit is an overview surface that runs a subset of
+    /// the checks, and `anvil gate` applies rules audit never does. The
+    /// "nothing here" step has to scope its claim and name the fuller
+    /// surface.
     #[test]
     fn clean_project_next_step_scopes_its_claim() {
         let dir = make_temp_dir();
