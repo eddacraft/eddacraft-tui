@@ -6220,7 +6220,7 @@ archive.
 
 ### CIB-232: Disclose open admission mode honestly (do not flip factory default)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 presentation (Dave CONF-1; re-triaged 2026-08-04)
 - **Intent:** Fresh home reports `Admission mode: open` with no entries. Open
   is the **intentional** factory posture (`Open` = first-touch adopt; missing

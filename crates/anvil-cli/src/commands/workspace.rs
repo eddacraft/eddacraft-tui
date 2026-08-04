@@ -311,6 +311,11 @@ fn run_mode(args: &ModeArgs) -> Result<()> {
             ),
         }
     }
+    // CIB-232: `open` gets the same courtesy — say what the posture does rather
+    // than leaving the consequence implicit on the way back from `allowlist`.
+    if let Some(disclosure) = admission_disclosure(file.admission) {
+        println!("{disclosure}");
+    }
     print_takes_effect_note();
     Ok(())
 }
@@ -361,6 +366,9 @@ fn run_list() -> Result<()> {
     let registered = registered_worktrees();
 
     println!("Admission mode: {}", mode_label(file.admission));
+    if let Some(disclosure) = admission_disclosure(file.admission) {
+        println!("  {disclosure}");
+    }
     if file.allow.is_empty() {
         println!("Allow entries: (none)");
         if file.admission == AdmissionModeFile::Allowlist {
@@ -566,6 +574,28 @@ fn persist_register_on_start_all(roots: &[std::path::PathBuf]) -> Result<()> {
         println!("All registered worktrees were already in register_on_start.");
     }
     Ok(())
+}
+
+/// CIB-232: what `open` admission actually does, in one plain line.
+///
+/// `open` is the intentional factory posture, not a misconfiguration — but the
+/// mode line alone ("Admission mode: open", "Allow entries: (none)") reads as
+/// enforcement that has simply not caught anything yet. State the posture so an
+/// operator cannot skim a fresh home as confined, without implying a defect.
+const OPEN_ADMISSION_DISCLOSURE: &str = "Open is the default: workspaces are adopted on first touch, so the daemon is \
+     not confined to specific roots — run `anvil workspace mode allowlist` to \
+     confine it.";
+
+/// The posture disclosure for `mode`, if it needs one (CIB-232).
+///
+/// `allowlist` returns `None`: each of its call sites already spells out the
+/// consequence for its own case (fail-closed when the allow list is empty,
+/// confined to the listed roots when it is not).
+fn admission_disclosure(mode: AdmissionModeFile) -> Option<&'static str> {
+    match mode {
+        AdmissionModeFile::Open => Some(OPEN_ADMISSION_DISCLOSURE),
+        AdmissionModeFile::Allowlist => None,
+    }
 }
 
 fn mode_label(mode: AdmissionModeFile) -> &'static str {
@@ -840,6 +870,57 @@ mod tests {
         #[cfg(windows)]
         let already = std::path::PathBuf::from(r"C:\srv\proj");
         assert_eq!(absolutise(&already).expect("absolutise"), already);
+    }
+
+    // ----------------------------------------------------------------
+    // CIB-232: open-admission posture disclosure.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn open_admission_discloses_that_the_daemon_is_not_confined() {
+        let line =
+            admission_disclosure(AdmissionModeFile::Open).expect("open mode discloses its posture");
+        assert!(
+            line.contains("first touch"),
+            "the line names first-touch adopt: {line}"
+        );
+        assert!(
+            line.contains("not confined"),
+            "the line says confinement is off in plain words: {line}"
+        );
+        assert!(
+            line.contains("anvil workspace mode allowlist"),
+            "the line names the command that confines the daemon: {line}"
+        );
+        // Honesty, not a defect report: `open` is the intended factory posture,
+        // so the disclosure must frame it as the default rather than a fault.
+        assert!(
+            line.contains("default"),
+            "the line frames open as the default posture: {line}"
+        );
+        assert!(
+            line.lines().count() == 1,
+            "one plain line, not a paragraph: {line}"
+        );
+    }
+
+    #[test]
+    fn allowlist_admission_has_no_open_disclosure() {
+        // `allowlist` already explains its own consequences per branch
+        // (fail-closed when empty, confined when populated).
+        assert!(admission_disclosure(AdmissionModeFile::Allowlist).is_none());
+    }
+
+    #[test]
+    fn factory_default_admission_stays_open() {
+        // CIB-232 non-scope guard: disclosing the posture must never become a
+        // silent flip of the factory default, which would brick intercept until
+        // every root is registered.
+        assert_eq!(
+            confinement::ConfinementConfigFile::default().admission,
+            AdmissionModeFile::Open,
+            "the factory default admission mode stays `open`"
+        );
     }
 
     // ----------------------------------------------------------------
