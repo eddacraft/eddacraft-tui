@@ -6630,7 +6630,14 @@ archive.
 
 ### CIB-248: Autoplay failures must stay in the TUI (auth root cause + recovery UX)
 
-- **Status:** Ready
+- **Status:** In Progress — on merge, set to `Merged YYYY-MM-DD via PR #N`.
+  Expected outcomes 2 and 3 land in full; outcome 1 lands as "never exits the
+  TUI" (recovery returns to the path picker with an explanation), **without**
+  the richer in-path *retry / skip* affordances. Re-file that affordance
+  separately if still wanted now the auth cause is removed.
+- **Approach:** ADR-080's in-process posture (option (a)/(c) family) — the demo
+  calls the check directly and the licence gate is never consulted. No bypass
+  env var, no credential pass-through, no ADR amendment required.
 - **Priority:** P0 welcome reliability (operator 2026-08-04; root cause pinned)
 - **Intent:** Autoplay hits `Authentication required` mid-tutorial. Today
   `welcome.rs` treats `take_autoplay_failure()` as a **hard abort**: drop
