@@ -142,7 +142,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-001: Consent state and disclosure surface
 
-- **Status:** Merged 2026-07-16 via PR #3351
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-16 via PR #3351
 - **Intent:** No beacon can ever fire before the user has seen an honest
   disclosure, and turning telemetry off is one obvious action.
 - **Expected Outcome:** A persisted telemetry consent state (on/off +
@@ -165,7 +165,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-002: Anonymous install identity
 
-- **Status:** Merged 2026-07-16 via PR #3351
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-16 via PR #3351
 - **Intent:** Unique-install and retention counts without touching user
   identity.
 - **Expected Outcome:** A random UUID v4 `install_id` minted on first use,
@@ -179,7 +179,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-003: Telemetry beacon producer
 
-- **Status:** Merged 2026-07-18 via PR #3362
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-18 via PR #3362
 - **Files:** `crates/anvil-cli/src/telemetry.rs`,
   `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/main.rs`,
   and start-activation fixtures.
@@ -221,7 +221,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-004: `anvil telemetry` transparency command
 
-- **Status:** Merged 2026-07-18 via PR #3362
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-18 via PR #3362
 - **Files:** `crates/anvil-cli/src/commands/telemetry.rs` and
   `crates/anvil-cli/src/telemetry.rs`.
 - **Intent:** The allowlist is auditable from the binary itself, not just
@@ -242,7 +242,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-005: anvil-api ingest route
 
-- **Status:** Merged 2026-07-16 via PR #3351
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-16 via PR #3351
 - **Intent:** A place for beacons to land that honours the retention and
   privacy commitments.
 - **Expected Outcome:** A versioned `apps/anvil-api` ingest route
@@ -257,7 +257,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-006: Privacy contract and docs update
 
-- **Status:** Merged 2026-07-18 via PR #3362
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-18 via PR #3362
 - **Files:** `docs/public/anvil/operations/telemetry.md`,
   `docs/observability/usage-analytics.md`, affected public guides and
   tutorials, `docs/runbooks/anvil-adoption.md`, and generated docs indexes.
@@ -280,7 +280,7 @@ FLEET-007 follows once ingest has data.
 
 ### FLEET-007: Operator fleet view
 
-- **Status:** Merged 2026-07-18 via PR #3362
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-18 via PR #3362
 - **Files:** `apps/anvil-api/src/lib/fleet-overview.ts`, the protected admin
   route and tests, `crates/anvil-cli/src/commands/admin.rs`, the admin client,
   and `docs/runbooks/admin-cli.md`.

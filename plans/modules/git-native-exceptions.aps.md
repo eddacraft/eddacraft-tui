@@ -86,21 +86,21 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** Operators manage exceptions from the CLI; revocation preserves history. 2026-07-04: also ships `verify` (surfaces EXCEPT-005 verdicts plus summary counts, exits zero) and `migrate` (the ADR-073 explicit legacy→tracked promotion step); grant refuses unattributed records (including invisible-unicode attribution) and duplicate ids, warns on repo-wide scope / missing expiry; id-addressed verbs refuse ambiguous stores. Contract note: on a skipped write (read-only worktree), explicit-write commands warn **and exit non-zero** — the module's warn-not-block posture applies to gates and checks, not to a human-invoked write that did not persist.
 - **Validation:** `cargo test -p eddacraft-anvil --bin anvil exception` and `cargo test -p eddacraft-anvil --test exception`
 - **Dependencies:** EXCEPT-003, EXCEPT-007
-- **Status:** Merged 2026-07-04 via PR #3153
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3153
 
 ### EXCEPT-005: Scope/expiry verification
 - **Intent:** `anvil exception verify` validates scope globs, expiry at evaluation time, and revocation status.
 - **Expected Outcome:** Expired/revoked exceptions do not apply; an unattributed v0-shape grant downgrades (`warn`/`degraded`), it is never silently honoured.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_verify`
 - **Dependencies:** EXCEPT-003
-- **Status:** Merged 2026-06-08 via PR #2413
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-08 via PR #2413
 
 ### EXCEPT-006: L3/L4 integration
 - **Intent:** Apply only valid exceptions during gate evaluation; record exception use. The only rule-evaluation seam today is the L4 gate (`CommitAntipatternEngine`, serving the pre-push hook and `anvil l4-validate`); pre-commit (L3) writes witness lines without evaluating rules, so it inherits the engine-level seam when scanner integration lands (2026-07-04 council).
 - **Expected Outcome:** Gates suppress only matching, valid findings — attributed grants suppress cleanly, unattributed grants downgrade to an annotated warn (ADR-073, never silently honoured), revoked/expired/out-of-scope grants leave findings standing; store-read failures fail safe (findings stand). Use is recorded via the gate's tracing channel (unattributed applications at `warn`, visible under the default filter); durable witness/capsule recording is EXCEPT-009.
 - **Validation:** `cargo test -p eddacraft-anvil-l4 -- exceptions` and `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (gate-integration tests live in the CLI engine)
 - **Dependencies:** EXCEPT-005, EXCEPT-007
-- **Status:** Merged 2026-07-04 via PR #3140
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3140
 
 ### EXCEPT-007: Write-path hardening (pre-wiring contract)
 - **Intent:** Close the council-identified (2026-06-08) write-path gaps before any caller is wired: (a) `load()` reports provenance (tracked/legacy/none) and `save()` refuses — or requires an explicit migrate acknowledgement — when the in-memory store originated from the legacy path, so the load→modify→save CRUD flow cannot silently promote local-only entries into git (ADR-073 demands an *explicit* cleanup step); (b) `flock` the load-modify-save cycle mirroring `anvil-witness::WitnessWriter`, closing the lost-write race and the `migrate()` exists→save TOCTOU; (c) read-only worktrees degrade to warn + no-op, never a propagated `Io` error from a gate (ADR-002); (d) refuse symlinked `anvil/exceptions/` path components (canonicalise + assert under the workspace root) — the same guard the capsule writer will need.
@@ -114,21 +114,21 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** A downstream operator knows to commit the store, why a worktree changed, and how to migrate.
 - **Validation:** `pnpm docs:check` (docs/guides/policy-exceptions.md; aps/adr surface failures pre-exist on main)
 - **Dependencies:** EXCEPT-004
-- **Status:** Merged 2026-07-04 via PR #3156
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3156
 
 ### EXCEPT-009: Capsule inclusion
 - **Intent:** Applied exceptions are collected into the capsule and re-verified during `anvil capsule verify` (scope/expiry/revocation). 2026-07-04: "applied" is approximated by "active at collect time" — the faithful relied-upon subset needs the gate's applied-exception record joined against a diagnostics source, and capsule create has no diagnostics source wired yet (`diagnostics.sarif` is an empty document for the same reason). The approximation is conservative for verification: a superset of anything the gate could have applied is collected and re-verified, so a since-revoked or expiring grant still degrades/blocks verify. Tightening to the true applied subset follows the create-side diagnostics wiring.
 - **Expected Outcome:** A capsule names the exceptions a change relied on; an expired/revoked one degrades or blocks verification.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- exceptions`
 - **Dependencies:** EXCEPT-005, GITGOV-009
-- **Status:** Merged 2026-07-04 via PR #3155
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3155
 
 ### EXCEPT-010: Gate store trust model (2026-07-04 council intake)
 - **Intent:** Decide gate store provenance — the L4 gate loads `anvil/exceptions/store.json` from the live worktree (same pattern as `anvil/policy.yml`), so an uncommitted local grant satisfies the local pre-push gate while CI/`l4-validate` sees only committed grants, and a range validation applies one store snapshot to every commit in the range; decide worktree- vs commit-tree-scoped loading and bind the CI semantics explicitly. 2026-07-04 scope reduction: the item's original (b) — make the OPA evaluator's `is_suppressed_at` consult `ExceptionVerdict` — was mooted by ADR-098 PR-C deleting the OPA-subprocess evaluator; `is_suppressed_at`/`filter_suppressed` have no production callers (dead-code disposition belongs to the OPAE rebuild). Original (c) — scope-breadth nudges — shipped via EXCEPT-004's grant-time warnings (repo-wide scope, missing expiry).
 - **Expected Outcome:** A recorded provenance decision (ADR or decision-log entry) enforced by the gate loader, with CI semantics bound explicitly. 2026-07-04 owner decision: **tip-of-pushed-range tree loading (ADR-100)** — suppression authority must be committed; pre-push uses `local_sha`, `l4-validate` uses the range head, audit-chain uses the audited checkout's HEAD; tip-without-store/unreadable/oversized = no exceptions (fail-safe); legacy local store never influences gates.
 - **Validation:** ADR-100 + `cargo test -p eddacraft-anvil --bin anvil -- l4_engine` (incl. `uncommitted_worktree_grant_does_not_apply`)
 - **Dependencies:** EXCEPT-006
-- **Status:** Merged 2026-07-04 via PR #3168
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3168
 
 ### EXCEPT-011: Capsule tip-aligned store provenance (ADR-100 follow-up)
 - **Intent:** Align the capsule layer with ADR-100's committed-authority semantics: `capsule create` collects exception grants from the worktree store (`collect_exceptions` → `ExceptionStore::load`), and `verify`'s live-store recheck reads the worktree too — both should bind to a committed tree (create: the capsule range's head; verify: an explicitly named ref) the way the L4 gate does, so a capsule's exception evidence is reproducible from refs alone. Named as a non-delivered follow-up in ADR-100's consequences.

@@ -299,7 +299,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-007: Enforcement-routing contract
 
-- **Status:** Merged 2026-07-04 via PR #3165 — `crates/anvil-intercept-rules/src/policy_routing.rs` adds the
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3165 — `crates/anvil-intercept-rules/src/policy_routing.rs` adds the
   neutral, engine-free routing contract: `PolicyOutcome` (rule id + severity
   class `violation`|`warning`, mirroring the two Rego rule families) and
   `route_policy_outcome(outcome, posture: EnforcementMode) -> ControlDecision`.
@@ -333,7 +333,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-008: Starter pack end-to-end proof
 
-- **Status:** Merged 2026-07-04 via PR #3167
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3167
 - **Intent:** Prove one high-signal policy pack across install, validation,
   evaluation, guidance, and report-only regression.
 - **Expected Outcome:** A starter pack demonstrates real policy value before broad

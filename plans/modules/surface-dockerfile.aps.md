@@ -82,7 +82,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-001 — File detection
 
-- **Status:** Merged 2026-06-18 via PR #2777
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2777
 - **Intent:** Identify `Dockerfile`/`Containerfile`/`*.Dockerfile` files.
 - **Expected Outcome:** The three naming variants are detected; unrelated
   files (`Dockerfile.md`, `compose.yml`) are not.
@@ -92,7 +92,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-002 — Build-hygiene / supply-chain catalogue
 
-- **Status:** Merged 2026-06-18 via PR #2777
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2777
 - **Intent:** Warn on the clearest build-hygiene / supply-chain risks.
 - **Expected Outcome:** `ADD` of a remote URL, pipe-to-shell installs
   (`curl/wget … | sh`), `:latest` base images, `sudo` in layers, and
@@ -106,7 +106,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-005 — Gate/catalogue registration + flag gating
 
-- **Status:** Merged 2026-06-18 via PR #2780
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2780
 - **Intent:** Surface SURFDOCK in the gate behind `track.surface.dock`.
 - **Expected Outcome:** `ANV-SURF-DOCK-001` registered + wired (warn-only,
   file-presence guarded), gated behind a `track.surface.dock` leaf flag under
@@ -118,7 +118,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-006-validation — Anvil + external validation runs
 
-- **Status:** Merged 2026-06-19 via PR #2798
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via PR #2798
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Re-run 2026-06-19 — **PASS**. The 2026-06-18 run was
   inconclusive (Anvil ships no Dockerfiles; one clean external file). A broader
@@ -135,7 +135,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-007 — BuildKit heredoc `RUN` body support
 
-- **Status:** Merged 2026-06-19 via PR #2801
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via PR #2801
 - **Intent:** Close a false negative found during validation — `RUN`-family
   rules (`apt-get`, pipe-to-shell, `sudo`) were silently skipped inside
   `BuildKit` heredoc blocks (`RUN <<EOF … EOF`).

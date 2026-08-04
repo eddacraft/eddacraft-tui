@@ -593,7 +593,7 @@ convention" section). Concretely:
   presence, and that cross-session subscribers receive
   redacted excerpts per INTD-015.
 - **Confidence:** medium
-- **Status:** Merged 2026-06-02 via PR #2227 — `MirrorPath` discriminator +
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2227 — `MirrorPath` discriminator +
   `midedit_envelope` builder in `crates/anvil-intercept/src/telemetry.rs`; every
   mid-edit decision mirrors onto the `anvil.notification.v1` lane with
   `mirror.path = "midEdit"`, wire-additive (save-time bytes unchanged), advisory
@@ -666,7 +666,7 @@ convention" section). Concretely:
 - **Validation:** `grep -r "validation-server\|anvil-server\|RTVF"
   docs/` returns only historical references under archive paths.
 - **Confidence:** high
-- **Status:** Merged 2026-06-02 via PR #2227 — architecture docs now show the
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2227 — architecture docs now show the
   mid-edit path as drivers → daemon sharing the rule registry
   (`anvil-full-architecture.md` mid-edit subsection +
   `rust-architecture-endstate.md` Phase-5 note), the stale `RTVS + RTVF` diagram

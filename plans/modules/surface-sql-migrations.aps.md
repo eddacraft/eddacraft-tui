@@ -111,7 +111,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-001 — SQL file detection + migration-directory heuristics
 
-- **Status:** Merged 2026-06-18 via PR #2761
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2761
 - **Intent:** Identify the files SURFSQL governs without forcing config.
 - **Expected Outcome:** `*.sql` files and files under recognised migration
   directories (`migrations/`, `db/migrations/`, `supabase/migrations/`) are
@@ -122,7 +122,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-002 — Destructive-pattern catalogue
 
-- **Status:** Merged 2026-06-18 via PR #2761
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2761
 - **Intent:** Warn on irreversible / unguarded destructive operations.
 - **Expected Outcome:** `DROP TABLE`, `TRUNCATE`, unguarded `DROP COLUMN`,
   unguarded `ALTER … DROP CONSTRAINT`, and `DELETE`/`UPDATE` without a `WHERE`
@@ -135,7 +135,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-003 — Schema-hygiene catalogue
 
-- **Status:** Merged 2026-06-18 via PR #2771
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2771
 - **Intent:** Flag missing idempotency guards on idempotent DDL.
 - **Expected Outcome:** `CREATE TABLE`/`CREATE INDEX` without `IF NOT EXISTS`
   surface as warn-only schema-hygiene findings (`SqlHygieneFinding`), with `--`
@@ -154,7 +154,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-004 — SQL `--` suppression syntax integration
 
-- **Status:** Merged 2026-06-18 via PR #2761
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2761
 - **Intent:** Honour `-- @anvil-ignore <ID> -- <reason>` for SQL findings.
 - **Expected Outcome:** A directive on the line above a finding (or in the file
   header) marks it suppressed with its reason, reusing the ADR-029 canonical
@@ -165,7 +165,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-005 — Gate/catalogue registration + policy hook wiring
 
-- **Status:** Merged 2026-06-18 via PR #2764
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2764
 - **Intent:** Surface SURFSQL in the gate behind `track.surface.sql`.
 - **Expected Outcome:** A `ANV-SURF-SQL-001` check is registered in
   `check_catalog.rs` (relaxing the `ANV-CORE-`-only ID-validation test to
@@ -180,7 +180,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-006 — Drift baseline default-on for `.sql`
 
-- **Status:** Merged 2026-06-19 via PR #2793
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via PR #2793
 - **Intent:** Baseline existing destructive ops; warn only on new edges.
 - **Decision (owner-settled):** reuse the existing OPSUP-003 `anvil drift`
   baseline subsystem rather than build a SURFSQL-specific store or a git-diff
@@ -203,7 +203,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-007 — Anvil-repo + external validation runs; FP report
 
-- **Status:** Merged 2026-06-19 via PR #2797
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via PR #2797
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Validated 2026-06-19 — **PASS**. Anvil dogfood: 17 SQL
   files, **0 findings** (SURFSQL-008 scopes out the `schema.sql` canonical-schema
@@ -222,7 +222,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-008 — Schema-dump / canonical-schema scoping
 
-- **Status:** Merged 2026-06-19 via PR #2794
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via PR #2794
 - **Intent:** Stop SURFSQL firing on schema dumps and canonical schema-definition
   files, which are not incremental migrations.
 - **Expected Outcome:** `scan_sql_all` skips a file identified as a schema dump

@@ -173,7 +173,7 @@ surface is extended instead of duplicated.
 
 ### DOCSYNC-028 delivery contract
 
-- **Status:** Merged 2026-07-20 via PR #3366
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-20 via PR #3366
 - **Intent:** Give a first-time user one complete path to verified value without
   repository access or prior anvil knowledge.
 - **Expected Outcome:** Public docs use lowercase `anvil`, `eddacraft`, and
@@ -208,7 +208,7 @@ snapshot of the upstream CLI contract.
 
 ### DOCSYNC-029 delivery contract
 
-- **Status:** Merged 2026-07-20 via PR #3370
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-20 via PR #3370
 - **Intent:** Give a first-time APS user one complete path from installation to
   a lint-clean plan and an executable work item without repository access or
   prior planning vocabulary.

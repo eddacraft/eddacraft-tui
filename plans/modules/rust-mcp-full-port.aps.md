@@ -441,7 +441,7 @@ retirement decisions:
 
 #### RMCPF-020: Port MCP resources
 
-- **Status:** Merged 2026-06-19 via PR #2809 (readiness pass + GCTX-030
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via PR #2809 (readiness pass + GCTX-030
   reconciliation in the Readiness note below; seven `anvil://` resources ported +
   `file/{path}/warnings` retired; closeout and validation evidence below).
 - **Readiness (2026-06-19):** GCTX-030 (Merged 2026-06-18 via #2772) already

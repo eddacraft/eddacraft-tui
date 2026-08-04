@@ -83,7 +83,7 @@ DASHARCH.
 
 ### DASHCORE-001: Overview — metric cards row
 
-- **Status:** Merged 2026-07-19 via PR #3363
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-19 via PR #3363
 - **Pull Request:** [#3363](https://github.com/eddacraft/anvil-001/pull/3363)
 - **Intent:** Show the current project-health facts the shipped local dashboard
   API can prove, without manufacturing retained history.
@@ -113,7 +113,7 @@ DASHARCH.
 
 ### DASHCORE-002: Overview — retained history and trend charts
 
-- **Status:** Merged 2026-07-27 via PR #3436
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-27 via PR #3436
 - **Pull Request:** [#3436](https://github.com/eddacraft/anvil-001/pull/3436)
 - **Design:** [2026-07-26-dashcore-002-retained-history.md](../specs/2026-07-26-dashcore-002-retained-history.md)
   (approved 2026-07-26)
@@ -178,7 +178,7 @@ DASHARCH.
 
 ### DASHCORE-003: Overview — activity feed
 
-- **Status:** Merged 2026-07-24 via PR #3379 — activity feed over provenance events with detail navigation
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — activity feed over provenance events with detail navigation
 
 - **Intent:** Show recent events and provide navigation shortcuts
 - **Expected Outcome:** Last 20 events from provenance: gate runs, new warnings,
@@ -192,7 +192,7 @@ DASHARCH.
 
 ### DASHCORE-004: Gate history list
 
-- **Status:** Merged 2026-07-24 via PR #3379 — gate-run DataTable with sorting and `useFilterParams` filtering
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — gate-run DataTable with sorting and `useFilterParams` filtering
 
 - **Intent:** Browse all gate runs with sorting and filtering
 - **Expected Outcome:** DataTable of gate runs: timestamp, status, score, checks
@@ -209,7 +209,7 @@ DASHARCH.
 
 ### DASHCORE-005: Gate detail with check tree
 
-- **Status:** Merged 2026-07-24 via PR #3379 — gate detail header plus expandable check tree
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — gate detail header plus expandable check tree
 
 - **Intent:** Deep dive into a single gate run's results
 - **Expected Outcome:** Header (status, score, timestamp, trigger), expandable
@@ -228,7 +228,7 @@ DASHARCH.
 
 ### DASHCORE-006: Warning list with grouping/filtering
 
-- **Status:** Merged 2026-07-24 via PR #3379 — warning DataTable with grouping, severity/category filtering
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — warning DataTable with grouping, severity/category filtering
 
 - **Intent:** Browse and investigate all active warnings
 - **Expected Outcome:** DataTable: ID, severity badge, category, title, file,
@@ -246,7 +246,7 @@ DASHARCH.
 
 ### DASHCORE-007: Warning detail panel
 
-- **Status:** Merged 2026-07-24 via PR #3379 — warning detail panel
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — warning detail panel
 
 - **Intent:** Understand a specific warning in full context
 - **Expected Outcome:** shadcn/ui Sheet with full message, explanation, fix
@@ -262,7 +262,7 @@ DASHARCH.
 
 ### DASHCORE-008: Warning breakdown visualisations
 
-- **Status:** Merged 2026-07-24 via PR #3379 — warning breakdown charts
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — warning breakdown charts
 
 - **Intent:** Understand warning distribution and identify hotspots
 - **Expected Outcome:** Bar chart by pattern ID, hotspot file ranking, donut for
@@ -277,7 +277,7 @@ DASHARCH.
 
 ### DASHCORE-009: Anti-pattern registry reference
 
-- **Status:** Merged 2026-07-24 via PR #3379 — anti-pattern registry reference
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3379 — anti-pattern registry reference
 
 - **Intent:** Document all defined anti-patterns in an accessible reference
 - **Expected Outcome:** Table of all patterns (AP-001..007): ID, name, category,

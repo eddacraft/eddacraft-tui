@@ -500,7 +500,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-014: Durable registration primitive
 
-- **Status:** Merged 2026-06-29 via PR #2988
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design + planning council (2026-06-29). The registry is
   in-memory with a 30s heartbeat TTL (`crates/anvil-intercept/src/registry.rs:69-72`)
   and reloads only fences on startup (`crates/anvil-intercept/src/lib.rs:1307-1324`),
@@ -542,7 +542,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-015: `anvil workspace register` / `unregister` command
 
-- **Status:** Merged 2026-06-29 via PR #2988
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D1. `commands/workspace.rs` is config-only today
   (no daemon IPC); there is no command to register a later/other worktree.
 - **Intent:** Add the explicit registration surface on the `anvil workspace` noun.
@@ -566,7 +566,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-016: Outside-worktree `anvil start` honest behaviour
 
-- **Status:** Merged 2026-06-29 via PR #2988
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D2. `anvil start` always registers cwd
   (`daemon_registration.rs:26` called with `"."`); outside a worktree it would
   register a junk session keyed to e.g. `$HOME`.
@@ -592,7 +592,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-017: Registered-worktree status surfacing
 
-- **Status:** Merged 2026-06-29 via PR #2988
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D6. `anvil status` plain text omits the worktree
   list though `--json` carries it; `anvil intercept stop` reports nothing about
   worktrees losing protection.
@@ -624,7 +624,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-018: Bounded `anvil workspace register --all`
 
-- **Status:** Merged 2026-06-29 via PR #2988
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D5 (manual layer). A bounded "register everything
   in scope" without a filesystem scan.
 - **Intent:** Register the operator's curated in-scope worktrees in one command,
@@ -649,7 +649,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-019: Persistent `register_on_start` config + daemon startup registration
 
-- **Status:** Merged 2026-06-30 via PR #3001. The Council Critical-2
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-30 via PR #3001. The Council Critical-2
   schema commitment is signed off: take the **additive top-level
   `register_on_start` key** (never a field on the `deny_unknown_fields`
   `AllowEntry`) plus a config format-version forward/back-compat scheme, so an
@@ -696,7 +696,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-020: Guided new-worktree auto-registration
 
-- **Status:** Merged 2026-06-30 via PR #3002 (scope-trimmed) — owner-authorised
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-30 via PR #3002 (scope-trimmed) — owner-authorised
   2026-06-30 for the `anvil workspace install-hook` git-alias core only. The
   optional Worktrunk post-create template is **descoped** from this item (no such
   hook surface is confirmed to exist); it is deferred to a future item to be

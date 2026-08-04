@@ -222,7 +222,7 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   fails survive a saturated window while passes are sampled; a CI latency check
   on `validate_paths` with an **injected deliberately-slow sink** confirming the
   ADR-031 budget holds; the `daemon_dep_boundary` guard stays green.
-- **Status:** Merged 2026-06-20 via PR #2833
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via PR #2833
 - **Files:** `crates/anvil-intercept/src/kindling_observation.rs`,
   `crates/anvil-intercept/src/save_time.rs`, `crates/anvil-intercept/src/ipc.rs`
 - **Dependencies:** ADR-088 ratification (kind/`gate_id` taxonomy)
@@ -246,7 +246,7 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   produces one `constraint_applied` row, and a cascade engage adds a flagged row;
   a test asserting a normalised `reason` (no verbatim operator text); boundary
   guard green.
-- **Status:** Merged 2026-06-20 via PR #2833
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via PR #2833
 - **Files:** `crates/anvil-intercept/src/fence.rs`,
   `crates/anvil-intercept/src/kindling_observation.rs`
 - **Dependencies:** ADR-088 ratification (defines the `constraint_applied` kind);

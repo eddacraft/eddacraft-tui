@@ -60,7 +60,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-001: Command-step evidence affordance
 
-- **Status:** Merged 2026-07-08 via PR #3226
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3226
 - **Intent:** A user can tell before pressing Enter whether the current
   tutorial step executes a real command, and whether it mutates their repo.
 - **Expected Outcome:** Command steps render the command distinctly (prompt
@@ -83,7 +83,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-002: Typed-command execution presentation
 
-- **Status:** Merged 2026-07-08 via PR #3226
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3226
 - **Dependencies:** WOW-001
 - **Intent:** Executing a command reads as anvil visibly driving the
   terminal, making the run-for-real behaviour unmistakable at the moment it
@@ -101,7 +101,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-003: Personalized path picker
 
-- **Status:** Merged 2026-07-08 via PR #3226
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3226
 - **Intent:** The tutorial path picker shows each path's relevance to the
   user's repo using the discovery scan already threaded into the tutorial.
 - **Expected Outcome:** When scan results are present, each path row shows its
@@ -115,7 +115,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-004: Completion findings delta
 
-- **Status:** Merged 2026-07-08 via PR #3226
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3226
 - **Intent:** Tutorial completion shows the user what changed in their repo
   during the walk instead of only offering the next path.
 - **Expected Outcome:** The complete phase can present a before/after findings
@@ -130,7 +130,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-005: First-win reroute after discovery
 
-- **Status:** Merged 2026-07-11 via PR #3280 — first-win surface lands after
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3280 — first-win surface lands after
   discovery: deterministic highest-value actionable-finding selection,
   plain-language explanation, diff-before-write, fix apply behind ACTTUI's
   unticked consent chrome (gated under `project_writes_gated`), honest
@@ -166,7 +166,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 ### WOW-006: Autoplay demo mode on a sandboxed fixture
 
-- **Status:** Merged 2026-07-30 via PR #3441 — design gate closed (operator;
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3441 — design gate closed (operator;
   design at
   [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)).
   Sandboxed autoplay shipped with JOURNEY-007 on

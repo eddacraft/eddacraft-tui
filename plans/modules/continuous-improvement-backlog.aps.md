@@ -100,7 +100,7 @@ archive.
 
 ### CIB-002: Establish definitive skill and agent list for the anvil repo
 
-- **Status:** Merged 2026-05-12 via PR #1453
+- **Status:** Released/Shipped via v0.6.2-beta (e7478b0a · 2026-05-12). Merged 2026-05-12 via PR #1453
 - **Summary:** Authoritative skill/agent/command inventory shipped at
   `docs/guides/agent-surface-inventory.md` (PR #1453, `7c59b2ee`) — it marks
   repo-local versus global surfaces, names the canonical source for each global
@@ -136,7 +136,7 @@ archive.
 
 ### CIB-006: Risk-tiered validation for trivial edits
 
-- **Status:** Merged 2026-07-02 via PR #3091
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3091
 - **Intent:** Even with patch-mode (CIB-005) in place, full pipeline
   validation is overkill for genuinely trivial changes. Add a lightweight
   validator tier so a defined safelist of change shapes short-circuits the
@@ -183,7 +183,7 @@ archive.
 
 ### CIB-008: `anvil check` planless path runs only `architecture`, ignoring `.anvilrc`
 
-- **Status:** Merged 2026-05-21 via PR #1817 (issue #1797)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged 2026-05-21 via PR #1817 (issue #1797)
 - **Summary:** The planless `anvil check` dispatcher now routes through the same
   `.anvilrc#checks` reader as `anvil gate` and runs the planless-eligible set
   (`secret-detection` + `antipattern-scan`), so the marquee `anvil check
@@ -192,7 +192,7 @@ archive.
 
 ### CIB-009: `anvil audit` and `anvil gate` disagree on the same repo
 
-- **Status:** Merged 2026-05-21 via PR #1814 (issue #1798)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged 2026-05-21 via PR #1814 (issue #1798)
 - **Summary:** `anvil audit` now runs the canonical `secret-detection` check
   over the same tree as `anvil gate` (with gate-aligned file extensions), so the
   two can no longer disagree — audit no longer reports "0 issues" on a repo with
@@ -200,7 +200,7 @@ archive.
 
 ### CIB-010: `anvil watch` first-scan emits a wall of `public-api-expansion` against existing symbols
 
-- **Status:** Merged 2026-05-21 via PR #1816 (issue #1802; behaviour fixed by WATCHUX-001, PR #1816 adds the regression test)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged 2026-05-21 via PR #1816 (issue #1802; behaviour fixed by WATCHUX-001, PR #1816 adds the regression test)
 - **Summary:** On a never-baselined repo, the initial graph is now treated as
   the baseline (behaviour fixed by WATCHUX-001 — only post-scan modifications go
   through the policy engine), so `anvil watch`'s first scan no longer flags every
@@ -210,7 +210,7 @@ archive.
 
 ### CIB-011: `anvil gate -p ai` fails strict-mode checks on missing configs without next-step guidance
 
-- **Status:** Merged via PR [#1818](https://github.com/eddacraft/anvil-001/pull/1818) (merged 2026-05-21 at `acc4db6f`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged via PR [#1818](https://github.com/eddacraft/anvil-001/pull/1818) (merged 2026-05-21 at `acc4db6f`)
 - **Summary:** On a fresh repo, `anvil gate -p ai` no longer FAILs purely
   because config files don't exist yet — missing-config is info-level and the
   score grades against available checks, with a `next:` hint (issue #1803,
@@ -218,7 +218,7 @@ archive.
 
 ### CIB-012: `anvil check --staged` errors with "`--changed` required"
 
-- **Status:** Merged via PR [#1813](https://github.com/eddacraft/anvil-001/pull/1813) (merged 2026-05-21 at `ce0bd32b`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged via PR [#1813](https://github.com/eddacraft/anvil-001/pull/1813) (merged 2026-05-21 at `ce0bd32b`)
 - **Summary:** `anvil check --staged` (and `--since`) now imply `--changed`
   instead of erroring with "`--changed` required" (issue #1804, new-user
   journey audit finding #10; `crates/anvil-cli/src/commands/check.rs`).
@@ -258,7 +258,7 @@ archive.
 
 ### CIB-015: Triage `anvil bom` surface before filing as APS
 
-- **Status:** Merged 2026-05-26 via PR #1995
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1995
 - **Summary:** Triaged 2026-05-26 →
   [`anvil-bom-surface`](../brainstorms/2026-05-26-anvil-bom-surface.md).
   **Decline to file an APS item now.** Of five slices, three survive the
@@ -279,7 +279,7 @@ archive.
 
 ### CIB-016: Name "current posture vs new regression" in baseline output
 
-- **Status:** Merged 2026-06-03 via PR #2270
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-03 via PR #2270
 - **Intent:** `anvil baseline` + `cutoff_commit` already
   distinguish first-scan posture from new regressions mechanically.
   The UX doesn't name that distinction. Adding the phrasing turns
@@ -307,7 +307,7 @@ archive.
 
 ### CIB-017: Tracing on the `anvil policy eval` path
 
-- **Status:** Merged 2026-05-26 via PR #1983
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1983
 - **Summary:** `eval::run` carries `#[tracing::instrument]` (policy/query span)
   and a `debug!` summary (policy_bytes / input_bytes / eval_ms / findings /
   exit_code), with `warn!`s on the gate-relevant failure paths and on engine
@@ -317,7 +317,7 @@ archive.
 
 ### CIB-018: `catch_unwind` at the policy-engine facade boundary
 
-- **Status:** Merged 2026-05-26 via PR #1980
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1980
 - **Summary:** `Engine::guard` wraps every regorus call in
   `catch_unwind(AssertUnwindSafe(..))`, converting a panic on an adversarial
   policy into `EngineError::Regorus` + poisoning the engine, so `anvil policy
@@ -327,7 +327,7 @@ archive.
 
 ### CIB-019: Surface Go OPA stderr in the parity gate
 
-- **Status:** Merged 2026-05-26 via PR #1990
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1990
 - **Summary:** `scripts/bench-vs-go-opa.sh` now captures `opa bench` stderr to a
   temp file (trap-cleaned) and surfaces it before the `require_pos_num` bail, so
   an OPA error (parse failure, crash, version skew) reaches the operator instead
@@ -339,7 +339,7 @@ archive.
 
 ### CIB-020: Release-prep must refresh version-embedding TUI snapshots
 
-- **Status:** Merged 2026-05-25 via PR #1961
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-25 via PR #1961
 - **Summary:** anvil-tui's shell watermark renders a fixed `X.Y.Z` placeholder
   in test builds (`VERSION` is `CARGO_PKG_VERSION` under `cfg(not(test))`, the
   placeholder under `cfg(test)`), so ~38 snapshots are version-agnostic and a
@@ -349,7 +349,7 @@ archive.
 
 ### CIB-021: Append-only CI log should not produce merge conflicts
 
-- **Status:** Merged 2026-05-26 via PR #1967
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1967
 - **Summary:** `plans/reviews/continuous-improvement-log.md` is `merge=union` in
   `.gitattributes`, so concurrent appends from parallel agents/worktrees merge
   without conflict markers (reuses the witness-NDJSON-log pattern). Entry
@@ -357,7 +357,7 @@ archive.
 
 ### CIB-022: Derive APS index progress counts instead of hand-editing
 
-- **Status:** Merged 2026-05-26 via PR #1969
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1969
 - **Summary:** `scripts/aps/index-counts.mjs` derives each managed module's
   `done/total` from its work-item `Status:` lines and rewrites the module header
   + the `plans/index.aps.md` count token; `aps:index:check` originally enforced
@@ -400,7 +400,7 @@ archive.
 
 ### CIB-024: CLI tracing logs to stderr, not stdout
 
-- **Status:** Merged 2026-05-26 via PR #1987
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1987
 - **Summary:** `anvil-observability::init_tracing` routes `BinaryKind::Cli`'s
   fmt layer to **stderr** so stdout stays reserved for command output —
   `anvil … --json` is now a single clean JSON document even under
@@ -462,7 +462,7 @@ archive.
 
 ### CIB-026: Isolate cwd-mutating tests across the Rust workspace
 
-- **Status:** Merged 2026-05-29 via PR #2063
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2063
 - **Summary:** Routed all `set_current_dir` tests through one workspace-wide
   serialisation guard so `cargo test --workspace` is deterministic under CI
   parallelism.
@@ -486,7 +486,7 @@ archive.
 
 ### CIB-027: Define a lightweight review path for cross-repo implementation work
 
-- **Status:** Merged 2026-06-03 via PR #2271
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-03 via PR #2271
 - **Intent:** Give agents a first-class pre-PR review surface when implementation
   work happens in a downstream or sibling repository where Anvil's `/council`
   command is not available.
@@ -538,7 +538,7 @@ archive.
 
 ### CIB-029: Fix required Anvil version documentation to use exact semver
 
-- **Status:** Merged 2026-05-29 via PR #2059
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2059
 - **Summary:** Aligned `required_anvil_version` examples with the exact-semver
   parser contract: fixed the `anvil-l4` schema docstring + `policy.rs` fixture,
   swept range-syntax examples out of `plans/decisions/037` and the multilayer
@@ -563,7 +563,7 @@ archive.
 
 ### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
-- **Status:** Merged 2026-06-27 via PR #2967 (PR-side `-D warnings` gate; publish-side `--all-features` gate merged 2026-06-16 via PR #2682)
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-27 via PR #2967 (PR-side `-D warnings` gate; publish-side `--all-features` gate merged 2026-06-16 via PR #2682)
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
   step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating
@@ -622,7 +622,7 @@ archive.
 
 ### CIB-031: Scope the dependency-audit gate so Rust-only lockfile changes skip the npm Trivy audit
 
-- **Status:** Merged 2026-05-30 via PR
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-30 via PR
   [#2128](https://github.com/eddacraft/anvil-001/pull/2128) — the `lockfile`
   classifier case is now scoped to npm manifests/lockfiles only; a Rust-only
   `Cargo.lock` change no longer adds `dependency-audit` (and therefore skips
@@ -733,7 +733,7 @@ archive.
 
 ### CIB-034: Publish sanitised release evidence for the public release mirror
 
-- **Status:** Merged 2026-06-16 via PR #2684
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-16 via PR #2684
 - **Intent:** Give users of the public release mirror a concise, sanitised trust
   record for each shipped Anvil release, even though the source project itself is
   not public.
@@ -762,7 +762,7 @@ archive.
 
 ### CIB-035: drift-check crashes on invalid release records instead of staying advisory
 
-- **Status:** Merged 2026-06-02 via PR #2241
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2241
 - **Intent:** Keep `scripts/aps/drift-check.mjs` true to the warnings-over-blocks
   / exit-0 architecture principle when handed a malformed input, so a bad release
   record degrades to an advisory finding rather than an uncaught crash.
@@ -820,7 +820,7 @@ archive.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 
-- **Status:** Merged 2026-06-03 via PR #2295
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-03 via PR #2295
 - **Intent:** Let docs/plans-path PRs merge — the `main` ruleset must resolve
   required status checks that currently report a duplicate `success`+`skipped`
   pair under one name.
@@ -866,7 +866,7 @@ archive.
 
 ### CIB-039: Archive clawpatch-pre-tag-v0.7.0-beta once its findings are closed out
 
-- **Status:** Merged 2026-06-03 via this PR
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-03 via this PR
 - **Resolution (2026-06-03):** all CLAWP-NNN findings were dispositioned to
   terminal (53 Merged, 11 Ship, 1 Deferred-tracked) by the #1740 test-hardening
   batch (PRs #2261 / #2265 / #2267, reconcile #2268) and the disposition pass
@@ -926,7 +926,7 @@ archive.
 
 ### CIB-041: Stop `release.yml` from triggering on `eddacraft-tui-v*` library tags
 
-- **Status:** Merged 2026-06-02 via PR #2221
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2221
 - **Summary:** `release.yml`'s broad `push.tags` glob
   (`'**[0-9]+.[0-9]+.[0-9]+*'`) also matched `eddacraft-tui-v*`, so library tags
   ran the CLI cargo-dist pipeline and published a binary-less release to the
@@ -949,7 +949,7 @@ archive.
 
 ### CIB-042: Synthetic health check on the public installer URL
 
-- **Status:** Merged 2026-06-16 via PR #2679
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-16 via PR #2679
 - **Intent:** Catch a broken `install.eddacraft.ai` installer proactively
   instead of waiting for a user to report a 404.
 - **Expected Outcome:** A post-publish probe in the `announce` job of
@@ -973,7 +973,7 @@ archive.
 
 ### CIB-043: Set `--latest=false` on the eddacraft-tui anvil-001 release
 
-- **Status:** Merged 2026-06-16 via PR #2679
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-16 via PR #2679
 - **Intent:** Stop library (`eddacraft-tui-v*`) releases from contending for the
   GitHub "Latest" pointer on the private `anvil-001` repo, so the CLI release is
   always uncontested as Latest there.
@@ -1049,7 +1049,7 @@ archive.
 
 ### CIB-046: Gate the `anvil plan dashboard` APS surface behind an internal-developer feature flag
 
-- **Status:** Merged 2026-06-08 via PR #2440
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-08 via PR #2440
 - **Intent:** The APS dashboard (`anvil plan dashboard`) renders Anvil's own
   plan internals but ships always-on, unauthenticated, and documented as
   **Class: User-explicit**. That posture is not a deliberate access decision —
@@ -1195,7 +1195,7 @@ archive.
 
 ### CIB-049: `anvil start --verify` is auth-gated and `--json` auth envelopes go to stderr
 
-- **Status:** Merged 2026-06-10 via PR #2474
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2474
 - **Intent:** Two related CLI auth-gate defects in
   `crates/anvil-cli/src/main.rs`, both verified against `main` on 2026-06-09
   (clawpatch run `20260609T111844-b83fca`, feature `feat_cli-command_ba5ccdd3a6`):
@@ -1237,7 +1237,7 @@ archive.
 
 ### CIB-050: AST registry load failures silently disable scanning
 
-- **Status:** Merged 2026-06-10 via PR #2475
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2475
 - **Intent:** In `crates/anvil-checks-ast/src/lib.rs`, `load_rules` early-returns
   `LoadOutcome { rules: [], init_errors: [] }` when
   `load_compiled_registry` yields no registry, discarding
@@ -1268,7 +1268,7 @@ archive.
 
 ### CIB-051: `anvil start --verify --format` is silently ignored
 
-- **Status:** Merged 2026-07-02 via PR #3078
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3078
 - **Intent:** `anvil start --verify` computes `read_only = args.verify ||
   global.json` and the `--format <ext>` first-run config write
   (`pre_write_anvil_config`) is gated on `!read_only`, so
@@ -1298,7 +1298,7 @@ archive.
 
 ### CIB-052: admin JSON auth errors still go to stderr
 
-- **Status:** Merged 2026-07-02 via PR #3080
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3080
 - **Intent:** PR #2474 (CIB-049) routed the pre-dispatch auth-gate `--json`
   envelopes to stdout per the stream policy
   (`docs/guides/cli-output-streams.md`). `admin.rs::print_auth_required`
@@ -1327,7 +1327,7 @@ archive.
 
 ### CIB-053: disposition the dogfood repo's tracked `.anvil/` paths
 
-- **Status:** Merged 2026-06-10 via PR #2481
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2481
 - **Intent:** the GITGOV-014 doctor `state-boundary` check (ADR-073) warns in
   this repo because four `.anvil/` runtime paths are git-tracked:
   `.anvil/baseline.json` (pre-boundary legacy — ADR-073 places the durable
@@ -1355,7 +1355,7 @@ archive.
 
 ### CIB-054: pre-tag v0.8.0 changelog claims must match shipped behaviour
 
-- **Status:** Merged 2026-06-10 via PR #2493
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2493
 - **Intent:** two draft v0.8.0-beta changelog entries over-claim against the
   code: the `anvil watch` "Changed" entry never says daemon routing needs a
   live daemon (`anvil start`) and silently falls back without one
@@ -1380,7 +1380,7 @@ archive.
 
 ### CIB-055: reconcile the stale RELEASE-PLAN.md v0.8.0 phase table
 
-- **Status:** Merged 2026-06-10 via PR #2496
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2496
 - **Intent:** the active-window phase table still shows the A→A′ backing swap
   as **Blocked** and "GV2 4/19", but the slice is complete — GV2-022/027/028/029
   landed on the #2442/#2446 wave, GV2-024 (#2470) + GV2-025 (#2459) closed the
@@ -1401,7 +1401,7 @@ archive.
 
 ### CIB-056: Driver-client Windows pipe gate must verify the current-user SID
 
-- **Status:** Merged 2026-06-10 via PR #2485
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2485
 - **Intent:** the `Transport.connect` contract
   (`packages/anvil-driver-client/src/transport/types.ts`) promises a
   platform owner gate before `connect()` resolves, but the Windows
@@ -1441,7 +1441,7 @@ archive.
 
 ### CIB-057: capsule subsystem as-built architecture doc
 
-- **Status:** Merged 2026-06-10 via PR #2512
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2512
 - **Intent:** the git-native governance capsule wedge (GITGOV-003..013,
   `crates/anvil-capsule` + the `anvil capsule` CLI lane, ~8k source lines,
   ADRs 072/073/074/078) shipped with zero internal architecture coverage —
@@ -1470,7 +1470,7 @@ archive.
 
 ### CIB-058: as-built delta refresh for the v0.8.0 window
 
-- **Status:** Merged 2026-06-10 via PR #2515
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2515
 - **Intent:** five internal as-builts (kernel, intercept, activation,
   driver-framework, tui) are stamped 2026-05-07 against `v0.6.0-beta` and
   predate the v0.8.0 window's architecture changes: the DSV save-time
@@ -1501,7 +1501,7 @@ archive.
 
 ### CIB-059: quickstart leads with the ungated `anvil welcome` demo
 
-- **Status:** Merged 2026-06-22 via PR #2873
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2873
 - **Intent:** the quickstart fronts "2. Authenticate" before "3. Take a
   Path" and never says `anvil welcome` runs without logging in — it hides
   the ADR-080 ungated demo surface from exactly the invite-less users it
@@ -1525,7 +1525,7 @@ archive.
 
 ### CIB-060: auth wall points users without beta access at the request channel
 
-- **Status:** Merged 2026-06-22 via PR #2858
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2858
 - **Intent:** the not-logged-in gate message says only "Authentication
   required. Run `anvil auth login` to authenticate." — a user without a
   beta invite dead-ends with no pointer to how to get access.
@@ -1547,7 +1547,7 @@ archive.
 
 ### CIB-061: as-built delta refresh — remaining eight docs + runbook tail
 
-- **Status:** Merged 2026-06-10 via PR #2526
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2526
 - **Intent:** the eight as-builts not covered by CIB-058 (mcp-shim, checks,
   auth, api, tutorial, widgets, adapter-packages, observability) carry stale
   or inverted central claims: the MCP shim doc says "one tool" (registry now
@@ -1585,7 +1585,7 @@ archive.
 
 ### CIB-062: auth-gate tracing WARN leaks raw JSON onto golden-path stderr
 
-- **Status:** Merged 2026-06-11 via PR #2529
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-11 via PR #2529
 - **Intent:** running a gated command unauthenticated (`anvil status`;
   `anvil welcome` too on pre-ADR-080 installed builds) prints a raw JSON
   tracing line — `{"timestamp":…,"level":"WARN","fields":{"message":"cli
@@ -1612,7 +1612,7 @@ archive.
 
 ### CIB-063: install.sh docs URL disagrees with the product surfaces
 
-- **Status:** Merged 2026-06-11 via PR #2528
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-11 via PR #2528
 - **Intent:** `install.sh` closes with `https://eddacraft.dev/docs` while
   `README.md`, `anvil welcome`, and the what's-new banner all point at
   `https://docs.eddacraft.ai` — the first URL a new user sees disagrees
@@ -1631,7 +1631,7 @@ archive.
 
 ### CIB-064: one planted secret reports under two SECRET rule IDs
 
-- **Status:** Merged 2026-06-11 via PR #2530
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-11 via PR #2530
 - **Intent:** a planted `OPENAI_API_KEY = "sk-proj-…"` line reports twice
   — `SECRET-API-KEY` (low-confidence keyword pattern) and
   `SECRET-OPENAI-API-KEY` (high-confidence shape pattern) — on the same
@@ -1658,7 +1658,7 @@ archive.
 
 ### CIB-065: schema `$id` URIs still use the retired eddacraft.dev domain
 
-- **Status:** Merged 2026-06-11 via PR #2539 (owner decision: target
+- **Status:** Released/Shipped via v0.8.1-beta (2a3cfafb · 2026-06-11). Merged 2026-06-11 via PR #2539 (owner decision: target
   domain is `https://docs.eddacraft.ai`; filename mismatch reconciled by
   renaming the file to `workflow-session-event.v1.schema.json` to match
   the `$id` and the siblings' v1-in-filename convention)
@@ -1698,7 +1698,7 @@ archive.
 
 ### CIB-066: `/auth/verify` rejects the licence-JWT credential interactive logins store
 
-- **Status:** Merged 2026-06-11 via PR #2566 (deployed + verified live
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-11 via PR #2566 (deployed + verified live
   2026-06-12: `/health` 200 `verifyingKey: "ok"`; real production smoke on
   the released v0.8.1-beta binary — device-flow `anvil auth login` →
   `anvil auth whoami` returns the authenticated identity with plan `pro`
@@ -1747,7 +1747,7 @@ archive.
 
 ### CIB-067: production email failures are silent — Resend key probe on /health
 
-- **Status:** Merged 2026-06-12 via PR #2568
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-12 via PR #2568
 - **Intent:** a revoked Resend API key produced a ~15-day production email
   outage (no invites, no OTP codes, no waitlist confirmations) that no
   surface reported — email senders are best-effort by design and
@@ -1786,7 +1786,7 @@ archive.
 
 ### CIB-068: invite/OTP email copy — install step, lowercase brand, larger prose
 
-- **Status:** Merged 2026-06-12 via PR #2569
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-12 via PR #2569
 - **Intent:** operator review of the first real invite + OTP sends
   (2026-06-12, after the CIB-067 key replacement) found the invite assumes
   anvil is already installed, both subjects capitalise the brand
@@ -1814,7 +1814,7 @@ archive.
 
 ### CIB-069: invite email copy v2 — operator-supplied structure
 
-- **Status:** Merged 2026-06-12 via PR #2570
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-12 via PR #2570
 - **Intent:** the operator reviewed the live CIB-068 invite and supplied a
   restructured body (2026-06-12): lead with the beta guide and an install
   options page, then quick-install commands per platform, then sign-in,
@@ -1841,7 +1841,7 @@ archive.
 
 ### CIB-070: `anvil admin auth set key` — store the admin key without per-shell export
 
-- **Status:** Merged 2026-06-13 via PR #2577
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-13 via PR #2577
 - **Intent:** the admin key has only two resolution paths today — the
   `ANVIL_ADMIN_KEY` env var or a 1Password reference (`anvil admin auth set
   1password`). Operators without the 1Password CLI must `export
@@ -1873,7 +1873,7 @@ archive.
 
 ### CIB-071: migrate user-facing diagnostics from `anyhow` to `miette`
 
-- **Status:** Merged 2026-06-14 via PR #2597 (Phase A) + PR #2611 (Phase B)
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-14 via PR #2597 (Phase A) + PR #2611 (Phase B)
 - **Intent:** Anvil reports violations with file path and line number
   (`from_file`, `to_file`, `import_line` in `anvil-architecture`; file +
   line in AST check findings) but renders them as plain prose strings. As a
@@ -1904,7 +1904,7 @@ archive.
 
 ### CIB-072: clear `ready_restart_required` on Windows when daemon attestation is Unreachable
 
-- **Status:** Merged 2026-06-22 via PR #2859
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2859
 - **Intent:** the same Windows/Scoop/PowerShell beta user who raised #1831
   still hits a stuck `ready_restart_required` on Anvil 0.8.1 (#2583). #1840
   (MLP2-051f) added the daemon-evidence promotion path that graduates a
@@ -1940,7 +1940,7 @@ archive.
 
 ### CIB-073: cumulative "value caught" scoreboard and shareable scorecard
 
-- **Status:** Merged 2026-07-11 via PR #3282 — shipped the cumulative value
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3282 — shipped the cumulative value
   scoreboard on `anvil insights` (witness-chain totals plus 30/90-day
   windows, save-time protection counts over the sidecar's retained window),
   `anvil insights --share` (deterministic, self-contained, redacted HTML
@@ -2075,7 +2075,7 @@ archive.
   need an ADR before implementation.
 ### CIB-077: resolve `preflight.sh` version-gate vs `prepare.sh` bump ordering
 
-- **Status:** Merged 2026-07-22 via PR #3377 — preflight `--pre-prepare --version`
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-22 via PR #3377 — preflight `--pre-prepare --version`
   mode and runbook path landed; status reconciled 2026-07-31 after validation
   confirmed the expected outcome (tests green on main).
 - **Intent:** the release flow's `preflight.sh` runs a `cargo-version` gate
@@ -2110,7 +2110,7 @@ archive.
 
 ### CIB-078: freeze the `anvil policy eval --json` output contract at v1 before EVAL binds
 
-- **Status:** Merged 2026-06-17 via PR #2717
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via PR #2717
 - **Intent:** POLENG-007 shipped `anvil policy eval --json` preview-gated, with
   the wire shape explicitly _not_ a stable contract. The
   [eval-harness-integration](../archive/modules/eval-harness-integration.aps.md) module (EVAL) is
@@ -2280,7 +2280,7 @@ archive.
 
 ### CIB-084: bound read size/count for baseline + drift-snapshot readers
 
-- **Status:** Merged 2026-06-20 via PR #2815
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via PR #2815
 - **Intent:** Cap read size and file count in the architecture-baseline and
   drift-snapshot readers, which currently use bare `std::fs::read_to_string`
   with no bound — unlike `anvil_config::parse_file`, which caps reads via
@@ -2324,7 +2324,7 @@ archive.
 
 ### CIB-085: Clawpatch Rust contract batch (gctx, policy-engine, sarif)
 
-- **Status:** Merged 2026-06-20 via PR #2823
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via PR #2823
 - **Summary:** Closed four medium-severity Rust contract findings from the
   2026-06-20 clawpatch triage: gctx impact cap is now identity-order independent;
   `find_dependents` surfaces walk budget truncation via `partial`; empty
@@ -2492,7 +2492,7 @@ archive.
 
 ### CIB-091: GCTX assistant-facing egress hardening (v0.9.0 council, cut-blocker)
 
-- **Status:** Merged 2026-06-22 via PR #2852
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2852
 - **Intent:** Close the GCTX egress findings that survived the 2026-06-21
   v0.9.0-beta release council's skeptic. Headline is **CE-3**: the
   sensitive-path egress deny-list is entirely unimplemented, so on a fresh
@@ -2518,7 +2518,7 @@ archive.
 
 ### CIB-092: Persistence / warm-start wire-integrity & observability (v0.9.0 council)
 
-- **Status:** Merged 2026-06-22 via PR #2852
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2852
 - **Intent:** Close the warm-start persistence findings (default-off,
   `ANVIL_PERSIST_GRAPH`) from the v0.9.0 council. Headline highs: the ADR-069 §6
   golden wire-bytes fixture is missing (writer+reader drift together, so a
@@ -2544,7 +2544,7 @@ archive.
 
 ### CIB-093: GV2 substrate hot-path & trust correctness (v0.9.0 council)
 
-- **Status:** Merged 2026-06-22 via PR #2852
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2852
 - **Intent:** Close the GV2 graph-substrate mediums from the v0.9.0 council. The
   load-bearing one is the privilege gate: `PRIVILEGED_MODULES` omits
   spawn/sandbox-escape Node built-ins (`worker_threads`, `vm`, `v8`, `dns`,
@@ -2567,7 +2567,7 @@ archive.
 
 ### CIB-094: USAGE producer controls & robustness (v0.9.0 council)
 
-- **Status:** Merged 2026-06-22 via PR #2852
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2852
 - **Intent:** Close the USAGE-analytics mediums from the v0.9.0 council. The CLI
   `command.invoked` producer has no operator kill-switch (asymmetric with the
   daemon DPO opt-out), a non-UTF-8 byte permanently defeats retention trimming,
@@ -2588,7 +2588,7 @@ archive.
 
 ### CIB-095: Intercept hot-path follow-through (v0.9.0 council)
 
-- **Status:** Merged 2026-06-22 via PR #2852
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2852
 - **Intent:** Close the intercept/save-time follow-through mediums from the
   v0.9.0 council (surface gate was PASS — no blockers). `search_symbols` omits
   the UNC-path filter its sibling verbs enforce; the restore→reconcile window
@@ -2610,7 +2610,7 @@ archive.
 
 ### CIB-096: Wire the orphan `.snap` startup sweep into the daemon (092c follow-up)
 
-- **Status:** Merged 2026-06-22 via PR #2870
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2870
 - **Intent:** the orphan-`.snap` sweep was provided in CIB-092c but **not called
   anywhere in the daemon**, so snapshots for worktrees deleted while the daemon
   was down accumulate in `graph-cache/` indefinitely. The keep-set sweep had no
@@ -2643,7 +2643,7 @@ archive.
 
 ### CIB-097: Anchor the snapshot WRITE path to a validated directory fd (092d follow-up)
 
-- **Status:** Merged 2026-06-22 via PR #2865
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2865
 - **Intent:** CIB-092d (PR #2852) anchored the snapshot **read** path to a
   validated `O_PATH` dirfd via `open_workspace_dirfd` + `openat2`
   (`RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH`) with an `O_NOFOLLOW` fallback, but the
@@ -2673,7 +2673,7 @@ archive.
 
 ### CIB-098: Deliver the persist-failure degradation signal to opted-in operators (092h follow-up)
 
-- **Status:** Merged 2026-06-22 via PR #2887
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2887
 - **Intent:** CIB-092h (PR #2852) builds an ADR-035 persist-failure
   `NotificationEnvelope` on a snapshot write failure when `persistence_enabled()`,
   but the INTD-015 fanout **hard-denies any envelope without an
@@ -2780,7 +2780,7 @@ archive.
 
 ### CIB-106: Windows `ANVIL_HOME` named-pipe endpoint re-root
 
-- **Status:** Merged 2026-07-02 via PR #3083
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3083
 - **Intent:** Complete the Windows half of DISTRIB-006 side-by-side daemon
   coexistence by deriving the intercept named-pipe endpoint from the active
   install root when `ANVIL_HOME` is set.
@@ -2808,7 +2808,7 @@ archive.
 
 ### CIB-102: Anchor the snapshot delete/sweep paths to a validated dirfd (CIB-097 follow-up)
 
-- **Status:** Merged 2026-06-22 via PR #2884
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-22 via PR #2884
 - **Intent:** CIB-097 (PR #2865) anchored the snapshot **write** path to a
   validated directory fd, but the **delete** paths are still path-based:
   `remove_snapshot` (`fs::remove_file(&path)`), `sweep_orphan_temps`, and
@@ -2836,7 +2836,7 @@ archive.
 
 ### CIB-103: GCTX cursor fingerprint hardening (HMAC) — decision
 
-- **Status:** Merged 2026-06-24 via PR #2903
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-24 via PR #2903
 - **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Accepted):**
   option **(b)** — keep the reproducible FNV-1a filter fingerprint; do **not** add
   an HMAC now. The opaque keyset cursor is a server-minted *seek position*, not an
@@ -2881,7 +2881,7 @@ archive.
 
 ### CIB-104: Forged-cursor pinning tests for the GCTX dependents/callers/edges surfaces
 
-- **Status:** Merged 2026-06-25 via PR #2912
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-25 via PR #2912
 - **Intent:** Extend the ADR-091 cursor-integrity guarantee from the search
   surface to its three siblings. CIB-103 pinned the `search_symbols` cursor with
   `forged_cursor_cannot_seek_across_a_filter_boundary` (containment) and
@@ -2939,7 +2939,7 @@ archive.
 
 ### CIB-108: Restrict network-capable OPA built-ins during policy evaluation
 
-- **Status:** Merged 2026-07-02 via PR #3084
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3084
 - **Intent:** Prevent untrusted workspace policies from using OPA network-capable
   built-ins during `anvil policy eval` execution.
 - **Expected Outcome:** `OPAExecutor` evaluates loaded workspace policies with a
@@ -2963,7 +2963,7 @@ archive.
 
 ### CIB-109: Bind bundle-auth environment credentials to trusted configuration
 
-- **Status:** Merged 2026-07-02 via PR #3082
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3082
 - **Intent:** Stop workspace-controlled bundle configuration from selecting and
   exfiltrating arbitrary process environment variables as bundle credentials.
 - **Expected Outcome:** Bundle auth no longer accepts arbitrary `password_env` or
@@ -3193,7 +3193,7 @@ archive.
 
 ### CIB-117: Fence TS runtime and APS state transitions against lost updates
 
-- **Status:** Merged 2026-07-02 via PR #3087
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3087
 - **Intent:** Close deepsec P1 race findings in TypeScript lock/state helpers that
   can lose task records, lock records, or mutual-exclusion guarantees.
 - **Expected Outcome:** Expired/stale lock takeover is fenced and atomic; APS state
@@ -3216,7 +3216,7 @@ archive.
 
 ### CIB-118: Make Edda and Kindling state transitions atomic and payload-consistent
 
-- **Status:** Merged 2026-07-02 via PR #3088
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3088
 - **Intent:** Close deepsec P1/P2 findings where Edda memory/proposal transitions
   and Kindling observation writes can be duplicated, overwritten, or validated
   against a different payload than the one stored.
@@ -3241,7 +3241,7 @@ archive.
 
 ### CIB-119: Gate infrastructure secrets and production resources by trusted stack context
 
-- **Status:** Merged 2026-07-02 via PR #3086
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3086
 - **Intent:** Stop non-production or PR-controlled infrastructure paths from
   reading production secrets or defining/mutating production resources.
 - **Expected Outcome:** Pulumi preview/apply paths do not fetch production Key
@@ -3264,7 +3264,7 @@ archive.
 
 ### CIB-120: Pin release-time installers and signing-job supply-chain inputs
 
-- **Status:** Merged 2026-07-02 via PR #3077
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3077
 - **Intent:** Close active deepsec P2 supply-chain findings where release or
   signing jobs execute unpinned installer scripts before using release authority or
   private signing keys.
@@ -3336,7 +3336,7 @@ archive.
 
 ### CIB-123: Reconcile the language-profile registry with shipped parser/check coverage
 
-- **Status:** Merged 2026-06-30 via PR #3011
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-30 via PR #3011
 - **Decision (owner tier call, 2026-06-30):** **Python → Supported** (PYLAN
   shipped the catalogue + scanning + boundary, same bar as Rust; the
   "PYLAN parked" entry was stale — a Python-only repo no longer maps to
@@ -3382,7 +3382,7 @@ archive.
 
 ### CIB-124: Witness `acquire_lock` timeout + `Drop`-guard
 
-- **Status:** Merged 2026-07-01 via PR #3021 (full 5-reviewer council; blockers
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3021 (full 5-reviewer council; blockers
   fixed in-PR). `WitnessWriter::acquire_lock` polls `try_lock_exclusive`
   with capped backoff (5ms→100ms) up to a `DEFAULT_LOCK_ACQUIRE_TIMEOUT` (**5s**
   per acquire; see follow-on (a) for the env override), returning the new
@@ -3437,7 +3437,7 @@ archive.
 
 ### CIB-125: Cross-process `append_chained` linearisation test
 
-- **Status:** Merged 2026-07-01 via PR #3024 — `crates/anvil-witness/tests/
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3024 — `crates/anvil-witness/tests/
   cross_process_linearisation.rs` (custom `harness = false`) re-execs itself via
   `current_exe()` as 6 worker processes, released together on a go-signal, each
   doing 5 `append_chained` calls against one shared chain; the parent asserts
@@ -3461,7 +3461,7 @@ archive.
 
 ### CIB-126: Witness chain-init marker (zero-byte-active reseed detection)
 
-- **Status:** Merged 2026-07-01 via PR #3026 (full 5-reviewer council; blockers
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3026 (full 5-reviewer council; blockers
   fixed in-PR). A durable witness-root sentinel
   `anvil/witness/.chain-initialised` (sibling of `.lock`, non-`.ndjson` so
   `witness_paths` skips it) is written under the flock by `append_chained` the
@@ -3550,7 +3550,7 @@ archive.
 
 ### CIB-128: Parse `anvil-intercept` CLI before installing daemon tracing
 
-- **Status:** Merged 2026-07-02 via PR #3076
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3076
 - **Intent:** Let clap handle help/version/usage exits before the daemon tracing
   subscriber is installed, so `--help`/`--version` never emit a trace record or
   create a trace sink.
@@ -3597,7 +3597,7 @@ archive.
 
 ### CIB-131: Harden dogfood FP classifier path handling
 
-- **Status:** Merged 2026-06-19 via commit `a4b3a31c5`
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-19 via commit `a4b3a31c5`
 - **Summary:** Already fixed — `scripts/dogfood/external-fp/classify.py`'s
   `source_line()` rejects any path resolving outside the repo root (guarded
   `relative_to`), and `build()` creates the worksheet output directory when
@@ -3607,7 +3607,7 @@ archive.
 
 ### CIB-132: Precise SSL detection in `admin-key-manage`
 
-- **Status:** Merged 2026-07-02 via PR #3079
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-02 via PR #3079
 - **Intent:** Replace the naive connection-string substring match that disables
   SSL in `infra/scripts/admin-key-manage.mjs` with precise parameter parsing,
   and align the documented create-output field name with what the script emits.
@@ -3624,7 +3624,7 @@ archive.
 
 ### CIB-133: Gate the first-week insights nudge under `project_writes_gated` in `status` and `watch`
 
-- **Status:** Merged 2026-07-04 via PR #3185
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3185
 - **Summary:** Threaded `project_writes_gated` into the canonical
   `first_week_insights_hint(root, now, gated)`, which now returns `None` with no
   read and no write when gated. Updated the `status` and `watch` call sites to
@@ -3697,7 +3697,7 @@ archive.
 
 ### CIB-136: Stop PR preview jobs exposing production Azure/Key Vault secrets to PR-controlled Pulumi code
 
-- **Status:** Merged 2026-07-03 via PR #3097
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3097
 - **Intent:** `infra.yml`'s `preview` job (same-repo `pull_request`, `infra.yml:62-64`) checks out the PR branch, runs `pnpm install --frozen-lockfile` from PR-controlled `pnpm-lock.yaml`/`package.json` (`infra.yml:69-82`), authenticates to Azure with `secrets.ARM_CLIENT_ID`/`ARM_CLIENT_SECRET`/... (`infra.yml:84-90`), fetches the production `vercel-token` Key Vault secret via a raw `az keyvault secret show` call inside the workflow itself (`infra.yml:92-96` — this bypasses `infra/src/keyvault.ts` entirely), then runs `pulumi/actions@...` "Pulumi Preview" (`infra.yml:98-116`) with `ARM_*`, `VERCEL_API_TOKEN`, `PULUMI_CONFIG_PASSPHRASE`, and `AZURE_STORAGE_KEY` all exported as step env against the PR's own checked-out `infra/` Pulumi program. CIB-119 (PR #3086, merged) only edits `infra/src/*.ts` stack gating and `infra/scripts/admin-key-manage.mjs`; it never touches this workflow file (confirmed via `git show edb8895fb --stat` — no `infra.yml` in the diff), so this ordering gap is unaddressed on main.
 - **Expected Outcome:** The PR preview path no longer exposes Azure Key Vault or Pulumi secrets to PR-controlled `infra/` code; the Vercel token fetch is either removed from the raw workflow step or routed through the already-gated `infra/src/keyvault.ts` path so untrusted-stack previews get the `<untrusted-stack-secret:name>` marker instead of a live secret.
 - **Files:** `.github/workflows/infra.yml`.
@@ -3708,7 +3708,7 @@ archive.
 
 ### CIB-137: Make required-check classification tamper-resistant to PR-controlled code
 
-- **Status:** Merged 2026-07-03 via PR #3098
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3098
 - **Intent:** `detect-changes`'s classification is computed entirely from code checked out at the PR's own head (`ci.yml:52-59` checks out the default `pull_request` ref, then `uses: ./.github/actions/detect-changes`, itself PR-controlled). The composite action shells out to `scripts/ci/classify-changes.sh` (`.github/actions/detect-changes/action.yml:182`) and derives every `*-required` gate (`lint-required`, `typecheck-required`, `unit-tests-required`, `dependency-audit-required`, etc., `action.yml:227-272`) purely from that PR-editable script's output. A PR that edits `.github/actions/detect-changes/action.yml` or `scripts/ci/classify-changes.sh` to always report `docs-only`/no required checks makes `ci.yml`'s per-job skip conditions (e.g. `ci.yml:449-457`, `ci.yml:529-536`) short-circuit to a passing filler conclusion for every required-check name, without lint/typecheck/tests/dependency-audit ever running on that same PR.
 - **Expected Outcome:** The composite action and script that decide which required checks run are resolved from a trusted ref (PR base SHA or `main`) rather than the PR's own head, so PR-controlled edits to the classifier cannot suppress required checks on that same PR.
 - **Files:** `.github/actions/detect-changes/action.yml`, `scripts/ci/classify-changes.sh`.
@@ -3719,7 +3719,7 @@ archive.
 
 ### CIB-138: Restrict bench-nightly self-hosted runner to trusted refs
 
-- **Status:** Merged 2026-07-03 via PR #3094
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3094
 - **Intent:** `bench-nightly.yml` runs on a dedicated self-hosted runner (`runs-on: [self-hosted, bench]`, line 42) and is triggered only by `workflow_dispatch` (lines 20-26) with no ref restriction — unlike `mirror-eddacraft-tui.yml` and `mirror-drift-check.yml`, which already carry a "Guard — only mirror/check from refs/heads/main" step rejecting any other `GITHUB_REF` before doing anything privileged (both confirmed present on `origin/main`, and both run on `ubuntu-latest`, not self-hosted, so they are already fine and out of scope here). A dispatch against any branch runs that branch's own `bench-nightly.yml` content (including `cargo build`/`cargo run -p anvil-bench --release`) directly on the self-hosted box with no equivalent guard.
 - **Expected Outcome:** `bench-nightly.yml` refuses to run unless dispatched against `refs/heads/main` (or another explicitly trusted ref), mirroring the guard pattern already proven in the two mirror workflows.
 - **Files:** `.github/workflows/bench-nightly.yml`.
@@ -3741,7 +3741,7 @@ archive.
 
 ### CIB-140: Key API rate limiting on a trusted client-identity signal
 
-- **Status:** Merged 2026-07-03 via PR #3096
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3096
 - **Intent:** Stop the per-IP rate limiter from being keyed on a header a
   client can set directly, which lets an attacker evade or frame another
   client's limit.
@@ -3818,7 +3818,7 @@ archive.
 
 ### CIB-142: Atomic OTP attempt limiting and a dedicated waitlist abuse throttle
 
-- **Status:** Merged 2026-07-03 via PR #3112
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3112
 - **Intent:** Remove the check-then-increment race on OTP verification
   attempts and add a dedicated throttle to the public waitlist signup
   endpoint, which today relies only on the shared (and spoofable) global
@@ -3887,7 +3887,7 @@ archive.
 
 ### CIB-144: Flip requires_auth for anvil_fix/anvil_suppress/anvil_gate MCP tools
 
-- **Status:** Merged 2026-07-03 via PR #3095
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3095
 - **Intent:** Close the RMCPF-011-deferred auth gap — mutating (`anvil_fix`,
   `anvil_suppress`) and execution-triggering (`anvil_gate`) MCP tools currently
   register as `requires_auth: false`, unlike `anvil_validate_write` /
@@ -3927,7 +3927,7 @@ archive.
 
 ### CIB-145: Harden anvil_fix against symlink-swap TOCTOU races
 
-- **Status:** Merged 2026-07-03 via PR #3113
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3113
 - **Intent:** `anvil_fix`'s canonicalise-then-write sequence has a
   check-then-use window an attacker with concurrent filesystem access could
   exploit to redirect a write outside the workspace.
@@ -4032,7 +4032,7 @@ archive.
 
 ### CIB-148: Normalise source/target paths in anvil_query_boundary before policy evaluation
 
-- **Status:** Merged 2026-07-03 via PR #3111
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3111
 - **Intent:** `anvil_query_boundary` matches `sourceFile`/`targetFile`
   directly against layer glob patterns with only an emptiness check
   (`crates/anvil-cli/src/mcp/tools/query_boundary.rs:86-100`); unassigned
@@ -4061,7 +4061,7 @@ archive.
 
 ### CIB-149: Stop treating an unverified first wire root as the confinement primary
 
-- **Status:** Merged 2026-07-03 via PR #3117
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3117
 - **Summary:** `Allowlist` mode now fails closed to the operator allow entries
   only — no implicit primary is admitted at all. The first pass merely relocated
   the bypass (sourcing the primary from the connection's `RegisterSession`
@@ -4075,7 +4075,7 @@ archive.
 
 ### CIB-150: Verify the wire `agent_tag` claim before honouring durable membership
 
-- **Status:** Merged 2026-07-03 via PR #3116
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3116
 - **Summary:** Closed the trust-boundary gap where any same-uid IPC client
   could mint an `AgentTag` claiming `activation-spine` durable membership and
   consume the registered-worktree budget. A durable `RegisterSession` claim is
@@ -4087,7 +4087,7 @@ archive.
 
 ### CIB-151: Verify on-disk state before trusting a wire-declared delete/rename
 
-- **Status:** Merged 2026-07-03 via PR #3115
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3115
 - **Summary:** `validate_paths` now reads on-disk bytes and antipattern-scans a
   path even when the client declares it `Deleted`/`Renamed`, so long as the
   path still resolves to readable content; only an actually-vanished path is
@@ -4128,7 +4128,7 @@ archive.
 
 ### CIB-153: Bind session lifecycle operations to the registering peer
 
-- **Status:** Merged 2026-07-04 via PR #3188
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3188
 - **Summary:** Live, lineage-verified sessions now record the authenticated
   peer identity (uid/pid/starttime) at registration; their `Heartbeat` and
   `UnregisterSession` calls are rejected when the calling peer does not match
@@ -4150,7 +4150,7 @@ archive.
 
 ### CIB-154: Cap the number of workspace roots a connection may admit
 
-- **Status:** Merged 2026-07-04 via PR #3187
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3187
 - **Summary:** Added a `DoS`-family budget `max_admitted_roots` (default
   `DEFAULT_MAX_ADMITTED_ROOTS = 32`) so a same-uid peer can no longer exhaust
   the daemon's descriptor table by admitting unbounded distinct roots.
@@ -4164,7 +4164,7 @@ archive.
 
 ### CIB-155: Make Security Summary fail when its security scan jobs fail
 
-- **Status:** Merged 2026-07-03 via PR #3103
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3103
 - **Intent:** "Security Summary" is a required ruleset context, but its job
   runs `if: always()` and its `actions/github-script` step never calls
   `core.setFailed` based on the scan results — its conclusion is decoupled
@@ -4190,7 +4190,7 @@ archive.
 
 ### CIB-156: Add fail-closed classifier guards to test-release-gate and build
 
-- **Status:** Merged 2026-07-03 via PR #3102
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3102
 - **Intent:** `ci.yml`'s `test-release-gate` and `build` jobs consume
   `needs.detect-changes.outputs.*` without the `always() &&
   (result != 'success' || ...)` guard the other consumers gained in CIB-137,
@@ -4353,7 +4353,7 @@ archive.
 
 ### CIB-161: Reconcile the allowlist doc/CLI/diagnostic surface with fail-closed CIB-149
 
-- **Status:** Merged 2026-07-03 via PR #3120
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3120
 - **Intent:** CIB-149 (PR #3117) removed the implicit "primary check-in root"
   admission from `Allowlist` mode — the daemon now admits exactly the operator's
   configured allow entries (empty ⇒ nothing, fail-closed). The admission code is
@@ -4397,7 +4397,7 @@ archive.
 
 ### CIB-162: Human-render daemon-attestation skip warnings in `anvil start`
 
-- **Status:** Merged 2026-07-04 via PR #3129
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3129
 - **Summary:** Every `emit_skip_event` arm in `daemon_evidence.rs` demoted from
   `warn!` to `tracing::info!`, so the four operator-actionable skip reasons no
   longer surface as raw `{"timestamp":…,"level":"WARN"…}` JSONL mid-flow on the
@@ -4411,7 +4411,7 @@ archive.
 
 ### CIB-163: Stop `anvil start` printing init's "Next: run `anvil start`"
 
-- **Status:** Merged 2026-07-03 via PR #3125
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-03 via PR #3125
 - **Intent:** When config is absent the orchestrator runs init inline
   (`orchestrator/mod.rs:170-173`) and init's success block ends with "Next:
   run `anvil start` to activate protection." (`init.rs:440-451`) — printed by
@@ -4431,7 +4431,7 @@ archive.
 
 ### CIB-164: Make the `verify:` block honest about active layers
 
-- **Status:** Merged 2026-07-04 via PR #3126
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3126
 - **Summary:** The first-run `verify:` block no longer over-claims: the L3/L4
   commit+push hooks line prints only when `install_activation_hooks_silent`
   actually succeeded (per-hook results are now surfaced, not discarded), the
@@ -4444,7 +4444,7 @@ archive.
 
 ### CIB-165: Default the GitHub Actions workflow picker to unticked
 
-- **Status:** Merged 2026-07-04 via PR #3179
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3179
 - **Summary:** Both GitHub Actions picker options (PR validation, Nightly
   audit) now start unticked in `orchestrator/mod.rs`, so an Enter-through
   writes no `.github/workflows/*.yml`; ticking a workflow is the explicit
@@ -4471,7 +4471,7 @@ archive.
 
 ### CIB-166: One next-step arbiter per `anvil start` ending
 
-- **Status:** Merged 2026-07-04 via PR #3137
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3137
 - **Summary:** The diagnostic block's `next:` repair hint is the single
   arbiter: when it renders, it owns the ending and the closing `Next:` line
   is suppressed (`ending_next_step_line` gate in `commands/start.rs`,
@@ -4503,7 +4503,7 @@ archive.
 
 ### CIB-167: Improve activation state comprehension for terminal-first users
 
-- **Status:** Merged 2026-07-04 via PR #3135
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3135
 - **Summary:** Added additive plain-language `meaning:` lines for the
   `needs_action`, `unsupported`, and `watching` activation states and made the
   `needs_action`/`watching` copy honest (`render.rs`); the
@@ -4562,7 +4562,7 @@ archive.
 
 ### CIB-169: Reconcile `anvil start`'s exit-0-on-auth-required with `&&` chaining
 
-- **Status:** Merged 2026-07-04 via PR #3180
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3180
 - **Summary:** Auth-required now propagates a distinct exit 3 on action
   commands (`anvil start` and siblings sharing the wall), superseding issue
   #1822's exit-0 mapping so `anvil start && deploy` no longer advances past
@@ -4573,7 +4573,7 @@ archive.
 
 ### CIB-170: Make showcase findings unmistakably examples in discovery
 
-- **Status:** Merged 2026-07-04 via PR #3127
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3127
 - **Summary:** Showcase discovery findings are now unmistakably examples: an
   `is_showcase` flag on `ScanResults` (preserved through `filter_by_domain`,
   set at both `welcome.rs` showcase fallbacks) makes `render_findings_list`
@@ -4583,7 +4583,7 @@ archive.
 
 ### CIB-171: Fix welcome TUI navigation scopes and init-summary honesty
 
-- **Status:** Merged 2026-07-04 via PR #3131
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3131
 - **Summary:** Three welcome-flow navigation/copy traps fixed. (a) `Esc` on the
   discovery results screen now backs out to the hub instead of advancing into
   the tutorial — exit classification extracted into a testable
@@ -4600,7 +4600,7 @@ archive.
 
 ### CIB-172: Windows variant for the first-run smoke recipe
 
-- **Status:** Merged 2026-07-04 via PR #3145
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3145
 - **Summary:** Branched the first-run smoke recipe's cleanup step in
   `start.rs` to render `del` on Windows and `rm` elsewhere (mirroring the
   tutorial's `cfg!(windows)` pattern) via named `RECIPE_CLEANUP_UNIX` /
@@ -4611,7 +4611,7 @@ archive.
 
 ### CIB-173: PATHEXT-aware editor detection on Windows
 
-- **Status:** Merged 2026-07-04 via PR #3144
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3144
 - **Summary:** Windows editor detection in `detect_agents.rs` now consults
   `PATHEXT` (bounded to `.exe`, `.cmd`, `.bat`, `.com`) so `.cmd`/`.bat` editor
   shims resolve and their MCP config is written, keeping the no-execute-bit
@@ -4620,7 +4620,7 @@ archive.
 
 ### CIB-174: Align daemon bind-timeout copy with the real ceiling
 
-- **Status:** Merged 2026-07-04 via PR #3146
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3146
 - **Summary:** Ensure-failure recovery copy now names the effective wall-clock
   bound, deriving the printed figure from `(bind_timeout + PROBE_TIMEOUT)` in
   `crates/anvil-intercept/src/ensure.rs` (an in-flight probe can overrun
@@ -4630,7 +4630,7 @@ archive.
 
 ### CIB-175: Actionable watcher-failure guidance off Linux
 
-- **Status:** Merged 2026-07-04 via PR #3147
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3147
 - **Summary:** Watcher-start failures now render a platform-aware human line
   naming the likely cause and a next step, and partial-registration exhaustion
   is surfaced rather than silently dropping subtree coverage; Linux keeps its
@@ -4638,7 +4638,7 @@ archive.
 
 ### CIB-176: Detect sh-less git before relying on `#!/bin/sh` hooks
 
-- **Status:** Merged 2026-07-04 via PR #3149
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3149
 - **Intent:** Activation-installed hooks are `#!/bin/sh` scripts
   (`hooks.rs:72-92`). Under standard Git for Windows this works (bundled
   MSYS sh), but a git lacking a bundled `sh` silently never executes them —
@@ -4658,7 +4658,7 @@ archive.
 
 ### CIB-177: Give bare `anvil` a first-run pointer instead of a 40-command dump
 
-- **Status:** Merged 2026-07-04 via PR #3148
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3148
 - **Summary:** Added a `before_help` banner on the root command (from new
   `help_layout::FIRST_RUN_POINTER`) pointing first-time users at `anvil welcome`
   (tour) and `anvil start` (activate); subcommand parsing and the exit-2/help
@@ -4681,7 +4681,7 @@ archive.
 
 ### CIB-178: Exclude anvil-generated artefacts from the language profile
 
-- **Status:** Merged 2026-07-04 via PR #3152
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3152
 - **Summary:** Added an activation-only `is_anvil_owned_artifact(path, root)`
   predicate applied per-file in `profile_repo`
   (`activation/language_profile.rs`) so anvil's own writes (`.anvilrc`,
@@ -4695,7 +4695,7 @@ archive.
 
 ### CIB-179: Say something when welcome surfaces drop copy in small terminals
 
-- **Status:** Merged 2026-07-04 via PR #3150
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3150
 - **Summary:** Both welcome renderers now reserve a trailing muted "resize for
   descriptions" hint in compact mode instead of silently dropping taglines and
   per-item descriptions, gated on genuine spare height so the fixed `Length(7)`
@@ -4710,7 +4710,7 @@ archive.
 
 ### CIB-180: Decide whether MCP tier tokens should read as pending, not done
 
-- **Status:** Merged 2026-07-04 via PR #3177
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3177
 - **Summary:** Render-time gloss only: `render.rs` appends a "(pending
   restart)" qualifier beside tier tokens that read as done while a
   restart-required headline is active; machine tokens stay byte-stable
@@ -4739,7 +4739,7 @@ archive.
 
 ### CIB-182: First-user CLI command-path batch (local test 2026-07-07)
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12)
 - **Summary:** All seven audit findings closed. Six via PR #3253
   ([#3216](https://github.com/eddacraft/anvil-001/issues/3216),
   [#3217](https://github.com/eddacraft/anvil-001/issues/3217),
@@ -4792,7 +4792,7 @@ archive.
 
 ### CIB-183: Quiet repeat `anvil start` success output
 
-- **Status:** Merged 2026-07-11 via PR #3283
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3283
 - **Summary:** A repeat `anvil start` whose run evidence shows the repo was
   already activated (config pre-existing, MCP entries up to date, no errors)
   now collapses to the protection state, daemon/driver posture, and one
@@ -4817,7 +4817,7 @@ archive.
 
 ### CIB-184: Default live MCP picker choices to unticked
 
-- **Status:** Merged 2026-07-11 via PR #3279
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3279
 - **Summary:** The plain `anvil start` demand picker now offers every MCP
   candidate (`NotPresent` / `SafeDrift`) unticked, so an Enter-through writes
   no editor config; picker copy states the opt-in posture and non-interactive
@@ -4841,7 +4841,7 @@ archive.
 
 ### CIB-181: Fix ETXTBSY flake in anvil-policy fixture-exec tests
 
-- **Status:** Merged 2026-07-05 via PR #3194
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-05 via PR #3194
 - **Summary:** `SubprocessRunner::eval_json`'s spawn site now retries on
   `std::io::ErrorKind::ExecutableFileBusy` (bounded, exponential back-off,
   `spawn_with_etxtbsy_retry`) — the ecosystem-standard fix for the
@@ -4879,7 +4879,7 @@ archive.
 
 ### CIB-190: Healthy repeat-start local value receipt
 
-- **Status:** Merged 2026-07-12 via PR #3286
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-12 via PR #3286
 - **Shipped:** Collapsed healthy-repeat `anvil start` now carries one bounded,
   time-boxed (150 ms) local value line from the CIB-073 cumulative aggregate
   (risky writes flagged → saves checked → witness events, 30-day staleness
@@ -4909,7 +4909,7 @@ archive.
 
 ### CIB-191: Durable continuous-improvement pending queue and harvest
 
-- **Status:** Merged 2026-07-11 via PR #3285 — `scripts/ci-log/*`,
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3285 — `scripts/ci-log/*`,
   `pnpm ci-log:*`, and `docs/guides/continuous-improvement-log.md` on main.
 - **Intent:** Stop session CI-log notes from being lost when agents omit the
   tracked log from single-purpose feature PRs or when worktrees are removed
@@ -4932,7 +4932,7 @@ archive.
 
 ### CIB-192: CI-log triage watermark and weekly disposition workflow
 
-- **Status:** Merged 2026-07-30 — tooling shipped with CIB-191 (PR #3285);
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-30 — tooling shipped with CIB-191 (PR #3285);
   Wave C triage completed (harvest, promote/absorb/leave, closeout note,
   watermark advanced). Weekly ops must continue: harvest pending, disposition
   entries since watermark, re-set watermark after each triage — do not treat
@@ -4954,7 +4954,7 @@ archive.
 
 ### CIB-193: Finish the non-Linux cross-leg dead-code peel and close the PR-CI gap
 
-- **Status:** Merged 2026-07-26 via PR #3422 — `Clippy (windows-msvc)` runs on
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-26 via PR #3422 — `Clippy (windows-msvc)` runs on
   every Rust-touching PR. Its first runs found twelve pre-existing findings
   across eight crates, including a Windows test-compilation break from PR #3411
   and a same-day `needless_return` regression from PR #3419.
@@ -4985,7 +4985,7 @@ archive.
 
 ### CIB-194: Fix aarch64-apple-darwin base_store race-test failures
 
-- **Status:** Merged 2026-07-12 via PR #3297
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-12 via PR #3297
 - **Resolution:** a product-path platform race, not a test bug: macOS/APFS
   spuriously returns `ENOENT` under same-directory entry churn, hitting the
   create-once `.guard` `O_CREAT` open (fixed with a bounded yielding retry)
@@ -5013,7 +5013,7 @@ archive.
 
 ### CIB-195: Fix the TS OPA executor's real-binary path on Windows
 
-- **Status:** Merged 2026-07-26 via PR #3422 — resolved by **explicit
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-26 via PR #3422 — resolved by **explicit
   retirement on Windows**, the second branch this item offered. See Results.
 - **Intent:** The legacy TS policy executor's real-binary evaluations must
   either work on Windows or be explicitly retired there — never fail silently.
@@ -5063,7 +5063,7 @@ archive.
 
 ### CIB-196: prepare.sh changelog promotion needs manual curation
 
-- **Status:** Merged 2026-07-26 via PR #3422 — `prepare.sh` promotes the whole
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-26 via PR #3422 — `prepare.sh` promotes the whole
   `## [Unreleased]` draft into a correctly-formatted section, refuses a cut with
   nothing to promote before bumping any version, and a rerun repairs a
   half-finished promotion.
@@ -5094,7 +5094,7 @@ archive.
 
 ### CIB-197: Stamp version and install method onto the command.invoked envelope
 
-- **Status:** Merged 2026-07-16 via PR #3351
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-16 via PR #3351
 - **Intent:** Every usage observation should be self-describing about the
   binary that produced it, so rows collected now stay analysable once any
   export or fleet surface exists.
@@ -5125,7 +5125,7 @@ archive.
 
 ### CIB-198: Invisible-content trap antipattern rule (fragile-presentation family)
 
-- **Status:** Merged 2026-07-16 via PR #3357
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-16 via PR #3357
 - **Intent:** Flag content authored invisible (`opacity: 0`) whose visibility
   depends on an entrance animation firing, so a reduced-motion preference,
   backgrounded tab, or hydration miss can leave the section permanently blank.
@@ -5180,7 +5180,7 @@ archive.
 
 ### CIB-199: Anti-pattern gate false-positives on committed generated files
 
-- **Status:** Merged 2026-07-22 via PR #3373, #3375 — Safe A generated-file
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-22 via PR #3373, #3375 — Safe A generated-file
   exclusion Merged 2026-07-21 via PR #3373 (ADR-112 recorded in #3374), and the
   severity reconciliation Merged 2026-07-22 via PR #3375: `gate.rs` no longer
   hardcodes the `Warning` threshold and now derives it from the opt-in
@@ -5246,7 +5246,7 @@ archive.
 
 ### CIB-200: Delegate package-manager-owned updates after explicit consent
 
-- **Status:** Merged 2026-07-24 via PR #3405
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-24 via PR #3405
 - **Intent:** Let `anvil update` complete an explicitly authorised update through
   the package manager that owns the running binary instead of stopping at a
   manual-command advisory.
@@ -5284,7 +5284,7 @@ archive.
 
 ### CIB-201: Refresh repository-local APS package from canonical vending
 
-- **Status:** Merged 2026-07-26 via PR #3407
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-26 via PR #3407
 - **Intent:** Replace the legacy root APS skill and stale harness agents with the
   current package emitted by the APS binary from canonical eddacraft assets.
 - **Expected Outcome:** The repository carries current Claude, Copilot, and
@@ -5467,7 +5467,7 @@ archive.
 
 ### CIB-206: Worktree-anchor auto-heal generated stash debris and could reset staged work away
 
-- **Status:** Merged 2026-07-27 via PR #3440
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-27 via PR #3440
 - **Intent:** `scripts/dev/heal-primary-anchor.sh` runs as a `wt` post-switch /
   post-merge / post-remove hook on every worktree mutation. A hook that silently
   accumulates artefacts, or that can discard uncommitted work, undermines the
@@ -5864,7 +5864,7 @@ archive.
 
 ### CIB-219: Reconcile internal and public documentation to current release truth
 
-- **Status:** Merged 2026-08-03 via PR #3500
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3500
 - **Intent:** Complete the quarterly documentation audit across anvil's public
   user journey and its live internal entrypoints after the `v0.9.1-beta` cut.
 - **Expected Outcome:** Public docs describe the shipped `v0.9.1-beta` command,

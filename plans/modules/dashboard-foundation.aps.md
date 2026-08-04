@@ -156,7 +156,7 @@ Change status to **Ready** when:
 
 ### DASH-001: Vite dashboard app scaffold
 
-- **Status:** Merged 2026-07-10 via PR #3261 — the dedicated Vite dashboard
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3261 — the dedicated Vite dashboard
   scaffold is present on `main`; later Wave 1 work continues on
   `feat/dash-wave-1`.
 - **Intent:** Create the dedicated dashboard app host.
@@ -181,7 +181,7 @@ Change status to **Ready** when:
 
 ### DASH-002: Dashboard module host and navigation
 
-- **Status:** Merged 2026-07-13 via PR #3321 — manifests, fail-closed registry,
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — manifests, fail-closed registry,
   explicit route entries, and registry-driven desktop/mobile navigation are
   present on `main`.
 - **Intent:** Define the dashboard module adapter shape and navigation registry.
@@ -207,7 +207,7 @@ Change status to **Ready** when:
 
 ### DASH-003: Theme and component catalogue
 
-- **Status:** Merged 2026-07-13 via PR #3321 — shared primitives and a thin
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — shared primitives and a thin
   dashboard adapter over the authoritative `@eddacraft/render` catalogue are
   present on `main`.
 - **Intent:** Build the shared UI primitives and json-render catalogue used by
@@ -241,7 +241,7 @@ Change status to **Ready** when:
 
 ### DASH-004: Local dashboard server crate
 
-- **Status:** Merged 2026-07-13 via PR #3321 — loopback listener enforcement,
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — loopback listener enforcement,
   exact Host/Origin/Sec-Fetch-Site guards, private router construction,
   read-only routing, health, and OpenAPI behaviour are present on `main`.
 - **Intent:** Create the Rust server boundary for local dashboard data.
@@ -265,7 +265,7 @@ Change status to **Ready** when:
 
 ### DASH-005: Workspace artefact read boundary
 
-- **Status:** Merged 2026-07-13 via PR #3321 — held-root containment, traversal
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — held-root containment, traversal
   and symlink rejection, per-file and aggregate plan-read budgets,
   duplicate-path rejection, and structured read-error codes are present on
   `main`.
@@ -288,7 +288,7 @@ Change status to **Ready** when:
 
 ### DASH-006: OpenAPI contract and generated TypeScript client
 
-- **Status:** Merged 2026-07-13 via PR #3321 — deterministic Rust export,
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — deterministic Rust export,
   committed OpenAPI/TypeScript output, typed `openapi-fetch` seam, DTO/status
   conformance, and build-integrated byte-for-byte drift checking are present on
   `main`.
@@ -315,7 +315,7 @@ Change status to **Ready** when:
 
 ### DASH-007: TanStack Query resource layer
 
-- **Status:** Merged 2026-07-13 via PR #3321 — stable query provider/client
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — stable query provider/client
   lifetimes, generated-client hooks, retryable structured query boundary, and
   explicit test-only fixtures are present on `main`; transport failures remain
   unavailable rather than fabricating protection data.
@@ -341,7 +341,7 @@ Change status to **Ready** when:
 
 ### DASH-008: URL state, command palette, and deep linking
 
-- **Status:** Merged 2026-07-13 via PR #3321 — Zod-validated search state,
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — Zod-validated search state,
   router-owned view/evidence filters, registered module/resource commands, and
   Cmd+K navigation is present on `main`. This slice also repairs the prior
   manifest's single-route shape with explicit resource-bound routes.
@@ -389,7 +389,7 @@ Change status to **Ready** when:
 
 ### DASH-010: Protection Overview proof module
 
-- **Status:** Merged 2026-07-13 via PR #3321 — typed
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — typed
   complete/partial/unavailable and loading/error presentation, canonical gate
   state, warnings, affected files, evidence selection, freshness, and
   desktop/mobile rendering are present on `main`; absent producer data remains
@@ -418,7 +418,7 @@ Change status to **Ready** when:
 
 ### DASH-011: Plan Driver proof module
 
-- **Status:** Merged 2026-07-13 via PR #3321 — `/plans` and `/plans/$id`, typed
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-13 via PR #3321 — `/plans` and `/plans/$id`, typed
   list and detail hooks, readiness/validation contract, visibly deferred
   disabled actions, and the bounded `anvil-plan-read-model` adapter are present
   on `main`.
@@ -446,7 +446,7 @@ Change status to **Ready** when:
 
 ### DASH-012: Ship the dashboard to users
 
-- **Status:** Merged 2026-07-26 via PR #3421 — `anvil dashboard --web` serves
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-26 via PR #3421 — `anvil dashboard --web` serves
   the embedded UI from the installed binary; build-time bundle with a
   release-build guard, SPA fallback, asset 404s, JSON-only unmatched API paths.
 - **Intent:** Wave 1 built the dashboard but left it unreachable: the server was

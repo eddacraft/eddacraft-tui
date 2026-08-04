@@ -43,7 +43,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-001: Trim dev/test debug info to shrink each target at the base
 
-- **Status:** Merged 2026-05-29 via PR #2090
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2090
 - **Wave:** 1 (harden now)
 - **Intent:** Cut the ~100 GB-per-`target/` base bloat at its dominant source
   (full DWARF) without changing build location or behaviour.
@@ -59,7 +59,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-002: Layered Rust target relocation off the Projects mount
 
-- **Status:** Merged 2026-05-29 via PR #2094
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2094
 - **Wave:** 1 (harden now)
 - **Intent:** Stop ENOSPC by moving live `target/` dirs onto `/home`,
   per-worktree-isolated (lock-free).
@@ -115,7 +115,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-004: Disk-pressure target eviction (race-safe, dry-run-first)
 
-- **Status:** Merged 2026-05-29 via PR #2101
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2101
 - **Wave:** 1 (harden now)
 - **Intent:** Keep `/home` bounded by reclaiming idle relocated targets without
   ever deleting a target a build is using, given the PreToolUse safety hooks are
@@ -140,7 +140,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-005: Align Node version + fix the oxfmt shadow + nx cache key
 
-- **Status:** Merged 2026-05-29 via PR #2104
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2104
 - **Wave:** 1 (harden now)
 - **Intent:** Remove the four-way Node drift (and its `better-sqlite3` ABI
   failures) and the stale-global-`oxfmt` false failures, with a single cache-bust.
@@ -169,7 +169,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-006: Fix worktree creation + bootstrap in `.config/wt.toml`
 
-- **Status:** Merged 2026-05-29 via PR #2113
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-29 via PR #2113
 - **Wave:** 1 (harden now)
 - **Intent:** Make a fresh worktree start from `origin/main`, build cleanly, and
   fail loudly when it doesn't.
@@ -197,7 +197,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-007: Wire change-scoped parity into the wt pre-commit + classifier
 
-- **Status:** Merged 2026-06-10 via PR #2516
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-10 via PR #2516
 - **Wave:** 1 (harden now)
 - **Intent:** Make the local pre-commit gate match CI's classifier and close the
   path-gate that hid the observability E2E break.

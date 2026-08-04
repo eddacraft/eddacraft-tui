@@ -89,7 +89,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-001 — File detection
 
-- **Status:** Merged 2026-06-18 via PR #2785
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2785
 - **Intent:** Identify `*.sh`/`*.bash` shell scripts.
 - **Expected Outcome:** `*.sh`/`*.bash` (case-insensitive) are detected; other
   files are not. Shebang-only (no-extension) scripts are a documented
@@ -100,7 +100,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-002 — Dangerous-command scan (shared `command_safety` catalogue)
 
-- **Status:** Merged 2026-06-18 via PR #2785
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2785
 - **Intent:** Flag dangerous commands in checked-in shell scripts **without
   duplicating** the `command_safety` catalogue.
 - **Expected Outcome:** Each command (incl. compound `&&`/`|`/`;` parts, with
@@ -114,7 +114,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-005 — Gate/catalogue registration + flag gating
 
-- **Status:** Merged 2026-06-18 via PR #2786
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2786
 - **Intent:** Surface SURFSH in the gate behind `track.surface.sh`.
 - **Expected Outcome:** `ANV-SURF-SH-001` registered + wired (warn-only),
   gated behind a `track.surface.sh` leaf flag under the OPSUP-005
@@ -144,7 +144,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-006-validation — Anvil + external validation runs
 
-- **Status:** Merged 2026-06-18 via PR #2791
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2791
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Validated 2026-06-18 — Anvil (110 in-scope shell
   scripts, 0 findings) + `BurntSushi/ripgrep` (2 scripts, 0 findings),

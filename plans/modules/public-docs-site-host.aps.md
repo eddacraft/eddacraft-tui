@@ -114,7 +114,7 @@ siblings; DOCSYNC for Anvil).
 - **Validation:** `pnpm docs:check` passes for the Kindling section; a change
   under `docs/public/kindling/` or to `sidebars/kindling.ts` is recognised by
   `pnpm aps:drift`.
-- **Status:** Merged 2026-06-20 via PR #2825
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via PR #2825
 - **Files:** `docs/public/kindling/`, `apps/docs-site/sidebars/kindling.ts`
 - **Confidence:** high
 

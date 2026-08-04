@@ -160,7 +160,7 @@ than per-language PRs.
 
 ### LTW2-002 — Wire WebAssembly text (`.wat`/`.wast`)
 
-- **Status:** Merged 2026-06-30 via PR #3000
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-30 via PR #3000
 - **Intent:** WebAssembly text files are detected, parsed, and their symbols
   appear in the graph.
 - **Expected Outcome:** `Language::Wat` arm + `from_path` mapping for
@@ -183,7 +183,7 @@ than per-language PRs.
 
 ### LTW2-003 — Wire Zig (`.zig`)
 
-- **Status:** Merged 2026-06-29 via PR #2996
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-29 via PR #2996
 - **Intent:** Zig files are detected, parsed, and their symbols appear in the
   graph.
 - **Expected Outcome:** `Language::Zig` arm + `from_path` mapping for `.zig`
@@ -200,7 +200,7 @@ than per-language PRs.
 
 ### LTW2-004 — Wave acceptance
 
-- **Status:** Merged 2026-06-30 via PR #3014
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-30 via PR #3014
 - **Intent:** Every included language parses a real-world fixture without
   panicking and appears in the graph via `architecture-validate`.
 - **Expected Outcome:** All included-language fixtures green; an external-corpus
@@ -227,7 +227,7 @@ than per-language PRs.
 
 ### LTW2-005 — Reconcile public language-profile copy
 
-- **Status:** Merged 2026-06-30 via PR #3006
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-30 via PR #3006
 - **Intent:** The public "Repo language profile" copy reflects what the feature
   actually reports.
 - **Expected Outcome:** `docs/public/anvil/overview.md` matches the CLI

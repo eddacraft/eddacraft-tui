@@ -120,7 +120,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-001: Tree-sitter-python grammar wired through the extractor trait
 
-- **Status:** Merged 2026-06-17 via #2716 — `tree-sitter-python` added (workspace + kernel),
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2716 — `tree-sitter-python` added (workspace + kernel),
   `Language::Python` with `.py` / `.pyi` detection and `ts_language()` wiring,
   folded into the grammar-version cache key. Delivered in the foundational PR.
 - **Intent:** Make Python files parseable by the existing kernel parser surface.
@@ -138,7 +138,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-002: Python symbol/import extraction
 
-- **Status:** Merged 2026-06-17 via #2716 — `python.rs` `PythonExtractor` emits `FileSymbols`:
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2716 — `python.rs` `PythonExtractor` emits `FileSymbols`:
   `def` → Function, `class` → Class, class-body `def` → `Owner.method` Method
   (decorated defs unwrapped), leading-underscore visibility; and one
   `ImportEdge` per `import` / `from`-import module, preserving relative-import
@@ -158,7 +158,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-003: Python T2 anti-pattern catalogue
 
-- **Status:** Merged 2026-06-17 via #2734 — new `python-reliability` pattern
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2734 — new `python-reliability` pattern
   family (PY-001..007), the Python parallel of `rust-reliability`, as RE2-legal
   `Detection::Regex` rules scoped to `.py` (no AST tier needed; they run on the
   daemon-safe save-time hot path like the TS rules): PY-001 `# type: ignore`
@@ -185,7 +185,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-004: `#`-comment suppression syntax
 
-- **Status:** Merged 2026-06-17 via #2734 — the `# @anvil-ignore <ID> -- reason`
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2734 — the `# @anvil-ignore <ID> -- reason`
   suppression for Python is handled by the existing ADR-029 parser (the `#`
   comment prefix was already in the suppression regex); delivered with the
   PYLAN-003 catalogue and covered by tests (marks the finding suppressed;
@@ -202,7 +202,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-005: Python entry-point detection
 
-- **Status:** Merged 2026-06-17 via #2731 — `detect_python_entry_points(workspace_root)` added
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2731 — `detect_python_entry_points(workspace_root)` added
   to `anvil-architecture`, mirroring RSTLAN-004's `detect_rust_entry_points`:
   emits `EntryPoint`s for `pyproject.toml` `[project.scripts]` (Cli) /
   `[project.gui-scripts]` (Application), `setup.cfg`
@@ -233,7 +233,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-006: Python layer/boundary enforcement
 
-- **Status:** Merged 2026-06-17 via #2732 — `resolve_python_import(workspace_root, from_file,
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2732 — `resolve_python_import(workspace_root, from_file,
   module)` added to `anvil-architecture` (mirroring RSTLAN-005's
   `resolve_rust_import`): maps a Python import's module string to the
   workspace-relative `.py` file. Absolute `foo.bar` resolves against flat and
@@ -262,7 +262,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-007: Drift baseline default-on for `.py`
 
-- **Status:** Merged 2026-06-17 via #2734 — `.py` added to
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2734 — `.py` added to
   `AntipatternCheckConfig`'s default scan extensions, so the Python rules fire
   across `anvil check`/`gate`/drift and the save-time daemon by default
   (mirroring RSTLAN-006 for `.rs`).
@@ -276,7 +276,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-008: `architecture-validate` includes Python packages
 
-- **Status:** Merged 2026-06-17 via #2732 — `.py` added to
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via #2732 — `.py` added to
   `validator::collect_source_files`'s `include_extensions`, so the public
   validate surface (CLI / MCP / dashboard) enumerates and layer-assigns Python
   files. Layer assignment is path-glob based, so no language gate is needed;
@@ -297,7 +297,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-009: Dogfood T3 acceptance + FP bar (§16.5 #9)
 
-- **Status:** Merged 2026-06-18 via #2740 — external-codebase validation
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via #2740 — external-codebase validation
   (spec §16.5 #9 / C-014) executed on public OSS at the operator's direction:
   `encode/httpx` + `Textualize/rich` (~270 `.py` files, 0 panics, 0 parse
   errors), FP rate **0.0% < N = 1%** (**N accepted by the operator 2026-06-18**).

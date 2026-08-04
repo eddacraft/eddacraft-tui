@@ -92,7 +92,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-001: Repository-specific first win
 
-- **Status:** Merged 2026-07-11 via PRs #3263/#3280 — ACTTUI-009 consent
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PRs #3263/#3280 — ACTTUI-009 consent
   wiring + WOW-005 first-win reroute (deterministic top-of-discovery
   selection, diff-before-write with expected-before TOCTOU guard, unticked
   consent, decline→picker, honest clean interstitial). Validation on main:
@@ -113,7 +113,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-002: `anvil start` just-works activation gate
 
-- **Status:** Merged 2026-07-11 via PRs #3263/#3279/#3284 — consent reachable
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PRs #3263/#3279/#3284 — consent reachable
   and applied end to end (ACTTUI-009), contract matrix pinned (ACTTUI-010),
   polish/dead-key/exit-story cleared (ACTTUI-012), plain MCP picker unticked
   (CIB-184). Validation on main: `cargo test -p eddacraft-anvil start` 168
@@ -132,7 +132,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-003: Daily confidence loop
 
-- **Status:** Merged 2026-07-12 via PRs #3283/#3286 — healthy repeat output
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-12 via PRs #3283/#3286 — healthy repeat output
   collapses to state/posture/one-next-step (evidence-gated, never on repair
   paths), with an optional trustworthy local value line (two-sided
   freshness, honest omission, 150 ms budget). Validation on main:
@@ -154,7 +154,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-004: Advocacy-grade value receipt
 
-- **Status:** Merged 2026-07-11 via PR #3282 — cumulative + bounded-window
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3282 — cumulative + bounded-window
   aggregates in `anvil insights`, deterministic self-contained `--share`
   card (create-new default, symlink-refusing, 0o600) naming its evidence
   window; redaction proven structurally (only counts and re-serialised
@@ -174,7 +174,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-005: Three-platform release journey rehearsal
 
-- **Status:** Merged 2026-07-12 — Linux interactive rehearsal complete on
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-12 — Linux interactive rehearsal complete on
   candidate `d6d3aa39c`
   ([rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md)):
   fresh welcome, first/repeat start, `--verify`/`--json` byte contracts,
@@ -201,7 +201,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-006: Outcome-based release gate
 
-- **Status:** Merged 2026-07-12 — the tag landed: `v0.9.0-beta` cut at source
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-12 — the tag landed: `v0.9.0-beta` cut at source
   `6b0ed1d1d` and published on both repos (release run 29190475570, success on
   attempt 3 after the operator rotated the expired `ANVIL_RELEASES_TOKEN`;
   verification record and closeout on
@@ -229,7 +229,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-007: Sandboxed autoplay demonstration
 
-- **Status:** Merged 2026-07-30 via PR #3441 — WOW-006 sandboxed autoplay landed
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3441 — WOW-006 sandboxed autoplay landed
   on `main` (`feat/wow-006-sandbox-autoplay`). Design at
   [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md):
   fresh-tempdir offline fixture with RAII cleanup, real in-sandbox execution
@@ -251,7 +251,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-008: Celebration and richer diagnostics
 
-- **Status:** Merged 2026-07-25 via PR #3408 — the "richer diagnostics on demand" half
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-25 via PR #3408 — the "richer diagnostics on demand" half
   already shipped with ACTTUI-006 (the `LogPanel` `l`-toggle and in-surface
   `--why`). This slice adds the remaining celebration half: a
   once-per-local-environment `BigBanner` beat on the **first** protecting
@@ -318,7 +318,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-011: Bare `anvil` daily ensure vs `start` reconfigure
 
-- **Status:** Merged 2026-08-01 via PR
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-08-01 via PR
   [#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a` on
   `main`). ADR-114 Accepted; ONSW-001..006 Merged. Evidence: `bare_invocation`
   + `ensure_existing_*` tests green; worktree smoke (`protecting` + registered);

@@ -89,7 +89,7 @@ registration + flag, then validation.
 
 ### SURFGHA-001 — Workflow file detection
 
-- **Status:** Merged 2026-06-18 via PR #2773
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2773
 - **Intent:** Identify the `.github/workflows/*.yml`/`*.yaml` files SURFGHA
   governs.
 - **Expected Outcome:** Files under a `.github/workflows/` directory with a
@@ -101,7 +101,7 @@ registration + flag, then validation.
 
 ### SURFGHA-002 — Supply-chain pattern catalogue
 
-- **Status:** Merged 2026-06-18 via PR #2773
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2773
 - **Intent:** Warn on the highest-blast-radius supply-chain risks in workflow
   YAML.
 - **Expected Outcome:** Unpinned **branch** action refs (`uses: …@main`/branch,
@@ -115,7 +115,7 @@ registration + flag, then validation.
 
 ### SURFGHA-006 — Gate/catalogue registration + flag gating
 
-- **Status:** Merged 2026-06-18 via PR #2776
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2776
 - **Intent:** Surface SURFGHA in the gate behind `track.surface.gha`.
 - **Expected Outcome:** `ANV-SURF-GHA-001` registered + wired into the gate
   dispatcher (warn-only, file-presence guarded), gated behind a
@@ -127,7 +127,7 @@ registration + flag, then validation.
 
 ### SURFGHA-007 — Anvil + external validation runs
 
-- **Status:** Merged 2026-06-18 via PR #2791
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-18 via PR #2791
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Validated 2026-06-18 — Anvil (27 workflows, 2 true
   positives) + `BurntSushi/ripgrep` (7 true-positive unpinned `@master` refs),

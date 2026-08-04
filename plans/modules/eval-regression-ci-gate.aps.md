@@ -80,7 +80,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-001: Ratchet `--update-baseline` to clean runs only
 
-- **Status:** Merged 2026-07-01 via PR #3023
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3023
 - **Intent:** Persist a run to history only when its gate is non-regressed or
   clean, so a failing run cannot become the accepted baseline.
 - **Expected Outcome:** `--update-baseline` cannot poison the baseline with a
@@ -90,7 +90,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-002: Null the eval subprocess stdin
 
-- **Status:** Merged 2026-07-01 via PR #3023
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3023
 - **Intent:** `SubprocessRunner` sets child stdin to null so a future
   auth or license prompt cannot hang a suite until the timeout.
 - **Expected Outcome:** A prompting upstream command fails fast, not after the
@@ -100,7 +100,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-003: Classify non-{0,1} suite exit as execution-error
 
-- **Status:** Merged 2026-07-01 via PR #3023
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3023
 - **Intent:** An inner `anvil policy eval` exit code outside {0,1} (an OPA or
   infra failure, for example 2) is an execution error, not a trust regression.
 - **Expected Outcome:** Infra failures do not false-block main as regressions.
@@ -109,7 +109,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-004: Per-suite fail-open
 
-- **Status:** Merged 2026-07-01 via PR #3023
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-01 via PR #3023
 - **Intent:** A suite that errors (missing policy, empty stdout) reports a
   `runner-error` status and the run continues and still emits the aggregate
   report, instead of aborting all suites.
@@ -120,7 +120,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-005: First-wave arch-boundary eval suite
 
-- **Status:** Merged 2026-07-04 via PR #3170
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3170
 - **Intent:** Author `policies/eval/arch_boundary.rego` plus a hermetic
   `arch_boundary.input.json` and `ci/eval/suites.json`; extend `opa test` and
   `regal lint` to cover `policies/eval/`.
@@ -144,7 +144,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-006: Report-only CI step plus committed baseline
 
-- **Status:** Merged 2026-07-04 via PR #3170
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-04 via PR #3170
 - **Intent:** Add a `continue-on-error: true` eval-regression step to the
   rust-tests.yml Test job (build anvil, absolute `--anvil-bin`,
   `--store ci/eval/baseline`), and seed a one-record-per-suite baseline written

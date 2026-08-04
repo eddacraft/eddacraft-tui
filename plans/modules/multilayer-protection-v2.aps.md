@@ -821,7 +821,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-008: RTAI-007 telemetry-contract join
 
-- **Status:** Merged 2026-06-14 via PR #2602
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-14 via PR #2602
 - **Intent:** Explicit field map between RTAI-007's mid-edit
   envelope and the `gate_evaluated` Kindling row, so a row can
   be joined back to its originating telemetry envelope by
@@ -1022,7 +1022,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-012: Manifest event stream (`anvil/witness/manifest/chain.ndjson`)
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Rollover events from `WitnessWriter::append`
   become append-only entries in
   `anvil/witness/manifest/chain.ndjson` so consumers can stream
@@ -1090,7 +1090,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-015: Promote 80-writer stress test to CI
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `eighty_writers_no_interleaving` in `anvil-witness`
   is gated behind `#[ignore]`. Promote to a CI-runnable test
   once the runner has the parallel budget.
@@ -1188,7 +1188,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-018: `required_anvil_version` policy evaluation
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `BranchRule.required_anvil_version` is parsed but
   not enforced. Adds the evaluation pass: refuse pushes from
   anvil versions below the floor.
@@ -1223,7 +1223,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-019: L4 verification of witness `rules_sha` against recognised version
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** L4 confirms the witness's `rules_sha` value
   resolves to a rule set the L4 server recognises (allows
   matching its policy floor).
@@ -1261,7 +1261,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-020: Hook-side `required_anvil_version` floor check at fire time
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `anvil hook pre-commit` reads
   `anvil/policy.yml`'s `required_anvil_version` and refuses to
   run (with a clear "upgrade anvil" message) if the running
@@ -1293,7 +1293,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-021: `cutoff_commit` baseline-ancestry acceptance in pre-push
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Pre-push currently walks the literal pushed
   range only. Extend to accept the cutoff via a
   `git rev-list --first-parent` ancestry walk per pushed ref,
@@ -1332,7 +1332,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-022: Pre-push time-budget cap with `partial: true`
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** ADR-038 names a 2s p95 budget for pre-push. v1
   walks unboundedly. Add the cap-trigger surface so very large
   pushes return `partial: true` rather than blocking developers
@@ -2199,7 +2199,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-031: `cutoff_commit` pinning into `anvil/policy.yml`
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `anvil baseline` writes the cutoff commit back
   into `anvil/policy.yml` so the L4 policy lane (anvil-l4)
   reads it from the policy file rather than from
@@ -2248,7 +2248,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-032: `anvil baseline` writes project identity
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Baseline CLI command (`anvil baseline`) calls
   `identity::ensure_project_id` alongside its bootstrap work,
   so adopting Anvil into an existing repo writes
@@ -2314,7 +2314,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-033: `--new-identity` fork opt-out CLI flag
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** `anvil start --new-identity` mints a fresh
   `project_uuid` instead of inheriting from the parent repo
   (which is the current fork behaviour). Lives on `anvil
@@ -2385,7 +2385,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-034: Scanner integration — populate `BaselineFinding` from anvil-checks
 
-- **Status:** Merged (Phase 1 only; Phase 2 deferred)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged (Phase 1 only; Phase 2 deferred)
 - **Intent:** Wire `anvil-checks`'s diagnostic pipeline output
   through to `anvil-baseline::BaselineFinding` so
   `anvil baseline --refresh` actually records what the rules
@@ -2441,7 +2441,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-035: Adversarial-refresh detection (`degraded:baseline-suspicious`)
 
-- **Status:** Merged (Phase 1 only; Phase 2 deferred)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged (Phase 1 only; Phase 2 deferred)
 - **Intent:** Detect baseline refreshes that look like
   adversarial whitewashing (huge violation drop without a
   corresponding code-size reduction) and surface as
@@ -2526,7 +2526,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-036: Async continuation for >100k file baselines
 
-- **Status:** Merged (Phase 1 only; Phase 2 deferred)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged (Phase 1 only; Phase 2 deferred)
 - **Intent:** `anvil baseline` currently scans synchronously.
   Add async continuation + a "partial baseline" marker so
   huge monorepos don't time out during adoption.
@@ -2604,7 +2604,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-037: `anvil hook bootstrap --witness-recent` mode
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Walk `<remote>..HEAD`, run validation against
   each unwitnessed commit, write retroactive witnesses tagged
   `validation_at: bootstrap-recovery`. Recovers from
@@ -2625,7 +2625,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-038: `merge=union -text` orchestrator step for `.gitattributes`
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** The activation orchestrator pre-positions
   `.gitattributes` (MLP-001 step 1a-b); the explicit step
   that writes `anvil/witness/active.ndjson merge=union -text`
@@ -2647,7 +2647,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-039: `anvil start --format json|toml` CLI flag
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Operators can choose `.anvil.json` or
   `.anvil.toml` at adoption time instead of the default yaml.
 - **Expected Outcome:**
@@ -2674,7 +2674,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-040: `.anvilrc` → `.anvil.<ext>` filename migration
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Migrate the existing `.anvilrc` reader (in
   `commands/gate.rs`) to the multi-format `.anvil.<ext>`
   surface from MLP-011, while keeping `.anvilrc` working as
@@ -2704,7 +2704,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-041: Typed `AnvilConfig` schema
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Each consumer surface (init, gate, policy)
   evolves its own typed view over the same
   `serde_json::Value` intermediate from MLP-011, instead of
@@ -2749,7 +2749,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-043: Activation orchestrator writes `.github/workflows/anvil.yml`
 
-- **Status:** Merged via PR
+- **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged via PR
   [#1992](https://github.com/eddacraft/anvil-001/pull/1992) at
   `defc77eeedb7f9ae9b5efdb620ca3a19e0b0c3e9` on 2026-05-27.
 - **Intent:** `anvil start` offers the template at
@@ -2815,7 +2815,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-046: `anvil l4-validate` binary surface
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Dedicated `anvil l4-validate` CLI subcommand
   (rather than the current `anvil hook pre-push` reuse). The
   template + Marketplace action both swap to this binary
@@ -2845,7 +2845,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-047: Pre-push end-to-end subprocess integration tests
 
-- **Status:** Merged via PR [#1941](https://github.com/eddacraft/anvil-001/pull/1941) (2026-05-25)
+- **Status:** Released/Shipped via v0.7.2-beta (57706898 · 2026-05-25). Merged via PR [#1941](https://github.com/eddacraft/anvil-001/pull/1941) (2026-05-25)
 - **Intent:** Helper coverage is 40+ tests across anvil-hook
   / anvil-l4 / anvil-cli::commands::hook. The run-the-binary
   smoke pass lands here, exercising the actual subprocess
@@ -2924,7 +2924,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-049: Per-state golden fixture files
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Per-state JSON snapshots at
   `crates/anvil-cli/tests/fixtures/status_v1/` — one per
   worktree state (10) + one per surface state (8).
@@ -2968,7 +2968,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051: Driver / CLI / MCP-shim protection-claim conformance pass (umbrella)
 
-- **Status:** Merged 2026-05-17 — all four umbrella-required sub-tasks
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged 2026-05-17 — all four umbrella-required sub-tasks
   (MLP2-051a #1655, -051b #1668, -051c #1675, -051e #1679) rebase-merged
   to `main`; the HARD-GATE close for §14 closed-set rendering is now
   pinned on every shipping surface. MLP2-051d remains `Blocked` on the
@@ -3469,7 +3469,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051g: `anvil start --verify --why` verbose tier-evidence flag
 
-- **Status:** Merged 2026-05-25 via PR [#1909](https://github.com/eddacraft/anvil-001/pull/1909)
+- **Status:** Released/Shipped via v0.7.2-beta (57706898 · 2026-05-25). Merged 2026-05-25 via PR [#1909](https://github.com/eddacraft/anvil-001/pull/1909)
   (rebase-merge — feat at `6bcf3f8f`, copilot-review hardening at
   `03e6a73f` covering four review findings: clap `requires = "verify"`
   on `StatusArgs::why`, drop nonexistent `anvil intercept recover`,
@@ -3561,7 +3561,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-051i: `query_protection_claim` timeout parity with activation budget
 
-- **Status:** Merged 2026-05-24 via PR [#1923](https://github.com/eddacraft/anvil-001/pull/1923)
+- **Status:** Released/Shipped via v0.7.2-beta (57706898 · 2026-05-25). Merged 2026-05-24 via PR [#1923](https://github.com/eddacraft/anvil-001/pull/1923)
   — both `SocketDaemonValidationClient::query_protection_claim` (Unix) and
   `WindowsPipeDaemonValidationClient::query_protection_claim` (Windows) now call
   the `_with_timeout` variants with the new `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT =
@@ -3685,7 +3685,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-053: Activation orchestrator writes `.github/workflows/anvil-audit.yml`
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Mirrors MLP2-043 for the audit-chain workflow.
   `anvil start` offers the template at
   `crates/anvil-cli/src/templates/anvil-audit-workflow.yml`
@@ -3705,7 +3705,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-054: Kindling `gate_evaluated` emission for `anvil audit-chain`
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** The audit-chain command currently produces a
   JSON `AuditReport`. Add a Kindling row per audit run with
   `mode: audit` so historical drift is queryable through the
@@ -3729,7 +3729,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-055: `anvil audit-chain` rule re-scoring via anvil-checks
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** v1 audit-chain is a witness-presence check.
   Extend to re-run the rule engine across history (sharing
   the pipeline with the L4 validate lane from MLP2-016).
@@ -3750,7 +3750,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-056: `anvil audit-chain` time-budget cap
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Bound runtime for very large histories so the
   nightly cron doesn't run away. Profile first; cap second.
 - **Expected Outcome:**
@@ -3823,7 +3823,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-058: Tracing + status-surface instrumentation for rule_cache + in_flight
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** The MLP2-001 cache and MLP2-002 in-flight counter
   ship as library primitives with zero `tracing::` calls and no
   exposure via the daemon's `query_status` IPC handler. An operator
@@ -3876,7 +3876,7 @@ Source line distinguishes Group L tasks from Group A–K tasks.
 
 #### MLP2-059: Per-worktree invalidation rate limit
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Pre-attribution cache invalidation in
   `WatcherIntegration::ingest_at` is the correct semantic choice
   (cache cleared even for unattributable writers), but it lets an
@@ -4058,7 +4058,7 @@ remaining v2 integration surface.
 
 #### MLP2-063: Bounded policy-file load path for hook and L4 validation
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Policy loading for pre-push and `anvil l4-validate`
   must honour the same file-size and parse-resource bounds as
   `.anvil.*` config parsing.
@@ -4082,7 +4082,7 @@ remaining v2 integration surface.
 
 #### MLP2-064: Rule-cache generation guard for invalidate-during-resolve
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Cache misses that resolve outside the mutex must not
   insert stale rules after a watcher invalidation has already observed
   a stricter config write.
@@ -4106,7 +4106,7 @@ remaining v2 integration surface.
 
 #### MLP2-065: Partial-baseline resume detects tree drift before the cursor
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Budgeted baseline scans must not mark a baseline
   complete when files were added or renamed lexicographically before
   the saved continuation cursor between runs.
@@ -4131,7 +4131,7 @@ remaining v2 integration surface.
 
 #### MLP2-066: Maintained YAML parser migration and ADR closeout
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Intent:** Complete the MLP2-060 follow-up by deciding and tracking
   migration from deprecated `serde_yaml` to a maintained YAML parser
   or recording why alias-reject byte scanning remains the accepted
@@ -4251,7 +4251,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-068: `git cat-file --batch` for `CommitAntipatternEngine` blob fetch
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 - **Merged:** 2026-05-19 reconciliation after implementation commit
   `d54a5f86` (`feat(l4-engine): MLP2-068 batch git cat-file for commit
   blobs`). Cleanup agent advances to Released/Shipped when `v0.7.0-beta`
@@ -4437,7 +4437,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up
 
-- **Status:** Merged 2026-06-08 via PR
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-08 via PR
   [#2414](https://github.com/eddacraft/anvil-001/pull/2414) (Phase 2 —
   subscriber surface + broadcaster; Phase 1 previously Merged). Awaiting
   release evidence to advance to Released/Shipped → Complete.
@@ -4630,7 +4630,7 @@ experiences.
 
 #### MLP2-072: MCP `anvil_validate_write` blocks every write when unauthenticated
 
-- **Status:** Merged via PR [#1819](https://github.com/eddacraft/anvil-001/pull/1819) (merged 2026-05-21 at `18c899bb`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged via PR [#1819](https://github.com/eddacraft/anvil-001/pull/1819) (merged 2026-05-21 at `18c899bb`)
 - **Tracking:** GH issue [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
 - **Intent:** After `anvil start` installs the MCP entries in
   `~/.cursor/mcp.json` / `~/.claude.json`, the MCP server currently
@@ -4662,7 +4662,7 @@ experiences.
 
 #### MLP2-073: Pre-write `summary.total` double-counts identical diagnostics
 
-- **Status:** Merged via PR [#1821](https://github.com/eddacraft/anvil-001/pull/1821) (merged 2026-05-21 at `15a397bd`)
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged via PR [#1821](https://github.com/eddacraft/anvil-001/pull/1821) (merged 2026-05-21 at `15a397bd`)
 - **Tracking:** GH issue [#1799](https://github.com/eddacraft/anvil-001/issues/1799)
 - **Intent:** A single hardcoded secret on one line currently returns
   `summary.total = 2` with two diagnostics that share the same `id`,
@@ -4682,7 +4682,7 @@ experiences.
 
 #### MLP2-074: Daemon-side `session.report_process` IPC handler
 
-- **Status:** Merged 2026-05-24 via PR [#1895](https://github.com/eddacraft/anvil-001/pull/1895)
+- **Status:** Released/Shipped via v0.7.2-beta (57706898 · 2026-05-25). Merged 2026-05-24 via PR [#1895](https://github.com/eddacraft/anvil-001/pull/1895)
   (rebase-merge — daemon dispatch in `54812298`; PR #1895 review
   follow-ups — anchor-collision defence + Linux server-side
   `pid_starttime` re-derivation — in `5bb10f3a`)

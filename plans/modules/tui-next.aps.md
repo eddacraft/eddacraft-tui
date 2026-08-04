@@ -340,7 +340,7 @@ surface.
 
 ### TUIN-001: Author ADR-050 — runner helper and CLI / parser policy
 
-- **Status:** Merged 2026-05-23 via PR #1883
+- **Status:** Released/Shipped via v0.7.2-beta (57706898 · 2026-05-25). Merged 2026-05-23 via PR #1883
 
 **Intent:** Lock D-TUIN-001..-003 into a numbered ADR before any
 helper code lands. The ADR is the load-bearing artefact for "no

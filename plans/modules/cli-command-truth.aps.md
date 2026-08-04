@@ -119,7 +119,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- architecture --help`
 - **Confidence:** high
-- **Status:** Merged 2026-07-06 via PR #3209
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-06 via PR #3209
 
 ### CLICT-002: Policy docs reconciliation
 
@@ -148,7 +148,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- policy --help` and `exception --help`
 - **Confidence:** high
-- **Status:** Merged 2026-07-06 via PR #3209
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-06 via PR #3209
 
 ### CLICT-003: Drift docs reconciliation
 
@@ -165,7 +165,7 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`; manual compare
   against `cargo run --bin anvil -- drift --help`
 - **Confidence:** high
-- **Status:** Merged 2026-07-06 via PR #3209
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-06 via PR #3209
 
 ### CLICT-004: Watch docs reconciliation
 

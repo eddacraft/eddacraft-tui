@@ -333,7 +333,7 @@ established the original revoke endpoints.
 
 ### SEC-008: Named-pattern secret detection for AWS / GitHub / Slack tokens
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21)
 **Tracking:** GH issue [#1800](https://github.com/eddacraft/anvil-001/issues/1800)
 **Evidence:** Merged via PR [#1815](https://github.com/eddacraft/anvil-001/pull/1815)
 (`fix(checks): flag textbook AWS access keys`). Root cause was post-match
@@ -435,7 +435,7 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-010: Remediate brace-expansion denial-of-service alerts
 
-- **Status:** Merged 2026-08-03 via PR #3493
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3493
 - **Pull Request:** [#3493](https://github.com/eddacraft/anvil-001/pull/3493)
   (merged into `main`).
 - **Intent:** Clear Dependabot alerts

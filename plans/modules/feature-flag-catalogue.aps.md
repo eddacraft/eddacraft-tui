@@ -383,7 +383,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   `cargo test -p eddacraft-anvil-kernel-types environment_name` to prove the
   enum rename round-trips
 - **Confidence:** medium
-- **Status:** Merged 2026-06-01 via PR #2205
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-01 via PR #2205
 
 ### FLAGCAT-003: Migrate TS surfaces onto the catalogue package — Merged
 
@@ -411,7 +411,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Validation:** `pnpm nx run-many -t test --projects=docs-site,@eddacraft/anvil-api,runtime`
   + successful Vercel Preview deploy for the docs-site
 - **Confidence:** medium
-- **Status:** Merged 2026-06-02 via PR #2217
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2217
 
 ### FLAGCAT-004: Rust codegen from `flags/manifest.json` — Merged
 
@@ -446,7 +446,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Confidence:** low (build.rs path resolution + workspace layout is the
   riskiest piece of the whole module; design + sibling-crate fallback are
   pinned in the design note, so it is Ready at low confidence, not blocked)
-- **Status:** Merged 2026-06-02 via PR #2220
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2220
 
 ### FLAGCAT-005: Migrate Rust CLI onto generated catalogue constants — Merged
 
@@ -466,7 +466,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   `crates/anvil-cli/src/feature_flags.rs:352` must still pass to prove the
   `ANVIL_DEV=1` override is behaviour-preserving
 - **Confidence:** medium
-- **Status:** Merged 2026-06-02 via PR #2223
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2223
 
 ### FLAGCAT-006: Consistency check and adoption guide — Merged
 
@@ -499,7 +499,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   "split across surfaces" framing and adds the structural-equality
   consistency spec to the new `flags-catalogue` project)
 - **Confidence:** high
-- **Status:** Merged 2026-06-02 via PR #2224
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-02 via PR #2224
 
 <a id="flagcat-007"></a>
 
@@ -633,7 +633,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-009: Stand up `flags/surfaces.json` + back-capture the CLI surface inventory
 
-- **Status:** Merged 2026-06-09 via PR #2468
+- **Status:** Released/Shipped via v0.8.0-beta (e2db4026 · 2026-06-11). Merged 2026-06-09 via PR #2468
 - **Intent:** Execute [ADR-076](../decisions/076-feature-catalogue-surface-registry.md)
   sequencing step (b): make the surface/feature the catalogue's primary noun by
   standing up a dedicated `flags/surfaces.json` registry and back-capturing the

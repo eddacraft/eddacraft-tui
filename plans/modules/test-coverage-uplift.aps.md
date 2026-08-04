@@ -422,7 +422,7 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/edda-stack` passes; the ports
   layer shows ≥80% line coverage.
 - **Confidence:** high
-- **Status:** Merged 2026-06-20 via #2819 — port contract bound to a real
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2819 — port contract bound to a real
   conforming mock (compile-time + runtime), `testing/mocks` layer 99.6%.
 
 #### TCOV-016: edda-stack store interfaces and migration tests
@@ -438,7 +438,7 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/edda-stack` shows ≥80% line
   coverage for the store-interfaces and migration modules.
 - **Confidence:** medium
-- **Status:** Merged 2026-06-20 via #2820 — concrete in-memory store/version
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2820 — concrete in-memory store/version
   tracker drives the type-only contracts; migration branch coverage 100%.
 
 #### TCOV-017: kindling-integration emitter tests
@@ -454,7 +454,7 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%
   line coverage; each emitter has a dedicated test file.
 - **Confidence:** high
-- **Status:** Merged 2026-06-20 via #2817 — dedicated test file per emitter;
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2817 — dedicated test file per emitter;
   `emitters/` layer 0% → 100%.
 
 #### TCOV-018: kindling-integration service and adapter tests
@@ -474,7 +474,7 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%
   line coverage for the package.
 - **Confidence:** medium
-- **Status:** Merged 2026-06-20 via #2818 — service/adapter/config/query/
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2818 — service/adapter/config/query/
   retention/status all ≥94% (most 100%); secure `mkdtempSync` config fixtures.
 
 #### TCOV-019: mcp-server per-resource isolation tests
@@ -582,7 +582,7 @@ Change status to **Ready** when:
   line for each targeted widget; each interactive widget has ≥1 state-transition
   test (not render-only).
 - **Confidence:** high — files exist; pattern established by `editor.rs`/`tree.rs`.
-- **Status:** Merged 2026-06-20 via #2831 — added state-transition tests for the
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2831 — added state-transition tests for the
   thin widgets (`confirm` default/confirm/reset; `log_panel` filter/match-nav/
   jump/scroll-bounds). `select`/`data_table`/`tree` already carried their
   interaction tests, so they were not padded. `cargo test -p eddacraft-tui` 287
@@ -609,7 +609,7 @@ Change status to **Ready** when:
   proven panic-free.
 - **Confidence:** medium — shell truncation math is the main subject; theme
   traits may be largely accessor-only (assert contract, don't pad).
-- **Status:** Merged 2026-06-20 via #2829 — shell footer truncation/watermark-
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2829 — shell footer truncation/watermark-
   priority/degenerate-size tests + theme `fg`-contract tests (incl. a second
   `MinimalTheme` implementor exercising the trait's default methods).
   `cargo test -p eddacraft-tui -- shell theme` 22 passed.
@@ -633,7 +633,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-tui -- keyboard` passes; llvm-cov ≥80%
   line for `handler.rs`; every `KeyCode` arm and the modifier branch covered.
 - **Confidence:** high — small, pure, fully testable surface.
-- **Status:** Merged 2026-06-20 via #2828 — 6 edge-case tests added to
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2828 — 6 edge-case tests added to
   `keyboard/handler.rs` (editing keys, `Char`→`Character` fallthrough incl.
   case-sensitivity, unmapped→`None`, Ctrl-only-maps-`Ctrl+C`, Alt/Shift
   pass-through). Every `map()` arm now exercised; `cargo test -p eddacraft-tui
@@ -641,7 +641,7 @@ Change status to **Ready** when:
 
 #### TCOV-025: anvil-tui surface trait compliance tests — Merged
 
-- **Status:** Merged 2026-06-20 via #2816 — single parameterised runtime
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-20 via #2816 — single parameterised runtime
   compliance test over all 22 registered surfaces (non-empty name/help,
   render/handle_key/reset without error) plus a registry-count guard. Was the
   one Phase 4 item whose premise survived the rename.

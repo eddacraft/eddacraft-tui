@@ -171,7 +171,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-001: Ratification and SDK readiness gate
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Seal the final upstream contract and choose the protocol
   implementation path before any dual-era wire lands.
 - **Expected Outcome:** Final `2026-07-28` schema and changelog are diffed
@@ -198,7 +198,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-002: Extract anvil MCP domain handlers
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Separate protocol concerns from anvil behaviour before changing
   the wire format.
 - **Expected Outcome:** Domain dispatch and invocation live outside the thin
@@ -220,7 +220,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-003: Dual-era stdio protocol host
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Serve modern and legacy clients from one binary without mixing
   lifecycle rules.
 - **Expected Outcome:** Modern per-request `_meta` is parsed and validated;
@@ -240,7 +240,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-004: Discovery and capability declaration
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Implement mandatory modern `server/discover` with honest
   capability claims.
 - **Expected Outcome:** `server/discover` returns supported modern versions,
@@ -257,7 +257,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-005: Modern result envelopes and caching
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Make every modern successful result conforming and cache-safe.
 - **Expected Outcome:** Modern successes include `resultType: "complete"` and
   server identity in result `_meta`; discovery, list, and resource-read results
@@ -278,7 +278,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-006: Lifecycle, warm-up and state terminology
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Remove modern dependence on initialise-era lifecycle and session
   wording.
 - **Expected Outcome:** Graph warm-up moves to server start or one-time lazy
@@ -298,7 +298,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-007: Modern activation verification
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Verify the installed anvil MCP entry without assuming a legacy
   handshake.
 - **Expected Outcome:** Activation probes `server/discover` on a disposable
@@ -319,7 +319,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-008: JSON Schema 2020-12 verification
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Confirm every published tool descriptor is valid under the modern
   schema contract.
 - **Expected Outcome:** All published tool `inputSchema` values validate as
@@ -339,7 +339,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-009: Trace context and observability
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Correlate MCP requests without treating client metadata as
   trusted.
 - **Expected Outcome:** Valid W3C `traceparent` / `tracestate` / `baggage` from
@@ -361,7 +361,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-010: Conformance and client matrix
 
-- **Status:** Merged 2026-07-30 via PR #3444 — actual-client matrix deferred
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444 — actual-client matrix deferred
 - **Intent:** Prove protocol correctness and real-client compatibility before
   shipping.
 - **Expected Outcome:** Applicable official `2026-07-28` server scenarios and
@@ -391,7 +391,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-011: Documentation and release
 
-- **Status:** Merged 2026-07-30 via PR #3444
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3444
 - **Intent:** Make the dual-era posture clear without over-exposing protocol
   detail to ordinary users.
 - **Expected Outcome:** Architecture as-built and Rust MCP server specs describe
@@ -477,7 +477,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 
 ### MCP26-013: Restore legacy request-metadata interoperability
 
-- **Status:** Merged 2026-08-03 via PR #3487
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3487
 - **Intent:** Restore supported initialise-era clients that attach standard
   per-request metadata, without allowing malformed modern requests to fall
   back to the legacy protocol path.

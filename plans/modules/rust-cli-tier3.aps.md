@@ -231,7 +231,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-005: ember list command
 
-- **Status:** Merged 2026-06-17 via PR #2713 (`anvil ember list` Rust port over
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-06-17 via PR #2713 (`anvil ember list` Rust port over
   the real `ProposalStore` SQLite schema)
 - **Intent:** Port `anvil ember list`. Query proposals by type (`decision`,
   `pattern`, `warning`, `lesson`, `anomaly`, `constraint`) and status

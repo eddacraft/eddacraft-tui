@@ -186,7 +186,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-001: Activation surface scaffold + plain fallback contract
 
-- **Status:** Merged 2026-07-08 via PR #3234 — surface scaffold + opt-in
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3234 — surface scaffold + opt-in
   dispatch. New
   `crates/anvil-tui/src/surfaces/activation/` (`ActivationPhase` enum +
   `ActivationSurface` + renderer with gated-`ANVIL_HOME` banner); `anvil start`
@@ -215,7 +215,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-002: Orchestrator progress events (decouple presentation)
 
-- **Status:** Merged 2026-07-08 via PR #3236 — activation progress event
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3236 — activation progress event
   contract implemented (stacked on ACTTUI-001). Added typed
   `ActivationStep`/`ActivationStepEvent`/`ActivationRun` primitives,
   `StartRenderMode`, TUI-mode lifecycle/log buffering, and a consent deferral
@@ -240,7 +240,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-003: Working phase — `ParallelProgress` + `Spinner`
 
-- **Status:** Merged 2026-07-08 via PR #3237 — activation surface renders
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-08 via PR #3237 — activation surface renders
   orchestrator progress rows via shared `eddacraft-tui` `ParallelProgress` and
   shows an Anvil spinner for daemon ensure (stacked on
   ACTTUI-002). Progress is fed from `ActivationRun` events; deferred TUI consent
@@ -260,7 +260,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-004: Consent phase — `Select`, `Confirm`, `OverlayStack`
 
-- **Status:** Merged 2026-07-09 via PR #3238 — consent model and renderer in
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-09 via PR #3238 — consent model and renderer in
   `crates/anvil-tui/src/surfaces/activation/consent.rs` use `Select`,
   `Confirm`, and `OverlayStack`; rows default unticked, gated `ANVIL_HOME`
   disables repo-scoped writes, and unsafe drift opens an acknowledgement overlay
@@ -290,7 +290,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-005: Verdict phase — `Tree`, `StatusBadge`, `BigBanner`, `Toast`, smoke test
 
-- **Status:** Merged 2026-07-09 via PR #3254 — structured verdict model/view in
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-09 via PR #3254 — structured verdict model/view in
   `crates/anvil-tui/src/surfaces/activation/verdict.rs` renders state labels
   through `StatusBadge`, collapsible evidence through `Tree`, contextual keys
   through `HelpBar`, optional `BigBanner`, and a thin-v1 honest `Toast` for the
@@ -317,7 +317,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-006: Tier evidence — `LogPanel` + optional `json_render` catalogue
 
-- **Status:** Merged 2026-07-09 via PR #3256 — ACTTUI evidence rows now feed an
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-09 via PR #3256 — ACTTUI evidence rows now feed an
   in-surface `LogPanel`: compact verdict rows, orchestrator lifecycle lines, and
   `render_human_verbose` (`--why`) text are parsed into `LogEntry` rows. The
   `l` key toggles tier evidence in the activation surface, and TUI `--why`
@@ -340,7 +340,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-007: Contract hardening — verify/json/CI matrix
 
-- **Status:** Merged 2026-07-09 via PR #3257 — fixture-backed read-only/JSON/no-TUI
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-09 via PR #3257 — fixture-backed read-only/JSON/no-TUI
   contract tests now pin the reachable `ready_restart_required` path in
   `crates/anvil-cli/tests/fixtures/start-activation/`, with e2e parity coverage
   for `--no-tui` and `ANVIL_NO_TUI=1`. The `protecting` and PTY transcript
@@ -362,7 +362,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-008: Welcome widget convergence (release cohort — phase B)
 
-- **Status:** Merged 2026-07-08 via PR #3235 — welcome widget convergence implemented on
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-08 via PR #3235 — welcome widget convergence implemented on
   `feat/acttui-008-welcome-widgets` (stacked on ACTTUI-001). Welcome menu now
   renders via shared `eddacraft-tui` `Select`; discovery scanning uses shared
   `Spinner` + `ParallelProgress`; shell/footer help remains the shared chrome;
@@ -385,7 +385,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-009: Wire activation TUI consent end to end
 
-- **Status:** Merged 2026-07-10 via PR #3263
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263
 - **Source:** First-run council review C-001, C-002, C-003, C-005
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-004
@@ -415,7 +415,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-010: Complete activation TUI contract matrix
 
-- **Status:** Merged 2026-07-10 via PR #3263 — CIB-182's existing repair-hint
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263 — CIB-182's existing repair-hint
   fixture change is accepted as the sanctioned contract.
 - **Source:** First-run council review C-006, C-007, C-011, C-012
   ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
@@ -441,7 +441,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-011: Drive verdict and evidence panes from typed activation data
 
-- **Status:** Merged 2026-07-10 via PR #3263 — the production path builds the
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263 — the production path builds the
   verdict/evidence panes with `from_typed_with_progress` from a typed
   `VerdictModel` and typed `LogEntry` rows.
 - **Source:** First-run council review C-004, C-010
@@ -465,7 +465,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-012: Activation TUI polish before default flip
 
-- **Status:** Merged 2026-07-11 via PR #3284
+- **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3284
 - **Shipped:** Promoted into the release cut by the operator-accepted JOURNEY
   conductor ([`release-user-journeys.aps.md`](./release-user-journeys.aps.md));
   tier-evidence pane rebound to `e` and pinned flag-free, one `esc/q` exit-key
@@ -494,7 +494,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-013: TTY-default flip — activation TUI on the default interactive path
 
-- **Status:** Merged 2026-07-26 via PR #3411
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-26 via PR #3411
 - **Progress:** `start_render_mode` derives
   from `activation_tui_allowed` (pure argument/environment policy, unit-testable
   without a PTY) plus the stdio terminal probe, with the opt-in gate removed.
@@ -540,7 +540,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-014: Continuous live activation surface
 
-- **Status:** Merged 2026-08-02 via PR #3478 — continuous live session; expanded acceptance residuals closed with ACTTUI-015..016 via PR #3488
+- **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-08-02 via PR #3478 — continuous live session; expanded acceptance residuals closed with ACTTUI-015..016 via PR #3488
 - **Source:** Owner direction on 2026-08-01;
   [ADR-103](../decisions/103-tty-default-activation-tui.md); consistency
   reference in `crates/anvil-tui/src/surfaces/tutorial/`; completion programme
@@ -592,7 +592,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-015: Honesty hotfix for Smoke/Prove and help
 
-- **Status:** Merged 2026-08-03 via PR #3488
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3488
 - **Source:** Live Homebrew validation 2026-08-02/03; completion programme
   [spec](../specs/2026-08-03-activation-tui-completion.md) WP0
 - **Dependencies:** none (may land before or during ACTTUI-014)
@@ -624,7 +624,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-016: Prove protection in-surface
 
-- **Status:** Merged 2026-08-03 via PR #3488
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3488
 - **Source:** Deferred ACTTUI-005 thin-v1 smoke; ADTRUST-006 recipe;
   completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
   WP2
@@ -664,7 +664,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-017: Align start and status posture
 
-- **Status:** Merged 2026-08-03 via PR #3488
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3488
 - **Source:** Live divergence (start `--verify` protecting vs status warming);
   completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
   WP3
@@ -695,7 +695,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-018: Quiet re-run consent — filter settled offers
 
-- **Status:** Merged 2026-08-03 via PR #3499 — registry MCP dry-run filters
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3499 — registry MCP dry-run filters
   settled clients out of Consent into `settled_mcp`; empty offer set opens
   Verdict without a consent parade
 - **Source:** Live validation + post-#3488 usability residual; completion
@@ -729,7 +729,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-019: Shared start/status posture model
 
-- **Status:** Merged 2026-08-03 via PR #3499 — `SharedPostureFacts` /
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3499 — `SharedPostureFacts` /
   `McpPosture` under `crates/anvil-cli/src/activation/posture.rs` feed start
   Verdict layers and status meaning lines with byte-identical subordinate facts
 - **Source:** Residual of ACTTUI-017 (meaning lines only); live protecting vs
@@ -759,7 +759,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-020: Settled Install section and honest Languages leaves
 
-- **Status:** Merged 2026-08-03 via PR #3499 — Verdict Install lists settled MCP
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3499 — Verdict Install lists settled MCP
   rows; Languages inventory copy states Prove is global, not per-language
 - **Source:** Live TUI — Languages expand + `t` felt language-scoped; Install
   noise on re-run
@@ -786,7 +786,7 @@ tutorial story changes (WOW owns narrative).
 
 ### ACTTUI-021: Optional MCP pre-write prove (honest intercept demo)
 
-- **Status:** Merged 2026-08-03 via PR #3499 — Prove toast always appends MCP
+- **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3499 — Prove toast always appends MCP
   pre-write honesty from `mcp_pre_write_live()` (refuse/honest path; no false
   live claim from check-pipeline results alone)
 - **Source:** Explicit gap after ACTTUI-016 (check-pipeline Prove ≠ MCP live)
