@@ -547,6 +547,9 @@ fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
 /// GitHub release source for manual configuration when no install receipt exists.
 const GITHUB_OWNER: &str = "eddacraft";
 const GITHUB_REPO: &str = "anvil";
+/// App name must match cargo-dist / install receipt (`eddacraft-anvil`), not
+/// the binary short name `anvil` (CIB-229).
+const DIST_APP_NAME: &str = "eddacraft-anvil";
 
 fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let current = env!("CARGO_PKG_VERSION");
@@ -562,15 +565,11 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         return Ok(());
     }
 
-    // App name must match cargo-dist / install receipt (`eddacraft-anvil`),
-    // not the binary short name `anvil` (CIB-229).
-    const DIST_APP_NAME: &str = "eddacraft-anvil";
     let mut updater = axoupdater::AxoUpdater::new_for(DIST_APP_NAME);
 
     // Try loading the cargo-dist install receipt (created by shell/powershell installers).
     // Prefer the package name; also try legacy `anvil` receipt paths.
-    let receipt_loaded = updater.load_receipt().is_ok()
-        || updater.load_receipt_as("anvil").is_ok();
+    let receipt_loaded = updater.load_receipt().is_ok() || updater.load_receipt_as("anvil").is_ok();
 
     // If missing (dev build, manual install), configure the release source
     // manually *and* set install_prefix so is_update_needed is configured
@@ -590,12 +589,11 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
             app_name: DIST_APP_NAME.to_string(),
         });
         // Prefix = parent of the running binary when available (often …/bin).
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(parent) = exe.parent() {
-                if let Some(s) = parent.to_str() {
-                    updater.set_install_dir(s);
-                }
-            }
+        if let Ok(exe) = std::env::current_exe()
+            && let Some(parent) = exe.parent()
+            && let Some(s) = parent.to_str()
+        {
+            updater.set_install_dir(s);
         }
     }
 
