@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 185/262  |
+| CIB | —     | In Progress | 188/269  |
 
 ## Purpose
 
@@ -6751,7 +6751,9 @@ contract semantics). Pack-02 does **not** re-file those IDs.
 **RETRACT-1 (binding):** Pack-01 verified-good "hooks install then committing a
 secret is blocked" was unconditional. It holds only for **file-mode** hooks and
 **extensions gate scans**. Replacement anchors (no standalone CIB — **CIB-250
-is reserved for a concurrent Claude lane** and must not be consumed here):
+remains free / reserved** for concurrent work such as the lint-staged
+absolute-path ignore inconsistency and must not be consumed or redefined by
+pack-02):
 - **Anchor A** (file-mode + scanned extension, e.g. `.env` asserts block) lives
   with **CIB-251** validation (file-mode path stays green; do not treat
   `--config` as covered without a verified hook fire).
@@ -6763,7 +6765,7 @@ is reserved for a concurrent Claude lane** and must not be consumed here):
 
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
-| RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); **CIB-250 free** (reserved elsewhere) |
+| RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); **CIB-250 free** (reserved — e.g. lint-staged absolute-path ignore) |
 | HOOK-1 | net-new honesty (opt-in `--config`; one git) | **CIB-251** Ready P1 |
 | WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
 | STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
@@ -7128,6 +7130,14 @@ is reserved for a concurrent Claude lane** and must not be consumed here):
 - **Identified From:** Dave pack-02 PUSH-1.
 - **Coordinates with:** CIB-252, CIB-216 pre-push runtime
 - **Confidence:** low–medium — plausible; caveat may explain all of it.
+
+### CIB-250 collision closeout (2026-08-04)
+
+- Pack-02 originally numbered RETRACT-1 as CIB-250 (#3535); corrected in #3537
+  (absorb into CIB-251/255). **CIB-250 is free** for reserved concurrent work.
+- Welcome follow-ups from CIB-246..248 verification were renumbered to
+  **CIB-268..274** (#3536) so they do not collide with pack-02 **CIB-251..267**.
+- No renumber of pack-02 251+ (stable).
 
 ### Pack-02 deliberate non-scope (do not auto-file work)
 

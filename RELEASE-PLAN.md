@@ -141,6 +141,9 @@ used** (reserved by concurrent Claude lane — do not redefine). Pack-02 IDs are
 | **CIB-266** | Watch dashboard local/relative time  | P3       | TUI-7                   | No                |                               |
 | **CIB-267** | Pre-push silent pass                 | Proposed | PUSH-1                  | No                | Needs repro after 252         |
 
+**Welcome follow-ups (separate):** CIB-268..274 (#3536; not pack-02).
+**CIB-250:** free/reserved (not pack-02; collision closeout #3537).
+
 **Absorbed / non-scope:** STATUS-2→CIB-235; PATH-1→CIB-237; TUI-9→CIB-248;
 TUI-3/5/6/10, TUI-N1/N2, R1..R8 not automatic release work.
 
