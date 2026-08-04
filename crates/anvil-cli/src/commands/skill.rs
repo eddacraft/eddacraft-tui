@@ -129,9 +129,12 @@ fn run_install(args: &SkillInstallArgs, global: &GlobalArgs) -> Result<()> {
         );
     } else {
         for report in reports {
+            // CIB-237: a `--workspace` given as a Windows NT-extended path
+            // would otherwise print `\\?\C:\...` back at the user.
+            let path = report.path.to_string_lossy();
             println!(
                 "{} [{}] — {}",
-                report.path.display(),
+                crate::display_path::strip_verbatim_prefix(&path),
                 report.clients.join(", "),
                 report.status
             );
@@ -302,7 +305,9 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
         if !skill_state::is_safe_relative_path(relative) {
             bail!("managed manifest contains unsafe relative path `{relative}`");
         }
-        let path = destination.join(relative);
+        // CIB-237: manifest keys are `/`-separated; component-wise joining
+        // keeps the path in the error message natively separated.
+        let path = crate::display_path::join_relative(destination, relative);
         ensure_safe_destination(&path)?;
         let bytes = fs::read(&path).with_context(|| {
             format!(
@@ -396,7 +401,7 @@ fn expected_manifest() -> ManagedManifest {
 }
 
 fn write_staged_file(destination: &Path, relative: &str, content: &str) -> Result<()> {
-    let path = destination.join(relative);
+    let path = crate::display_path::join_relative(destination, relative);
     ensure_safe_destination(&path)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;

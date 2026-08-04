@@ -167,7 +167,7 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
             Span::styled(&issue.message, name_style),
             Span::styled(fixable_marker, Style::default().fg(theme.accent())),
             Span::styled(
-                format!("  {}:{}", issue.file, issue.line),
+                format!("  {}", issue.location()),
                 Style::default().fg(theme.muted()),
             ),
         ]));

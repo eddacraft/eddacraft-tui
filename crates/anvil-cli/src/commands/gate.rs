@@ -1111,7 +1111,7 @@ fn run_check_secret(
         let locations: Vec<String> = result
             .findings
             .iter()
-            .map(|f| format!("{}:{} [{}]", f.file, f.line, f.pattern_name))
+            .map(|f| secret_finding_location(f, root))
             .collect();
         CheckResult {
             name: name.to_string(),
@@ -1125,6 +1125,35 @@ fn run_check_secret(
             requires_config: false,
         }
     }
+}
+
+/// Format one antipattern or AST warning as a gate location line.
+///
+/// These already arrive workspace-relative; the shared renderer normalises
+/// separators and suppresses a whole-file sentinel line so every location in
+/// a gate run reads the same way (CIB-237).
+fn warning_location(file: &str, line: usize, id: &str) -> String {
+    let file = crate::display_path::render(file, None);
+    format!(
+        "{} [{}]",
+        crate::display_path::format_location(&file, line),
+        id
+    )
+}
+
+/// Format one secret finding as a gate location line.
+///
+/// CIB-237: the secret scanner returns `/{relative}` while every other check
+/// family in the same gate run returns `{relative}`, so an unfiltered format
+/// printed `/.env:1` directly above `src/app.py:12`. Routing through
+/// [`crate::display_path`] gives the whole gate output one path style.
+fn secret_finding_location(f: &anvil_checks::secret::SecretFinding, root: &Path) -> String {
+    let file = crate::display_path::render_secret_finding(&f.file, Some(root));
+    format!(
+        "{} [{}]",
+        crate::display_path::format_location(&file, f.line),
+        f.pattern_name
+    )
 }
 
 fn secret_pattern_errors_suffix(pattern_errors: &[String]) -> String {
@@ -1642,12 +1671,12 @@ fn run_check_antipattern(
             .warnings
             .iter()
             .filter(|w| w.suppressed.is_none())
-            .map(|w| format!("{}:{} [{}]", w.location.file, w.location.line, w.id))
+            .map(|w| warning_location(&w.location.file, w.location.line, &w.id))
             .collect();
         locations.extend(
             ast_blocking
                 .iter()
-                .map(|w| format!("{}:{} [{}]", w.location.file, w.location.line, w.id)),
+                .map(|w| warning_location(&w.location.file, w.location.line, &w.id)),
         );
         let details = if locations.is_empty() {
             result.message
@@ -6006,12 +6035,13 @@ rules: []
         let root_str = tmp.path().to_string_lossy().to_string();
         let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
 
-        // Verify the mapping logic used in run_check_secret produces the
-        // expected format with pattern name in brackets.
+        // Call the same formatter `run_check_secret` uses. Re-implementing the
+        // format here is what let the secret and antipattern styles drift
+        // apart unnoticed (CIB-237).
         let locations: Vec<String> = result
             .findings
             .iter()
-            .map(|f| format!("{}:{} [{}]", f.file, f.line, f.pattern_name))
+            .map(|f| secret_finding_location(f, tmp.path()))
             .collect();
         assert!(!locations.is_empty());
         assert!(
@@ -6019,6 +6049,45 @@ rules: []
             "location should include pattern name in brackets, got: {}",
             locations[0]
         );
+        assert!(
+            locations[0].starts_with("leak.ts:"),
+            "secret location must be workspace-relative like every other check \
+             family in the same gate run, got: {}",
+            locations[0]
+        );
+    }
+
+    /// The two styles CIB-237 saw side by side in one gate run.
+    #[test]
+    fn secret_and_antipattern_locations_share_one_path_style() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join(".env");
+        let secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
+        std::fs::write(&file, format!("aws_secret_access_key='{secret}'")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let root_str = tmp.path().to_string_lossy().to_string();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+        let secret_location = secret_finding_location(&result.findings[0], tmp.path());
+        let antipattern_location = warning_location("src/app.py", 12, "AP-003");
+
+        assert!(
+            !secret_location.starts_with('/'),
+            "secret location must not lead with the scanner's root marker, got: {secret_location}"
+        );
+        assert!(
+            secret_location.starts_with(".env:"),
+            "got: {secret_location}"
+        );
+        assert_eq!(antipattern_location, "src/app.py:12 [AP-003]");
+    }
+
+    #[test]
+    fn warning_location_omits_the_whole_file_sentinel() {
+        assert_eq!(warning_location(".env", 0, "AP-003"), ".env [AP-003]");
     }
 
     #[test]

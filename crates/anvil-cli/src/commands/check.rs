@@ -225,7 +225,7 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         .map(|p| p.to_string_lossy().to_string())
         .or_else(|| {
             std::env::current_dir()
-                .and_then(std::fs::canonicalize)
+                .and_then(|dir| crate::display_path::canonicalise(&dir))
                 .ok()
                 .map(|p| p.to_string_lossy().to_string())
         });
@@ -376,9 +376,10 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 let file_refs: Vec<&str> = scannable_files.iter().map(String::as_str).collect();
                 let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
                 for finding in &result.findings {
-                    aggregated_warnings.push(secret_finding_to_json(finding));
+                    aggregated_warnings
+                        .push(secret_finding_to_json(finding, workspace_root.as_deref()));
                     if mode == OutputMode::Sarif {
-                        sarif.add_secret(finding);
+                        sarif.add_secret(finding, workspace_root.as_deref());
                     }
                 }
                 checks_run.push((*check_name).to_string());
@@ -561,9 +562,9 @@ fn secret_rule_id(pattern_name: &str) -> String {
     )
 }
 
-fn secret_finding_to_json(f: &SecretFinding) -> JsonWarning {
+fn secret_finding_to_json(f: &SecretFinding, workspace_root: Option<&str>) -> JsonWarning {
     let id = secret_rule_id(&f.pattern_name);
-    let file = f.file.strip_prefix('/').unwrap_or(&f.file).to_string();
+    let file = crate::display_path::render_secret_finding(&f.file, workspace_root.map(Path::new));
     JsonWarning {
         id,
         category: "secret".to_string(),
@@ -640,9 +641,10 @@ impl SarifAccumulator {
         self.results.push(result);
     }
 
-    fn add_secret(&mut self, f: &SecretFinding) {
+    fn add_secret(&mut self, f: &SecretFinding, workspace_root: Option<&str>) {
         let id = secret_rule_id(&f.pattern_name);
-        let file = f.file.strip_prefix('/').unwrap_or(&f.file).to_string();
+        let file =
+            crate::display_path::render_secret_finding(&f.file, workspace_root.map(Path::new));
         self.rules.entry(id.clone()).or_insert_with(|| {
             sarif::ReportingDescriptor::new(id.clone())
                 .short_description(format!("Potential secret: {}", f.pattern_name))
@@ -1144,17 +1146,14 @@ fn parse_severity(s: &str) -> Result<WarningSeverity> {
 
 // ── Path helpers ────────────────────────────────────────────────────
 
+/// Render a path for output, repo-relative where possible.
+///
+/// Delegates to [`crate::display_path::render`] (CIB-237) so `check`, `gate`,
+/// and `audit` cannot drift apart again. The shared version additionally
+/// tolerates a root and a path that disagree about separators, which is how
+/// Windows findings used to degrade into absolute `\\?\` paths.
 fn relativise(path: &str, workspace_root: Option<&str>) -> String {
-    let Some(root) = workspace_root else {
-        return path.to_string();
-    };
-    let file = Path::new(path);
-    let root_path = Path::new(root);
-    if let Ok(relative) = file.strip_prefix(root_path) {
-        relative.to_string_lossy().replace('\\', "/")
-    } else {
-        path.to_string()
-    }
+    crate::display_path::render(path, workspace_root.map(Path::new))
 }
 
 // ── Output formatters ───────────────────────────────────────────────
@@ -1928,7 +1927,7 @@ mod tests {
             redacted_match: "sk-***".to_string(),
             redacted_line: "const apiKey = \"sk-***\";".to_string(),
         };
-        let json = secret_finding_to_json(&finding);
+        let json = secret_finding_to_json(&finding, None);
         assert_eq!(json.category, "secret");
         // Issue #1797 hinges on `--severity error` (the default) treating
         // a hardcoded secret as blocking — same semantic as `anvil gate`.
@@ -2052,7 +2051,7 @@ mod tests {
             redacted_match: "[REDACTED]".to_string(),
             redacted_line: "const apiKey = \"[REDACTED]\";".to_string(),
         };
-        let json = secret_finding_to_json(&finding);
+        let json = secret_finding_to_json(&finding, None);
         assert_eq!(
             json.file, "src/smelly.ts",
             "leading slash from secret scanner must be stripped"
@@ -2200,14 +2199,17 @@ mod tests {
         let mut acc = SarifAccumulator::default();
         acc.add_warning(&ap_warning("AP-003", WarningSeverity::Warning, false));
         acc.add_warning(&ap_warning("AP-006", WarningSeverity::Error, true));
-        acc.add_secret(&SecretFinding {
-            file: "/src/config.ts".to_string(),
-            line: 7,
-            finding_type: anvil_checks::secret::FindingType::Pattern,
-            pattern_name: "OpenAI key".to_string(),
-            redacted_match: "sk-…".to_string(),
-            redacted_line: "const k = \"sk-…\"".to_string(),
-        });
+        acc.add_secret(
+            &SecretFinding {
+                file: "/src/config.ts".to_string(),
+                line: 7,
+                finding_type: anvil_checks::secret::FindingType::Pattern,
+                pattern_name: "OpenAI key".to_string(),
+                redacted_match: "sk-…".to_string(),
+                redacted_line: "const k = \"sk-…\"".to_string(),
+            },
+            None,
+        );
         let value = serde_json::to_value(acc.into_log()).expect("serialise");
 
         // Schema validation against the bundled upstream 2.1.0 schema.

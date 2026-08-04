@@ -6381,7 +6381,7 @@ archive.
 
 ### CIB-237: Consistent path and line rendering across CLI surfaces
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3 (Dave UX-1)
 - **Intent:** Three path styles across surfaces — relative (`src/app.py`),
   NT-extended (`\\?\C:\...`), unix-ish (`/.env:1`) — plus `.env:0` zero-based

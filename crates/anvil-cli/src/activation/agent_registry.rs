@@ -118,7 +118,10 @@ impl AgentClient {
             InstallScope::Global => self.skill_global_root?,
             InstallScope::Project => self.skill_project_root?,
         };
-        Some(root.join(relative))
+        // CIB-237: the registry literals are `/`-separated, and `Path::join`
+        // keeps them verbatim, so skill-install output printed
+        // `C:\Users\dev\.claude/skills`.
+        Some(crate::display_path::join_relative(root, relative))
     }
 
     #[must_use]
@@ -139,7 +142,7 @@ impl AgentClient {
             InstallScope::Global => self.mcp_global_path?,
             InstallScope::Project => self.mcp_project_path?,
         };
-        Some(root.join(relative))
+        Some(crate::display_path::join_relative(root, relative))
     }
 }
 
@@ -440,5 +443,35 @@ mod tests {
             InstallScope::Project,
             Path::new(other),
         ));
+    }
+
+    /// CIB-237: skill-install output printed `C:\\Users\\dev\\.claude/skills`
+    /// because the registry literals are `/`-separated and `Path::join` keeps
+    /// them verbatim. Every registry path must come back natively separated.
+    #[test]
+    fn registry_paths_use_native_separators_for_every_client() {
+        let root = Path::new("/home/dev");
+        for entry in AgentClientId::all() {
+            for scope in [InstallScope::Global, InstallScope::Project] {
+                if let Some(path) = entry.skill_root(scope, root) {
+                    assert_native_separators(&path, entry.display_name, "skill root");
+                }
+                if let Some(path) = entry.mcp_path(scope, root) {
+                    assert_native_separators(&path, entry.display_name, "mcp path");
+                }
+            }
+        }
+    }
+
+    /// A path is natively separated when rebuilding it component-wise is a
+    /// no-op — the check that fails on Windows for an embedded `/`.
+    fn assert_native_separators(path: &Path, client: &str, what: &str) {
+        let rebuilt: PathBuf = path.components().collect();
+        assert_eq!(
+            &rebuilt,
+            path,
+            "{client} {what} has mixed separators: {}",
+            path.display()
+        );
     }
 }

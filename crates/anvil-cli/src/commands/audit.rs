@@ -131,11 +131,9 @@ pub fn run_audit(root: &Path) -> AuditData {
                 return None;
             }
             let path = entry.path();
-            let rel = path
-                .strip_prefix(root)
-                .unwrap_or(path)
-                .to_string_lossy()
-                .into_owned();
+            // CIB-237: render through the shared helper so audit agrees with
+            // `check` and `gate` on separators instead of emitting native ones.
+            let rel = crate::display_path::render(&path.to_string_lossy(), Some(root));
             Some((path.to_path_buf(), rel))
         })
         .collect();
@@ -648,11 +646,12 @@ fn render_body_into(out: &mut String, data: &AuditData) {
                 IssueSeverity::Info => "[INFO]",
             };
             let fix_tag = if issue.fixable { " (fixable)" } else { "" };
-            let _ = writeln!(
-                out,
-                "  {badge} {:<15} {}:{}{fix_tag}",
-                issue.category, issue.file, issue.line,
-            );
+            // `line: 0` is the whole-file sentinel (a committed `.env`, say),
+            // not a zero-based line. Rendering it as `.env:0` implied a
+            // zero-based numbering no anvil surface uses (CIB-237); the SARIF
+            // adapter below already omitted the region for it.
+            let location = crate::display_path::format_location(&issue.file, issue.line);
+            let _ = writeln!(out, "  {badge} {:<15} {location}{fix_tag}", issue.category);
             let _ = writeln!(out, "        {}", issue.message);
         }
     }
@@ -709,7 +708,13 @@ struct IssueOutput {
     category: String,
     message: String,
     file: String,
-    line: usize,
+    /// `null` for a whole-file finding.
+    ///
+    /// CIB-237: this was `0` for findings about a file's existence rather than
+    /// a line in it, which read as a zero-based line number next to the
+    /// 1-based numbers everywhere else. The key is retained (rather than
+    /// skipped) so consumers reading `issue.line` still find it.
+    line: Option<usize>,
     fixable: bool,
 }
 
@@ -862,7 +867,7 @@ fn build_audit_output(data: &AuditData) -> AuditOutput {
                 category: i.category.clone(),
                 message: i.message.clone(),
                 file: i.file.clone(),
-                line: i.line,
+                line: (i.line > 0).then_some(i.line),
                 fixable: i.fixable,
             })
             .collect(),
@@ -982,6 +987,95 @@ mod tests {
         assert_eq!(console_issues.len(), 1);
         assert!(matches!(console_issues[0].severity, IssueSeverity::Low));
         assert_eq!(console_issues[0].line, 2);
+        cleanup(&dir);
+    }
+
+    /// CIB-237: a committed `.env` is a whole-file finding, carried as the
+    /// `line: 0` sentinel. It must never surface as the zero-based-looking
+    /// `.env:0`.
+    #[test]
+    fn env_file_finding_uses_the_whole_file_sentinel() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".env"), "API_KEY=abc\n").unwrap();
+
+        let data = run_audit(&dir);
+        let env_issue = data
+            .issues
+            .iter()
+            .find(|i| i.message.contains("Environment file"))
+            .expect("env issue");
+        assert_eq!(env_issue.line, 0, "sentinel is preserved internally");
+        assert_eq!(
+            crate::display_path::format_location(&env_issue.file, env_issue.line),
+            ".env",
+            "plain output must not render the sentinel as a line number"
+        );
+        cleanup(&dir);
+    }
+
+    /// The JSON surface reports the sentinel as `null`, never `0`, so every
+    /// rendered line number stays 1-based (CIB-237).
+    #[test]
+    fn json_output_nulls_the_whole_file_sentinel_and_keeps_real_lines() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".env"), "API_KEY=abc\n").unwrap();
+        std::fs::write(dir.join("example.ts"), "const x = 1;\nconsole.log(x);\n").unwrap();
+
+        let data = run_audit(&dir);
+        let output = build_audit_output(&data);
+
+        let env = output
+            .issues
+            .iter()
+            .find(|i| i.message.contains("Environment file"))
+            .expect("env issue");
+        assert_eq!(env.line, None);
+
+        let console = output
+            .issues
+            .iter()
+            .find(|i| i.message.contains("console statement"))
+            .expect("console issue");
+        assert_eq!(console.line, Some(2), "real lines stay 1-based");
+
+        let value = serde_json::to_value(&output).expect("serialise");
+        let env_json = value["issues"]
+            .as_array()
+            .expect("issues array")
+            .iter()
+            .find(|i| {
+                i["message"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("Environment file"))
+            })
+            .expect("env issue json");
+        assert!(
+            env_json.get("line").is_some_and(serde_json::Value::is_null),
+            "the `line` key is retained as null, not dropped: {env_json}"
+        );
+        cleanup(&dir);
+    }
+
+    /// Audit paths must use the shared forward-slash style, not native
+    /// separators (CIB-237).
+    #[test]
+    fn nested_paths_render_with_forward_slashes() {
+        let dir = make_temp_dir();
+        std::fs::create_dir_all(dir.join("src/nested")).unwrap();
+        std::fs::write(
+            dir.join("src/nested/app.ts"),
+            "const x = 1;\nconsole.log(x);\n",
+        )
+        .unwrap();
+
+        let data = run_audit(&dir);
+        let issue = data
+            .issues
+            .iter()
+            .find(|i| i.message.contains("console statement"))
+            .expect("console issue");
+        assert_eq!(issue.file, "src/nested/app.ts");
+        assert!(!issue.file.contains('\\'), "got: {}", issue.file);
         cleanup(&dir);
     }
 

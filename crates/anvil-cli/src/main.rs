@@ -5,6 +5,7 @@ mod commands;
 mod config_summary;
 mod config_view;
 mod daemon_validation;
+mod display_path;
 mod feature_flags;
 #[cfg(unix)]
 mod graph_base_producer;

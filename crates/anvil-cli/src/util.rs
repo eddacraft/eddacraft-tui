@@ -145,6 +145,11 @@ pub fn open_in_browser(url: &str) -> std::result::Result<(), String> {
 /// Canonicalises the git result to collapse symlinks. Falls back to
 /// the current directory (returned as-is, not canonicalised). Returns
 /// an error only when no usable path can be determined.
+///
+/// Canonicalisation goes through [`crate::display_path::canonicalise`] rather
+/// than [`std::fs::canonicalize`] (CIB-237): the latter returns a Windows
+/// NT-extended `\\?\C:\...` root, which both leaks into printed output and
+/// fails to prefix-match the ordinary paths the directory walker yields.
 pub fn workspace_root() -> Result<PathBuf> {
     let git_failure = match std::process::Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
@@ -153,7 +158,7 @@ pub fn workspace_root() -> Result<PathBuf> {
         Ok(output) if output.status.success() => {
             if let Ok(stdout) = String::from_utf8(output.stdout) {
                 let root = PathBuf::from(stdout.trim());
-                if let Ok(canonical) = root.canonicalize() {
+                if let Ok(canonical) = crate::display_path::canonicalise(&root) {
                     return Ok(canonical);
                 }
                 return Ok(root);

@@ -291,7 +291,7 @@ enum FileMatch {
 
 fn files_match_manifest(destination: &Path, files: &BTreeMap<String, String>) -> FileMatch {
     for (relative, expected_hash) in files {
-        let path = destination.join(relative);
+        let path = crate::display_path::join_relative(destination, relative);
         // `symlink_metadata` (unlike `metadata`) does not follow a symlink,
         // so a symlink standing in for a managed file is flagged as drift
         // without ever reading whatever it points at.

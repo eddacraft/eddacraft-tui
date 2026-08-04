@@ -87,6 +87,24 @@ pub struct AuditIssue {
 }
 
 impl AuditIssue {
+    /// Render `file:line`, omitting the line for a whole-file finding.
+    ///
+    /// `line: 0` means the finding is about the file itself (a committed
+    /// `.env`, say) rather than a numbered line — the same sentinel
+    /// [`Self::fix_kind`] already guards on. Printing it as `.env:0` implied a
+    /// zero-based line number that no anvil surface uses (CIB-237).
+    ///
+    /// This mirrors `display_path::format_location` in the CLI crate; the two
+    /// cannot share code because `anvil-cli` is a binary crate.
+    #[must_use]
+    pub fn location(&self) -> String {
+        if self.line == 0 {
+            self.file.clone()
+        } else {
+            format!("{}:{}", self.file, self.line)
+        }
+    }
+
     fn fix_kind(&self) -> Option<AuditFixKind> {
         (self.fixable && self.line != 0).then_some(AuditFixKind::ConsoleStatement)
     }
@@ -590,5 +608,35 @@ mod tests {
                 line: 7,
             })
         );
+    }
+
+    /// CIB-237: `line: 0` marks a whole-file finding, not line zero.
+    #[test]
+    fn location_omits_the_whole_file_sentinel() {
+        let issue = AuditIssue {
+            severity: IssueSeverity::High,
+            category: "Security".to_string(),
+            message: "Environment file may contain secrets".to_string(),
+            file: ".env".to_string(),
+            line: 0,
+            fixable: false,
+        };
+
+        assert_eq!(issue.location(), ".env");
+        assert!(!issue.is_fixable());
+    }
+
+    #[test]
+    fn location_renders_real_line_numbers() {
+        let issue = AuditIssue {
+            severity: IssueSeverity::Low,
+            category: "Quality".to_string(),
+            message: "console statement found".to_string(),
+            file: "src/index.ts".to_string(),
+            line: 7,
+            fixable: true,
+        };
+
+        assert_eq!(issue.location(), "src/index.ts:7");
     }
 }
