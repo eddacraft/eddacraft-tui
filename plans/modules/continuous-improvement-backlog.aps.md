@@ -6252,7 +6252,7 @@ archive.
 
 ### CIB-233: audit-chain summary must disclose coverage (do not redefine chain_intact)
 
-- **Status:** In Progress 2026-08-04
+- **Status:** Merged 2026-08-04 via PR #3534
 - **Priority:** P2 presentation (Dave TRUST-1; re-triaged 2026-08-04)
 - **Intent:** With all commits unwitnessed under default `--threshold 5`,
   `chain_intact: true` and `degraded_audit_drift: false` are **correct** under
@@ -6291,7 +6291,7 @@ archive.
 
 ### CIB-234: `audit` must disclose its secret domain vs `check` (not force count parity)
 
-- **Status:** In Progress 2026-08-04
+- **Status:** Merged 2026-08-04 via PR #3534
 - **Priority:** P2 presentation (Dave TRUST-2; re-triaged 2026-08-04)
 - **Intent:** Same planted-secret tree: `check --all` showed 4 secret findings;
   `audit` showed 2 (file-level `.env` + summary). `audit` and `check` are
