@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 170/213  |
+| CIB | —     | In Progress | 170/221  |
 
 ## Purpose
 
@@ -5906,3 +5906,159 @@ archive.
 - **Confidence:** high — the published release, installed binary help, package
   manifests, docs-site config, and repository validators provide direct source
   truth for every correction.
+
+### CIB-220: Project-scope interactive start must install MCP (not claim disabled)
+
+- **Status:** Ready
+- **Priority:** P0 for `v0.9.3-beta` honesty pass
+- **Intent:** `anvil start --mcp-scope project` in the interactive TUI currently
+  routes through `legacy_mcp_install_policy`, which returns
+  `McpInstallPolicy::Skip` for project scope and surfaces "MCP installation
+  disabled". Scripted project-scope installs work. Users who need repo-local MCP
+  hit a false dead-end in the TUI.
+- **Expected Outcome:** Interactive project-scope start offers the MCP picker
+  (or explicit client list) and installs via the scope-aware installer path;
+  never claims MCP is disabled solely because scope is project. Plain/scripted
+  and TUI paths agree. Regression tests cover TUI policy for project scope.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`
+  (`legacy_mcp_install_policy`), `crates/anvil-cli/src/activation/orchestrator/`,
+  `crates/anvil-tui/src/surfaces/activation/`
+- **Validation:** `cargo test -p eddacraft-anvil start`; manual
+  `anvil start --mcp-scope project` in a clean worktree with at least one
+  project-capable client.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** ACTTUI, ACTMO, MCPX, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** high — code and unit tests pin `Skip` for project scope today.
+
+### CIB-221: Stop false auth-login prompts for already-authenticated pro users
+
+- **Status:** Ready
+- **Priority:** P1 for `v0.9.3-beta` honesty pass
+- **Intent:** Authenticated / pro users still see copy directing them to
+  `anvil auth login` during start or related surfaces, which undermines trust
+  after a successful login.
+- **Expected Outcome:** When a valid session/token is present (and pro
+  entitlement is satisfied where relevant), start/status/auth surfaces do not
+  instruct the user to log in again. Unauthenticated users still get a clear
+  login path. Cover with unit/integration fixtures for authed vs unauthed.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/`, `crates/anvil-cli/src/auth/`
+- **Validation:** `cargo test -p eddacraft-anvil`; fixture with stored credentials
+  shows no login nag; without credentials, login guidance remains.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** AUTH, ACTMO, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** medium — needs repro against live auth state classes.
+
+### CIB-222: Value receipt must disclose machine-wide vs repo-scoped evidence
+
+- **Status:** Ready
+- **Priority:** P1 for `v0.9.3-beta` honesty pass
+- **Intent:** Healthy repeat-start can show e.g. `value: N saves checked
+  (dates)` drawn from machine-wide save-time aggregates (CIB-190). On a brand-new
+  repo that never saw a save, the line reads as local activity. Insights
+  scorecard already distinguishes "this machine" vs "this repository"; the start
+  receipt does not.
+- **Expected Outcome:** The one start value line names the evidence scope
+  (machine-wide save-time vs repo witness) in plain language. No path or repo
+  names leak. Zero/stale/missing evidence still omits the line.
+- **Files:** `crates/anvil-cli/src/commands/start.rs` (`repeat_value_line`),
+  optionally `crates/anvil-cli/src/insights/`
+- **Validation:** `cargo test -p eddacraft-anvil start` value-line cases;
+  fixture with machine-wide saves and empty repo witness includes scope wording.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** CIB-190, INSIGHTS, JOURNEY, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** high — copy gap on an existing aggregate.
+
+### CIB-223: Coherent non-git init vs worktree registration messaging
+
+- **Status:** Ready
+- **Priority:** P2 for `v0.9.3-beta` honesty pass
+- **Intent:** A non-Git directory can init successfully, then immediately hear
+  there is no worktree and registration cannot proceed — jarring sequential
+  truths without a single next step.
+- **Expected Outcome:** Either (a) refuse durable init outside a git worktree
+  with a clear error, or (b) allow init but one message: config written; git
+  init/register before protection can attach. No success-then-contradiction.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/registration.rs`, activation orchestrator init step
+- **Validation:** integration/unit for non-git cwd; message contract tests.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** ACTMO-016, LAUNCH, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** medium — product choice required (refuse vs soft path).
+
+### CIB-224: Reject --no-mcp with explicit MCP client selection
+
+- **Status:** Ready
+- **Priority:** P2 for `v0.9.3-beta` honesty pass
+- **Intent:** `anvil start --no-mcp --mcp-client codex` (and similar) silently
+  ignores the client instead of erroring. Operators cannot tell whether install
+  was skipped by design.
+- **Expected Outcome:** Mutually exclusive flag set fails with exit non-zero and
+  a one-line recovery: drop `--no-mcp` or drop client selection. Same for
+  `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS` with `--no-mcp` / `ANVIL_NO_MCP`.
+- **Files:** `crates/anvil-cli/src/commands/start.rs` (early validation next to
+  other mutual-exclusion bails)
+- **Validation:** `cargo test -p eddacraft-anvil start` conflict cases.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** ACTMO, ADR-092, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** high — pure validation gap.
+
+### CIB-225: Warn when --format is ignored because config already exists
+
+- **Status:** Ready
+- **Priority:** P3 for `v0.9.3-beta` honesty pass
+- **Intent:** `--format toml` (etc.) on a tree that already has `.anvilrc` /
+  `.anvil.*` is a silent no-op; users think format changed.
+- **Expected Outcome:** When `--format` is set and a project config already
+  exists, emit one stderr warning that the flag was ignored and name the
+  existing path; do not rewrite or convert formats unless an explicit migrate
+  command exists later.
+- **Files:** `crates/anvil-cli/src/commands/start.rs` (`pre_write_anvil_config`
+  call site)
+- **Validation:** unit test with existing `.anvilrc` + `--format toml`.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** MLP2-039, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** high.
+
+### CIB-226: Public CLI docs — current flags and auth exit code 3
+
+- **Status:** Ready
+- **Priority:** P3 for `v0.9.3-beta` honesty pass
+- **Intent:** Public CLI reference / support docs omit current `anvil start`
+  flags and the auth-required exit code **3** on action commands (status stays
+  0). Beta testers cannot map failures to help text.
+- **Expected Outcome:** Public docs list current start/MCP flags and document
+  exit codes including action-command auth exit 3 vs read-only status exit 0,
+  aligned with `crates/anvil-cli/src/main.rs` and live `--help`.
+- **Files:** `docs/public/anvil/reference/cli.md`,
+  `docs/public/anvil/reference/support.md`, related quickstart links
+- **Validation:** `pnpm docs:public:check`; `pnpm docs:public:commands` if
+  applicable; spot-check against `anvil start --help`.
+- **Identified From:** Morgan Deus test of v0.9.1-beta (2026-08).
+- **Coordinates with:** DOCSYNC, CIB-219, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** high.
+
+### CIB-227: User-facing copy must not imply only Claude Code and Cursor
+
+- **Status:** Ready
+- **Priority:** P2 for `v0.9.3-beta` honesty pass
+- **Intent:** Product still has twelve-client install (MCPX) but several live
+  surfaces still describe MCP wiring as Claude Code + Cursor only (or those two
+  as the documented set). That undercuts multi-client beta truth after 0.9.x.
+- **Expected Outcome:** Public docs, bundled skills, and activation as-built
+  user-facing claims use multi-client wording (examples + "see
+  `anvil mcp install --help`") unless a sentence is truly about a
+  Claude/Cursor-only capability (e.g. legacy HTTP preview). Inventory and fix
+  the exclusive-pair list under `docs/public/`, `crates/anvil-cli/assets/skills/`,
+  and activation runbooks that beta testers hit.
+- **Files:** `docs/public/anvil/reference/support.md`,
+  `crates/anvil-cli/assets/skills/anvil-developer-functions/**`,
+  `crates/anvil-cli/assets/skills/using-anvil/SKILL.md`,
+  `docs/runbooks/anvil-no-mcp-activation.md`,
+  `docs/architecture/activation-as-built.md` (user-claim sentences)
+- **Validation:** `rg` for exclusive Claude/Cursor pairs on public/skill paths
+  returns only intentional legacy-HTTP exceptions; `pnpm docs:check`.
+- **Identified From:** operator follow-up after multi-client ship; related to
+  Morgan multi-client pass on Deus.
+- **Coordinates with:** MCPX, DOCSYNC, CIB-219, [#3510](https://github.com/eddacraft/anvil-001/issues/3510)
+- **Confidence:** high — inventory already enumerated.

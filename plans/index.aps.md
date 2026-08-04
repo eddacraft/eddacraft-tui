@@ -3,17 +3,15 @@
 
 # Anvil — Save-time Trust
 
-> **Latest promoted release: `v0.9.1-beta`** (shipped 2026-08-02) — "Daily Path
-> Polish and MCP 2.0 support": bare daily ensure, default activation TUI,
-> twelve-client MCP install with dual-era protocol support, managed skills, and
-> warning-over-block gate honesty. Dashboard foundation remains flag-gated and
-> is not a release claim. Record:
-> [`plans/releases/v0.9.1-beta.md`](./releases/v0.9.1-beta.md); per-tag records
-> for earlier windows are in [`plans/releases/`](./releases/).
+> **Latest promoted release: `v0.9.2-beta`** (shipped 2026-08-03, retagged on
+> `22f6a9bec`) — MCP 2.0 reconnect (MCP26-013) plus dashboard openapi version
+> fix. Prior: `v0.9.1-beta` daily path + multi-client MCP. Dashboard remains
+> flag-gated. Per-tag records under [`plans/releases/`](./releases/).
 >
-> The active window is **`v0.9.2-beta`** — a current-minor **patch** for the
-> MCP 2.0 reconnect regression (MCP26-013 / PR #3487). Operator override of
-> assess's default `v0.10.0-beta`. Theme and cut criteria:
+> The active window is **`v0.9.3-beta` honesty pass** — Morgan Deus findings
+> from 0.9.1 (project-scope MCP TUI, false auth nag, value-receipt scope, flag
+> honesty, multi-client docs). APS **CIB-220..227**; tracking
+> [#3510](https://github.com/eddacraft/anvil-001/issues/3510). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
 
 ## Contents
@@ -103,11 +101,11 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value Ready execution after JOURNEY-007/WOW-006 landed (#3441); only fully cleared Graph Trust Surfaces track; witness schema terminal. | Execute CGBDG discovery; prefer thin "council emits witness lines" path; land discovery report under `plans/specs/`. |
-| 2 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
-| 3 | POLCAP-001 — capability-discovery ADR + Planning Council | Schedule | [policy-capability-discovery](./modules/policy-capability-discovery.aps.md), [design](./specs/2026-05-24-policy-capability-discovery.md) | Agent "what may I attempt?" surface; design exists; council is the hold gate. | Draft next-free POLCAP ADR; convene Planning Council; reconcile ADR-098 AD-3/AD-4. |
-| 4 | SCA-001 — one-ecosystem SBOM + new-edge design | Schedule | [supply-chain-attestation](./modules/supply-chain-attestation.aps.md) | Same Anvil new-edges shape applied to dependencies; strong team-lead story beside DASH. | Write SCA-001 design (cargo or npm); decide graph edge home; confirm ingest feasibility. |
-| 5 | RTAI-005 diagnostics-only → LSPNAV unpark | Schedule | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md), [lsp-graph-navigation](./modules/lsp-graph-navigation.aps.md), [ADR-111](./decisions/111-graph-backed-lsp-references.md) | Serial gate for graph-backed editor references; design already council-approved. | Land RTAI-005 diagnostics-only; accept ADR-111; then promote LSPNAV-001..005. |
+| 1 | CIB-220 — project-scope interactive MCP install | Ready | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3510](https://github.com/eddacraft/anvil-001/issues/3510), [RELEASE-PLAN](../RELEASE-PLAN.md) | P0 for **v0.9.3-beta honesty pass**; TUI claims MCP disabled under `--mcp-scope project` while headless works. | Fix `legacy_mcp_install_policy` / TUI path; land with tests; then CIB-221/222. |
+| 2 | CIB-221 + CIB-222 — auth nag + value-receipt scope | Ready | [CIB](./modules/continuous-improvement-backlog.aps.md), [#3510](https://github.com/eddacraft/anvil-001/issues/3510) | P1 honesty: false `auth login` for pro users; machine-wide saves read as local. | Auth state matrix + start value-line scope copy. |
+| 3 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Still highest-value programme track after honesty cut; not a 0.9.3 claim. | After 0.9.3 or in parallel if capacity; prefer thin witness-lines path. |
+| 4 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
+| 5 | POLCAP-001 — capability-discovery ADR + Planning Council | Schedule | [policy-capability-discovery](./modules/policy-capability-discovery.aps.md), [design](./specs/2026-05-24-policy-capability-discovery.md) | Agent "what may I attempt?" surface; design exists; council is the hold gate. | Draft next-free POLCAP ADR; convene Planning Council; reconcile ADR-098 AD-3/AD-4. |
 
 ## Release Plan
 
@@ -115,13 +113,14 @@ Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
 **Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
-`v0.9.1-beta` (2026-08-02) are fully shipped as promoted headline windows.
+`v0.9.2-beta` (2026-08-03, MCP reconnect) are fully shipped as promoted
+headline windows.
 Windows through `v0.7.4-beta` have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); later records
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.9.2-beta`** (MCP 2.0 reconnect patch; MCP26-013), declared in
+window is **`v0.9.3-beta`** (honesty pass; CIB-220..227 / #3510), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 
@@ -233,7 +232,7 @@ Codebase-maintenance and code-review-backlog are retained for history.
 
 | Module                                                                      | Scope | Status      | Progress           |
 | --------------------------------------------------------------------------- | ----- | ----------- | ------------------ |
-| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 170/213 (standing continuous-improvement intake. **2026-07-30 reconcile:** CIB-161/#3120, CIB-163/#3125, CIB-191/#3285, CIB-192 Wave C triage Merged; harvested 38 pending notes; last triaged **2026-07-30**; filed **CIB-208..210** Draft (APS Status lint, worktree-safe validation paths, multi-worktree merge cleanup); closed CIB-114..116 as superseded after retirement of the unsupported Node CLI; filed **CIB-211..215** Ready for the retained supported-surface risks. Ready examples include CIB-202, 204, 205, 211..215. Per-item status in the module file.) |
+| [continuous-improvement-backlog](./modules/continuous-improvement-backlog.aps.md) | CIB   | In Progress | 170/221 (standing continuous-improvement intake. **2026-08-04:** filed **CIB-220..227 Ready** for v0.9.3-beta honesty pass (Morgan Deus 0.9.1; #3510). **2026-07-30 reconcile:** CIB-161/#3120, CIB-163/#3125, CIB-191/#3285, CIB-192 Wave C triage Merged; harvested 38 pending notes; last triaged **2026-07-30**; filed **CIB-208..210** Draft (APS Status lint, worktree-safe validation paths, multi-worktree merge cleanup); closed CIB-114..116 as superseded after retirement of the unsupported Node CLI; filed **CIB-211..215** Ready for the retained supported-surface risks. Ready examples include CIB-202, 204, 205, 211..215. Per-item status in the module file.) |
 | [clawpatch-pre-tag-v0.7.0-beta](./archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md) | CLAWP | Archived | 53/65 (archived 2026-06-03 via CIB-039 — 53 Merged / 11 Ship / 1 Deferred-tracked; CLAWP-001 PR #1732, CLAWP-008 PR #1765, CLAWP-011 PR #1791, CLAWP-012 PR #1772, CLAWP-013 PR #1788, CLAWP-014 PR #1786, CLAWP-015 PR #1783, CLAWP-021 PR #1764, CLAWP-022 PR #1770, CLAWP-028 PR #1763, CLAWP-029 PR #1789, CLAWP-030 commit `9253d9f3` in PR #1732, CLAWP-019 PR #2065, CLAWP-033 PR #2136, CLAWP-009 PR #2135, CLAWP-004 PR #2137, CLAWP-007 PR #2144, CLAWP-027 PR #2145, CLAWP-031 PR #2143, CLAWP-038 PR #2142, CLAWP-017 PR #2058, CLAWP-024 PR #2061, CLAWP-025 PR #2160, CLAWP-026 PR #2159, CLAWP-065 PR #2211; 2026-06-03 reconcile of fixes shipped untracked, verified vs `origin/main`: CLAWP-034 PR #1186, CLAWP-043 PR #1114, CLAWP-044 PR #1163, CLAWP-051 PR #1653; 2026-06-03 #1740 test-hardening batch (24 items) Merged via PRs #2261 / #2265 / #2267) |
 | [aps-dashboard-starter](./modules/aps-dashboard-starter.aps.md)             | APSDASH | In Progress | 2/4 (APSDASH-001 Done — ADR-055 filed (OSS carve-out). APSDASH-002 Done — seed kit staged + verified (30/30 vs crates.io `eddacraft-tui`). ADR-055 Accepted 2026-06-18 (legal gate cleared); APSDASH-003 Ready — execute pre-publication scrub before lift. APSDASH-004 Proposed — downstream re-development in `anvil-plan-spec`.) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md)         | CRB   | Complete    | 29/29              |

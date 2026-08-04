@@ -1,9 +1,8 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-03 (`v0.9.1-beta` published; active cut is
-`v0.9.2-beta` MCP 2.0 reconnect patch in `RELEASE-PLAN.md`. Next minor after
-that remains unscoped. Module status lives in the SOT files below; this roadmap
-stays thematic.)
+**Last updated:** 2026-08-04 (`v0.9.2-beta` published; active cut is
+`v0.9.3-beta` honesty pass — CIB-220..227 / #3510. See `RELEASE-PLAN.md`. Module
+status lives in the SOT files below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -118,10 +117,9 @@ next credible surface after this cut. DASH/DASHCORE foundation is already on
 `main` behind `dashboard.web` (default-off) for testing only — not a customer
 claim until default-on or a later named window owns it.
 
-**Active cut:** `v0.9.2-beta` — patch for the MCP 2.0 reconnect regression
-(MCP26-013). Not a new minor theme. After closeout, the next minor window is
-unscoped until the operator names it. Current state:
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
+**Active cut:** `v0.9.3-beta` — honesty pass on the daily path (Morgan Deus
+findings; CIB-220..227 / #3510). Prior: `v0.9.2-beta` MCP reconnect. Current
+state: [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 
 ### Horizon 3 — Enterprise Readiness

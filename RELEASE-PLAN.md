@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                               |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-03: operator scoped **`v0.9.2-beta`** as a patch for the MCP 2.0 reconnect regression (MCP26-013). `v0.10.0-beta` stays the next unscoped minor after this cut. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                     |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-04: **`v0.9.3-beta` honesty pass** scoped from Morgan Deus 0.9.1 findings (CIB-220..227 / #3510). Prior cut `v0.9.2-beta` MCP reconnect is published. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -32,109 +32,103 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.9.1-beta` "Daily Path Polish and MCP 2.0 support"
-  (published and verified 2026-08-02). Durable record:
-  [`plans/releases/v0.9.1-beta.md`](./plans/releases/v0.9.1-beta.md). Prior:
-  [`plans/releases/v0.9.0-beta.md`](./plans/releases/v0.9.0-beta.md).
-- **Cadence:** minors cut when ready + gates green, not on a calendar. Current-
-  minor patches land when user signal warrants (here: MCP client breakage after
-  the dual-era host). See the
+- **Latest tag:** `v0.9.2-beta` "MCP 2.0 reconnect" (retagged 2026-08-03 on
+  `22f6a9bec` after openapi dashboard fix; binaries + signing published). Prior
+  headline: `v0.9.1-beta` daily path + MCP 2.0. Records under
+  [`plans/releases/`](./plans/releases/) when closeout writes them; public
+  release: https://github.com/eddacraft/anvil/releases/tag/v0.9.2-beta
+- **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** **`v0.9.2-beta`** — patch on the v0.9 line for the **MCP
-  2.0 reconnect bug** (MCP26-013). Operator override of assess's default
-  `v0.10.0-beta` (semver minor from mixed `feat:` commits) because the product
-  reason for the cut is a hotfix, not a new minor theme.
+- **Active window:** **`v0.9.3-beta`** — honesty pass on the daily path (Morgan
+  Deus findings from 0.9.1). Not a new product theme; not Graph Trust Surfaces /
+  dashboard.
 
 ---
 
-## Active window — `v0.9.2-beta` (MCP 2.0 reconnect patch)
+## Active window — `v0.9.3-beta` (honesty pass)
 
-**Theme:** MCP 2.0 reconnect — Codex and similar assistants work again after the
-dual-era host rejected normal progress metadata.
+**Theme:** Daily-path honesty — what anvil says matches what it does (MCP scope,
+auth, value receipt, flags, multi-client docs).
 
-**Primary claim (must ship, honest):**
+**Tracking:** [#3510](https://github.com/eddacraft/anvil-001/issues/3510) · APS
+**CIB-220..227**
 
-- **MCP26-013** — restore legacy request-metadata interoperability so clients
-  that send standard `_meta.progressToken` (and similar) are not rejected as if
-  they spoke a newer reserved-metadata protocol. Merged via PR #3487. Customer-
-  facing wording is already in `CHANGELOG.md` `[Unreleased]` under Fixed.
+### Primary claim (must ship)
 
-**Not a claim of this release:**
+| ID          | Item                                                                                                                                   | Pri |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| **CIB-220** | Interactive `anvil start --mcp-scope project` installs / offers MCP; never claims "MCP installation disabled" solely for project scope | P0  |
+| **CIB-221** | No false `anvil auth login` nag for already-authenticated / pro users                                                                  | P1  |
+| **CIB-222** | Start value receipt discloses machine-wide vs repo-scoped evidence                                                                     | P1  |
 
-- Browser dashboard (`dashboard.web` remains default-off)
-- Graph Trust Surfaces / CGBDG and other NBI tracks
-- Full `rmcp` adoption (MCP26-012 stays Ready follow-up)
-- A new minor product narrative (that is the later `v0.10.0-beta` window)
+### Secondary claim (should ship in the same cut if cheap)
 
-**Secondary carry-in already on `main` (ship if source SHA includes them; do not
-reframe the release around them):**
+| ID          | Item                                                           | Pri |
+| ----------- | -------------------------------------------------------------- | --- |
+| **CIB-224** | `--no-mcp` + `--mcp-client` / `--all-mcp-clients` fails loudly | P2  |
+| **CIB-227** | User-facing copy not exclusive to Claude Code + Cursor         | P2  |
+| **CIB-223** | Non-git init vs no-worktree messaging coherent                 | P2  |
 
-- ACTTUI-018..021 — quiet re-run consent, start/status posture alignment, Prove
-  honesty on the activation result screen (drafted in `[Unreleased]` Added /
-  Changed)
-- Acknowledgements starter kit 1.1.0 and ATTRIB CI hardening (operator / kit
-  surfaces; not an anvil binary claim)
-- Public docs rewrites for the already-shipped daily path
+### Nice-to-have in this cut (else next)
+
+| ID          | Item                                        | Pri |
+| ----------- | ------------------------------------------- | --- |
+| **CIB-225** | `--format` warns when config already exists | P3  |
+| **CIB-226** | Public CLI docs: flags + auth exit code 3   | P3  |
+
+### Not a claim of this release
+
+- Browser dashboard default-on
+- Graph Trust Surfaces / CGBDG programme
+- Full `rmcp` adoption (MCP26-012)
+- New feature narrative (that remains a later minor / `v0.10.0-beta` when
+  scoped)
 
 ### Phase plan
 
-| Phase                         | Scope                                                                                        | State           |
-| ----------------------------- | -------------------------------------------------------------------------------------------- | --------------- |
-| **0.9.1 publish + closeout**  | Publish, sign, verify, and record the `v0.9.1-beta` cut                                      | Done 2026-08-02 |
-| **MCP reconnect land**        | MCP26-013 on `main` (PR #3487)                                                               | Done 2026-08-03 |
-| **Scope patch + assess**      | Operator names `v0.9.2-beta` / MCP reconnect theme; assess base `v0.9.1-beta`                | Done 2026-08-03 |
-| **Preflight → prepare → tag** | `preflight` (pre-prepare), publication token, `prepare`, readiness, pre-tag, `tag`, verify   | Next            |
-| **Closeout**                  | Immutable `plans/releases/v0.9.2-beta.md`; prune this window; open next intake (likely 0.10) | After publish   |
+| Phase               | Scope                                        | State                       |
+| ------------------- | -------------------------------------------- | --------------------------- |
+| **0.9.2 publish**   | MCP reconnect + openapi retag                | Done 2026-08-03             |
+| **Intake honesty**  | File CIB-220..227 + #3510; scope this window | Done 2026-08-04             |
+| **P0/P1 implement** | CIB-220, 221, 222                            | Next                        |
+| **P2 implement**    | CIB-223, 224, 227                            | Same cut if unblocked       |
+| **P3**              | CIB-225, 226                                 | Same cut or follow-up patch |
+| **Cut**             | Preflight → prepare → readiness → tag        | After claim green           |
 
 ### Cut criteria
 
-- Standing base bar: full `Cross` matrix green (incl. Windows),
-  `release-readiness.yml` pass on the source SHA, `ACKNOWLEDGEMENTS` fresh.
-- **MCP26-013** is on the tagged SHA and covered by the stdio / metadata
-  regression fixtures that landed with #3487.
-- Claim honesty: headline is the MCP reconnect fix; do not market ACTTUI polish
-  or kit work as the reason for the patch.
-- Changelog promotion leads with the Fixed (Codex / MCP metadata) entry;
-  secondary Unreleased bullets may ride along.
-- Strategy: **`direct`** on a selected green `main` SHA (assess recommendation;
-  no stabilisation branch unless preflight/readiness forces hardening).
-- No second active window accreted into this file.
+- Standing base bar: full Cross matrix, release-readiness on source SHA,
+  ACKNOWLEDGEMENTS fresh, dashboard openapi `check:api` green (0.9.2 lesson).
+- **CIB-220** validated (TUI project-scope MCP path).
+- **CIB-221** and **CIB-222** validated (or explicit waive with issue).
+- Claim honesty: changelog leads with honesty fixes, not new features.
+- Strategy: **direct** unless readiness forces stabilisation.
+- Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag
+  class).
 
-### Semver note
+### Risks
 
-`assess.sh` proposes `v0.10.0-beta` because the window contains `feat:` commits.
-Operator overrides to **`v0.9.2-beta`** (current-minor patch) — same pattern as
-prior hotfix patches when the product reason is reconnect / friction, not a new
-feature slate.
+| Risk                                           | Mitigation                                                                                   |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Project-scope MCP reopens installer edge cases | Prefer thin path: stop `Skip` for project; reuse scope-aware installer already used headless |
+| Auth false-negative hides real login need      | Fixture matrix: no token / expired / valid / pro                                             |
+| Scope copy on value line confuses              | One short parenthetical; match insights scorecard language                                   |
 
 ---
 
 ## Hotfix Iteration Plan (post-tag)
 
-Releases are gated by quality (releasable `main`, green gates, APS
-authorisation), not by a calendar.
-
-| Cadence                | Channel                               | Scope                                                                 |
-| ---------------------- | ------------------------------------- | --------------------------------------------------------------------- |
-| Current-minor patch    | Weekly while user signal is non-empty | Bug fixes, false-positive reductions, doc corrections.                |
-| Current-minor patch    | Within 48h of any P0 bug              | Crash, data loss, false-claim regression, daemon corruption.          |
-| Next minor beta        | When ready — green gates + APS auth   | Feature additions. No calendar gate; cut when the slice is ready.     |
-| Breaking beta or major | Demand-pulled                         | Driven by a real adopter requirement, not by completion of a backlog. |
+| Cadence             | Channel                               | Scope                                               |
+| ------------------- | ------------------------------------- | --------------------------------------------------- |
+| Current-minor patch | Weekly while user signal is non-empty | Bug fixes, honesty, false-positive reductions, docs |
+| Current-minor patch | Within 48h of any P0                  | Crash, data loss, false-claim, daemon corruption    |
+| Next minor beta     | When ready                            | Feature additions                                   |
 
 Authoritative source:
 [release-cadence policy](./docs/policies/release-cadence.md) (DISTRIB-004).
 
-## Risks (active window)
-
-| Risk                                                                            | Mitigation                                                                                                                                         |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release publication depends on a manually-rotated PAT (`ANVIL_RELEASES_TOKEN`). | Readiness runs `validate-publication-token.sh`; rotate per [`release-token-scope.md`](./docs/runbooks/release-token-scope.md) when the gate fails. |
-| Mixed post-0.9.1 commits tempt an over-broad claim.                             | Keep the headline to MCP26-013; list ACTTUI/docs/kit only as secondary or omit from the customer summary.                                          |
-| Assess default version (`v0.10.0-beta`) disagrees with operator patch.          | Document override in this plan and in the tracking issue; pass `--version v0.9.2-beta` to preflight/prepare.                                       |
-
 ## Records & roadmap
 
-- **Shipped releases:** [`plans/releases/`](./plans/releases/) (per-tag
-  records) + [`CHANGELOG.md`](./CHANGELOG.md).
-- **Long-term direction / later windows** (incl. next minor after this patch,
-  RMCPF full-port, enterprise/language expansion): [`ROADMAP.md`](./ROADMAP.md).
+- **Shipped releases:** [`plans/releases/`](./plans/releases/) +
+  [`CHANGELOG.md`](./CHANGELOG.md).
+- **Long-term direction:** [`ROADMAP.md`](./ROADMAP.md).
