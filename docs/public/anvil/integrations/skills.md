@@ -40,6 +40,14 @@ The current surface supports:
 - `--verify` checks an existing managed install without writing;
 - `--dry-run` previews destinations without writing.
 
+For a non-interactive scripted fleet, enumerate every destination by repeating
+`--client`. Omitting it is an error when clients are detected, so a script
+cannot silently write to every detected harness:
+
+```text
+anvil skill install --client claude-code --client codex --client opencode
+```
+
 Do not copy install flags from an older or newer release note without checking
 your binary.
 
@@ -53,8 +61,11 @@ anvil doctor
 
 When managed skills are present, doctor can report freshness (for example fresh,
 stale, dirty, unmanaged, absent, or broken). Reinstall through the skill command
-when the report says the managed copy is stale or broken. Do not hand-edit
-managed skill directories if you want doctor to keep treating them as managed.
+when the report says the managed copy is stale or broken. If install refuses an
+unmanaged skill directory or entry, move that content outside the relevant
+skills directory tree (or to another path the client does not scan). Do not
+hand-edit managed skill directories if you want doctor to keep treating them as
+managed.
 
 ## Relationship to MCP
 

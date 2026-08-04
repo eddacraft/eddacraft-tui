@@ -1001,7 +1001,10 @@ skill catalogue.
 
 With an interactive terminal and no `--client`, Anvil detects supported
 harnesses and asks which ones to install into. Scope remains a choice and
-defaults to global. Non-interactive callers must select clients explicitly.
+defaults to global. Non-interactive callers must select clients explicitly;
+omitting `--client` is an error by design. Scripted fleets enumerate every
+destination by repeating `--client` rather than silently writing to all detected
+harnesses.
 
 **`install` flags:**
 
@@ -1015,7 +1018,9 @@ defaults to global. Non-interactive callers must select clients explicitly.
 
 **Safety:** Anvil records per-file hashes and bundle provenance. Repeat
 installation is idempotent; unmanaged, modified, or symlinked destinations are
-refused rather than overwritten.
+refused rather than overwritten. Move refused unmanaged content outside the
+relevant skills directory tree (or to another path the client does not scan)
+before retrying.
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 

@@ -110,6 +110,23 @@ anvil start --verify
 When your binary lists additional MCP clients or a managed `skill` command, use
 installed help to re-verify those assets after the upgrade.
 
+## 6. Restart long-lived processes
+
+A running daemon or editor/agent MCP process can keep the old anvil image after
+the on-disk binary is replaced. Check the responding daemon against the current
+CLI:
+
+```text
+anvil intercept status
+```
+
+When the daemon and CLI versions differ, run `anvil intercept stop`. The stop
+command reports the daemon PID and can return before shutdown is complete on
+Unix, so wait until that reported daemon process has exited before running
+`anvil start`. Reload each open editor or agent to restart its MCP server as
+well. anvil cannot enumerate every retained MCP process consistently across
+supported platforms, so repeat this for each open client after an upgrade.
+
 ## 0.9.1-beta behaviour changes
 
 These shipped in `0.9.1-beta`. Confirm each surface with `anvil --help` on the

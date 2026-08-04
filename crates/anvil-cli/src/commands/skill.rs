@@ -34,7 +34,9 @@ enum SkillCommand {
 
 #[derive(Debug, Args)]
 struct SkillInstallArgs {
-    /// Client to install into. Repeat to select more than one.
+    /// Client to install into. Required for non-interactive installation;
+    /// repeat to select more than one. Scripted fleets must enumerate every
+    /// destination.
     #[arg(long, value_enum)]
     client: Vec<AgentClientId>,
 
@@ -282,7 +284,7 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
     ensure_safe_destination(&manifest_path)?;
     if !manifest_path.exists() {
         bail!(
-            "refusing to overwrite unmanaged skill directory {}; move it aside or choose another scope",
+            "refusing to overwrite unmanaged skill directory {}; move it outside the skills directory tree or choose another scope",
             destination.display()
         );
     }
@@ -380,7 +382,7 @@ fn validate_no_unmanaged_entries(
 
             if !allowed {
                 bail!(
-                    "managed skill directory contains unmanaged entry {}; refusing to overwrite user content",
+                    "managed skill directory contains unmanaged entry {}; move it outside the skills directory tree before retrying",
                     path.display()
                 );
             }

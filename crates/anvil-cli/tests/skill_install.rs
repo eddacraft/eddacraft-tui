@@ -23,6 +23,24 @@ fn run(root: &std::path::Path, extra: &[&str]) -> std::process::Output {
 }
 
 #[test]
+fn help_explains_scripted_multi_client_enumeration() {
+    let output = Command::new(ANVIL_BIN)
+        .args(["--no-tui", "skill", "install", "--help"])
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("invoke anvil skill install help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = stdout.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        stdout
+            .contains("Required for non-interactive installation; repeat to select more than one."),
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
 fn installs_embedded_bundle_for_codex_at_global_default() {
     let root = tempfile::tempdir().unwrap();
     let output = run(root.path(), &["--client", "codex"]);
@@ -97,7 +115,12 @@ fn refuses_unmanaged_or_modified_skill_files() {
     fs::write(unmanaged.join("SKILL.md"), "user-owned").unwrap();
     let output = run(unmanaged_root.path(), &["--client", "codex"]);
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("unmanaged"));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unmanaged"));
+    assert!(
+        stderr.contains("move it outside the skills directory tree"),
+        "stderr: {stderr}"
+    );
     assert_eq!(
         fs::read_to_string(unmanaged.join("SKILL.md")).unwrap(),
         "user-owned"
@@ -131,7 +154,12 @@ fn refuses_extra_user_owned_files_in_a_managed_directory() {
     let output = run(root.path(), &["--client", "codex"]);
 
     assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("unmanaged entry"));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unmanaged entry"));
+    assert!(
+        stderr.contains("move it outside the skills directory tree"),
+        "stderr: {stderr}"
+    );
     assert_eq!(fs::read_to_string(extra).unwrap(), "user-owned notes");
     assert!(skill.join("SKILL.md").exists());
 }

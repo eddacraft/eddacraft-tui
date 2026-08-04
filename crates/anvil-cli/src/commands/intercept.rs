@@ -1113,6 +1113,14 @@ fn render_status_lines(status: &DaemonStatusV1) -> String {
 }
 
 fn render_status_lines_with_pid(status: &DaemonStatusV1, daemon_pid: Option<u32>) -> String {
+    render_status_lines_with_versions(status, daemon_pid, env!("CARGO_PKG_VERSION"))
+}
+
+fn render_status_lines_with_versions(
+    status: &DaemonStatusV1,
+    daemon_pid: Option<u32>,
+    cli_version: &str,
+) -> String {
     use std::fmt::Write as _;
 
     let mut out = String::new();
@@ -1127,6 +1135,17 @@ fn render_status_lines_with_pid(status: &DaemonStatusV1, daemon_pid: Option<u32>
             out,
             "daemon:    running (uptime {}s, version {})",
             status.health.uptime_seconds, status.health.version,
+        );
+    }
+    if status.health.version != cli_version {
+        let _ = writeln!(
+            out,
+            "version:   daemon version {} differs from CLI version {cli_version}",
+            status.health.version,
+        );
+        let _ = writeln!(
+            out,
+            "restart:   run `anvil intercept stop`; wait until the daemon process PID reported by `anvil intercept stop` has exited, then run `anvil start` to launch the current binary",
         );
     }
     let active_session_count = status.sessions.len();
@@ -1713,6 +1732,41 @@ mod tests {
         assert!(
             rendered.contains("daemon:    running (pid 4242, uptime 12s, version 0.5.1-beta)"),
             "status should name the daemon PID when available; got:\n{rendered}",
+        );
+    }
+
+    /// CIB-242: human status discloses daemon/CLI version skew with a
+    /// restart path, while matching versions remain quiet.
+    #[test]
+    fn cli_status_discloses_version_skew_with_restart_guidance() {
+        let status = empty_status();
+        let skewed = render_status_lines_with_versions(&status, None, "0.9.2-beta");
+        assert!(
+            skewed.contains("daemon version 0.5.1-beta differs from CLI version 0.9.2-beta"),
+            "status should disclose daemon/CLI version skew; got:\n{skewed}",
+        );
+        let stop = skewed
+            .find("`anvil intercept stop`")
+            .expect("restart guidance should stop the stale daemon");
+        let wait = skewed
+            .find("wait until the daemon process PID reported by `anvil intercept stop` has exited")
+            .expect("restart guidance should wait for the reported daemon process to exit");
+        let start = skewed
+            .rfind("`anvil start`")
+            .expect("restart guidance should start the current binary");
+        assert!(
+            stop < wait && wait < start,
+            "version-skew guidance should stop, wait for shutdown, then start; got:\n{skewed}",
+        );
+
+        let matching = render_status_lines_with_versions(&status, None, "0.5.1-beta");
+        assert!(
+            !matching.contains("differs from CLI version"),
+            "matching daemon/CLI versions should not emit skew guidance; got:\n{matching}",
+        );
+        assert!(
+            !matching.contains("restart:"),
+            "matching daemon/CLI versions should not emit restart guidance; got:\n{matching}",
         );
     }
 
