@@ -162,7 +162,7 @@ named in the crate source linked from the inventory table.
 
 ## Licence summary
 
-- **MIT License** — 361 crates
+- **MIT License** — 365 crates
 - **Unicode License v3** — 19 crates
 - **Apache License 2.0** — 17 crates
 - **ISC License** — 7 crates
@@ -6906,7 +6906,9 @@ SOFTWARE.
 Used by:
 
 - `jsonschema` 0.47.0
+- `jsonschema` 0.49.3
 - `referencing` 0.47.0
+- `referencing` 0.49.5
 
 <details>
 <summary>Licence text</summary>
@@ -7344,6 +7346,8 @@ Used by:
 - `chrono` 0.4.45
 - `dispatch2` 0.3.1
 - `jsonschema-regex` 0.47.0
+- `jsonschema-regex` 0.49.5
+- `jsonschema-value` 0.49.5
 - `libm` 0.2.16
 - `minisign-verify` 0.2.5
 - `num-cmp` 0.1.0
@@ -9644,7 +9648,9 @@ the following restrictions:
 | `axum-core` | 0.5.6 | MIT License | https://github.com/tokio-rs/axum |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
 | `jsonschema` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema` | 0.49.3 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `referencing` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `referencing` | 0.49.5 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
@@ -9665,6 +9671,8 @@ the following restrictions:
 | `chrono` | 0.4.45 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
 | `jsonschema-regex` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema-regex` | 0.49.5 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema-value` | 0.49.5 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
 | `minisign-verify` | 0.2.5 | MIT License | https://github.com/jedisct1/rust-minisign-verify |
 | `num-cmp` | 0.1.0 | MIT License | https://github.com/lifthrasiir/num-cmp |
