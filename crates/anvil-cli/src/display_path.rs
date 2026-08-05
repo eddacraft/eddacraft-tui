@@ -53,8 +53,14 @@ pub struct Shown<'a>(&'a Path);
 
 impl fmt::Display for Shown<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Both bindings are named rather than chained: `text` owns the lossy
+        // conversion that `stripped` borrows from, and `strip_verbatim_prefix`
+        // returns `Cow::Owned` for the UNC branch and `Cow::Borrowed`
+        // otherwise. Writing it as one expression works only by deref
+        // coercion through a temporary, which reads as though it might not.
         let text = self.0.to_string_lossy();
-        f.write_str(&strip_verbatim_prefix(&text))
+        let stripped = strip_verbatim_prefix(&text);
+        f.write_str(stripped.as_ref())
     }
 }
 
