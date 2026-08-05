@@ -5194,9 +5194,15 @@ mod tests {
     #[test]
     fn gate_and_audit_secret_walks_reach_the_same_deep_file() {
         let tmp = tempfile::TempDir::new().unwrap();
+        // Depth 26 clears the removed `SECRET_SCAN_MAX_DEPTH` of 20 — which
+        // is the property under test — and matches the two sibling deep-walk
+        // tests. The original 160 built a ~960-character path that exceeds
+        // macOS's 1024-byte `PATH_MAX` once the temp-dir prefix is added, so
+        // the fixture could not be created there and the test failed on its
+        // own setup rather than on the walk.
         let deep = nest_file(
             tmp.path(),
-            160,
+            26,
             ".env",
             "API_KEY=sk-live-abcdefghijklmnopqrst\n",
         );
@@ -5239,9 +5245,66 @@ mod tests {
         );
     }
 
+    /// `git_for_hook_fixture` for a command whose *path argument* the host
+    /// may refuse — a `git mv` to a newline-bearing name, or an
+    /// `update-index --cacheinfo` entry with a control character. Git on
+    /// Windows rejects both, so the fixture cannot be built there.
+    ///
+    /// Returns `false` instead of asserting, so the caller can skip rather
+    /// than fail on a precondition the platform will not allow.
+    #[must_use]
+    fn try_git_for_hook_fixture(root: &Path, args: &[&str]) -> bool {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .is_ok_and(|output| output.status.success())
+    }
+
     fn write_detectable_env(path: &Path) {
         let value = "abcd".repeat(10);
         std::fs::write(path, format!("aws_secret_access_key='{value}'\n")).unwrap();
+    }
+
+    /// Create a fixture whose *filename* the host filesystem may refuse.
+    ///
+    /// Several hook-mode tests deliberately use exotic names — invalid UTF-8
+    /// (`\xff`), embedded newlines, control characters — to prove the secret
+    /// scanner handles whatever Git hands it. Linux accepts arbitrary bytes
+    /// in a filename, but macOS requires valid UTF-8 and Windows forbids
+    /// control characters, so on those platforms the *fixture* cannot be
+    /// created and the test panics in its own setup, having exercised none
+    /// of the code it exists to cover.
+    ///
+    /// Returns `false` when the filesystem rejects the name, so the caller
+    /// can skip. Skipping is the honest outcome: where such a path cannot
+    /// exist, there is no behaviour to assert. Linux keeps full coverage.
+    #[must_use]
+    fn try_write_exotic_fixture(path: &Path, contents: &str) -> bool {
+        if let Some(parent) = path.parent()
+            && std::fs::create_dir_all(parent).is_err()
+        {
+            return false;
+        }
+        std::fs::write(path, contents).is_ok()
+    }
+
+    /// `try_write_exotic_fixture` with the standard detectable-secret body.
+    #[must_use]
+    fn try_write_detectable_env(path: &Path) -> bool {
+        let value = "abcd".repeat(10);
+        try_write_exotic_fixture(path, &format!("aws_secret_access_key='{value}'\n"))
+    }
+
+    /// Emit the skip marker used by the exotic-filename tests. Mirrors the
+    /// `[SKIP]` convention already used elsewhere in the workspace, which
+    /// nextest surfaces via `success-output = "immediate"`.
+    fn skip_exotic_filename(test: &str) {
+        eprintln!(
+            "[SKIP] {test}: this filesystem rejects the exotic fixture filename \
+             (macOS requires valid UTF-8; Windows forbids control characters), \
+             so the path this test exists to scan cannot be created here"
+        );
     }
 
     fn raw_inventory_record(header: &str, path: &[u8]) -> Vec<u8> {
@@ -6180,7 +6243,10 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
         let old_path = "source\n.js";
-        write_detectable_env(&tmp.path().join(old_path));
+        if !try_write_detectable_env(&tmp.path().join(old_path)) {
+            skip_exotic_filename("hook_secret_check_associates_unsafe_old_rename_with_new_path");
+            return;
+        }
         git_for_hook_fixture(tmp.path(), &["add", old_path]);
         git_for_hook_fixture(
             tmp.path(),
@@ -6229,7 +6295,10 @@ mod tests {
                 "fixture",
             ],
         );
-        git_for_hook_fixture(tmp.path(), &["mv", "source.js", "notes\n.txt"]);
+        if !try_git_for_hook_fixture(tmp.path(), &["mv", "source.js", "notes\n.txt"]) {
+            skip_exotic_filename("hook_secret_check_ignores_unsafe_new_rename_outside_domain");
+            return;
+        }
 
         let result = run_check_secret_with_hook_mode(
             "secret",
@@ -6436,7 +6505,10 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
         let exotic_path = ".env\nexotic";
-        write_detectable_env(&tmp.path().join(exotic_path));
+        if !try_write_detectable_env(&tmp.path().join(exotic_path)) {
+            skip_exotic_filename("hook_secret_check_isolates_newline_path_from_normal_provenance");
+            return;
+        }
         git_for_hook_fixture(tmp.path(), &["add", "-f", exotic_path]);
         let normal_path = tmp.path().join(".env.normal");
         write_detectable_env(&normal_path);
@@ -6629,7 +6701,10 @@ mod tests {
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
         let magic_path = ":(literal).env";
         let env_path = tmp.path().join(magic_path);
-        write_detectable_env(&env_path);
+        if !try_write_detectable_env(&env_path) {
+            skip_exotic_filename("hook_secret_check_treats_pathspec_magic_filename_literally");
+            return;
+        }
         git_for_hook_fixture(
             tmp.path(),
             &["--literal-pathspecs", "add", "-f", magic_path],
@@ -6918,10 +6993,13 @@ mod tests {
         assert!(head.status.success());
         let head = String::from_utf8(head.stdout).unwrap();
         let cacheinfo = format!("160000,{},vendor/\nmodule", head.trim());
-        git_for_hook_fixture(
+        if !try_git_for_hook_fixture(
             tmp.path(),
             &["update-index", "--add", "--cacheinfo", &cacheinfo],
-        );
+        ) {
+            skip_exotic_filename("hook_secret_check_ignores_control_name_staged_gitlink");
+            return;
+        }
 
         let result = run_check_secret_with_hook_mode(
             "secret",
@@ -6948,7 +7026,10 @@ mod tests {
         let path = tmp
             .path()
             .join(std::ffi::OsStr::from_bytes(b"linked-\xff.js"));
-        std::os::unix::fs::symlink("safe-target", &path).unwrap();
+        if std::os::unix::fs::symlink("safe-target", &path).is_err() {
+            skip_exotic_filename("hook_secret_check_ignores_non_utf8_name_staged_symlink");
+            return;
+        }
         git_for_hook_fixture(tmp.path(), &["add", "-A"]);
 
         let result = run_check_secret_with_hook_mode(
@@ -6976,7 +7057,10 @@ mod tests {
         let path = tmp
             .path()
             .join(std::ffi::OsStr::from_bytes(b"source-\xff.js"));
-        std::fs::write(path, "export const safe = true;\n").unwrap();
+        if !try_write_exotic_fixture(&path, "export const safe = true;\n") {
+            skip_exotic_filename("hook_secret_check_fails_closed_for_non_utf8_name_staged_blob");
+            return;
+        }
         git_for_hook_fixture(tmp.path(), &["add", "-A"]);
 
         let result = run_check_secret_with_hook_mode(
@@ -6997,7 +7081,10 @@ mod tests {
 
         let tmp = tempfile::TempDir::new().unwrap();
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        std::fs::write(tmp.path().join("notes\n.txt"), "safe\n").unwrap();
+        if !try_write_exotic_fixture(&tmp.path().join("notes\n.txt"), "safe\n") {
+            skip_exotic_filename("hook_secret_check_ignores_unsafe_blob_paths_outside_scan_domain");
+            return;
+        }
         std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
         std::fs::write(
             tmp.path()
@@ -7038,13 +7125,15 @@ mod tests {
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
         std::fs::create_dir_all(tmp.path().join("src")).unwrap();
         std::fs::write(tmp.path().join("src/in_scope.rs"), "fn safe() {}\n").unwrap();
-        std::fs::write(
-            tmp.path()
+        if !try_write_exotic_fixture(
+            &tmp.path()
                 .join("src")
                 .join(std::ffi::OsStr::from_bytes(b"out-\xff.js")),
             "export const safe = true;\n",
-        )
-        .unwrap();
+        ) {
+            skip_exotic_filename("hook_secret_check_ignores_non_utf8_blob_outside_plan_scope");
+            return;
+        }
         git_for_hook_fixture(tmp.path(), &["add", "-A"]);
         let plan_files = std::collections::HashSet::from(["src/in_scope.rs".to_string()]);
 
