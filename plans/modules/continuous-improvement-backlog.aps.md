@@ -8165,9 +8165,11 @@ CIB-251/255 only.
 - **Intent:** CIB-237 stripped the NT-extended `\\?\` prefix from the human
   success line of `skill install`, and CIB-282 (PR #3589) closed the `--json`
   branch beside it by rendering once into `TargetReport`. Neither touched the
-  **error** path. Sixteen `bail!` / `with_context` sites in
+  **error** path. Twenty-four `bail!` / `with_context` sites in
   `crates/anvil-cli/src/commands/skill.rs` interpolate `destination.display()`
-  or `path.display()` directly, so a failed install against an NT-extended
+  or `path.display()` directly (this item said sixteen when filed; the
+  enumeration below omitted eight of the same kind, corrected during
+  implementation), so a failed install against an NT-extended
   workspace prints e.g. `creating \\?\C:\project\.claude\skills` on stderr
   while stdout would have said `C:\project\...`. Same one-surface-two-styles
   split as CIB-282, one layer down — and it surfaces exactly when a
@@ -8179,15 +8181,16 @@ CIB-251/255 only.
   concern at the interpolation sites.
 - **Expected Outcome:** an error naming an install destination renders it in
   the same style the success paths use. Prefer one helper the error sites
-  share, so a seventeenth site cannot reintroduce the split — the drift, not
-  the prefix, is the defect (the CIB-282 lesson).
+  share, so a further site cannot reintroduce the split — the drift, not the
+  prefix, is the defect (the CIB-282 lesson).
 - **Trap to avoid:** assertions on `Path`/`PathBuf` cannot catch this.
   `PartialEq` is component-wise and Windows accepts `/`, so the assertion must
   be on the rendered string — the stderr text, not a path value. See CIB-237,
   CIB-279, CIB-282 for three prior instances of the same trap.
-- **Files:** `crates/anvil-cli/src/commands/skill.rs` (the `bail!` /
-  `with_context` sites at roughly lines 258, 262, 292, 304, 314, 328, 334,
-  341, 404, 439, 450, 453, 460, 463, 469, 492),
+- **Files:** `crates/anvil-cli/src/commands/skill.rs` — **every** `.display()`
+  interpolation in the file, 24 at the time of filing. Deliberately not a line
+  list: the first enumeration here missed eight sites of the same kind, and a
+  count plus a rule is checkable where a stale line list is not.
   `crates/anvil-cli/tests/skill_install.rs`
 - **Validation:** a forced install failure against an NT-extended
   `--workspace` emits no `\\?\` on stderr; the existing success-path tests
@@ -8306,9 +8309,9 @@ CIB-251/255 only.
   rediscover the rule.
 - **Trap to avoid:** assertions on `Path`/`PathBuf` cannot catch this —
   `PartialEq` is component-wise and Windows accepts `/`. Assert on the
-  rendered row text. This is the **fifth** item in the family to carry this
-  warning (CIB-237, CIB-279, CIB-282, CIB-285), which is itself the argument
-  for a shared helper over per-site fixes.
+  rendered row text. Four items already carry this warning — CIB-237,
+  CIB-279, CIB-282, CIB-285 — making this the fifth, which is itself the
+  argument for a shared helper over per-site fixes.
 - **Files:** `crates/anvil-cli/src/commands/doctor.rs` (`tally_skill_outcomes`),
   `crates/anvil-cli/src/commands/skill_state.rs` (`Broken { reason }`
   construction), plus whichever test module covers doctor's skill rows
