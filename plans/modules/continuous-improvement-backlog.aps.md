@@ -7773,6 +7773,54 @@ CIB-251/255 only.
   the verdict expression, with the delegated checks proven green directly);
   high that it is contributor-facing only.
 
+### CIB-279: Windows path-rendering fixture for the three surfaces CIB-237 left uncovered
+
+- **Status:** Proposed — promotion to `Ready` is the operator's call (membrane
+  checkpoint); filed from a dev-loop run, not self-authorised for execution.
+- **Priority:** P3 test coverage (the behaviour is fixed and shipped; this
+  closes the validation clause, it does not change product behaviour)
+- **Intent:** CIB-237's `Validation:` clause asked for "a Windows fixture
+  covering check --all, check <file>, pre-commit gate, audit, skill install".
+  It shipped (PR #3538, `d34b8a55b`) with two of the five genuinely covered.
+  Independent verification established that the gap is real and, worse, that
+  two of the tests written for it could not fail on Windows either:
+  - `audit` — covered. `nested_paths_render_with_forward_slashes` asserts
+    `!file.contains('\\')` and fails pre-fix on Windows.
+  - pre-commit gate — partially covered.
+    `secret_and_antipattern_locations_share_one_path_style` catches the `/.env`
+    marker on any platform, but nothing exercises separators or `\\?\`.
+  - `check --all`, `check <file>`, `skill install` — **no** regression test that
+    fails against pre-fix code on any platform.
+- **Non-scope / do not:** Re-litigate the CIB-237 rendering rule (repo-relative
+  with `/` inside the workspace, normalised absolute outside). That shipped and
+  is settled; this item only adds coverage for it.
+- **Expected Outcome:** Each of `check --all`, `check <file>`, and
+  `skill install` has a regression test that fails against pre-CIB-237 rendering
+  and passes after. Prefer OS-independent tests that feed Windows-shaped inputs
+  (`\\?\C:\...`, `C:\a\b`, mixed separators) through the pure string logic in
+  `display_path`, the way that module's own unit tests already do — they are
+  load-bearing on every platform and do not depend on the dispatch-gated
+  Windows matrix for signal.
+- **Trap to avoid (this is the whole reason the gap existed):** assertions on
+  `Path`/`PathBuf` values cannot detect a mixed-separator bug. `PartialEq` is
+  component-wise and Windows accepts `/` as a separator, so
+  `C:\x\.claude/skills` compares **equal** to `C:\x\.claude\skills` on every
+  platform, Windows included. Separator assertions must compare `to_str()`.
+- **Files:** `crates/anvil-cli/src/commands/check.rs` tests,
+  `crates/anvil-cli/src/commands/skill.rs` /
+  `crates/anvil-cli/tests/skill_install.rs`,
+  `crates/anvil-cli/src/display_path.rs` tests
+- **Validation:** each new test demonstrably fails when the CIB-237 rendering is
+  reverted locally (record the failure output, do not assume it); full
+  `cargo test -p eddacraft-anvil` shows no new failures.
+- **Identified From:** independent verification of CIB-237 during the dev-loop
+  run that landed PR #3538; gap and the `PathBuf`-equality trap both confirmed
+  mechanically rather than by inspection.
+- **Coordinates with:** CIB-237 (shipped), the dispatch-gated Windows matrix on
+  `fix/*` PRs (`gh workflow run rust.yml --ref <branch>`)
+- **Confidence:** high — the uncovered surfaces were enumerated one by one, and
+  the vacuous-assertion trap was proven, not theorised.
+
 ### Pack-03 deliberate non-scope (do not auto-file release work)
 
 - Report **§4** curriculum / Scan·Surface·React editorial (same family as pack-02
