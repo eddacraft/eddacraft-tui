@@ -5,7 +5,7 @@
 **Target:** `crates/anvil-intercept/src/ipc.rs` (protected), helper crates, CLI refusal copy
 **Date:** 2026-08-05
 **PR:** https://github.com/eddacraft/anvil-001/pull/3582
-**Head reviewed:** `9be222a37685cf816a1b5ab32a90ebadeee613d1` (`fix/cib-160-portable-peer-exe`)
+**Head reviewed:** `964eb3dd41550bf1cc4e1baa2698343a9174d6b4` (`fix/cib-160-portable-peer-exe`) — re-council on `c61fa7601`; residual nits closed on this tip
 **Prior council head:** `31efee5a5205` (Ship-with-conditions) → fix commit `c61fa7601` → re-council Ship
 
 ## Change under review
