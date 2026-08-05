@@ -5274,27 +5274,41 @@ fn probe_foreign_exe_reads_faithful() -> bool {
 /// Paths are absolute OS-known binaries so a same-uid neighbour cannot
 /// plant an earlier `sleep`/`ping` on `PATH` and force the daemon to
 /// spawn attacker-controlled code at first probe (council #3582). Unix
-/// tries `/bin/sleep` then `/usr/bin/sleep`. Windows uses
-/// `%SystemRoot%\System32\ping.exe` (falling back to `WINDIR`). Missing
-/// absolute binaries fail closed rather than falling back to PATH.
-/// Both children are killed as soon as their exe has been read.
+/// tries `/bin/sleep` then `/usr/bin/sleep`. Windows prefers the fixed
+/// `C:\Windows\System32\ping.exe`, then env-rooted `SystemRoot` /
+/// `WINDIR` only if the fixed path is missing. Missing absolute binaries
+/// fail closed rather than falling back to PATH. Both children are
+/// killed as soon as their exe has been read.
 fn spawn_faithfulness_canary() -> Option<std::process::Child> {
     #[cfg(windows)]
     {
         use std::path::PathBuf;
-        let system_root = std::env::var_os("SystemRoot")
-            .or_else(|| std::env::var_os("WINDIR"))
-            .unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows"));
-        let ping = PathBuf::from(system_root).join("System32").join("ping.exe");
-        let mut command = std::process::Command::new(ping);
-        // 31 echoes ≈ 30s, comfortably longer than the read below.
-        command.args(["-n", "31", "127.0.0.1"]);
-        return command
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .ok();
+        // Prefer a fixed system image so a same-uid parent cannot redirect
+        // the probe via SystemRoot/WINDIR. Fall back to env-rooted paths
+        // only if the fixed path is absent (non-standard layouts).
+        let candidates = {
+            let mut paths = vec![PathBuf::from(r"C:\Windows\System32\ping.exe")];
+            for key in ["SystemRoot", "WINDIR"] {
+                if let Some(root) = std::env::var_os(key) {
+                    paths.push(PathBuf::from(root).join("System32").join("ping.exe"));
+                }
+            }
+            paths
+        };
+        for ping in candidates {
+            let mut command = std::process::Command::new(&ping);
+            // 31 echoes ≈ 30s, comfortably longer than the read below.
+            command.args(["-n", "31", "127.0.0.1"]);
+            if let Ok(child) = command
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                return Some(child);
+            }
+        }
+        return None;
     }
     #[cfg(not(windows))]
     {
@@ -7097,7 +7111,7 @@ mod tests {
     /// `pid_starttime` re-derivation (PR #1895 review) finds a
     /// readable `/proc/<pid>/stat`; we assert the dispatcher
     /// receives the daemon-read value, not the wire-supplied one.
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     #[test]
     fn dispatch_command_report_process_forwards_peer_and_child_anchor() {
         use anvil_intercept_proto::IpcCommand;
