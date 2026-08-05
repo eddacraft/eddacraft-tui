@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                                            |
 | ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
-| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-07-07 against `AGENTS.md`, AICON-004, and `docs/guides/repository-operations.md` |
+| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-08-05 — shared multi-writer APS modules are bookkeeping-only in feature PRs |
 
 | Upstream                                                  | Downstream                                      |
 | --------------------------------------------------------- | ----------------------------------------------- |
@@ -133,6 +133,8 @@ Rules:
    promote/absorb/leave, then `pnpm ci-log:set-watermark -- --today`.
 5. Tracked-log edits are an allowed `merge=union` exception when intentionally
    included; prefer pending + harvest so single-purpose feature PRs stay clean.
+6. The CIB backlog file is a shared multi-writer APS module — feature PRs do
+   not edit it (see [`#keeping-plans-current`](#keeping-plans-current)).
 
 ## Single Source of Truth
 
@@ -151,10 +153,13 @@ places:
 1. The module header table (`| MODULE | — | Status | X/Y |`).
 2. The module's row in `plans/index.aps.md`.
 
-Per-item `Status:` lines are authoritative. The stored `N/M` is an
-advisory-derived convenience refreshed by `scripts/aps/index-counts.mjs`
-(ADR-053). Feature PRs flip only their own item's `Status:` line; they do
-**not** edit the aggregate `N/M` cells.
+Per-item `Status:` lines are authoritative when present. The stored `N/M` is
+an advisory-derived convenience refreshed by `scripts/aps/index-counts.mjs`
+(ADR-053). Feature PRs on **exclusive** modules may flip only their own item's
+`Status:` line and still must **not** edit the aggregate `N/M` cells. Feature
+PRs on **shared multi-writer** modules (see
+[`#keeping-plans-current`](#keeping-plans-current)) do not edit the module file
+at all.
 
 `scripts/aps/index-counts.mjs --check` (CI via `pnpm aps:index:check`) derives
 counts from work-item statuses, reports freshness drift, and exits 0 so
@@ -170,9 +175,11 @@ the anvil extensions `Merged`/`Released/Shipped` — see
 
 Rules:
 
-1. **Feature PRs never bump `N/M`.** Complete an item by updating its `Status:`
-   line only. Refresh stored counts in a separate reconcile commit via
-   `pnpm aps:index` when the at-a-glance rollup should be current.
+1. **Feature PRs never bump `N/M`.** On exclusive modules, complete an item by
+   updating its `Status:` line only. On shared multi-writer modules, leave
+   status to a bookkeeping branch. Refresh stored counts in a separate
+   reconcile commit via `pnpm aps:index` when the at-a-glance rollup should be
+   current.
 2. **New modules MAY omit the counter** when status-derived progress is
    enough (the drift-check only fires when both `progressDone` and
    `progressTotal` are non-null in the header). Omitting opts out of both
@@ -213,14 +220,43 @@ Rules:
 
 ## Keeping Plans Current
 
-Agents update APS state as they work:
+APS module files stay correct via **bookkeeping**, not via every feature PR.
+ADR-053 removed collisions on the aggregate `N/M` token; concurrent writers on
+the same `.aps.md` still collide on status, intake, and promotion edits. Treat
+plan-file writes like the continuous-improvement pending queue: feature work
+ships evidence elsewhere; a single writer reconciles the plan.
 
-1. Before starting substantive implementation, mark the module or work item
-   `In Progress` where applicable.
-2. After completing a work item, update its status and closeout evidence in the
-   module file — do not bump stored `N/M` counts in feature PRs (ADR-053).
-3. Reconcile stored progress counts with `pnpm aps:index` when a refresh is
-   needed (typically a dedicated bookkeeping commit after a wave).
+### Shared multi-writer modules
+
+Standing or otherwise concurrent modules (today: **CIB** —
+`plans/modules/continuous-improvement-backlog.aps.md`) host many parallel
+feature branches.
+
+Rules:
+
+1. **Feature PRs do not edit the module `.aps.md` file.** No `In Progress`, no
+   `Merged` / `Done` status flips, no new items, no promotions, no reorders, no
+   progress-counter edits.
+2. **Ship evidence in the feature PR** (title, body, commits, validation output,
+   release notes). Do not block merge on plan status.
+3. **APS intake, status, promotion, compaction, and `pnpm aps:index`** run on a
+   dedicated bookkeeping branch (single writer), optionally combined with
+   `pnpm ci-log:harvest` and weekly triage.
+4. Agents may record `ready to reconcile: ITEM-ID → Merged via PR #N` (or
+   `promote: CIB`) in the pending CI-log follow-up; they must not patch the
+   shared backlog on the feature branch.
+
+### Exclusive modules
+
+When a module has a single active work stream (one feature branch owning the
+items being implemented):
+
+1. Before starting substantive implementation, mark the work item `In Progress`
+   where helpful.
+2. After completing a work item, update its `Status:` and closeout evidence in
+   the module file — do **not** bump stored `N/M` counts (ADR-053).
+3. Reconcile stored progress counts with `pnpm aps:index` when the rollup should
+   be current (often a dedicated bookkeeping commit after a wave).
 4. Archive completed modules when all active work is done and release/closeout
    evidence is complete.
 

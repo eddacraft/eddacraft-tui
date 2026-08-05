@@ -1,8 +1,8 @@
 # Continuous Improvement Log
 
-| Type  | Authority     | Owner | Status | Freshness                                       |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------- |
-| Guide | Authoritative | CIB   | Live   | 2026-07-12 — pending-queue durability (CIB-191) |
+| Type  | Authority     | Owner | Status | Freshness                                                |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------- |
+| Guide | Authoritative | CIB   | Live   | 2026-08-05 — CIB backlog bookkeeping-only in feature PRs |
 
 | Upstream                                                                                                                    | Downstream                                                      |
 | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -16,11 +16,11 @@ to carry an "unrelated" log file that agents then omit — and lose.
 
 ## Two surfaces
 
-| Surface           | Path                                                                       | Role                                                                        |
-| ----------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Pending queue** | `.git/anvil/ci-log-pending/*.md` (git common dir; shared across worktrees) | Default write target. Survives worktree removal. Not in `git status`.       |
-| **Tracked log**   | `plans/reviews/continuous-improvement-log.md` (`merge=union`)              | Durable evidence on `main`. Harvested from pending on bookkeeping branches. |
-| **Backlog**       | `plans/modules/continuous-improvement-backlog.aps.md`                      | Executable `CIB-NNN` work after triage.                                     |
+| Surface           | Path                                                                       | Role                                                                                  |
+| ----------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Pending queue** | `.git/anvil/ci-log-pending/*.md` (git common dir; shared across worktrees) | Default write target. Survives worktree removal. Not in `git status`.                 |
+| **Tracked log**   | `plans/reviews/continuous-improvement-log.md` (`merge=union`)              | Durable evidence on `main`. Harvested from pending on bookkeeping branches.           |
+| **Backlog**       | `plans/modules/continuous-improvement-backlog.aps.md`                      | Executable `CIB-NNN` work after triage. **Bookkeeping-only edits** (not feature PRs). |
 
 Do **not** file GH issues for process hygiene that belongs in CIB. Do **not**
 use `plans/issues.md` for session friction.
@@ -102,17 +102,20 @@ git add plans/reviews/continuous-improvement-log.md
 # commit on docs/* or chore/* bookkeeping branch; open PR
 ```
 
-Harvest may be combined with APS status bookkeeping. Do not block feature work
-on harvest.
+Harvest may be combined with APS status bookkeeping (CIB intake, status flips,
+`pnpm aps:index`). Do not block feature work on harvest, and do **not** edit
+`plans/modules/continuous-improvement-backlog.aps.md` from a feature PR — that
+file is shared multi-writer; reconcile it only on the bookkeeping branch.
 
 ## Weekly triage
 
 1. `pnpm ci-log:harvest` if anything is pending (or note that harvest PR is
    open).
 2. `pnpm ci-log:since -- --watermark` — review entries since last triage.
-3. For each (or each theme): **promote** (file `CIB-NNN`), **absorb** (already
-   owned — leave a one-line note in the triage CI-log entry), or **leave**
-   (one-off lesson).
+3. For each (or each theme): **promote** (file `CIB-NNN` on this bookkeeping
+   branch), **absorb** (already owned — leave a one-line note in the triage
+   CI-log entry), or **leave** (one-off lesson). Also apply deferred APS status
+   reconcile for shipped CIB items (`Merged via PR #N` and friends).
 4. Promotion bar: intent + observable outcome + validation + source pointer.
 5. `pnpm ci-log:set-watermark -- --today`.
 6. Append one triage closeout note via `pnpm ci-log:append` (or tracked).

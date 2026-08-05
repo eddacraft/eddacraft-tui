@@ -10,9 +10,12 @@ any `.aps.md` file.
 
 - Do NOT create separate module lists or summary files — `index.aps.md` is the
   only index
-- Before starting work on a module, mark its status **In Progress**
-- After completing a work item, update its status only — do **not** bump the
-  module header or index `N/M` count in feature PRs (ADR-053 advisory counts)
-- After all items done, update module status to **Done**
+- **Shared multi-writer modules (CIB today):** feature PRs do **not** edit the
+  module `.aps.md` — no status, intake, or promotion. Reconcile on a
+  bookkeeping branch only (`plans/project-context.md#keeping-plans-current`)
+- **Exclusive modules:** before starting work, mark the work item **In Progress**
+  where helpful; after completing it, update its status only — do **not** bump
+  the module header or index `N/M` count in feature PRs (ADR-053)
+- After all items done on an exclusive module, update module status to **Done**
 - Reconcile stored `N/M` counts with `pnpm aps:index` when a refresh is needed
 - Archive completed modules with `git mv` to `plans/archive/modules/`

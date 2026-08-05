@@ -33,7 +33,9 @@ Before implementation:
 1. Read `plans/index.aps.md`.
 2. Read the relevant module under `plans/modules/`.
 3. Read `plans/project-context.md` for anvil-specific workflow rules.
-4. Mark work `In Progress` where applicable.
+4. Mark work `In Progress` only on **exclusive** modules. Do **not** edit shared
+   multi-writer APS modules (for example CIB) from feature PRs — see
+   `plans/project-context.md#keeping-plans-current`.
 
 Standard lifecycle:
 

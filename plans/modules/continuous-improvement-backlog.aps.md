@@ -27,6 +27,22 @@ explicitly replaces the intake model.
 Progress stays numeric for APS drift tooling. Use `0/0` while no items are
 listed, then update it to `done/total` as `CIB-NNN` items are added.
 
+### Bookkeeping-only file edits
+
+CIB is a **shared multi-writer** module: many agents and humans implement
+`CIB-NNN` items on parallel feature branches. Editing this file in those
+feature PRs causes recurring merge collisions.
+
+- **Feature PRs implementing a CIB item do not modify this file.** No status
+  flips, no new items, no promotions, no reorder, no progress counter edits.
+- Put completion evidence in the feature PR (and optional pending CI-log
+  follow-up such as `ready to reconcile: CIB-NNN → Merged via PR #N`).
+- **Intake, triage promotion, status reconcile, compaction, and `pnpm aps:index`**
+  happen only on a dedicated bookkeeping branch (single writer), often with
+  `pnpm ci-log:harvest` / weekly triage. See
+  [`plans/project-context.md#keeping-plans-current`](../project-context.md#keeping-plans-current)
+  and [`docs/guides/continuous-improvement-log.md`](../../docs/guides/continuous-improvement-log.md).
+
 ## In Scope
 
 - Cross-project cleanup and quality improvements that do not fit a more specific
@@ -47,7 +63,8 @@ listed, then update it to `done/total` as `CIB-NNN` items are added.
 
 ## Intake Rules
 
-Add a new `CIB-NNN` item when an improvement has:
+During **bookkeeping / weekly triage** (not in feature PRs), add a new
+`CIB-NNN` item when an improvement has:
 
 - A one-sentence intent
 - An expected outcome or observable acceptance condition
@@ -56,8 +73,13 @@ Add a new `CIB-NNN` item when an improvement has:
 - Best-effort source context, such as the review, release, incident, file path,
   or module where it was identified
 
+Feature sessions capture candidates with `pnpm ci-log:append` and
+`promote: CIB` (or a theme key) in the pending queue. Do not open a feature PR
+solely to append a Draft item to this file.
+
 When a cluster becomes large or domain-specific, promote it into a dedicated APS
-module and leave a short `Superseded by:` note on the original CIB item.
+module and leave a short `Superseded by:` note on the original CIB item — again
+on a bookkeeping branch.
 
 ## Cross-Cutting Convention
 
