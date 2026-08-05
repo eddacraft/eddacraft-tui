@@ -7702,6 +7702,72 @@ CIB-251/255 only.
   a recorded probe. Medium on the fix shape: whether the bootstrap should block
   on install or the repo should fail closed is a design call.
 
+### CIB-278: `docs:check` renders a tooling failure as a content failure
+
+- **Status:** Proposed — promotion to `Ready` is the operator's call (membrane
+  checkpoint); filed from an incidental observation during a read-only
+  investigation, not self-authorised for execution.
+- **Priority:** P3 tooling honesty (contributor-facing, not user-facing; the
+  failure is loud, only misattributed — no silent bypass, hence below
+  **CIB-277**'s P2)
+- **Intent:** `pnpm docs:check` reports `FAIL aps` and `FAIL adr` when the
+  underlying checks are fine and the *package manager* is what broke. Both
+  surfaces are thin wrappers that re-enter pnpm:
+  `scripts/docs/check-aps.mjs:11` runs `spawnSync('pnpm', ['-s', 'aps:drift'])`
+  and `scripts/docs/check-adr.mjs:12` runs `spawnSync('pnpm', ['-s',
+  'adr:check'])`. When corepack's pnpm shim throws
+  `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` (same mechanism as **CIB-277**:
+  `/usr/share/nodejs/corepack` loading
+  `~/.cache/node/corepack/pnpm/11.9.0/bin/pnpm.cjs`), pnpm *spawns fine* and
+  exits non-zero — so the `result.error` guard at `check-aps.mjs:21` never
+  fires, the non-zero status is forwarded as a check result, and
+  `docs-check.mjs:141` (`r.status === 0 ? 'pass' : 'FAIL'`) renders it
+  identically to a real docs defect. A contributor reading `FAIL aps`
+  reasonably concludes their docs change broke the APS surface. The reserved
+  exit code 2 ("failed to invoke") is also collapsed into the same `FAIL`.
+- **Evidence (2026-08-05):** On this machine, under the **pinned** Node
+  (`.node-version` = `v24.11.0`, `engines.node >= 24`), `node
+  scripts/docs/docs-check.mjs` reports `7/9 surfaces passed` with `FAIL aps` /
+  `FAIL adr`, while the delegated checks pass when invoked directly:
+  `node scripts/aps/drift-check.mjs` → rc=0, and
+  `bash scripts/docs/adr-integrity.sh` → rc=0 (`OK: 118 ADR files; 118 indexed
+  in DECISION-LOG; no duplicates, no orphans`). The same `7/9` reproduces on an
+  **unmodified `origin/main`** checkout, and CI Docs Lint passes on the same
+  content (PR #3547) — so the two `FAIL`s carry no content signal at all.
+- **Scope note (honest):** The *trigger* is environment-specific (Debian-
+  packaged corepack under an fnm-managed Node), shared with **CIB-277** — this
+  item does not claim `docs:check` is broken for everyone. The repo-side
+  defects are the two things that turn that environment into a misleading
+  result: an unnecessary package-manager round-trip, and a summary that cannot
+  express "tooling unavailable".
+- **Non-scope / do not:** Do not pin a global Node/pnpm to paper over the
+  non-interactive shell gap (same ruling as **CIB-277**). Do not silence or
+  baseline the two surfaces — losing real `aps`/`adr` signal is worse than the
+  misattribution. Do not fix by requiring contributors to run `docs:check`
+  only through `pnpm`.
+- **Expected Outcome:** (1) `docs:check` never reports a package-manager
+  failure as a surface `FAIL`; a tooling failure is labelled distinctly (e.g.
+  `ERROR (tooling)`) and names the remedy in one actionable line. (2) The two
+  delegates stop re-entering pnpm and invoke the underlying checks directly —
+  both are already directly invocable and were verified so above, which removes
+  corepack from the path entirely rather than reporting around it.
+- **Files:** `scripts/docs/check-aps.mjs`, `scripts/docs/check-adr.mjs`,
+  `scripts/docs/docs-check.mjs` (verdict rendering and exit-code taxonomy)
+- **Validation:** With a deliberately unusable `pnpm` on `PATH`, `docs:check`
+  must not print `FAIL aps` / `FAIL adr`; it must name the tooling failure. With
+  a working `pnpm`, the summary is unchanged. Independently: a real APS drift
+  and a real ADR integrity break must each still produce a genuine surface
+  `FAIL`.
+- **Identified From:** Operator observation while running docs gates for the
+  CIB-254/255 evidence lane (PR #3547, 2026-08-05).
+- **Coordinates with:** **CIB-277** (same corepack root trigger, different
+  surface and different defect class — that item is silent bypass on the
+  pre-commit path, this one is misclassification on the docs path); Docs Lint
+  CI job
+- **Confidence:** high on the mechanism (traced to the exact spawn sites and
+  the verdict expression, with the delegated checks proven green directly);
+  high that it is contributor-facing only.
+
 ### Pack-03 deliberate non-scope (do not auto-file release work)
 
 - Report **§4** curriculum / Scan·Surface·React editorial (same family as pack-02
