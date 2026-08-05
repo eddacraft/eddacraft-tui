@@ -2191,12 +2191,21 @@ fn secret_scan_files(
     // runs walked unbounded — and the planless path is the one the
     // pre-commit hook runs, so a secret nested deeper than the cap was
     // reported by `anvil audit` and passed by the commit-blocking surface.
-    // The cap's original rationale (RCLI-040: "runaway recursion into
-    // deeply nested or symlink-heavy trees") is covered without it:
-    // `follow_links(false)` below stops symlink cycles, the ignore-dir
-    // prune keeps generated trees out, and `run_secret_check` skips files
-    // >= 1 MiB. Depth is not a proxy for cost worth a silent miss on a
-    // security surface.
+    //
+    // On the cap's original rationale (RCLI-040: "runaway recursion into
+    // deeply nested or symlink-heavy trees"): the symlink half is covered
+    // by `follow_links(false)` below, which makes symlink cycles
+    // unreachable; the ignore-dir prune keeps generated trees out, and
+    // `run_secret_check` skips files >= 1 MiB.
+    //
+    // Not covered, and deliberately so: a recursive **bind mount** inside
+    // the tree presents as a real directory hierarchy, so no symlink guard
+    // bounds it and the depth cap was the only thing that did. That
+    // exposure already exists unbounded in `audit`'s walk and in this
+    // walk's own plan-scoped mode, so removing the cap makes gate
+    // consistent with the rest of the codebase rather than adding a new
+    // class of risk. Bounding it belongs in one shared place, not as a
+    // silent per-walk cap that trades a real secret miss for it.
     let mut walker_builder = ignore::WalkBuilder::new(root);
     walker_builder
         .follow_links(false)
@@ -5138,14 +5147,20 @@ mod tests {
     /// the depth cap survived.
     ///
     /// This drives both real entry points over one tree and fails if either
-    /// grows a bound the other lacks. It is deliberately depth-heavy: any
-    /// reintroduced `max_depth` on either side breaks it.
+    /// grows a bound the other lacks.
+    ///
+    /// The depth is deliberately far past any plausible cap rather than
+    /// just past the old value of 20. CIB-280 permitted either raising or
+    /// removing the cap and the operator chose removal, so the tests need
+    /// to pin *unboundedness*: a test nested only a little past 20 would
+    /// still pass against a cap raised to, say, 64, and would not
+    /// distinguish the two routes.
     #[test]
     fn gate_and_audit_secret_walks_reach_the_same_deep_file() {
         let tmp = tempfile::TempDir::new().unwrap();
         let deep = nest_file(
             tmp.path(),
-            26,
+            160,
             ".env",
             "API_KEY=sk-live-abcdefghijklmnopqrst\n",
         );
@@ -6059,10 +6074,13 @@ mod tests {
         let cases = [
             ("node_modules/source.js".to_string(), "src/source.js", None),
             ("bundle.min.js".to_string(), "bundle.js", None),
-            // CIB-280 removed depth as an exclusion, so the third case is
-            // now an ignored directory nested deeply — it still proves a
-            // rename out of an excluded location is new staged debt, and
-            // it additionally pins that depth no longer does the excluding.
+            // This case used depth alone to put the old path out of
+            // domain; CIB-280 removed depth as an exclusion, so it now
+            // relies on `node_modules`. It does NOT pin anything about
+            // depth — the exclusion here would hold with or without a
+            // cap, because it is the ignored directory doing the work.
+            // Depth is pinned by the three CIB-280 tests near the top of
+            // this module; do not read this case as covering it.
             (
                 format!("{}node_modules/source.js", "deep/".repeat(26)),
                 "source.js",
