@@ -23,8 +23,8 @@ engineering maintenance are recorded in the
 - **Public installers no longer show private GitHub issue numbers.** Earlier
   Windows installer banners and help text embedded internal tracker ids. Anyone
   who downloaded the asset could see those numbers even though the private
-  issues stay inaccessible. Ship artefacts now use neutral product wording
-  only — no private issue-number branding in installer copy.
+  issues stay inaccessible. Ship artefacts now use neutral product wording only
+  — no private issue-number branding in installer copy.
 
 - **`anvil update --check` and install method work for cargo-dist installs.**
   Official installer receipts live under the `eddacraft-anvil` app name. anvil
@@ -37,9 +37,9 @@ engineering maintenance are recorded in the
   because the scope is project. Consent can offer and install project-scoped
   clients like the headless path already could.
 
-- **No false "log in again" nag for people who already have a session.** Ordinary
-  beta or pro credentials are not treated as edicts. Only an explicit edict
-  forces the edict re-verify path, so a transient network check no longer
+- **No false "log in again" nag for people who already have a session.**
+  Ordinary beta or pro credentials are not treated as edicts. Only an explicit
+  edict forces the edict re-verify path, so a transient network check no longer
   demands `anvil auth login` when you are already authenticated.
 
 - **Workspace register no longer claims success when nothing stuck.** If
@@ -75,8 +75,8 @@ engineering maintenance are recorded in the
 
 - **Activation Install shows the assistants you chose.** The verdict Install
   block lists this-run outcomes for every client you selected in consent, not a
-  parade of Cursor/Claude Code "not selected" / "already up to date" rows.
-  Other detected clients you left alone collapse to one summary line.
+  parade of Cursor/Claude Code "not selected" / "already up to date" rows. Other
+  detected clients you left alone collapse to one summary line.
 
 - **Consent is grouped with plain-language "what is this".** Project, hooks,
   workflows, and MCP clients are separate steps with short blurbs on why anvil
@@ -84,13 +84,13 @@ engineering maintenance are recorded in the
   steps; submit is still explicit.
 
 - **Start value receipt names its evidence scope.** When save-time or witness
-  lines appear on a repeat start, they say whether the evidence is
-  machine-wide or for this repository, so two machines or two clones are not
-  mistaken for one picture.
+  lines appear on a repeat start, they say whether the evidence is machine-wide
+  or for this repository, so two machines or two clones are not mistaken for one
+  picture.
 
 - **`audit` says what it actually covers.** Chain and secret summaries disclose
-  coverage and that the secret domain is not the same as a full `check` of
-  every file type — without redefining chain integrity.
+  coverage and that the secret domain is not the same as a full `check` of every
+  file type — without redefining chain integrity.
 
 - **`status` and `insights` name next steps and domains.** Protection:warming
   points at a next step (or refuses that label when it cannot). Zero counts in
@@ -115,8 +115,8 @@ engineering maintenance are recorded in the
 
 - **Pre-commit gate labels pre-existing tree debt.** When the full-tree gate
   blocks on already-committed problems (for example a checked-in `.env`) while
-  your staged change is clean, those findings are labeled as pre-existing so
-  the current commit is not blamed for the whole yard. Full-tree scanning is
+  your staged change is clean, those findings are labeled as pre-existing so the
+  current commit is not blamed for the whole yard. Full-tree scanning is
   unchanged.
 
 ### Docs
@@ -124,9 +124,9 @@ engineering maintenance are recorded in the
 - **Public CLI docs match current flags and auth exit code 3.** Reference copy
   no longer implies only Claude Code and Cursor; skill install docs cover
   multi-client `--client` and moving files outside a skills directory.
-- **Tutorial and antipattern-scan scope.** Non-interactive tutorial refusal exits
-  non-zero with accurate copy. Antipattern-scan naming is clarified against the
-  built-in rule catalogue.
+- **Tutorial and antipattern-scan scope.** Non-interactive tutorial refusal
+  exits non-zero with accurate copy. Antipattern-scan naming is clarified
+  against the built-in rule catalogue.
 
 ## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
 
