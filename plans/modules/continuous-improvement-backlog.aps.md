@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 205/273  |
+| CIB | —     | In Progress | 205/276  |
 
 ## Purpose
 
@@ -6335,8 +6335,8 @@ archive.
   default `anvil audit` surface on a TTY is the **TUI** (`OutputMode::Tui`),
   and the SARIF path feeds GitHub code scanning; neither carries the scope
   note, because both live in `crates/anvil-tui/` (18 `AuditData` construction
-  sites across two crates). Follow-up item owed for those surfaces — until
-  then the Expected Outcome is met for plain/JSON, not for TUI/SARIF.
+  sites across two crates). Filed as **CIB-281** — until that lands the
+  Expected Outcome is met for plain/JSON, not for TUI/SARIF.
 - **Verified during implementation:** audit and `anvil gate` select the same
   secret **file types** by documented invariant (`SECRET_SCAN_EXTS` lock-step
   with gate's `matches!` arm, issue #1798) — but *not* the same file set:
@@ -6350,13 +6350,15 @@ archive.
 - **Follow-up found, not fixed here (out of scope):** the depth cap means a
   `.env` nested deeper than 20 levels is flagged by `audit` and missed by
   gate's `secret-detection` — audit flagging a file gate ignores, the exact
-  direction issue #1798's lock-step comment warns against. Needs its own item;
-  changing gate's traversal is out of scope for a presentation fix.
+  direction issue #1798's lock-step comment warns against. Filed as
+  **CIB-280**; changing gate's traversal is out of scope for a presentation
+  fix.
 - **Validation:** planted multi-file secret fixture; audit output names domain;
   no requirement that issue count equals `check --all`.
 - **Identified From:** Dave TRUST-2; re-triage.
 - **Coordinates with:** CIB-233, CIB-255 (gate/`check --all` domain — same
-  disclosure stance, different surfaces),
+  disclosure stance, different surfaces), CIB-280 (depth-cap miss found here),
+  CIB-281 (TUI/SARIF remainder),
   [#3514](https://github.com/eddacraft/anvil-001/issues/3514)
 - **Confidence:** high on presentation; medium if residual true misses found.
 
@@ -7489,13 +7491,26 @@ scanned — with expansion deferred to `v0.9.4`.
   3. `cargo test -p eddacraft-anvil` **fail-fast** exits after the lib binary
      and never reaches the integration tests, so the suite silently
      under-reports unless `--no-fail-fast` is passed.
+  4. `commands::start::tests::no_mcp_flag_sets_mcp_install_policy_to_skip`
+     fails under parallel runs and passes in isolation — a second unwritten
+     flake in the same class as (2), observed 2026-08-04 on PR #3534.
+     Distinct root cause worth fixing rather than only recording:
+     `start_mcp_opt_out` reads the **process-global** `ANVIL_NO_MCP` env var
+     (`crates/anvil-cli/src/commands/start.rs`), so any sibling test that
+     sets it races this one. The neighbouring `no_daemon_flag_sets_opt_out`
+     already carries a comment acknowledging this hazard and routes its env
+     arm to the integration suite deliberately; the `--no-mcp` twin does not.
 - **Expected Outcome:** One recorded baseline that names every expected
   failure and the reason, plus the `--no-fail-fast` requirement, in the place
   agents actually read (`AGENTS.md` or the probe manifest). Better still, make
   the daemon-dependent tests skip explicitly when no daemon is present so the
-  baseline is empty rather than memorised.
+  baseline is empty rather than memorised. For the env-var flakes, prefer
+  removing the race (read the env once through injected config, or move the
+  env arm to the integration suite as its sibling already does) over adding
+  another name to a memorised list.
 - **Files:** `AGENTS.md` validation section, `crates/anvil-cli/tests/`
-  daemon-dependent tests, `crates/anvil-cli/src/telemetry.rs` tests
+  daemon-dependent tests, `crates/anvil-cli/src/telemetry.rs` tests,
+  `crates/anvil-cli/src/commands/start.rs` (`start_mcp_opt_out` env read)
 - **Validation:** a fresh agent running the documented command sees either
   zero failures or exactly the documented set, and cannot mistake a real
   failure for an environmental one.
@@ -7851,3 +7866,95 @@ CIB-251/255 only.
 - Finish screen 6 vs 7 path counts — unconfirmed product intent
 - Status "warming" vs five-state vocabulary — leave to **CIB-235** product call
 - Config-claim paths without side-effect proof — **CIB-259** with pack-03 soft note
+
+### CIB-280: `gate` secret scan depth cap misses files `audit` flags
+
+- **Status:** Ready — promoted by the operator 2026-08-05 (membrane
+  checkpoint); filed from a dev-loop run, not self-authorised.
+- **Priority:** P2 secret-detection gap (real miss, not presentation; scoped
+  below CIB-255 only because the trigger is deep nesting rather than an
+  everyday file type)
+- **Intent:** `gate`'s full-codebase secret walk applies
+  `SECRET_SCAN_MAX_DEPTH = 20` (`crates/anvil-cli/src/commands/gate.rs`) for
+  every run without plan scoping. `audit`'s walk
+  (`crates/anvil-cli/src/commands/audit.rs`, `run_audit`) applies no depth
+  cap. Both share the same extension list and `.env*` rule by the
+  `SECRET_SCAN_EXTS` lock-step invariant (issue #1798), so the file **types**
+  match while the traversals do not. Reproduced during CIB-234 independent
+  verification: a `.env` at depth 26 containing live-looking credentials is
+  reported by `anvil audit` (file-level flag plus per-pattern entries) and
+  reported clean by `anvil gate`'s `secret-detection`. This is the exact
+  direction the `SECRET_SCAN_EXTS` comment warns against — "audit flagging a
+  file gate ignores" — and gate is the commit-blocking surface, so the miss
+  is on the side that matters.
+- **Non-scope / do not:** Do not remove the cap without measuring the walk
+  cost it was introduced to bound, and do not "fix" this by capping audit to
+  match — that would hide the finding rather than close the gap. Plan-scoped
+  `anvil gate <plan>` narrowing to `Files:` entries is intentional and stays.
+- **Expected Outcome:** Either gate reaches the same files audit does for
+  secret detection (raise or remove the cap, with the traversal cost
+  measured), or gate discloses the cap where a reader would otherwise infer
+  full coverage — and in that case audit's scope note stops claiming the two
+  agree on anything beyond file types. A guard test should pin whichever
+  invariant is chosen, because nothing currently couples the two walks.
+- **Files:** `crates/anvil-cli/src/commands/gate.rs` secret walk
+  (`SECRET_SCAN_MAX_DEPTH`), `crates/anvil-cli/src/commands/audit.rs`
+  (`SECRET_SCAN_EXTS` lock-step comment and `SECURITY_SCOPE` copy)
+- **Validation:** fixture with a `.env` nested past the cap; `gate` and
+  `audit` agree on the finding, or gate's output names its depth limit.
+  Existing shallow-tree behaviour unchanged.
+- **Identified From:** CIB-234 independent verification (PR #3534),
+  reproduced end-to-end with the built binary.
+- **Coordinates with:** CIB-234, CIB-255 (extension-domain disclosure — same
+  family, different mechanism: extensions there, traversal depth here),
+  issue #1798
+- **Confidence:** high on the gap (reproduced); medium on the fix shape —
+  raise-the-cap versus disclose-the-cap is a product/performance call.
+
+### CIB-281: `audit` security scope is absent from the TUI and SARIF surfaces
+
+- **Status:** Ready — promoted by the operator 2026-08-05 (membrane
+  checkpoint); filed from a dev-loop run, not self-authorised.
+- **Priority:** P2 presentation (completes CIB-234 on the surfaces it did not
+  reach; the TUI is the default, so this is where most readers land)
+- **Intent:** CIB-234 shipped `SECURITY_SCOPE` on `audit`'s plain and JSON
+  paths, matching that item's `Files` field. It is absent from the two
+  surfaces most likely to be read: `anvil audit` on a TTY with no flags
+  resolves to `OutputMode::Tui`, whose project panel renders bare
+  `Files:` / `Issues:` counts; and `--format sarif` feeds GitHub code
+  scanning (see `docs/runbooks/sarif-code-scanning-upload.md`), where audit's
+  narrow finding set lands in a security review UI with no scope statement.
+  The narrowing was recorded on CIB-234 rather than left implicit, and this
+  item is the tracked remainder.
+- **Non-scope / do not:** Do not duplicate the copy — `SECURITY_SCOPE` must
+  stay single-source, which is the reason this is not a two-line change:
+  `AuditData` lives in `crates/anvil-tui/` and gains a field, so every
+  construction site is touched. Do not change finding aggregation.
+- **Expected Outcome:** A reader who never leaves the TUI, and a reviewer
+  looking at uploaded SARIF, both see the same scope statement the plain and
+  JSON paths carry. SARIF has purpose-built slots for this
+  (`run.invocation.toolExecutionNotifications`, `run.properties`).
+- **Files:** `crates/anvil-tui/src/surfaces/audit/mod.rs` (`AuditData`),
+  `crates/anvil-tui/src/surfaces/audit/render.rs` project panel,
+  `crates/anvil-cli/src/commands/audit.rs` (`build_audit_sarif`,
+  `SECURITY_SCOPE` wiring), plus the ~18 `AuditData` construction sites
+  across both crates
+- **Validation:** TUI snapshot shows the scope line with findings present
+  (not only on a clean tree); SARIF document carries the scope statement;
+  plain and JSON output unchanged.
+- **Identified From:** CIB-234 independent verification (PR #3534) — both
+  reviewers raised it; recorded there as a scope narrowing.
+- **Coordinates with:** CIB-234, CIB-014 (SARIF output surface)
+- **Confidence:** high on the gap and the fix shape; the cost is breadth, not
+  difficulty.
+
+### Pack-03 deliberate non-scope (do not auto-file release work)
+
+- Report **§4** curriculum / Scan·Surface·React editorial (same family as pack-02
+  R1..R8) — valuable, not a ship gate for v0.9.3
+- Progress label mid-word clip ("Project identi") — minor polish
+- Watch demo sample size n=1 / empty queue — demo data nitpick
+- Finish screen 6 vs 7 path counts — unconfirmed product intent
+- Status "warming" vs five-state vocabulary — leave to **CIB-235** product call
+- Config-claim paths without side-effect proof — **CIB-259** with pack-03 soft note
+
