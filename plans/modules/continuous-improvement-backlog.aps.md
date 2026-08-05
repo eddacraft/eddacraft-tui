@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 215/282  |
+| CIB | —     | In Progress | 216/282  |
 
 ## Purpose
 
@@ -8080,8 +8080,8 @@ CIB-251/255 only.
 
 ### CIB-283: Complete watch action-result parity and prove daemon no-contact
 
-- **Status:** Draft — filed from the CIB-254 Council, not self-authorised.
-  Promotion to Ready is an operator call (membrane checkpoint).
+- **Status:** Merged 2026-08-05 via PR #3588 (`18852dca1` /
+  `db5256ab5`).
 - **Intent:** Close the two bounded follow-ups left by CIB-254: machine-readable
   fallback check/gate actions are not yet re-enveloped as WOUT v1
   `action_result` events, and `--no-daemon`'s hard no-contact contract is
