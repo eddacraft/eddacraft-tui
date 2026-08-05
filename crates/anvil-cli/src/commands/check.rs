@@ -140,6 +140,12 @@ struct CheckOutput {
     provenance_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+    /// CIB-255 / CHECK-1: extension domain used to select files for
+    /// `--all` / `--changed` discovery. Absent for explicit file lists
+    /// (the caller named the paths) so consumers do not invent a filter
+    /// that was never applied.
+    #[serde(rename = "fileExtensions", skip_serializing_if = "Option::is_none")]
+    file_extensions: Option<Vec<String>>,
     notifications: Vec<Notification>,
     warnings: Vec<JsonWarning>,
     summary: WarningSummary,
@@ -436,6 +442,10 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
 
     match mode {
         OutputMode::Json => {
+            let file_extensions = match source {
+                FileSource::All | FileSource::Changed => Some(extensions.clone()),
+                FileSource::Explicit => None,
+            };
             let json_output = build_json_output(
                 &relative_files,
                 aggregated_warnings,
@@ -444,11 +454,18 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 &patterns_checked,
                 has_blocking,
                 elapsed,
+                file_extensions,
             );
             output::json::print(&json_output)?;
         }
         OutputMode::Sarif => output::json::print(&sarif.into_log())?,
         OutputMode::Plain | OutputMode::Tui => {
+            // CIB-255: pass discovery extensions for All/Changed so the
+            // "Checked N file(s)" line names the domain.
+            let ext_for_render = match source {
+                FileSource::All | FileSource::Changed => Some(extensions.as_slice()),
+                FileSource::Explicit => None,
+            };
             print_human(
                 &aggregated_warnings_for_print(&aggregated_warnings),
                 &summary,
@@ -456,6 +473,7 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 global.verbose,
                 elapsed,
                 source,
+                ext_for_render,
             );
         }
     }
@@ -892,6 +910,7 @@ fn run_non_source_artifact(
                 &pattern_ids,
                 has_blocking,
                 elapsed,
+                None,
             );
             output::json::print(&json_output)?;
         }
@@ -910,6 +929,7 @@ fn run_non_source_artifact(
                 global.verbose,
                 elapsed,
                 FileSource::Explicit,
+                None,
             );
         }
     }
@@ -1184,6 +1204,7 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
         checks_run: Vec::new(),
         provenance_id: None,
         message: Some(message.to_string()),
+        file_extensions: None,
         notifications: vec![
             Notification::new(
                 NotificationClass::Info,
@@ -1231,6 +1252,10 @@ fn category_str(c: anvil_checks::antipattern::WarningCategory) -> &'static str {
     }
 }
 
+// Linear field assembler for the check JSON envelope; packing into a
+// builder struct would only hide the same arity. CIB-255 added
+// `file_extensions` (domain disclosure) as an eighth argument.
+#[allow(clippy::too_many_arguments)]
 fn build_json_output(
     files: &[String],
     warnings: Vec<JsonWarning>,
@@ -1239,6 +1264,7 @@ fn build_json_output(
     _patterns_checked: &[String],
     has_blocking: bool,
     elapsed: u64,
+    file_extensions: Option<Vec<String>>,
 ) -> CheckOutput {
     let notifications: Vec<Notification> = warnings
         .iter()
@@ -1278,6 +1304,7 @@ fn build_json_output(
         checks_run: checks_run.to_vec(),
         provenance_id: None,
         message: None,
+        file_extensions,
         notifications,
         warnings,
         summary: summary.clone(),
@@ -1300,10 +1327,13 @@ fn print_human(
     verbose: bool,
     elapsed: u64,
     source: FileSource,
+    extensions: Option<&[String]>,
 ) {
     print!(
         "{}",
-        render_human(warnings, summary, files, verbose, elapsed, source)
+        render_human(
+            warnings, summary, files, verbose, elapsed, source, extensions,
+        )
     );
 }
 
@@ -1319,6 +1349,9 @@ fn print_human(
 /// path feeds warnings rebuilt by [`aggregated_warnings_for_print`] after a
 /// full analysis run. See `tutorial::autoplay::in_process_check_runner` for
 /// what the welcome demo does and does not reproduce.
+///
+/// `extensions` is the discovery domain for `--all` / `--changed` (CIB-255).
+/// Pass `None` for explicit file lists (autoplay / named paths).
 pub(crate) fn render_human(
     warnings: &[Warning],
     summary: &WarningSummary,
@@ -1326,6 +1359,7 @@ pub(crate) fn render_human(
     verbose: bool,
     elapsed: u64,
     source: FileSource,
+    extensions: Option<&[String]>,
 ) -> String {
     use std::fmt::Write as _;
 
@@ -1338,12 +1372,24 @@ pub(crate) fn render_human(
         let _ = writeln!(out, "  {name:<16} {value}");
     };
 
+    // CIB-255 / CHECK-1: "Checked N file(s)" without the extension domain
+    // reads as a full-tree scan while discovery only matches the resolved
+    // extension list (default antipattern set, or `--extensions`).
+    let domain_suffix = extensions
+        .filter(|exts| !exts.is_empty())
+        .map(|exts| format!(" (extensions: {})", exts.join(", ")))
+        .unwrap_or_default();
+
     match source {
         FileSource::All => {
-            let _ = writeln!(out, "  Checked {} file(s)", files.len());
+            let _ = writeln!(out, "  Checked {} file(s){domain_suffix}", files.len());
         }
         FileSource::Changed => {
-            let _ = writeln!(out, "  Checked {} changed file(s)", files.len());
+            let _ = writeln!(
+                out,
+                "  Checked {} changed file(s){domain_suffix}",
+                files.len()
+            );
         }
         FileSource::Explicit => {}
     }
@@ -1477,6 +1523,79 @@ mod tests {
         assert!(exts.contains(&".ts".to_string()));
         assert!(exts.contains(&".tsx".to_string()));
         assert!(exts.contains(&".js".to_string()));
+    }
+
+    /// CIB-255 / CHECK-1: `--all` "Checked N file(s)" must name the
+    /// extension domain so a 3-file count is not readable as a full-tree
+    /// scan of every extension.
+    #[test]
+    fn render_human_all_discloses_extension_domain() {
+        let exts = resolve_extensions(None);
+        let out = render_human(
+            &[],
+            &WarningSummary::default(),
+            &["src/a.ts".to_string(), "src/b.py".to_string()],
+            false,
+            1,
+            FileSource::All,
+            Some(&exts),
+        );
+        assert!(
+            out.contains("Checked 2 file(s)"),
+            "count line must remain:\n{out}"
+        );
+        assert!(
+            out.contains("extensions:"),
+            "must name the extension domain:\n{out}"
+        );
+        assert!(
+            out.contains(".ts") && out.contains(".py"),
+            "default domain must include .ts and .py:\n{out}"
+        );
+    }
+
+    /// Explicit file lists do not invent a discovery domain.
+    #[test]
+    fn render_human_explicit_omits_extension_domain() {
+        let out = render_human(
+            &[],
+            &WarningSummary::default(),
+            &["src/a.ts".to_string()],
+            false,
+            1,
+            FileSource::Explicit,
+            None,
+        );
+        assert!(
+            !out.contains("extensions:"),
+            "explicit paths have no discovery domain:\n{out}"
+        );
+        assert!(
+            !out.contains("Checked"),
+            "explicit mode has no Checked line:\n{out}"
+        );
+    }
+
+    /// JSON carries the same domain for machine consumers.
+    #[test]
+    fn json_output_carries_file_extensions_for_all_source() {
+        let exts = resolve_extensions(None);
+        let out = build_json_output(
+            &["src/a.ts".to_string()],
+            Vec::new(),
+            &["secret-detection".to_string()],
+            &WarningSummary::default(),
+            &[],
+            false,
+            1,
+            Some(exts.clone()),
+        );
+        assert_eq!(out.file_extensions.as_ref(), Some(&exts));
+        let value = serde_json::to_value(&out).unwrap();
+        assert!(
+            value["fileExtensions"].is_array(),
+            "JSON must expose fileExtensions: {value}"
+        );
     }
 
     #[test]
@@ -1669,6 +1788,7 @@ mod tests {
             &["AP-003".to_string()],
             false,
             42,
+            None,
         );
 
         assert_eq!(out.warnings.len(), 1);

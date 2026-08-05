@@ -87,6 +87,7 @@ pub(crate) fn in_process_check_runner() -> AutoplayRunner {
             false,
             elapsed,
             crate::commands::check::FileSource::Explicit,
+            None,
         );
 
         // `anvil check` exits non-zero only on error-severity findings; the
@@ -292,6 +293,7 @@ mod tests {
             false,
             0,
             crate::commands::check::FileSource::Explicit,
+            None,
         )
     }
 

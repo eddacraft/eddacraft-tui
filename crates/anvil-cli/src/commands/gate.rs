@@ -1003,6 +1003,33 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
 // `follow_links(false)`, the ignore-dir prune, and the >= 1 MiB file
 // skip in `run_secret_check`; none of those needs a depth bound.
 
+/// File extensions gate `secret-detection` allow-lists (plus `.env*`
+/// filenames). Kept in lock-step with `audit::SECRET_SCAN_EXTS` and the
+/// predicates in `secret_path_scannable` / `raw_secret_path_scannable`.
+/// Expanding this list is a product decision — CIB-255 ships disclosure
+/// of the current domain, not silent expansion (see issue #1798).
+const SECRET_SCAN_EXTS: &[&str] = &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"];
+
+/// CIB-255 / GATE-1: domain statement for gate secret-detection.
+///
+/// Must stay true to [`secret_path_scannable`]. Prefer this wording over
+/// a green "score: 100%" with no domain statement when non-scanned types
+/// (e.g. `.py`, `.tsx`) can still hold live credentials.
+const GATE_SECRET_SCAN_DOMAIN: &str = "Domain: `.env*` filenames and extensions \
+.ts/.js/.rs/.json/.yaml/.yml/.toml/.env only — other source types (e.g. .py, \
+.tsx, .go, .sh) are not scanned by gate secret-detection. Per-file `anvil \
+check <path>` uses the broader scanner deny-list and may report secrets \
+this check does not.";
+
+/// CIB-255 / GATE-2: antipattern file-count domain.
+///
+/// The walk enumerates the tree, then `AntipatternCheckConfig::default`
+/// extensions filter what is analysed — so "N files scanned" is not
+/// "N files in the repo".
+const GATE_ANTIPATTERN_SCAN_DOMAIN: &str = "Domain: default source extensions \
+.ts/.tsx/.js/.jsx/.mjs/.cjs/.rs/.py/.html/.htm/.css/.scss/.less (other \
+files are not anti-pattern scanned).";
+
 fn run_check_secret(
     name: &str,
     root: &Path,
@@ -2036,12 +2063,10 @@ fn staged_secret_provenance(
 fn secret_path_scannable(path: &Path) -> bool {
     path.file_name()
         .is_some_and(|name| name.to_string_lossy().starts_with(".env"))
-        || path.extension().is_some_and(|ext| {
-            matches!(
-                ext.to_string_lossy().as_ref(),
-                "ts" | "js" | "rs" | "json" | "yaml" | "yml" | "toml" | "env"
-            )
-        })
+        || path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| SECRET_SCAN_EXTS.contains(&ext))
 }
 
 fn secret_scan_directory_allowed(name: &std::ffi::OsStr) -> bool {
@@ -2073,10 +2098,10 @@ fn raw_secret_path_scannable(path: &[u8]) -> bool {
     let Some(dot) = file_name.iter().rposition(|byte| *byte == b'.') else {
         return false;
     };
-    matches!(
-        &file_name[dot + 1..],
-        b"ts" | b"js" | b"rs" | b"json" | b"yaml" | b"yml" | b"toml" | b"env"
-    )
+    let ext = &file_name[dot + 1..];
+    SECRET_SCAN_EXTS
+        .iter()
+        .any(|allowed| ext.eq_ignore_ascii_case(allowed.as_bytes()))
 }
 
 fn raw_secret_path_has_allowed_directories(path: &[u8]) -> bool {
@@ -2306,8 +2331,10 @@ fn run_check_secret_with_hook_mode_and_provenance(
             name: name.to_string(),
             passed: true,
             score: 100.0,
+            // CIB-255: domain rides with every PASS so a green gate cannot
+            // be read as "every source type was scanned for secrets".
             message: format!(
-                "No hardcoded secrets found{suppression_suffix}{pattern_errors_suffix}"
+                "No hardcoded secrets found{suppression_suffix}{pattern_errors_suffix}\n{GATE_SECRET_SCAN_DOMAIN}"
             ),
             requires_config: false,
         }
@@ -2381,8 +2408,10 @@ fn run_check_secret_with_hook_mode_and_provenance(
             } else {
                 f64::from(result.score)
             },
+            // CIB-255: domain on FAIL too — readers comparing gate vs
+            // per-file `check` counts need the same scope statement.
             message: format!(
-                "Potential secrets found in {} location(s):\n{}{suppression_suffix}{pattern_errors_suffix}",
+                "Potential secrets found in {} location(s):\n{}{suppression_suffix}{pattern_errors_suffix}\n{GATE_SECRET_SCAN_DOMAIN}",
                 finding_count,
                 locations.join("\n")
             ),
@@ -2904,7 +2933,9 @@ fn run_check_antipattern(
             name: name.to_string(),
             passed: true,
             score: 100.0,
-            message: "No analysable files found for anti-pattern scan. Skipping.".to_string(),
+            message: format!(
+                "No analysable files found for anti-pattern scan. Skipping.\n{GATE_ANTIPATTERN_SCAN_DOMAIN}"
+            ),
             requires_config: false,
         };
     }
@@ -2930,7 +2961,10 @@ fn run_check_antipattern(
             name: name.to_string(),
             passed: true,
             score: f64::from(result.score),
-            message: result.message,
+            // CIB-255 / GATE-2: "N files scanned" is extension-filtered —
+            // state the domain so a 3-file count in a larger tree is not
+            // readable as a full-repo scan.
+            message: format!("{}\n{GATE_ANTIPATTERN_SCAN_DOMAIN}", result.message),
             requires_config: false,
         }
     } else {
@@ -2955,7 +2989,7 @@ fn run_check_antipattern(
             name: name.to_string(),
             passed: false,
             score: f64::from(result.score),
-            message: details,
+            message: format!("{details}\n{GATE_ANTIPATTERN_SCAN_DOMAIN}"),
             requires_config: false,
         }
     }
@@ -5019,7 +5053,15 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
                 } else {
                     plain::error(&format!("{:<20} FAIL", check.name));
                 }
-                let show_message = global.verbose || !check.passed || check.requires_config;
+                // CIB-255: secret-detection and antipattern-scan domain
+                // notes must surface on PASS without `--verbose` — a green
+                // "score: 100%" with a silent allow-list is the honesty
+                // failure GATE-1 / GATE-2 report.
+                let show_message = global.verbose
+                    || !check.passed
+                    || check.requires_config
+                    || check.name == "secret-detection"
+                    || check.name == "antipattern-scan";
                 if !check.message.is_empty() && show_message {
                     for line in check.message.lines() {
                         plain::dim(&format!("  {line}"));
@@ -10466,6 +10508,132 @@ rules: []
         .unwrap();
         let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
         assert!(checks.contains("secret-detection"));
+    }
+
+    // ── CIB-255: gate secret / antipattern domain disclosure ────────
+
+    /// GATE-1: a green secret-detection result must name the allow-list
+    /// domain so "score: 100%" cannot be read as scanning every source
+    /// type (`.py` / `.tsx` / `.go` live outside the gate allow-list).
+    #[test]
+    fn secret_pass_message_discloses_scan_domain() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("clean.ts"), "export const x = 1;\n").unwrap();
+        // Out-of-domain secret that per-file `check` would flag — must not
+        // be required for a green gate, but the domain note must still land.
+        std::fs::write(
+            tmp.path().join("leak.py"),
+            "key = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz012345'\n",
+        )
+        .unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(
+            result.passed,
+            "clean in-domain tree must pass: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains(GATE_SECRET_SCAN_DOMAIN),
+            "PASS message must carry the domain note:\n{}",
+            result.message
+        );
+        assert!(
+            result.message.contains(".py")
+                && result.message.contains(".tsx")
+                && result.message.contains(".ts/.js"),
+            "domain note must name scanned and excluded types:\n{}",
+            result.message
+        );
+        // Non-scope: disclosure only — the .py secret must still be missed.
+        assert!(
+            !result.message.contains("leak.py"),
+            "CIB-255 does not expand the domain; .py must stay unscanned:\n{}",
+            result.message
+        );
+    }
+
+    /// GATE-1: domain rides on FAIL too so count comparisons stay honest.
+    #[test]
+    fn secret_fail_message_discloses_scan_domain() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("leak.ts"),
+            "const k = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz012345';\n",
+        )
+        .unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(
+            !result.passed,
+            "planted secret must fail: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains(GATE_SECRET_SCAN_DOMAIN),
+            "FAIL message must carry the domain note:\n{}",
+            result.message
+        );
+    }
+
+    /// GATE-2: antipattern "N files scanned" must name the extension domain.
+    #[test]
+    fn antipattern_message_discloses_extension_domain() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("a.ts"), "const x = 1;\n").unwrap();
+        std::fs::write(tmp.path().join("b.md"), "# docs\n").unwrap();
+        std::fs::write(tmp.path().join("c.go"), "package main\n").unwrap();
+
+        let result = run_check_antipattern(
+            "antipattern-scan",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(
+            result.message.contains(GATE_ANTIPATTERN_SCAN_DOMAIN),
+            "antipattern message must disclose extension domain:\n{}",
+            result.message
+        );
+        assert!(
+            result.message.contains("files scanned") || result.message.contains("Skipping"),
+            "message should still report the scan count:\n{}",
+            result.message
+        );
+    }
+
+    /// Allow-list constant stays in lock-step with the path predicates.
+    #[test]
+    fn secret_path_scannable_matches_secret_scan_exts_constant() {
+        for ext in SECRET_SCAN_EXTS {
+            let path = std::path::PathBuf::from(format!("src/leak.{ext}"));
+            assert!(
+                secret_path_scannable(&path),
+                "{ext} must be scannable (SECRET_SCAN_EXTS lock-step)"
+            );
+        }
+        for ext in ["py", "tsx", "jsx", "go", "sh", "md", "rb"] {
+            let path = std::path::PathBuf::from(format!("src/leak.{ext}"));
+            assert!(
+                !secret_path_scannable(&path),
+                "{ext} must stay outside the gate secret domain"
+            );
+        }
+        assert!(secret_path_scannable(std::path::Path::new(".env")));
+        assert!(secret_path_scannable(std::path::Path::new(".env.local")));
     }
 
     // ── SARIF adapter (SARIFOUT-005) ────────────────────────────────
