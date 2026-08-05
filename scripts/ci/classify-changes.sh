@@ -220,6 +220,18 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # CIB-277: the git hooks are shell scripts with no `.sh` suffix, so they fell
+  # through to `unknown` — which requires format/lint/typecheck/unit-tests but
+  # NOT `script-fixtures`. Editing the pre-commit gate therefore skipped the
+  # fixtures that exercise it, which is how a defect in the gate reaches main.
+  case "${path}" in
+    .husky/* | .husky/**/*)
+      add_unique path_classes 'shell'
+      add_unique risk_classes 'automation'
+      matched=true
+      ;;
+  esac
+
   # CIB-022: node-based automation scripts also carry shell-style fixture tests
   # (e.g. scripts/aps/_test/*.test.sh exercising scripts/aps/*.mjs), so a
   # change to the .mjs must run `script-fixtures`. They still match the `ts`

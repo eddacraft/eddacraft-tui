@@ -258,6 +258,36 @@ string sibling to `engines` and `scripts`, so a contributor reading
 `package.json` discovers the opt-in path and the link to this guide without
 having to open it first.
 
+### Why two files under `.husky/_` are tracked (CIB-277)
+
+Option A leaves `core.hooksPath` pointing at `.husky/_`, which husky generates
+and gitignores (its installer writes `.husky/_/.gitignore` as `*`). A fresh
+worktree therefore has **no hook at all** until `pnpm install` finishes — and
+Git skips a missing hook before any hook code runs, so the commit is unchecked,
+exits 0, and prints nothing. That silent window cannot be closed from inside
+`.husky/pre-commit`, because that file is never reached.
+
+Two files are therefore force-added past husky's ignore rule:
+
+| Tracked path          | Why                                            |
+| --------------------- | ---------------------------------------------- |
+| `.husky/_/pre-commit` | The shim Git executes. Two lines; sources `h`. |
+| `.husky/_/h`          | Husky's runner, which the shim sources.        |
+
+Both are byte-identical to what husky's installer writes, so `pnpm install`
+regenerates them with no diff. Editing `.husky/_/.gitignore` instead would not
+survive: husky rewrites that file on every install. If a husky upgrade changes
+either tracked file, it surfaces as an ordinary tracked-file change — visible
+and reviewable, which is the point.
+
+This does **not** change `core.hooksPath`, the `prepare: husky` script, the
+devDependencies, or any surface that detects `.husky/`. It is Option A with the
+first-commit window closed, not a step toward Option B.
+
+`scripts/ci/precommit-gate-fail-closed.test.sh` pins the behaviour: it builds a
+throwaway repository from the `.husky` paths **Git tracks**, so re-ignoring the
+shims fails the suite rather than silently restoring the gap.
+
 ### Out-of-scope guard
 
 `.husky/` is **not** removed in this PR. If we ever flip to Option B, the

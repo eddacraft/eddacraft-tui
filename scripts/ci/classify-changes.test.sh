@@ -86,6 +86,14 @@ assert_json_contains "${shell}" '.riskClasses | index("automation")' 'automation
 assert_json_contains "${shell}" '.requiredChecks | index("shell-syntax")' 'shell syntax required'
 assert_json_contains "${shell}" '.requiredChecks | index("script-fixtures")' 'script fixtures required'
 
+# CIB-277: git hooks carry no `.sh` suffix, so they classified as `unknown` —
+# which requires format/lint/typecheck/unit-tests but NOT `script-fixtures`.
+# Editing the pre-commit gate therefore skipped the fixtures that exercise it.
+hooks=$(run_case hooks .husky/pre-commit)
+assert_json_contains "${hooks}" '.pathClasses | index("shell")' 'husky hook is a shell change'
+assert_json_contains "${hooks}" '.requiredChecks | index("script-fixtures")' 'husky hook requires script fixtures'
+assert_json_contains "${hooks}" '.pathClasses | index("unknown") | not' 'husky hook is classified'
+
 infra=$(run_case infra infra/pulumi/Pulumi.yaml deploy/cloudformation/template.yml)
 assert_json_contains "${infra}" '.pathClasses | index("infra")' 'infra path class'
 assert_json_contains "${infra}" '.riskClasses | index("infra")' 'infra risk class'

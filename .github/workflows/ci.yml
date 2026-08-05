@@ -318,7 +318,9 @@ jobs:
         shell: bash
         run: |
           set -e
-          git ls-files 'scripts/*.sh' 'scripts/**/*.sh' | while IFS= read -r script; do
+          # CIB-277: `.husky/*` classifies as a shell change, but the hooks
+          # carry no `.sh` suffix, so this check skipped them entirely.
+          git ls-files 'scripts/*.sh' 'scripts/**/*.sh' '.husky/*' '.husky/**/*' | while IFS= read -r script; do
             bash -n -- "$script"
           done
 
@@ -328,6 +330,7 @@ jobs:
           needs.detect-changes.outputs.workflow-lint-required == 'true'
         run: |
           pnpm test:ci-classify
+          pnpm test:precommit-gate
           pnpm test:ci-cost
           pnpm test:ci-fast-pr
           pnpm test:ci-integration

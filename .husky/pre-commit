@@ -1,40 +1,115 @@
 #!/bin/sh
 set -e
 
-run_node_tool() {
+# CIB-277: this gate fails closed.
+#
+# It is reached only when `.husky/_/pre-commit` exists, so that shim and its
+# `h` runner are tracked in Git (force-added past husky's own `.gitignore`).
+# Without them a fresh worktree has no hook at all, and Git skips a missing
+# hook before any hook code runs — the commit goes through unchecked, exit 0,
+# with no output at all.
+#
+# Everything below assumes the gate may be unable to do its work. When that
+# happens it refuses the commit and names a remedy, rather than dying with a
+# raw stack trace that mentions neither this file nor what to do about it.
+
+GATE="pre-commit gate (lint-staged + oxfmt)"
+
+# $1 cause, $2 remedy, $3 (optional) the tool's own output.
+#
+# $3 matters: the underlying error is often self-describing and more specific
+# than anything this script can infer. pnpm's
+# ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY, for one, names its own fix — and
+# a hook never has a TTY. Replacing that with a guess would repeat the defect
+# this gate was written to fix, so the guess goes underneath, not on top.
+gate_unavailable() {
+  echo ""
+  echo "anvil: ${GATE} could not run — refusing the commit."
+  echo ""
+  echo "  Cause: $1"
+  echo "  Fix:   $2"
+  if [ -n "$3" ]; then
+    echo ""
+    echo "  The tool reported:"
+    # Indent with shell builtins only. This function runs precisely when the
+    # environment is broken, so it must not add dependencies of its own —
+    # piping through `sed` here made the hook die with `sed: not found` under
+    # a minimal PATH, turning a clear refusal back into an obscure exit 127.
+    echo "$3" | while IFS= read -r line; do
+      echo "    ${line}"
+    done
+  fi
+  echo ""
+  echo "  The same checks run in CI (Lint & Format), so a commit that skips"
+  echo "  them here fails there instead."
+  echo "  To bypass deliberately: git commit --no-verify"
+  echo ""
+  exit 1
+}
+
+# Resolve a package runner that actually executes.
+#
+# `command -v` alone is not enough, and that gap is the defect: CIB-277 hit a
+# `pnpm` present on PATH whose corepack shim died with
+# ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING. It passed the existence check, then
+# failed with a Node trace naming neither husky, nor lint-staged, nor a fix.
+RUNNER=""
+if command -v pnpm >/dev/null 2>&1 && pnpm --version >/dev/null 2>&1; then
+  RUNNER="pnpm"
+elif command -v npx >/dev/null 2>&1 && npx --version >/dev/null 2>&1; then
+  RUNNER="npx"
+fi
+
+if [ -z "${RUNNER}" ]; then
   if command -v pnpm >/dev/null 2>&1; then
+    gate_unavailable \
+      "pnpm is on PATH but exits non-zero when run — usually a corepack shim that cannot load under the active Node." \
+      "If you use fnm or nvm, activate the Node version in .nvmrc first so corepack resolves against it." \
+      "$(pnpm --version 2>&1 || true)"
+  elif command -v npx >/dev/null 2>&1; then
+    gate_unavailable \
+      "npx is on PATH but exits non-zero when run." \
+      "Install pnpm (this repo's package manager), or repair the Node install behind npx." \
+      "$(npx --version 2>&1 || true)"
+  else
+    gate_unavailable \
+      "Neither pnpm nor npx is on PATH." \
+      "Install Node.js and pnpm, then run 'pnpm install' in the repository root."
+  fi
+fi
+
+run_tool() {
+  if [ "${RUNNER}" = "pnpm" ]; then
     pnpm exec "$@"
-  elif command -v npx >/dev/null 2>&1; then
+  else
     npx "$@"
-  else
-    echo "Neither pnpm nor npx found. Please install pnpm or Node.js."
-    exit 1
   fi
 }
 
-run_oxfmt_check_on_staged_files() {
-  if command -v pnpm >/dev/null 2>&1; then
-    git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
-      xargs -0 sh -c '
-        [ "$#" -eq 0 ] && exit 0
-        pnpm exec oxfmt --check -- "$@"
-      ' sh
-  elif command -v npx >/dev/null 2>&1; then
-    git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
-      xargs -0 sh -c '
-        [ "$#" -eq 0 ] && exit 0
-        npx oxfmt --check -- "$@"
-      ' sh
-  else
-    echo "Neither pnpm nor npx found. Please install pnpm or Node.js."
-    exit 1
-  fi
-}
+# A fresh worktree runs its install as a background step, so the window where
+# node_modules is absent — or half-written — is exactly when this hook first
+# fires. Probe the tool rather than the directory: CIB-277 recorded a partial
+# install (36 entries) that would satisfy a `[ -d node_modules ]` check and
+# still fail here.
+if ! probe_output=$(run_tool lint-staged --version 2>&1); then
+  gate_unavailable \
+    "lint-staged is not runnable, so node_modules is missing or incomplete." \
+    "Run 'pnpm install' in the repository root, then retry the commit." \
+    "${probe_output}"
+fi
 
-run_node_tool lint-staged
+run_tool lint-staged
 
 # lint-staged formats and re-stages supported files; re-check them here so
 # commits fail fast if any staged JS/TS/JSON/YAML still bypassed oxfmt.
 # Clawpatch audit JSON is exported evidence under plans/audits/ and can be
 # larger than oxfmt's JSON target set; lint-staged validates it with JSON.parse.
-run_oxfmt_check_on_staged_files
+git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
+  RUNNER="${RUNNER}" xargs -0 sh -c '
+    [ "$#" -eq 0 ] && exit 0
+    if [ "$RUNNER" = "pnpm" ]; then
+      pnpm exec oxfmt --check -- "$@"
+    else
+      npx oxfmt --check -- "$@"
+    fi
+  ' sh
