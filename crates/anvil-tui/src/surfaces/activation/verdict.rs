@@ -119,6 +119,12 @@ const CELEBRATION_MIN_HEIGHT: u16 = CELEBRATION_BANNER_HEIGHT + 5;
 /// starve the collapsible verdict tree on short terminals.
 const NEXT_GUIDANCE_MAX_HEIGHT: u16 = 6;
 
+/// Fixed headline band (badge + state line).
+const HEADLINE_HEIGHT: u16 = 2;
+
+/// Minimum rows reserved for the collapsible verdict tree.
+const TREE_MIN_HEIGHT: u16 = 3;
+
 /// Structured verdict handed to the surface by the CLI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerdictModel {
@@ -434,16 +440,24 @@ pub fn render(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCra
     // CIB-275: no in-pane HelpBar — shell chrome owns keys. The free row goes
     // to a wrapping `next:` band so the one line that tells the user what to do
     // is fully readable at typical console widths.
+    //
+    // Clamp by remaining body height after the 2-line headline and the tree's
+    // Min(3) reservation so a long repair hint cannot starve the collapsible
+    // verdict tree on short terminals (review feedback on #3585).
+    let next_budget = body
+        .height
+        .saturating_sub(HEADLINE_HEIGHT.saturating_add(TREE_MIN_HEIGHT));
     let next_height = view
         .model
         .next_guidance
         .as_deref()
-        .map_or(0, |text| next_guidance_height(text, body.width));
+        .map_or(0, |text| next_guidance_height(text, body.width))
+        .min(next_budget);
 
     let chunks = Layout::vertical([
-        Constraint::Length(2),
+        Constraint::Length(HEADLINE_HEIGHT),
         Constraint::Length(next_height),
-        Constraint::Min(3),
+        Constraint::Min(TREE_MIN_HEIGHT),
     ])
     .split(body);
 
@@ -915,6 +929,44 @@ mod tests {
                 .iter()
                 .flat_map(|s| s.rows.iter())
                 .all(|row| !is_next_guidance_row(row))
+        );
+    }
+
+    #[test]
+    fn cib275_next_band_yields_to_tree_on_short_terminals() {
+        // A long next: would prefer several wrap rows, but the layout must keep
+        // the collapsible tree (title + Min(3)) rather than let guidance fill
+        // the pane.
+        let next = "next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.";
+        let view = VerdictView::new(VerdictModel::new(
+            "ready_restart_required",
+            "Ready, restart required — restart your editor.",
+            vec![
+                VerdictSection::new(
+                    "activation",
+                    "Activation",
+                    vec![
+                        "state: ready_restart_required".to_string(),
+                        next.to_string(),
+                    ],
+                ),
+                VerdictSection::new("layers", "Layers", vec!["L0 mcp pre-write".to_string()]),
+            ],
+        ));
+        // Height 8: headline 2 + tree min 3 leaves only 3 for next — tree title
+        // and section labels must still render.
+        let out = render_symbols(&view, 80, 8);
+        assert!(
+            out.contains("Activation verdict"),
+            "tree chrome must survive a long next: on a short terminal; got:\n{out}"
+        );
+        assert!(
+            out.contains("state: ready_restart_required"),
+            "headline must survive alongside a budget-clamped next band"
+        );
+        assert!(
+            out.contains("Layers") || out.contains("Activation"),
+            "at least one tree section label must remain visible"
         );
     }
 }
