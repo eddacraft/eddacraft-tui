@@ -848,9 +848,15 @@ struct WatchJsonEmitterState {
 }
 
 #[derive(Clone)]
+struct WatchJsonTerminalError {
+    kind: std::io::ErrorKind,
+    message: String,
+}
+
+#[derive(Clone)]
 struct WatchJsonEmitter {
     inner: Arc<std::sync::Mutex<WatchJsonEmitterState>>,
-    terminal_error_kind: Arc<std::sync::Mutex<Option<std::io::ErrorKind>>>,
+    terminal_error: Arc<std::sync::Mutex<Option<WatchJsonTerminalError>>>,
 }
 
 impl WatchJsonEmitter {
@@ -860,7 +866,7 @@ impl WatchJsonEmitter {
                 next_seq: 0,
                 writer,
             })),
-            terminal_error_kind: Arc::new(std::sync::Mutex::new(None)),
+            terminal_error: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
@@ -878,16 +884,21 @@ impl WatchJsonEmitter {
             state.writer.flush()
         })();
         if let Err(err) = &result {
-            let mut terminal = recover(self.terminal_error_kind.lock());
+            let mut terminal = recover(self.terminal_error.lock());
             if terminal.is_none() {
-                *terminal = Some(err.kind());
+                *terminal = Some(WatchJsonTerminalError {
+                    kind: err.kind(),
+                    message: err.to_string(),
+                });
             }
         }
         result
     }
 
-    fn terminal_error_kind(&self) -> Option<std::io::ErrorKind> {
-        *recover(self.terminal_error_kind.lock())
+    fn terminal_error(&self) -> Option<std::io::Error> {
+        recover(self.terminal_error.lock())
+            .clone()
+            .map(|error| std::io::Error::new(error.kind, error.message))
     }
 
     fn emit_kernel_event(&self, event: &anvil_kernel_types::EngineEvent) -> std::io::Result<()> {
@@ -1915,11 +1926,11 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             if shutdown.load(Ordering::SeqCst) {
                 break;
             }
-            if let Some(kind) = json_emitter
+            if let Some(error) = json_emitter
                 .as_ref()
-                .and_then(WatchJsonEmitter::terminal_error_kind)
+                .and_then(WatchJsonEmitter::terminal_error)
             {
-                background_json_error = Some(kind);
+                background_json_error = Some(error);
                 break;
             }
             match event_rx.recv_timeout(std::time::Duration::from_millis(250)) {
@@ -2038,12 +2049,11 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     if background_json_error.is_none() {
         background_json_error = json_emitter
             .as_ref()
-            .and_then(WatchJsonEmitter::terminal_error_kind);
+            .and_then(WatchJsonEmitter::terminal_error);
     }
     handle.stop().context("stopping watcher")?;
-    if let Some(kind) = background_json_error {
-        continue_after_watch_json_emit(Err(std::io::Error::from(kind)))
-            .context("emitting watch JSON action result")?;
+    if let Some(error) = background_json_error {
+        continue_after_watch_json_emit(Err(error)).context("emitting watch JSON output")?;
     }
     Ok(())
 }
@@ -2806,12 +2816,12 @@ mod tests {
     }
 
     #[test]
-    fn json_emitter_preserves_terminal_error_kind_and_shared_stop_semantics() {
-        struct ErrorWriter(std::io::ErrorKind);
+    fn json_emitter_preserves_terminal_error_detail_and_shared_stop_semantics() {
+        struct ErrorWriter(std::io::ErrorKind, &'static str);
 
         impl std::io::Write for ErrorWriter {
             fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-                Err(std::io::Error::from(self.0))
+                Err(std::io::Error::new(self.0, self.1))
             }
 
             fn flush(&mut self) -> std::io::Result<()> {
@@ -2819,11 +2829,11 @@ mod tests {
             }
         }
 
-        for (kind, clean_stop) in [
-            (std::io::ErrorKind::BrokenPipe, true),
-            (std::io::ErrorKind::Other, false),
+        for (kind, message, clean_stop) in [
+            (std::io::ErrorKind::BrokenPipe, "consumer closed", true),
+            (std::io::ErrorKind::Other, "output device failed", false),
         ] {
-            let emitter = WatchJsonEmitter::new(Box::new(ErrorWriter(kind)));
+            let emitter = WatchJsonEmitter::new(Box::new(ErrorWriter(kind, message)));
             let err = emitter
                 .emit_action_result(
                     "2026-08-05T00:00:00Z",
@@ -2837,12 +2847,12 @@ mod tests {
                 )
                 .expect_err("failing consumer must reject action_result");
             assert_eq!(err.kind(), kind);
-            assert_eq!(
-                emitter.terminal_error_kind(),
-                Some(kind),
-                "worker output failure must publish its kind to the watch loop"
-            );
-            let decision = continue_after_watch_json_emit(Err(std::io::Error::from(kind)));
+            let terminal = emitter
+                .terminal_error()
+                .expect("worker output failure must reach the watch loop");
+            assert_eq!(terminal.kind(), kind);
+            assert_eq!(terminal.to_string(), message);
+            let decision = continue_after_watch_json_emit(Err(terminal));
             if clean_stop {
                 assert!(!decision.expect("BrokenPipe is a clean stop"));
             } else {
