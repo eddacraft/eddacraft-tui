@@ -1,20 +1,18 @@
 # Rust Kernel Specification (H1)
 
-| Type | Authority | Owner | Status   | Freshness                                        |
-| ---- | --------- | ----- | -------- | ------------------------------------------------ |
-| Spec | Derived   | KERN  | Proposed | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type | Authority  | Owner | Status     | Freshness                                                                                                                                      |
+| ---- | ---------- | ----- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Historical | KERN  | Deprecated | Last reviewed 2026-08-05 — H1 design intent only; shipping truth is `kernel-as-built.md`. Prior metadata backfill 2026-05-27 during DOCGOV-011 |
 
 | Upstream                                                                                                            | Downstream                                                           |
 | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | ADR-011a, `docs/architecture/anvil-architecture-evolution.md`, `docs/vision/constitutional-engineering.md`, ADR-006 | `kernel-as-built.md`, benchmarking specs, Rust architecture overview |
 
-**Status:** Spec — H1 design intent. The kernel has since shipped through
+**Status:** Historical H1 design intent. The kernel has since shipped through
 multiple beta tags; **[`kernel-as-built.md`](./kernel-as-built.md) is the
 authoritative record of current shipping state** and supersedes this spec
 wherever they differ. Read the as-built first for "what exists today"; read this
-spec for the original design rationale. (The governance metadata above keeps
-`Proposed` as the spec's lifecycle state — it was never ratified via a dedicated
-ADR — but the design it describes is substantially built.)
+spec for the original design rationale.
 
 > **Spec-vs-code reconciliation (V060F-011, triaged 2026-06-19):** five §-level
 > items diverge from the as-built and are intentionally left as dormant design

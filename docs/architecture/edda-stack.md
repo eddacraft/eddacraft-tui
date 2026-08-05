@@ -14,8 +14,7 @@
 > `packages/edda-stack` TypeScript surface is a **partial implementation**
 > (Edda + Ember present; Kindling capture via `packages/kindling-integration`)
 > and is **retiring** as operational memory moves to the Rust Kindling path.
-> `overview.md` and `anvil-full-architecture.md` state the same partial/retiring
-> status.
+> [`overview.md`](overview.md) states the same partial/retiring status.
 
 ## Overview
 

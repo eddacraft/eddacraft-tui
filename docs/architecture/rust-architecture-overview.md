@@ -1,16 +1,17 @@
 # Rust Architecture — Full Overview
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                               |
-| ----- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | KERN  | Live   | Crate-layout + dependency tables regenerated 2026-07-02 against main `d1fded280` (35 workspace crates, 15-language registry, eddacraft-tui corrected to workspace member, spurious tokio row removed). Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                               |
+| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | KERN  | Live   | Module-map status refresh 2026-08-05 (KERN/RENG/RATS/PORT/RSTLAN all Complete/archived). Crate-layout + dependency tables regenerated 2026-07-02 against main `d1fded280` (35 workspace crates, 15-language registry). Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
-| Upstream                                        | Downstream                                 |
-| ----------------------------------------------- | ------------------------------------------ |
-| KERN, RENG, RATS, PORT, RSTLAN, and TUI modules | Rust architecture docs and onboarding docs |
+| Upstream                                                                     | Downstream                                 |
+| ---------------------------------------------------------------------------- | ------------------------------------------ |
+| Archived KERN, RENG, RATS, PORT, RSTLAN modules; live crates under `crates/` | Rust architecture docs and onboarding docs |
 
-> Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN, TUI (superseded),
-> and supporting architecture documents. This is a reference document — not a
-> plan itself.
+> Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN (all Complete and
+> archived under `plans/archive/modules/`), the superseded TUI module, and
+> supporting architecture documents. This is a crate-layout reference — not a
+> plan. Shipping component detail lives in the matching `*-as-built.md` docs.
 
 ## Executive Summary
 
@@ -23,19 +24,19 @@ targets.
 
 ## Module Map
 
-Six APS modules cover the Rust work. Three are structural (KERN, RENG, PORT) and
-three are surface/integration (RATS, RSTLAN, TUI — superseded).
+Six APS modules covered the original Rust cutover. All six are **Complete** and
+archived; the map below is provenance plus the live crate graph.
 
 ```
-KERN (Rust Kernel)          — The foundation. Watcher, parser, graph, policy engine.
+KERN (Rust Kernel)          — Complete. Watcher, parser, graph, policy engine.
   |
-  +-- RENG (Engine Ports)   — Port existing TS checks to Rust using KERN's infrastructure.
+  +-- RENG (Engine Ports)   — Complete. Port existing TS checks to Rust.
   |
-  +-- RATS (Ratatui TUI)    — New TUI surfaces consuming KERN events.
+  +-- RATS (Ratatui TUI)    — Complete. New TUI surfaces consuming KERN events.
   |     |
-  |     +-- PORT (Ink Port) — 1:1 port of existing Ink surfaces to Ratatui.
+  |     +-- PORT (Ink Port) — Complete. 1:1 port of existing Ink surfaces to Ratatui.
   |
-  +-- RSTLAN (Rust Lang)    — Extend Anvil to analyse Rust codebases (placeholder).
+  +-- RSTLAN (Rust Lang)    — Complete (Released/Shipped via v0.8.0-beta). Rust language support.
 
 TUI (superseded)            — Original OpenTUI/Ink approach, replaced by RATS.
 ```

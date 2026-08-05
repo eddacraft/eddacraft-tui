@@ -1,5 +1,8 @@
 # Anvil Rust Architecture — End State Specification
 
+> **Archived 2026-08-05.** Aspirational H1/H2 end-state synthesis (dated 2026-04-03) with module statuses that predate KERN/RSTLAN completion. Superseded for live crate layout by [`rust-architecture-overview.md`](../../architecture/rust-architecture-overview.md) and for shipping truth by [`kernel-as-built.md`](../../architecture/kernel-as-built.md) and other `*-as-built.md` maps.
+
+
 | Type | Authority | Owner | Status | Freshness                                                                                                                                                                                                         |
 | ---- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Spec | Derived   | KERN  | Live   | Drift banner added to the illustrative kernel file-tree + eddacraft-tui/tokio claims corrected 2026-07-02 against main `d1fded280`. Last full review 2026-05-22 against `crates/anvil-checks/src/` and DOCGOV-006 |
@@ -71,8 +74,8 @@ pedantic = { level = "warn", priority = -1 }
 > `protocol/emitter.rs` over a **std** `mpsc` channel (not a `transport.rs` /
 > Tokio), and `daemon.rs` was never built (KERN-050..052 superseded by INTD per
 > ADR-030). For the authoritative current layout, read
-> [`kernel-as-built.md`](./kernel-as-built.md) §16 (kernel internals) and
-> [`rust-architecture-overview.md`](./rust-architecture-overview.md) "Crate
+> [`kernel-as-built.md`](../../architecture/kernel-as-built.md) §16 (kernel internals) and
+> [`rust-architecture-overview.md`](../../architecture/rust-architecture-overview.md) "Crate
 > Layout" (the full 35-crate workspace roster). This sketch is neither complete
 > nor current at the file level — e.g. `eddacraft-kindling` below was never
 > created, and crates such as `anvil-graph-cache`, `anvil-intercept`,
@@ -337,7 +340,7 @@ so subscribers split in-flight from save-time without parsing the rule id. The
 in-flight and save-time paths are two entry points on one daemon. The MCP
 pre-write surface (RTAI-006) is shipped; the editor-driver mid-edit surface
 (RTAI-005) is parked under ADR-033. See
-[realtime-ai-validation](../../plans/modules/realtime-ai-validation.aps.md).
+[realtime-ai-validation](../../../plans/modules/realtime-ai-validation.aps.md).
 
 ---
 
@@ -440,8 +443,8 @@ semantic graph. They operate on file content directly.
 > `engineVersion` attribution and a divergence canary so transition-window
 > mismatches fail loudly instead of drifting silently.
 >
-> [ADR-026]: ../../plans/decisions/026-rust-scanner-authoritative.md
-> [ADR-030]: ../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
+> [ADR-026]: ../../../plans/decisions/026-rust-scanner-authoritative.md
+> [ADR-030]: ../../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md
 
 Runtime thread usage follows Rayon defaults unless the process environment sets
 `RAYON_NUM_THREADS` before the scanner is first used. The scanner does not

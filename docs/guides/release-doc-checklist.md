@@ -66,8 +66,9 @@ affected by the changes shipping in this release.
 
 ### Pre-release: internal docs sync
 
-- [ ] `docs/architecture/anvil-full-architecture.md` — architecture changes
 - [ ] `docs/architecture/overview.md` — high-level system overview
+- [ ] `docs/architecture/README.md` — architecture index classifications
+- [ ] relevant `docs/architecture/*-as-built.md` for touched components
 - [ ] `docs/architecture/auth-as-built.md` — auth changes
 - [ ] `docs/guides/command-safety.md` — new command safety rules
 - [ ] `docs/guides/command-safety-configuration.md` — config changes
@@ -137,9 +138,10 @@ Only update packages that changed in this release.
 
 ### Pre-release: internal docs sync
 
-- [ ] `docs/architecture/rust-architecture-overview.md` — architecture changes
-- [ ] `docs/architecture/rust-architecture-endstate.md` — endstate alignment
-- [ ] `docs/architecture/rust-kernel-spec.md` — kernel spec changes
+- [ ] `docs/architecture/rust-architecture-overview.md` — crate layout changes
+- [ ] `docs/architecture/kernel-as-built.md` — kernel shipping-state changes
+- [ ] `docs/architecture/rust-kernel-spec.md` — only if H1 design-intent notes
+      change (historical; prefer as-built for shipped behaviour)
 - [ ] `docs/guides/cli-output-streams.md` — output format changes
 - [ ] `docs/guides/anvil-rule-authoring.md` — rule-format and authoring changes
 - [ ] `docs/public/anvil/integrations/vscode.md` — editor integration changes
@@ -220,8 +222,7 @@ tagging so a stale lockfile surfaces here rather than in the CI fast-fail.
 > deprecated in favour of the Rust binary. This section is retained for
 > historical reference only.
 
-- [ ] `docs/architecture/anvil-architecture-evolution.md` — cross-surface
-      architecture alignment
+- [ ] `docs/architecture/overview.md` — high-level system overview still true
 - [ ] `docs/architecture/edda-stack.md` — Edda stack integration points
 - [ ] `docs/guides/stack-migration.md` — cross-layer schema compatibility
 - [ ] Version strings consistent across `package.json` and `Cargo.toml` files

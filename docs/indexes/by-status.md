@@ -16,6 +16,13 @@
 | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ----- | ---------- | ------- | -------- |
 | [Anvil v0.2.1-beta Release Test Report (Edda/Ember/Stack + Tutorial)](../../docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md) | `docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md` | Guide | Historical | RELEASE | Archived |
 
+## Deprecated
+
+| Document                                                                                | Path                                                | Type | Authority  | Owner | Status     |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------- | ---- | ---------- | ----- | ---------- |
+| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md) | `docs/architecture/anvil-architecture-evolution.md` | Spec | Historical | KERN  | Deprecated |
+| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)           | `docs/architecture/rust-kernel-spec.md`             | Spec | Historical | KERN  | Deprecated |
+
 ## Draft
 
 | Document                                                                                                                 | Path                                                              | Type     | Authority     | Owner                                               | Status |
@@ -46,13 +53,10 @@
 | [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                                             | `docs/runbooks/anvil-air-gapped.md`                       | Runbook  | Authoritative | @aneki                                                                       | Live   |
 | [Anchor Re-Scoring Process](../../docs/guides/anchor-rescoring-process.md)                                            | `docs/guides/anchor-rescoring-process.md`                 | Guide    | Authoritative | LANGCOV                                                                      | Live   |
 | [Anvil Architecture](../../docs/architecture/overview.md)                                                             | `docs/architecture/overview.md`                           | Guide    | Derived       | DOCGOV                                                                       | Live   |
-| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)                               | `docs/architecture/anvil-architecture-evolution.md`       | Spec     | Derived       | KERN                                                                         | Live   |
 | [Anvil Observability Namespace Registry](../../docs/observability/namespace-registry.md)                              | `docs/observability/namespace-registry.md`                | Guide    | Authoritative | TRACE                                                                        | Live   |
 | [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                                                       | `docs/runbooks/release-runbook.md`                        | Runbook  | Authoritative | RELORCH                                                                      | Live   |
-| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md)            | `docs/architecture/rust-architecture-endstate.md`         | Spec     | Derived       | KERN                                                                         | Live   |
 | [Anvil Scope Guard](../../docs/vision/anvil-scope-guard.md)                                                           | `docs/vision/anvil-scope-guard.md`                        | Guide    | Authoritative | VISION                                                                       | Live   |
 | [Anvil Vision](../../docs/vision/anvil-vision.md)                                                                     | `docs/vision/anvil-vision.md`                             | Guide    | Authoritative | VISION                                                                       | Live   |
-| [Anvil — Full Architecture (Current vs Proposed End State)](../../docs/architecture/anvil-full-architecture.md)       | `docs/architecture/anvil-full-architecture.md`            | Spec     | Derived       | DOCGOV                                                                       | Live   |
 | [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)                                        | `docs/guides/architecture-diagrams.md`                    | Guide    | Authoritative | DOCGOV                                                                       | Live   |
 | [Auth System — As-Built](../../docs/architecture/auth-as-built.md)                                                    | `docs/architecture/auth-as-built.md`                      | As-built | Derived       | BAUTH                                                                        | Live   |
 | [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)                                                   | `docs/guides/anvil-rule-authoring.md`                     | Guide    | Authoritative | SCAN                                                                         | Live   |
@@ -98,6 +102,7 @@
 | [INTD-012 — Windows Confidence Evidence](../../docs/runbooks/intd-012-windows-evidence.md)                            | `docs/runbooks/intd-012-windows-evidence.md`              | Runbook  | Authoritative | INTD                                                                         | Live   |
 | [Internal Engineering Documentation](../../docs/README.md)                                                            | `docs/README.md`                                          | README   | Advisory      | DOCGOV                                                                       | Live   |
 | [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md)                       | `docs/architecture/jsts-release-surfaces.md`              | As-built | Derived       | @aneki                                                                       | Live   |
+| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md)                              | `docs/architecture/kernel-benchmarking-spec.md`           | Spec     | Derived       | KERN                                                                         | Live   |
 | [Local Dashboard](../../docs/guides/local-dashboard.md)                                                               | `docs/guides/local-dashboard.md`                          | Guide    | Authoritative | DASH                                                                         | Live   |
 | [Local Tracing](../../docs/observability/local-tracing.md)                                                            | `docs/observability/local-tracing.md`                     | Guide    | Derived       | TRACE                                                                        | Live   |
 | [MCP-Optional Activation — Operator Runbook](../../docs/runbooks/anvil-no-mcp-activation.md)                          | `docs/runbooks/anvil-no-mcp-activation.md`                | Runbook  | Authoritative | ACTMO                                                                        | Live   |
@@ -160,8 +165,6 @@
 
 ## Proposed
 
-| Document                                                                                 | Path                                            | Type | Authority | Owner | Status   |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ----- | -------- |
-| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md) | `docs/architecture/kernel-benchmarking-spec.md` | Spec | Derived   | KERN  | Proposed |
-| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)            | `docs/architecture/rust-kernel-spec.md`         | Spec | Derived   | KERN  | Proposed |
-| [System Specification](../../docs/architecture/system-spec.md)                           | `docs/architecture/system-spec.md`              | Spec | Derived   | EDDA  | Proposed |
+| Document                                                       | Path                               | Type | Authority | Owner | Status   |
+| -------------------------------------------------------------- | ---------------------------------- | ---- | --------- | ----- | -------- |
+| [System Specification](../../docs/architecture/system-spec.md) | `docs/architecture/system-spec.md` | Spec | Derived   | EDDA  | Proposed |

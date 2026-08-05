@@ -155,16 +155,15 @@
 
 ## DOCGOV
 
-| Document                                                                                                        | Path                                           | Type   | Authority     | Owner  | Status |
-| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------ | ------------- | ------ | ------ |
-| [ADR Process](../../docs/guides/adr-process.md)                                                                 | `docs/guides/adr-process.md`                   | Guide  | Authoritative | DOCGOV | Live   |
-| [Anvil Architecture](../../docs/architecture/overview.md)                                                       | `docs/architecture/overview.md`                | Guide  | Derived       | DOCGOV | Live   |
-| [Anvil — Full Architecture (Current vs Proposed End State)](../../docs/architecture/anvil-full-architecture.md) | `docs/architecture/anvil-full-architecture.md` | Spec   | Derived       | DOCGOV | Live   |
-| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)                                  | `docs/guides/architecture-diagrams.md`         | Guide  | Authoritative | DOCGOV | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)                                         | `docs/governance/tags-catalogue.md`            | Guide  | Authoritative | DOCGOV | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                                                      | `docs/README.md`                               | README | Advisory      | DOCGOV | Live   |
-| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                   | `docs/guides/release-doc-checklist.md`         | Guide  | Advisory      | DOCGOV | Live   |
-| [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                                                 | `docs/architecture/oss-surface.md`             | Guide  | Derived       | DOCGOV | Live   |
+| Document                                                                       | Path                                   | Type   | Authority     | Owner  | Status |
+| ------------------------------------------------------------------------------ | -------------------------------------- | ------ | ------------- | ------ | ------ |
+| [ADR Process](../../docs/guides/adr-process.md)                                | `docs/guides/adr-process.md`           | Guide  | Authoritative | DOCGOV | Live   |
+| [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`        | Guide  | Derived       | DOCGOV | Live   |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md` | Guide  | Authoritative | DOCGOV | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)        | `docs/governance/tags-catalogue.md`    | Guide  | Authoritative | DOCGOV | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                       | README | Advisory      | DOCGOV | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md` | Guide  | Advisory      | DOCGOV | Live   |
+| [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                | `docs/architecture/oss-surface.md`     | Guide  | Derived       | DOCGOV | Live   |
 
 ## DRVR
 
@@ -261,15 +260,14 @@
 
 ## KERN
 
-| Document                                                                                                   | Path                                                | Type     | Authority     | Owner | Status   |
-| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | -------- | ------------- | ----- | -------- |
-| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)                    | `docs/architecture/anvil-architecture-evolution.md` | Spec     | Derived       | KERN  | Live     |
-| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md`   | Spec     | Derived       | KERN  | Live     |
-| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md)                   | `docs/architecture/kernel-benchmarking-spec.md`     | Spec     | Derived       | KERN  | Proposed |
-| [Quality Model](../../docs/architecture/quality-model.md)                                                  | `docs/architecture/quality-model.md`                | Guide    | Authoritative | KERN  | Live     |
-| [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md)                 | `docs/architecture/rust-architecture-overview.md`   | Guide    | Derived       | KERN  | Live     |
-| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)                              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Derived       | KERN  | Proposed |
-| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                                      | `docs/architecture/kernel-as-built.md`              | As-built | Derived       | KERN  | Live     |
+| Document                                                                                   | Path                                                | Type     | Authority     | Owner | Status     |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------- | -------- | ------------- | ----- | ---------- |
+| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)    | `docs/architecture/anvil-architecture-evolution.md` | Spec     | Historical    | KERN  | Deprecated |
+| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md)   | `docs/architecture/kernel-benchmarking-spec.md`     | Spec     | Derived       | KERN  | Live       |
+| [Quality Model](../../docs/architecture/quality-model.md)                                  | `docs/architecture/quality-model.md`                | Guide    | Authoritative | KERN  | Live       |
+| [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md) | `docs/architecture/rust-architecture-overview.md`   | Guide    | Derived       | KERN  | Live       |
+| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Historical    | KERN  | Deprecated |
+| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                      | `docs/architecture/kernel-as-built.md`              | As-built | Derived       | KERN  | Live       |
 
 ## KFIT
 

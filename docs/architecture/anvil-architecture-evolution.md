@@ -1,15 +1,20 @@
 # Anvil Architecture Evolution
 
-| Type | Authority | Owner | Status | Freshness                                        |
-| ---- | --------- | ----- | ------ | ------------------------------------------------ |
-| Spec | Derived   | KERN  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type | Authority  | Owner | Status     | Freshness                                                                                                                                                 |
+| ---- | ---------- | ----- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Historical | KERN  | Deprecated | Last reviewed 2026-08-05 — H1 largely shipped; keep as migration provenance only. Prefer `overview.md` and `*-as-built.md` for present architecture truth |
 
-| Upstream                                                                             | Downstream                                        |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| ADR-011, `docs/architecture/rust-kernel-spec.md`, `plans/modules/rust-kernel.aps.md` | Rust kernel docs, TUI docs, CLI architecture docs |
+| Upstream                                                                                     | Downstream                                                             |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| ADR-011, `docs/architecture/rust-kernel-spec.md`, `plans/archive/modules/rust-kernel.aps.md` | Historical ADR/plan links; do not treat phase tables as present status |
 
-**This document supersedes ADR-011 and defines the Current → H1 → H2 migration
-path.**
+> **Status (2026-08-05):** Historical migration record. This document supersedes
+> ADR-011 and defined the Current → H1 → H2 rollout. **H1 has substantially
+> shipped** (Rust CLI + kernel + Ratatui TUI + intercept daemon). For "what
+> exists today" start with [`overview.md`](overview.md),
+> [`kernel-as-built.md`](kernel-as-built.md), and
+> [`intercept-as-built.md`](intercept-as-built.md). Phase tables and "proposed"
+> diagrams below are provenance, not a live roadmap.
 
 ## Anvil Single-Binary + Optional Daemon, with Phased Rust Adoption
 

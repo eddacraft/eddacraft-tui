@@ -1,5 +1,8 @@
 # Anvil — Full Architecture (Current vs Proposed End State)
 
+> **Archived 2026-08-05.** Pre-cutover CURRENT/PROPOSED synthesis (dated 2026-03-13). Superseded for live architecture by [`docs/architecture/overview.md`](../../architecture/overview.md) and the `*-as-built.md` component maps under `docs/architecture/`. Do not treat CURRENT/PROPOSED labels as present-day truth.
+
+
 | Type | Authority | Owner  | Status | Freshness                                        |
 | ---- | --------- | ------ | ------ | ------------------------------------------------ |
 | Spec | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
@@ -348,9 +351,9 @@ Surface driver (MCP shim / editor)
 This supersedes the earlier `real-time-validation-full` "unified validation
 server" framing: there is **one** daemon and **one** rule registry, with two
 entry points (save-time and mid-edit). See
-[`realtime-ai-validation`](../../plans/modules/realtime-ai-validation.aps.md)
+[`realtime-ai-validation`](../../../plans/modules/realtime-ai-validation.aps.md)
 and
-[ADR-030](../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md).
+[ADR-030](../../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md).
 
 ---
 

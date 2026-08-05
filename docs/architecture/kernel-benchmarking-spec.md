@@ -1,23 +1,27 @@
 # Kernel Benchmarking Specification
 
-| Type | Authority | Owner | Status   | Freshness                                        |
-| ---- | --------- | ----- | -------- | ------------------------------------------------ |
-| Spec | Derived   | KERN  | Proposed | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type | Authority | Owner | Status | Freshness                                                                                                                                                        |
+| ---- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Derived   | KERN  | Live   | Last reviewed 2026-08-05 — BENCH module Complete 16/16 (`plans/archive/modules/kernel-benchmarking.aps.md`); methodology still governs Criterion + `anvil-bench` |
 
 | Upstream                                                                                  | Downstream                                            |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `docs/architecture/rust-kernel-spec.md`, `crates/anvil-kernel/benches/kernel.rs`, ADR-031 | Kernel performance validation, benchmark harness work |
 
-**Status:** Proposed
+**Status:** Live methodology record. The BENCH APS module is **Complete**
+([`plans/archive/modules/kernel-benchmarking.aps.md`](../../plans/archive/modules/kernel-benchmarking.aps.md)).
+This doc remains the design authority for how kernel regression and capacity
+benchmarks are defined; shipping harness details also appear in
+[`kernel-as-built.md`](kernel-as-built.md).
 
 **Relationship to other documents:**
 
-- The [Rust Kernel Spec](rust-kernel-spec.md) defines performance targets this
-  harness validates
-- The [Architecture Evolution](anvil-architecture-evolution.md) document defines
-  H1/H2 scope — benchmarks track readiness for each phase
-- KERN-043 (performance benchmarks) in the
-  [KERN module](../../plans/modules/rust-kernel.aps.md) is the parent work item
+- The [Rust Kernel Spec](rust-kernel-spec.md) defined original performance
+  targets this harness validates (historical design intent)
+- The [Architecture Evolution](anvil-architecture-evolution.md) document defined
+  H1/H2 scope (historical)
+- BENCH module acceptance:
+  [`kernel-benchmarking.aps.md`](../../plans/archive/modules/kernel-benchmarking.aps.md)
 
 ---
 

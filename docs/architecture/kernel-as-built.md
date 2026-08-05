@@ -610,9 +610,10 @@ the kernel's own watch / embedded paths do not read or write it (see §2, G-05).
 The shipping policy engine is **in-process Rust invariants only**. Hybrid policy
 framing (in-process for hot path + OPA/Rego for declarative policy) is
 referenced in public docs but the OPA/Rego side lives in a separate
-`anvil-policy` crate (`docs/architecture/rust-architecture-overview.md:85`,
-`rust-architecture-endstate.md:165`); the kernel does not call into it. Inside
-the kernel, four invariants are registered.
+`anvil-policy` crate (`docs/architecture/rust-architecture-overview.md:85`;
+historical end-state notes lived in
+`docs/archive/architecture/rust-architecture-endstate.md`); the kernel does not
+call into it. Inside the kernel, four invariants are registered.
 
 ### 8.1 `config.rs` — architecture config loader
 
@@ -1105,9 +1106,10 @@ filtering work item under a future tag.
 Spec §9.3 names a daemon-mode IPC surface for the kernel. ADR-030 routes that
 responsibility to `anvil-intercept`, which hosts the kernel in-process;
 KERN-050..052 are marked superseded-into-INTD in `plans/index.aps.md:238`. The
-daemon-mode entry in `docs/architecture/rust-architecture-endstate.md:147` shows
-`daemon.rs [DEFERRED] Unix socket server` — an empty placeholder. This is by
-design.
+historical end-state doc
+(`docs/archive/architecture/rust-architecture-endstate.md`) showed
+`daemon.rs [DEFERRED] Unix socket server` — that placeholder is not shipping
+authority; daemon transport lives in INTD. This is by design.
 
 **Risk:** None — design intent. Cross-link:
 `docs/architecture/intercept-as-built.md`.
@@ -1266,10 +1268,10 @@ they differ, and `docs/architecture/README.md` links here from the Kernel entry.
 - `docs/architecture/rust-architecture-overview.md` — crate-level layout (KERN /
   RENG / RATS / PORT / RSTLAN), shipped performance targets table, dependency
   surface.
-- `docs/architecture/rust-architecture-endstate.md` — aspirational end-state.
-  Differences against this as-built: daemon transport belongs to INTD (G-04),
-  language coverage extends through RSTLAN / PYLAN, AST snapshot to disk (G-05)
-  is post-H1.
+- `docs/archive/architecture/rust-architecture-endstate.md` — archived
+  aspirational end-state (2026-04-03). Historical deltas vs this as-built:
+  daemon transport belongs to INTD (G-04); language coverage extends through
+  RSTLAN / PYLAN.
 - `docs/architecture/checks-as-built.md` — downstream consumer (RENG-ported
   checks; the secret / antipattern / command-safety scanners that compose with
   the kernel's structural signal).

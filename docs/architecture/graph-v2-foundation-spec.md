@@ -731,14 +731,13 @@ retired; wiring is mechanical). **Fix:** the daemon trust-wiring item (GV2-029).
 
 ### G-04: Top-level architecture docs predate Graph v2
 
-`rust-architecture-endstate.md` still shows the daemon as deferred and never
-mentions Graph v2; `anvil-full-architecture.md` has no joined-graph section; and
-`intercept-as-built.md` (reviewed 2026-05-07) predates ADR-067. A reader of
-`docs/architecture/` alone would not learn this model exists or that the INTD
-symbol-feed seam is pinned. **Risk:** Low. **Fix:** a one-paragraph pointer in
-`anvil-full-architecture.md`, a freshness pass on
-`rust-architecture-endstate.md`, and an `intercept-as-built.md` refresh covering
-ADR-067.
+**Resolved for synthesis docs (2026-08-05):** the pre-cutover
+`anvil-full-architecture.md` and aspirational `rust-architecture-endstate.md`
+were archived under `docs/archive/architecture/` because they misled readers
+about CURRENT vs shipped state. Live entrypoints are
+[`overview.md`](./overview.md), this spec, and the as-built maps. **Residual:**
+ensure [`intercept-as-built.md`](./intercept-as-built.md) stays current for the
+ADR-067 symbol-feed seam. **Risk:** Low.
 
 ### G-05: The control/session → file join bridge — contract defined
 

@@ -19,6 +19,13 @@ monorepo planning, LSP/TUI implementation plans, roadmaps.
 
 Past status reports and milestone summaries.
 
+### Architecture review (2026-08-05)
+
+| File | Why archived |
+| ---- | ------------ |
+| `architecture/anvil-full-architecture.md` | Pre-cutover CURRENT/PROPOSED synthesis (2026-03-13); mislabelled shipped Rust runtime as proposed. Live authority: `docs/architecture/overview.md` + `*-as-built.md` |
+| `architecture/rust-architecture-endstate.md` | Aspirational H1/H2 end-state (2026-04-03) with outdated module statuses. Live authority: `docs/architecture/rust-architecture-overview.md` + as-builts |
+
 ### DOCGOV-008 Archive Moves
 
 Documents archived on 2026-05-23 during DOCGOV-008 because they were stale,
