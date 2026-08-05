@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                                            |
 | ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
-| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-08-05 — shared multi-writer APS modules are bookkeeping-only in feature PRs |
+| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-08-05 against `AGENTS.md`, `.claude/rules/aps-index.md`, and `plans/modules/continuous-improvement-backlog.aps.md` |
 
 | Upstream                                                  | Downstream                                      |
 | --------------------------------------------------------- | ----------------------------------------------- |
