@@ -5098,17 +5098,46 @@ mod tests {
         inner: GateArgs,
     }
 
-    /// Build `<root>/lvl00/lvl01/…` `depth` levels deep and drop `name`
-    /// at the bottom. Returns the file path.
-    fn nest_file(root: &Path, depth: usize, name: &str, contents: &str) -> std::path::PathBuf {
+    /// Build `<root>/d0/d1/…` `depth` levels deep and drop `name` at the
+    /// bottom. Returns the file path, or [`None`] when the host cannot hold
+    /// a path that deep.
+    ///
+    /// Level names are kept as short as possible because the total path
+    /// length, not the depth, is what the platform bounds: macOS caps a path
+    /// at 1024 bytes and Windows at 260 unless long paths are enabled. The
+    /// earlier `lvl00`-style names cost 6 bytes per level, which put a
+    /// 160-level fixture at ~1010 bytes — close enough to macOS's ceiling
+    /// that the temp-dir prefix pushed it over and the fixture could not be
+    /// created. `d0`-style names cost 2–5, keeping the same depth well
+    /// inside the macOS budget.
+    ///
+    /// Returning [`None`] rather than panicking lets a caller skip where the
+    /// depth it wants to prove is simply not representable, instead of
+    /// failing on its own setup.
+    #[must_use]
+    fn nest_file(
+        root: &Path,
+        depth: usize,
+        name: &str,
+        contents: &str,
+    ) -> Option<std::path::PathBuf> {
         let mut dir = root.to_path_buf();
         for i in 0..depth {
-            dir = dir.join(format!("lvl{i:02}"));
+            dir = dir.join(format!("d{i}"));
         }
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).ok()?;
         let path = dir.join(name);
-        std::fs::write(&path, contents).unwrap();
-        path
+        std::fs::write(&path, contents).ok()?;
+        Some(path)
+    }
+
+    /// Emit the skip marker for a fixture whose *depth* the host cannot hold.
+    fn skip_deep_path(test: &str, depth: usize) {
+        eprintln!(
+            "[SKIP] {test}: this host cannot hold a {depth}-level fixture path \
+             (macOS caps a path at 1024 bytes, Windows at 260 without long-path \
+             support), so the unbounded-depth property cannot be set up here"
+        );
     }
 
     /// CIB-280: gate's planless secret walk must reach a `.env` however
@@ -5123,13 +5152,20 @@ mod tests {
     /// comment in `audit.rs` warns must never happen.
     #[test]
     fn planless_secret_scan_reaches_deeply_nested_env_files() {
+        const DEPTH: usize = 26;
         let tmp = tempfile::TempDir::new().unwrap();
-        let deep = nest_file(
+        let Some(deep) = nest_file(
             tmp.path(),
-            26,
+            DEPTH,
             ".env",
             "API_KEY=sk-live-abcdefghijklmnopqrst\n",
-        );
+        ) else {
+            skip_deep_path(
+                "planless_secret_scan_reaches_deeply_nested_env_files",
+                DEPTH,
+            );
+            return;
+        };
 
         let files = secret_scan_files(tmp.path(), &std::collections::HashSet::new(), &[]);
 
@@ -5146,13 +5182,17 @@ mod tests {
     /// different file sets depending on how gate was invoked.
     #[test]
     fn planless_and_plan_scoped_walks_agree_on_deep_files() {
+        const DEPTH: usize = 26;
         let tmp = tempfile::TempDir::new().unwrap();
-        let deep = nest_file(
+        let Some(deep) = nest_file(
             tmp.path(),
-            26,
+            DEPTH,
             "config.toml",
             "token = \"ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\"\n",
-        );
+        ) else {
+            skip_deep_path("planless_and_plan_scoped_walks_agree_on_deep_files", DEPTH);
+            return;
+        };
         let rel = deep
             .strip_prefix(tmp.path())
             .unwrap()
@@ -5191,21 +5231,30 @@ mod tests {
     /// to pin *unboundedness*: a test nested only a little past 20 would
     /// still pass against a cap raised to, say, 64, and would not
     /// distinguish the two routes.
+    ///
+    /// That depth is kept. What changed is how it is spelled: `nest_file`
+    /// now uses short level names, so 160 levels cost ~690 bytes instead of
+    /// ~960 and fit inside macOS's 1024-byte path ceiling. Windows caps a
+    /// path at 260 without long-path support and so cannot represent this
+    /// fixture at all; there the test skips rather than fails, because a
+    /// depth the host cannot express is not a walk defect. Linux and macOS
+    /// keep the discriminating coverage.
     #[test]
     fn gate_and_audit_secret_walks_reach_the_same_deep_file() {
+        const DEPTH: usize = 160;
         let tmp = tempfile::TempDir::new().unwrap();
-        // Depth 26 clears the removed `SECRET_SCAN_MAX_DEPTH` of 20 — which
-        // is the property under test — and matches the two sibling deep-walk
-        // tests. The original 160 built a ~960-character path that exceeds
-        // macOS's 1024-byte `PATH_MAX` once the temp-dir prefix is added, so
-        // the fixture could not be created there and the test failed on its
-        // own setup rather than on the walk.
-        let deep = nest_file(
+        let Some(deep) = nest_file(
             tmp.path(),
-            26,
+            DEPTH,
             ".env",
             "API_KEY=sk-live-abcdefghijklmnopqrst\n",
-        );
+        ) else {
+            skip_deep_path(
+                "gate_and_audit_secret_walks_reach_the_same_deep_file",
+                DEPTH,
+            );
+            return;
+        };
         let rel = deep.strip_prefix(tmp.path()).unwrap();
 
         // gate's planless secret discovery
@@ -5254,11 +5303,29 @@ mod tests {
     /// than fail on a precondition the platform will not allow.
     #[must_use]
     fn try_git_for_hook_fixture(root: &Path, args: &[&str]) -> bool {
-        std::process::Command::new("git")
+        match std::process::Command::new("git")
             .args(args)
             .current_dir(root)
             .output()
-            .is_ok_and(|output| output.status.success())
+        {
+            Ok(output) if output.status.success() => true,
+            // Report why before giving up. An unexpected skip is otherwise
+            // indistinguishable from an expected one, and the reason is the
+            // single most useful thing to have in a CI log when a test that
+            // should have run quietly did not.
+            Ok(output) => {
+                eprintln!(
+                    "git {args:?} refused the fixture: status={} stderr={}",
+                    output.status,
+                    String::from_utf8_lossy(&output.stderr).trim()
+                );
+                false
+            }
+            Err(err) => {
+                eprintln!("git {args:?} could not be run for the fixture: {err}");
+                false
+            }
+        }
     }
 
     fn write_detectable_env(path: &Path) {
@@ -5301,9 +5368,11 @@ mod tests {
     /// nextest surfaces via `success-output = "immediate"`.
     fn skip_exotic_filename(test: &str) {
         eprintln!(
-            "[SKIP] {test}: this filesystem rejects the exotic fixture filename \
-             (macOS requires valid UTF-8; Windows forbids control characters), \
-             so the path this test exists to scan cannot be created here"
+            "[SKIP] {test}: this host rejected the exotic fixture path — either the \
+             filesystem or Git refused it (macOS requires valid UTF-8; Windows forbids \
+             control characters and the reserved set including `:`), so the path this \
+             test exists to scan cannot be created here. Any preceding `git ...` line \
+             carries the exact refusal."
         );
     }
 
