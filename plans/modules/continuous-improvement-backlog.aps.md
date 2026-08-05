@@ -7480,7 +7480,7 @@ scanned — with expansion deferred to `v0.9.4`.
 - **Priority:** P2 validation honesty (observed across PR #3521/#3523 2026-08-04)
 - **Intent:** The baseline agents are handed ("the `mcp::tools::*` daemon
   family") omits members that do fail routinely, so a genuine regression can
-  be waved through as "known". Three concrete gaps:
+  be waved through as "known". Four concrete gaps:
   1. `mcp_serve_stdio_resources_read_stats_returns_contents`
      (`crates/anvil-cli/tests/mcp_serve_stdio.rs:613`) fails for the same
      no-daemon reason (`not_ready` vs `unavailable`) but sits in a separate
