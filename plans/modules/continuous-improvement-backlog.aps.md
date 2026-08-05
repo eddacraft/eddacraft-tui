@@ -7650,8 +7650,7 @@ CIB-251/255 only.
 
 ### CIB-277: Fresh worktree pre-commit gate is silently absent or opaquely broken
 
-- **Status:** Proposed — promotion to `Ready` is the operator's call (membrane
-  checkpoint); filed from a dev-loop run, not self-authorised for execution.
+- **Status:** Ready — promoted by the operator 2026-08-05 (membrane checkpoint).
 - **Priority:** P2 tooling (a CI-enforced format gate can be bypassed with no
   signal; contributor-facing, not user-facing)
 - **Intent:** `core.hooksPath = .husky/_` is set in the **shared** repo config
