@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 214/280  |
+| CIB | —     | In Progress | 215/281  |
 
 ## Purpose
 
@@ -8027,8 +8027,15 @@ CIB-251/255 only.
 
 ### CIB-282: `skill install --json` still emits the Windows verbatim prefix
 
-- **Status:** Ready — promoted by the operator 2026-08-05 (membrane checkpoint).
-  Filed from the CIB-279 dev-loop run, not self-authorised.
+- **Status:** Merged 2026-08-05 via PR #3589 (`8ec238348`) — `TargetReport`
+  now holds a rendered `String` produced once in `TargetReport::new`, so the
+  `--json` and human branches read the same field and cannot diverge again.
+  Envelope and the `targets[].path` key unchanged; only the value differs. Two
+  regression tests assert on the JSON string — drive-letter and verbatim UNC —
+  never on a deserialised `PathBuf`, and both fail against the pre-fix
+  binary. Filed from the CIB-279 dev-loop run; promoted by the operator
+  2026-08-05 (membrane checkpoint). Residual error-path leak tracked as
+  **CIB-285**.
 - **Priority:** P3 presentation defect on a machine-readable surface (no wrong
   verdict, no data loss; the path is correct, just carrying a prefix no
   consumer wants)
@@ -8140,3 +8147,53 @@ CIB-251/255 only.
 - **Confidence:** high that both sites exist and are the same defect class;
   medium on whether a single shared recovery helper can serve both entry
   points, since their watcher and workspace plumbing differ.
+
+### CIB-285: `skill install` error text still carries the Windows verbatim prefix
+
+- **Status:** Draft — filed from the CIB-282 dev-loop run, not self-authorised.
+  Promotion to Ready is an operator call (membrane checkpoint).
+- **Priority:** P4 presentation defect on the failure path only (no wrong
+  verdict; the path is correct, just carrying a prefix no reader wants, and
+  only when something has already gone wrong)
+- **Intent:** CIB-237 stripped the NT-extended `\\?\` prefix from the human
+  success line of `skill install`, and CIB-282 (PR #3589) closed the `--json`
+  branch beside it by rendering once into `TargetReport`. Neither touched the
+  **error** path. Sixteen `bail!` / `with_context` sites in
+  `crates/anvil-cli/src/commands/skill.rs` interpolate `destination.display()`
+  or `path.display()` directly, so a failed install against an NT-extended
+  workspace prints e.g. `creating \\?\C:\project\.claude\skills` on stderr
+  while stdout would have said `C:\project\...`. Same one-surface-two-styles
+  split as CIB-282, one layer down — and it surfaces exactly when a
+  contributor is already debugging.
+- **Non-scope / do not:** Do not re-litigate the CIB-237 rendering rule. Do
+  not route error text through `display_path::render` — these are absolute
+  destinations outside any workspace, and relativising them would be a
+  different rule. Do not restructure the error types; this is a rendering
+  concern at the interpolation sites.
+- **Expected Outcome:** an error naming an install destination renders it in
+  the same style the success paths use. Prefer one helper the error sites
+  share, so a seventeenth site cannot reintroduce the split — the drift, not
+  the prefix, is the defect (the CIB-282 lesson).
+- **Trap to avoid:** assertions on `Path`/`PathBuf` cannot catch this.
+  `PartialEq` is component-wise and Windows accepts `/`, so the assertion must
+  be on the rendered string — the stderr text, not a path value. See CIB-237,
+  CIB-279, CIB-282 for three prior instances of the same trap.
+- **Files:** `crates/anvil-cli/src/commands/skill.rs` (the `bail!` /
+  `with_context` sites at roughly lines 258, 262, 292, 304, 314, 328, 334,
+  341, 404, 439, 450, 453, 460, 463, 469, 492),
+  `crates/anvil-cli/tests/skill_install.rs`
+- **Validation:** a forced install failure against an NT-extended
+  `--workspace` emits no `\\?\` on stderr; the existing success-path tests
+  (`install_output_never_echoes_a_windows_verbatim_prefix`,
+  `install_json_never_emits_a_windows_verbatim_prefix`, and the UNC case)
+  stay green. Assert on the stderr string, never on a `PathBuf`.
+- **Identified From:** independent verification of CIB-282 during the dev-loop
+  run that landed PR #3589 — enumerated site by site, and explicitly recorded
+  there as unchanged by that diff and outside its scope.
+- **Coordinates with:** CIB-237 (shipped), CIB-279 (shipped), CIB-282
+  (shipped)
+- **Confidence:** high on the mechanism — the sites were counted in the
+  source, and the adjacent success paths are already fixed, so the contrast is
+  the evidence. Not reproduced on a Windows host; on Unix the prefix is a
+  literal substring rather than a parsed prefix, which does not change the
+  conclusion.
