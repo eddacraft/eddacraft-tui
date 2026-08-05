@@ -1465,27 +1465,19 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // one hop avoids a second round-trip on the accept
                             // path.
                             //
-                            // The PID read is deliberately NOT allowed to fail
-                            // the connection. The SID check is the admission
-                            // decision and keeps its fail-closed error handling;
-                            // the PID is extra authority that downstream gates
-                            // treat as absent when it is `None`. Propagating a
-                            // transient `GetNamedPipeClientProcessId` failure
-                            // here would drop a connection the daemon served
-                            // before this change — a regression in availability
-                            // to buy nothing, since `None` already means
-                            // "unauthenticated peer" everywhere it is consumed.
+                            // One PID query serves both: the SID verdict admits
+                            // the connection, and the same PID authorises
+                            // durable membership. Querying twice would add a
+                            // syscall per accept and let the verdict describe a
+                            // different read than the one we go on to use.
                             let owner = tokio::task::spawn_blocking(move || {
-                                let handle = raw_handle as RawHandle;
-                                let is_owner =
-                                    anvil_intercept_win32::named_pipe_client_is_owner(handle)?;
-                                let peer_pid =
-                                    anvil_intercept_win32::named_pipe_client_pid(handle).ok();
-                                Ok::<(bool, Option<u32>), std::io::Error>((is_owner, peer_pid))
+                                anvil_intercept_win32::named_pipe_client_owner_and_pid(
+                                    raw_handle as RawHandle,
+                                )
                             })
                             .await;
                             let peer_pid = match owner {
-                                Ok(Ok((true, peer_pid))) => peer_pid,
+                                Ok(Ok((true, peer_pid))) => Some(peer_pid),
                                 Ok(Ok((false, _))) => {
                                     tracing::warn!(target: "anvil_intercept::ipc", "rejecting named-pipe client: peer SID is not the pipe owner");
                                     eprintln!("anvil-intercept: rejecting named-pipe client: peer SID is not the pipe owner");

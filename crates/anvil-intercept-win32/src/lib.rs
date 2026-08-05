@@ -138,10 +138,25 @@ pub fn current_user_sid() -> io::Result<String> {
 /// Propagates the OS error if the client PID, the client process token, or
 /// either user SID cannot be read.
 pub fn named_pipe_client_is_owner(server_handle: RawHandle) -> io::Result<bool> {
+    named_pipe_client_owner_and_pid(server_handle).map(|(is_owner, _)| is_owner)
+}
+
+/// The same-owner verdict **and** the client PID from a single PID query.
+///
+/// CIB-160: the daemon needs both — the verdict to admit the connection, the
+/// PID to authorise durable membership. Reading them in one pass avoids a
+/// second `GetNamedPipeClientProcessId` syscall on every accept, and removes
+/// the window in which two separate queries could disagree: the SID verdict
+/// is now guaranteed to describe the very PID the caller goes on to use.
+///
+/// # Errors
+/// Propagates the OS error if the client PID, the client process token, or
+/// either user SID cannot be read.
+pub fn named_pipe_client_owner_and_pid(server_handle: RawHandle) -> io::Result<(bool, u32)> {
     let client_pid = named_pipe_client_pid(server_handle)?;
     let client_sid = process_user_sid(client_pid)?;
     let current_sid = current_user_sid_string()?;
-    Ok(client_sid == current_sid)
+    Ok((client_sid == current_sid, client_pid))
 }
 
 /// PID of the process at the client end of a connected named-pipe server handle.
