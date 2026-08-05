@@ -620,6 +620,10 @@ mod tests {
         assert!(toast.contains("secret-detection caught"));
         assert!(toast.contains("check pipeline only"));
         assert!(toast.contains("built-in sample fixture"));
+        assert!(
+            !toast.contains("on the fixture"),
+            "ambiguous 'the fixture' invites a live-repo misread (CIB-276): {toast}"
+        );
         assert!(!toast.contains("contract-hardening"));
     }
 
