@@ -9,9 +9,46 @@ engineering maintenance are recorded in the
 ## [Unreleased]
 
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
-> Version and date land at the next cut.
+> Version and date land at the next cut. Theme for the next cut: daily-path
+> honesty and the Windows install / self-update path.
 
 ### Fixed
+
+- **Windows PowerShell install runs again on clean machines.** The dual-install
+  guard (WinGet/Scoop vs cargo-dist) was injected in a way that exited before
+  the installer body ran, so `irm … | iex` could do nothing on a machine with no
+  package-manager anvil. The guard now runs after cargo-dist's parameters and
+  only refuses a true dual install; clean installs complete as normal.
+
+- **Public installers no longer show private GitHub issue numbers.** Earlier
+  Windows installer banners and help text embedded internal tracker ids. Anyone
+  who downloaded the asset could see those numbers even though the private
+  issues stay inaccessible. Ship artefacts now use neutral product wording
+  only — no private issue-number branding in installer copy.
+
+- **`anvil update --check` and install method work for cargo-dist installs.**
+  Official installer receipts live under the `eddacraft-anvil` app name. anvil
+  loads that layout (with a legacy `anvil` fallback), reports the install method
+  honestly, and can check GitHub for updates instead of misclassifying the
+  install as a plain `cargo install`.
+
+- **Project-scoped `anvil start` can install MCP.** Interactive start with
+  `--mcp-scope project` no longer claims "MCP installation disabled" solely
+  because the scope is project. Consent can offer and install project-scoped
+  clients like the headless path already could.
+
+- **No false "log in again" nag for people who already have a session.** Ordinary
+  beta or pro credentials are not treated as edicts. Only an explicit edict
+  forces the edict re-verify path, so a transient network check no longer
+  demands `anvil auth login` when you are already authenticated.
+
+- **Workspace register no longer claims success when nothing stuck.** If
+  registration does not leave a durable entry that `workspace list` can see,
+  anvil says so instead of printing `Registered …` with exit 0.
+
+- **Welcome autoplay failures stay in the TUI.** Auth or demo failures during
+  autoplay surface recovery inside the interface instead of dumping you to a
+  bare shell with little context.
 
 - **File paths read the same way everywhere.** `check`, the pre-commit gate,
   `audit`, and `skill install` each had their own idea of how to print a
@@ -20,10 +57,12 @@ engineering maintenance are recorded in the
   now always print relative to it, anything outside prints as an ordinary
   absolute path, and Windows paths no longer arrive with the `\\?\` prefix or
   mixed slashes.
+
 - **No more line `0`.** `audit` reported findings about a whole file — a
   committed `.env`, say — as `.env:0`, which read like a line number counting
   from zero. Whole-file findings now show just the filename, and `--format json`
   reports `"line": null` for them. Every line number anvil prints is 1-based.
+
 - **Secrets found outside your project keep their real path.** A secret detected
   outside the workspace could be reported with its leading `/` removed, naming a
   file that was not the one scanned.
@@ -31,6 +70,63 @@ engineering maintenance are recorded in the
   On Windows only, because the paths in SARIF output change, code-scanning
   alerts for secret findings are fingerprinted afresh: expect existing alerts to
   close and reappear once after upgrading.
+
+### Changed
+
+- **Activation Install shows the assistants you chose.** The verdict Install
+  block lists this-run outcomes for every client you selected in consent, not a
+  parade of Cursor/Claude Code "not selected" / "already up to date" rows.
+  Other detected clients you left alone collapse to one summary line.
+
+- **Consent is grouped with plain-language "what is this".** Project, hooks,
+  workflows, and MCP clients are separate steps with short blurbs on why anvil
+  wants each write and what happens if you skip it. Selections persist across
+  steps; submit is still explicit.
+
+- **Start value receipt names its evidence scope.** When save-time or witness
+  lines appear on a repeat start, they say whether the evidence is
+  machine-wide or for this repository, so two machines or two clones are not
+  mistaken for one picture.
+
+- **`audit` says what it actually covers.** Chain and secret summaries disclose
+  coverage and that the secret domain is not the same as a full `check` of
+  every file type — without redefining chain integrity.
+
+- **`status` and `insights` name next steps and domains.** Protection:warming
+  points at a next step (or refuses that label when it cannot). Zero counts in
+  insights say which domain was counted so an empty score is not read as "all
+  clear everywhere".
+
+- **Open admission is disclosed, not flipped.** Where admission is intentionally
+  open, surfaces say so instead of implying a closed default you never set.
+
+- **Start flag and non-git honesty.** Combining `--no-mcp` with explicit MCP
+  client flags fails loudly. `--format` warns when config already exists and the
+  flag will not rewrite it. Non-git init vs worktree registration messages no
+  longer contradict each other.
+
+- **After upgrade, recovery paths are clearer.** When the daemon or MCP binary
+  looks older than the CLI you just installed, status/update copy points at the
+  usual recovery steps for that install method.
+
+- **Gate copy: "blocking" means threshold, not severity=warning.** Banner
+  wording no longer reads as if only low-severity "warnings" can block; it is
+  findings that meet the block threshold.
+
+- **Pre-commit gate labels pre-existing tree debt.** When the full-tree gate
+  blocks on already-committed problems (for example a checked-in `.env`) while
+  your staged change is clean, those findings are labeled as pre-existing so
+  the current commit is not blamed for the whole yard. Full-tree scanning is
+  unchanged.
+
+### Docs
+
+- **Public CLI docs match current flags and auth exit code 3.** Reference copy
+  no longer implies only Claude Code and Cursor; skill install docs cover
+  multi-client `--client` and moving files outside a skills directory.
+- **Tutorial and antipattern-scan scope.** Non-interactive tutorial refusal exits
+  non-zero with accurate copy. Antipattern-scan naming is clarified against the
+  built-in rule catalogue.
 
 ## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
 
