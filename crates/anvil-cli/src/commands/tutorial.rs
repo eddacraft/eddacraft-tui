@@ -716,13 +716,15 @@ mod tests {
                             ..TutorialStep::default()
                         }];
                         state.current_step = 0;
-                        for _ in 0..32 {
+                        // Tick until the demo actually fails rather than a
+                        // fixed count, so the reveal rate and dwell behaviour
+                        // stay free to change. The bound only stops a runaway.
+                        let mut ticks = 0;
+                        while state.autoplay_failure().is_none() {
+                            assert!(ticks < 1_000, "the demo step never failed");
                             state.reveal_tick();
+                            ticks += 1;
                         }
-                        assert!(
-                            state.autoplay_failure().is_some(),
-                            "the demo step must have failed"
-                        );
                     }
                     2 => assert!(
                         active_sandbox.is_none(),
