@@ -108,6 +108,13 @@ jobs:
               - 'dist-workspace.toml'
               - 'rust-toolchain.toml'
               - '.github/workflows/rust.yml'
+              # CIB-205: the generated attribution also drifts when the
+              # generator or its template changes, not only when the
+              # dependency graph moves. Without these two paths a PR that
+              # rewrites the template ships unvalidated by the very gate
+              # that exists to validate it.
+              - 'attribution/**'
+              - 'tools/starters/acknowledgements/**'
 
   nxrust-smoke:
     name: nxrust Smoke
