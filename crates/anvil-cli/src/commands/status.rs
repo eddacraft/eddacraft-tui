@@ -933,7 +933,13 @@ struct LayerSummary {
 
 #[derive(Debug, Clone)]
 enum DaemonSummary {
-    Running { pid: u32, uptime: Duration },
+    /// Live process. `pid` / `uptime` are present when the local PID file
+    /// is readable; when only IPC proves liveness they may be absent
+    /// (STATUS-1: do not collapse that case to "not running").
+    Running {
+        pid: Option<u32>,
+        uptime: Option<Duration>,
+    },
     NotRunning,
 }
 
@@ -977,12 +983,27 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
     let _ = writeln!(out, "    L5 audit      {}", s.layers.l5_audit.label());
     out.push('\n');
     match &s.daemon {
-        DaemonSummary::Running { pid, uptime } => {
+        DaemonSummary::Running {
+            pid: Some(pid),
+            uptime: Some(uptime),
+        } => {
             let _ = writeln!(
                 out,
                 "  Daemon: pid {pid} \u{00b7} up {}",
                 format_duration(*uptime)
             );
+        }
+        DaemonSummary::Running {
+            pid: Some(pid),
+            uptime: None,
+        } => {
+            let _ = writeln!(out, "  Daemon: pid {pid}");
+        }
+        DaemonSummary::Running { pid: None, .. } => {
+            // IPC proved the daemon is up but the PID file is missing or
+            // unreadable — still report running so status agrees with
+            // `anvil intercept status` (CIB-253 / STATUS-1).
+            out.push_str("  Daemon: running\n");
         }
         DaemonSummary::NotRunning => {
             out.push_str("  Daemon: not running\n");
@@ -1054,7 +1075,7 @@ fn build_legible_snapshot(
 ) -> LegibleSnapshot {
     let layers = derive_layers(data, diag);
     let protection = derive_protection(diag, &layers);
-    let daemon = read_daemon_summary();
+    let daemon = read_daemon_summary(diag);
     let witness = read_witness_summary(root);
     let next_action = next_action_for_diagnostic(protection, &daemon, diag).to_string();
     let shared = activation::SharedPostureFacts::from_diagnostic(diag);
@@ -1151,24 +1172,60 @@ fn derive_protection(
     protection_claim_section::derive_local_worktree_state(diag)
 }
 
-/// Best-effort daemon summary. Reads the daemon pid file written by
-/// `anvil start`; reports `Running` only when the recorded PID still
-/// resolves to a live process. Uptime is estimated from the pid
-/// file's mtime — close enough for the legible surface; precise
-/// uptime requires an IPC round-trip and will land with MLP2-048.
+/// Best-effort daemon process-liveness summary for the legible block.
 ///
-/// Caveats acknowledged in v1 (improved by ADTRUST-004 wire-up):
+/// **Primary signal (CIB-253 / STATUS-1):** the activation diagnostic's
+/// daemon-attestation IPC probe — the same family of reachability that
+/// `anvil intercept status` uses. When the probe reached a live daemon
+/// (`Unenforced`, `Warming`, `Enforced`, …), this reports `Running` even
+/// if the local PID-file / `kill -0` path fails (Windows has no portable
+/// `kill -0`; a multi-line PID parse bug previously collapsed live
+/// daemons to "not running" while posture correctly said
+/// `daemon: not attesting`).
+///
+/// **Fallback:** when attestation was not probed (`NotProbed`, typically
+/// invalid/absent config), read the PID file written by `anvil start` /
+/// `intercept start` and require a live process. Uptime is estimated
+/// from the pid file's mtime.
+///
+/// Caveats:
 ///
 /// - mtime is touched by the writer once at daemon start, so the
 ///   value normally reflects daemon startup. On systems where the
-///   `default_pid_file_path()` directory (`~/.local/state/anvil`)
-///   can be perturbed by cleanup utilities, `tmpfiles.d`, or backup
-///   tools, the mtime can drift forward. The `elapsed()` failure
-///   path collapses that case to `Duration::ZERO` rather than
-///   reporting a negative or panicking duration.
-/// - `process_is_alive` shells `kill -0`; see its doc for the EPERM
-///   limitation when a daemon is owned by another user.
-fn read_daemon_summary() -> DaemonSummary {
+///   `default_pid_file_path()` directory can be perturbed by cleanup
+///   utilities, `tmpfiles.d`, or backup tools, the mtime can drift
+///   forward. The `elapsed()` failure path collapses that case to
+///   `Duration::ZERO` rather than reporting a negative duration.
+/// - `process_is_alive` shells `kill -0` on Unix; see its doc for the
+///   EPERM limitation when a daemon is owned by another user. Windows
+///   always returns false — rely on IPC reachability when available.
+fn read_daemon_summary(diag: &activation::ActivationDiagnostic) -> DaemonSummary {
+    match diag.daemon_attestation.process_reachable() {
+        // IPC answered: process is up. Decorate with PID details when the
+        // local record is readable; never demote to NotRunning solely
+        // because the PID probe failed.
+        Some(true) => match read_daemon_summary_from_pid(/* require_alive */ false) {
+            running @ DaemonSummary::Running { .. } => running,
+            DaemonSummary::NotRunning => DaemonSummary::Running {
+                pid: None,
+                uptime: None,
+            },
+        },
+        // IPC failed: agree with intercept status that the daemon is not
+        // answering on the resolved endpoint.
+        Some(false) => DaemonSummary::NotRunning,
+        // Not probed — fall back to PID file + process liveness.
+        None => read_daemon_summary_from_pid(/* require_alive */ true),
+    }
+}
+
+/// Read process details from the intercept PID file.
+///
+/// When `require_alive` is true, a recorded PID that does not pass
+/// [`process_is_alive`] is treated as not running (stale file). When
+/// false, a parseable PID is trusted as decoration for an already-proven
+/// live daemon (IPC), even if the OS liveness probe is unavailable.
+fn read_daemon_summary_from_pid(require_alive: bool) -> DaemonSummary {
     let Ok(pid_file) = anvil_intercept::default_pid_file_path() else {
         return DaemonSummary::NotRunning;
     };
@@ -1182,7 +1239,7 @@ fn read_daemon_summary() -> DaemonSummary {
     let Some(pid) = parse_daemon_pid_from_record(&contents) else {
         return DaemonSummary::NotRunning;
     };
-    if !process_is_alive(pid) {
+    if require_alive && !process_is_alive(pid) {
         return DaemonSummary::NotRunning;
     }
     // `mtime.elapsed()` errors when mtime is in the future relative
@@ -1194,7 +1251,10 @@ fn read_daemon_summary() -> DaemonSummary {
         .and_then(|m| m.modified().ok())
         .and_then(|mtime| mtime.elapsed().ok())
         .unwrap_or_default();
-    DaemonSummary::Running { pid, uptime }
+    DaemonSummary::Running {
+        pid: Some(pid),
+        uptime: Some(uptime),
+    }
 }
 
 /// Whether `anvil status` should launch the Ratatui surface. Stricter than
@@ -1702,6 +1762,107 @@ mod tests {
         assert_eq!(
             parse_daemon_pid_from_record("not-a-pid\nstart_time=1\n"),
             None
+        );
+    }
+
+    /// CIB-253 / STATUS-1: when the activation IPC probe reached a live
+    /// daemon that is not attesting this worktree, the legible `Daemon:`
+    /// line must not say "not running". Posture already names
+    /// `daemon: not attesting`; process liveness must agree with
+    /// `anvil intercept status`.
+    #[test]
+    fn daemon_line_running_when_ipc_reachable_but_not_attesting() {
+        use activation::daemon_evidence::DaemonAttestation;
+        use activation::diagnostic::{ConfigStatus, WatchTier};
+
+        let diag = activation::ActivationDiagnostic {
+            config: ConfigStatus::Valid,
+            mcp: std::collections::BTreeMap::new(),
+            watch: WatchTier::NotRequested,
+            baseline_present: false,
+            baseline_summary: None,
+            last_error: None,
+            all_languages_unsupported: false,
+            language_profile: activation::language_profile::RepoLanguageProfile::default(),
+            // Live daemon, worktree not registered — the STATUS-1 case.
+            daemon_attestation: DaemonAttestation::Unenforced,
+            save_time_driver_attached: false,
+        };
+
+        // Force the "IPC up, PID probe empty" branch by synthesizing the
+        // summary the same way `read_daemon_summary` does when PID fails.
+        let summary = match diag.daemon_attestation.process_reachable() {
+            Some(true) => DaemonSummary::Running {
+                pid: None,
+                uptime: None,
+            },
+            other => panic!("expected Some(true) for Unenforced, got {other:?}"),
+        };
+        let mut snap = legible_test_snapshot(WorktreeClaimState::Unprotected);
+        snap.daemon = summary;
+        snap.posture_facts = activation::SharedPostureFacts::from_diagnostic(&diag).fact_lines();
+        let rendered = render_plain_legible(&snap);
+        assert!(
+            !rendered.contains("Daemon: not running"),
+            "STATUS-1: must not contradict live daemon:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("Daemon: running"),
+            "STATUS-1: expect process-up wording:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("daemon: not attesting"),
+            "posture must still name not-attesting:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn daemon_line_not_running_when_ipc_unreachable() {
+        use activation::daemon_evidence::DaemonAttestation;
+        use activation::diagnostic::{ConfigStatus, WatchTier};
+
+        let diag = activation::ActivationDiagnostic {
+            config: ConfigStatus::Valid,
+            mcp: std::collections::BTreeMap::new(),
+            watch: WatchTier::NotRequested,
+            baseline_present: false,
+            baseline_summary: None,
+            last_error: None,
+            all_languages_unsupported: false,
+            language_profile: activation::language_profile::RepoLanguageProfile::default(),
+            daemon_attestation: DaemonAttestation::Unreachable,
+            save_time_driver_attached: false,
+        };
+        assert_eq!(diag.daemon_attestation.process_reachable(), Some(false));
+        let summary = read_daemon_summary(&diag);
+        // Unreachable must not flip to Running solely because a stale PID
+        // file happens to exist for a different process — IPC is the
+        // agreement surface with intercept status.
+        assert!(
+            matches!(summary, DaemonSummary::NotRunning),
+            "Unreachable must report NotRunning, got {summary:?}"
+        );
+    }
+
+    #[test]
+    fn render_running_with_pid_keeps_uptime_line() {
+        let mut snap = legible_test_snapshot(WorktreeClaimState::Unprotected);
+        snap.daemon = DaemonSummary::Running {
+            pid: Some(4242),
+            uptime: Some(Duration::from_secs(90)),
+        };
+        let rendered = render_plain_legible(&snap);
+        assert!(
+            rendered.contains("Daemon: pid 4242"),
+            "expected pid decoration:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("up 1m"),
+            "expected uptime decoration:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains("Daemon: not running"),
+            "must not dual-print not-running:\n{rendered}"
         );
     }
 
@@ -2457,8 +2618,8 @@ mod tests {
                 l5_audit: LayerState::Partial,
             },
             daemon: DaemonSummary::Running {
-                pid: 4_194_303,
-                uptime: Duration::from_secs(YEAR_SECS),
+                pid: Some(4_194_303),
+                uptime: Some(Duration::from_secs(YEAR_SECS)),
             },
             // Worst-case save-time line (longest reason + a wide confined count)
             // so the 24-row budget covers the DSV-007 Task 17 surface too.

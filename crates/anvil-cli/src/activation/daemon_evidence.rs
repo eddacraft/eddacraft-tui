@@ -68,6 +68,33 @@ impl DaemonAttestation {
     pub(crate) fn attests_worktree(self) -> bool {
         matches!(self, Self::Enforced | Self::Promoted)
     }
+
+    /// Process liveness implied by the activation IPC probe.
+    ///
+    /// - `Some(true)` — a live intercept daemon answered (`Unenforced`,
+    ///   `Warming`, `Enforced`, …). Distinct from [`Self::attests_worktree`]:
+    ///   the process can be up while this worktree is not yet attested.
+    /// - `Some(false)` — IPC failed (`Unreachable`); the process is not
+    ///   answering on the resolved socket/pipe.
+    /// - `None` — probe was not attempted (`NotProbed`); callers should fall
+    ///   back to a local PID-file liveness check.
+    ///
+    /// STATUS-1 / CIB-253: `anvil status` must not report `Daemon: not running`
+    /// when this returns `Some(true)` while posture correctly says
+    /// `daemon: not attesting`.
+    pub(crate) const fn process_reachable(self) -> Option<bool> {
+        match self {
+            Self::NotProbed => None,
+            Self::Unreachable => Some(false),
+            Self::Unenforced
+            | Self::StaleHeartbeat
+            | Self::AllSurfacesQuarantined
+            | Self::Warming
+            | Self::NoParticipatingSurface
+            | Self::Enforced
+            | Self::Promoted => Some(true),
+        }
+    }
 }
 
 /// MLP2-051f: wall-clock cap on the activation-side daemon IPC query.
