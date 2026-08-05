@@ -5308,7 +5308,7 @@ fn spawn_faithfulness_canary() -> Option<std::process::Child> {
                 return Some(child);
             }
         }
-        return None;
+        None
     }
     #[cfg(not(windows))]
     {
