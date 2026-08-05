@@ -7704,9 +7704,7 @@ CIB-251/255 only.
 
 ### CIB-278: `docs:check` renders a tooling failure as a content failure
 
-- **Status:** Proposed — promotion to `Ready` is the operator's call (membrane
-  checkpoint); filed from an incidental observation during a read-only
-  investigation, not self-authorised for execution.
+- **Status:** Ready — promoted by the operator 2026-08-05 (membrane checkpoint).
 - **Priority:** P3 tooling honesty (contributor-facing, not user-facing; the
   failure is loud, only misattributed — no silent bypass, hence below
   **CIB-277**'s P2)
