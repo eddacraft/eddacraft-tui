@@ -739,7 +739,9 @@ fn secret_detection_enabled_in_project(root: &Path) -> bool {
 
 /// ACTTUI-016: run the ADTRUST-006 secret fixture through the real secret-detection
 /// engine and return toast copy. Claims check-pipeline proof only — never MCP
-/// pre-write live status.
+/// pre-write live status. CIB-276: name the **built-in sample fixture** so the
+/// toast cannot be skimmed as a live-repo scan when the operator is standing
+/// in a project folder.
 fn run_activation_prove(all_languages_unsupported: bool, secret_detection_enabled: bool) -> String {
     use anvil_checks::secret::{SecretCheckConfig, scan_content};
 
@@ -761,11 +763,11 @@ fn run_activation_prove(all_languages_unsupported: bool, secret_detection_enable
         &SecretCheckConfig::default(),
     );
     if findings.is_empty() {
-        "Prove: no secret-detection finding on the fixture — the check pipeline did not catch the known secret shape. This does not claim MCP pre-write is live."
+        "Prove: no secret-detection finding on the built-in sample fixture — the check pipeline did not catch the known secret shape. This does not claim MCP pre-write is live."
             .to_string()
     } else {
         format!(
-            "Prove: secret-detection caught {} finding(s) on the fixture (check pipeline only — not MCP pre-write).",
+            "Prove: secret-detection caught {} finding(s) on the built-in sample fixture (check pipeline only — not MCP pre-write).",
             findings.len()
         )
     }
@@ -5084,6 +5086,14 @@ mod tests {
         assert!(
             toast.contains("check pipeline only"),
             "prove must not over-claim MCP: {toast}"
+        );
+        assert!(
+            toast.contains("built-in sample fixture"),
+            "prove must name the sample fixture so it cannot be skimmed as a live-repo scan (CIB-276): {toast}"
+        );
+        assert!(
+            !toast.contains("on the fixture"),
+            "ambiguous 'the fixture' invites a live-repo misread (CIB-276): {toast}"
         );
         assert!(!toast.contains("contract-hardening"));
         assert!(toast.contains("not MCP pre-write") || toast.contains("does not claim MCP"));

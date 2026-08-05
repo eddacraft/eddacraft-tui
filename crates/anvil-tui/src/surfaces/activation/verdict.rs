@@ -612,13 +612,14 @@ mod tests {
             sections(),
         ))
         .with_prove(std::sync::Arc::new(|| {
-            "Prove: secret-detection caught 1 finding(s) on the fixture (check pipeline only — not MCP pre-write)."
+            "Prove: secret-detection caught 1 finding(s) on the built-in sample fixture (check pipeline only — not MCP pre-write)."
                 .to_string()
         }));
         assert!(!view.handle_key(Action::Character('t')));
         let toast = view.toast().unwrap();
         assert!(toast.contains("secret-detection caught"));
         assert!(toast.contains("check pipeline only"));
+        assert!(toast.contains("built-in sample fixture"));
         assert!(!toast.contains("contract-hardening"));
     }
 
