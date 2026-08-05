@@ -173,10 +173,20 @@ fn confirm_registration_membership(
     }
 }
 
+/// CIB-252 established that this refusal must be honest rather than report a
+/// false success. CIB-160 adds where to go next: the daemon only honours a
+/// durable claim over the wire when it can verify the caller is running the
+/// same `anvil` binary, and that check fails closed when the peer's executable
+/// cannot be read. `--persist` records the worktree so the daemon registers it
+/// **in-process at its next start**, which never crosses that check — so an
+/// honest refusal now points at a path that works instead of looping the
+/// operator through a retry that cannot succeed.
 fn missing_durable_membership(canonical: &Path) -> WorktreeRegistration {
+    let shown = canonical.display();
     WorktreeRegistration::Rejected(format!(
-        "daemon acknowledged the workspace request for {}, but durable membership was absent from daemon status; retry registration and inspect `anvil intercept status`",
-        canonical.display(),
+        "daemon acknowledged the workspace request for {shown}, but durable membership was absent from daemon status; \
+         retry registration and inspect `anvil intercept status`. \
+         If it keeps not sticking, `anvil workspace register --persist {shown}` records this worktree so the daemon registers it at next start",
     ))
 }
 

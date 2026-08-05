@@ -1459,15 +1459,23 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // calls never stall the accept reactor; fail closed.
                             use std::os::windows::io::{AsRawHandle, RawHandle};
                             let raw_handle = connected_server.as_raw_handle() as usize;
+                            // CIB-160: read the peer PID in the same blocking
+                            // hop as the SID check. Both must happen while the
+                            // client is still connected, and folding them into
+                            // one hop avoids a second round-trip on the accept
+                            // path.
                             let owner = tokio::task::spawn_blocking(move || {
-                                anvil_intercept_win32::named_pipe_client_is_owner(
-                                    raw_handle as RawHandle,
-                                )
+                                let handle = raw_handle as RawHandle;
+                                let is_owner =
+                                    anvil_intercept_win32::named_pipe_client_is_owner(handle)?;
+                                let peer_pid =
+                                    anvil_intercept_win32::named_pipe_client_pid(handle)?;
+                                Ok::<(bool, u32), std::io::Error>((is_owner, peer_pid))
                             })
                             .await;
-                            match owner {
-                                Ok(Ok(true)) => {}
-                                Ok(Ok(false)) => {
+                            let peer_pid = match owner {
+                                Ok(Ok((true, peer_pid))) => Some(peer_pid),
+                                Ok(Ok((false, _))) => {
                                     tracing::warn!(target: "anvil_intercept::ipc", "rejecting named-pipe client: peer SID is not the pipe owner");
                                     eprintln!("anvil-intercept: rejecting named-pipe client: peer SID is not the pipe owner");
                                     drop(connected_server);
@@ -1485,7 +1493,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                     drop(connected_server);
                                     continue;
                                 }
-                            }
+                            };
                             let Ok(connection_permit) = connection_permits.clone().try_acquire_owned() else {
                                 tracing::warn!(target: "anvil_intercept::ipc", "dropping named-pipe connection: active connection limit reached");
                                 eprintln!("anvil-intercept: dropping named-pipe connection: active connection limit reached");
@@ -1502,18 +1510,24 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_usage_emitter = usage_emitter.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                // MLP2-025b: Windows peer-PID is
-                                // greenfield (tracked under MLP2-028).
-                                // `None` here is paired with the
-                                // Linux-only cross-check wire-up in
-                                // `run_foreground` — on Windows
-                                // `cross_check` is `None` and this
-                                // value never reaches the fail-closed
-                                // path. Once MLP2-028 lands the
-                                // wire-up gate widens and `None`
-                                // becomes the documented fail-closed
-                                // default for un-validated peers.
-                                let peer_pid: Option<u32> = None;
+                                // CIB-160: `peer_pid` is now the real
+                                // `GetNamedPipeClientProcessId` value read
+                                // above, replacing the hard-coded `None` that
+                                // MLP2-025b left as greenfield. That `None`
+                                // made the durable-membership gate refuse
+                                // every Windows wire claim outright, so
+                                // `anvil workspace register` could not
+                                // establish durable protection off Linux.
+                                //
+                                // This does not widen MLP2-025b's spoof
+                                // cross-check: `with_cross_check_context` is
+                                // still `#[cfg(target_os = "linux")]`, so
+                                // `cross_check` is `None` here and every
+                                // cross-check path guards on `Some(ctx)`.
+                                // macOS already runs exactly this shape — a
+                                // real `peer_pid` with no cross-check context
+                                // — so Windows now matches it rather than
+                                // introducing a new combination.
                                 if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster, conn_usage_emitter).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
@@ -5021,12 +5035,12 @@ const DOWNGRADED_ACTIVATION_SPINE_CLAIMED_AGENT_ID: &str = "unverified-activatio
 /// The daemon and the activation spine (`anvil start`,
 /// `anvil workspace register`) are the *same* `anvil` binary, so the
 /// authorisation test mirrors [`verify_lineage_claim`]'s peer-derivation:
-/// on Linux the peer's `/proc/<peer_pid>/exe` is compared against the
-/// daemon's own canonicalised [`std::env::current_exe`]. A missing peer
-/// credential (legacy NDJSON wire, no `SO_PEERCRED`) or any non-Linux
-/// platform (no portable peer-exe reader yet) is treated as *not*
-/// authorised — matching the fail-closed, Linux-only posture of
-/// `verify_lineage_claim`. The Linux path additionally refuses to trust
+/// the peer's running executable is compared against the daemon's own
+/// canonicalised [`std::env::current_exe`] — via `/proc/<peer_pid>/exe` on
+/// Linux, `proc_pidpath` on macOS, and `QueryFullProcessImageNameW` on
+/// Windows (CIB-160). A missing peer credential (legacy NDJSON wire, no
+/// `SO_PEERCRED`) or a platform with no reader wired is treated as *not*
+/// authorised. The gate additionally refuses to trust
 /// the comparison at all unless it has proven the kernel reports a foreign
 /// pid's exe faithfully (see [`peer_authorised_for_durable_membership`]),
 /// so a sandbox that aliases foreign `/proc/<pid>/exe` reads to the
@@ -5069,12 +5083,11 @@ fn verify_durable_membership_claim(
 /// CIB-150: `true` when the authenticated peer behind an IPC connection
 /// is entitled to register durable worktree membership — i.e. it is
 /// running the *same* `anvil` binary as the daemon (the CLI and daemon
-/// ship as one executable). On Linux this compares the peer's
-/// `/proc/<peer_pid>/exe` symlink target against the daemon's
-/// canonicalised `current_exe`. Fail-closed on every uncertainty: a
-/// missing peer pid, an unreadable peer or daemon exe path, or a
-/// non-Linux platform (no portable peer-exe reader yet) all return
-/// `false`.
+/// ship as one executable). This compares the peer's executable path — read
+/// per-platform by [`peer_exe_path`] — against the daemon's canonicalised
+/// `current_exe`. Fail-closed on every uncertainty: a missing peer pid, an
+/// unreadable peer or daemon exe path, or a platform with no reader wired
+/// all return `false`.
 ///
 /// The comparison is only meaningful if the kernel reports a *foreign*
 /// process's `/proc/<pid>/exe` faithfully. Some sandboxed runtimes
@@ -5093,79 +5106,110 @@ fn verify_durable_membership_claim(
 /// which never crosses this dispatcher, so durability is preserved even
 /// where the wire gate is forced strict.
 fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
+    let Some(peer_pid) = peer_pid else {
+        return false;
+    };
+    // Refuse to trust the exe comparison unless this environment has
+    // demonstrably reported a foreign pid's exe faithfully. Otherwise
+    // the equality below would be forced true for any same-uid peer.
+    if !foreign_exe_reads_faithful() {
+        return false;
+    }
+    let Some(peer_exe) = peer_exe_path(peer_pid) else {
+        return false;
+    };
+    let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+        return false;
+    };
+    // Linux's `/proc/<pid>/exe` and the macOS / Windows image-path reads all
+    // already resolve to a concrete target, but canonicalise defensively so
+    // both sides are normalised the same way; fall back to the raw path if it
+    // no longer resolves (e.g. the binary was replaced on disk) — that simply
+    // fails the equality check, which is the safe answer.
+    let peer_exe = std::fs::canonicalize(&peer_exe).unwrap_or(peer_exe);
+    peer_exe == daemon_exe
+}
+
+/// CIB-160: the per-platform peer-executable reader behind
+/// [`peer_authorised_for_durable_membership`].
+///
+/// Each platform answers the same question — "what binary is pid `peer_pid`
+/// running?" — through its own kernel interface: Linux reads the
+/// `/proc/<pid>/exe` symlink, macOS calls `proc_pidpath`, and Windows calls
+/// `QueryFullProcessImageNameW` on a `PROCESS_QUERY_LIMITED_INFORMATION`
+/// handle. The macOS and Windows FFI lives in the `anvil-intercept-macos` /
+/// `anvil-intercept-win32` helper crates so this crate keeps
+/// `#![forbid(unsafe_code)]`.
+///
+/// [`None`] on every failure so the caller fails closed. A platform with no
+/// reader wired returns [`None`] and therefore never authorises.
+fn peer_exe_path(peer_pid: u32) -> Option<std::path::PathBuf> {
     #[cfg(target_os = "linux")]
     {
-        let Some(peer_pid) = peer_pid else {
-            return false;
-        };
-        // Refuse to trust the exe comparison unless this environment has
-        // demonstrably reported a foreign pid's exe faithfully. Otherwise
-        // the equality below would be forced true for any same-uid peer.
-        if !foreign_exe_reads_faithful() {
-            return false;
-        }
-        let Ok(peer_exe) = std::fs::read_link(format!("/proc/{peer_pid}/exe")) else {
-            return false;
-        };
-        let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
-            return false;
-        };
-        // `/proc/<pid>/exe` already resolves to the canonical target, but
-        // canonicalise defensively so both sides are normalised the same
-        // way; fall back to the raw link target if it no longer resolves
-        // (e.g. the binary was replaced on disk) — that simply fails the
-        // equality check, which is the safe answer.
-        let peer_exe = std::fs::canonicalize(&peer_exe).unwrap_or(peer_exe);
-        peer_exe == daemon_exe
+        std::fs::read_link(format!("/proc/{peer_pid}/exe")).ok()
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        anvil_intercept_macos::process_image_path(peer_pid)
+    }
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::process_image_path(peer_pid)
+            .ok()
+            .flatten()
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     {
         let _ = peer_pid;
-        false
+        None
     }
 }
 
-/// CIB-150: `true` when this process can read a *foreign* pid's
-/// `/proc/<pid>/exe` and get that process's real executable rather than an
-/// alias of our own binary. Computed once and cached: the answer is a
-/// property of the kernel/sandbox, not of any individual peer.
+/// CIB-150 / CIB-160: `true` when this process can read a *foreign* pid's
+/// executable path and get that process's real binary rather than an alias
+/// of our own. Computed once and cached: the answer is a property of the
+/// kernel/sandbox, not of any individual peer.
 ///
 /// Used by [`peer_authorised_for_durable_membership`] to fail closed on
 /// sandboxes that fabricate foreign exe reads (see that function's docs).
-#[cfg(target_os = "linux")]
+///
+/// CIB-160 extended this from Linux-only to every platform with a peer-exe
+/// reader. The aliasing that motivated it was observed on a Linux micro-VM
+/// reading `/proc/<pid>/exe`, and the macOS / Windows readers are direct
+/// kernel queries rather than filesystem reads, so no equivalent aliasing is
+/// known there. The probe is kept uniform anyway: it is one cached spawn, it
+/// makes the gate behave identically on all three platforms, and if any
+/// sandbox ever does fake these calls the gate fails closed instead of
+/// silently degrading to "always authorised".
 fn foreign_exe_reads_faithful() -> bool {
     static FAITHFUL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *FAITHFUL.get_or_init(probe_foreign_exe_reads_faithful)
 }
 
-/// Probe whether foreign `/proc/<pid>/exe` reads are faithful by spawning
-/// a short-lived canary that is guaranteed *not* to be this binary and
+/// Probe whether foreign peer-exe reads are faithful by spawning a
+/// short-lived canary that is guaranteed *not* to be this binary and
 /// checking that the kernel reports the canary's exe as something other
 /// than our own. A sandbox that aliases foreign reads to the reader's
 /// binary returns our own exe here, which we treat as unfaithful.
 ///
 /// Fail-closed on every uncertainty (cannot resolve our own exe, cannot
 /// spawn the canary, cannot read its exe): the caller then refuses durable
-/// wire claims, which is the safe answer.
-#[cfg(target_os = "linux")]
+/// wire claims, which is the safe answer. Durable membership remains
+/// reachable via the in-process `register_on_start` path
+/// (`anvil workspace register --persist`), which never crosses this gate.
 fn probe_foreign_exe_reads_faithful() -> bool {
     let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
         return false;
     };
-    // `sleep` is POSIX, never this binary, and lives long enough to read
-    // `/proc/<pid>/exe` before we reap it. If it is somehow absent we fail
-    // closed rather than assume the kernel is trustworthy.
-    let Ok(mut canary) = std::process::Command::new("sleep")
-        .arg("30")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    else {
+    let Some(mut canary) = spawn_faithfulness_canary() else {
+        tracing::debug!(
+            target: "anvil_intercept::ipc",
+            "could not spawn the peer-exe faithfulness canary; refusing durable wire claims (CIB-160)",
+        );
         return false;
     };
     let canary_pid = canary.id();
-    let observed = std::fs::read_link(format!("/proc/{canary_pid}/exe")).ok();
+    let observed = peer_exe_path(canary_pid);
     let _ = canary.kill();
     let _ = canary.wait();
     let Some(observed) = observed else {
@@ -5175,6 +5219,33 @@ fn probe_foreign_exe_reads_faithful() -> bool {
     // Faithful iff the canary's exe reads back as something other than our
     // own binary. Equal ⇒ the read was aliased to the reader ⇒ unfaithful.
     observed != daemon_exe
+}
+
+/// Spawn the short-lived, definitely-not-this-binary process used by
+/// [`probe_foreign_exe_reads_faithful`].
+///
+/// Unix uses `sleep`, which is POSIX and always a separate binary. Windows
+/// uses `ping` against the loopback address: `ping.exe` ships in System32,
+/// is on the default `PATH`, and takes a count rather than needing a console
+/// (unlike `timeout`, which fails immediately when stdin is redirected).
+/// Both are killed as soon as their exe has been read.
+fn spawn_faithfulness_canary() -> Option<std::process::Child> {
+    let mut command = if cfg!(windows) {
+        let mut command = std::process::Command::new("ping");
+        // 31 echoes ≈ 30s, comfortably longer than the read below.
+        command.args(["-n", "31", "127.0.0.1"]);
+        command
+    } else {
+        let mut command = std::process::Command::new("sleep");
+        command.arg("30");
+        command
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -6642,11 +6713,50 @@ mod tests {
         let Ok(ours) = std::env::current_exe().and_then(std::fs::canonicalize) else {
             return false;
         };
-        let Ok(peer) = std::fs::read_link(format!("/proc/{peer_pid}/exe")) else {
+        // CIB-160: read through the same per-platform reader the gate uses,
+        // so this premise check cannot drift from the behaviour it guards.
+        let Some(peer) = peer_exe_path(peer_pid) else {
             return false;
         };
         let peer = std::fs::canonicalize(&peer).unwrap_or(peer);
         peer == ours
+    }
+
+    /// CIB-160: the per-platform peer-exe reader resolves *this* process to
+    /// this test binary. Runs on every platform with a reader wired, so a
+    /// broken macOS `proc_pidpath` or Windows `QueryFullProcessImageNameW`
+    /// binding fails here rather than silently returning [`None`] forever
+    /// and leaving the durable gate permanently closed — the failure mode
+    /// that made the pre-CIB-160 non-Linux posture indistinguishable from a
+    /// working one.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn peer_exe_path_resolves_our_own_process() {
+        let ours = std::env::current_exe()
+            .and_then(std::fs::canonicalize)
+            .expect("this process must resolve its own exe");
+        let observed = peer_exe_path(std::process::id())
+            .expect("the platform peer-exe reader must resolve our own pid");
+        let observed = std::fs::canonicalize(&observed).unwrap_or(observed);
+        assert_eq!(
+            observed, ours,
+            "the peer-exe reader must report this process's real binary",
+        );
+    }
+
+    /// CIB-160: a pid that cannot exist resolves to [`None`] rather than to
+    /// some other process's binary. Pins the fail-closed half of the reader
+    /// contract on every platform.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn peer_exe_path_is_none_for_an_impossible_pid() {
+        // 0 is never a schedulable user process on any supported platform:
+        // Linux reserves it for the swapper/idle task, macOS for kernel_task,
+        // and on Windows `OpenProcess(0)` fails.
+        assert!(
+            peer_exe_path(0).is_none(),
+            "an unreadable pid must fail closed, not resolve to a binary",
+        );
     }
 
     /// CIB-150: an activation-spine claim whose authenticated peer is a
@@ -6664,23 +6774,23 @@ mod tests {
     /// post-dispatch read aliases to this binary the premise cannot hold
     /// and the test skips (`[SKIP]` on stderr is surfaced by nextest's
     /// `success-output = "immediate"`).
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded() {
         use anvil_intercept_proto::IpcCommand;
         use anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID;
 
-        // A long-lived helper whose /proc/<pid>/exe is NOT this test
-        // binary, so the daemon's exe comparison must fail.
-        let mut child = std::process::Command::new("sleep")
-            .arg("30")
-            .spawn()
-            .expect("spawn a non-anvil helper process");
+        // A long-lived helper whose executable is NOT this test binary, so
+        // the daemon's exe comparison must fail. CIB-160 routes this through
+        // the same per-platform canary the faithfulness probe uses, so the
+        // test runs wherever the gate is now enforced rather than assuming
+        // a POSIX `sleep`.
+        let mut child = spawn_faithfulness_canary().expect("spawn a non-anvil helper process");
         let peer_pid = child.id();
         if peer_exe_reads_as_ours(peer_pid) {
             eprintln!(
                 "[SKIP] dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded: \
-                 this environment aliases foreign /proc/<pid>/exe reads to the reader's \
+                 this environment aliases foreign peer-exe reads to the reader's \
                  binary (issue #3130); the non-anvil-peer premise cannot hold here"
             );
             let _ = child.kill();
@@ -6750,7 +6860,12 @@ mod tests {
     /// unconditionally is exactly what red-flagged this environment
     /// (`880 passed; 1 failed`); asserting the *contract* keeps the gate
     /// honest on both kinds of kernel.
-    #[cfg(target_os = "linux")]
+    ///
+    /// CIB-160 widened this from Linux-only to every platform with a
+    /// peer-exe reader. On macOS and Windows the assertion is what proves
+    /// the new readers actually authorise a genuine same-binary peer — the
+    /// half a fail-closed stub would silently fail.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn dispatch_command_durable_claim_from_authorised_peer_persists() {
         use anvil_intercept_proto::IpcCommand;
@@ -6759,6 +6874,26 @@ mod tests {
         let recorder = Arc::new(RecordingDispatcher::default());
         let dispatcher = Arc::new(Arc::clone(&recorder));
         let peer_pid = std::process::id();
+        // CIB-160: pin the premise before the conditional below. The
+        // faithfulness branch is decided by `foreign_exe_reads_faithful`,
+        // which itself fails closed when the peer-exe reader returns
+        // nothing — so a reader that is simply broken (or a not-yet-written
+        // per-OS stub) would send this test down the `else` arm and let it
+        // assert the very downgrade the break caused. That is a test which
+        // cannot fail for the reason it exists. Requiring the reader to
+        // resolve a known-answer case first means the `else` arm can only be
+        // reached by genuine sandbox aliasing, not by a missing reader.
+        let ours = std::env::current_exe()
+            .and_then(std::fs::canonicalize)
+            .expect("this process must resolve its own exe");
+        let observed =
+            peer_exe_path(peer_pid).map(|path| std::fs::canonicalize(&path).unwrap_or(path));
+        assert_eq!(
+            observed.as_ref(),
+            Some(&ours),
+            "the platform peer-exe reader must resolve this process before \
+             this test can say anything about the durable gate",
+        );
         let worktree = tempfile::tempdir().expect("worktree tempdir");
         let spine = AgentTag::new(
             "anvil-start",

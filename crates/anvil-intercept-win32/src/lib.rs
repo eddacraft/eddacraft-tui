@@ -48,7 +48,7 @@ use windows_sys::Win32::System::Pipes::{GetNamedPipeClientProcessId, GetNamedPip
 use windows_sys::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess,
     OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
-    TerminateProcess, WaitForSingleObject,
+    QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
 };
 
 // `GENERIC_READ` / `GENERIC_WRITE` are not re-exported from any
@@ -145,7 +145,16 @@ pub fn named_pipe_client_is_owner(server_handle: RawHandle) -> io::Result<bool> 
 }
 
 /// PID of the process at the client end of a connected named-pipe server handle.
-fn named_pipe_client_pid(server_handle: RawHandle) -> io::Result<u32> {
+///
+/// CIB-160 made this public so the daemon can thread a real `peer_pid` through
+/// the IPC dispatcher on Windows, where it was previously hard-coded `None`.
+/// The handle is borrowed, never closed. Because the client is still connected
+/// during the query, the returned PID is live, so the PID-reuse window is the
+/// same in-model one the Unix `SO_PEERCRED` path carries.
+///
+/// # Errors
+/// Propagates the OS error if the client PID cannot be read.
+pub fn named_pipe_client_pid(server_handle: RawHandle) -> io::Result<u32> {
     let mut pid: u32 = 0;
     // SAFETY: `server_handle` is a live, connected named-pipe server handle the
     // caller owns (`RawHandle` is `*mut c_void`, i.e. a Win32 `HANDLE`); `&mut
@@ -831,6 +840,67 @@ pub fn process_creation_time(pid: u32) -> io::Result<Option<u64>> {
     Ok(Some(
         (u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime),
     ))
+}
+
+/// CIB-160: the Windows peer-executable reader, the analogue of Linux's
+/// `/proc/<pid>/exe` symlink read and macOS's `proc_pidpath`.
+///
+/// Returns the Win32-format image path of `pid`'s running executable via
+/// `QueryFullProcessImageNameW`, or `Ok(None)` when the process is gone or
+/// this process may not query it — the same soft-failure shape
+/// [`process_creation_time`] uses, so the caller can fail closed without
+/// treating an ordinary race as an error.
+///
+/// The handle is opened `PROCESS_QUERY_LIMITED_INFORMATION`, which is the
+/// least privilege that satisfies this call and is obtainable for a same-user
+/// process without debug rights.
+///
+/// # Errors
+/// Propagates the OS error if the process opens but the image path cannot be
+/// read for a reason other than the process having exited.
+pub fn process_image_path(pid: u32) -> io::Result<Option<std::path::PathBuf>> {
+    use std::os::windows::ffi::OsStringExt as _;
+
+    let handle = match ProcessHandle::open_query(pid) {
+        Ok(handle) => handle,
+        Err(err) if err.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) => return Ok(None),
+        Err(err) if err.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) => return Ok(None),
+        Err(err) => return Err(err),
+    };
+
+    // Win32 paths are capped at 32767 wide chars; size the buffer to that
+    // ceiling once rather than growing on ERROR_INSUFFICIENT_BUFFER, so the
+    // read is a single call with no retry loop to get wrong.
+    let mut buffer = vec![0u16; 32_768];
+    let mut size = u32::try_from(buffer.len()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "image-path buffer length exceeds u32",
+        )
+    })?;
+    // SAFETY: `handle` is a live process handle opened with
+    // PROCESS_QUERY_LIMITED_INFORMATION. `buffer` is a uniquely borrowed
+    // allocation of `size` wide chars and `size` is a valid in/out parameter
+    // the call updates with the number of chars written (excluding the NUL).
+    // Flags `0` selects the Win32 path format.
+    let ok = unsafe { QueryFullProcessImageNameW(handle.0, 0, buffer.as_mut_ptr(), &mut size) };
+    if ok == 0 {
+        let err = io::Error::last_os_error();
+        // The process exited between the open and the query — an ordinary
+        // race, not a failure to report.
+        if err.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
+            return Ok(None);
+        }
+        return Err(err);
+    }
+
+    let written = usize::try_from(size).unwrap_or(0);
+    if written == 0 || written > buffer.len() {
+        return Ok(None);
+    }
+    Ok(Some(std::path::PathBuf::from(
+        std::ffi::OsString::from_wide(&buffer[..written]),
+    )))
 }
 
 struct OwnerOnlySecurityAttributes {
