@@ -116,16 +116,24 @@ module.exports = {
     // Markdown under docs/ and similar. Agent-config dirs are prettierignored
     // so their skill fences are not reflowed — skip them here the same way
     // as the TS/JSON globs (CIB-191 empty-target avoidance). Root plans/
-    // remain in `kept` for markdownlint; oxfmt skips them via isRootPlansDoc
-    // so plans-only stages do not hand oxfmt an empty target set.
+    // stay in `kept`; oxfmt skips them via isRootPlansDoc so plans-only
+    // stages do not hand oxfmt an empty target set.
     const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
     const tasks = [];
     // `/plans` is prettierignored wholesale, so a commit staging only planning
     // markdown hands oxfmt an all-excluded target set and it exits non-zero
     // with "Expected at least one target file", failing the whole pre-commit
-    // hook. markdownlint has no such exclusion and still covers plans/, so drop
-    // planning docs from the formatter only rather than from the glob.
+    // hook. markdownlint is safe to hand the same files: it exits 0 when every
+    // input is excluded, so dropping planning docs from the formatter only —
+    // not from the glob — is enough to keep the hook green.
+    //
+    // markdownlint does not lint them either. `.markdownlintignore` excludes
+    // `plans/**` and markdownlint-cli loads that file automatically (the
+    // explicit `--ignore-path` in `pnpm lint:check` is redundant, not the
+    // thing that enables it), and the exclusion still matches the absolute
+    // paths lint-staged passes. Planning docs reaching markdownlint here are
+    // a deliberate no-op, not coverage.
     const formatted = kept.filter((f) => !isRootPlansDoc(f) && !isGeneratedMarkdown(f));
     if (formatted.length > 0) {
       tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
