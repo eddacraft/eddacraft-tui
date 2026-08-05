@@ -1464,17 +1464,28 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // client is still connected, and folding them into
                             // one hop avoids a second round-trip on the accept
                             // path.
+                            //
+                            // The PID read is deliberately NOT allowed to fail
+                            // the connection. The SID check is the admission
+                            // decision and keeps its fail-closed error handling;
+                            // the PID is extra authority that downstream gates
+                            // treat as absent when it is `None`. Propagating a
+                            // transient `GetNamedPipeClientProcessId` failure
+                            // here would drop a connection the daemon served
+                            // before this change — a regression in availability
+                            // to buy nothing, since `None` already means
+                            // "unauthenticated peer" everywhere it is consumed.
                             let owner = tokio::task::spawn_blocking(move || {
                                 let handle = raw_handle as RawHandle;
                                 let is_owner =
                                     anvil_intercept_win32::named_pipe_client_is_owner(handle)?;
                                 let peer_pid =
-                                    anvil_intercept_win32::named_pipe_client_pid(handle)?;
-                                Ok::<(bool, u32), std::io::Error>((is_owner, peer_pid))
+                                    anvil_intercept_win32::named_pipe_client_pid(handle).ok();
+                                Ok::<(bool, Option<u32>), std::io::Error>((is_owner, peer_pid))
                             })
                             .await;
                             let peer_pid = match owner {
-                                Ok(Ok((true, peer_pid))) => Some(peer_pid),
+                                Ok(Ok((true, peer_pid))) => peer_pid,
                                 Ok(Ok((false, _))) => {
                                     tracing::warn!(target: "anvil_intercept::ipc", "rejecting named-pipe client: peer SID is not the pipe owner");
                                     eprintln!("anvil-intercept: rejecting named-pipe client: peer SID is not the pipe owner");
@@ -1528,6 +1539,34 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 // real `peer_pid` with no cross-check context
                                 // — so Windows now matches it rather than
                                 // introducing a new combination.
+                                //
+                                // It DOES activate three paths that were inert
+                                // on Windows while the pid was always `None`,
+                                // and that is deliberate rather than
+                                // incidental:
+                                //
+                                // - `verify_lineage_claim` previously returned
+                                //   `Err` for a missing peer credential, and
+                                //   its caller propagates with `?`. Since
+                                //   `anvil run` always sends a `lineage`
+                                //   anchor, *every* lineage-bearing
+                                //   `RegisterSession` was rejected outright on
+                                //   Windows. Supplying the pid repairs that
+                                //   path; it does not newly restrict it.
+                                // - `ReportProcess` and heartbeat/unregister
+                                //   ownership (`launcher_pid`) become
+                                //   enforceable on Windows for the first time,
+                                //   matching the Unix contract.
+                                //
+                                // The consequence worth knowing: once a
+                                // registration stamps `launcher_pid`, a later
+                                // heartbeat or unregister from a *different*
+                                // process is refused as an ownership mismatch,
+                                // exactly as on Unix. That is the intended
+                                // trust model, but it is new behaviour here,
+                                // so it is covered by the native Windows leg
+                                // of the cross-compile matrix rather than by
+                                // cross-compilation alone.
                                 if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster, conn_usage_emitter).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
@@ -6708,7 +6747,7 @@ mod tests {
     /// this test binary — i.e. the foreign read was aliased to the reader
     /// (issue #3130). An unreadable exe is NOT aliased: the gate fails
     /// closed on it, which the downgrade assertions already cover.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn peer_exe_reads_as_ours(peer_pid: u32) -> bool {
         let Ok(ours) = std::env::current_exe().and_then(std::fs::canonicalize) else {
             return false;
@@ -6785,7 +6824,18 @@ mod tests {
         // the same per-platform canary the faithfulness probe uses, so the
         // test runs wherever the gate is now enforced rather than assuming
         // a POSIX `sleep`.
-        let mut child = spawn_faithfulness_canary().expect("spawn a non-anvil helper process");
+        //
+        // A missing canary binary (a stripped container with no `sleep` or
+        // `ping`) is an environment limitation, not a defect: skip rather
+        // than fail, matching how this test already handles an environment
+        // whose foreign exe reads are aliased.
+        let Some(mut child) = spawn_faithfulness_canary() else {
+            eprintln!(
+                "[SKIP] dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded: \
+                 no canary binary available to stand in for a non-anvil peer"
+            );
+            return;
+        };
         let peer_pid = child.id();
         if peer_exe_reads_as_ours(peer_pid) {
             eprintln!(
@@ -7292,7 +7342,10 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    // CIB-160: both are needed by the durable-membership test scaffolding,
+    // which now builds on Windows too — `SessionId` in the test bodies and
+    // `SessionRecord` in `RecordingDispatcher`'s `SessionDispatcher` impl.
+    #[cfg(any(unix, windows))]
     use anvil_intercept_proto::{SessionId, SessionRecord};
     #[cfg(unix)]
     use std::time::Duration;
@@ -7306,7 +7359,9 @@ mod tests {
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::registry::LookupSpan;
 
-    #[cfg(unix)]
+    // CIB-160: `RecordingDispatcher`'s `SessionDispatcher` impl names this in
+    // its return types, and that scaffolding now builds on Windows too.
+    #[cfg(any(unix, windows))]
     use crate::registry::RegistryError;
 
     #[derive(Debug, Default, Clone)]
@@ -8263,13 +8318,13 @@ mod tests {
     // ----- Recording dispatcher used by behaviour tests. ------------
 
     #[derive(Debug, Default)]
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     struct RecordingDispatcher {
         calls: Mutex<Vec<RecordedCall>>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     enum RecordedCall {
         Register {
             id: String,
@@ -8288,14 +8343,14 @@ mod tests {
         },
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     impl RecordingDispatcher {
         fn calls(&self) -> Vec<RecordedCall> {
             self.calls.lock().unwrap().clone()
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     impl SessionDispatcher for Arc<RecordingDispatcher> {
         fn register(
             &self,
