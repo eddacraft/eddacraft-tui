@@ -8,10 +8,10 @@ expression: "render_to_string(&done, 100, 22)"
   ────────────────────────────────────────────────────────────────────────────────────────────────  
   ◈ state: ready_restart_required                                                                   
   Activation state: ready_restart_required                                                          
+  next: restart editor                                                                              
   ┌ Activation verdict ──────────────────────────────────────────────────────────────────────────┐  
   │▼ Activation                                                                                  │  
   │  · state: ready_restart_required                                                             │  
-  │  · next: restart editor                                                                      │  
   │· Layers                                                                                      │  
   │· Install                                                                                     │  
   │· Languages                                                                                   │  
@@ -22,5 +22,5 @@ expression: "render_to_string(&done, 100, 22)"
   │                                                                                              │  
   │                                                                                              │  
   │                                                                                              │  
-  └──────────────────────────────────────────────────────────────────────────────────────────────┘  
-  [↑/↓] Move  [enter/space] Expand  [t] Prove  [e] Evidence  [esc/q] Quit
+  │                                                                                              │  
+  └──────────────────────────────────────────────────────────────────────────────────────────────┘

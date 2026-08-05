@@ -14,6 +14,12 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **`anvil start` result screen shows one help bar and a full next step.** The
+  activation verdict no longer draws a second key legend that disagreed with the
+  shell bar (arrows vs `j/k`). The `next:` guidance line is promoted out of the
+  tree and wraps at typical console widths so the whole next step stays
+  readable.
+
 - **Windows PowerShell install runs again on clean machines.** The dual-install
   guard (WinGet/Scoop vs cargo-dist) was injected in a way that exited before
   the installer body ran, so `irm … | iex` could do nothing on a machine with no

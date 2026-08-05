@@ -243,7 +243,11 @@ mod tests {
         assert!(out.contains("[Verdict]"));
         assert!(out.contains("state: protecting"));
         assert!(out.contains("Activation verdict"));
-        assert!(out.contains("Prove"));
+        // CIB-275: next: is a dedicated wrapping band, not a clipped tree leaf;
+        // Prove keys live on the shell HelpBar only (not rendered here).
+        assert!(out.contains("next: done"));
+        assert!(!out.contains("[↑/↓]"));
+        assert!(!out.contains("[t] Prove"));
     }
 
     #[test]

@@ -3,8 +3,13 @@
 //! This module keeps the activation state vocabulary honest by rendering the
 //! state label supplied by the CLI verbatim. It adds eddacraft-tui widgets around
 //! that fixed truth: `StatusBadge` for the headline, `Tree` for collapsible
-//! evidence, `Toast` for Prove feedback (ACTTUI-016), and `HelpBar` for
-//! contextual keys.
+//! evidence, and `Toast` for Prove feedback (ACTTUI-016).
+//!
+//! Keyboard help lives only on the shell `HelpBar` (`ActivationSurface::help_text`)
+//! — CIB-275 / ACTTUI-015: a second in-pane bar with different keys (arrows vs
+//! `j/k`) made the result screen unreadable. The `next:` guidance line is also
+//! promoted out of the single-line tree leaf so it can wrap at typical console
+//! widths instead of clipping mid-sentence.
 //!
 //! JOURNEY-008 re-introduces a single-beat `BigBanner` celebration on the
 //! *first* protecting activation only (the run that establishes the LAUNCH-010
@@ -15,17 +20,18 @@
 
 use std::sync::Arc;
 
-use eddacraft_tui::keyboard::{Action, Binding};
+use eddacraft_tui::keyboard::Action;
 use eddacraft_tui::prelude::{
-    BadgeStatus, BigBanner, HelpBar, StatusBadge, Toast, ToastPlacement, ToastStack, Tree,
-    TreeNode, TreeState,
+    BadgeStatus, BigBanner, StatusBadge, Toast, ToastPlacement, ToastStack, Tree, TreeNode,
+    TreeState,
 };
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Widget};
+use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget, Widget, Wrap};
+use unicode_width::UnicodeWidthChar;
 
 /// Presentation tone for the verdict headline. This is styling only; it must
 /// never invent or upgrade the fixed protection-state label.
@@ -101,11 +107,17 @@ pub const CELEBRATION_BANNER_TEXT: &str = "Protecting";
 const CELEBRATION_BANNER_HEIGHT: u16 = 4;
 
 /// Minimum verdict-area height before the banner is allowed to show. The body
-/// needs 6 rows (headline 2 + tree 3 + help 1); adding the banner needs 4 more.
-/// Below this the banner silently degrades to a full, uncompressed verdict so it
-/// can never squeeze the honesty-pinned headline off screen. Mirrors the
+/// needs 5 rows (headline 2 + tree 3); adding the banner needs 4 more. Below
+/// this the banner silently degrades to a full, uncompressed verdict so it can
+/// never squeeze the honesty-pinned headline off screen. Mirrors the
 /// `hint_min_height` guard convention used by the welcome/onboarding surfaces.
-const CELEBRATION_MIN_HEIGHT: u16 = CELEBRATION_BANNER_HEIGHT + 6;
+/// CIB-275: the former +1 row was an in-pane help bar; keys now live only on
+/// the shell chrome.
+const CELEBRATION_MIN_HEIGHT: u16 = CELEBRATION_BANNER_HEIGHT + 5;
+
+/// Cap for the wrapped `next:` guidance band so a long repair hint cannot
+/// starve the collapsible verdict tree on short terminals.
+const NEXT_GUIDANCE_MAX_HEIGHT: u16 = 6;
 
 /// Structured verdict handed to the surface by the CLI.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,6 +131,9 @@ pub struct VerdictModel {
     /// not a durable per-repo flag; deleting `.anvil/` legitimately re-fires it
     /// — and never on healthy repeat runs.
     pub first_success: bool,
+    /// Full `next:` / `Next:` guidance, lifted out of the tree so it can wrap.
+    /// Absent when the plain arbiter has no repair or closing next step.
+    pub next_guidance: Option<String>,
 }
 
 impl VerdictModel {
@@ -126,13 +141,15 @@ impl VerdictModel {
     pub fn new(
         state_label: impl Into<String>,
         headline: impl Into<String>,
-        sections: Vec<VerdictSection>,
+        mut sections: Vec<VerdictSection>,
     ) -> Self {
+        let next_guidance = take_next_guidance(&mut sections);
         Self {
             state_label: state_label.into(),
             headline: headline.into(),
             sections,
             first_success: false,
+            next_guidance,
         }
     }
 
@@ -178,6 +195,47 @@ impl VerdictModel {
     pub fn tone(&self) -> VerdictTone {
         VerdictTone::from_state_label(&self.state_label)
     }
+}
+
+/// Pull the first `next:` / `Next:` row out of section trees so the dedicated
+/// wrapping band owns it (CIB-275). Case-insensitive prefix match after trim.
+fn take_next_guidance(sections: &mut [VerdictSection]) -> Option<String> {
+    for section in sections.iter_mut() {
+        if let Some(idx) = section.rows.iter().position(is_next_guidance_row) {
+            return Some(section.rows.remove(idx));
+        }
+    }
+    None
+}
+
+fn is_next_guidance_row(row: impl AsRef<str>) -> bool {
+    row.as_ref()
+        .trim()
+        .to_ascii_lowercase()
+        .starts_with("next:")
+}
+
+/// Display-width-aware wrap height for the guidance band (ASCII-heavy copy;
+/// still counts wide glyphs correctly when present).
+fn next_guidance_height(text: &str, width: u16) -> u16 {
+    if text.is_empty() || width == 0 {
+        return 0;
+    }
+    let max_w = usize::from(width);
+    let mut rows = 1u16;
+    let mut col = 0usize;
+    for ch in text.chars() {
+        let cw = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if cw == 0 {
+            continue;
+        }
+        if col + cw > max_w && col > 0 {
+            rows = rows.saturating_add(1);
+            col = 0;
+        }
+        col += cw;
+    }
+    rows.clamp(1, NEXT_GUIDANCE_MAX_HEIGHT)
 }
 
 fn sections_from_plain(verdict: &str) -> Vec<VerdictSection> {
@@ -373,16 +431,29 @@ pub fn render(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCra
         area
     };
 
+    // CIB-275: no in-pane HelpBar — shell chrome owns keys. The free row goes
+    // to a wrapping `next:` band so the one line that tells the user what to do
+    // is fully readable at typical console widths.
+    let next_height = view
+        .model
+        .next_guidance
+        .as_deref()
+        .map_or(0, |text| next_guidance_height(text, body.width));
+
     let chunks = Layout::vertical([
         Constraint::Length(2),
+        Constraint::Length(next_height),
         Constraint::Min(3),
-        Constraint::Length(1),
     ])
     .split(body);
 
     render_headline(frame, chunks[0], &view.model, theme);
-    render_tree(frame, chunks[1], view, theme);
-    render_help(frame, chunks[2], theme);
+    if next_height > 0
+        && let Some(text) = view.model.next_guidance.as_deref()
+    {
+        render_next_guidance(frame, chunks[1], text, theme);
+    }
+    render_tree(frame, chunks[2], view, theme);
 
     if let Some(message) = view.toast() {
         render_toast(frame, area, message, theme);
@@ -435,37 +506,21 @@ fn render_tree(frame: &mut Frame, area: Rect, view: &VerdictView, theme: &EddaCr
     Tree::new(theme, &nodes).render(inner, frame.buffer_mut(), &mut tree_state);
 }
 
-fn render_help(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
-    const BINDINGS: &[Binding] = &[
-        Binding {
-            keys: "↑/↓",
-            action: Action::Up,
-            label: "Move",
-        },
-        Binding {
-            keys: "enter/space",
-            action: Action::Select,
-            label: "Expand",
-        },
-        Binding {
-            keys: "t",
-            action: Action::Character('t'),
-            label: "Prove",
-        },
-        Binding {
-            keys: "e",
-            action: Action::Character('e'),
-            label: "Evidence",
-        },
-        Binding {
-            keys: "esc/q",
-            action: Action::Quit,
-            label: "Quit",
-        },
-    ];
-    HelpBar::new(theme)
-        .bindings(BINDINGS)
-        .render(area, frame.buffer_mut());
+/// CIB-275: dedicated wrapping band for the arbiter's next-step line.
+fn render_next_guidance(frame: &mut Frame, area: Rect, text: &str, theme: &EddaCraftTheme) {
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    frame.render_widget(
+        Paragraph::new(Line::styled(
+            text.to_string(),
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        ))
+        .wrap(Wrap { trim: false }),
+        area,
+    );
 }
 
 fn render_toast(frame: &mut Frame, area: Rect, message: &str, theme: &EddaCraftTheme) {
@@ -724,9 +779,10 @@ mod tests {
     #[test]
     fn celebration_degrades_on_short_terminals_preserving_the_headline() {
         // On a pane too short to hold both the banner and an uncompressed
-        // verdict, the banner is suppressed so the honesty-pinned headline (and
-        // help bar) always survive — the banner never squeezes the state line
-        // off screen.
+        // verdict, the banner is suppressed so the honesty-pinned headline
+        // always survives — the banner never squeezes the state line off
+        // screen. CIB-275: keys live only on the shell chrome, so no in-pane
+        // help bar is required to survive.
         let celebrate = VerdictView::new(
             VerdictModel::new(
                 "protecting",
@@ -749,7 +805,10 @@ mod tests {
                 .contains("state: protecting"),
             "short terminal leads with the headline; banner is suppressed"
         );
-        assert!(out.contains("Quit"), "help bar must survive too");
+        assert!(
+            !out.contains("[↑/↓]"),
+            "in-pane help bar must stay gone on short terminals"
+        );
     }
 
     #[test]
@@ -764,6 +823,98 @@ mod tests {
         assert!(out.contains("Ready, restart required"));
         assert!(out.contains("Active layers"));
         assert!(out.contains("pending — restart required"));
-        assert!(out.contains("Prove"));
+        // CIB-275: Prove is advertised on the shell help bar only.
+        assert!(!out.contains("[t] Prove"));
+        assert!(!out.contains("[↑/↓]"));
+    }
+
+    #[test]
+    fn cib275_no_inline_help_bar_on_verdict() {
+        let view = VerdictView::new(VerdictModel::new(
+            "ready_restart_required",
+            "Ready, restart required — restart your editor.",
+            sections(),
+        ));
+        let out = render_symbols(&view, 100, 22);
+        assert!(
+            !out.contains("[↑/↓]"),
+            "arrows help bar must not render inside the verdict pane"
+        );
+        assert!(
+            !out.contains("[enter/space]"),
+            "second key legend must not fight the shell j/k help"
+        );
+        assert!(
+            !out.contains("[esc/q] Quit"),
+            "quit keys live on the shell HelpBar only"
+        );
+    }
+
+    #[test]
+    fn cib275_long_next_guidance_wraps_at_typical_console_width() {
+        // Real repair hints from the plain arbiter are long enough that a
+        // single tree leaf clips mid-sentence at ~80 columns. The dedicated
+        // band must keep the full text readable by wrapping.
+        let next = "next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.";
+        assert!(
+            next.chars().count() > 80,
+            "fixture must exceed a typical console width"
+        );
+        let view = VerdictView::new(VerdictModel::new(
+            "ready_restart_required",
+            "Ready, restart required — restart your editor.",
+            vec![VerdictSection::new(
+                "activation",
+                "Activation",
+                vec![
+                    "state: ready_restart_required".to_string(),
+                    next.to_string(),
+                ],
+            )],
+        ));
+        assert_eq!(view.model().next_guidance.as_deref(), Some(next));
+        assert!(
+            view.model()
+                .sections
+                .iter()
+                .flat_map(|s| s.rows.iter())
+                .all(|row| !is_next_guidance_row(row)),
+            "next: must leave the tree once promoted to the guidance band"
+        );
+
+        let out = render_symbols(&view, 80, 24);
+        // Collapse whitespace so wrap-induced line breaks do not break the
+        // full-text assertion.
+        let compact: String = out.split_whitespace().collect::<Vec<_>>().join(" ");
+        let next_compact: String = next.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            compact.contains(&next_compact),
+            "full next: guidance must be readable at width 80; got:\n{out}"
+        );
+        assert!(
+            !out.contains("[↑/↓]"),
+            "wrapping next: must not re-introduce the dual help bar"
+        );
+    }
+
+    #[test]
+    fn cib275_from_plain_promotes_next_out_of_tree() {
+        let model = VerdictModel::from_plain(
+            "ACTIVATION\n  state: ready_restart_required\n  next: restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`.\n",
+        );
+        assert!(
+            model
+                .next_guidance
+                .as_deref()
+                .is_some_and(|n| n.starts_with("next: restart")),
+            "from_plain must promote next: into next_guidance"
+        );
+        assert!(
+            model
+                .sections
+                .iter()
+                .flat_map(|s| s.rows.iter())
+                .all(|row| !is_next_guidance_row(row))
+        );
     }
 }

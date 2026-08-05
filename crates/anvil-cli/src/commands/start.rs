@@ -4406,6 +4406,7 @@ mod tests {
         // daemon-unreachable headline override and the repair-hint next
         // step — the same copy the collapsed plain body renders — not the
         // generic restart headline.
+        // CIB-275: next: lives on next_guidance (wrapping band), not a tree leaf.
         let mut diag = restart_required_diagnostic();
         diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
         let model = activation_verdict_model(&diag, &up_to_date_install_report(), &[], None);
@@ -4420,10 +4421,18 @@ mod tests {
                 .any(|row| row.starts_with("Daemon not reachable")),
             "TUI headline must use the daemon-unreachable override: {rows:?}",
         );
+        let next = model
+            .next_guidance
+            .as_deref()
+            .expect("TUI next step must be promoted onto next_guidance");
+        assert!(
+            next.starts_with("next: no intercept daemon is answering"),
+            "TUI next step must be the arbitrated repair hint: {next}",
+        );
         assert!(
             rows.iter()
-                .any(|row| row.starts_with("next: no intercept daemon is answering")),
-            "TUI next step must be the arbitrated repair hint: {rows:?}",
+                .all(|row| !row.to_ascii_lowercase().starts_with("next:")),
+            "next: must not remain as a tree leaf (CIB-275): {rows:?}",
         );
     }
 
@@ -4880,6 +4889,7 @@ mod tests {
     fn tui_verdict_next_step_matches_the_plain_arbiter() {
         // CIB-183: the TUI verdict derives its next step from the same
         // arbiter as the plain path — byte-identical copy, no duplication.
+        // CIB-275: that copy is on next_guidance (wrap band), not tree rows.
         for diag in [
             synth_diagnostic(activation::state::ProtectionState::Protecting),
             restart_required_diagnostic(),
@@ -4891,6 +4901,13 @@ mod tests {
                 &[],
                 None,
             );
+            let expected = arbitrated_next_step(&diag);
+            assert_eq!(
+                model.next_guidance.as_deref(),
+                Some(expected.as_str()),
+                "TUI next_guidance must match the plain arbiter for {:?}",
+                diag.protection_state(),
+            );
             let activation_section = model
                 .sections
                 .iter()
@@ -4899,8 +4916,9 @@ mod tests {
             assert!(
                 activation_section
                     .rows
-                    .contains(&arbitrated_next_step(&diag)),
-                "TUI verdict must carry the arbitrated next step for {:?}: {:?}",
+                    .iter()
+                    .all(|row| !row.to_ascii_lowercase().starts_with("next:")),
+                "next: must not remain as a tree leaf for {:?}: {:?}",
                 diag.protection_state(),
                 activation_section.rows,
             );
