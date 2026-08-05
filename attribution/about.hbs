@@ -1,12 +1,28 @@
 # Third-party Notices
 
 The `anvil` binary includes the following third-party Rust crates. Each is
-used under the terms of its respective licence, reproduced in full below.
+used under the terms of its respective licence.
+
+Licence texts are reproduced below once per **distinct copyright notice**, not
+once per licence family. Where several crates share a licence but carry
+different copyright holders, every holder's notice appears in full — MIT and the
+BSD licences condition redistribution on retaining it. Blocks marked *canonical
+SPDX text* cover crates that publish no licence file of their own: those carry
+placeholder copyright fields rather than a holder's notice, and the holder is
+named in the crate source linked from the inventory table.
+
+## Licence summary
 
 {{#each overview}}
-## Licence: {{{name}}}
+- **{{{name}}}** — {{count}} crate{{#if (eq count 1)}}{{else}}s{{/if}}
+{{/each}}
 
-Used by {{count}} crate{{#if (eq count 1)}}{{else}}s{{/if}}. See the inventory table at the bottom of this file for the complete list.
+## Licence texts
+
+{{#each licenses}}
+### {{{name}}}{{#unless source_path}} (canonical SPDX text){{/unless}}
+
+Used by: {{#each used_by}}`{{crate.name}}`{{#unless @last}}, {{/unless}}{{/each}}
 
 <details>
 <summary>Licence text</summary>

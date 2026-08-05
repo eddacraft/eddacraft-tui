@@ -21,6 +21,43 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
+## [1.2.0] - 2026-08-05
+
+Reproduces every distinct copyright notice instead of one per licence family.
+The Rust template previously dropped most attributions — **if you generate a
+file you redistribute, upgrade and regenerate.**
+
+### Fixed
+
+- **The Rust template reproduced one licence text per licence _family_, so every
+  other copyright holder's notice was dropped.** `about.hbs.template` iterated
+  `overview`, which carries a single representative text per SPDX id. A project
+  with 361 MIT crates emitted exactly one MIT block — one crate's copyright
+  line, standing in for all of them — under a heading claiming each licence was
+  "reproduced in full below". MIT and the BSD licences condition redistribution
+  on retaining _the above copyright notice_, so the generated file did not
+  satisfy the terms it asserted. The template now iterates `licenses`, which
+  cargo-about keys by distinct licence text, emitting one block per notice and
+  naming the crates that share it.
+
+  Regenerating will grow the generated block substantially — that growth is the
+  attributions that were previously missing.
+
+- **Crates that publish no licence file are now labelled rather than presented
+  as attributed.** Where a crate ships no licence file, cargo-about substitutes
+  the canonical SPDX text, whose copyright fields are the literal placeholders
+  `<year> <owner>`. Those blocks are now marked _(canonical SPDX text)_ so the
+  file does not present a placeholder as a holder's notice.
+
+- **Generated blocks could leave the freshness gate permanently red.** Licence
+  texts are copied verbatim from upstream packages and some ship CRLF files, so
+  a generated block could carry mixed line endings. In a repo whose
+  `.gitattributes` normalises the target to LF — the usual case for `*.md` — the
+  checked-out file and the freshly generated block then differed on every run,
+  failing `--check` over a difference that could not be committed away. The
+  dispatcher now normalises driver output to LF before splicing. Line endings
+  are not part of a licence's meaning; no notice is altered.
+
 ## [1.1.1] - 2026-08-04
 
 Repairs the marker gates 1.1.0 introduced. Independent review found that those

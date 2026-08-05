@@ -725,6 +725,20 @@ while IFS= read -r block_json; do
     exit 1
   fi
 
+  # Normalise CRLF to LF in driver output. Reproduced licence texts are
+  # copied verbatim from upstream packages, and some ship CRLF licence
+  # files, so a generated block can carry mixed line endings. A repo whose
+  # .gitattributes normalises the target to LF (the usual case for `*.md`)
+  # then sees the checked-out file and the freshly generated block differ
+  # on every run, leaving the `--check` freshness gate permanently red over
+  # a difference nobody can commit away. Line endings are not part of a
+  # licence's meaning, so normalising here keeps the gate honest without
+  # altering a single notice.
+  normalised="$(mktemp "$working_dir/.generate-acknowledgements.eol.XXXXXX")"
+  splice_temps="$splice_temps $normalised"
+  tr -d '\r' < "$driver_output" > "$normalised"
+  mv "$normalised" "$driver_output"
+
   # Splice driver_output between the two marker LINES located by the same
   # scan the gates used. Splicing by line number rather than by re-matching
   # text is what keeps the splice and the gates in agreement: a marker the
