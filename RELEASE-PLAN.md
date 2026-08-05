@@ -121,25 +121,25 @@ absorbed into **CIB-251** (Anchor A) + **CIB-255** (Anchor B). Pack-02 IDs are
 **CIB-251..267**. Free **CIB-250** was claimed by **pack-03** tutorial safety
 chain (not RETRACT-1).
 
-| ID          | Item                                 | Pri      | Dave ID                 | Tonight?          | Notes                         |
-| ----------- | ------------------------------------ | -------- | ----------------------- | ----------------- | ----------------------------- |
-| **CIB-251** | Config-mode hooks honesty (opt-in)   | P1       | HOOK-1                  | Maybe             | One git; default file-mode OK |
-| **CIB-252** | Workspace register false success     | P0       | WS-1                    | **Yes**           | Coords CIB-160                |
-| **CIB-253** | status vs intercept daemon agreement | P1       | STATUS-1                | Yes (if capacity) | Low-risk                      |
-| **CIB-254** | Daemon save-time silent miss         | P0       | WATCH-1                 | **Yes**           | ND caveat                     |
-| **CIB-255** | gate / check --all domain disclosure | P1       | GATE-1, CHECK-1, GATE-2 | Yes (if capacity) | Same stance as CIB-234        |
-| **CIB-256** | start --verify meaning honesty       | P2       | START-1                 | If green          |                               |
-| **CIB-257** | Init sample + language honesty       | P2       | INIT-2, INIT-3          | If green          |                               |
-| **CIB-258** | ~~Tutorial progress repo scoping~~   | —        | TUI-2                   | —                 | **Done** — superseded by 250  |
-| **CIB-259** | Learning-path overclaim copy         | P2       | TUI-8                   | If green          |                               |
-| **CIB-260** | Welcome save-time promise            | P3       | WELCOME-1               | No                |                               |
-| **CIB-261** | Windows policy-path idempotent       | P2       | TUI-4                   | If green          | Windows                       |
-| **CIB-262** | --json for workspace list / tutorial | P3       | JSON-1                  | No                |                               |
-| **CIB-263** | Init lists .gitignore                | P3       | INIT-1                  | No                |                               |
-| **CIB-264** | status no project cache side effect  | P3       | STATUS-3                | No                |                               |
-| **CIB-265** | ~~esc back vs exit~~                 | —        | TUI-1                   | —                 | **Done** — superseded by 250  |
-| **CIB-266** | Watch dashboard local/relative time  | P3       | TUI-7                   | No                |                               |
-| **CIB-267** | Pre-push silent pass                 | Proposed | PUSH-1                  | No                | Needs repro after 252         |
+| ID          | Item                                 | Pri      | Dave ID                 | Tonight?          | Notes                                                         |
+| ----------- | ------------------------------------ | -------- | ----------------------- | ----------------- | ------------------------------------------------------------- |
+| **CIB-251** | Config-mode hooks honesty (opt-in)   | P3       | HOOK-1                  | No                | Opt-in only; **out of normal-path cut**; default file-mode OK |
+| **CIB-252** | Workspace register false success     | P0       | WS-1                    | **Yes**           | Coords CIB-160                                                |
+| **CIB-253** | status vs intercept daemon agreement | P1       | STATUS-1                | Yes (if capacity) | Low-risk                                                      |
+| **CIB-254** | Daemon save-time silent miss         | P0       | WATCH-1                 | **Yes**           | ND caveat                                                     |
+| **CIB-255** | gate / check --all domain disclosure | P1       | GATE-1, CHECK-1, GATE-2 | Yes (if capacity) | Same stance as CIB-234                                        |
+| **CIB-256** | start --verify meaning honesty       | P2       | START-1                 | If green          |                                                               |
+| **CIB-257** | Init sample + language honesty       | P2       | INIT-2, INIT-3          | If green          |                                                               |
+| **CIB-258** | ~~Tutorial progress repo scoping~~   | —        | TUI-2                   | —                 | **Done** — superseded by 250                                  |
+| **CIB-259** | Learning-path overclaim copy         | P2       | TUI-8                   | If green          |                                                               |
+| **CIB-260** | Welcome save-time promise            | P3       | WELCOME-1               | No                |                                                               |
+| **CIB-261** | Windows policy-path idempotent       | P2       | TUI-4                   | If green          | Windows                                                       |
+| **CIB-262** | --json for workspace list / tutorial | P3       | JSON-1                  | No                |                                                               |
+| **CIB-263** | Init lists .gitignore                | P3       | INIT-1                  | No                |                                                               |
+| **CIB-264** | status no project cache side effect  | P3       | STATUS-3                | No                |                                                               |
+| **CIB-265** | ~~esc back vs exit~~                 | —        | TUI-1                   | —                 | **Done** — superseded by 250                                  |
+| **CIB-266** | Watch dashboard local/relative time  | P3       | TUI-7                   | No                |                                                               |
+| **CIB-267** | Pre-push silent pass                 | Proposed | PUSH-1                  | No                | Needs repro after 252                                         |
 
 **Welcome follow-ups (separate):** CIB-268..274 (#3536; not pack-02).
 **CIB-250:** claimed by pack-03 tutorial safety chain (2026-08-05); not
@@ -159,7 +159,8 @@ Source: `/tmp/dave-beta-report-3.md`. **Normal-path cutline only.**
 | CIB-261     | Windows policy mkdir re-run                                | P2  | If green          | Reconfirmed §5         |
 | §4 teaching | curriculum editorial                                       | —   | No                | Deliberate non-scope   |
 
-TUI-3/5/6/10, TUI-N1/N2, R1..R8 not automatic release work.
+TUI-10, TUI-N1/N2, R1..R8 not automatic release work. (TUI-3 absorbed into
+CIB-250; TUI-5/TUI-6 elevated to CIB-275.)
 
 ### Not a claim of this release
 

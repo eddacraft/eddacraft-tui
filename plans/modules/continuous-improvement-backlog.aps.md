@@ -6801,7 +6801,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
 | RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); pack-03 uses **CIB-250** for tutorial safety chain (unrelated) |
-| HOOK-1 | net-new honesty (opt-in `--config`; one git) | **CIB-251** Ready P1 |
+| HOOK-1 | net-new honesty (opt-in `--config`; one git; **out of normal-path cut**) | **CIB-251** Ready **P3** |
 | WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
 | STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
 | STATUS-2 | absorbed into CIB-235 | CIB-235 pack-02 extension |
@@ -6812,7 +6812,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | GATE-1 | net-new domain disclosure | **CIB-255** Ready P1 · coords CIB-234 |
 | CHECK-1 | net-new domain/scoping | **CIB-255** (same item) |
 | GATE-2 | needs internals; same family | **CIB-255** observation |
-| TUI-1 | net-new polish (operator-observed) | **CIB-265** Proposed |
+| TUI-1 | elevated (pack-03 safety chain) | **Absorbed** into **CIB-250** (former CIB-265 Done) |
 | JSON-1 | net-new | **CIB-262** Ready P3 · coords CIB-240 |
 | PUSH-1 | needs reproduction (plausible only) | **CIB-267** Proposed |
 | INIT-1 | net-new polish | **CIB-263** Ready P3 |
@@ -6820,10 +6820,10 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | WELCOME-1 | net-new polish | **CIB-260** Ready P3 |
 | STATUS-3 | net-new polish | **CIB-264** Ready P3 |
 | PATH-1 | absorbed | CIB-237 |
-| TUI-2 | net-new scoping | **CIB-258** Ready P1 |
-| TUI-3 | plausible | deliberate non-scope tonight · note only |
+| TUI-2 | elevated (pack-03 safety chain) | **Absorbed** into **CIB-250** (former CIB-258 Done) |
+| TUI-3 | elevated (pack-03 safety chain) | **Absorbed** into **CIB-250** (menu escape / no mid-path route) |
 | TUI-4 | net-new Windows | **CIB-261** Ready P2 |
-| TUI-5/TUI-6 | width-dependent plausible | deliberate non-scope tonight |
+| TUI-5/TUI-6 | elevated (pack-03 normal console) | **CIB-275** Ready P2 (single item: dual bars + `next:`) |
 | TUI-7 | net-new polish | **CIB-266** Ready P3 |
 | TUI-9 | absorbed | CIB-248 / PR #3521 |
 | TUI-10 | plausible low | deliberate non-scope tonight |
@@ -6875,7 +6875,12 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 ### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
 
 - **Status:** Ready
-- **Priority:** P1 honesty (default file-mode still works; opt-in path)
+- **Priority:** P3 honesty (opt-in `--config` only; **out of normal-user-path
+  cutline** for v0.9.3 — default file-mode remains the supported path)
+- **Cutline:** Not a first-timer / default-hooks ship gate. Track for operators
+  who choose `hooks install --config`. Do not schedule as pack-02 P1 capacity
+  ahead of CIB-252/254/250/276. Priority P3 reflects opt-in scope, not
+  withdrawal of the observation.
 - **Intent:** On Dave's Windows git 2.55, `hook.<event>.command` config does not
   fire on commit, yet after `anvil hooks install --config` doctor reports
   `hooks-installed` pass and status shows L3/L4 on. End-to-end: secret in
@@ -6893,13 +6898,15 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 - **Validation:** fresh repo `hooks install --config` then commit with marker
   file / secret; surfaces match whether hook fired. File-mode path remains
   green.
-- **RETRACT-1 Anchor A (absorbed):** Any pack-01-derived "hooks install → secret
-  blocked" regression must name **file-mode** hooks and a **gate-scanned**
-  extension (e.g. `.env`). Do **not** treat `--config` install as covered by
-  Anchor A without a platform-verified hook fire. Suite comments/fixtures must
-  not use an unconditional "hooks install then secret blocked" claim.
-- **Identified From:** Dave pack-02 HOOK-1; RETRACT-1 Anchor A absorbed 2026-08-04
-  (CIB-250 left free — reserved by concurrent Claude lane).
+- **RETRACT-1 Anchor A (absorbed — test-suite only; does not elevate product
+  priority):** Any pack-01-derived "hooks install → secret blocked" regression
+  must name **file-mode** hooks and a **gate-scanned** extension (e.g. `.env`).
+  Do **not** treat `--config` install as covered by Anchor A without a
+  platform-verified hook fire. Suite comments/fixtures must not use an
+  unconditional "hooks install then secret blocked" claim.
+- **Identified From:** Dave pack-02 HOOK-1; RETRACT-1 Anchor A absorbed
+  2026-08-04 (see CIB-250 collision closeout — pack-03 later claimed free
+  CIB-250 for the tutorial safety chain).
 - **Coordinates with:** CIB-255 (RETRACT-1 Anchor B / gate domain), GHOOK archive,
   CIB-235 layer honesty
 - **Confidence:** high on observation; medium that root cause is anvil vs git.
@@ -7386,8 +7393,8 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### Pack-02 deliberate non-scope (do not auto-file work)
 
-- **TUI-3** resume mid-path (plausible) — product UX later
-- **TUI-5 / TUI-6** dual help bars / next: truncation — one console width only
+- Elevated after pack-03 (do not re-file): TUI-3 → **CIB-250**; TUI-5/TUI-6 →
+  **CIB-275** (also TUI-1/TUI-2 → **CIB-250** via former CIB-265/258)
 - **TUI-10** 6 vs 7 path counts — unconfirmed intent
 - **TUI-N1 / TUI-N2** nitpicks — skip freely per Dave
 - **R1..R8** 60-second walk design suggestions — not findings; not release work
