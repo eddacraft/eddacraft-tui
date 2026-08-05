@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 213/279  |
+| CIB | —     | In Progress | 213/280  |
 
 ## Purpose
 
@@ -8089,3 +8089,46 @@ CIB-251/255 only.
 - **Coordinates with:** CIB-254, WOUT v1, ADR-061
 - **Confidence:** high on both gaps; medium on the smallest stable RPC-spy
   fixture.
+
+### CIB-284: Watch-demo failure still exits the TUI during an active demo
+
+- **Status:** Draft — filed while landing CIB-271, not self-authorised.
+  Promotion to Ready is an operator call (membrane checkpoint).
+- **Intent:** CIB-248 and CIB-271 made the **demo-step** failure path
+  non-fatal at both entry points, but neither touched the **watch-demo**
+  failure path, which still unwinds out of the TUI. Two sites remain, both
+  reached only when a watch demo fails during an active autoplay session:
+  `crates/anvil-cli/src/commands/tutorial.rs:234-237` and
+  `crates/anvil-cli/src/commands/welcome.rs:1206-1209`. Each does a bare
+  `abort_autoplay_session()` then `return Err(error)`, dropping the user to
+  scrollback — the same user-visible defect CIB-271 describes, at a
+  different entry.
+- **Expected Outcome:** A watch-demo failure during an active demo recovers
+  the way a failed demo step now does — stay in the TUI, restore the
+  pre-demo context, return to the path picker with an explanation — or the
+  divergence is deliberately documented with a reason.
+- **Non-scope / do not:** Do **not** change `welcome.rs:1141-1144`, where
+  `run_tutorial_in` returning `Err` means the terminal loop itself failed;
+  exiting there is correct and there is no TUI left to recover into. Do not
+  revisit the richer in-path retry / skip affordances descoped by CIB-248.
+- **Implementation note:** a bare `abort_autoplay_session()` is not a
+  sufficient fix. It skips `restore_autoplay_context()`, so the picker comes
+  back stripped of its per-domain finding counts, and it skips the CIB-250
+  working-root rebind, leaving the session rooted at the torn-down sandbox.
+  Route recovery through `TutorialState::recover_from_autoplay_failure` and
+  the existing watcher-restart closure, as CIB-271 did — note the ordering
+  constraint that `bind_working_root` refuses while an autoplay session is
+  still live.
+- **Files:** `crates/anvil-cli/src/commands/tutorial.rs` (watch-demo failure
+  branch), `crates/anvil-cli/src/commands/welcome.rs` (watch-demo failure
+  branch), `crates/anvil-tui/src/surfaces/tutorial/mod.rs`
+  (`recover_from_autoplay_failure`)
+- **Validation:** an injected watch-demo failure under an active demo stays
+  in the TUI at both entry points, lands on the path picker, and restores
+  the pre-demo scan context and the ordinary working root.
+- **Identified From:** discovered while implementing CIB-271 (PR #3570);
+  verified against `origin/main` at `4ae5c4d85`.
+- **Coordinates with:** CIB-248, CIB-250, CIB-271
+- **Confidence:** high that both sites exist and are the same defect class;
+  medium on whether a single shared recovery helper can serve both entry
+  points, since their watcher and workspace plumbing differ.
