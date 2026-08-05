@@ -1070,10 +1070,18 @@ type TutorialWatcher = (
     anvil_kernel::watcher::WatcherHandle,
 );
 
-fn try_start_tutorial_watcher() -> Option<TutorialWatcher> {
-    let root = crate::util::workspace_root().ok()?;
+fn bind_welcome_tutorial_workspace(
+    tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    workspace_root: &std::path::Path,
+) -> anyhow::Result<()> {
+    tutorial_state
+        .bind_working_root(workspace_root)
+        .context("binding welcome tutorial workspace")
+}
+
+fn try_start_tutorial_watcher(workspace_root: &std::path::Path) -> Option<TutorialWatcher> {
     let config = anvil_kernel::watcher::WatcherConfig {
-        root,
+        root: workspace_root.to_path_buf(),
         debounce_window: std::time::Duration::from_millis(300),
         filter: Some(anvil_kernel::watcher::filter::FileFilter::default()),
         ..Default::default()
@@ -1097,8 +1105,9 @@ fn try_start_tutorial_watcher() -> Option<TutorialWatcher> {
 /// silently failing live verification.
 fn restart_tutorial_watcher(
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    workspace_root: &std::path::Path,
 ) -> Option<TutorialWatcher> {
-    let watcher = try_start_tutorial_watcher();
+    let watcher = try_start_tutorial_watcher(workspace_root);
     if watcher.is_none() {
         tutorial_state.enable_static_mode_with_reason(
             anvil_tui::surfaces::tutorial::STATIC_MODE_WATCHER_UNAVAILABLE,
@@ -1115,11 +1124,14 @@ fn run_tutorial_with_fix(
 ) -> anyhow::Result<SurfaceExit> {
     use crate::commands::tutorial::autoplay::AutoplaySandbox;
 
+    let workspace_root = crate::util::workspace_root()?;
+    bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
+
     // Try to start a file watcher for live verification (WELCOME-013).
     // If unavailable, the tutorial enters static mode (all steps become
     // informational press-enter-to-continue, commands are not executed).
     let mut autoplay_sandbox: Option<AutoplaySandbox> = None;
-    let mut watcher = restart_tutorial_watcher(tutorial_state);
+    let mut watcher = restart_tutorial_watcher(tutorial_state, &workspace_root);
 
     loop {
         let file_rx = watcher.as_ref().map(|(rx, _)| rx);
@@ -1139,13 +1151,15 @@ fn run_tutorial_with_fix(
             tutorial_state.recover_from_autoplay_failure(format!(
                 "The hands-free demo stopped: {failure}. Your repo was not touched — pick a path to continue."
             ));
-            watcher = restart_tutorial_watcher(tutorial_state);
+            bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
+            watcher = restart_tutorial_watcher(tutorial_state, &workspace_root);
             continue;
         }
 
         if tutorial_state.take_autoplay_teardown_requested() {
             drop(autoplay_sandbox.take());
-            watcher = restart_tutorial_watcher(tutorial_state);
+            bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
+            watcher = restart_tutorial_watcher(tutorial_state, &workspace_root);
             continue;
         }
 
@@ -1180,6 +1194,7 @@ fn run_tutorial_with_fix(
                 theme,
                 tutorial_state,
                 autoplay_sandbox.as_ref(),
+                &workspace_root,
             ) {
                 Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue) => {
                     tutorial_state.advance_step();
@@ -1202,7 +1217,7 @@ fn run_tutorial_with_fix(
             watcher = if tutorial_state.autoplay_session_active() {
                 None
             } else {
-                try_start_tutorial_watcher()
+                try_start_tutorial_watcher(&workspace_root)
             };
             continue;
         }
@@ -1240,6 +1255,7 @@ fn run_watch_demo_from_tutorial(
     theme: &EddaCraftTheme,
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
     sandbox: Option<&crate::commands::tutorial::autoplay::AutoplaySandbox>,
+    workspace_root: &std::path::Path,
 ) -> anyhow::Result<anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome> {
     use anvil_tui::surfaces::watch::{WatchData, WatchStats, WatchStatus};
 
@@ -1247,24 +1263,23 @@ fn run_watch_demo_from_tutorial(
 
     let active_demo = crate::commands::tutorial::watch_demo_mode(tutorial_state)
         == crate::commands::tutorial::WatchDemoMode::Autoplay;
-    let workspace_root = match crate::commands::tutorial::watch_demo_root(
-        tutorial_state,
-        sandbox,
-        crate::util::workspace_root,
-    ) {
-        Ok(root) => root,
-        Err(error) if active_demo => return Err(error),
-        Err(_) => {
-            timed_loading(
-                terminal,
-                "Watch Demo",
-                "Could not determine project root \u{2014} skipping demo.",
-                theme,
-                std::time::Duration::from_secs(1),
-            )?;
-            return Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue);
-        }
-    };
+    let workspace_root =
+        match crate::commands::tutorial::watch_demo_root(tutorial_state, sandbox, || {
+            Ok(workspace_root.to_path_buf())
+        }) {
+            Ok(root) => root,
+            Err(error) if active_demo => return Err(error),
+            Err(_) => {
+                timed_loading(
+                    terminal,
+                    "Watch Demo",
+                    "Could not determine project root \u{2014} skipping demo.",
+                    theme,
+                    std::time::Duration::from_secs(1),
+                )?;
+                return Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue);
+            }
+        };
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
         root: workspace_root.clone(),
@@ -1739,6 +1754,58 @@ fn plain_welcome_message(prompts_sign_in: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn write_test_step(state: &mut anvil_tui::surfaces::tutorial::TutorialState, target: &str) {
+        state.load_steps(anvil_tui::surfaces::tutorial::TutorialPath::Policy);
+        state.steps[0] = anvil_tui::surfaces::tutorial::TutorialStep {
+            edit_target: Some(target.to_string()),
+            seed_template: Some("rooted".to_string()),
+            ..Default::default()
+        };
+        state.open_step_editor();
+        state.save_step_editor().expect("save rooted editor");
+    }
+
+    #[test]
+    fn welcome_tutorial_state_is_bound_to_resolved_workspace() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let root = workspace
+            .path()
+            .canonicalize()
+            .expect("canonical workspace");
+        let mut state = tutorial_state_with_scan(
+            anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+        );
+
+        bind_welcome_tutorial_workspace(&mut state, &root).expect("bind welcome tutorial");
+        write_test_step(&mut state, "welcome-root-marker.txt");
+
+        assert!(root.join("welcome-root-marker.txt").exists());
+    }
+
+    #[test]
+    fn welcome_autoplay_teardown_rebinds_original_workspace() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let root = workspace
+            .path()
+            .canonicalize()
+            .expect("canonical workspace");
+        let sandbox = tempfile::tempdir().expect("sandbox");
+        let mut state = tutorial_state_with_scan(
+            anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+        );
+        bind_welcome_tutorial_workspace(&mut state, &root).expect("initial bind");
+        state
+            .start_autoplay_in(sandbox.path())
+            .expect("autoplay bind");
+        state.abort_autoplay_session();
+
+        bind_welcome_tutorial_workspace(&mut state, &root).expect("teardown rebind");
+        write_test_step(&mut state, "welcome-rebound-marker.txt");
+
+        assert!(root.join("welcome-rebound-marker.txt").exists());
+        assert!(!sandbox.path().join("welcome-rebound-marker.txt").exists());
+    }
 
     // CIB-171: Esc on the discovery results/continue screen backs out to the
     // hub caller rather than advancing into the tutorial.

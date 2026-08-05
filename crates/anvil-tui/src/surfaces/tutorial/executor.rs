@@ -1,25 +1,104 @@
 use super::CommandOutput;
 
-/// Execute a shell command and capture its output.
+/// Execute a fixed tutorial command from the supplied canonical session root.
 ///
-/// The command string is passed to the platform shell (`sh -c` on Unix,
-/// `cmd /C` on Windows) so shell syntax works without extra parsing.
-/// Commands are expected to complete quickly — this call blocks the
-/// calling thread.
+/// Direct commands beginning with the fixed token `anvil` bypass the shell and
+/// PATH entirely: the running executable is invoked with structured arguments.
+/// The policy-directory step is a structured filesystem operation. Remaining
+/// non-`anvil` commands are read-only and keep shell support with an explicit
+/// current directory.
 ///
 /// # Safety contract
 ///
 /// Command strings must come from a fixed allow-list (tutorial step
 /// definitions in `paths.rs`), never from user input. The function is
-/// `pub(crate)` to limit the blast radius.
+/// `pub(crate)` to limit the blast radius. Fixed `anvil` arguments use the
+/// current tutorial's simple whitespace-token grammar; unsupported quoting or
+/// shell syntax fails closed.
 ///
 /// WELCOME-013 adds a file watcher that re-runs verification on
 /// filesystem changes, avoiding the need for async command execution
 /// in most interactive steps. Commands that do run are expected to
 /// complete quickly (sub-second); the watcher handles the
 /// edit-then-verify cycle without blocking.
+pub(crate) fn execute_command_in(command: &str, root: &std::path::Path) -> CommandOutput {
+    if is_structured_filesystem_command(command) {
+        return create_policy_directory(root);
+    }
+    let process = process_for_command(command, root, std::env::current_exe);
+    command_output(process.and_then(|mut process| process.output()))
+}
+
+pub(super) fn policy_directory_command() -> &'static str {
+    if cfg!(windows) {
+        r"mkdir .anvil\policies"
+    } else {
+        "mkdir -p .anvil/policies"
+    }
+}
+
+pub(super) fn is_structured_filesystem_command(command: &str) -> bool {
+    command == policy_directory_command()
+}
+
+fn create_policy_directory(root: &std::path::Path) -> CommandOutput {
+    let result = super::resolve_working_path(root, std::path::Path::new(".anvil/policies"))
+        .and_then(std::fs::create_dir_all);
+    match result {
+        Ok(()) => CommandOutput {
+            stdout: String::new(),
+            stderr: String::new(),
+            success: true,
+            exit_code: Some(0),
+        },
+        Err(error) => CommandOutput {
+            stdout: String::new(),
+            stderr: format!("failed to create tutorial directory .anvil/policies: {error}"),
+            success: false,
+            exit_code: None,
+        },
+    }
+}
+
+/// Test-compatible fallback for states built without a bound workspace.
+///
+/// Production tutorial entry points bind a canonical root before the surface
+/// runs. Keeping this wrapper lets isolated state tests exercise fixed commands
+/// without manufacturing CLI launch context; execution still receives an
+/// explicit resolved current directory and direct `anvil` commands still
+/// bypass PATH.
 pub(crate) fn execute_command(command: &str) -> CommandOutput {
-    let mut process = if cfg!(windows) {
+    let root = match std::env::current_dir() {
+        Ok(root) => root,
+        Err(error) => return command_output(Err(error)),
+    };
+    execute_command_in(command, &root)
+}
+
+fn process_for_command(
+    command: &str,
+    root: &std::path::Path,
+    current_exe: impl FnOnce() -> std::io::Result<std::path::PathBuf>,
+) -> std::io::Result<std::process::Command> {
+    if is_structured_filesystem_command(command) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "policy directory creation must use the structured filesystem operation",
+        ));
+    }
+    let root = super::canonicalize_working_path(root)?;
+    if !root.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "tutorial working root is not a directory",
+        ));
+    }
+
+    let mut process = if let Some(args) = direct_anvil_args(command)? {
+        let mut process = std::process::Command::new(current_exe()?);
+        process.args(args);
+        process
+    } else if cfg!(windows) {
         let mut process = std::process::Command::new("cmd");
         process.arg("/C").arg(command);
         process
@@ -28,7 +107,32 @@ pub(crate) fn execute_command(command: &str) -> CommandOutput {
         process.arg("-c").arg(command);
         process
     };
-    command_output(process.output())
+    process.current_dir(root);
+    Ok(process)
+}
+
+fn direct_anvil_args(command: &str) -> std::io::Result<Option<Vec<&str>>> {
+    let mut words = command.split_ascii_whitespace();
+    let Some(program) = words.next() else {
+        return Ok(None);
+    };
+    if program != "anvil" {
+        return Ok(None);
+    }
+    let args = words.collect::<Vec<_>>();
+    if args.iter().any(|arg| {
+        arg.is_empty()
+            || !arg.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric()
+                    || matches!(byte, b'-' | b'_' | b'.' | b'/' | b':' | b'\\')
+            })
+    }) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "fixed anvil command contains unsupported argument syntax",
+        ));
+    }
+    Ok(Some(args))
 }
 
 /// Runs one autoplay demo check **in-process** and returns what the user sees.
@@ -256,6 +360,60 @@ fn command_output(result: std::io::Result<std::process::Output>) -> CommandOutpu
     }
 }
 
+#[cfg(test)]
+mod cross_platform_tests {
+    use super::*;
+
+    #[test]
+    fn fixed_anvil_command_is_structured_from_current_executable_in_bound_root() {
+        let root = tempfile::tempdir().expect("workspace");
+        let fake_path_binary = root
+            .path()
+            .join(if cfg!(windows) { "anvil.exe" } else { "anvil" });
+        std::fs::write(&fake_path_binary, "marker").expect("fake PATH binary");
+        let current_exe = std::env::current_exe().expect("current executable");
+
+        let process = process_for_command("anvil status --json", root.path(), || {
+            Ok(current_exe.clone())
+        })
+        .expect("fixed anvil command");
+
+        assert_eq!(process.get_program(), current_exe.as_os_str());
+        assert_ne!(process.get_program(), fake_path_binary.as_os_str());
+        assert_eq!(
+            process.get_current_dir(),
+            Some(
+                dunce::canonicalize(root.path())
+                    .expect("canonical workspace")
+                    .as_path()
+            )
+        );
+        assert_eq!(
+            process.get_args().collect::<Vec<_>>(),
+            ["status", "--json"].map(std::ffi::OsStr::new)
+        );
+    }
+
+    #[test]
+    fn policy_directory_command_uses_structured_filesystem_execution() {
+        let root = tempfile::tempdir().expect("workspace");
+
+        let output = execute_command_in(policy_directory_command(), root.path());
+
+        assert!(output.success, "stderr: {}", output.stderr);
+        assert!(root.path().join(".anvil/policies").is_dir());
+        assert!(
+            process_for_command(
+                policy_directory_command(),
+                root.path(),
+                std::env::current_exe
+            )
+            .is_err(),
+            "the structured directory operation must never build sh/cmd"
+        );
+    }
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -310,6 +468,82 @@ mod tests {
         assert_eq!(output.stdout.trim(), "HELLO");
     }
 
+    #[test]
+    fn shell_command_runs_from_bound_root() {
+        let root = tempfile::tempdir().expect("workspace");
+
+        let output = execute_command_in("pwd", root.path());
+
+        assert!(output.success, "stderr: {}", output.stderr);
+        assert_eq!(
+            dunce::canonicalize(std::path::Path::new(output.stdout.trim())).expect("reported cwd"),
+            dunce::canonicalize(root.path()).expect("workspace root")
+        );
+    }
+
+    #[test]
+    fn policy_directory_creation_rejects_symlinked_parent() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::tempdir().expect("outside");
+        symlink(outside.path(), root.path().join(".anvil")).expect("symlink policy parent");
+
+        let output = execute_command_in("mkdir -p .anvil/policies", root.path());
+
+        assert!(!output.success, "symlinked policy parent must fail closed");
+        assert!(
+            output.stderr.contains(".anvil/policies"),
+            "the error must identify the safe relative target: {}",
+            output.stderr
+        );
+        assert!(
+            !outside.path().join("policies").exists(),
+            "directory creation must not escape the bound workspace"
+        );
+    }
+
+    #[test]
+    fn fixed_anvil_command_ignores_fake_path_binary() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().expect("workspace");
+        let marker = root.path().join("fake-selected");
+        let fake = root.path().join("anvil");
+        std::fs::write(
+            &fake,
+            format!("#!/bin/sh\nprintf selected > '{}'\n", marker.display()),
+        )
+        .expect("fake anvil");
+        let mut permissions = std::fs::metadata(&fake).expect("metadata").permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&fake, permissions).expect("executable");
+
+        let mut process = process_for_command(
+            "anvil cib250-never-select-path-binary",
+            root.path(),
+            std::env::current_exe,
+        )
+        .expect("fixed anvil command");
+        process.env("PATH", root.path());
+        let _ = process.output().expect("run current executable");
+
+        assert!(!marker.exists(), "PATH-resolved fake anvil was executed");
+    }
+
+    #[test]
+    fn fixed_anvil_command_rejects_shell_syntax() {
+        let root = tempfile::tempdir().expect("workspace");
+        assert!(
+            process_for_command(
+                "anvil check src/app.ts && touch escaped",
+                root.path(),
+                std::env::current_exe,
+            )
+            .is_err()
+        );
+    }
+
     /// CIB-248: the demo check must reach the runner in-process. The runner is
     /// handed the resolved sandbox path and its output is what the tutorial
     /// shows — no `anvil check` child process, so the licence gate that used to
@@ -347,9 +581,7 @@ mod tests {
 
         // `resolve_working_path` canonicalises the target (macOS: `/var` →
         // `/private/var`), and the runner must never see a path outside root.
-        let expected_target = root
-            .path()
-            .canonicalize()
+        let expected_target = dunce::canonicalize(root.path())
             .expect("canonicalize root")
             .join("src/app.ts");
         let observed = seen.lock().expect("read target").clone().expect("invoked");

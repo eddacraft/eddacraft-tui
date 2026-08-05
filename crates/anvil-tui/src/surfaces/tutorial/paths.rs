@@ -1,5 +1,5 @@
 use super::verify::Verify;
-use super::{CommandEffect, TutorialStep};
+use super::{CommandEffect, TutorialStep, executor};
 
 /// Starting content for the Policy path's inline editor — a minimal Rego rule
 /// the user can edit in place. Illustrative: the step only verifies the file
@@ -121,20 +121,12 @@ fn step_with_editor(
 /// The directory-creation command for the policy path's "Create Policy
 /// Directory" step.
 ///
-/// This string is run through [`executor::execute_command`], which hands it to
-/// `cmd /C` on Windows and `sh -c` elsewhere. It must therefore be a command
-/// the platform shell can actually execute. `mkdir` runs under both — as a
-/// `cmd.exe` builtin on Windows and as a standard utility on `PATH` under `sh`
-/// on Unix — and creates intermediate directories in each case, so it works
-/// under the executor on every platform. An earlier revision emitted the
-/// PowerShell cmdlet `New-Item` on Windows, which `cmd /C` cannot resolve
-/// (`'New-Item' is not recognized`), silently breaking this step on Windows.
+/// The familiar platform-native command remains visible in the tutorial, but
+/// [`executor::execute_command_in`] recognises it as a structured filesystem
+/// operation. The target is contained before Rust creates the directory; no
+/// shell or PATH lookup executes this mutating step.
 fn create_policy_directory_command() -> &'static str {
-    if cfg!(windows) {
-        r"mkdir .anvil\policies"
-    } else {
-        "mkdir -p .anvil/policies"
-    }
+    executor::policy_directory_command()
 }
 
 fn create_policy_directory_instruction() -> &'static str {
@@ -185,10 +177,10 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
         step(
             "What protection actually means here",
             "anvil's activation vocabulary includes these honest states:\n  • `protecting` — pre-write validation is live (MCP attached + verified)\n  • `ready_restart_required` — config wired, waiting for editor restart\n  • `watching` — save-time fallback running, weaker than pre-write\n  • `needs_action` — config absent or no editor wired yet\n  • `unsupported` — anvil does not yet cover this repo's languages\n\nThis tutorial does not promote any of those states on its own — only `anvil start` and `anvil status --verify` produce evidence-backed labels. Activation does not imply the repo is clean of further findings; first activation baselines existing findings so future changes are checked.",
-            "Press enter to activate in this repo.",
+            "Press enter to verify the protection state in this repo.",
         ),
         step_with_command(
-            "Activate in this repo",
+            "Verify protection state in this repo",
             "Now run the safe verifier. `anvil start --verify` is read-only — it probes config (.anvilrc), the MCP client entries of any MCP-capable editor it detects (for example Cursor or Claude Code), the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. Watch-fallback liveness probing is not yet wired; the verifier reports `watch: not requested` until a future PR introspects a running watcher. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
             "Run: anvil start --verify",
             "anvil start --verify",
@@ -311,7 +303,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             watch_path: Some(".anvil/policies".to_string()),
             ..step(
                 "Create Policy Directory",
-                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial uses the native directory-creation command for your shell: `mkdir -p .anvil/policies` on macOS/Linux and `mkdir .anvil\\policies` on Windows.",
+                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial displays the familiar native directory-creation command — `mkdir -p .anvil/policies` on macOS/Linux and `mkdir .anvil\\policies` on Windows — while executing it as a contained filesystem operation.",
                 create_policy_directory_instruction(),
             )
         },
@@ -482,6 +474,21 @@ pub fn ci_steps() -> Vec<TutorialStep> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn protection_loop_copy_describes_read_only_verification_not_activation() {
+        let steps = protection_loop_steps();
+        let verifier = steps.last().expect("verifier step");
+
+        assert_eq!(verifier.title, "Verify protection state in this repo");
+        assert_eq!(verifier.instruction, "Run: anvil start --verify");
+        assert_eq!(verifier.command.as_deref(), Some("anvil start --verify"));
+        assert_eq!(verifier.effect, Some(CommandEffect::ReadOnly));
+        assert!(
+            steps[3].instruction.to_lowercase().contains("verify"),
+            "the lead-in must not tell the user that Enter activates the repo"
+        );
+    }
+
     fn assert_steps_valid(steps: &[TutorialStep], expected_count: usize, expected_titles: &[&str]) {
         assert_eq!(steps.len(), expected_count);
         for step in steps {
@@ -637,23 +644,12 @@ mod tests {
         }
     }
 
-    /// The command is executed through `executor::execute_command`, which uses
-    /// `cmd /C` on Windows — not PowerShell. Guard against re-introducing a
-    /// PowerShell-only cmdlet (`New-Item`) that `cmd.exe` cannot resolve, which
-    /// silently broke this step on Windows before. `mkdir` is a `cmd.exe`
-    /// builtin, so the executor's shell can run it.
     #[test]
-    fn create_policy_directory_command_runs_under_executor_shell() {
+    fn create_policy_directory_command_is_a_structured_filesystem_operation() {
         let command = create_policy_directory_command();
         assert!(
-            command.starts_with("mkdir"),
-            "policy-directory command must be runnable under the executor shell \
-             (`cmd /C` or `sh -c`), got: {command:?}"
-        );
-        assert!(
-            !command.contains("New-Item"),
-            "New-Item is a PowerShell cmdlet; the executor runs `cmd /C`, which cannot \
-             resolve it"
+            executor::is_structured_filesystem_command(command),
+            "the policy-directory command must bypass shell execution"
         );
     }
 
@@ -848,6 +844,30 @@ mod tests {
         assert_eq!(arch[3].effect, Some(CommandEffect::ReadOnly));
 
         assert_eq!(ci_steps()[4].effect, Some(CommandEffect::ReadOnly));
+    }
+
+    #[test]
+    fn mutating_product_commands_never_fall_through_to_the_shell() {
+        for steps in [
+            protection_loop_steps(),
+            developer_acceleration_steps(),
+            policy_steps(),
+            architecture_steps(),
+            drift_steps(),
+            ci_steps(),
+        ] {
+            for step in steps {
+                if step.effect != Some(CommandEffect::MutatesRepo) {
+                    continue;
+                }
+                let command = step.command.as_deref().expect("mutating command");
+                assert!(
+                    command.split_ascii_whitespace().next() == Some("anvil")
+                        || executor::is_structured_filesystem_command(command),
+                    "mutating tutorial command must use direct anvil or a structured operation: {command}"
+                );
+            }
+        }
     }
 
     #[test]

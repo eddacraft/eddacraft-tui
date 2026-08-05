@@ -1,5 +1,6 @@
 pub(crate) mod autoplay;
 
+use std::collections::BTreeMap;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
@@ -26,8 +27,13 @@ pub struct TutorialArgs {
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct TutorialProgress {
     completed_paths: Vec<String>,
-    /// In-progress session that can be resumed after an interruption.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// In-progress sessions scoped to their canonical absolute workspace root.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    workspace_sessions: BTreeMap<String, InProgressSession>,
+    /// Legacy global session. Read for downgrade compatibility, but never
+    /// serialised or adopted because it has no trustworthy repository scope.
+    #[serde(default, skip_serializing)]
+    #[allow(dead_code)]
     in_progress: Option<InProgressSession>,
 }
 
@@ -85,9 +91,11 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 
     let progress_path = progress_file_path()?;
+    let workspace_root = crate::util::workspace_root()?;
 
     let progress = load_progress(&progress_path);
     let mut state = TutorialState::new();
+    state.bind_working_root(&workspace_root)?;
 
     // Populate completed paths so the selector shows checkmarks.
     let completed: Vec<TutorialPath> = progress
@@ -97,21 +105,14 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         .collect();
     state.set_completed_paths(completed);
 
-    // Resume an interrupted session if one exists. Unrecognised path
-    // labels (e.g. after a rename) are silently dropped — the next save
-    // overwrites the stale entry.
-    if let Some(ref session) = progress.in_progress
-        && let Some(path) = TutorialPath::from_label(&session.path)
-    {
-        state.resume_path(path, session.current_step, &session.steps_completed);
-    }
+    resume_workspace_session(&mut state, &progress, &workspace_root);
 
     // Start a file watcher for live verification on watched steps
     // (WELCOME-013). Falls back to keyboard-only mode if the watcher
     // cannot start (e.g. inotify limit reached). The in-TUI notice
     // surfaces the specific cause so users aren't left wondering why
     // file saves stop retriggering checks.
-    let (file_rx, watcher_handle) = if let Ok((rx, handle)) = try_start_watcher() {
+    let (file_rx, watcher_handle) = if let Ok((rx, handle)) = try_start_watcher(&workspace_root) {
         (Some(rx), Some(handle))
     } else {
         state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
@@ -125,12 +126,17 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         watcher_handle,
         autoplay_sandbox,
         |state, file_rx, _sandbox| crate::tui::run_tutorial(state, file_rx),
-        run_watch_demo_for_tutorial,
-        try_start_watcher,
+        |state, sandbox| run_watch_demo_for_tutorial(state, sandbox, &workspace_root),
+        |state| {
+            state
+                .bind_working_root(&workspace_root)
+                .context("binding tutorial workspace after autoplay")?;
+            try_start_watcher(&workspace_root)
+        },
     )?;
 
     if should_persist_progress(&state) {
-        save_progress_from_state(&progress_path, &progress, &state)?;
+        save_progress_from_state(&progress_path, &progress, &state, &workspace_root)?;
     }
 
     Ok(())
@@ -160,7 +166,7 @@ fn run_tutorial_session<R, W>(
         &mut TutorialState,
         Option<&AutoplaySandbox>,
     ) -> anyhow::Result<WatchDemoOutcome>,
-    mut start_watcher: impl FnMut() -> anyhow::Result<(R, W)>,
+    mut start_watcher: impl FnMut(&mut TutorialState) -> anyhow::Result<(R, W)>,
 ) -> anyhow::Result<TutorialState> {
     loop {
         state = run_surface(state, file_rx.as_ref(), autoplay_sandbox.as_ref())?;
@@ -170,7 +176,7 @@ fn run_tutorial_session<R, W>(
         }
         if state.take_autoplay_teardown_requested() {
             drop(autoplay_sandbox.take());
-            if let Ok((rx, handle)) = start_watcher() {
+            if let Ok((rx, handle)) = start_watcher(&mut state) {
                 file_rx = Some(rx);
                 watcher_handle = Some(handle);
             } else {
@@ -204,6 +210,7 @@ fn run_tutorial_session<R, W>(
 }
 
 fn run_explicit_autoplay() -> anyhow::Result<()> {
+    let workspace_root = crate::util::workspace_root()?;
     let mut state = TutorialState::new();
     state.set_autoplay_runner(autoplay::in_process_check_runner());
     state.start_autoplay();
@@ -216,8 +223,13 @@ fn run_explicit_autoplay() -> anyhow::Result<()> {
         None,
         sandbox,
         |state, file_rx, _sandbox| crate::tui::run_tutorial(state, file_rx),
-        run_watch_demo_for_tutorial,
-        try_start_watcher,
+        |state, sandbox| run_watch_demo_for_tutorial(state, sandbox, &workspace_root),
+        |state| {
+            state
+                .bind_working_root(&workspace_root)
+                .context("binding tutorial workspace after autoplay")?;
+            try_start_watcher(&workspace_root)
+        },
     )?;
     Ok(())
 }
@@ -227,8 +239,9 @@ fn run_explicit_autoplay() -> anyhow::Result<()> {
 fn run_watch_demo_for_tutorial(
     tutorial: &mut TutorialState,
     sandbox: Option<&AutoplaySandbox>,
+    workspace_root: &Path,
 ) -> anyhow::Result<WatchDemoOutcome> {
-    let workspace_root = watch_demo_root(tutorial, sandbox, crate::util::workspace_root)?;
+    let workspace_root = watch_demo_root(tutorial, sandbox, || Ok(workspace_root.to_path_buf()))?;
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
         root: workspace_root.clone(),
@@ -309,14 +322,18 @@ pub(crate) fn watch_demo_root(
     repo_root()
 }
 
-/// Try to start a file watcher on the current working directory.
+/// Try to start a file watcher on the canonical tutorial workspace root.
 /// Returns the change-batch receiver and watcher handle on success.
 /// The caller holds the handle to keep the watcher alive; dropping it stops watching.
-fn try_start_watcher() -> anyhow::Result<(
+fn try_start_watcher(
+    root: &Path,
+) -> anyhow::Result<(
     std::sync::mpsc::Receiver<anvil_kernel::watcher::events::ChangeBatch>,
     anvil_kernel::watcher::WatcherHandle,
 )> {
-    let root = std::env::current_dir().context("cannot determine working directory")?;
+    let root = root
+        .canonicalize()
+        .context("resolving tutorial workspace")?;
     let config = anvil_kernel::watcher::WatcherConfig {
         root,
         debounce_window: std::time::Duration::from_millis(200),
@@ -346,10 +363,30 @@ fn load_progress(path: &PathBuf) -> TutorialProgress {
         .unwrap_or_default()
 }
 
+fn workspace_session_key(workspace_root: &Path) -> Option<String> {
+    workspace_root.to_str().map(str::to_owned)
+}
+
+fn resume_workspace_session(
+    state: &mut TutorialState,
+    progress: &TutorialProgress,
+    workspace_root: &Path,
+) {
+    let Some(key) = workspace_session_key(workspace_root) else {
+        return;
+    };
+    if let Some(session) = progress.workspace_sessions.get(&key)
+        && let Some(path) = TutorialPath::from_label(&session.path)
+    {
+        state.resume_path(path, session.current_step, &session.steps_completed);
+    }
+}
+
 fn save_progress_from_state(
     path: &Path,
     existing: &TutorialProgress,
     state: &TutorialState,
+    workspace_root: &Path,
 ) -> anyhow::Result<()> {
     // Normalise any legacy path labels in the existing file to their current
     // canonical form so a re-completion after a label rename does not write a
@@ -360,6 +397,13 @@ fn save_progress_from_state(
             .map_or_else(|| entry.clone(), |p| p.label().to_string());
         if !completed.contains(&canonical) {
             completed.push(canonical);
+        }
+    }
+
+    for path_enum in &state.completed_paths {
+        let label = path_enum.label().to_string();
+        if !completed.contains(&label) {
+            completed.push(label);
         }
     }
 
@@ -385,8 +429,10 @@ fn save_progress_from_state(
     // Persist in-progress state if the user quit mid-path so the next
     // launch can resume from where they left off. Don't save in-progress
     // for a path that's already in completed_paths (redo scenario).
-    let in_progress = if state.phase == TutorialPhase::Running
-        && let Some(path_enum) = state.chosen_path
+    let in_progress = if matches!(
+        state.phase,
+        TutorialPhase::Running | TutorialPhase::PathSelect
+    ) && let Some(path_enum) = state.chosen_path
         && !state.steps.is_empty()
         && !completed.contains(&path_enum.label().to_string())
     {
@@ -399,9 +445,19 @@ fn save_progress_from_state(
         None
     };
 
+    let mut workspace_sessions = existing.workspace_sessions.clone();
+    if let Some(workspace_key) = workspace_session_key(workspace_root) {
+        if let Some(session) = in_progress {
+            workspace_sessions.insert(workspace_key, session);
+        } else {
+            workspace_sessions.remove(&workspace_key);
+        }
+    }
+
     let progress = TutorialProgress {
         completed_paths: completed,
-        in_progress,
+        workspace_sessions,
+        in_progress: None,
     };
 
     if let Some(parent) = path.parent() {
@@ -576,13 +632,104 @@ mod tests {
                 Ok(state)
             },
             |_state, _sandbox| unreachable!("watch is not entered"),
-            || Ok(((), DropMarker(Arc::clone(&watcher_drop)))),
+            |_| Ok(((), DropMarker(Arc::clone(&watcher_drop)))),
         )
         .expect("session");
 
         assert!(state.autoplay_session_active());
         assert!(watcher_dropped.load(Ordering::SeqCst));
         assert!(!new_root.expect("new sandbox root").exists());
+    }
+
+    #[test]
+    fn autoplay_teardown_rebinds_ordinary_path_to_original_workspace() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let workspace_root = workspace
+            .path()
+            .canonicalize()
+            .expect("canonical workspace");
+        let marker = workspace_root.join("ordinary-marker.txt");
+        let mut state = TutorialState::new();
+        state
+            .bind_working_root(&workspace_root)
+            .expect("bind ordinary workspace");
+        state.start_autoplay();
+        let mut sandbox = None;
+        ensure_autoplay_setup(&mut state, &mut sandbox).expect("autoplay setup");
+        let mut surface_run = 0;
+
+        let state = run_tutorial_session(
+            state,
+            None::<()>,
+            None::<()>,
+            sandbox,
+            |mut state, _file_rx, _sandbox| {
+                surface_run += 1;
+                match surface_run {
+                    1 => {
+                        assert!(state.hand_back_autoplay());
+                        state.current_step = state.steps.len() - 1;
+                        state.advance_step();
+                        state.handle_key(Action::Select);
+                    }
+                    2 => {
+                        assert_eq!(state.phase, TutorialPhase::PathSelect);
+                        state.handle_key(Action::Select);
+                        state.steps[0] = anvil_tui::surfaces::tutorial::TutorialStep {
+                            edit_target: Some("ordinary-marker.txt".to_string()),
+                            seed_template: Some("ordinary root".to_string()),
+                            ..Default::default()
+                        };
+                        state.open_step_editor();
+                        state.save_step_editor().expect("save in ordinary root");
+                    }
+                    _ => panic!("unexpected surface run {surface_run}"),
+                }
+                Ok(state)
+            },
+            |_state, _sandbox| unreachable!("watch demo is not entered"),
+            |state| {
+                state
+                    .bind_working_root(&workspace_root)
+                    .context("rebind ordinary workspace")?;
+                Ok(((), ()))
+            },
+        )
+        .expect("tutorial session");
+
+        assert_eq!(surface_run, 2);
+        assert!(marker.exists());
+        assert!(!state.autoplay_session_active());
+    }
+
+    #[test]
+    fn nested_launch_binds_editor_to_canonical_workspace_root() {
+        let repo = tempfile::tempdir().expect("repo");
+        let nested = repo.path().join("nested/deeper");
+        std::fs::create_dir_all(&nested).expect("nested launch directory");
+        let init = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(repo.path())
+            .status()
+            .expect("git init");
+        assert!(init.success());
+
+        crate::test_support::cwd::with_cwd_in(&nested, || {
+            let root = crate::util::workspace_root().expect("workspace root");
+            let mut state = TutorialState::new();
+            state.bind_working_root(&root).expect("bind workspace");
+            state.load_steps(TutorialPath::Policy);
+            state.steps[0] = anvil_tui::surfaces::tutorial::TutorialStep {
+                edit_target: Some("nested-launch-marker.txt".to_string()),
+                seed_template: Some("rooted".to_string()),
+                ..Default::default()
+            };
+            state.open_step_editor();
+            state.save_step_editor().expect("save rooted editor");
+
+            assert!(root.join("nested-launch-marker.txt").exists());
+            assert!(!nested.join("nested-launch-marker.txt").exists());
+        });
     }
 
     #[test]
@@ -655,7 +802,7 @@ mod tests {
         let mut state = TutorialState::new();
         complete_path(&mut state, TutorialPath::Policy);
 
-        save_progress_from_state(&path, &existing, &state).unwrap();
+        save_progress_from_state(&path, &existing, &state, dir.path()).unwrap();
 
         let loaded = load_progress(&path);
         assert!(
@@ -709,13 +856,14 @@ mod tests {
         // labels were reframed to "Boundary findings".
         let existing = TutorialProgress {
             completed_paths: vec!["Architecture".to_string()],
+            workspace_sessions: BTreeMap::new(),
             in_progress: None,
         };
 
         let mut state = TutorialState::new();
         complete_path(&mut state, TutorialPath::Policy);
 
-        save_progress_from_state(&path, &existing, &state).unwrap();
+        save_progress_from_state(&path, &existing, &state, dir.path()).unwrap();
 
         let loaded = load_progress(&path);
         // Legacy "Architecture" is migrated to the current canonical label.
@@ -747,10 +895,13 @@ mod tests {
         state.current_step = 1;
         // Phase is still Running — user pressed q.
 
-        save_progress_from_state(&path, &TutorialProgress::default(), &state).unwrap();
+        save_progress_from_state(&path, &TutorialProgress::default(), &state, dir.path()).unwrap();
 
         let loaded = load_progress(&path);
-        let session = loaded.in_progress.expect("should have in_progress");
+        let session = loaded
+            .workspace_sessions
+            .get(&workspace_session_key(dir.path()).unwrap())
+            .expect("workspace should have an in-progress session");
         assert_eq!(session.path, "Configuration drift");
         assert_eq!(session.current_step, 1);
         assert_eq!(session.steps_completed.len(), state.steps.len());
@@ -767,10 +918,15 @@ mod tests {
         complete_path(&mut state, TutorialPath::Policy);
         // Phase is Complete — should not save in_progress.
 
-        save_progress_from_state(&path, &TutorialProgress::default(), &state).unwrap();
+        save_progress_from_state(&path, &TutorialProgress::default(), &state, dir.path()).unwrap();
 
         let loaded = load_progress(&path);
         assert!(loaded.in_progress.is_none());
+        assert!(
+            !loaded
+                .workspace_sessions
+                .contains_key(&workspace_session_key(dir.path()).unwrap())
+        );
         assert!(
             loaded
                 .completed_paths
@@ -815,5 +971,187 @@ mod tests {
                 .contains(&"CI Integration".to_string())
         );
         assert!(loaded.in_progress.is_none());
+    }
+
+    #[test]
+    fn legacy_global_session_is_deserialisable_but_never_resumed_or_serialised() {
+        let dir = tempfile::tempdir().unwrap();
+        let progress_path = dir.path().join("tutorial-progress.json");
+        let workspace = dir.path().canonicalize().unwrap();
+        let json = r#"{
+            "completed_paths": ["Policy"],
+            "in_progress": {
+                "path": "Drift",
+                "current_step": 2,
+                "steps_completed": [true, true, false]
+            }
+        }"#;
+        std::fs::write(&progress_path, json).unwrap();
+
+        let loaded = load_progress(&progress_path);
+        assert!(
+            loaded.in_progress.is_some(),
+            "legacy field remains readable"
+        );
+
+        let mut state = TutorialState::new();
+        resume_workspace_session(&mut state, &loaded, &workspace);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+
+        let serialised = serde_json::to_string(&loaded).unwrap();
+        assert!(
+            !serialised.contains("in_progress"),
+            "legacy global sessions must never be written back"
+        );
+    }
+
+    #[test]
+    fn workspace_session_resumes_only_for_exact_canonical_root() {
+        let repo_a = tempfile::tempdir().unwrap();
+        let repo_b = tempfile::tempdir().unwrap();
+        let root_a = repo_a.path().canonicalize().unwrap();
+        let root_b = repo_b.path().canonicalize().unwrap();
+        let mut seed = TutorialState::new();
+        seed.load_steps(TutorialPath::Drift);
+        let mut steps_completed = vec![false; seed.steps.len()];
+        steps_completed[0] = true;
+        let session = InProgressSession {
+            path: TutorialPath::Drift.label().to_string(),
+            current_step: 1,
+            steps_completed,
+        };
+        let progress = TutorialProgress {
+            completed_paths: Vec::new(),
+            workspace_sessions: std::collections::BTreeMap::from([(
+                workspace_session_key(&root_a).unwrap(),
+                session,
+            )]),
+            in_progress: None,
+        };
+
+        let mut matching = TutorialState::new();
+        resume_workspace_session(&mut matching, &progress, &root_a);
+        assert_eq!(matching.phase, TutorialPhase::Running);
+        assert_eq!(matching.chosen_path, Some(TutorialPath::Drift));
+        assert_eq!(matching.current_step, 1);
+
+        let mut mismatching = TutorialState::new();
+        resume_workspace_session(&mut mismatching, &progress, &root_b);
+        assert_eq!(mismatching.phase, TutorialPhase::PathSelect);
+        assert!(mismatching.chosen_path.is_none());
+    }
+
+    #[test]
+    fn saving_second_repo_preserves_first_repo_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let progress_path = dir.path().join("tutorial-progress.json");
+        let repo_a = tempfile::tempdir().unwrap();
+        let repo_b = tempfile::tempdir().unwrap();
+        let root_a = repo_a.path().canonicalize().unwrap();
+        let root_b = repo_b.path().canonicalize().unwrap();
+        let session_a = InProgressSession {
+            path: TutorialPath::Policy.label().to_string(),
+            current_step: 2,
+            steps_completed: vec![true, true, false],
+        };
+        let existing = TutorialProgress {
+            completed_paths: Vec::new(),
+            workspace_sessions: std::collections::BTreeMap::from([(
+                workspace_session_key(&root_a).unwrap(),
+                session_a,
+            )]),
+            in_progress: None,
+        };
+        let mut state_b = TutorialState::new();
+        state_b.load_steps(TutorialPath::Drift);
+        state_b.current_step = 1;
+        state_b.steps[0].completed = true;
+
+        save_progress_from_state(&progress_path, &existing, &state_b, &root_b).unwrap();
+
+        let saved = load_progress(&progress_path);
+        assert_eq!(saved.workspace_sessions.len(), 2);
+        assert_eq!(
+            saved.workspace_sessions[&workspace_session_key(&root_a).unwrap()].path,
+            TutorialPath::Policy.label()
+        );
+        assert_eq!(
+            saved.workspace_sessions[&workspace_session_key(&root_b).unwrap()].path,
+            TutorialPath::Drift.label()
+        );
+    }
+
+    #[test]
+    fn quitting_from_picker_after_esc_preserves_paused_workspace_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let progress_path = dir.path().join("tutorial-progress.json");
+        let root = dir.path().canonicalize().unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Drift);
+        state.steps[0].completed = true;
+        state.current_step = 1;
+        state.handle_key(Action::Back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+
+        save_progress_from_state(&progress_path, &TutorialProgress::default(), &state, &root)
+            .unwrap();
+
+        let saved = load_progress(&progress_path);
+        let paused = &saved.workspace_sessions[&workspace_session_key(&root).unwrap()];
+        assert_eq!(paused.path, TutorialPath::Drift.label());
+        assert_eq!(paused.current_step, 1);
+        assert!(paused.steps_completed[0]);
+    }
+
+    #[test]
+    fn escaping_complete_to_picker_preserves_global_completion() {
+        let dir = tempfile::tempdir().unwrap();
+        let progress_path = dir.path().join("tutorial-progress.json");
+        let root = dir.path().canonicalize().unwrap();
+        let mut state = TutorialState::new();
+        complete_path(&mut state, TutorialPath::Policy);
+
+        state.handle_key(Action::Back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(
+            state.completed_paths.contains(&TutorialPath::Policy),
+            "the picker should show the completed path before state is saved"
+        );
+
+        save_progress_from_state(&progress_path, &TutorialProgress::default(), &state, &root)
+            .unwrap();
+
+        let saved = load_progress(&progress_path);
+        assert!(
+            saved
+                .completed_paths
+                .contains(&TutorialPath::Policy.label().to_string())
+        );
+    }
+
+    #[test]
+    fn autoplay_completion_is_not_persisted_as_real_path_completion() {
+        let dir = tempfile::tempdir().expect("progress dir");
+        let progress_path = dir.path().join("tutorial-progress.json");
+        let workspace = tempfile::tempdir().expect("workspace");
+        let root = workspace
+            .path()
+            .canonicalize()
+            .expect("canonical workspace");
+        let mut state = TutorialState::new_autoplay_in(&root).expect("autoplay");
+        state.current_step = state.steps.len() - 1;
+        state.advance_step();
+        assert!(state.hand_back_autoplay());
+        state.handle_key(Action::Select);
+
+        save_progress_from_state(&progress_path, &TutorialProgress::default(), &state, &root)
+            .expect("save progress");
+
+        let saved = load_progress(&progress_path);
+        assert!(
+            !saved
+                .completed_paths
+                .contains(&TutorialPath::ProtectionLoop.label().to_string())
+        );
     }
 }

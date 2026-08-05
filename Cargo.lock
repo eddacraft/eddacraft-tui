@@ -1837,6 +1837,7 @@ version = "0.9.2-beta"
 dependencies = [
  "animate",
  "crossterm",
+ "dunce",
  "eddacraft-anvil-kernel-types",
  "eddacraft-tui",
  "insta",

@@ -97,7 +97,7 @@ impl TutorialPath {
     pub fn description(self) -> &'static str {
         match self {
             Self::ProtectionLoop => {
-                "60-second walk: see what anvil checks, then activate in this repo"
+                "60-second walk: see what anvil checks, then verify protection in this repo"
             }
             Self::DeveloperAcceleration => {
                 "Wire your AI coding agent, validate its edits, and feed it graph context"
@@ -135,12 +135,22 @@ pub enum CommandEffect {
 /// N ticks always show the same prefix — and snapshot-testable.
 pub const REVEAL_CHARS_PER_TICK: usize = 3;
 
+/// Canonicalise tutorial paths without retaining Windows verbatim prefixes.
+///
+/// Watch events and CLI workspace roots use ordinary path forms, so tutorial
+/// containment and equality checks must use the same representation.
+pub(crate) fn canonicalize_working_path(
+    path: &std::path::Path,
+) -> std::io::Result<std::path::PathBuf> {
+    dunce::canonicalize(path)
+}
+
 /// Resolve a tutorial-owned target beneath a canonical session root.
 pub fn resolve_working_path(
     root: &std::path::Path,
     target: &std::path::Path,
 ) -> std::io::Result<std::path::PathBuf> {
-    let root = root.canonicalize()?;
+    let root = canonicalize_working_path(root)?;
     if !root.is_dir() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
@@ -186,7 +196,7 @@ pub fn resolve_working_path(
             )
         })?;
     }
-    let canonical_existing = existing.canonicalize()?;
+    let canonical_existing = canonicalize_working_path(existing)?;
     if !canonical_existing.starts_with(&root) {
         return Err(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
@@ -301,6 +311,7 @@ pub struct TutorialStep {
 }
 
 struct AutoplaySavedContext {
+    working_root: Option<std::path::PathBuf>,
     scan_results: Option<ScanResults>,
     domain_findings: Option<ScanResults>,
     completion_rescan: Option<Box<dyn Fn() -> Option<ScanResults>>>,
@@ -653,14 +664,14 @@ impl TutorialState {
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
-        if self.autoplay_session {
+        let leaving_autoplay = self.autoplay_session;
+        if leaving_autoplay {
             self.abort_autoplay_session();
             self.restore_autoplay_context();
             self.autoplay_teardown_requested = true;
         }
         self.autoplay = false;
         self.wants_autoplay_setup = false;
-        self.working_root = None;
         self.steps = match path {
             TutorialPath::ProtectionLoop => paths::protection_loop_steps(),
             TutorialPath::DeveloperAcceleration => paths::developer_acceleration_steps(),
@@ -701,6 +712,7 @@ impl TutorialState {
 
     fn stash_autoplay_context(&mut self) {
         self.autoplay_saved_context = Some(AutoplaySavedContext {
+            working_root: self.working_root.take(),
             scan_results: self.scan_results.take(),
             domain_findings: self.domain_findings.take(),
             completion_rescan: self.completion_rescan.take(),
@@ -713,6 +725,7 @@ impl TutorialState {
         let Some(saved) = self.autoplay_saved_context.take() else {
             return;
         };
+        self.working_root = saved.working_root;
         self.scan_results = saved.scan_results;
         self.domain_findings = saved.domain_findings;
         self.completion_rescan = saved.completion_rescan;
@@ -720,8 +733,27 @@ impl TutorialState {
         self.completion_delta = saved.completion_delta;
     }
 
+    /// Bind an ordinary tutorial session to its canonical workspace root.
+    pub fn bind_working_root(&mut self, root: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        if self.autoplay_session {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "autoplay uses its isolated working root",
+            ));
+        }
+        let root = canonicalize_working_path(root.as_ref())?;
+        if !root.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "tutorial working root is not a directory",
+            ));
+        }
+        self.working_root = Some(root);
+        Ok(())
+    }
+
     pub fn start_autoplay_in(&mut self, root: impl AsRef<std::path::Path>) -> std::io::Result<()> {
-        let root = root.as_ref().canonicalize()?;
+        let root = canonicalize_working_path(root.as_ref())?;
         if !root.is_dir() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -870,14 +902,11 @@ impl TutorialState {
         }
 
         // Normalise the watch target to an absolute path so it matches the
-        // absolute paths emitted by the file watcher.
+        // absolute paths emitted by the file watcher, while applying the same
+        // containment guard as commands, verification, and inline edits.
         let watch_target_path = std::path::PathBuf::from(watch_target);
-        let target = if watch_target_path.is_absolute() {
-            watch_target_path
-        } else if let Ok(root) = std::env::current_dir() {
-            root.join(&watch_target_path)
-        } else {
-            watch_target_path
+        let Ok(target) = self.resolve_session_target(&watch_target_path) else {
+            return false;
         };
         let relevant = changed_paths
             .iter()
@@ -1150,7 +1179,7 @@ impl TutorialState {
                 Action::Character('s') => {
                     self.advance_step();
                 }
-                Action::Back => self.wants_back = true,
+                Action::Back => self.phase = TutorialPhase::PathSelect,
                 Action::Quit => self.should_quit = true,
                 _ => {}
             }
@@ -1198,7 +1227,7 @@ impl TutorialState {
             // user inside the tutorial instead of a second terminal. No-op
             // unless the current step declares an `edit_target`.
             Action::Character('e') => self.open_step_editor(),
-            Action::Back => self.wants_back = true,
+            Action::Back => self.phase = TutorialPhase::PathSelect,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -1422,7 +1451,10 @@ impl TutorialState {
             }
             return false;
         }
-        let result = executor::execute_command(cmd);
+        let result = match self.working_root.as_deref() {
+            Some(root) => executor::execute_command_in(cmd, root),
+            None => executor::execute_command(cmd),
+        };
         let succeeded = result.success
             || (self.autoplay_session
                 && self
@@ -1459,12 +1491,18 @@ impl TutorialState {
 
     fn handle_complete(&mut self, action: Action) {
         match action {
-            Action::Select => {
+            Action::Select | Action::Back => {
                 let leaving_autoplay = self.autoplay_session;
                 if leaving_autoplay {
                     self.abort_autoplay_session();
                     self.restore_autoplay_context();
                     self.autoplay_teardown_requested = true;
+                }
+                if !leaving_autoplay
+                    && let Some(path) = self.chosen_path
+                    && !self.completed_paths.contains(&path)
+                {
+                    self.completed_paths.push(path);
                 }
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
@@ -1476,7 +1514,6 @@ impl TutorialState {
                     self.completion_delta = None;
                 }
             }
-            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -1490,33 +1527,33 @@ impl crate::surface::Surface for TutorialState {
 
     fn help_text(&self) -> &'static str {
         match self.phase {
-            TutorialPhase::PathSelect => "j/k navigate  enter select  esc back  q quit",
+            TutorialPhase::PathSelect => "j/k navigate  enter select  esc close tutorial  q quit",
             TutorialPhase::Running => {
                 if self.is_editing() {
                     "type to edit  enter newline  ctrl-s save  esc cancel"
                 } else if self.is_revealing() {
                     "any key run now  esc cancel  q quit"
                 } else if self.current_step_failed() {
-                    "r retry  s skip  esc back  q quit"
+                    "r retry  s skip  esc paths  q quit"
                 } else if self.current_step_is_editable() {
-                    "e edit inline  space next  esc back  q quit"
+                    "e edit inline  space next  esc paths  q quit"
                 } else if self.static_mode {
-                    "enter next  esc back  q quit"
+                    "enter next  esc paths  q quit"
                 } else if self.current_step_has_command() {
                     // WOW-001: command steps say what Enter really does and
                     // make the skip-without-running escape hatch visible.
                     if self.next_fix_request().is_some() {
-                        "enter run command  space skip without running  f fix  esc back  q quit"
+                        "enter run command  space skip without running  f fix  esc paths  q quit"
                     } else {
-                        "enter run command  space skip without running  esc back  q quit"
+                        "enter run command  space skip without running  esc paths  q quit"
                     }
                 } else if self.next_fix_request().is_some() {
-                    "enter next  space next  f fix  esc back  q quit"
+                    "enter next  space next  f fix  esc paths  q quit"
                 } else {
-                    "enter next  space next  esc back  q quit"
+                    "enter next  space next  esc paths  q quit"
                 }
             }
-            TutorialPhase::Complete => "enter choose another  esc back  q quit",
+            TutorialPhase::Complete => "enter choose another  esc paths  q quit",
         }
     }
 
@@ -1895,6 +1932,84 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_session_binding_survives_path_load_from_nested_launch_root() {
+        let root = tempfile::tempdir().expect("workspace");
+        let nested = root.path().join("nested/deeper");
+        std::fs::create_dir_all(&nested).expect("nested launch directory");
+        let canonical_root = canonicalize_working_path(root.path()).expect("canonical root");
+        let mut state = TutorialState::new();
+        state.working_root = Some(canonical_root.clone());
+
+        state.load_steps(TutorialPath::Policy);
+
+        assert_eq!(
+            state.working_root.as_deref(),
+            Some(canonical_root.as_path()),
+            "selecting or resuming a path must retain the canonical workspace root"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn canonical_working_root_uses_ordinary_windows_path_form() {
+        let root = tempfile::tempdir().expect("workspace");
+
+        let canonical = canonicalize_working_path(root.path()).expect("canonical root");
+
+        assert!(
+            !canonical.as_os_str().to_string_lossy().starts_with(r"\\?\"),
+            "tutorial roots must compare with ordinary watcher and CLI paths"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ordinary_session_rejects_symlink_parent_escape() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("workspace");
+        let outside = tempfile::tempdir().expect("outside");
+        symlink(outside.path(), root.path().join("linked")).expect("symlink");
+        let mut state = TutorialState::new();
+        state.working_root = Some(canonicalize_working_path(root.path()).expect("canonical root"));
+        state.load_steps(TutorialPath::Policy);
+        state.steps[0] = TutorialStep {
+            edit_target: Some("linked/escape.rego".to_string()),
+            seed_template: Some("must not escape".to_string()),
+            ..TutorialStep::default()
+        };
+
+        state.open_step_editor();
+
+        assert!(!state.is_editing(), "symlink escape must fail closed");
+        assert!(!outside.path().join("escape.rego").exists());
+    }
+
+    #[test]
+    fn ordinary_watcher_target_uses_bound_root_not_process_cwd() {
+        let root = tempfile::tempdir().expect("workspace");
+        let watched = root.path().join("watched");
+        std::fs::create_dir_all(&watched).expect("watched directory");
+        let marker = watched.join("marker.txt");
+        std::fs::write(&marker, "ready").expect("marker");
+        let mut state = TutorialState::new();
+        state
+            .bind_working_root(root.path())
+            .expect("bind workspace");
+        state.phase = TutorialPhase::Running;
+        state.steps = vec![TutorialStep {
+            watch_path: Some("watched".to_string()),
+            verify: Some(Verify::FileExists("watched/marker.txt".to_string())),
+            ..TutorialStep::default()
+        }];
+
+        let advanced = state.handle_file_change(&[marker]);
+
+        assert!(advanced);
+        assert_eq!(state.phase, TutorialPhase::Complete);
+    }
+
+    #[test]
     fn autoplay_commands_and_editor_are_confined_to_working_root() {
         let root = tempfile::tempdir().expect("tempdir");
         std::fs::write(root.path().join("marker.txt"), "sandbox").expect("fixture");
@@ -2119,6 +2234,26 @@ mod tests {
         }
         assert!(state.autoplay_command.is_none());
         assert!(state.reveal.is_none());
+    }
+
+    #[test]
+    fn autoplay_completion_does_not_mark_the_real_path_complete() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.current_step = state.steps.len() - 1;
+        state.advance_step();
+        assert_eq!(state.phase, TutorialPhase::Complete);
+
+        assert!(state.hand_back_autoplay());
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.autoplay_session_active());
+        assert!(
+            !state
+                .completed_paths
+                .contains(&TutorialPath::ProtectionLoop)
+        );
     }
 
     #[test]
@@ -2381,13 +2516,14 @@ mod tests {
     }
 
     #[test]
-    fn back_from_running_exits_tutorial() {
+    fn esc_from_default_path_returns_to_picker() {
         let mut state = TutorialState::new();
         state.handle_key(Action::Select); // choose default ProtectionLoop
         assert_eq!(state.phase, TutorialPhase::Running);
 
         state.handle_key(Action::Back);
-        assert!(state.wants_back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.wants_back);
     }
 
     #[test]
@@ -2405,7 +2541,73 @@ mod tests {
     }
 
     #[test]
-    fn back_from_running_sets_wants_back() {
+    fn esc_from_running_returns_to_picker_without_requesting_exit() {
+        let mut state = TutorialState::new();
+        state.handle_key(Action::Select);
+        assert_eq!(state.phase, TutorialPhase::Running);
+
+        state.handle_key(Action::Back);
+
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.wants_back);
+        assert!(!state.should_quit);
+    }
+
+    #[test]
+    fn esc_from_failed_and_static_running_states_returns_to_picker() {
+        let mut failed = state_with_command_step("exit 1");
+        select_and_run(&mut failed);
+        assert!(failed.current_step_failed());
+
+        failed.handle_key(Action::Back);
+
+        assert_eq!(failed.phase, TutorialPhase::PathSelect);
+        assert!(!failed.wants_back);
+
+        let mut static_mode = state_with_command_step("echo test");
+        static_mode.enable_static_mode();
+
+        static_mode.handle_key(Action::Back);
+
+        assert_eq!(static_mode.phase, TutorialPhase::PathSelect);
+        assert!(!static_mode.wants_back);
+    }
+
+    #[test]
+    fn esc_from_complete_returns_to_picker_without_requesting_exit() {
+        let mut state = state_with_plain_steps(1);
+        state.handle_key(Action::Select);
+        assert_eq!(state.phase, TutorialPhase::Complete);
+
+        state.handle_key(Action::Back);
+
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.wants_back);
+        assert!(!state.should_quit);
+    }
+
+    #[test]
+    fn tutorial_escape_help_matches_navigation_and_exit_behaviour() {
+        let mut state = TutorialState::new();
+        assert_eq!(
+            <TutorialState as crate::surface::Surface>::help_text(&state),
+            "j/k navigate  enter select  esc close tutorial  q quit"
+        );
+
+        state.handle_key(Action::Select);
+        assert!(
+            <TutorialState as crate::surface::Surface>::help_text(&state).contains("esc paths")
+        );
+
+        state.phase = TutorialPhase::Complete;
+        assert_eq!(
+            <TutorialState as crate::surface::Surface>::help_text(&state),
+            "enter choose another  esc paths  q quit"
+        );
+    }
+
+    #[test]
+    fn esc_from_non_default_path_returns_to_picker() {
         let mut state = TutorialState::new();
 
         // Path order: ProtectionLoop(0), DeveloperAcceleration(1), Policy(2),
@@ -2418,9 +2620,10 @@ mod tests {
         state.handle_key(Action::Select);
         assert_eq!(state.chosen_path, Some(TutorialPath::Architecture));
 
-        // Back exits the tutorial entirely
+        // Esc returns to the path picker without requesting surface exit.
         state.handle_key(Action::Back);
-        assert!(state.wants_back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.wants_back);
     }
 
     #[test]
@@ -2446,6 +2649,17 @@ mod tests {
         assert_eq!(TutorialPath::Architecture.label(), "Boundary findings");
         assert_eq!(TutorialPath::Drift.label(), "Configuration drift");
         assert_eq!(TutorialPath::CI.label(), "CI gate integration");
+    }
+
+    #[test]
+    fn protection_loop_picker_copy_promises_verification_not_activation() {
+        let description = TutorialPath::ProtectionLoop.description().to_lowercase();
+
+        assert!(description.contains("verify"));
+        assert!(
+            !description.contains("activate in this repo"),
+            "the picker must not promise mutation for a read-only walkthrough"
+        );
     }
 
     // --- LAUNCH-014: protection-loop path copy invariants ---
@@ -2653,7 +2867,7 @@ mod tests {
         select_and_run(&mut state); // executes and fails
 
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
-        assert_eq!(help, "r retry  s skip  esc back  q quit");
+        assert_eq!(help, "r retry  s skip  esc paths  q quit");
     }
 
     #[test]
@@ -2698,13 +2912,14 @@ mod tests {
     }
 
     #[test]
-    fn back_from_failed_command_exits_tutorial() {
+    fn esc_from_failed_command_returns_to_picker() {
         let mut state = state_with_command_step("exit 1");
         select_and_run(&mut state); // fails
 
         state.handle_key(Action::Back);
 
-        assert!(state.wants_back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.wants_back);
     }
 
     #[test]
@@ -2733,7 +2948,7 @@ mod tests {
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
         assert_eq!(
             help,
-            "enter run command  space skip without running  esc back  q quit"
+            "enter run command  space skip without running  esc paths  q quit"
         );
     }
 
@@ -2742,7 +2957,7 @@ mod tests {
         // Informational steps must not claim Enter "runs" anything.
         let state = state_with_plain_steps(1);
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
-        assert_eq!(help, "enter next  space next  esc back  q quit");
+        assert_eq!(help, "enter next  space next  esc paths  q quit");
     }
 
     #[test]
@@ -2758,7 +2973,7 @@ mod tests {
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
         assert_eq!(
             help,
-            "enter run command  space skip without running  f fix  esc back  q quit"
+            "enter run command  space skip without running  f fix  esc paths  q quit"
         );
     }
 
@@ -2901,7 +3116,7 @@ mod tests {
         assert!(!state.is_revealing());
         assert!(state.current_step_failed());
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
-        assert_eq!(help, "r retry  s skip  esc back  q quit");
+        assert_eq!(help, "r retry  s skip  esc paths  q quit");
     }
 
     #[test]
@@ -3474,6 +3689,36 @@ mod tests {
     }
 
     #[test]
+    fn autoplay_recovery_restores_the_ordinary_working_root() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let canonical_workspace =
+            canonicalize_working_path(workspace.path()).expect("canonical workspace");
+        let sandbox = tempfile::tempdir().expect("autoplay sandbox");
+        let mut state = TutorialState::new();
+        state
+            .bind_working_root(&canonical_workspace)
+            .expect("bind ordinary root");
+
+        state
+            .start_autoplay_in(sandbox.path())
+            .expect("start autoplay");
+        drop(workspace);
+        state.recover_from_autoplay_failure("demo stopped");
+
+        assert_eq!(
+            state.working_root.as_deref(),
+            Some(canonical_workspace.as_path()),
+            "teardown must restore the pre-demo containment boundary"
+        );
+        assert!(
+            state
+                .resolve_session_target("must-not-use-ambient-cwd")
+                .is_err(),
+            "a disappeared workspace must fail closed against its saved boundary"
+        );
+    }
+
+    #[test]
     fn enable_static_mode_with_reason_overrides_notice() {
         let mut state = TutorialState::new();
         state.enable_static_mode_with_reason("watcher failed: inotify limit reached");
@@ -3531,7 +3776,7 @@ mod tests {
         state.enable_static_mode();
 
         let help = <TutorialState as crate::surface::Surface>::help_text(&state);
-        assert_eq!(help, "enter next  esc back  q quit");
+        assert_eq!(help, "enter next  esc paths  q quit");
     }
 
     #[test]
@@ -3577,12 +3822,13 @@ mod tests {
     }
 
     #[test]
-    fn static_mode_back_from_running_exits_tutorial() {
+    fn static_mode_esc_from_running_returns_to_picker() {
         let mut state = state_with_command_step("echo test");
         state.enable_static_mode();
 
         state.handle_key(Action::Back);
-        assert!(state.wants_back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.wants_back);
     }
 
     #[test]
