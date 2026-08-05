@@ -7775,8 +7775,7 @@ CIB-251/255 only.
 
 ### CIB-279: Windows path-rendering fixture for the three surfaces CIB-237 left uncovered
 
-- **Status:** Proposed — promotion to `Ready` is the operator's call (membrane
-  checkpoint); filed from a dev-loop run, not self-authorised for execution.
+- **Status:** Ready
 - **Priority:** P3 test coverage (the behaviour is fixed and shipped; this
   closes the validation clause, it does not change product behaviour)
 - **Intent:** CIB-237's `Validation:` clause asked for "a Windows fixture
