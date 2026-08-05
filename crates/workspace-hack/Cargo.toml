@@ -39,7 +39,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 indexmap = { version = "2" }
 itertools-3575ec1268b04181 = { package = "itertools", version = "0.15" }
 itertools-582f2526e08bb6a0 = { package = "itertools", version = "0.14", default-features = false, features = ["use_std"] }
-jsonschema = { version = "0.47" }
+jsonschema = { version = "0.49" }
 kasuari = { version = "0.4", default-features = false, features = ["std"] }
 lru = { version = "0.18" }
 memchr = { version = "2" }
