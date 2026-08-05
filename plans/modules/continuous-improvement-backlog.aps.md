@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 207/279  |
+| CIB | —     | In Progress | 213/279  |
 
 ## Purpose
 
@@ -5420,10 +5420,13 @@ archive.
 
 ### CIB-205: ACKNOWLEDGEMENTS prints one licence text per family, dropping the others' copyright notices
 
-- **Status:** In Progress 2026-08-05 — fix in
-  [PR #3566](https://github.com/eddacraft/anvil-001/pull/3566). On merge, set to
-  `Merged YYYY-MM-DD via PR #3566`.
-- **Priority:** P1 for `v0.9.3-beta` (attribution completeness; legal-adjacent)
+- **Status:** Merged 2026-08-05 via PR #3566 (`dfa4e5552`)
+- **Summary:** ACKNOWLEDGEMENTS generation retains every distinct copyright
+  notice per licence-family member rather than one representative text; the
+  acknowledgements gate and generator tests pin multi-member families. Review
+  follow-ups on notice rendering landed on the same merge path.
+- **Priority:** P1 for `v0.9.3-beta` (attribution completeness; legal-adjacent);
+  implementation merged, awaiting release evidence
 - **Severity correction (2026-08-05):** this item was filed against the BSD
   3-Clause block's four members, which understated it. The defect is a property
   of the generator, so it applies to every multi-member family: the **MIT block
@@ -6859,16 +6862,16 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | --- | --- | --- |
 | RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); pack-03 uses **CIB-250** for tutorial safety chain (unrelated) |
 | HOOK-1 | net-new honesty (opt-in `--config`; one git; **out of the normal-path cutline**) | **CIB-251** Ready **P3** |
-| WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
-| STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
+| WS-1 | net-new trust (false success) | **CIB-252** Merged · coords CIB-160 |
+| STATUS-1 | net-new honesty | **CIB-253** Merged via #3573 |
 | STATUS-2 | absorbed into CIB-235 | CIB-235 pack-02 extension |
 | START-1 | net-new honesty | **CIB-256** Ready P2 |
-| WATCH-1 | net-new trust (ND caveat) | **CIB-254** Ready P0 |
+| WATCH-1 | net-new trust (ND caveat) | **CIB-254** Merged via #3577 |
 | INIT-2 | net-new honesty | **CIB-257** Ready P2 |
 | TUI-8 | net-new copy honesty | **CIB-259** Ready P2 |
-| GATE-1 | net-new domain disclosure | **CIB-255** Ready P1 · coords CIB-234 |
-| CHECK-1 | net-new domain/scoping | **CIB-255** (same item) |
-| GATE-2 | needs internals; same family | **CIB-255** observation |
+| GATE-1 | net-new domain disclosure | **CIB-255** Merged via #3572 · coords CIB-234 |
+| CHECK-1 | net-new domain/scoping | **CIB-255** Merged (same item) |
+| GATE-2 | needs internals; same family | **CIB-255** Merged (observation closed with domain disclosure) |
 | TUI-1 | elevated (pack-03 safety chain) | **Absorbed** into **CIB-250** (former CIB-265 Done) |
 | JSON-1 | net-new | **CIB-262** Ready P3 · coords CIB-240 |
 | PUSH-1 | needs reproduction (plausible only) | **CIB-267** Proposed |
@@ -6890,9 +6893,14 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-250: Tutorial safety chain — esc-as-back → forced resume → wrong-repo activate (pack-03)
 
-- **Status:** Ready
-- **Priority:** P0 for `v0.9.3-beta` (first-time walkthrough safety — wrong-repo
-  irreversible activate)
+- **Status:** Merged 2026-08-05 via PR #3578 (`60a3471ce`)
+- **Summary:** Tutorial safety chain closed as one fix: Escape navigates back
+  until the path picker (then exits); progress/resume and tutorial filesystem or
+  command actions stay scoped to the canonical repository root; activation keeps
+  the read-only ProtectionLoop contract with explicit effects and decline; fixed
+  anvil commands run through the current binary without a shell.
+- **Priority:** P0 for `v0.9.3-beta` (first-time walkthrough safety); implementation
+  merged, awaiting release evidence
 - **Intent:** Four small behaviours form **one causal chain** that walks a
   first-time user onto baseline activation aimed at the **wrong repo**, with no
   decline path (Dave pack-03 §3, Windows PowerShell, hand-driven as a beginner):
@@ -6995,8 +7003,12 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-253: `status` must not contradict live daemon (STATUS-1)
 
-- **Status:** Ready
-- **Priority:** P1 honesty (low-risk probe/copy)
+- **Status:** Merged 2026-08-05 via PR #3573 (`04d9dcc51`)
+- **Summary:** `anvil status` Daemon line now follows intercept process
+  liveness (or states a scoped not-attesting difference) instead of reporting
+  not-running when the activation IPC probe already reached a live daemon.
+- **Priority:** P1 honesty (low-risk probe/copy); implementation merged,
+  awaiting release evidence
 - **Intent:** After `intercept start`, `anvil status` reports `Daemon: not
   running` while `intercept status` and OS process table show the daemon up.
   Reproduced in three repos. Same block already has accurate
@@ -7148,9 +7160,14 @@ needs no engine work.
 
 ### CIB-255: Disclose `gate` / `check --all` secret file domains (GATE-1, CHECK-1, GATE-2)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-05 via PR #3572 (`3bdb82368`); review follow-up
+  PR #3576 (`8516a7309`) shared the secret-scan extension allow-list helpers.
+- **Summary:** Gate and `check --all` disclose their secret-file extension
+  domains on human and JSON output (disclosure-only; no forced parity with
+  per-file check). Extension matching is case-insensitive via shared helpers.
 - **Priority:** P1 trust honesty for `v0.9.3-beta` (prefer disclosure over
-  forced parity — same stance as CIB-234)
+  forced parity — same stance as CIB-234); implementation merged, awaiting
+  release evidence
 - **Intent:**
   - **GATE-1:** `check app.py` finds AWS secret; `gate` PASS 100% with no
     domain statement. Gate detects secrets in `.ts/.js/.json/.yml/.toml/.env/
@@ -7718,8 +7735,12 @@ CIB-251/255 only.
 
 ### CIB-276: Prove toast must not read as scanning the user's project
 
-- **Status:** Ready
-- **Priority:** P1 honesty (normal start path; first-timer misread)
+- **Status:** Merged 2026-08-05 via PR #3571 (`19f56e7ee` / `a8e6e13f7`)
+- **Summary:** Prove toast names the **built-in sample fixture** on empty and
+  non-empty finding paths so first-timers cannot skim it as a live-repo scan;
+  regression tests reject the ambiguous "on the fixture" wording.
+- **Priority:** P1 honesty (normal start path; first-timer misread);
+  implementation merged, awaiting release evidence
 - **Intent:** Prove reports "caught 1 finding(s) on the fixture …" — standing
   in a project folder, "the fixture" reads as **this repo**, so a user thinks
   their project has one issue when Prove only checked the built-in sample.
@@ -7915,11 +7936,13 @@ CIB-251/255 only.
 
 ### CIB-280: `gate` secret scan depth cap misses files `audit` flags
 
-- **Status:** Ready — promoted by the operator 2026-08-05 (membrane
-  checkpoint); filed from a dev-loop run, not self-authorised.
-- **Priority:** P2 secret-detection gap (real miss, not presentation; scoped
-  below CIB-255 only because the trigger is deep nesting rather than an
-  everyday file type)
+- **Status:** Merged 2026-08-05 via PR #3569 (`85cd7ceac` / `abedcba12`)
+- **Summary:** Gate removed `SECRET_SCAN_MAX_DEPTH` so full-tree secret walks
+  reach the same deep nesting audit already covered; verification advisories
+  from the CIB-280 pass were addressed on the same path. Guard coverage pins
+  the no-depth-cap invariant.
+- **Priority:** P2 secret-detection gap; implementation merged, awaiting
+  release evidence
 - **Intent:** `gate`'s full-codebase secret walk applies
   `SECRET_SCAN_MAX_DEPTH = 20` (`crates/anvil-cli/src/commands/gate.rs`) for
   every run without plan scoping. `audit`'s walk
