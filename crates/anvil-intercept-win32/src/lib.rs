@@ -1455,6 +1455,33 @@ mod tests {
         );
     }
 
+    /// CIB-160: known-answer pin for the peer-exe reader used by the
+    /// durable-membership gate. A broken binding that always returns
+    /// `None` would leave the gate permanently closed on Windows.
+    #[test]
+    fn process_image_path_resolves_our_own_process() {
+        let pid = std::process::id();
+        let path = process_image_path(pid)
+            .expect("query image path")
+            .expect("our own process must resolve an image path");
+        assert!(!path.as_os_str().is_empty(), "image path must be non-empty",);
+        // The image path should name this test binary (or a host runner
+        // wrapper). Pin that it is an absolute path so a relative
+        // regression cannot sneak through.
+        assert!(
+            path.is_absolute(),
+            "QueryFullProcessImageNameW must return an absolute path, got {path:?}",
+        );
+    }
+
+    /// CIB-160: impossible pid fails closed.
+    #[test]
+    fn process_image_path_is_none_for_an_impossible_pid() {
+        // OpenProcess(0) fails on Windows; soft-failure shape is Ok(None).
+        let path = process_image_path(0).expect("query must not be a hard OS error for pid 0");
+        assert!(path.is_none(), "pid 0 must fail closed");
+    }
+
     #[test]
     fn exited_process_with_open_handle_reports_not_live() {
         // Regression for the bug this fix closes: the kernel process object
@@ -1662,12 +1689,13 @@ mod tests {
             create_owner_only_pipe_server(&pipe_name, PipeInstance::First).expect("bind server")
         };
 
+        let expected_pid = std::process::id();
         let server_task = runtime.spawn(async move {
             let server = server;
             server.connect().await.expect("server accept");
-            // Same-process client ⇒ same user SID ⇒ owner. Query the live PID
-            // via the connected server handle (never closing it).
-            named_pipe_client_is_owner(server.as_raw_handle()).map_err(|e| e.to_string())
+            // Same-process client ⇒ same user SID ⇒ owner. One-pass helper
+            // must also return this process's PID (CIB-160).
+            named_pipe_client_owner_and_pid(server.as_raw_handle()).map_err(|e| e.to_string())
         });
 
         let client_pipe_name = pipe_name.clone();
@@ -1682,8 +1710,8 @@ mod tests {
         client_thread.join().expect("client thread joins");
         assert_eq!(
             owner,
-            Ok(true),
-            "a same-process (same-user) client must validate as owner",
+            Ok((true, expected_pid)),
+            "a same-process (same-user) client must validate as owner with this PID",
         );
     }
 

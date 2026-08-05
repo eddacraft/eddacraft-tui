@@ -565,10 +565,12 @@ struct RegistryEntry {
     /// such sessions are **exempt** from the ownership check and keep
     /// same-uid socket permission as their authorization boundary,
     /// because they have no single owner pid to bind to — durable
-    /// worktree memberships are separate one-shot CLI processes, and
-    /// Windows registers `None`: the named-pipe accept loop
-    /// same-SID authenticates the client but does not yet thread its
-    /// PID into lifecycle ownership (MLP2-028). See
+    /// worktree memberships are separate one-shot CLI processes (no
+    /// lineage on the wire). On Windows the named-pipe accept loop now
+    /// threads `GetNamedPipeClientProcessId` as `peer_pid` (CIB-160), so
+    /// lineage-bearing registers stamp a real `launcher_pid` and enforce
+    /// ownership for heartbeat/unregister; durable / lineage-less
+    /// registers still stamp `None` and stay exempt. See
     /// [`SessionRegistry::peer_ownership_check`] for the full reasoning.
     /// Distinct from `subscriber_binding` (telemetry ownership) per the
     /// CIB-153 Intent.
@@ -858,12 +860,12 @@ impl SessionRegistry {
                     // are exempt from the `Heartbeat` /
                     // `UnregisterSession` ownership check (durable
                     // memberships are separate one-shot CLI processes;
-                    // Windows registers `None`: the named-pipe accept
-                    // loop same-SID authenticates the client but does
-                    // not yet thread its PID into lifecycle ownership
-                    // (MLP2-028)). The
-                    // lineage path (`register_with_lineage`) stamps
-                    // `Some(pid)` below and gets strict enforcement.
+                    // Lineage-less path: no authenticated launcher to bind
+                    // ownership to (durable one-shot CLI, legacy untagged
+                    // register). The lineage path (`register_with_lineage`)
+                    // stamps `Some(pid)` below — including on Windows where
+                    // CIB-160 supplies `GetNamedPipeClientProcessId` — and
+                    // gets strict enforcement.
                     launcher_pid: None,
                     durable,
                 },
@@ -1267,12 +1269,12 @@ impl SessionRegistry {
     ///   membership — no later `unregister`/heartbeat process could
     ///   ever match. This is the exact non-obvious invariant that must
     ///   not be "tightened" back into a rejection by a future refactor.
-    /// - **Windows** sessions: the named-pipe accept loop same-SID
-    ///   authenticates the client, then passes `peer_pid = None`
-    ///   pending MLP2-028's PID/start-time lineage work, so
-    ///   every Windows session registers with `launcher_pid == None`;
-    ///   rejecting them would fail-close all Windows heartbeat/
-    ///   unregister traffic (a pure regression vs pre-CIB-153).
+    /// - **Windows lineage-less sessions**: the named-pipe accept loop
+    ///   same-SID authenticates the client and CIB-160 threads a real
+    ///   `peer_pid`, but durable / lineage-less registers still stamp
+    ///   `launcher_pid = None` (no continuous owner process). Lineage-
+    ///   bearing Windows sessions stamp `Some(peer_pid)` and enforce
+    ///   ownership like Unix. Spoof cross-check remains Linux-only.
     ///
     /// An unknown session id returns `Ok(())` so the downstream
     /// operation keeps its established semantics (heartbeat surfaces
@@ -1288,11 +1290,10 @@ impl SessionRegistry {
         };
         match entry.launcher_pid {
             // No verified lineage anchor: same-uid socket permission is
-            // the boundary (durable memberships and same-SID
-            // authenticated Windows connections whose client PID is
-            // not yet threaded into lifecycle ownership; MLP2-028).
-            // See the doc comment for why this must stay a
-            // pass-through and not a rejection.
+            // the boundary (durable memberships and other lineage-less
+            // registers, including Windows durable one-shots). See the
+            // doc comment for why this must stay a pass-through and not
+            // a rejection.
             None => Ok(()),
             Some(owner) => match peer_pid {
                 Some(caller) if owner == caller => Ok(()),
@@ -2334,10 +2335,11 @@ mod tests {
     /// check — same-uid socket permission remains its authorization
     /// boundary (pre-CIB-153 behaviour). This covers durable
     /// memberships (separate one-shot CLI invocations, each its own
-    /// process) and Windows sessions (same-SID authenticated, but with
-    /// client PID not yet threaded into lifecycle ownership;
-    /// MLP2-028): any authenticated peer, including one whose pid never
-    /// touched the session, may heartbeat it.
+    /// process) and any other lineage-less register — including Windows
+    /// durable one-shots after CIB-160 threaded a real pipe client PID
+    /// (ownership still requires a lineage stamp). Any authenticated
+    /// peer, including one whose pid never touched the session, may
+    /// heartbeat a lineage-less entry.
     #[test]
     fn dispatcher_heartbeat_permits_session_registered_without_lineage() {
         let registry = SessionRegistry::new();

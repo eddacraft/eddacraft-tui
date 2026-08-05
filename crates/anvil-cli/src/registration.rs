@@ -186,7 +186,7 @@ fn missing_durable_membership(canonical: &Path) -> WorktreeRegistration {
     WorktreeRegistration::Rejected(format!(
         "daemon acknowledged the workspace request for {shown}, but durable membership was absent from daemon status; \
          retry registration and inspect `anvil intercept status`. \
-         If it keeps not sticking, `anvil workspace register --persist \"{shown}\"` records this worktree so the daemon registers it at next start",
+         If it keeps not sticking, run `anvil workspace register --persist` with that worktree path — it records the path so the daemon registers it at next start",
     ))
 }
 

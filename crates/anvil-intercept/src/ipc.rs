@@ -4891,19 +4891,20 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 /// peer credentials, rejecting any wire body whose `pid` claim does
 /// not match the peer.
 ///
-/// On Linux the `pid_starttime` is also read server-side from
-/// `/proc/<peer_pid>/stat`; the client's value is ignored even when
-/// present. On non-Linux platforms the daemon has no portable
-/// server-side `pid_starttime` reader yet (the APS spec calls for
-/// `proc_pidinfo` on macOS and `GetProcessTimes` on Windows), and
-/// `SessionRegistry::lookup_tag_for_lineage` is already inert on
-/// those platforms because the per-PID `pid_starttime` read returns
-/// `Unsupported`. To avoid turning the existing silent-inertness
-/// into a hard register-time failure, non-Linux platforms still pin
-/// the `pid == peer_pid` trust gate (which is the primary forgery
-/// defence) but forward the client-supplied `pid_starttime` as
-/// advisory. Lineage gains the daemon-derived starttime guarantee
-/// when full cross-platform support lands.
+/// On every platform with a server-side starttime reader (Linux
+/// `/proc/<pid>/stat`, macOS `proc_pidinfo`, Windows `GetProcessTimes`
+/// via CIB-160) the `pid_starttime` is also read server-side; the
+/// client's value is advisory only and is never stored. Units are
+/// platform-native and compared only same-platform (Linux Unix
+/// seconds, macOS microseconds, Windows FILETIME ticks).
+///
+/// Lineage *walks* for spoof cross-check still depend on portable
+/// `parent_pid` / attribution helpers and remain Linux-only; storing
+/// a daemon-derived starttime does not enable that walk, but it does
+/// stop same-uid clients from pinning arbitrary index keys.
+///
+/// Platforms with no reader still pin the `pid == peer_pid` trust
+/// gate and forward the client-supplied `pid_starttime` as advisory.
 ///
 /// Returns the verified anchor on success, or a human-readable
 /// rejection string when:
@@ -4914,130 +4915,132 @@ fn dispatch_envelope<D: SessionDispatcher>(envelope: &IpcEnvelope, dispatcher: &
 /// - the claim's `pid` is not the peer's pid (a same-UID caller
 ///   trying to mint a lineage anchor for someone else's PID, which
 ///   was the trust-boundary defect `DeepSec` flagged as #1674); or
-/// - on Linux only, the daemon cannot read `pid_starttime` for the
-///   peer (e.g. the peer exited between accept and verify —
-///   best-effort fail-closed).
+/// - a platform with a starttime reader cannot read it for the peer
+///   (e.g. the peer exited between accept and verify — fail-closed).
 fn verify_lineage_claim(
     claim: &anvil_intercept_proto::session::LineageAnchor,
     peer_pid: Option<u32>,
 ) -> Result<anvil_intercept_proto::session::LineageAnchor, String> {
     let Some(peer_pid) = peer_pid else {
         return Err(
-            "register-session lineage rejected: peer credentials unavailable on this \
-             connection — only authenticated launchers may seed the daemon's \
-             lineage index (MLP2-070 / issue #1674)"
+            "register-session lineage rejected: peer credentials unavailable on this              connection — only authenticated launchers may seed the daemon's              lineage index (MLP2-070 / issue #1674)"
                 .to_string(),
         );
     };
     if claim.pid != peer_pid {
         return Err(format!(
-            "register-session lineage rejected: claim.pid={} does not match \
-             authenticated peer pid={} (MLP2-070 / issue #1674)",
+            "register-session lineage rejected: claim.pid={} does not match authenticated peer pid={} (MLP2-070 / issue #1674)",
             claim.pid, peer_pid,
         ));
     }
-    #[cfg(target_os = "linux")]
-    {
-        let pid_starttime = anvil_attribution::process::pid_starttime(peer_pid).map_err(|err| {
-            format!(
-                "register-session lineage rejected: cannot read pid_starttime for \
-                     peer pid={peer_pid}: {err}"
-            )
-        })?;
-        if claim.pid_starttime != pid_starttime {
-            // The client's claim is treated as advisory; the
-            // registry is always seeded with the value the daemon
-            // read itself. A mismatch is logged at debug rather
-            // than warn — well-behaved launchers can disagree
-            // benignly (clock-tick rounding), and operators have
-            // no actionable response.
-            tracing::debug!(
-                target: "anvil_intercept::ipc",
-                claim_pid_starttime = claim.pid_starttime,
-                daemon_pid_starttime = pid_starttime,
-                peer_pid,
-                "register-session lineage pid_starttime claim differs from daemon read; trusting daemon",
-            );
+    let pid_starttime = match rederive_pid_starttime(peer_pid) {
+        Ok(Some(pid_starttime)) => {
+            if claim.pid_starttime != pid_starttime {
+                // The client's claim is advisory; the registry is always
+                // seeded with the value the daemon read itself.
+                tracing::debug!(
+                    target: "anvil_intercept::ipc",
+                    claim_pid_starttime = claim.pid_starttime,
+                    daemon_pid_starttime = pid_starttime,
+                    peer_pid,
+                    "register-session lineage pid_starttime claim differs from daemon read; trusting daemon",
+                );
+            }
+            pid_starttime
         }
-        Ok(anvil_intercept_proto::session::LineageAnchor {
-            pid: peer_pid,
-            pid_starttime,
-        })
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        // No portable server-side reader on this platform yet (see
-        // function-level rustdoc). Forward the claim's
-        // pid_starttime advisory while preserving the pid trust
-        // gate. The lineage lookup is inert here today, so this
-        // matches the pre-MLP2-070 wire-state without introducing a
-        // new hard failure on macOS/Windows.
-        Ok(anvil_intercept_proto::session::LineageAnchor {
-            pid: peer_pid,
-            pid_starttime: claim.pid_starttime,
-        })
-    }
+        Ok(None) => {
+            // No reader on this platform: keep the pid trust gate and
+            // forward the client-supplied value as advisory.
+            claim.pid_starttime
+        }
+        Err(err) => {
+            return Err(format!(
+                "register-session lineage rejected: cannot read pid_starttime for                  peer pid={peer_pid}: {err}"
+            ));
+        }
+    };
+    Ok(anvil_intercept_proto::session::LineageAnchor {
+        pid: peer_pid,
+        pid_starttime,
+    })
 }
 
-/// MLP2-074 (PR #1895 review): re-derive the child's `pid_starttime`
-/// server-side on Linux instead of trusting the launcher's wire
+/// MLP2-074 (PR #1895 review) / CIB-160: re-derive the child's
+/// `pid_starttime` server-side instead of trusting the launcher's wire
 /// value. Mirrors the trust-boundary defence
 /// [`verify_lineage_claim`] applies on the register path — the
 /// launcher claim is advisory; the authoritative value is the one
-/// the daemon reads from `/proc/<child_pid>/stat`. Without this
-/// re-derivation a launcher could pin an arbitrary `pid_starttime`
-/// against a real child pid and evade either MLP-014's PID-reuse
-/// defence or the MLP2-025 lineage walk (the walk reads
-/// `pid_starttime` live and would see a fresh value that no longer
-/// matches the index).
+/// the daemon reads (Linux `/proc`, macOS `proc_pidinfo`, Windows
+/// `GetProcessTimes`). Without this re-derivation a launcher could
+/// pin an arbitrary `pid_starttime` against a real child pid.
 ///
-/// On non-Linux platforms the daemon has no portable
-/// `pid_starttime` reader yet (the spec calls for `proc_pidinfo` on
-/// macOS and `GetProcessTimes` on Windows), so we forward the
-/// client-supplied value as advisory — matches the existing
-/// non-Linux branch of `verify_lineage_claim`.
+/// Platforms with no reader forward the client-supplied value as
+/// advisory. When a reader exists but the process is gone, fail closed.
 ///
 /// Returns the trusted value on success, or a human-readable
-/// rejection string on Linux when `pid_starttime(child_pid)` cannot
-/// be read (e.g. the child exited between the launcher's spawn and
-/// the daemon's read — fail-closed: the index would otherwise be
-/// keyed on an attacker-chosen value).
+/// rejection string when the platform reader cannot read the child
+/// (e.g. the child exited between the launcher's spawn and the
+/// daemon's read — fail-closed: the index would otherwise be keyed
+/// on an attacker-chosen value).
 fn verify_report_process_starttime(
     child_pid: u32,
     advisory_starttime: u64,
     _peer_pid: u32,
 ) -> Result<u64, String> {
+    match rederive_pid_starttime(child_pid) {
+        Ok(Some(pid_starttime)) => {
+            if advisory_starttime != pid_starttime {
+                tracing::debug!(
+                    target: "anvil_intercept::ipc",
+                    claim_pid_starttime = advisory_starttime,
+                    daemon_pid_starttime = pid_starttime,
+                    child_pid,
+                    "session.report_process pid_starttime claim differs from daemon read; trusting daemon",
+                );
+            }
+            Ok(pid_starttime)
+        }
+        Ok(None) => Ok(advisory_starttime),
+        Err(err) => Err(format!(
+            "session.report_process rejected: cannot read pid_starttime              for child pid={child_pid}: {err} (MLP2-074 / CIB-160)"
+        )),
+    }
+}
+
+/// Server-side process starttime for lineage index integrity.
+///
+/// - `Ok(Some(t))` — platform reader succeeded; store `t`.
+/// - `Ok(None)` — no reader on this platform; caller may forward advisory.
+/// - `Err(_)` — reader exists but the process is unreadable; fail closed.
+fn rederive_pid_starttime(pid: u32) -> Result<Option<u64>, String> {
     #[cfg(target_os = "linux")]
     {
-        let pid_starttime =
-            anvil_attribution::process::pid_starttime(child_pid).map_err(|err| {
-                format!(
-                    "session.report_process rejected: cannot read pid_starttime \
-                     for child pid={child_pid}: {err} (MLP2-074 / PR #1895)"
-                )
-            })?;
-        if advisory_starttime != pid_starttime {
-            // Client claim is advisory; the daemon's read wins.
-            // Log at debug so an operator chasing a discrepancy
-            // has a breadcrumb without flooding warn-level output
-            // on benign clock-tick rounding.
-            tracing::debug!(
-                target: "anvil_intercept::ipc",
-                claim_pid_starttime = advisory_starttime,
-                daemon_pid_starttime = pid_starttime,
-                child_pid,
-                "session.report_process pid_starttime claim differs from daemon read; trusting daemon",
-            );
-        }
-        Ok(pid_starttime)
+        anvil_attribution::process::pid_starttime(pid)
+            .map(Some)
+            .map_err(|err| err.to_string())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
     {
-        // No portable server-side reader on this platform yet.
-        // Forward the launcher's advisory value. Matches the
-        // non-Linux branch of `verify_lineage_claim`.
-        let _ = child_pid;
-        Ok(advisory_starttime)
+        anvil_intercept_macos::process_start_time(pid)
+            .map(Some)
+            .ok_or_else(|| {
+                format!("process_start_time unavailable for pid={pid} (process gone or unreadable)")
+            })
+    }
+    #[cfg(windows)]
+    {
+        match anvil_intercept_win32::process_creation_time(pid) {
+            Ok(Some(t)) => Ok(Some(t)),
+            Ok(None) => Err(format!(
+                "process_creation_time unavailable for pid={pid} (process gone or unreadable)"
+            )),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+    {
+        let _ = pid;
+        Ok(None)
     }
 }
 
@@ -5233,7 +5236,7 @@ fn probe_foreign_exe_reads_faithful() -> bool {
         return false;
     };
     let Some(mut canary) = spawn_faithfulness_canary() else {
-        tracing::debug!(
+        tracing::warn!(
             target: "anvil_intercept::ipc",
             "could not spawn the peer-exe faithfulness canary; refusing durable wire claims (CIB-160)",
         );
@@ -5244,39 +5247,71 @@ fn probe_foreign_exe_reads_faithful() -> bool {
     let _ = canary.kill();
     let _ = canary.wait();
     let Some(observed) = observed else {
+        tracing::warn!(
+            target: "anvil_intercept::ipc",
+            canary_pid,
+            "peer-exe faithfulness probe could not read the canary image path; refusing durable wire claims (CIB-160)",
+        );
         return false;
     };
     let observed = std::fs::canonicalize(&observed).unwrap_or(observed);
     // Faithful iff the canary's exe reads back as something other than our
     // own binary. Equal ⇒ the read was aliased to the reader ⇒ unfaithful.
-    observed != daemon_exe
+    let faithful = observed != daemon_exe;
+    if !faithful {
+        tracing::warn!(
+            target: "anvil_intercept::ipc",
+            canary_pid,
+            "peer-exe faithfulness probe saw the canary as this binary (aliased foreign read); refusing durable wire claims (CIB-160)",
+        );
+    }
+    faithful
 }
 
 /// Spawn the short-lived, definitely-not-this-binary process used by
 /// [`probe_foreign_exe_reads_faithful`].
 ///
-/// Unix uses `sleep`, which is POSIX and always a separate binary. Windows
-/// uses `ping` against the loopback address: `ping.exe` ships in System32,
-/// is on the default `PATH`, and takes a count rather than needing a console
-/// (unlike `timeout`, which fails immediately when stdin is redirected).
-/// Both are killed as soon as their exe has been read.
+/// Paths are absolute OS-known binaries so a same-uid neighbour cannot
+/// plant an earlier `sleep`/`ping` on `PATH` and force the daemon to
+/// spawn attacker-controlled code at first probe (council #3582). Unix
+/// tries `/bin/sleep` then `/usr/bin/sleep`. Windows uses
+/// `%SystemRoot%\System32\ping.exe` (falling back to `WINDIR`). Missing
+/// absolute binaries fail closed rather than falling back to PATH.
+/// Both children are killed as soon as their exe has been read.
 fn spawn_faithfulness_canary() -> Option<std::process::Child> {
-    let mut command = if cfg!(windows) {
-        let mut command = std::process::Command::new("ping");
+    #[cfg(windows)]
+    {
+        use std::path::PathBuf;
+        let system_root = std::env::var_os("SystemRoot")
+            .or_else(|| std::env::var_os("WINDIR"))
+            .unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows"));
+        let ping = PathBuf::from(system_root).join("System32").join("ping.exe");
+        let mut command = std::process::Command::new(ping);
         // 31 echoes ≈ 30s, comfortably longer than the read below.
         command.args(["-n", "31", "127.0.0.1"]);
-        command
-    } else {
-        let mut command = std::process::Command::new("sleep");
-        command.arg("30");
-        command
-    };
-    command
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()
+        return command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .ok();
+    }
+    #[cfg(not(windows))]
+    {
+        for candidate in ["/bin/sleep", "/usr/bin/sleep"] {
+            let mut command = std::process::Command::new(candidate);
+            command.arg("30");
+            if let Ok(child) = command
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                return Some(child);
+            }
+        }
+        None
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5395,19 +5430,14 @@ fn dispatch_command<D: SessionDispatcher>(
                         .to_owned(),
                 );
             };
-            // PR #1895 review: mirror MLP2-070's
-            // `verify_lineage_claim` Linux behaviour — the
+            // PR #1895 / CIB-160: mirror `verify_lineage_claim` —
             // launcher-supplied `pid_starttime` is advisory; the
-            // authoritative value is the one the daemon reads from
-            // `/proc/<child_pid>/stat`. Trusting the wire value
-            // would let a malicious launcher pin a chosen
-            // pid_starttime against a real child pid and either
-            // smuggle the anchor past PID-reuse defence or evade
-            // future lineage lookups by mis-matching the value
-            // `cross_check_env_tag` reads at write time. On
-            // non-Linux the daemon has no portable starttime
-            // reader yet (same caveat as MLP2-070), so the wire
-            // value is forwarded as advisory.
+            // authoritative value is the one the daemon re-derives
+            // (Linux `/proc`, macOS `proc_pidinfo`, Windows
+            // `GetProcessTimes`). Trusting the wire value would let a
+            // malicious launcher pin a chosen pid_starttime against a
+            // real child pid. Platforms without a reader still forward
+            // the wire value as advisory.
             let trusted_starttime =
                 verify_report_process_starttime(*pid, *pid_starttime, peer_pid)?;
             dispatcher
@@ -6601,29 +6631,23 @@ mod tests {
     /// no lineage on the wire still works regardless of `peer_pid`.
     /// Pin this so the trust-boundary fix doesn't accidentally
     /// regress the legacy MLP2-023 untagged path.
-    /// MLP2-070 / #1674: on platforms where the daemon has no
-    /// portable server-side `pid_starttime` reader yet (macOS,
-    /// Windows), the lineage anchor stored after verification keeps
-    /// the client-supplied `pid_starttime` as advisory. This pins
-    /// the explicit non-Linux trade-off documented in
-    /// `verify_lineage_claim`'s rustdoc: hard-rejecting lineage on
-    /// non-Linux would turn an existing silent-inertness path (the
-    /// lookup already returns `None` on those platforms) into a new
-    /// hard failure, which is a regression we explicitly avoid
-    /// until cross-platform starttime readers land.
-    #[cfg(all(unix, not(target_os = "linux")))]
+    /// CIB-160 / MLP2-070: on macOS the daemon re-derives starttime via
+    /// `proc_pidinfo` and stores the server value, not the client's claim.
+    #[cfg(target_os = "macos")]
     #[test]
-    fn dispatch_command_register_lineage_forwards_advisory_starttime_on_non_linux() {
+    fn dispatch_command_register_lineage_rederives_starttime_on_macos() {
         use anvil_intercept_proto::IpcCommand;
         use anvil_intercept_proto::session::LineageAnchor;
 
         let recorder = Arc::new(RecordingDispatcher::default());
         let dispatcher = Arc::new(Arc::clone(&recorder));
         let peer_pid = std::process::id();
-        let advisory_starttime = 1_700_000_000;
+        let real_starttime = anvil_intercept_macos::process_start_time(peer_pid)
+            .expect("process_start_time for self must succeed on macOS");
+        let advisory_starttime = real_starttime.wrapping_add(1);
         let worktree = tempfile::tempdir().expect("worktree tempdir");
         let command = IpcCommand::RegisterSession {
-            session_id: SessionId::new("self-registering-non-linux"),
+            session_id: SessionId::new("self-registering-macos"),
             worktree: worktree.path().to_path_buf(),
             agent_tag: None,
             lineage: Some(LineageAnchor {
@@ -6632,18 +6656,59 @@ mod tests {
             }),
         };
         dispatch_command(&command, &dispatcher, Some(peer_pid), None)
-            .expect("non-Linux dispatch with matching pid must succeed");
+            .expect("macOS dispatch with matching pid must succeed");
         let calls = recorder.calls();
         let forwarded = match calls.as_slice() {
             [RecordedCall::Register { lineage, .. }] => {
-                lineage.expect("lineage forwarded on non-Linux")
+                lineage.expect("lineage forwarded on macOS")
             }
             other => panic!("expected single Register call, got {other:?}"),
         };
         assert_eq!(forwarded.pid, peer_pid);
         assert_eq!(
-            forwarded.pid_starttime, advisory_starttime,
-            "non-Linux forwards the claim's advisory starttime verbatim",
+            forwarded.pid_starttime, real_starttime,
+            "macOS must store daemon-derived starttime, not the client's claim",
+        );
+    }
+
+    /// CIB-160 / MLP2-070: on Windows the daemon re-derives starttime via
+    /// `GetProcessTimes` and stores the server value, not the client's claim.
+    #[cfg(windows)]
+    #[test]
+    fn dispatch_command_register_lineage_rederives_starttime_on_windows() {
+        use anvil_intercept_proto::IpcCommand;
+        use anvil_intercept_proto::session::LineageAnchor;
+
+        let recorder = Arc::new(RecordingDispatcher::default());
+        let dispatcher = Arc::new(Arc::clone(&recorder));
+        let peer_pid = std::process::id();
+        let real_starttime = anvil_intercept_win32::process_creation_time(peer_pid)
+            .expect("process_creation_time query")
+            .expect("process_creation_time for self must succeed on Windows");
+        let advisory_starttime = real_starttime.wrapping_add(1);
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let command = IpcCommand::RegisterSession {
+            session_id: SessionId::new("self-registering-windows"),
+            worktree: worktree.path().to_path_buf(),
+            agent_tag: None,
+            lineage: Some(LineageAnchor {
+                pid: peer_pid,
+                pid_starttime: advisory_starttime,
+            }),
+        };
+        dispatch_command(&command, &dispatcher, Some(peer_pid), None)
+            .expect("Windows dispatch with matching pid must succeed");
+        let calls = recorder.calls();
+        let forwarded = match calls.as_slice() {
+            [RecordedCall::Register { lineage, .. }] => {
+                lineage.expect("lineage forwarded on Windows")
+            }
+            other => panic!("expected single Register call, got {other:?}"),
+        };
+        assert_eq!(forwarded.pid, peer_pid);
+        assert_eq!(
+            forwarded.pid_starttime, real_starttime,
+            "Windows must store daemon-derived starttime, not the client's claim",
         );
     }
 
@@ -7041,8 +7106,8 @@ mod tests {
         let dispatcher = Arc::new(Arc::clone(&recorder));
         let peer_pid = std::process::id();
         // Use the current process as the "child" so the daemon's
-        // `/proc/<pid>/stat` re-derivation succeeds on Linux. On
-        // non-Linux the wire value is forwarded unchanged.
+        // platform starttime re-derivation succeeds where a reader is
+        // wired (Linux / macOS / Windows).
         let fake_child_pid = std::process::id();
         let advisory_starttime = 1_700_100_000;
         let command = IpcCommand::ReportProcess {
@@ -7080,11 +7145,30 @@ mod tests {
                         "wire value was deliberately wrong; daemon-read must win",
                     );
                 }
-                #[cfg(not(target_os = "linux"))]
+                #[cfg(target_os = "macos")]
+                {
+                    let real = anvil_intercept_macos::process_start_time(fake_child_pid)
+                        .expect("self process_start_time must succeed on macOS");
+                    assert_eq!(
+                        *child_pid_starttime, real,
+                        "macOS dispatch must forward the daemon-read starttime, not the wire value",
+                    );
+                }
+                #[cfg(windows)]
+                {
+                    let real = anvil_intercept_win32::process_creation_time(fake_child_pid)
+                        .expect("process_creation_time query")
+                        .expect("self process_creation_time must succeed on Windows");
+                    assert_eq!(
+                        *child_pid_starttime, real,
+                        "Windows dispatch must forward the daemon-read starttime, not the wire value",
+                    );
+                }
+                #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
                 {
                     assert_eq!(
                         *child_pid_starttime, advisory_starttime,
-                        "non-Linux dispatch forwards the launcher's advisory starttime",
+                        "platforms without a starttime reader forward the advisory value",
                     );
                 }
             }

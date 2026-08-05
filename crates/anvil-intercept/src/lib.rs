@@ -1912,15 +1912,15 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         let status_provider: Arc<dyn status::StatusProvider> = Arc::new(status_provider_impl);
 
         // MLP2-025b: install the production cross-check capability.
-        // Currently Linux-only — MLP2-027 (macOS) and MLP2-028
-        // (Windows) add the platform-specific peer-PID and lineage
-        // support the cross-check depends on. Wiring it on non-Linux
-        // today would classify every env-tagged write as
-        // `Cross::Spoofed` (Windows accept passes `peer_pid: None`,
-        // and on macOS `pid_starttime` / `parent_pid` return
-        // `io::ErrorKind::Unsupported` so the lineage walk fails
-        // shut), blocking legitimate sessions. The cfg gate widens
-        // when those tickets land.
+        // Currently Linux-only. CIB-160 supplies a real Windows
+        // `peer_pid` (`GetNamedPipeClientProcessId`) and portable
+        // process starttime readers for lineage *index* integrity, but
+        // the spoof cross-check still needs a portable parent-pid /
+        // lineage *walk* (`anvil_attribution::parent_pid` remains
+        // Linux-only). Wiring the cross-check on non-Linux today would
+        // classify every env-tagged write as `Cross::Spoofed` because
+        // the walk fails shut, blocking legitimate sessions. The cfg
+        // gate widens when portable parent/walk support lands.
         // INTD-016: clone the resolved limits once for the listener
         // chain. Capturing into a local also keeps the closure below
         // `Copy`-friendly without borrowing `opts` across the `map`.

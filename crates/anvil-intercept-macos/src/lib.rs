@@ -95,3 +95,29 @@ fn zeroed_proc_bsdinfo() -> libc::proc_bsdinfo {
     // `proc_pidinfo`; zero initialization is valid before the kernel fills it.
     unsafe { std::mem::zeroed() }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_image_path_resolves_our_own_process() {
+        let path = process_image_path(std::process::id())
+            .expect("our own process must resolve an image path");
+        assert!(!path.as_os_str().is_empty());
+        assert!(
+            path.is_absolute(),
+            "proc_pidpath must return an absolute path"
+        );
+    }
+
+    #[test]
+    fn process_image_path_is_none_for_an_impossible_pid() {
+        assert!(process_image_path(0).is_none());
+    }
+
+    #[test]
+    fn process_start_time_resolves_our_own_process() {
+        assert!(process_start_time(std::process::id()).is_some());
+    }
+}
