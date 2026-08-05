@@ -186,6 +186,51 @@ fn refuses_a_managed_manifest_with_an_unknown_identity() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("skill identity"));
 }
 
+/// CIB-279 (guarding CIB-237). `skill install` printed `report.path.display()`,
+/// so a workspace that arrives NT-extended — which is exactly what
+/// `fs::canonicalize` hands back on Windows — echoed `\\?\C:\...` at the user.
+///
+/// The strip is pure string logic, so feeding a Windows-shaped `--workspace`
+/// exercises it on every host instead of only on the dispatch-gated Windows
+/// matrix. `--dry-run` keeps the run read-only, so no such directory is
+/// created on a Windows host either.
+#[test]
+fn install_output_never_echoes_a_windows_verbatim_prefix() {
+    let output = Command::new(ANVIL_BIN)
+        .args([
+            "--no-tui",
+            "skill",
+            "install",
+            "--dry-run",
+            "--client",
+            "claude-code",
+            "--scope",
+            "project",
+            "--workspace",
+            r"\\?\C:\project",
+        ])
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("invoke anvil skill install");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains(r"\\?\"),
+        "verbatim prefix echoed back at the user: {stdout}"
+    );
+    assert!(
+        stdout.contains(r"C:\project"),
+        "destination should still name the requested workspace: {stdout}"
+    );
+}
+
 #[test]
 fn dry_run_resolves_without_writing() {
     let root = tempfile::tempdir().unwrap();

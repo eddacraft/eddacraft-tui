@@ -1515,6 +1515,83 @@ mod tests {
         assert_eq!(result, "/home/user/project/src/foo.ts");
     }
 
+    /// CIB-279 (guarding CIB-237). Both `check --all` and `check <file>`
+    /// render their file list and their finding locations through
+    /// [`relativise`], so this is the seam where a path whose separators
+    /// disagree with the root's used to degrade into an absolute one: the
+    /// pre-CIB-237 helper compared the two with [`Path::strip_prefix`].
+    ///
+    /// The input is a Windows-shaped *string* on purpose, and the host is
+    /// what gives it teeth. On Unix a backslash is an ordinary character, so
+    /// `C:\project\src\app.py` is a single component and the strip misses
+    /// outright; on Windows both `/` and `\` parse as separators, so this
+    /// particular pair would have stripped even pre-fix. Testing it this way
+    /// puts the signal on the Linux CI leg instead of the dispatch-gated
+    /// Windows matrix — whose absence from routine runs is why CIB-237's
+    /// validation clause went unmet for this surface.
+    #[test]
+    fn relativise_strips_a_windows_root_that_disagrees_about_separators() {
+        assert_eq!(
+            relativise(r"C:\project\src\app.py", Some("C:/project")),
+            "src/app.py"
+        );
+    }
+
+    /// CIB-279 (guarding CIB-237). An NT-extended `\\?\C:\...` root must
+    /// neither defeat the prefix strip nor reach the user's screen.
+    ///
+    /// `check` resolves its fallback root through
+    /// [`crate::display_path::canonicalise`], which returns the ordinary form
+    /// whenever one exists — so this shape is rarer since CIB-237, not gone.
+    /// A [`std::fs::canonicalize`] elsewhere, a path past the 260-character
+    /// limit, or an operator-supplied root all still produce it.
+    #[test]
+    fn relativise_never_leaks_a_verbatim_prefix() {
+        assert_eq!(
+            relativise(r"\\?\C:\project\src\app.py", Some(r"\\?\C:\project")),
+            "src/app.py"
+        );
+
+        // The mixed pair is the one that also fails pre-fix on Windows: a
+        // canonicalised root carries a `Verbatim` prefix while the directory
+        // walker yields a `Disk` prefix, and those are distinct `Prefix`
+        // variants, so a component comparison cannot match them.
+        assert_eq!(
+            relativise(r"C:\project\src\app.py", Some(r"\\?\C:\project")),
+            "src/app.py"
+        );
+
+        // Outside the workspace the path stays absolute — but the verbatim
+        // prefix is an artefact of canonicalisation, not a location a user
+        // can act on.
+        let outside = relativise(r"\\?\C:\elsewhere\vendor.py", Some(r"\\?\C:\project"));
+        assert_eq!(outside, r"C:\elsewhere\vendor.py");
+        assert!(
+            !outside.contains(r"\\?\"),
+            "verbatim prefix leaked into check output: {outside}"
+        );
+    }
+
+    /// CIB-279 (guarding CIB-237 × CIB-199). `check` feeds this same value
+    /// into the `git check-attr` generated-file set, which is keyed on
+    /// repo-relative `/`-separated strings. A path that failed to relativise
+    /// misses the set and un-suppresses every finding in a generated file, so
+    /// the failure is a wrong verdict rather than untidy output.
+    ///
+    /// The assertion is on the `String`, not a `PathBuf`: `Path` equality is
+    /// component-wise and Windows accepts `/` as a separator, so
+    /// `src\generated\api.ts` and `src/generated/api.ts` compare **equal**
+    /// there and a separator bug would be invisible.
+    #[test]
+    fn relativise_yields_a_generated_file_set_lookup_key() {
+        let key = relativise(r"C:\project\src\generated\api.ts", Some(r"C:\project"));
+        assert_eq!(key, "src/generated/api.ts");
+        assert!(
+            !key.contains('\\'),
+            "lookup key must carry no backslash: {key}"
+        );
+    }
+
     // ── Git ref validation (C-003) ──────────────────────────────
 
     #[test]
