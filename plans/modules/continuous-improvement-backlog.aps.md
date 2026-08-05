@@ -34,7 +34,7 @@ CIB is a **shared multi-writer** module: many agents and humans implement
 feature PRs causes recurring merge collisions.
 
 - **Feature PRs implementing a CIB item do not modify this file.** No status
-  flips, no new items, no promotions, no reorder, no progress counter edits.
+  flips, no new items, no promotions, no reorders, no progress counter edits.
 - Put completion evidence in the feature PR (and optional pending CI-log
   follow-up such as `ready to reconcile: CIB-NNN → Merged via PR #N`).
 - **Intake, triage promotion, status reconcile, compaction, and `pnpm aps:index`**
