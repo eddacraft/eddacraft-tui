@@ -11,7 +11,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{EngineEvent, ErrorCode, EventPayload};
+use crate::{Diagnostic, EngineEvent, ErrorCode, EventPayload};
 
 /// Current outer schema version string for the watch NDJSON envelope.
 ///
@@ -28,6 +28,40 @@ pub enum WatchEventType {
     Snapshot,
     Violation,
     Error,
+    ActionResult,
+}
+
+/// Observable result of a dispatched watch action.
+///
+/// `action` is the structurally unique required field for the untagged WOUT-v1
+/// payload variant. `exit_code` is absent when the child did not exit normally.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WatchActionResult {
+    pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    pub duration_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_detail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daemon_verdict: Option<WatchDaemonVerdict>,
+}
+
+/// Structured save-time daemon evidence attached to an action result.
+///
+/// Wire vocabulary remains string-valued so a newer daemon can add assurance
+/// states, reasons, coverage values, or check families without breaking a
+/// WOUT-v1 consumer. Consumers must interpret state and coverage independently
+/// from the child exit code.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WatchDaemonVerdict {
+    pub assurance_state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assurance_reason: Option<String>,
+    pub coverage: String,
+    pub check_families: Vec<String>,
+    pub finding_count: u64,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// Wire-level event payload. `serde(untagged)` so each variant serialises
@@ -37,7 +71,7 @@ pub enum WatchEventType {
 /// The variant order matters for deserialisation: serde tries each in turn
 /// and accepts the first match. The variants here are structurally
 /// distinguishable by required field names (`phase` vs `node_count` vs
-/// `policy_id` vs `code`), so ambiguity is not possible within v1.
+/// `policy_id` vs `code` vs `action`), so ambiguity is not possible within v1.
 ///
 /// **WOUT v1 forward-compat rule (binding):** any new variant added to
 /// this enum within v1 MUST introduce at least one required field name
@@ -74,6 +108,7 @@ pub enum WatchEventPayload {
         message: String,
         recoverable: bool,
     },
+    ActionResult(WatchActionResult),
 }
 
 /// `anvil.watch.event.v1` NDJSON envelope.
@@ -92,6 +127,22 @@ pub struct WatchEventEnvelope {
 }
 
 impl WatchEventEnvelope {
+    /// Build a v1 action-result envelope using the caller's sequence number.
+    #[must_use]
+    pub fn from_action_result(
+        seq: u64,
+        timestamp: impl Into<String>,
+        result: WatchActionResult,
+    ) -> Self {
+        Self {
+            schema_version: WATCH_EVENT_SCHEMA_VERSION.to_string(),
+            seq,
+            timestamp: timestamp.into(),
+            event_type: WatchEventType::ActionResult,
+            payload: WatchEventPayload::ActionResult(result),
+        }
+    }
+
     /// Build the v1 wire envelope from a kernel [`EngineEvent`]. The wire
     /// `seq` is taken from the engine event so consumers can detect
     /// dropped or reordered lines.
@@ -165,7 +216,11 @@ impl WatchEventEnvelope {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EngineId, ErrorPayload, EventType};
+    use crate::diagnostics::KnownMode;
+    use crate::{
+        Category, Diagnostic, DiagnosticSource, EngineId, ErrorPayload, EventType, Location, Mode,
+        Severity,
+    };
     use serde_json::Value;
 
     fn make_event(payload: EventPayload, event_type: EventType, seq: u64) -> EngineEvent {
@@ -186,6 +241,134 @@ mod tests {
             "make_event called with an event_type that disagrees with the payload variant"
         );
         event
+    }
+
+    fn sample_diagnostic() -> Diagnostic {
+        Diagnostic::new(
+            "diag-watch-antipattern",
+            Severity::Warning,
+            "Unchecked escape hatch",
+            Location {
+                file: "src/lib.rs".into(),
+                line: Some(12),
+                column: Some(5),
+                end_line: None,
+                end_column: None,
+            },
+            Category::Antipattern,
+            DiagnosticSource {
+                rule_id: "antipattern-ignore".into(),
+                source_module: "anvil-checks::antipattern".into(),
+            },
+            Mode::known(KnownMode::SaveTime),
+        )
+    }
+
+    #[test]
+    fn action_result_with_daemon_verdict_is_parseable_and_propagates_seq() {
+        let result = WatchActionResult {
+            action: "check".into(),
+            exit_code: Some(0),
+            duration_ms: 17,
+            error_detail: None,
+            daemon_verdict: Some(WatchDaemonVerdict {
+                assurance_state: "clean".into(),
+                assurance_reason: None,
+                coverage: "certified".into(),
+                check_families: vec!["antipattern".into()],
+                finding_count: 1,
+                diagnostics: vec![sample_diagnostic()],
+            }),
+        };
+
+        let envelope = WatchEventEnvelope::from_action_result(42, "2026-08-05T10:21:30Z", result);
+        let json = serde_json::to_string(&envelope).expect("serialise action result");
+        let value: Value = serde_json::from_str(&json).expect("parse action result JSON");
+        let round_trip: WatchEventEnvelope =
+            serde_json::from_str(&json).expect("round-trip action result");
+
+        assert_eq!(round_trip, envelope);
+        assert_eq!(value["schema_version"], WATCH_EVENT_SCHEMA_VERSION);
+        assert_eq!(value["seq"], 42);
+        assert_eq!(value["event_type"], "action_result");
+        assert_eq!(value["payload"]["action"], "check");
+        assert_eq!(
+            value["payload"]["daemon_verdict"]["check_families"],
+            serde_json::json!(["antipattern"])
+        );
+        assert_eq!(value["payload"]["daemon_verdict"]["finding_count"], 1);
+        assert_eq!(
+            value["payload"]["daemon_verdict"]["diagnostics"][0]["schema_version"],
+            "anvil.diagnostic.v1"
+        );
+        assert_eq!(
+            value["payload"]["daemon_verdict"]["diagnostics"][0]["category"],
+            "antipattern"
+        );
+    }
+
+    #[test]
+    fn stale_partial_daemon_verdict_does_not_masquerade_as_pass() {
+        let envelope = WatchEventEnvelope::from_action_result(
+            7,
+            "2026-08-05T10:21:31Z",
+            WatchActionResult {
+                action: "check".into(),
+                // The scoped daemon may return no findings while its evidence
+                // remains stale/partial. Exit 0 must not erase those fields.
+                exit_code: Some(0),
+                duration_ms: 9,
+                error_detail: None,
+                daemon_verdict: Some(WatchDaemonVerdict {
+                    assurance_state: "stale".into(),
+                    assurance_reason: Some("cross-file-resolution-needed".into()),
+                    coverage: "partial".into(),
+                    check_families: vec!["antipattern".into()],
+                    finding_count: 0,
+                    diagnostics: Vec::new(),
+                }),
+            },
+        );
+
+        let value = serde_json::to_value(&envelope).expect("serialise degraded verdict");
+        assert_eq!(value["payload"]["exit_code"], 0);
+        assert_eq!(
+            value["payload"]["daemon_verdict"]["assurance_state"],
+            "stale"
+        );
+        assert_eq!(
+            value["payload"]["daemon_verdict"]["assurance_reason"],
+            "cross-file-resolution-needed"
+        );
+        assert_eq!(value["payload"]["daemon_verdict"]["coverage"], "partial");
+        assert_eq!(
+            value["payload"]["daemon_verdict"]["check_families"],
+            serde_json::json!(["antipattern"])
+        );
+        assert_eq!(value["payload"]["daemon_verdict"]["finding_count"], 0);
+    }
+
+    #[test]
+    fn action_result_without_daemon_verdict_omits_optional_fields() {
+        let envelope = WatchEventEnvelope::from_action_result(
+            u64::MAX,
+            "2026-08-05T10:21:32Z",
+            WatchActionResult {
+                action: "test".into(),
+                exit_code: None,
+                duration_ms: 23,
+                error_detail: Some("cancelled".into()),
+                daemon_verdict: None,
+            },
+        );
+
+        let value = serde_json::to_value(&envelope).expect("serialise generic action result");
+        assert_eq!(value["seq"], u64::MAX);
+        assert_eq!(value["payload"]["action"], "test");
+        assert_eq!(value["payload"]["duration_ms"], 23);
+        assert_eq!(value["payload"]["error_detail"], "cancelled");
+        assert!(value["payload"].get("exit_code").is_none());
+        assert!(value["payload"].get("daemon_verdict").is_none());
     }
 
     #[test]
@@ -445,6 +628,7 @@ mod tests {
                 WatchEventPayload::Snapshot { .. } => WatchEventType::Snapshot,
                 WatchEventPayload::Violation { .. } => WatchEventType::Violation,
                 WatchEventPayload::Error { .. } => WatchEventType::Error,
+                WatchEventPayload::ActionResult(_) => WatchEventType::ActionResult,
             };
             assert_eq!(
                 payload_variant, envelope.event_type,
@@ -482,6 +666,7 @@ mod tests {
             (WatchEventType::Snapshot, "snapshot"),
             (WatchEventType::Violation, "violation"),
             (WatchEventType::Error, "error"),
+            (WatchEventType::ActionResult, "action_result"),
         ] {
             let v = serde_json::to_value(variant).expect("serialise");
             assert_eq!(v, expected, "{variant:?} should serialise to {expected}");

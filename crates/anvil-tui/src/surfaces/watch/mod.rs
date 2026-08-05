@@ -119,6 +119,14 @@ pub struct ActionResultLine {
     /// (e.g. `"spawn failed: Permission denied"`, `"cancelled"`,
     /// `"wait failed: ..."`). Footer renders verbatim.
     pub error_detail: Option<String>,
+    /// Optional daemon-verdict scope rendered beside an otherwise successful
+    /// action. Daemon-certified results use this to disclose the evaluated
+    /// family instead of presenting an unqualified success.
+    pub assurance_detail: Option<String>,
+    /// Whether the daemon verdict is stale, partial, or refuses attestation.
+    /// A degraded verdict with exit zero is rendered as a warning rather than
+    /// child-process success.
+    pub assurance_degraded: bool,
     /// Optional TUI-only daemon fallback notice update carried on the same
     /// channel as action results. This lets the CLI surface DSV-007 fallback
     /// warnings inside the alt-screen and clear them on reconnect.
@@ -128,7 +136,7 @@ pub struct ActionResultLine {
 impl ActionResultLine {
     #[must_use]
     pub fn passed(&self) -> bool {
-        matches!(self.exit_code, Some(0)) && self.error_detail.is_none()
+        matches!(self.exit_code, Some(0)) && self.error_detail.is_none() && !self.assurance_degraded
     }
 
     /// True iff the child did not run to a recorded exit.

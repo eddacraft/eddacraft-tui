@@ -635,6 +635,8 @@ mod tests {
             duration_ms: 1234,
             timestamp: "10:30:00".to_string(),
             error_detail: None,
+            assurance_detail: None,
+            assurance_degraded: false,
             daemon_notice: None,
         }
     }
@@ -680,8 +682,12 @@ mod tests {
         let history_len_before = data.history.len();
         let queue_len_before = data.queue.len();
 
-        // A failing action must not touch any kernel-derived field.
-        WatchEventAdapter::handle_action_result(&action_result("gate", Some(1)), &mut data);
+        // A degraded action must not touch any kernel-derived field, even
+        // when the child process itself exited zero.
+        let mut line = action_result("check", Some(0));
+        line.assurance_detail = Some("antipattern-only partial".to_string());
+        line.assurance_degraded = true;
+        WatchEventAdapter::handle_action_result(&line, &mut data);
 
         assert_eq!(data.status, status_before, "status must not change");
         assert_eq!(
@@ -706,6 +712,13 @@ mod tests {
             "history must not change"
         );
         assert_eq!(data.queue.len(), queue_len_before, "queue must not change");
+
+        let last = data.last_action.as_ref().expect("last_action set");
+        assert_eq!(
+            last.assurance_detail.as_deref(),
+            Some("antipattern-only partial")
+        );
+        assert!(last.assurance_degraded);
     }
 
     #[test]

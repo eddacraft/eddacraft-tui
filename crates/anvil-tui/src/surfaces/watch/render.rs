@@ -161,12 +161,12 @@ fn render_update_hint(
 /// Glyphs:
 /// - `[*]` — child exited 0
 /// - `[x]` — child exited non-zero (footer shows the exit code)
-/// - `[!]` — child did not run to a recorded exit; `error_detail` carries
-///   the cause (spawn failure, cancellation, wait error). Rendered verbatim
-///   so the user can tell `(spawn failed: Permission denied)` apart from
-///   `(cancelled)` apart from `(wait failed: ...)` — fixes #1279 review:
-///   the previous "spawn failed: …" prefix lied about cancellations and
-///   signal-kills.
+/// - `[!]` — child did not run to a recorded exit, or daemon assurance is
+///   degraded. For child errors, `error_detail` carries the cause (spawn
+///   failure, cancellation, wait error). It is rendered verbatim so the user
+///   can tell `(spawn failed: Permission denied)` apart from `(cancelled)`
+///   apart from `(wait failed: ...)` — fixes #1279 review: the previous
+///   "spawn failed: …" prefix lied about cancellations and signal-kills.
 fn render_action_footer(
     frame: &mut Frame,
     area: Rect,
@@ -179,8 +179,21 @@ fn render_action_footer(
     let (colour, detail) = if line.errored() {
         let cause = line.error_detail.as_deref().unwrap_or("did not complete");
         (theme.error(), format!("[!] {} ({cause})", line.action))
+    } else if line.assurance_degraded {
+        let assurance = line
+            .assurance_detail
+            .as_deref()
+            .unwrap_or("daemon assurance degraded");
+        (
+            theme.warning(),
+            format!("[!] {} ({secs:.1}s, {assurance})", line.action),
+        )
     } else if line.passed() {
-        (theme.success(), format!("[*] {} ({secs:.1}s)", line.action))
+        let detail = match line.assurance_detail.as_deref() {
+            Some(assurance) => format!("[*] {} ({secs:.1}s, {assurance})", line.action),
+            None => format!("[*] {} ({secs:.1}s)", line.action),
+        };
+        (theme.success(), detail)
     } else {
         let code = line.exit_code.unwrap_or(-1);
         (
@@ -655,6 +668,118 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn action_result(action: &str) -> ActionResultLine {
+        ActionResultLine {
+            action: action.to_string(),
+            exit_code: Some(0),
+            duration_ms: 1200,
+            timestamp: "10:30:00".to_string(),
+            error_detail: None,
+            daemon_notice: None,
+            assurance_detail: None,
+            assurance_degraded: false,
+        }
+    }
+
+    #[test]
+    fn daemon_certified_action_footer_names_antipattern_scope() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        let mut line = action_result("check");
+        line.assurance_detail = Some("antipattern-only certified".to_string());
+        state.data.last_action = Some(line);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("[*] check (1.2s, antipattern-only certified)"),
+            "daemon-certified footer must disclose its family scope, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains("[*] check (1.2s)"),
+            "daemon-certified footer must never render a bare success claim, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn degraded_daemon_action_footer_dominates_exit_zero_as_warning() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        let mut line = action_result("check");
+        line.assurance_detail =
+            Some("stale{cross-file-resolution-needed}; antipattern-only partial".to_string());
+        line.assurance_degraded = true;
+        state.data.last_action = Some(line);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains(
+                "[!] check (1.2s, stale{cross-file-resolution-needed}; antipattern-only partial)"
+            ),
+            "degraded assurance must dominate an exit-zero action, got:\n{rendered}"
+        );
+        assert_eq!(
+            terminal.backend().buffer()[(0, 23)].fg,
+            theme.warning(),
+            "degraded assurance must use the warning colour"
+        );
+    }
+
+    #[test]
+    fn refused_daemon_attestation_uses_warning_footer() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        let mut line = action_result("check");
+        line.assurance_detail = Some("refusing attestation: no check family reported".to_string());
+        line.assurance_degraded = true;
+        state.data.last_action = Some(line);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("[!] check (1.2s, refusing attestation: no check family reported)"),
+            "refused attestation must dominate an exit-zero action, got:\n{rendered}"
+        );
+        assert_eq!(terminal.backend().buffer()[(0, 23)].fg, theme.warning());
+    }
+
+    #[test]
+    fn ordinary_gate_action_footer_remains_unchanged() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.last_action = Some(action_result("gate"));
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("[*] gate (1.2s)"),
+            "ordinary child action footer changed unexpectedly, got:\n{rendered}"
+        );
+        assert!(!rendered.contains("antipattern-only"));
+        assert_eq!(terminal.backend().buffer()[(0, 23)].fg, theme.success());
     }
 
     #[test]

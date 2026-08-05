@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 
 use anvil_kernel_types::WatchEventEnvelope;
+use anvil_kernel_types::watch_event::{WatchActionResult, WatchDaemonVerdict};
 use anyhow::{Context, Result, bail};
 use clap::Args;
 
@@ -59,11 +60,10 @@ pub struct WatchArgs {
     /// Skip starting (or offering to start) the per-user save-time daemon.
     /// With no daemon answering, an interactive `anvil watch` offers to start
     /// one so save-time validation is daemon-backed; pass `--no-daemon` to
-    /// suppress that offer and rely on the scoped fallback. A daemon already
-    /// running is still reused; only the offer is suppressed.
-    /// `ANVIL_WATCH_DAEMON=0` is the equivalent environment opt-out and
-    /// additionally disables reuse. No daemon is ever started or offered in
-    /// `--json`, headless, CI, hook, or piped contexts — those fall back
+    /// disable daemon contact and rely on the scoped fallback, even when a
+    /// daemon is already running. `ANVIL_WATCH_DAEMON=0` is the equivalent
+    /// environment opt-out. No daemon is ever started or offered in `--json`,
+    /// headless, CI, hook, or piped contexts — those fall back
     /// deterministically.
     #[arg(long = "no-daemon")]
     no_daemon: bool,
@@ -522,8 +522,7 @@ enum WatchFallbackReason {
     /// `ANVIL_WATCH_DAEMON=0`: the hard opt-out — disables all daemon
     /// contact for this run (no reuse, no start, no offer).
     RoutingDisabled,
-    /// `--no-daemon`: the soft opt-out — suppresses the start/offer only; a
-    /// live daemon would still be reused (so this branch means none was live).
+    /// `--no-daemon`: explicit per-run opt-out — no reuse, start, or offer.
     NoDaemonFlag,
     /// Headless / `--json` / CI / hook / piped: a deterministic context with
     /// no interactive consent surface.
@@ -544,8 +543,7 @@ struct WatchDaemonContext {
     /// `ANVIL_WATCH_DAEMON=0`: the hard opt-out — no daemon contact at all
     /// (no reuse, no start, no offer).
     routing_disabled: bool,
-    /// `--no-daemon`: the soft opt-out — suppresses start/offer, but a live
-    /// daemon is still reused (mirrors `anvil start`).
+    /// `--no-daemon`: no daemon contact for this run.
     no_daemon: bool,
     /// `--json`: never prompt; fold into the deterministic, parse-safe fallback.
     json: bool,
@@ -575,11 +573,10 @@ fn watch_daemon_offer_applies(action: Option<&str>, save_time_driver: bool) -> b
 /// 1. `routing_disabled` (`ANVIL_WATCH_DAEMON=0`) → `FallBack(RoutingDisabled)`:
 ///    the hard opt-out disables daemon contact entirely (no reuse, no spawn),
 ///    so liveness is moot.
-/// 2. `daemon_live` → `ReuseLive`: a live daemon is used through the existing
+/// 2. `no_daemon` (`--no-daemon`) → `FallBack(NoDaemonFlag)`: the per-run
+///    opt-out also disables reuse, so liveness is moot.
+/// 3. `daemon_live` → `ReuseLive`: a live daemon is used through the existing
 ///    routing probe; starting or offering a second one is pointless ceremony.
-///    This wins over the soft `--no-daemon` opt-out, mirroring `anvil start`
-///    (a running daemon is still reused; only the *offer* is suppressed).
-/// 3. `no_daemon` (`--no-daemon`, nothing live) → `FallBack(NoDaemonFlag)`.
 /// 4. `json` or non-interactive context → `FallBack(NonInteractive)`: never
 ///    prompt or hang automation; `--json` stays parse-safe.
 /// 5. `!platform_can_spawn` (interactive, no live daemon, would otherwise
@@ -595,11 +592,11 @@ fn watch_daemon_plan(ctx: WatchDaemonContext) -> WatchDaemonPlan {
     if ctx.routing_disabled {
         return WatchDaemonPlan::FallBack(WatchFallbackReason::RoutingDisabled);
     }
-    if ctx.daemon_live {
-        return WatchDaemonPlan::ReuseLive;
-    }
     if ctx.no_daemon {
         return WatchDaemonPlan::FallBack(WatchFallbackReason::NoDaemonFlag);
+    }
+    if ctx.daemon_live {
+        return WatchDaemonPlan::ReuseLive;
     }
     if ctx.json || !ctx.interactive {
         return WatchDaemonPlan::FallBack(WatchFallbackReason::NonInteractive);
@@ -703,6 +700,10 @@ fn watch_daemon_declined_line() -> String {
         .to_owned()
 }
 
+fn watch_daemon_probe_applies(routing_disabled: bool, no_daemon: bool, json: bool) -> bool {
+    !routing_disabled && !no_daemon && !json
+}
+
 /// Resolve and act on the watch daemon lifecycle for a `check` watch, then
 /// return the human-readable lifecycle line to surface on stderr (or `None`
 /// in `--json` mode, where the run is deterministic and the stdout NDJSON
@@ -724,15 +725,14 @@ fn ensure_watch_daemon(
 
     let routing_disabled = daemon_routing_mode() == DaemonRoutingMode::Disabled;
     // Probe for a live daemon only when the answer can change the outcome:
-    // the hard opt-out short-circuits without any daemon contact, and `--json`
+    // both opt-outs short-circuit without any daemon contact, and `--json`
     // suppresses the line entirely below (so reuse vs fallback both render to
     // nothing — no point paying a socket round-trip on every headless run).
     // NOTE: this is *not* the same probe the dispatcher makes when it builds
     // its save-time client. That second probe must stay: a daemon the prompt
     // path just *started* was not live at this point, and only the later probe
     // observes it. The two are intentionally independent, not redundant.
-    let daemon_live = !routing_disabled
-        && !json
+    let daemon_live = watch_daemon_probe_applies(routing_disabled, no_daemon, json)
         && crate::commands::watch_save_time::query_workspace_status(workspace_root).is_some();
 
     let plan = watch_daemon_plan(WatchDaemonContext {
@@ -838,6 +838,98 @@ fn build_action_command(
     cmd
 }
 
+struct WatchJsonEmitterState {
+    next_seq: u64,
+    writer: Box<dyn std::io::Write + Send>,
+}
+
+#[derive(Clone)]
+struct WatchJsonEmitter {
+    inner: Arc<std::sync::Mutex<WatchJsonEmitterState>>,
+}
+
+impl WatchJsonEmitter {
+    fn new(writer: Box<dyn std::io::Write + Send>) -> Self {
+        Self {
+            inner: Arc::new(std::sync::Mutex::new(WatchJsonEmitterState {
+                next_seq: 0,
+                writer,
+            })),
+        }
+    }
+
+    fn stdout() -> Self {
+        Self::new(Box::new(std::io::stdout()))
+    }
+
+    fn emit_envelope(&self, mut envelope: WatchEventEnvelope) -> std::io::Result<()> {
+        let mut state = recover(self.inner.lock());
+        envelope.seq = state.next_seq;
+        state.next_seq = state.next_seq.saturating_add(1);
+        serde_json::to_writer(&mut state.writer, &envelope)?;
+        state.writer.write_all(b"\n")?;
+        state.writer.flush()
+    }
+
+    fn emit_kernel_event(&self, event: &anvil_kernel_types::EngineEvent) -> std::io::Result<()> {
+        self.emit_envelope(WatchEventEnvelope::from_engine_event(event))
+    }
+
+    fn emit_action_result(
+        &self,
+        timestamp: impl Into<String>,
+        result: WatchActionResult,
+    ) -> std::io::Result<()> {
+        self.emit_envelope(WatchEventEnvelope::from_action_result(0, timestamp, result))
+    }
+}
+
+fn continue_after_watch_json_emit(result: std::io::Result<()>) -> std::io::Result<bool> {
+    match result {
+        Ok(()) => Ok(true),
+        Err(err) if err.kind() == std::io::ErrorKind::BrokenPipe => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
+fn wire_enum_token<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .expect("wire enums are infallibly serialisable")
+        .as_str()
+        .expect("wire enums serialise as strings")
+        .to_owned()
+}
+
+fn daemon_watch_action_result(
+    action: &str,
+    elapsed: std::time::Duration,
+    response: &anvil_intercept_proto::protocol::ValidatePathsResponse,
+) -> WatchActionResult {
+    WatchActionResult {
+        action: action.to_owned(),
+        exit_code: Some(crate::commands::watch_save_time::verdict_exit_code(
+            response,
+        )),
+        duration_ms: u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
+        error_detail: None,
+        daemon_verdict: Some(WatchDaemonVerdict {
+            assurance_state: wire_enum_token(&response.workspace_assurance.state),
+            assurance_reason: response
+                .workspace_assurance
+                .reason
+                .map(|reason| wire_enum_token(&reason)),
+            coverage: wire_enum_token(&response.coverage),
+            check_families: response
+                .check_families
+                .iter()
+                .map(wire_enum_token)
+                .collect(),
+            finding_count: u64::try_from(response.diagnostics.len()).unwrap_or(u64::MAX),
+            diagnostics: response.diagnostics.clone(),
+        }),
+    }
+}
+
 /// Action dispatcher (LAUNCH-002).
 ///
 /// Owns the worker thread, the in-flight `Child`, the rerun atomics, and a
@@ -926,6 +1018,7 @@ struct DispatcherInner {
     /// to this child-owned log (never stdout) with a one-line stderr summary
     /// when a batch produces findings.
     driver_log: Option<std::sync::Arc<crate::commands::watch_driver::DriverLog>>,
+    json_emitter: Option<WatchJsonEmitter>,
     /// Test-only override for `current_exe()`.
     #[cfg(test)]
     exe_override: Option<PathBuf>,
@@ -937,17 +1030,28 @@ struct DispatcherInner {
 /// save-time status verb (treated as "no daemon infrastructure" ⇒ behave exactly
 /// as pre-DSV, no WARN). Unix uses the socket transport; Windows the named-pipe
 /// transport (DSV-011).
+fn save_time_client_applies(
+    action: &str,
+    mode: crate::commands::watch_save_time::DaemonRoutingMode,
+    no_daemon: bool,
+) -> bool {
+    action == "check"
+        && mode != crate::commands::watch_save_time::DaemonRoutingMode::Disabled
+        && !no_daemon
+}
+
 #[cfg(unix)]
 fn build_save_time_client(
     action: &str,
     workspace_root: &std::path::Path,
+    no_daemon: bool,
 ) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
     use crate::commands::watch_save_time::{
         DaemonRoutingMode, SaveTimeTransport, SocketSaveTimeTransport, WatchSaveTimeClient,
         daemon_routing_mode,
     };
     let mode = daemon_routing_mode();
-    if action != "check" || mode == DaemonRoutingMode::Disabled {
+    if !save_time_client_applies(action, mode, no_daemon) {
         return None;
     }
     let transport = SocketSaveTimeTransport::resolve()?;
@@ -966,13 +1070,14 @@ fn build_save_time_client(
 fn build_save_time_client(
     action: &str,
     workspace_root: &std::path::Path,
+    no_daemon: bool,
 ) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
     use crate::commands::watch_save_time::{
         DaemonRoutingMode, SaveTimeTransport, WatchSaveTimeClient, WindowsPipeSaveTimeTransport,
         daemon_routing_mode,
     };
     let mode = daemon_routing_mode();
-    if action != "check" || mode == DaemonRoutingMode::Disabled {
+    if !save_time_client_applies(action, mode, no_daemon) {
         return None;
     }
     let transport = WindowsPipeSaveTimeTransport::resolve()?;
@@ -991,6 +1096,7 @@ fn build_save_time_client(
 fn build_save_time_client(
     _action: &str,
     _workspace_root: &std::path::Path,
+    _no_daemon: bool,
 ) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
     None
 }
@@ -1009,7 +1115,7 @@ fn recover<'a, T>(
 }
 
 impl ActionDispatcher {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
     fn new(
         action: String,
         workspace_root: PathBuf,
@@ -1018,8 +1124,10 @@ impl ActionDispatcher {
         tui_parent: bool,
         sender: Option<std::sync::mpsc::SyncSender<anvil_tui::surfaces::watch::ActionResultLine>>,
         driver_log: Option<std::sync::Arc<crate::commands::watch_driver::DriverLog>>,
+        no_daemon: bool,
+        json_emitter: Option<WatchJsonEmitter>,
     ) -> Self {
-        let save_time = build_save_time_client(&action, &workspace_root);
+        let save_time = build_save_time_client(&action, &workspace_root, no_daemon);
         Self(std::sync::Arc::new(DispatcherInner {
             action,
             workspace_root,
@@ -1035,6 +1143,7 @@ impl ActionDispatcher {
             worker: std::sync::Mutex::new(None),
             save_time,
             driver_log,
+            json_emitter,
             #[cfg(test)]
             exe_override: None,
         }))
@@ -1371,12 +1480,9 @@ impl DispatcherInner {
     /// channel, mirroring how a subprocess `anvil check` would have reported.
     ///
     /// - TUI mode: send the action footer (the alt-screen owns the detail panel).
-    /// - JSON mode: stay silent on stdout. WOUT-003 reserves stdout for the v1
-    ///   NDJSON `WatchEventEnvelope` stream; injecting a `ValidatePathsResponse`
-    ///   there would be an undiscriminated foreign record. This matches the
-    ///   subprocess path, whose child stdout is `Null` in JSON mode
-    ///   (`child_stdio_policy`), so neither backend emits per-save findings into
-    ///   the event stream. (Cross-surface verdict shaping is DSV-009 / Task 15.)
+    /// - JSON mode: emit a typed `action_result` envelope through the shared
+    ///   run-scoped allocator. Stdout remains pure WOUT-v1 NDJSON while carrying
+    ///   the daemon's exact assurance, coverage, family, and diagnostic evidence.
     /// - Plain mode: render the findings + assurance to stdout.
     fn report_daemon_verdict(
         &self,
@@ -1408,21 +1514,21 @@ impl DispatcherInner {
         }
         let exit_code = crate::commands::watch_save_time::verdict_exit_code(response);
         if self.sender.is_some() {
-            self.send_result(
+            let summary = crate::commands::watch_save_time::daemon_verdict_summary(response);
+            self.send_result_with_assurance(
                 Some(exit_code),
                 elapsed,
                 None,
                 Some(anvil_tui::surfaces::watch::DaemonNotice::ClearFallback),
+                Some(summary.detail),
+                summary.degraded,
             );
-        } else if self.json {
-            // Stdout is the event stream; do not pollute it. Surface the verdict
-            // on the diagnostic channel instead so it is observable without
-            // breaking NDJSON consumers.
-            tracing::debug!(
-                exit_code,
-                findings = response.diagnostics.len(),
-                "save-time daemon verdict (suppressed from JSON event stream)"
-            );
+        } else if let Some(emitter) = self.json_emitter.as_ref() {
+            let result = daemon_watch_action_result(&self.action, elapsed, response);
+            let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            if let Err(err) = emitter.emit_action_result(timestamp, result) {
+                tracing::warn!(error = %err, "failed to emit JSON daemon verdict");
+            }
         } else {
             let mut stdout = std::io::stdout().lock();
             if let Err(err) =
@@ -1440,6 +1546,25 @@ impl DispatcherInner {
         error_detail: Option<String>,
         daemon_notice: Option<anvil_tui::surfaces::watch::DaemonNotice>,
     ) {
+        self.send_result_with_assurance(
+            exit_code,
+            elapsed,
+            error_detail,
+            daemon_notice,
+            None,
+            false,
+        );
+    }
+
+    fn send_result_with_assurance(
+        &self,
+        exit_code: Option<i32>,
+        elapsed: std::time::Duration,
+        error_detail: Option<String>,
+        daemon_notice: Option<anvil_tui::surfaces::watch::DaemonNotice>,
+        assurance_detail: Option<String>,
+        assurance_degraded: bool,
+    ) {
         let Some(sender) = self.sender.as_ref() else {
             return;
         };
@@ -1451,6 +1576,8 @@ impl DispatcherInner {
             timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
             error_detail,
             daemon_notice,
+            assurance_detail,
+            assurance_degraded,
         };
         // Cancel-aware send (council finding: shutdown deadlock).
         // SyncSender::send would block if the buffer is full while the
@@ -1503,6 +1630,7 @@ impl ActionDispatcher {
             // exercise `WatchSaveTimeClient` directly in `watch_save_time`.
             save_time: None,
             driver_log: None,
+            json_emitter: None,
             exe_override,
         }))
     }
@@ -1711,6 +1839,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     .context("setting Ctrl-C handler")?;
 
     let non_tui = !matches!(output_mode, WatchOutputMode::Tui);
+    let json_emitter = global.json.then(WatchJsonEmitter::stdout);
 
     // LAUNCH-002: in TUI mode, the dispatcher emits ActionResultLine records
     // through a sync_channel(1) into the watch loop. The bound is intentional
@@ -1732,6 +1861,8 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             !non_tui,
             action_tx,
             driver_log,
+            args.no_daemon,
+            json_emitter.clone(),
         )
     });
 
@@ -1750,17 +1881,16 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                         // findings log carries verdicts, and event noise must
                         // stay off the supervisor's crash-capture channel.
                     } else if global.json {
-                        let envelope = WatchEventEnvelope::from_engine_event(&event);
-                        // `WatchEventEnvelope` only contains primitives,
-                        // owned strings, and a `Copy` enum — `to_string`
-                        // is infallible at runtime. Use `expect` so the
-                        // impossibility is documented; the watch loop
-                        // must not silently die from a hypothetical
-                        // serialisation error that would otherwise
-                        // propagate through `?`.
-                        let line = serde_json::to_string(&envelope)
-                            .expect("WatchEventEnvelope is infallibly serialisable");
-                        println!("{line}");
+                        let emitted = continue_after_watch_json_emit(
+                            json_emitter
+                                .as_ref()
+                                .expect("JSON runs create the public-stream emitter")
+                                .emit_kernel_event(&event),
+                        )
+                        .context("emitting watch JSON event")?;
+                        if !emitted {
+                            break;
+                        }
                     } else {
                         print_event_plain(&event);
                     }
@@ -1993,29 +2123,47 @@ mod tests {
         }
     }
 
-    /// A live daemon is reused — no prompt, no second daemon — and reuse
-    /// wins over the soft `--no-daemon` opt-out, mirroring `anvil start`
-    /// (a running daemon is still reused; only the offer is suppressed).
+    /// `--no-daemon` is an explicit no-contact choice even when a daemon is
+    /// live, so the planner must choose the scoped fallback in every UI mode.
     #[test]
-    fn watch_plan_live_daemon_is_reused_even_with_no_daemon() {
-        for no_daemon in [false, true] {
-            for json in [false, true] {
-                for interactive in [false, true] {
-                    assert_eq!(
-                        watch_daemon_plan(WatchDaemonContext {
-                            no_daemon,
-                            json,
-                            interactive,
-                            daemon_live: true,
-                            ..base_ctx()
-                        }),
-                        WatchDaemonPlan::ReuseLive,
-                        "a live daemon must be reused (no_daemon={no_daemon}, \
-                         json={json}, interactive={interactive})",
-                    );
-                }
+    fn watch_plan_no_daemon_wins_over_live_daemon() {
+        for json in [false, true] {
+            for interactive in [false, true] {
+                assert_eq!(
+                    watch_daemon_plan(WatchDaemonContext {
+                        no_daemon: true,
+                        json,
+                        interactive,
+                        daemon_live: true,
+                        ..base_ctx()
+                    }),
+                    WatchDaemonPlan::FallBack(WatchFallbackReason::NoDaemonFlag),
+                    "--no-daemon must prevent reuse (json={json}, interactive={interactive})",
+                );
             }
         }
+    }
+
+    /// The dispatcher construction gate must honour `--no-daemon` before any
+    /// transport resolution or liveness probe, even under forced-on routing.
+    #[test]
+    fn no_daemon_prevents_save_time_client_construction() {
+        use crate::commands::watch_save_time::DaemonRoutingMode;
+
+        assert!(!save_time_client_applies(
+            "check",
+            DaemonRoutingMode::ForcedOn,
+            true,
+        ));
+    }
+
+    /// No-contact opt-outs short-circuit before the lifecycle liveness probe,
+    /// so neither the environment nor the CLI flag opens a daemon transport.
+    #[test]
+    fn daemon_opt_outs_skip_the_liveness_probe() {
+        assert!(!watch_daemon_probe_applies(true, false, false));
+        assert!(!watch_daemon_probe_applies(false, true, false));
+        assert!(watch_daemon_probe_applies(false, false, false));
     }
 
     /// `--no-daemon` with nothing live suppresses the offer and falls back,
@@ -2462,6 +2610,8 @@ mod tests {
             true,
             None,
             None,
+            false,
+            None,
         );
         let mut notice = None;
         dispatcher.0.handle_daemon_fallback_warning(
@@ -2479,7 +2629,7 @@ mod tests {
     }
 
     #[test]
-    fn daemon_verdict_clears_tui_fallback_notice() {
+    fn daemon_verdict_populates_tui_assurance_and_clears_fallback() {
         use anvil_intercept_proto::protocol::{
             AssuranceState, CheckFamily, Coverage, EvaluatedPath, ValidatePathsResponse,
             WorkspaceAssurance,
@@ -2509,6 +2659,8 @@ mod tests {
             true,
             Some(tx),
             None,
+            false,
+            None,
         );
 
         dispatcher
@@ -2519,6 +2671,132 @@ mod tests {
             line.daemon_notice,
             Some(anvil_tui::surfaces::watch::DaemonNotice::ClearFallback)
         );
+        assert_eq!(
+            line.assurance_detail.as_deref(),
+            Some("antipattern-only certified")
+        );
+        assert!(!line.assurance_degraded);
+
+        let mut stale = response;
+        stale.coverage = Coverage::Partial;
+        stale.workspace_assurance.state = AssuranceState::Stale;
+        stale.workspace_assurance.reason =
+            Some(anvil_intercept_proto::protocol::StaleReason::CrossFileResolutionNeeded);
+        dispatcher
+            .0
+            .report_daemon_verdict(&stale, std::time::Duration::from_millis(1));
+        let line = rx.try_recv().expect("degraded daemon verdict line");
+        assert_eq!(
+            line.assurance_detail.as_deref(),
+            Some("antipattern-only partial; stale{cross-file-resolution-needed}")
+        );
+        assert!(
+            line.assurance_degraded,
+            "partial/stale assurance must dominate an exit-zero result"
+        );
+    }
+
+    #[test]
+    fn json_emitter_allocates_sequence_in_stdout_order_under_concurrency() {
+        #[derive(Clone, Default)]
+        struct SharedWriter(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+        impl std::io::Write for SharedWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                recover(self.0.lock()).extend_from_slice(buf);
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let writer = SharedWriter::default();
+        let emitter = WatchJsonEmitter::new(Box::new(writer.clone()));
+        let mut threads = Vec::new();
+        for index in 0..16 {
+            let emitter = emitter.clone();
+            threads.push(std::thread::spawn(move || {
+                emitter
+                    .emit_action_result(
+                        format!("t{index}"),
+                        anvil_kernel_types::watch_event::WatchActionResult {
+                            action: "check".to_string(),
+                            exit_code: Some(0),
+                            duration_ms: index,
+                            error_detail: None,
+                            daemon_verdict: None,
+                        },
+                    )
+                    .expect("emit action result");
+            }));
+        }
+        for thread in threads {
+            thread.join().expect("emitter thread");
+        }
+
+        let output = String::from_utf8(recover(writer.0.lock()).clone()).expect("UTF-8 NDJSON");
+        let sequences = output
+            .lines()
+            .map(|line| {
+                serde_json::from_str::<WatchEventEnvelope>(line)
+                    .expect("parse emitted envelope")
+                    .seq
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(sequences, (0..16).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn json_broken_pipe_stops_watch_cleanly_but_other_io_errors_propagate() {
+        let broken_pipe = continue_after_watch_json_emit(Err(std::io::Error::from(
+            std::io::ErrorKind::BrokenPipe,
+        )))
+        .expect("broken pipe is a normal consumer shutdown");
+        assert!(!broken_pipe);
+
+        let other = continue_after_watch_json_emit(Err(std::io::Error::other("write failed")))
+            .expect_err("non-broken-pipe errors must propagate");
+        assert_eq!(other.kind(), std::io::ErrorKind::Other);
+    }
+
+    #[test]
+    fn daemon_action_result_preserves_exact_wire_verdict() {
+        use anvil_intercept_proto::protocol::{
+            AssuranceState, CheckFamily, Coverage, EvaluatedPath, StaleReason,
+            ValidatePathsResponse, WorkspaceAssurance,
+        };
+
+        let response = ValidatePathsResponse {
+            diagnostics: Vec::new(),
+            evaluated: vec![EvaluatedPath {
+                path: "src/a.ts".into(),
+                content_hash: Some("hash".into()),
+            }],
+            workspace_assurance: WorkspaceAssurance {
+                state: AssuranceState::Stale,
+                reason: Some(StaleReason::CrossFileResolutionNeeded),
+                generation: 7,
+                last_full_scan: None,
+                scan_coverage: None,
+            },
+            coverage: Coverage::Partial,
+            check_families: vec![CheckFamily::Antipattern],
+        };
+
+        let result =
+            daemon_watch_action_result("check", std::time::Duration::from_millis(42), &response);
+        let verdict = result.daemon_verdict.expect("daemon verdict");
+        assert_eq!(verdict.assurance_state, "stale");
+        assert_eq!(
+            verdict.assurance_reason.as_deref(),
+            Some("cross-file-resolution-needed")
+        );
+        assert_eq!(verdict.coverage, "partial");
+        assert_eq!(verdict.check_families, vec!["antipattern"]);
+        assert_eq!(verdict.finding_count, 0);
+        assert_eq!(verdict.diagnostics, response.diagnostics);
     }
 
     #[test]
@@ -2880,6 +3158,8 @@ mod tests {
             false,
             None,
             None,
+            false,
+            None,
         );
         // Simulate a scan already running so on_snapshot records paths for the
         // coalesced rerun instead of spawning a worker.
@@ -3168,6 +3448,8 @@ mod tests {
             timestamp: "00:00:00".to_string(),
             error_detail: None,
             daemon_notice: None,
+            assurance_detail: None,
+            assurance_degraded: false,
         })
         .expect("preload send");
 
@@ -3689,6 +3971,7 @@ mod tests {
             worker: std::sync::Mutex::new(None),
             save_time: None,
             driver_log: Some(std::sync::Arc::clone(&inner_log)),
+            json_emitter: None,
             exe_override: None,
         };
 

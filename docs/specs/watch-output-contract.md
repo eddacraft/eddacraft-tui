@@ -1,15 +1,15 @@
 # Watch Output Contract — `anvil.watch.event.v1`
 
-| Type | Authority     | Owner                                                                                                                   | Status | Freshness                                                                                                       |
-| ---- | ------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](../../plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-29 against `main`; WOUT-001..006 implemented and documented as the stable v1 watch stream |
+| Type | Authority     | Owner                                                                                                                   | Status | Freshness                                                                                           |
+| ---- | ------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](../../plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-08-05 against CIB-254 machine-output activation and the daemon save-time verdict |
 
 | Upstream                                                                                                                                          | Downstream                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-kernel-types/src/watch_event.rs` (`WatchEventEnvelope`), `crates/anvil-kernel-types/src/events.rs` (`EngineEvent` in-process shape) | `crates/anvil-cli/src/commands/watch.rs` (serialisation site), [`docs/public/anvil/integrations/watch-output.md`](../public/anvil/integrations/watch-output.md), `crates/anvil-cli/tests/watch_json_output.rs` |
 
-**Version:** 1.0.0 **Status:** Live **Created:** 2026-05-14 **Last Updated:**
-2026-05-29
+**Version:** 1.1.0 **Status:** Live **Created:** 2026-05-14 **Last Updated:**
+2026-08-05
 
 ---
 
@@ -74,7 +74,7 @@ Every line on stdout in `--json watch` mode deserialises to:
 | `schema_version` | string        |   yes    | Outer envelope version. Current: `anvil.watch.event.v1`. Bumps only on breaking changes.                                                                                                                                                                                                                                                       |
 | `seq`            | integer (u64) |   yes    | Unique per-process sequence. Starts at 0 on process start. Producers may emit events from multiple worker threads, so a consumer MAY observe two events with consecutive seqs in either order; what is guaranteed is uniqueness within a process and strictly-increasing minted values. Consumers use it to detect dropped or reordered lines. |
 | `timestamp`      | string        |   yes    | ISO 8601 UTC timestamp ending in `Z`. Second precision in v1 (e.g. `2026-05-14T10:21:33Z`). Producers MAY emit sub-second precision in additive releases; consumers MUST accept both forms.                                                                                                                                                    |
-| `event_type`     | string        |   yes    | Discriminator. v1 known values: `progress`, `snapshot`, `violation`, `error`.                                                                                                                                                                                                                                                                  |
+| `event_type`     | string        |   yes    | Discriminator. v1 known values: `progress`, `snapshot`, `violation`, `error`, `action_result`.                                                                                                                                                                                                                                                 |
 | `payload`        | object        |   yes    | Event-specific payload. Shape depends on `event_type`. Unknown `event_type` values MUST have an object payload so v1 consumers can skip them without parse errors.                                                                                                                                                                             |
 
 ### Compatibility rule
@@ -190,11 +190,64 @@ A producer MUST:
 | `message`     | string       |   yes    | Human-readable detail.                                                                                                                                                                                                                                                |
 | `recoverable` | boolean      |   yes    | `true` if the watcher continues after this error; `false` if the watcher will exit.                                                                                                                                                                                   |
 
-### `action_result` (forward-compat reserved)
+### `action_result`
 
-Not emitted in v1. WOUT-006 reserves `action_result` as a future variant for the
-dispatched `--action` child outcome. Consumers MUST be prepared to see unknown
-`event_type` values and either log or ignore them.
+`action_result` is a general additive shape for the observable outcome of a
+dispatched watch action. Its initial CIB-254 producer scope is narrower: watch
+emits it only for daemon-supplied `check` verdicts. Subprocess `check` and
+`gate` outcomes are not re-enveloped in this slice. The required `action` field
+is structurally unique among WOUT-v1 payload variants.
+
+```json
+{
+  "schema_version": "anvil.watch.event.v1",
+  "seq": 10,
+  "timestamp": "2026-08-05T10:21:31Z",
+  "event_type": "action_result",
+  "payload": {
+    "action": "check",
+    "exit_code": 0,
+    "duration_ms": 17,
+    "daemon_verdict": {
+      "assurance_state": "stale",
+      "assurance_reason": "cross-file-resolution-needed",
+      "coverage": "partial",
+      "check_families": ["antipattern"],
+      "finding_count": 0,
+      "diagnostics": []
+    }
+  }
+}
+```
+
+| Field            | Type          | Required | Notes                                                                                                                                                           |
+| ---------------- | ------------- | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action`         | string        |   yes    | The dispatched action name. The current producer emits `check`; future additive producers may use values such as `gate`. This is the structurally unique field. |
+| `exit_code`      | integer\|null | optional | The child or action exit code. Omitted when the action did not exit normally, including cancellation or wait failure.                                           |
+| `duration_ms`    | integer (u64) |   yes    | Wall-clock action duration in milliseconds.                                                                                                                     |
+| `error_detail`   | string\|null  | optional | Cause-specific detail when the action could not report a normal exit.                                                                                           |
+| `daemon_verdict` | object\|null  | optional | Structured save-time daemon evidence when the daemon path supplied the action result.                                                                           |
+
+A present `daemon_verdict` contains:
+
+| Field              | Type             | Required | Notes                                                                                                                                         |
+| ------------------ | ---------------- | :------: | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assurance_state`  | string           |   yes    | Daemon assurance state, currently `clean`, `stale`, `pending`, `running`, `bounded`, `unavailable`, or `unknown`.                             |
+| `assurance_reason` | string\|null     | optional | Kebab-case reason when the assurance state has a reason; omitted for states without one.                                                      |
+| `coverage`         | string           |   yes    | What the verdict attests: currently `certified` or `partial`.                                                                                 |
+| `check_families`   | array of strings |   yes    | Exact families evaluated. The live daemon path currently reports `["antipattern"]`; consumers MUST NOT widen that claim.                      |
+| `finding_count`    | integer (u64)    |   yes    | Number of canonical diagnostics in this verdict. Producers MUST keep it equal to `diagnostics.length`.                                        |
+| `diagnostics`      | array of objects |   yes    | Canonical `anvil.diagnostic.v1` entries, including schema version, severity, location, category, source, optional remediation hint, and mode. |
+
+`exit_code: 0` and `finding_count: 0` do not turn degraded daemon evidence into
+a pass. Consumers MUST treat `coverage: partial`, or a non-clean assurance state
+such as `stale`, as degraded and surface its state/reason. A certified daemon
+verdict is scoped only to its exact `check_families`.
+
+Live-daemon family routing is deterministic once that route is selected.
+Selection and delivery are not fully deterministic: debounce coalescing,
+reconnect/full-scan warm-up, and restored-window timing races remain unbounded.
+`--no-daemon` forces the scoped fallback path.
 
 ## Stdout / Stderr Ownership
 
@@ -238,11 +291,11 @@ Rules that producers MUST follow:
 Any new payload variant added within v1 — Rust-side or otherwise — MUST
 introduce at least one required field name that does not appear in any other
 variant. The current variants are distinguishable by `phase`, `node_count`,
-`policy_id`, and `code` respectively; a new variant that reused only existing
-required field names would be silently routable to an older payload type by
-structural deserialisers (notably serde's `untagged` enum mode used in the Rust
-binding). The rule keeps the contract safe even when consumers do not strictly
-follow the `event_type`-first dispatch guidance above.
+`policy_id`, `code`, and `action` respectively; a new variant that reused only
+existing required field names would be silently routable to an older payload
+type by structural deserialisers (notably serde's `untagged` enum mode used in
+the Rust binding). The rule keeps the contract safe even when consumers do not
+strictly follow the `event_type`-first dispatch guidance above.
 
 ### What v1 explicitly does NOT promise
 
@@ -275,7 +328,7 @@ read it was relying on implementation detail.
 
 - `pnpm docs:check` for spec / docs hygiene.
 - Round-trip serde tests on the v1 envelope variants live in
-  `crates/anvil-kernel-types/src/events.rs` (WOUT-002).
+  `crates/anvil-kernel-types/src/watch_event.rs`.
 - Golden NDJSON fixtures in `crates/anvil-cli/tests/fixtures/watch-json/` pin
   the on-wire shape (WOUT-005).
 - An integration test spawns `anvil --json watch` and asserts parseability

@@ -5,8 +5,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anvil_intercept_proto::protocol::{
-    AssuranceState, ChangeDescriptor, ChangeKindWire, StaleReason, ValidatePathsResponse,
-    WorkspaceAssurance,
+    AssuranceState, ChangeDescriptor, ChangeKindWire, CheckFamily, Coverage, StaleReason,
+    ValidatePathsResponse, WorkspaceAssurance,
 };
 use anvil_kernel_types::Severity;
 
@@ -402,6 +402,49 @@ pub(crate) fn verdict_exit_code(response: &ValidatePathsResponse) -> i32 {
     )
 }
 
+pub(crate) struct DaemonVerdictSummary {
+    pub(crate) detail: String,
+    pub(crate) degraded: bool,
+    assurance: String,
+    scope: Option<String>,
+}
+
+#[must_use]
+pub(crate) fn daemon_verdict_summary(response: &ValidatePathsResponse) -> DaemonVerdictSummary {
+    let assurance = assurance_label(&response.workspace_assurance);
+    let coverage = match response.coverage {
+        Coverage::Certified => "certified",
+        Coverage::Partial => "partial",
+    };
+    let exact_antipattern_scope = response.check_families.as_slice() == [CheckFamily::Antipattern];
+    let scope = exact_antipattern_scope.then(|| format!("antipattern-only {coverage}"));
+    let degraded = response.coverage != Coverage::Certified
+        || response.workspace_assurance.state != AssuranceState::Clean
+        || !exact_antipattern_scope;
+    let detail = match scope.as_deref() {
+        None => {
+            let reason = if response.check_families.is_empty() {
+                "no check family reported"
+            } else {
+                "check family set was outside the supported exact scope"
+            };
+            format!(
+                "refusing attestation ({reason}; {} finding(s) unscoped)",
+                response.diagnostics.len()
+            )
+        }
+        Some(scope) if response.coverage == Coverage::Partial => format!("{scope}; {assurance}"),
+        Some(scope) if degraded => format!("{assurance}; {scope}"),
+        Some(scope) => scope.to_owned(),
+    };
+    DaemonVerdictSummary {
+        detail,
+        degraded,
+        assurance,
+        scope,
+    }
+}
+
 /// Render a daemon verdict to a plain-text sink (the non-TUI, non-JSON watch
 /// surface). Mirrors the shape `anvil check` prints — one line per finding plus
 /// a trailing assurance line — so a watch user sees equivalent output whether
@@ -428,12 +471,22 @@ pub(crate) fn render_daemon_verdict_plain<W: Write>(
             diag.id, diag.summary
         )?;
     }
-    writeln!(
-        sink,
-        "anvil watch: {} ({} finding(s))",
-        assurance_label(&response.workspace_assurance),
-        response.diagnostics.len(),
-    )
+    let summary = daemon_verdict_summary(response);
+    match summary.scope.as_deref() {
+        Some(_) if summary.degraded => writeln!(
+            sink,
+            "anvil watch: {} ({} antipattern finding(s))",
+            summary.detail,
+            response.diagnostics.len(),
+        ),
+        Some(scope) => writeln!(
+            sink,
+            "anvil watch: {} ({} antipattern finding(s); {scope})",
+            summary.assurance,
+            response.diagnostics.len(),
+        ),
+        None => writeln!(sink, "anvil watch: {}", summary.detail),
+    }
 }
 
 /// Human label for an assurance snapshot: `state` plus the `reason` when one is
@@ -1114,6 +1167,115 @@ mod tests {
             coverage: Coverage::Certified,
             check_families: vec![anvil_intercept_proto::protocol::CheckFamily::Antipattern],
         }
+    }
+
+    fn render_response(response: &ValidatePathsResponse) -> String {
+        let mut output = Vec::new();
+        render_daemon_verdict_plain(&mut output, response).expect("render daemon verdict");
+        String::from_utf8(output).expect("renderer emits UTF-8")
+    }
+
+    #[test]
+    fn certified_clean_verdict_is_explicitly_antipattern_only() {
+        let output = render_response(&clean_response());
+
+        assert!(
+            !output.contains("anvil watch: clean (0 finding(s))"),
+            "a family-scoped verdict must not read as globally clean: {output}",
+        );
+        assert!(
+            output.contains("antipattern-only"),
+            "the rendered claim must name its antipattern-only scope: {output}",
+        );
+    }
+
+    #[test]
+    fn partial_stale_zero_leads_with_degradation_and_scopes_the_count() {
+        let mut response = clean_response();
+        response.coverage = Coverage::Partial;
+        response.workspace_assurance.state = AssuranceState::Stale;
+        response.workspace_assurance.reason = Some(StaleReason::CrossFileResolutionNeeded);
+
+        let output = render_response(&response);
+
+        assert!(
+            output.starts_with("anvil watch: antipattern-only partial"),
+            "the degraded assurance must dominate the verdict: {output}",
+        );
+        assert!(
+            output.contains("0 antipattern finding(s)"),
+            "zero must be scoped to the evaluated family: {output}",
+        );
+        assert!(
+            !output.contains("clean"),
+            "a partial verdict must not present zero as clean: {output}",
+        );
+    }
+
+    #[test]
+    fn partial_clean_zero_leads_with_partial_coverage_not_clean() {
+        let mut response = clean_response();
+        response.coverage = Coverage::Partial;
+
+        let output = render_response(&response);
+
+        assert!(
+            output.starts_with("anvil watch: antipattern-only partial"),
+            "partial coverage must dominate a clean assurance snapshot: {output}",
+        );
+        assert!(
+            !output.starts_with("anvil watch: clean"),
+            "a partial verdict must not lead with clean: {output}",
+        );
+    }
+
+    #[test]
+    fn partial_verdict_with_no_families_refuses_attestation() {
+        let mut response = clean_response();
+        response.coverage = Coverage::Partial;
+        response.check_families.clear();
+
+        let output = render_response(&response);
+
+        assert!(
+            output.contains("refusing attestation"),
+            "a verdict without check families must refuse attestation: {output}",
+        );
+        assert!(
+            !output.contains("clean") && !output.contains("certified"),
+            "an empty-family verdict must not make an assurance claim: {output}",
+        );
+    }
+
+    #[test]
+    fn daemon_verdict_summary_degrades_unless_clean_certified_and_attested() {
+        let clean = daemon_verdict_summary(&clean_response());
+        assert_eq!(clean.detail, "antipattern-only certified");
+        assert!(!clean.degraded);
+
+        let mut stale = clean_response();
+        stale.coverage = Coverage::Partial;
+        stale.workspace_assurance.state = AssuranceState::Stale;
+        stale.workspace_assurance.reason = Some(StaleReason::CrossFileResolutionNeeded);
+        let stale = daemon_verdict_summary(&stale);
+        assert_eq!(
+            stale.detail,
+            "antipattern-only partial; stale{cross-file-resolution-needed}"
+        );
+        assert!(stale.degraded);
+
+        let mut empty = clean_response();
+        empty.check_families.clear();
+        let empty = daemon_verdict_summary(&empty);
+        assert!(empty.detail.contains("refusing attestation"));
+        assert!(empty.degraded);
+
+        let mut duplicate = clean_response();
+        duplicate.check_families.push(CheckFamily::Antipattern);
+        let duplicate = daemon_verdict_summary(&duplicate);
+        assert!(duplicate.detail.contains("refusing attestation"));
+        assert!(duplicate.degraded);
+        assert!(!duplicate.detail.contains("antipattern-only"));
     }
 
     #[test]

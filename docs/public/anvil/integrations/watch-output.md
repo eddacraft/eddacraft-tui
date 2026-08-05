@@ -38,13 +38,13 @@ so a consumer can parse standard output without stripping log messages.
 
 Every event contains:
 
-| Field            | Meaning                                                                            |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| `schema_version` | The event contract. Accept `anvil.watch.event.v1`; handle other values explicitly. |
-| `seq`            | A process-local sequence number that helps detect missing or reordered events.     |
-| `timestamp`      | The UTC time at which anvil emitted the event.                                     |
-| `event_type`     | The payload variant: `progress`, `snapshot`, `violation`, or `error`.              |
-| `payload`        | Data for that event type.                                                          |
+| Field            | Meaning                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `schema_version` | The event contract. Accept `anvil.watch.event.v1`; handle other values explicitly.     |
+| `seq`            | A process-local sequence number that helps detect missing or reordered events.         |
+| `timestamp`      | The UTC time at which anvil emitted the event.                                         |
+| `event_type`     | The payload variant: `progress`, `snapshot`, `violation`, `error`, or `action_result`. |
+| `payload`        | Data for that event type.                                                              |
 
 Treat unknown event types as additive information rather than terminating a
 long-running consumer.
@@ -110,10 +110,54 @@ long-running consumer.
 When `recoverable` is `true`, keep reading the stream. When it is `false`,
 record the error and expect the watcher to stop.
 
+### Action result and daemon scope
+
+`action_result` is general enough for dispatched action outcomes, but its
+current producer scope is daemon-supplied `check` verdicts only. Subprocess
+`check` and `gate` outcomes are not re-enveloped. For a daemon result,
+`daemon_verdict` exposes the evidence scope instead of hiding it:
+
+```json
+{
+  "schema_version": "anvil.watch.event.v1",
+  "seq": 10,
+  "timestamp": "2026-08-05T10:21:31Z",
+  "event_type": "action_result",
+  "payload": {
+    "action": "check",
+    "exit_code": 0,
+    "duration_ms": 17,
+    "daemon_verdict": {
+      "assurance_state": "stale",
+      "assurance_reason": "cross-file-resolution-needed",
+      "coverage": "partial",
+      "check_families": ["antipattern"],
+      "finding_count": 0,
+      "diagnostics": []
+    }
+  }
+}
+```
+
+The daemon verdict's `diagnostics` are canonical `anvil.diagnostic.v1` objects.
+`check_families` is the exact evaluated scope; the live daemon route currently
+reports `["antipattern"]`. It does not attest secret detection or another family
+that is absent from the array.
+
+Do not treat `exit_code: 0` or `finding_count: 0` as a pass when
+`assurance_state` is not `clean` or `coverage` is `partial`. Surface the state
+and reason as degraded evidence.
+
+Live-daemon family routing is deterministic once selected. Debounce,
+reconnect/full-scan warm-up, and restored-window races remain unbounded, so
+route selection and delivery can still vary. Use `--no-daemon` to force the
+scoped fallback.
+
 ## Do not infer more than the output proves
 
 - A ready watcher proves save-time coverage, not pre-write protection.
-- A clean file result covers that analysed input, not the entire repository.
+- A clean file result covers that analysed input and its named check families,
+  not the entire repository.
 - A daemon status proves the service is reachable, not that an AI client is
   connected.
 - A skipped file should name the coverage reason.
