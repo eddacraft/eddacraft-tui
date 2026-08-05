@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 205/277  |
+| CIB | —     | In Progress | 206/278  |
 
 ## Purpose
 
@@ -7845,7 +7845,12 @@ CIB-251/255 only.
 
 ### CIB-279: Windows path-rendering fixture for the three surfaces CIB-237 left uncovered
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-05 via PR #3568 (`68eb31c2a`) — each named
+  surface now has a regression test proved to fail against pre-CIB-237
+  rendering by reverting it locally, not by inspection. Two assertions
+  shadowed by an earlier panic were proved against a replica of the pre-fix
+  body. Follow-up filed as **CIB-282** (`skill install --json` still leaks the
+  verbatim prefix; out of this item's coverage-only scope).
 - **Priority:** P3 test coverage (the behaviour is fixed and shipped; this
   closes the validation clause, it does not change product behaviour)
 - **Intent:** CIB-237's `Validation:` clause asked for "a Windows fixture
@@ -7981,13 +7986,49 @@ CIB-251/255 only.
 - **Confidence:** high on the gap and the fix shape; the cost is breadth, not
   difficulty.
 
-### Pack-03 deliberate non-scope (do not auto-file release work)
+### CIB-282: `skill install --json` still emits the Windows verbatim prefix
 
-- Report **§4** curriculum / Scan·Surface·React editorial (same family as pack-02
-  R1..R8) — valuable, not a ship gate for v0.9.3
-- Progress label mid-word clip ("Project identi") — minor polish
-- Watch demo sample size n=1 / empty queue — demo data nitpick
-- Finish screen 6 vs 7 path counts — unconfirmed product intent
-- Status "warming" vs five-state vocabulary — leave to **CIB-235** product call
-- Config-claim paths without side-effect proof — **CIB-259** with pack-03 soft note
+- **Status:** Draft — filed from the CIB-279 dev-loop run, not self-authorised.
+  Promotion to Ready is an operator call (membrane checkpoint).
+- **Priority:** P3 presentation defect on a machine-readable surface (no wrong
+  verdict, no data loss; the path is correct, just carrying a prefix no
+  consumer wants)
+- **Intent:** CIB-237 removed the NT-extended `\\?\` prefix from the human
+  branch of `skill install` (`crates/anvil-cli/src/commands/skill.rs`,
+  `run_install`), which prints
+  `crate::display_path::strip_verbatim_prefix(&path)`. The `--json` branch
+  immediately above it serialises the same value as a raw `PathBuf` —
+  `TargetReport.path`, `#[derive(Serialize)]` — so serde emits the underlying
+  string verbatim. A workspace that arrives NT-extended (what
+  `fs::canonicalize` returns on Windows) therefore still reaches JSON
+  consumers as `\\?\C:\...` while the human line beside it reads `C:\...`.
+  This is the same one-surface-two-styles split CIB-237 was filed to end,
+  surviving inside a single function.
+- **Non-scope / do not:** Do not re-litigate the CIB-237 rendering rule — it
+  is settled. Do not change `TargetReport`'s field name or the JSON envelope
+  shape; consumers key on `targets[].path`.
+- **Expected Outcome:** `skill install --json` and the human output name the
+  same location in the same style. Prefer rendering once and serialising the
+  rendered value (a `String` field, or a `serialize_with`), so the two
+  branches cannot drift apart again — the drift, not the prefix, is the
+  defect.
+- **Trap to avoid:** a fixture asserting on a deserialised `PathBuf` cannot
+  catch this. `Path` equality is component-wise and Windows accepts `/`, so
+  the assertion must be on the raw JSON string (see CIB-279 and
+  `display_path` for the same trap).
+- **Files:** `crates/anvil-cli/src/commands/skill.rs` (`TargetReport`, the
+  `global.json` branch of `run_install`),
+  `crates/anvil-cli/tests/skill_install.rs`
+- **Validation:** `skill install --dry-run --json` with an NT-extended
+  `--workspace` emits no `\\?\` in `targets[].path`; the existing
+  `install_output_never_echoes_a_windows_verbatim_prefix` (human branch) stays
+  green. Both assert on the string form, never on a `PathBuf`.
+- **Identified From:** dev-loop run for CIB-279 (PR #3568) — found while
+  writing the human-branch regression test, and deliberately left unfixed
+  because CIB-279 is coverage-only and must not change behaviour.
+- **Coordinates with:** CIB-237 (shipped), CIB-279 (shipped)
+- **Confidence:** high on the mechanism — traced to the `#[derive(Serialize)]`
+  on a `PathBuf` field with no rendering step, adjacent to the branch that has
+  one. Not reproduced on a Windows host; on Unix the prefix is a literal
+  substring rather than a parsed prefix, which does not change the conclusion.
 
