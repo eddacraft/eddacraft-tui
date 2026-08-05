@@ -35,8 +35,12 @@ gate_unavailable() {
     # environment is broken, so it must not add dependencies of its own —
     # piping through `sed` here made the hook die with `sed: not found` under
     # a minimal PATH, turning a clear refusal back into an obscure exit 127.
-    echo "$3" | while IFS= read -r line; do
-      echo "    ${line}"
+    #
+    # `printf '%s\n'`, not `echo`: this text is arbitrary tool stderr, and
+    # `echo` handling of a leading `-` or an embedded backslash is
+    # implementation-defined. The one job here is quoting it faithfully.
+    printf '%s\n' "$3" | while IFS= read -r line; do
+      printf '    %s\n' "${line}"
     done
   fi
   echo ""

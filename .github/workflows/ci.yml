@@ -318,10 +318,16 @@ jobs:
         shell: bash
         run: |
           set -e
+          git ls-files 'scripts/*.sh' 'scripts/**/*.sh' | while IFS= read -r script; do
+            bash -n -- "$script"
+          done
           # CIB-277: `.husky/*` classifies as a shell change, but the hooks
           # carry no `.sh` suffix, so this check skipped them entirely.
-          git ls-files 'scripts/*.sh' 'scripts/**/*.sh' '.husky/*' '.husky/**/*' | while IFS= read -r script; do
-            bash -n -- "$script"
+          # Parse them with `sh -n`, not `bash -n`: husky executes them via
+          # `sh -e` (see `.husky/_/h`), so a bashism that `bash -n` accepts
+          # would still break the hook at runtime.
+          git ls-files '.husky/*' '.husky/**/*' | while IFS= read -r hook; do
+            sh -n -- "$hook"
           done
 
       - name: Run CI script fixtures

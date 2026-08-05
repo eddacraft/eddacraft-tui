@@ -54,8 +54,14 @@ minimal_path() {
   echo "${dir}"
 }
 
-# Materialise a repo holding only the `.husky` paths in the index — a fresh
-# clone or worktree, before any install has run.
+# Materialise a repo standing in for a fresh clone or worktree, before any
+# install has run.
+#
+# The file list comes from `git ls-files` in the repository under test, so the
+# fixture contains exactly what Git would deliver on checkout — that is the
+# coupling that makes re-ignoring the shims fail this suite. Inside the
+# fixture the copies are working-tree files; only `seed.txt` is committed,
+# because the probes need a HEAD to commit against and nothing more.
 new_fixture_repo() {
   local dir="$1"
   mkdir -p "${dir}"
