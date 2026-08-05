@@ -23,6 +23,7 @@
 //! Windows CI.
 
 use std::borrow::Cow;
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// The Windows NT-extended ("verbatim") prefix, e.g. `\\?\C:\project`.
@@ -43,6 +44,36 @@ pub fn strip_verbatim_prefix(path: &str) -> Cow<'_, str> {
         return Cow::Owned(format!(r"\\{rest}"));
     }
     Cow::Borrowed(path.strip_prefix(VERBATIM_PREFIX).unwrap_or(path))
+}
+
+/// A path wrapper whose [`Display`](fmt::Display) strips the verbatim prefix.
+///
+/// See [`shown`].
+pub struct Shown<'a>(&'a Path);
+
+impl fmt::Display for Shown<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = self.0.to_string_lossy();
+        f.write_str(&strip_verbatim_prefix(&text))
+    }
+}
+
+/// Render a path for a message, the way the success surfaces render it.
+///
+/// [`Path::display`] emits the path verbatim, so an NT-extended root reaches
+/// the reader as `\\?\C:\...` (CIB-285). Error text is where that hurts most:
+/// it appears only when something has already gone wrong, and it disagreed
+/// with the success lines beside it.
+///
+/// This exists as one shared helper rather than a strip at each call site
+/// because the defect CIB-237, CIB-282 and CIB-285 all describe is *drift* —
+/// a new site that forgets. `{}` on a `Shown` cannot forget.
+///
+/// Deliberately not [`render`]: these are absolute paths that may lie outside
+/// any workspace, and relativising them against a root is a different rule.
+#[must_use]
+pub fn shown(path: &Path) -> Shown<'_> {
+    Shown(path)
 }
 
 /// Normalise separators to `/` for display of workspace-relative paths.
@@ -255,6 +286,34 @@ mod tests {
         assert!(is_absolute_display(&strip_verbatim_prefix(
             r"\\?\UNC\server\share\file.txt"
         )));
+    }
+
+    /// CIB-285: `Path::display` emits the verbatim prefix, which is how error
+    /// text ended up disagreeing with the success lines beside it.
+    #[test]
+    fn shown_strips_the_verbatim_prefix_from_message_text() {
+        let path = PathBuf::from(r"\\?\C:\project\.claude\skills");
+        assert_eq!(shown(&path).to_string(), r"C:\project\.claude\skills");
+        assert_eq!(
+            format!("creating {}", shown(&path)),
+            r"creating C:\project\.claude\skills",
+            "the wrapper must work inline in a format string, or call sites will \
+             reach for `.display()` again"
+        );
+    }
+
+    /// The UNC branch has to regain the leading `\\`, or `\\?\UNC\server\share`
+    /// reads as a relative path in an error the reader is already puzzled by.
+    #[test]
+    fn shown_keeps_a_unc_path_absolute() {
+        let path = PathBuf::from(r"\\?\UNC\server\share\skills");
+        assert_eq!(shown(&path).to_string(), r"\\server\share\skills");
+    }
+
+    #[test]
+    fn shown_leaves_an_ordinary_path_alone() {
+        let path = PathBuf::from("/home/dev/project/.claude/skills");
+        assert_eq!(shown(&path).to_string(), "/home/dev/project/.claude/skills");
     }
 
     #[test]

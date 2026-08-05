@@ -342,6 +342,133 @@ fn install_json_renders_a_verbatim_unc_path_as_a_usable_unc_path() {
     );
 }
 
+/// CIB-285. The success paths strip the NT-extended prefix; the error paths
+/// interpolated `Path::display()` and did not, so a failed install disagreed
+/// with the run that preceded it — on the one surface a reader consults once
+/// something has already gone wrong.
+///
+/// Forces the unmanaged-directory refusal, the cheapest error to provoke
+/// deterministically, and asserts on the stderr **string**. A `PathBuf`
+/// assertion could not catch this: `Path` equality is component-wise and
+/// Windows accepts `/`, so it passes whether or not the prefix was stripped.
+///
+/// Unix-only. On Windows `\\?\C:\project` is a real verbatim path rather than
+/// the literal relative directory name this fixture builds, so the test would
+/// reach outside its tempdir. The rendering is pure string logic, so Linux
+/// carries the signal — the same reasoning CIB-279 records.
+#[cfg(unix)]
+#[test]
+fn install_errors_never_carry_a_windows_verbatim_prefix() {
+    let root = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(root.path()).expect("canonicalize workspace");
+
+    // On Unix a leading backslash is an ordinary filename character, so this
+    // is a relative directory name — which is what makes the fixture
+    // buildable on this host at all.
+    let workspace = r"\\?\C:\project";
+    // `join` with a backslash-leading string is only ambiguous on Windows,
+    // where `\` is a separator and would discard `root`. This test is
+    // `cfg(unix)` precisely because the string has to behave as a filename,
+    // which is what makes the fixture constructible at all.
+    #[allow(clippy::join_absolute_paths)]
+    let unmanaged = root
+        .join(workspace)
+        .join(".claude/skills/anvil-developer-functions");
+    fs::create_dir_all(&unmanaged).unwrap();
+    fs::write(unmanaged.join("SKILL.md"), "user-owned").unwrap();
+
+    let output = Command::new(ANVIL_BIN)
+        .args([
+            "--no-tui",
+            "skill",
+            "install",
+            "--client",
+            "claude-code",
+            "--scope",
+            "project",
+            "--workspace",
+            workspace,
+        ])
+        .current_dir(&root)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("invoke anvil skill install");
+
+    assert!(
+        !output.status.success(),
+        "expected the unmanaged directory to be refused; stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unmanaged"),
+        "expected the unmanaged refusal, got: {stderr}"
+    );
+    assert!(
+        !stderr.contains(r"\\?\"),
+        "verbatim prefix leaked into error text: {stderr}"
+    );
+    assert!(
+        stderr.contains(r"C:\project"),
+        "the error should still name the destination: {stderr}"
+    );
+
+    // The user's file survives — the refusal is the point, not a casualty of
+    // the rendering change.
+    assert_eq!(
+        fs::read_to_string(unmanaged.join("SKILL.md")).unwrap(),
+        "user-owned"
+    );
+}
+
+/// CIB-285 asked for one shared helper precisely so a later site could not
+/// reintroduce the split. Only one of the 24 error sites has behavioural
+/// coverage (the unmanaged refusal above), so the other 23 rest on this.
+///
+/// Reads the source at compile time, so it cannot drift from the file it
+/// guards nor depend on the working directory at run time.
+///
+/// **What this does and does not cover.** It is a substring check over the
+/// two spellings that actually reach `Display` for a path here: `.display()`
+/// and `to_string_lossy()`. It does not catch every conceivable route —
+/// `{:?}`, `.to_str().unwrap()`, or a `Cow` round-trip would each walk past
+/// it. Verification demonstrated exactly that: swapping one site to
+/// `to_string_lossy()` left the whole suite green before this second
+/// assertion existed. Treat it as a tripwire for the likely mistakes, not a
+/// proof of the invariant.
+#[test]
+fn skill_command_renders_every_path_through_the_shared_helper() {
+    let source = include_str!("../src/commands/skill.rs");
+
+    assert!(
+        !source.contains(".display()"),
+        "`skill.rs` calls `Path::display()`, which emits the Windows verbatim \
+         prefix into user-facing text (CIB-285). Use \
+         `crate::display_path::shown(path)` instead — it renders the way the \
+         success paths do."
+    );
+
+    // `TargetReport::new` legitimately owns exactly one `to_string_lossy`,
+    // and renders it through `strip_verbatim_prefix` on the next line
+    // (CIB-282). A second occurrence is a path being stringified somewhere
+    // that has not been thought about, which is how this defect class keeps
+    // coming back.
+    let lossy = source.matches("to_string_lossy()").count();
+    assert_eq!(
+        lossy, 1,
+        "expected exactly one `to_string_lossy()` in skill.rs (the rendered \
+         `TargetReport::new`), found {lossy}. A raw path reaching text is the \
+         CIB-285 defect wearing a different spelling — route it through \
+         `crate::display_path::shown(path)`."
+    );
+
+    assert!(
+        source.contains("display_path::shown("),
+        "expected skill.rs to render paths through the shared helper"
+    );
+}
+
 #[test]
 fn dry_run_resolves_without_writing() {
     let root = tempfile::tempdir().unwrap();

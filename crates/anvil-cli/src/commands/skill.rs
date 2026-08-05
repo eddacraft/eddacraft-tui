@@ -255,11 +255,17 @@ fn install_bundle(destination: &Path) -> Result<&'static str> {
         .parent()
         .context("managed skill destination has no parent directory")?;
     ensure_safe_destination(parent)?;
-    fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+    fs::create_dir_all(parent)
+        .with_context(|| format!("creating {}", crate::display_path::shown(parent)))?;
     let staging = tempfile::Builder::new()
         .prefix(".anvil-skill-stage-")
         .tempdir_in(parent)
-        .with_context(|| format!("staging managed skill beside {}", destination.display()))?;
+        .with_context(|| {
+            format!(
+                "staging managed skill beside {}",
+                crate::display_path::shown(destination)
+            )
+        })?;
 
     write_staged_file(staging.path(), "SKILL.md", SKILL_MD)?;
     write_staged_file(
@@ -289,7 +295,7 @@ fn verify_bundle(destination: &Path) -> Result<()> {
     if actual != expected {
         bail!(
             "managed skill at {} is valid but not the bundle shipped by this anvil version",
-            destination.display()
+            crate::display_path::shown(destination)
         );
     }
     Ok(())
@@ -301,17 +307,21 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
     if !manifest_path.exists() {
         bail!(
             "refusing to overwrite unmanaged skill directory {}; move it outside the skills directory tree or choose another scope",
-            destination.display()
+            crate::display_path::shown(destination)
         );
     }
     let raw = fs::read_to_string(&manifest_path)
-        .with_context(|| format!("reading {}", manifest_path.display()))?;
-    let manifest: ManagedManifest = serde_json::from_str(&raw)
-        .with_context(|| format!("parsing managed manifest {}", manifest_path.display()))?;
+        .with_context(|| format!("reading {}", crate::display_path::shown(&manifest_path)))?;
+    let manifest: ManagedManifest = serde_json::from_str(&raw).with_context(|| {
+        format!(
+            "parsing managed manifest {}",
+            crate::display_path::shown(&manifest_path)
+        )
+    })?;
     if manifest.schema_version != 1 || manifest.skill != SKILL_NAME {
         bail!(
             "managed manifest {} has unsupported schema or skill identity; refusing to overwrite",
-            manifest_path.display()
+            crate::display_path::shown(&manifest_path)
         );
     }
     for (relative, expected_hash) in &manifest.files {
@@ -325,20 +335,20 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
         let bytes = fs::read(&path).with_context(|| {
             format!(
                 "managed skill file {} is missing or modified; refusing to overwrite",
-                path.display()
+                crate::display_path::shown(&path)
             )
         })?;
         if skill_state::sha256(&bytes) != *expected_hash {
             bail!(
                 "managed skill file {} was modified; refusing to overwrite user changes",
-                path.display()
+                crate::display_path::shown(&path)
             );
         }
     }
     if skill_state::bundle_digest(&manifest.files) != manifest.bundle_digest {
         bail!(
             "managed manifest {} has an invalid bundle digest; refusing to overwrite",
-            manifest_path.display()
+            crate::display_path::shown(&manifest_path)
         );
     }
     validate_no_unmanaged_entries(destination, &manifest.files)?;
@@ -370,18 +380,31 @@ fn validate_no_unmanaged_entries(
     let mut directories = vec![destination.to_path_buf()];
     while let Some(directory) = directories.pop() {
         let entries = fs::read_dir(&directory).with_context(|| {
-            format!("inspecting managed skill directory {}", directory.display())
+            format!(
+                "inspecting managed skill directory {}",
+                crate::display_path::shown(&directory)
+            )
         })?;
         for entry in entries {
             let entry = entry.with_context(|| {
-                format!("inspecting managed skill directory {}", directory.display())
+                format!(
+                    "inspecting managed skill directory {}",
+                    crate::display_path::shown(&directory)
+                )
             })?;
             let path = entry.path();
-            let relative = path
-                .strip_prefix(destination)
-                .with_context(|| format!("checking managed skill entry {}", path.display()))?;
-            let metadata = fs::symlink_metadata(&path)
-                .with_context(|| format!("inspecting managed skill entry {}", path.display()))?;
+            let relative = path.strip_prefix(destination).with_context(|| {
+                format!(
+                    "checking managed skill entry {}",
+                    crate::display_path::shown(&path)
+                )
+            })?;
+            let metadata = fs::symlink_metadata(&path).with_context(|| {
+                format!(
+                    "inspecting managed skill entry {}",
+                    crate::display_path::shown(&path)
+                )
+            })?;
 
             let allowed = if metadata.file_type().is_symlink() {
                 false
@@ -401,7 +424,7 @@ fn validate_no_unmanaged_entries(
             if !allowed {
                 bail!(
                     "managed skill directory contains unmanaged entry {}; move it outside the skills directory tree before retrying",
-                    path.display()
+                    crate::display_path::shown(&path)
                 );
             }
         }
@@ -417,10 +440,15 @@ fn write_staged_file(destination: &Path, relative: &str, content: &str) -> Resul
     let path = crate::display_path::join_relative(destination, relative);
     ensure_safe_destination(&path)?;
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", crate::display_path::shown(parent)))?;
     }
-    fs::write(&path, content.as_bytes())
-        .with_context(|| format!("writing managed skill file {}", path.display()))
+    fs::write(&path, content.as_bytes()).with_context(|| {
+        format!(
+            "writing managed skill file {}",
+            crate::display_path::shown(&path)
+        )
+    })
 }
 
 fn replace_directory(staging: &Path, destination: &Path) -> Result<()> {
@@ -436,7 +464,7 @@ fn replace_directory_with(
         return rename(staging, destination).with_context(|| {
             format!(
                 "committing staged skill bundle to {}",
-                destination.display()
+                crate::display_path::shown(destination)
             )
         });
     }
@@ -447,26 +475,35 @@ fn replace_directory_with(
     let backup_root = tempfile::Builder::new()
         .prefix(".anvil-skill-backup-")
         .tempdir_in(parent)
-        .with_context(|| format!("preparing rollback beside {}", destination.display()))?;
+        .with_context(|| {
+            format!(
+                "preparing rollback beside {}",
+                crate::display_path::shown(destination)
+            )
+        })?;
     let backup = backup_root.path().join("previous");
-    rename(destination, &backup)
-        .with_context(|| format!("moving {} into rollback storage", destination.display()))?;
+    rename(destination, &backup).with_context(|| {
+        format!(
+            "moving {} into rollback storage",
+            crate::display_path::shown(destination)
+        )
+    })?;
 
     if let Err(commit_error) = rename(staging, destination) {
         if let Err(rollback_error) = rename(&backup, destination) {
             let retained = backup_root.keep();
             bail!(
                 "committing staged skill bundle to {} failed: {}; rollback also failed: {}; the previous bundle is retained at {}",
-                destination.display(),
+                crate::display_path::shown(destination),
                 commit_error,
                 rollback_error,
-                retained.join("previous").display()
+                crate::display_path::shown(&retained.join("previous"))
             );
         }
         return Err(commit_error).with_context(|| {
             format!(
                 "committing staged skill bundle to {}; the previous bundle was restored",
-                destination.display()
+                crate::display_path::shown(destination)
             )
         });
     }
@@ -489,7 +526,7 @@ fn ensure_safe_destination(destination: &Path) -> Result<()> {
         if metadata.file_type().is_symlink() {
             bail!(
                 "refusing to install managed skill through symlinked path {}",
-                cursor.display()
+                crate::display_path::shown(&cursor)
             );
         }
     }
