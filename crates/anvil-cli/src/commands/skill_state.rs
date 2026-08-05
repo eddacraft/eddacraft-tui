@@ -90,9 +90,10 @@ pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> Skill
     }
     if !destination.is_dir() {
         return SkillInstallOutcome::Broken {
+            // CIB-287: doctor interpolates this reason into the broken: row.
             reason: format!(
                 "skill path {} exists but is not a directory",
-                destination.display()
+                crate::display_path::shown(destination)
             ),
         };
     }
@@ -106,7 +107,10 @@ pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> Skill
         Ok(raw) => raw,
         Err(error) => {
             return SkillInstallOutcome::Broken {
-                reason: format!("could not read {}: {error}", manifest_path.display()),
+                reason: format!(
+                    "could not read {}: {error}",
+                    crate::display_path::shown(&manifest_path)
+                ),
             };
         }
     };
@@ -117,7 +121,7 @@ pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> Skill
             return SkillInstallOutcome::Broken {
                 reason: format!(
                     "invalid managed manifest {}: {error}",
-                    manifest_path.display()
+                    crate::display_path::shown(&manifest_path)
                 ),
             };
         }
@@ -127,7 +131,7 @@ pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> Skill
         return SkillInstallOutcome::Broken {
             reason: format!(
                 "managed manifest {} has unsupported schema or skill identity",
-                manifest_path.display()
+                crate::display_path::shown(&manifest_path)
             ),
         };
     }
@@ -144,7 +148,7 @@ pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> Skill
         return SkillInstallOutcome::Broken {
             reason: format!(
                 "managed manifest {} has an invalid bundle digest",
-                manifest_path.display()
+                crate::display_path::shown(&manifest_path)
             ),
         };
     }
@@ -505,6 +509,69 @@ mod tests {
             }
             other => panic!("expected Broken, got {other:?}"),
         }
+    }
+
+    /// CIB-287. `Broken { reason }` text is interpolated into doctor's
+    /// `broken:` row, so a path that still carries `\\?\` leaks twice — once
+    /// from the row's own path and once from the reason. Force a non-directory
+    /// at a path whose string form starts with the verbatim prefix and assert
+    /// on the **reason string**.
+    ///
+    /// Unix-only for the same reason as the CIB-285 install-error fixture: on
+    /// Windows `\\?\C:\...` is a real verbatim path and would leave the temp
+    /// root. The rendering is pure string logic, so Linux carries the signal.
+    #[cfg(unix)]
+    #[test]
+    fn broken_reason_never_carries_a_windows_verbatim_prefix() {
+        let root = tempfile::tempdir().unwrap();
+        // Relative path whose *string* begins with the NT-extended prefix, so
+        // `Path::display` would emit `\\?\...` and `shown` can strip it. Built
+        // under a temp cwd so the fixture cannot escape the test root.
+        crate::test_support::cwd::with_cwd_in(root.path(), || {
+            let destination =
+                PathBuf::from(r"\\?\C:\project\.agents\skills\anvil-developer-functions");
+            fs::write(&destination, "not a directory").unwrap();
+            let expected = expected_developer_functions_manifest();
+            match evaluate_install(&destination, &expected) {
+                SkillInstallOutcome::Broken { reason } => {
+                    assert!(
+                        !reason.contains(r"\\?\"),
+                        "verbatim prefix leaked into Broken reason: {reason}"
+                    );
+                    assert!(
+                        reason.contains(r"C:\project"),
+                        "reason should still name the destination: {reason}"
+                    );
+                    assert!(
+                        reason.contains("not a directory"),
+                        "expected the non-directory branch, got: {reason}"
+                    );
+                }
+                other => panic!("expected Broken, got {other:?}"),
+            }
+        });
+    }
+
+    /// CIB-287 tripwire for the five `Broken { reason }` sites. Production
+    /// code only — the test module below may mention the forbidden spelling
+    /// in assertion messages without being a leak.
+    #[test]
+    fn skill_state_renders_every_path_through_the_shared_helper() {
+        let source = include_str!("skill_state.rs");
+        let production = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("skill_state.rs has a test module");
+        assert!(
+            !production.contains(".display()"),
+            "skill_state production code still formats a Path via Display, \
+             which emits the Windows verbatim prefix into Broken reasons \
+             that doctor prints (CIB-287). Use display_path::shown instead."
+        );
+        assert!(
+            production.contains("display_path::shown("),
+            "expected skill_state production code to render paths through the shared helper"
+        );
     }
 
     #[test]

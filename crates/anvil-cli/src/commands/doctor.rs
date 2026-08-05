@@ -1081,10 +1081,14 @@ fn tally_skill_outcomes(
         } else {
             format!(" [{}]", report.clients.join(", "))
         };
+        // CIB-287: absolute install destinations may carry a Windows
+        // NT-extended prefix; render the way skill install does so doctor
+        // detail rows cannot drift from that surface again.
+        let path = crate::display_path::shown(&report.path);
         let line = match &report.outcome {
             SkillInstallOutcome::Fresh => {
                 counts.fresh += 1;
-                format!("fresh: {}{clients}", report.path.display())
+                format!("fresh: {path}{clients}")
             }
             SkillInstallOutcome::Stale {
                 installed_anvil,
@@ -1092,25 +1096,24 @@ fn tally_skill_outcomes(
             } => {
                 counts.stale += 1;
                 format!(
-                    "stale: {}{clients} (installed anvil {installed_anvil}, current {current_anvil})",
-                    report.path.display()
+                    "stale: {path}{clients} (installed anvil {installed_anvil}, current {current_anvil})"
                 )
             }
             SkillInstallOutcome::Dirty => {
                 counts.dirty += 1;
-                format!("dirty: {}{clients}", report.path.display())
+                format!("dirty: {path}{clients}")
             }
             SkillInstallOutcome::Unmanaged => {
                 counts.unmanaged += 1;
-                format!("unmanaged: {}{clients}", report.path.display())
+                format!("unmanaged: {path}{clients}")
             }
             SkillInstallOutcome::Absent => {
                 counts.absent += 1;
-                format!("absent: {}{clients}", report.path.display())
+                format!("absent: {path}{clients}")
             }
             SkillInstallOutcome::Broken { reason } => {
                 counts.broken += 1;
-                format!("broken: {}{clients} ({reason})", report.path.display())
+                format!("broken: {path}{clients} ({reason})")
             }
         };
         detail_lines.push(line);
@@ -3209,6 +3212,98 @@ mod tests {
         assert_eq!(
             check.remediation.command.as_deref(),
             Some("anvil skill install")
+        );
+    }
+
+    /// CIB-287. Doctor's managed-skill detail lines used `Path::display`, so an
+    /// NT-extended install destination reached the reader as `\\?\C:\...` on a
+    /// **normal** doctor run — the same leak CIB-237/282/285 closed for
+    /// `skill install`, one surface over.
+    ///
+    /// Asserts on the rendered **row string**, never a `PathBuf`. `Path`
+    /// equality is component-wise and Windows accepts `/`, so a path assertion
+    /// would pass whether or not the prefix was stripped (fifth time this trap
+    /// has been written down: CIB-237, CIB-279, CIB-282, CIB-285, here).
+    #[test]
+    fn managed_skill_detail_rows_never_carry_a_windows_verbatim_prefix() {
+        use crate::commands::skill_state::{SkillInstallOutcome, SkillInstallReport};
+        use std::path::PathBuf;
+
+        let path = PathBuf::from(r"\\?\C:\project\.agents\skills\anvil-developer-functions");
+        let reports = vec![
+            SkillInstallReport {
+                path: path.clone(),
+                clients: vec!["claude-code"],
+                outcome: SkillInstallOutcome::Fresh,
+            },
+            SkillInstallReport {
+                path: path.clone(),
+                clients: vec!["codex"],
+                outcome: SkillInstallOutcome::Dirty,
+            },
+            SkillInstallReport {
+                path: path.clone(),
+                clients: vec![],
+                outcome: SkillInstallOutcome::Unmanaged,
+            },
+            SkillInstallReport {
+                path: path.clone(),
+                clients: vec![],
+                outcome: SkillInstallOutcome::Absent,
+            },
+            SkillInstallReport {
+                path: path.clone(),
+                clients: vec![],
+                outcome: SkillInstallOutcome::Stale {
+                    installed_anvil: "0.0.0".into(),
+                    current_anvil: "0.9.2".into(),
+                },
+            },
+            SkillInstallReport {
+                path,
+                clients: vec![],
+                outcome: SkillInstallOutcome::Broken {
+                    reason: "marker unreadable".into(),
+                },
+            },
+        ];
+
+        let (_, detail_lines) = tally_skill_outcomes(&reports);
+        assert_eq!(detail_lines.len(), 6);
+        for line in &detail_lines {
+            assert!(
+                !line.contains(r"\\?\"),
+                "verbatim prefix leaked into managed-skill detail row: {line}"
+            );
+            assert!(
+                line.contains(r"C:\project"),
+                "row should still name the destination: {line}"
+            );
+        }
+    }
+
+    /// CIB-287 tripwire. Only the managed-skill detail rows are in scope, so
+    /// this guards the specific interpolation that leaked rather than every
+    /// Display formatting of a path in `doctor.rs` (other surfaces were not
+    /// audited here). Production code only — the test module may mention the
+    /// forbidden spelling in assertion text without being a leak.
+    #[test]
+    fn managed_skill_detail_rows_render_paths_through_the_shared_helper() {
+        let source = include_str!("doctor.rs");
+        let production = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("doctor.rs has a test module");
+        assert!(
+            !production.contains("report.path.display()"),
+            "tally_skill_outcomes still formats report.path via Path::display, \
+             which emits the Windows verbatim prefix into doctor detail rows \
+             (CIB-287). Use display_path::shown instead."
+        );
+        assert!(
+            production.contains("display_path::shown(&report.path)")
+                || production.contains("display_path::shown(report.path)"),
+            "expected managed-skill detail rows to render through display_path::shown"
         );
     }
 }
