@@ -8080,8 +8080,7 @@ CIB-251/255 only.
 
 ### CIB-283: Complete watch action-result parity and prove daemon no-contact
 
-- **Status:** Merged 2026-08-05 via PR #3588 (`18852dca1` /
-  `db5256ab5`).
+- **Status:** Merged 2026-08-05 via PR #3588 (`18852dca1` / `db5256ab5`)
 - **Intent:** Close the two bounded follow-ups left by CIB-254: machine-readable
   fallback check/gate actions are not yet re-enveloped as WOUT v1
   `action_result` events, and `--no-daemon`'s hard no-contact contract is
