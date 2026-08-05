@@ -152,6 +152,28 @@ fn ensure_autoplay_setup(
     Ok(())
 }
 
+/// Restart the tutorial watcher after a sandbox teardown, falling back to
+/// static mode when no watcher is available.
+///
+/// `start_watcher` also re-binds the working root off the torn-down sandbox
+/// (CIB-250), so every teardown path must route through here rather than
+/// restarting a watcher on its own.
+fn restart_session_watcher<R, W>(
+    state: &mut TutorialState,
+    file_rx: &mut Option<R>,
+    watcher_handle: &mut Option<W>,
+    start_watcher: &mut impl FnMut(&mut TutorialState) -> anyhow::Result<(R, W)>,
+) {
+    if let Ok((rx, handle)) = start_watcher(state) {
+        *file_rx = Some(rx);
+        *watcher_handle = Some(handle);
+    } else {
+        *file_rx = None;
+        *watcher_handle = None;
+        state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
+    }
+}
+
 fn run_tutorial_session<R, W>(
     mut state: TutorialState,
     mut file_rx: Option<R>,
@@ -170,20 +192,32 @@ fn run_tutorial_session<R, W>(
 ) -> anyhow::Result<TutorialState> {
     loop {
         state = run_surface(state, file_rx.as_ref(), autoplay_sandbox.as_ref())?;
+        // CIB-271: a failed demo step must not end the session at this entry
+        // point either. CIB-248 fixed the `welcome` loop; `anvil tutorial
+        // --autoplay` runs through here, so mirror it — tear the sandbox down,
+        // restore the pre-demo context, and hand the user back to the path
+        // picker still inside the TUI.
         if let Some(failure) = state.take_autoplay_failure() {
-            state.abort_autoplay_session();
-            return Err(anyhow::anyhow!(failure));
+            drop(autoplay_sandbox.take());
+            state.recover_from_autoplay_failure(format!(
+                "The hands-free demo stopped: {failure}. Your repo was not touched — pick a path to continue."
+            ));
+            restart_session_watcher(
+                &mut state,
+                &mut file_rx,
+                &mut watcher_handle,
+                &mut start_watcher,
+            );
+            continue;
         }
         if state.take_autoplay_teardown_requested() {
             drop(autoplay_sandbox.take());
-            if let Ok((rx, handle)) = start_watcher(&mut state) {
-                file_rx = Some(rx);
-                watcher_handle = Some(handle);
-            } else {
-                file_rx = None;
-                watcher_handle = None;
-                state.enable_static_mode_with_reason(STATIC_MODE_WATCHER_UNAVAILABLE);
-            }
+            restart_session_watcher(
+                &mut state,
+                &mut file_rx,
+                &mut watcher_handle,
+                &mut start_watcher,
+            );
             continue;
         }
         if state.wants_autoplay_setup {
@@ -639,6 +673,100 @@ mod tests {
         assert!(state.autoplay_session_active());
         assert!(watcher_dropped.load(Ordering::SeqCst));
         assert!(!new_root.expect("new sandbox root").exists());
+    }
+
+    /// CIB-271: `anvil tutorial --autoplay` drives this session directly, and a
+    /// failed demo step used to unwind out of it as an `Err`, dropping the user
+    /// to scrollback — the defect CIB-248 fixed for `welcome` only. The session
+    /// must stay in the TUI, restore the pre-demo scan context, and hand the
+    /// user back to the path picker.
+    #[test]
+    fn autoplay_failure_recovers_to_the_path_picker_instead_of_leaving_the_tui() {
+        use anvil_tui::surfaces::tutorial::{CommandEffect, TutorialStep, discovery::ScanResults};
+
+        let mut state = TutorialState::new();
+        state.set_scan_results(ScanResults::default());
+        state.start_autoplay();
+        let mut sandbox = None;
+        ensure_autoplay_setup(&mut state, &mut sandbox).expect("demo setup");
+        let sandbox_root = sandbox.as_ref().expect("sandbox").root().to_path_buf();
+        assert!(
+            state.scan_results.is_none(),
+            "the demo stashes the user's own scan results"
+        );
+
+        let mut surface_run = 0;
+        let mut watcher_restarts = 0;
+        let state = run_tutorial_session(
+            state,
+            None::<()>,
+            None::<()>,
+            sandbox,
+            |mut state, _file_rx, active_sandbox| {
+                surface_run += 1;
+                match surface_run {
+                    1 => {
+                        assert!(active_sandbox.is_some());
+                        // A command that escapes the sandbox fails the demo
+                        // the same way a failing check does, without spawning
+                        // any work.
+                        state.steps = vec![TutorialStep {
+                            command: Some("anvil check ../outside.ts".to_string()),
+                            effect: Some(CommandEffect::ReadOnly),
+                            ..TutorialStep::default()
+                        }];
+                        state.current_step = 0;
+                        for _ in 0..32 {
+                            state.reveal_tick();
+                        }
+                        assert!(
+                            state.autoplay_failure().is_some(),
+                            "the demo step must have failed"
+                        );
+                    }
+                    2 => assert!(
+                        active_sandbox.is_none(),
+                        "recovery tears the demo sandbox down"
+                    ),
+                    _ => panic!("unexpected surface run {surface_run}"),
+                }
+                Ok(state)
+            },
+            |_state, _sandbox| unreachable!("the watch demo is not entered"),
+            |state| {
+                watcher_restarts += 1;
+                // Mirrors the production closures: the watcher restart is also
+                // where the working root is re-bound off the torn-down sandbox
+                // (CIB-250). `bind_working_root` refuses while the autoplay
+                // session is still live, so this only succeeds if recovery
+                // aborted the session first.
+                state
+                    .bind_working_root(std::env::temp_dir())
+                    .expect("recovery must end the autoplay session before re-binding the root");
+                Ok(((), ()))
+            },
+        )
+        .expect("a failed demo step must not propagate out of the tutorial session");
+
+        assert_eq!(surface_run, 2, "the session stays in the TUI");
+        assert_eq!(watcher_restarts, 1, "the ordinary watcher is restarted");
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.autoplay_session_active());
+        assert!(!state.autoplay_driver_active());
+        assert!(state.autoplay_failure().is_none());
+        assert!(
+            state.scan_results.is_some(),
+            "recovery restores the pre-demo scan context"
+        );
+        assert!(
+            state
+                .resuming_notice
+                .as_deref()
+                .is_some_and(|notice| notice.contains("The hands-free demo stopped")),
+            "the picker explains why the demo ended: {:?}",
+            state.resuming_notice
+        );
+        assert!(!sandbox_root.exists(), "the demo sandbox is cleaned up");
     }
 
     #[test]
