@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 205/276  |
+| CIB | —     | In Progress | 205/277  |
 
 ## Purpose
 
@@ -2753,6 +2753,10 @@ archive.
 ### CIB-100: Windows named-pipe GCTX client transport
 
 - **Status:** In Progress 2026-06-24 — Windows named-pipe client path implemented in the shared GCTX client; remains open pending a Windows toolchain/matrix check.
+- **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05). Fits the Windows
+  half of the window theme and the code is already written, so the only
+  outstanding work is native-matrix evidence — which is also the likeliest
+  reason it gets waived at the cut.
 - **Intent:** The GCTX Phase-1 tools (`anvil_search_symbols`,
   `anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`,
   `anvil_find_callers`) degrade to `unavailable` on non-Unix because the GCTX
@@ -4333,10 +4337,22 @@ archive.
 
 ### CIB-160: Portable peer-exe check for durable-membership authorisation off Linux
 
-- **Status:** Draft — needs an owner decision on whether a per-OS peer-exe
-  reader is worth building, or whether the fail-closed non-Linux posture (never
-  honour a wire durable claim) is the permanent answer given `--persist` /
-  `register_on_start` already provide durability everywhere.
+- **Status:** Ready 2026-08-05 — owner decision taken: **build the per-OS
+  readers.** The alternative (keep the fail-closed non-Linux posture as the
+  permanent answer) is rejected.
+- **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05)
+- **Why now (2026-08-05):** this item changed character when **CIB-252** merged
+  ([#3552](https://github.com/eddacraft/anvil-001/pull/3552)). CIB-252 correctly
+  replaced `workspace register`'s false success with an explicit refusal and
+  named full portable peer-exe membership as CIB-160's non-scope. The net effect
+  is that on Windows — the platform this release window is themed on — durable
+  registration over the wire now *visibly* refuses rather than silently
+  downgrading. Honest, but a dead end for the user. Note the scope limit: only
+  the **wire** path is affected; `--persist` / `register_on_start` still work on
+  every platform.
+- **Fallback if this cannot land in the cut:** the CIB-252 refusal copy must
+  name `--persist` / `register_on_start` as the working path, so the honest
+  refusal points somewhere. That fallback is cheap and should land regardless.
 - **Intent:** CIB-150 (PR #3116) authorises a wire `agent_tag` durable
   claim by comparing the peer's `/proc/<pid>/exe` against the daemon's
   `current_exe`, which is Linux-only. On macOS and Windows there is no
@@ -5404,7 +5420,20 @@ archive.
 
 ### CIB-205: ACKNOWLEDGEMENTS prints one licence text per family, dropping the others' copyright notices
 
-- **Status:** Ready
+- **Status:** In Progress 2026-08-05 — fix in
+  [PR #3566](https://github.com/eddacraft/anvil-001/pull/3566). On merge, set to
+  `Merged YYYY-MM-DD via PR #3566`.
+- **Priority:** P1 for `v0.9.3-beta` (attribution completeness; legal-adjacent)
+- **Severity correction (2026-08-05):** this item was filed against the BSD
+  3-Clause block's four members, which understated it. The defect is a property
+  of the generator, so it applies to every multi-member family: the **MIT block
+  covers 361 crates and prints exactly one copyright notice** (Microsoft's). The
+  same one-per-family template is published to downstream adopters through the
+  `eddacraft/acknowledgements-starter` mirror, so the defect propagates to
+  anyone using the kit. The owner judgement this item asked for is narrowed by
+  one fact: the file's own header claims each licence is "reproduced in full
+  below", so that sentence is false regardless of how the attribution question
+  is decided.
 - **Intent:** Licence families whose members each carry their own copyright
   line must have every notice retained, not just one representative's. BSD
   3-Clause and MIT both condition redistribution on retaining "the above
@@ -5756,6 +5785,10 @@ archive.
 ### CIB-214: Redact structured debug payloads in the live API
 
 - **Status:** Ready
+- **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05; deployed-service
+  information disclosure). Promoted ahead of its CIB-115/116 siblings
+  CIB-212/213/215 because `apps/anvil-api` is deployed product, whereas those
+  three sit in the retiring TS workspace and are published nowhere.
 - **Intent:** Preserve the live API redaction work split from CIB-116 after the
   unsupported Node admin CLI was archived.
 - **Expected Outcome:** Structured debug values use the same recursive redaction

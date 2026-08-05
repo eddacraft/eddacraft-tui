@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-04: **`v0.9.3-beta`** = honesty pass (Morgan CIB-220..227 / #3510) + Windows install/update path (Dave pack-01 CIB-228..243 / #3514; auth wall excluded) + pack-02 commissioning/TUI intake **CIB-251..267** (RETRACT-1 + trust candidates). Prior cut `v0.9.2-beta` MCP reconnect is published. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-05: **`v0.9.3-beta`** = honesty pass (Morgan CIB-220..227 / #3510) + Windows install/update path (Dave pack-01 CIB-228..243 / #3514; auth wall excluded) + pack-02 commissioning/TUI intake **CIB-251..267** (RETRACT-1 + trust candidates) + pack-03 **CIB-250/275/276** + pre-250 promotions **CIB-205, 100, 214, 160**. Prior cut `v0.9.2-beta` MCP reconnect is published. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -162,6 +162,46 @@ Source: `/tmp/dave-beta-report-3.md`. **Normal-path cutline only.**
 TUI-10, TUI-N1/N2, R1..R8 not automatic release work. (TUI-3 absorbed into
 CIB-250; TUI-5/TUI-6 elevated to CIB-275.)
 
+### Pre-250 promotions (backlog sweep, 2026-08-05)
+
+The window theme is "what anvil says matches what it does". A sweep of the 43
+still-active pre-CIB-250 backlog items for that same class found four that
+belong in this cut rather than the general backlog. Everything else in that
+range is internal repo hygiene (invisible to users) or sits in the retiring TS
+workspace (`packages/**`, published nowhere — see CIB-212/213/215, which are
+`Ready` and deliberately **not** promoted for that reason).
+
+| ID          | Item                                                     | Pri | Notes                                            |
+| ----------- | -------------------------------------------------------- | --- | ------------------------------------------------ |
+| **CIB-205** | ACKNOWLEDGEMENTS retains every distinct copyright notice | P1  | PR #3566. Legal-adjacent; also fixes public kit  |
+| **CIB-214** | Redact structured debug payloads in the live API         | P2  | `apps/anvil-api` is deployed product             |
+| **CIB-100** | Windows named-pipe GCTX client transport                 | P2  | Implemented; needs Windows matrix evidence       |
+| **CIB-160** | Portable peer-exe check off Linux                        | P2  | Newly exposed by CIB-252; operator decision made |
+
+Why each, briefly:
+
+- **CIB-205** is the loudest live violation of this window's own theme. The
+  shipped file claims each licence is "reproduced in full below" and then prints
+  one notice per licence family — the MIT block covers 361 crates under a single
+  Microsoft copyright line. MIT and the BSD licences condition redistribution on
+  retaining the notice, and the same generator is published to adopters via the
+  `eddacraft/acknowledgements-starter` mirror. CIB-205 was filed as a 4-crate
+  BSD-3 issue; that understated it.
+- **CIB-214** is a deployed-service disclosure gap (device codes, emails,
+  token-shaped fields reaching console output under `ANVIL_DEBUG`), `Ready` with
+  a concrete file list.
+- **CIB-100** fits the Windows half of the window theme and is already
+  implemented — only native-matrix evidence is outstanding.
+- **CIB-160** changed character when **CIB-252** merged (#3552). CIB-252
+  correctly replaced `workspace register`'s false success with an explicit
+  refusal, and named full portable peer-exe membership as CIB-160's non-scope.
+  The net effect on the platform this window is about is that durable
+  registration over the wire now _visibly_ refuses off Linux. Operator decision
+  (2026-08-05): build the per-OS readers rather than keep the fail-closed
+  posture as the permanent answer — this resolves CIB-160's open question. If it
+  cannot land in this cut, the refusal copy must name `--persist` /
+  `register_on_start` as the working path so users are not left at a dead end.
+
 ### Not a claim of this release
 
 - Browser dashboard default-on
@@ -186,6 +226,7 @@ CIB-250; TUI-5/TUI-6 elevated to CIB-275.)
 | **P1 implement**        | CIB-221, 222                                              | Same cut                    |
 | **P2 implement**        | CIB-230 (with 228), 223, 224, 227                         | Same cut if unblocked       |
 | **P3**                  | CIB-225, 226                                              | Same cut or follow-up patch |
+| **Pre-250 promotions**  | CIB-205 (PR #3566); then CIB-214, CIB-100, CIB-160        | Same cut                    |
 | **Cut**                 | Preflight → prepare → readiness → tag                     | After claim green           |
 
 ### Cut criteria
@@ -202,6 +243,14 @@ CIB-250; TUI-5/TUI-6 elevated to CIB-275.)
   (save-time daemon path) validated or explicitly waived with reason.
 - **Pack-03 P0 if green tonight:** CIB-250 tutorial safety chain (wrong-repo
   activate) validated or explicitly waived with reason.
+- **CIB-205** merged: the standing "ACKNOWLEDGEMENTS fresh" bar above now also
+  requires that the generated file retains every distinct copyright notice, not
+  one per licence family. A cut that ships the one-per-family output ships an
+  attribution file that does not satisfy the terms it asserts.
+- **CIB-214, CIB-100, CIB-160** validated or explicitly waived with reason —
+  CIB-100 and CIB-160 need native Windows evidence, which is the likeliest
+  waiver of the four. If CIB-160 is waived, the CIB-252 refusal copy must name
+  the working `--persist` path (see promotions section).
 - Changelog leads with install/update + honesty fixes, not new features.
 - Strategy: **direct** unless readiness forces stabilisation.
 - Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag
