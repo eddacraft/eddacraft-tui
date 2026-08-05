@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 206/278  |
+| CIB | —     | In Progress | 207/279  |
 
 ## Purpose
 
@@ -7013,9 +7013,17 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-254: Daemon-path save-time must not read as clean over live secrets (WATCH-1)
 
-- **Status:** Ready
-- **Priority:** P0 for `v0.9.3-beta` (save-time trust) — investigate before
-  claiming fixed
+- **Status:** Merged 2026-08-05 via PR #3577 (`41b5723bc`)
+- **Summary:** Save-time daemon verdicts are now explicitly scoped to the
+  antipattern family, with partial or stale assurance dominating any clean
+  result. `--no-daemon` is a hard no-contact route, daemon-supplied checks
+  carry ordered WOUT v1 `action_result` events with family coverage, and the
+  TUI renders the assurance and degraded warning. Hermetic repeated-save
+  coverage exercises live daemon, no-daemon fallback, and absent-daemon
+  fallback; the daemon-supplied JSON path asserts ordered action results.
+  Hosted Windows MSVC compilation and the full hosted Rust gate passed.
+- **Priority:** P0 for `v0.9.3-beta` (save-time trust); implementation merged,
+  awaiting release evidence
 - **Intent:** With watch daemon path default, writing an AWS secret key into a
   watched `.py` yields `stale{cross-file-resolution-needed} (0 finding(s))` or
   `--action gate` "All quality gates passed! (score: 100%)". Same file with
@@ -8032,3 +8040,29 @@ CIB-251/255 only.
   one. Not reproduced on a Windows host; on Unix the prefix is a literal
   substring rather than a parsed prefix, which does not change the conclusion.
 
+### CIB-283: Complete watch action-result parity and prove daemon no-contact
+
+- **Status:** Draft — filed from the CIB-254 Council, not self-authorised.
+  Promotion to Ready is an operator call (membrane checkpoint).
+- **Intent:** Close the two bounded follow-ups left by CIB-254: machine-readable
+  fallback check/gate actions are not yet re-enveloped as WOUT v1
+  `action_result` events, and `--no-daemon`'s hard no-contact contract is
+  proved by route outcomes rather than an observable daemon RPC counter.
+- **Expected Outcome:** Fallback check/gate results use the same ordered
+  `action_result` envelope as daemon-supplied checks (or a deliberately
+  documented unified contract), and an end-to-end test with an RPC counter,
+  socket spy, or equivalent observable proves that `--no-daemon` performs
+  zero daemon calls even when a live daemon is available.
+- **Non-scope / do not:** Do not widen the daemon hot-path family set, weaken
+  `--no-daemon`, or revise WOUT v1's unknown-event tolerance.
+- **Files:** `crates/anvil-cli/src/commands/watch.rs`,
+  `crates/anvil-cli/tests/watch_save_time_honesty.rs`, and the WOUT contract
+  docs if the envelope is clarified.
+- **Validation:** hermetic live-daemon watch run observes zero RPCs under
+  `--no-daemon`; JSON fallback action tests assert event kind, family,
+  sequence ordering, and action outcome for both check and gate.
+- **Identified From:** CIB-254 Council session `council-9b0d7daa`, security
+  findings C-001 and C-002.
+- **Coordinates with:** CIB-254, WOUT v1, ADR-061
+- **Confidence:** high on both gaps; medium on the smallest stable RPC-spy
+  fixture.
