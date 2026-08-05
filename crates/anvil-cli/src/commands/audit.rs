@@ -248,13 +248,8 @@ fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
     });
 }
 
-/// File extensions scanned for hardcoded secrets — kept in lock-step with the
-/// `matches!` arm in `gate::run_check_secret` (`crates/anvil-cli/src/commands/gate.rs`).
-/// Audit and gate must scan the same file set or they will disagree in the
-/// opposite direction (audit flagging a file gate ignores), reintroducing the
-/// confusion that issue #1798 is fixing. If gate's extension list changes,
-/// update both lists together (or extract a shared helper).
-const SECRET_SCAN_EXTS: &[&str] = &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"];
+// Secret allow-list extensions: `crate::util::SECRET_SCAN_EXTS` (shared with
+// gate — single definition for issue #1798 lock-step).
 
 /// Map [`anvil_checks::secret`] findings discovered over `candidates` into
 /// `Security`-category `AuditIssue` entries. Each finding becomes its own
@@ -293,7 +288,7 @@ fn scan_for_hardcoded_secrets(
             }
             path.extension()
                 .and_then(|ext| ext.to_str())
-                .is_some_and(|ext| SECRET_SCAN_EXTS.contains(&ext))
+                .is_some_and(crate::util::secret_scan_ext_allowed)
         })
         .map(|(path, rel)| (path.to_string_lossy().into_owned(), rel.as_str()))
         .collect();
@@ -560,7 +555,7 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
 ///   `High` entry (see `scan_for_hardcoded_secrets`).
 /// - Audit and gate select the **same file types** — the extension list
 ///   and the `.env*` filename rule are kept in lock-step deliberately
-///   (see `SECRET_SCAN_EXTS`), and claiming they differ would licence
+///   (see `crate::util::SECRET_SCAN_EXTS`), and claiming they differ would licence
 ///   the drift that issue #1798 fixed. Still say "types", not "set":
 ///   CIB-280 removed gate's planless depth cap, so the two walks now
 ///   agree on depth, but `anvil gate <plan>` still narrows to the plan's

@@ -10,6 +10,35 @@ use anyhow::{Context, Result};
 /// not here.
 pub(crate) use anvil_kernel::watcher::filter::is_ignored_dir_name;
 
+/// File extensions the gate/audit secret allow-list covers (plus `.env*`
+/// filenames). Single definition for the #1798 lock-step: audit and gate
+/// must not drift. Expanding this list is a product decision (CIB-255
+/// disclosure prefers stating the domain over silent expansion).
+///
+/// Matching is **ASCII case-insensitive** on both the worktree (`Path`)
+/// and staged/raw (`[u8]`) predicates so the same path cannot be in-domain
+/// on one code path and out-of-domain on the other (e.g. `leak.TS` on
+/// case-insensitive filesystems).
+pub(crate) const SECRET_SCAN_EXTS: &[&str] =
+    &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"];
+
+/// True when `ext` is in [`SECRET_SCAN_EXTS`] (ASCII case-insensitive).
+#[must_use]
+pub(crate) fn secret_scan_ext_allowed(ext: &str) -> bool {
+    SECRET_SCAN_EXTS
+        .iter()
+        .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+}
+
+/// Byte-path variant of [`secret_scan_ext_allowed`] for staged inventory
+/// paths that may not be UTF-8 as a whole but still carry an ASCII extension.
+#[must_use]
+pub(crate) fn secret_scan_ext_bytes_allowed(ext: &[u8]) -> bool {
+    SECRET_SCAN_EXTS
+        .iter()
+        .any(|allowed| ext.eq_ignore_ascii_case(allowed.as_bytes()))
+}
+
 /// Build the [`anvil_checks::secret::SecretCheckConfig`] used by the
 /// secret-scan surfaces (`audit`, `check`, `gate`) for a project rooted at
 /// `root`.
@@ -506,6 +535,22 @@ mod tests {
     use super::*;
     use anvil_checks::secret::{AllowlistProvenance, Suppression};
     use anvil_kernel::watcher::filter::IGNORE_DIRS;
+
+    #[test]
+    fn secret_scan_ext_matching_is_case_insensitive_and_shared() {
+        assert!(secret_scan_ext_allowed("ts"));
+        assert!(secret_scan_ext_allowed("TS"));
+        assert!(secret_scan_ext_allowed("JsOn"));
+        assert!(secret_scan_ext_bytes_allowed(b"ts"));
+        assert!(secret_scan_ext_bytes_allowed(b"TS"));
+        assert!(!secret_scan_ext_allowed("py"));
+        assert!(!secret_scan_ext_bytes_allowed(b"PY"));
+        // Canonical list is the only definition gate/audit share.
+        assert_eq!(
+            SECRET_SCAN_EXTS,
+            &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"]
+        );
+    }
 
     #[test]
     fn git_generated_paths_honours_linguist_generated() {

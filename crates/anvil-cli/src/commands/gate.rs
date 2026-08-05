@@ -1003,12 +1003,8 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
 // `follow_links(false)`, the ignore-dir prune, and the >= 1 MiB file
 // skip in `run_secret_check`; none of those needs a depth bound.
 
-/// File extensions gate `secret-detection` allow-lists (plus `.env*`
-/// filenames). Kept in lock-step with `audit::SECRET_SCAN_EXTS` and the
-/// predicates in `secret_path_scannable` / `raw_secret_path_scannable`.
-/// Expanding this list is a product decision — CIB-255 ships disclosure
-/// of the current domain, not silent expansion (see issue #1798).
-const SECRET_SCAN_EXTS: &[&str] = &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"];
+// Secret allow-list extensions: `crate::util::SECRET_SCAN_EXTS` (shared with
+// audit — single definition for issue #1798 lock-step).
 
 /// CIB-255 / GATE-1: domain statement for gate secret-detection.
 ///
@@ -2066,7 +2062,7 @@ fn secret_path_scannable(path: &Path) -> bool {
         || path
             .extension()
             .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| SECRET_SCAN_EXTS.contains(&ext))
+            .is_some_and(crate::util::secret_scan_ext_allowed)
 }
 
 fn secret_scan_directory_allowed(name: &std::ffi::OsStr) -> bool {
@@ -2099,9 +2095,7 @@ fn raw_secret_path_scannable(path: &[u8]) -> bool {
         return false;
     };
     let ext = &file_name[dot + 1..];
-    SECRET_SCAN_EXTS
-        .iter()
-        .any(|allowed| ext.eq_ignore_ascii_case(allowed.as_bytes()))
+    crate::util::secret_scan_ext_bytes_allowed(ext)
 }
 
 fn raw_secret_path_has_allowed_directories(path: &[u8]) -> bool {
@@ -5183,7 +5177,7 @@ mod tests {
     }
 
     /// CIB-280 asked for a guard because nothing coupled the two walks:
-    /// `SECRET_SCAN_EXTS` in `audit.rs` documents that audit and gate must
+    /// `crate::util::SECRET_SCAN_EXTS` documents that audit and gate must
     /// scan the same file set, but only the *extension lists* were kept in
     /// lock-step by comment — the traversals drifted silently, which is how
     /// the depth cap survived.
@@ -10618,7 +10612,7 @@ rules: []
     /// Allow-list constant stays in lock-step with the path predicates.
     #[test]
     fn secret_path_scannable_matches_secret_scan_exts_constant() {
-        for ext in SECRET_SCAN_EXTS {
+        for ext in crate::util::SECRET_SCAN_EXTS {
             let path = std::path::PathBuf::from(format!("src/leak.{ext}"));
             assert!(
                 secret_path_scannable(&path),
@@ -10634,6 +10628,36 @@ rules: []
         }
         assert!(secret_path_scannable(std::path::Path::new(".env")));
         assert!(secret_path_scannable(std::path::Path::new(".env.local")));
+    }
+
+    /// Worktree (`Path`) and staged/raw (`[u8]`) predicates must agree on
+    /// ASCII case for the same extension (Copilot review on #3572).
+    #[test]
+    fn secret_path_predicates_agree_on_uppercase_extensions() {
+        let path = std::path::Path::new("src/leak.TS");
+        let raw = b"src/leak.TS";
+        assert_eq!(
+            secret_path_scannable(path),
+            raw_secret_path_scannable(raw),
+            "Path and raw predicates must agree on .TS"
+        );
+        assert!(
+            secret_path_scannable(path),
+            "uppercase .TS must be in-domain (case-insensitive allow-list)"
+        );
+        assert!(raw_secret_path_scannable(raw));
+
+        let out = std::path::Path::new("src/leak.PY");
+        let out_raw = b"src/leak.PY";
+        assert_eq!(
+            secret_path_scannable(out),
+            raw_secret_path_scannable(out_raw),
+            "Path and raw predicates must agree on .PY"
+        );
+        assert!(
+            !secret_path_scannable(out),
+            "uppercase .PY must stay out of domain"
+        );
     }
 
     // ── SARIF adapter (SARIFOUT-005) ────────────────────────────────
