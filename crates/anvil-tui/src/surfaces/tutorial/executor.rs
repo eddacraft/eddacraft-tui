@@ -412,6 +412,30 @@ mod cross_platform_tests {
             "the structured directory operation must never build sh/cmd"
         );
     }
+
+    /// CIB-261: Policy-checks re-run must not hard-stop when `.anvil/policies`
+    /// already exists. The step still *displays* platform-native `mkdir` text
+    /// (Windows without `-p`), but execution is `create_dir_all` under the
+    /// structured filesystem path — so a second pass is a no-op success.
+    #[test]
+    fn policy_directory_creation_is_idempotent_when_directory_already_exists() {
+        let root = tempfile::tempdir().expect("workspace");
+        let command = policy_directory_command();
+
+        let first = execute_command_in(command, root.path());
+        assert!(first.success, "first create stderr: {}", first.stderr);
+        assert_eq!(first.exit_code, Some(0));
+        assert!(root.path().join(".anvil/policies").is_dir());
+
+        let second = execute_command_in(command, root.path());
+        assert!(
+            second.success,
+            "re-run must not fail when the directory already exists; stderr: {}",
+            second.stderr
+        );
+        assert_eq!(second.exit_code, Some(0));
+        assert!(root.path().join(".anvil/policies").is_dir());
+    }
 }
 
 #[cfg(all(test, unix))]
