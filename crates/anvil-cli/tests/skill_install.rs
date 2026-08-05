@@ -231,6 +231,117 @@ fn install_output_never_echoes_a_windows_verbatim_prefix() {
     );
 }
 
+/// CIB-282. The `--json` branch sits immediately above the human one in
+/// `run_install` and used to serialise the same value as a raw `PathBuf`, so
+/// serde emitted the underlying string and the `\\?\` prefix survived — one
+/// surface, two path styles, which is what CIB-237 was filed to end.
+///
+/// The assertions are on the JSON **string**, never on a deserialised
+/// `PathBuf`: `Path` equality is component-wise and Windows accepts `/`, so a
+/// `PathBuf` comparison would pass on every platform whether or not the
+/// prefix was stripped.
+#[test]
+fn install_json_never_emits_a_windows_verbatim_prefix() {
+    let output = Command::new(ANVIL_BIN)
+        .args([
+            "--no-tui",
+            "--json",
+            "skill",
+            "install",
+            "--dry-run",
+            "--client",
+            "claude-code",
+            "--scope",
+            "project",
+            "--workspace",
+            r"\\?\C:\project",
+        ])
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("invoke anvil skill install");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // The raw payload: in JSON each backslash is escaped, so the leaked
+    // prefix appears as `\\\\?\\`. Checking the wire form catches it even if
+    // the envelope shape changes.
+    assert!(
+        !stdout.contains(r"\\\\?\\"),
+        "verbatim prefix survived into the JSON payload: {stdout}"
+    );
+
+    let value: Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("skill install --json did not emit JSON ({err}): {stdout}"));
+    let path = value["targets"][0]["path"]
+        .as_str()
+        .unwrap_or_else(|| panic!("targets[0].path is not a string: {stdout}"));
+
+    assert!(
+        !path.contains(r"\\?\"),
+        "targets[0].path carries the verbatim prefix: {path}"
+    );
+    assert!(
+        path.contains(r"C:\project"),
+        "targets[0].path should still name the requested workspace: {path}"
+    );
+}
+
+/// CIB-282. The verbatim UNC form takes a different branch of
+/// `strip_verbatim_prefix` — it has to regain the leading `\\` that the
+/// prefix subsumes, or `\\?\UNC\server\share` renders as `server\share`,
+/// which reads as a relative path. The drive-letter case above cannot catch
+/// that, so JSON gets its own guard for it.
+#[test]
+fn install_json_renders_a_verbatim_unc_path_as_a_usable_unc_path() {
+    let output = Command::new(ANVIL_BIN)
+        .args([
+            "--no-tui",
+            "--json",
+            "skill",
+            "install",
+            "--dry-run",
+            "--client",
+            "claude-code",
+            "--scope",
+            "project",
+            "--workspace",
+            r"\\?\UNC\server\share",
+        ])
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("invoke anvil skill install");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let value: Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("skill install --json did not emit JSON ({err}): {stdout}"));
+    let path = value["targets"][0]["path"]
+        .as_str()
+        .unwrap_or_else(|| panic!("targets[0].path is not a string: {stdout}"));
+
+    assert!(
+        !path.contains(r"\\?\"),
+        "targets[0].path carries the verbatim prefix: {path}"
+    );
+    assert!(
+        path.starts_with(r"\\server\share"),
+        "a UNC path must keep its leading double backslash or it reads as relative: {path}"
+    );
+}
+
 #[test]
 fn dry_run_resolves_without_writing() {
     let root = tempfile::tempdir().unwrap();

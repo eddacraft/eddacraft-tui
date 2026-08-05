@@ -61,8 +61,26 @@ struct SkillInstallArgs {
 #[serde(rename_all = "camelCase")]
 struct TargetReport {
     clients: Vec<&'static str>,
-    path: PathBuf,
+    /// The destination as a user should see it, rendered once at construction.
+    ///
+    /// CIB-282: this was a `PathBuf`, which serde serialises as the underlying
+    /// string. The human branch stripped the Windows NT-extended prefix while
+    /// `--json` beside it emitted `\\?\C:\...` verbatim — one surface, two path
+    /// styles, the split CIB-237 was filed to end. Rendering here rather than at
+    /// each print site is what stops the two branches drifting apart again.
+    path: String,
     status: &'static str,
+}
+
+impl TargetReport {
+    fn new(clients: Vec<&'static str>, destination: &Path, status: &'static str) -> Self {
+        let path = destination.to_string_lossy();
+        Self {
+            clients,
+            path: crate::display_path::strip_verbatim_prefix(&path).into_owned(),
+            status,
+        }
+    }
 }
 
 pub fn run(args: &SkillArgs, global: &GlobalArgs) -> Result<()> {
@@ -110,11 +128,7 @@ fn run_install(args: &SkillInstallArgs, global: &GlobalArgs) -> Result<()> {
         } else {
             install_bundle(&destination)?
         };
-        reports.push(TargetReport {
-            clients,
-            path: destination,
-            status,
-        });
+        reports.push(TargetReport::new(clients, &destination, status));
     }
 
     if global.json {
@@ -129,12 +143,11 @@ fn run_install(args: &SkillInstallArgs, global: &GlobalArgs) -> Result<()> {
         );
     } else {
         for report in reports {
-            // CIB-237: a `--workspace` given as a Windows NT-extended path
-            // would otherwise print `\\?\C:\...` back at the user.
-            let path = report.path.to_string_lossy();
+            // CIB-237 / CIB-282: already rendered by `TargetReport::new`, so
+            // this branch and `--json` above cannot disagree about the path.
             println!(
                 "{} [{}] — {}",
-                crate::display_path::strip_verbatim_prefix(&path),
+                report.path,
                 report.clients.join(", "),
                 report.status
             );
