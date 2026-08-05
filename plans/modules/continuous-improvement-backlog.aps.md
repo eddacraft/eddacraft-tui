@@ -6801,7 +6801,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
 | RETRACT-1 | correction / conditioned anchors (no standalone CIB) | **Absorbed** into **CIB-251** (Anchor A / file-mode) + **CIB-255** (Anchor B / gate domain); pack-03 uses **CIB-250** for tutorial safety chain (unrelated) |
-| HOOK-1 | net-new honesty (opt-in `--config`; one git; **out of normal-path cut**) | **CIB-251** Ready **P3** |
+| HOOK-1 | net-new honesty (opt-in `--config`; one git; **out of the normal-path cutline**) | **CIB-251** Ready **P3** |
 | WS-1 | net-new trust (false success) | **CIB-252** Ready P0 · coords CIB-160 |
 | STATUS-1 | net-new honesty | **CIB-253** Ready P1 |
 | STATUS-2 | absorbed into CIB-235 | CIB-235 pack-02 extension |
@@ -6875,7 +6875,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 ### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
 
 - **Status:** Ready
-- **Priority:** P3 honesty (opt-in `--config` only; **out of normal-user-path
+- **Priority:** P3 honesty (opt-in `--config` only; **out of the normal-path
   cutline** for v0.9.3 — default file-mode remains the supported path)
 - **Cutline:** Not a first-timer / default-hooks ship gate. Track for operators
   who choose `hooks install --config`. Do not schedule as pack-02 P1 capacity
