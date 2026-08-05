@@ -43,9 +43,9 @@ not an activated anvil dependency or release compatibility floor.
 | `benchmark-results/manual-20260803T062924Z-kindling/`                                                         | Full HTML reports, source snapshot, diff                | Local, gitignored  |
 
 The standard-profile SHA-256 is
-`861e3fbfe23471b4a937670824c10e543f32b73ec58d5b51d43feaa34e936665`. The
+`558a117c2188f51460b6228d15d782efbc73b87f4c1d32921c75bfbe8f735550`. The
 stress-profile SHA-256 is
-`0a5f1ef972cc6ada2aff6871568cae8b27e62bf2920153aec9dba0c0d1af76a7`.
+`ea0ff63299573852b9452fb2ce52a383a3d4f7a75db26b335851bed183a78c25`.
 
 ## Results and budgets
 
