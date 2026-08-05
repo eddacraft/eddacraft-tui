@@ -161,6 +161,10 @@ impl WatchOutputMode {
     const fn writes_human_banners(self) -> bool {
         matches!(self, Self::Plain { .. })
     }
+
+    const fn writes_json_events(self) -> bool {
+        matches!(self, Self::Json)
+    }
 }
 
 /// WOUT-003: per-line warning channel for advice that is *not* part of
@@ -846,6 +850,7 @@ struct WatchJsonEmitterState {
 #[derive(Clone)]
 struct WatchJsonEmitter {
     inner: Arc<std::sync::Mutex<WatchJsonEmitterState>>,
+    terminal_error_kind: Arc<std::sync::Mutex<Option<std::io::ErrorKind>>>,
 }
 
 impl WatchJsonEmitter {
@@ -855,6 +860,7 @@ impl WatchJsonEmitter {
                 next_seq: 0,
                 writer,
             })),
+            terminal_error_kind: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
@@ -866,9 +872,22 @@ impl WatchJsonEmitter {
         let mut state = recover(self.inner.lock());
         envelope.seq = state.next_seq;
         state.next_seq = state.next_seq.saturating_add(1);
-        serde_json::to_writer(&mut state.writer, &envelope)?;
-        state.writer.write_all(b"\n")?;
-        state.writer.flush()
+        let result = (|| {
+            serde_json::to_writer(&mut state.writer, &envelope)?;
+            state.writer.write_all(b"\n")?;
+            state.writer.flush()
+        })();
+        if let Err(err) = &result {
+            let mut terminal = recover(self.terminal_error_kind.lock());
+            if terminal.is_none() {
+                *terminal = Some(err.kind());
+            }
+        }
+        result
+    }
+
+    fn terminal_error_kind(&self) -> Option<std::io::ErrorKind> {
+        *recover(self.terminal_error_kind.lock())
     }
 
     fn emit_kernel_event(&self, event: &anvil_kernel_types::EngineEvent) -> std::io::Result<()> {
@@ -1526,7 +1545,9 @@ impl DispatcherInner {
         } else if let Some(emitter) = self.json_emitter.as_ref() {
             let result = daemon_watch_action_result(&self.action, elapsed, response);
             let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-            if let Err(err) = emitter.emit_action_result(timestamp, result) {
+            if let Err(err) = emitter.emit_action_result(timestamp, result)
+                && err.kind() != std::io::ErrorKind::BrokenPipe
+            {
                 tracing::warn!(error = %err, "failed to emit JSON daemon verdict");
             }
         } else {
@@ -1565,10 +1586,27 @@ impl DispatcherInner {
         assurance_detail: Option<String>,
         assurance_degraded: bool,
     ) {
+        let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+        if let Some(emitter) = self.json_emitter.as_ref() {
+            let result = WatchActionResult {
+                action: self.action.clone(),
+                exit_code,
+                duration_ms,
+                error_detail,
+                daemon_verdict: None,
+            };
+            let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            if let Err(err) = emitter.emit_action_result(timestamp, result)
+                && err.kind() != std::io::ErrorKind::BrokenPipe
+            {
+                tracing::warn!(error = %err, "failed to emit JSON subprocess action result");
+            }
+            return;
+        }
+
         let Some(sender) = self.sender.as_ref() else {
             return;
         };
-        let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
         let line = anvil_tui::surfaces::watch::ActionResultLine {
             action: self.action.clone(),
             exit_code,
@@ -1839,7 +1877,9 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     .context("setting Ctrl-C handler")?;
 
     let non_tui = !matches!(output_mode, WatchOutputMode::Tui);
-    let json_emitter = global.json.then(WatchJsonEmitter::stdout);
+    let json_emitter = output_mode
+        .writes_json_events()
+        .then(WatchJsonEmitter::stdout);
 
     // LAUNCH-002: in TUI mode, the dispatcher emits ActionResultLine records
     // through a sync_channel(1) into the watch loop. The bound is intentional
@@ -1865,6 +1905,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             json_emitter.clone(),
         )
     });
+    let mut background_json_error = None;
 
     if non_tui {
         warn_if_tui_fell_back(output_mode);
@@ -1872,6 +1913,13 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 
         loop {
             if shutdown.load(Ordering::SeqCst) {
+                break;
+            }
+            if let Some(kind) = json_emitter
+                .as_ref()
+                .and_then(WatchJsonEmitter::terminal_error_kind)
+            {
+                background_json_error = Some(kind);
                 break;
             }
             match event_rx.recv_timeout(std::time::Duration::from_millis(250)) {
@@ -1987,7 +2035,16 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     //   3. Stop the kernel watcher.
     drop(action_rx);
     drop(dispatcher);
+    if background_json_error.is_none() {
+        background_json_error = json_emitter
+            .as_ref()
+            .and_then(WatchJsonEmitter::terminal_error_kind);
+    }
     handle.stop().context("stopping watcher")?;
+    if let Some(kind) = background_json_error {
+        continue_after_watch_json_emit(Err(std::io::Error::from(kind)))
+            .context("emitting watch JSON action result")?;
+    }
     Ok(())
 }
 
@@ -2746,6 +2803,57 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(sequences, (0..16).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn json_emitter_preserves_terminal_error_kind_and_shared_stop_semantics() {
+        struct ErrorWriter(std::io::ErrorKind);
+
+        impl std::io::Write for ErrorWriter {
+            fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(self.0))
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        for (kind, clean_stop) in [
+            (std::io::ErrorKind::BrokenPipe, true),
+            (std::io::ErrorKind::Other, false),
+        ] {
+            let emitter = WatchJsonEmitter::new(Box::new(ErrorWriter(kind)));
+            let err = emitter
+                .emit_action_result(
+                    "2026-08-05T00:00:00Z",
+                    WatchActionResult {
+                        action: "check".to_string(),
+                        exit_code: Some(1),
+                        duration_ms: 1,
+                        error_detail: None,
+                        daemon_verdict: None,
+                    },
+                )
+                .expect_err("failing consumer must reject action_result");
+            assert_eq!(err.kind(), kind);
+            assert_eq!(
+                emitter.terminal_error_kind(),
+                Some(kind),
+                "worker output failure must publish its kind to the watch loop"
+            );
+            let decision = continue_after_watch_json_emit(Err(std::io::Error::from(kind)));
+            if clean_stop {
+                assert!(!decision.expect("BrokenPipe is a clean stop"));
+            } else {
+                assert_eq!(
+                    decision
+                        .expect_err("other output failures must propagate")
+                        .kind(),
+                    kind
+                );
+            }
+        }
     }
 
     #[test]
@@ -3933,10 +4041,12 @@ mod tests {
     #[test]
     fn watch_save_time_driver_mode_is_headless() {
         assert!(!WatchOutputMode::Driver.writes_human_banners());
+        assert!(!WatchOutputMode::Driver.writes_json_events());
         assert!(
             !matches!(WatchOutputMode::Driver, WatchOutputMode::Tui),
             "driver mode must be non-TUI"
         );
+        assert!(WatchOutputMode::Json.writes_json_events());
     }
 
     /// A daemon verdict in driver mode appends the rendered findings to the

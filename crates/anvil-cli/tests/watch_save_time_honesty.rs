@@ -7,20 +7,23 @@
 #![cfg(unix)]
 
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anvil_kernel_types::watch_event::WatchEventPayload;
-use anvil_kernel_types::{WatchEventEnvelope, WatchEventType};
+use anvil_kernel_types::watch_event::WatchActionResult;
+use serde_json::{Value, json};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const WAIT_BUDGET: Duration = Duration::from_secs(12);
 const SAVE_COUNT: usize = 3;
+const SPY_SHUTDOWN_SENTINEL: &str = "__cib283_spy_shutdown__\n";
 
 fn configure_private_env(command: &mut Command, home: &Path) {
     command
@@ -103,6 +106,178 @@ impl Drop for DaemonGuard {
     }
 }
 
+fn forward_rpc_connection(
+    client: &UnixStream,
+    mut client_reader: BufReader<UnixStream>,
+    mut request: String,
+    upstream_socket: &Path,
+    request_frames: &AtomicUsize,
+) -> std::io::Result<()> {
+    client.set_write_timeout(Some(WAIT_BUDGET))?;
+    let mut client_writer = client.try_clone()?;
+
+    let upstream = UnixStream::connect(upstream_socket)?;
+    upstream.set_read_timeout(Some(WAIT_BUDGET))?;
+    upstream.set_write_timeout(Some(WAIT_BUDGET))?;
+    let mut upstream_writer = upstream.try_clone()?;
+    let mut upstream_reader = BufReader::new(upstream);
+
+    loop {
+        request_frames.fetch_add(1, Ordering::SeqCst);
+        upstream_writer.write_all(request.as_bytes())?;
+        upstream_writer.flush()?;
+
+        let mut response = String::new();
+        if upstream_reader.read_line(&mut response)? == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "daemon closed before replying to the spy",
+            ));
+        }
+        client_writer.write_all(response.as_bytes())?;
+        client_writer.flush()?;
+
+        request.clear();
+        if client_reader.read_line(&mut request)? == 0 {
+            return Ok(());
+        }
+    }
+}
+
+struct DaemonRpcSpy {
+    socket: PathBuf,
+    accepted_connections: Arc<AtomicUsize>,
+    request_frames: Arc<AtomicUsize>,
+    shutdown: Arc<AtomicBool>,
+    worker: Option<thread::JoinHandle<()>>,
+    stopped_rx: mpsc::Receiver<()>,
+}
+
+impl DaemonRpcSpy {
+    fn spawn(home: &Path, upstream_socket: &Path) -> Self {
+        fs::set_permissions(home, fs::Permissions::from_mode(0o700))
+            .expect("secure spy ANVIL_HOME");
+        let socket = home.join("intercept.sock");
+        let listener = UnixListener::bind(&socket).expect("bind daemon RPC spy");
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))
+            .expect("secure daemon RPC spy socket");
+
+        let accepted_connections = Arc::new(AtomicUsize::new(0));
+        let request_frames = Arc::new(AtomicUsize::new(0));
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let (stopped_tx, stopped_rx) = mpsc::channel();
+        let accepted_worker = Arc::clone(&accepted_connections);
+        let frames_worker = Arc::clone(&request_frames);
+        let shutdown_worker = Arc::clone(&shutdown);
+        let upstream_socket = upstream_socket.to_path_buf();
+        let worker = thread::spawn(move || {
+            loop {
+                let (client, _) = listener.accept().expect("accept daemon RPC spy client");
+                client
+                    .set_read_timeout(Some(WAIT_BUDGET))
+                    .expect("bound daemon RPC spy client read");
+                let mut client_reader =
+                    BufReader::new(client.try_clone().expect("clone daemon RPC spy client"));
+                let mut first_request = String::new();
+                client_reader
+                    .read_line(&mut first_request)
+                    .expect("read first daemon RPC spy frame");
+                if shutdown_worker.load(Ordering::SeqCst) && first_request == SPY_SHUTDOWN_SENTINEL
+                {
+                    break;
+                }
+                accepted_worker.fetch_add(1, Ordering::SeqCst);
+                if !first_request.is_empty() {
+                    forward_rpc_connection(
+                        &client,
+                        client_reader,
+                        first_request,
+                        &upstream_socket,
+                        &frames_worker,
+                    )
+                    .expect("forward daemon RPC frame");
+                }
+            }
+            let _ = stopped_tx.send(());
+        });
+
+        Self {
+            socket,
+            accepted_connections,
+            request_frames,
+            shutdown,
+            worker: Some(worker),
+            stopped_rx,
+        }
+    }
+
+    fn accepted_connections(&self) -> usize {
+        self.accepted_connections.load(Ordering::SeqCst)
+    }
+
+    fn request_frames(&self) -> usize {
+        self.request_frames.load(Ordering::SeqCst)
+    }
+
+    fn reset_counts(&self) {
+        self.accepted_connections.store(0, Ordering::SeqCst);
+        self.request_frames.store(0, Ordering::SeqCst);
+    }
+
+    fn request_shutdown(&self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        if let Ok(mut stream) = UnixStream::connect(&self.socket) {
+            let _ = stream.write_all(SPY_SHUTDOWN_SENTINEL.as_bytes());
+            let _ = stream.flush();
+        }
+    }
+
+    fn stop(&mut self) {
+        let Some(worker) = self.worker.take() else {
+            return;
+        };
+        self.request_shutdown();
+        self.stopped_rx
+            .recv_timeout(WAIT_BUDGET)
+            .expect("daemon RPC spy stopped within budget");
+        worker.join().expect("join daemon RPC spy");
+    }
+}
+
+impl Drop for DaemonRpcSpy {
+    fn drop(&mut self) {
+        if let Some(worker) = self.worker.take() {
+            self.request_shutdown();
+            if self.stopped_rx.recv_timeout(WAIT_BUDGET).is_ok() {
+                let _ = worker.join();
+            }
+        }
+    }
+}
+
+fn workspace_status_through_spy(socket: &Path, workspace: &Path) -> Value {
+    let mut stream = UnixStream::connect(socket).expect("connect daemon RPC spy");
+    stream
+        .set_read_timeout(Some(WAIT_BUDGET))
+        .expect("bound spy preflight read");
+    stream
+        .set_write_timeout(Some(WAIT_BUDGET))
+        .expect("bound spy preflight write");
+    let frame = json!({
+        "jsonrpc": "2.0",
+        "method": "anvil/workspace_status",
+        "params": { "workspace_root": workspace },
+        "id": "cib-283-spy-preflight",
+    });
+    writeln!(stream, "{frame}").expect("write spy preflight");
+
+    let mut response = String::new();
+    BufReader::new(stream)
+        .read_line(&mut response)
+        .expect("read spy preflight response");
+    serde_json::from_str(response.trim_end()).expect("parse spy preflight response")
+}
+
 fn pump_lines(
     reader: impl Read + Send + 'static,
     sender: mpsc::Sender<String>,
@@ -130,12 +305,22 @@ struct WatchProcess {
 
 impl WatchProcess {
     fn spawn(workspace: &Path, home: &Path, json: bool, no_daemon: bool) -> Self {
+        Self::spawn_with_action(workspace, home, json, no_daemon, "check")
+    }
+
+    fn spawn_with_action(
+        workspace: &Path,
+        home: &Path,
+        json: bool,
+        no_daemon: bool,
+        action: &str,
+    ) -> Self {
         let mut command = Command::new(ANVIL_BIN);
         command.arg("--no-tui");
         if json {
             command.arg("--json");
         }
-        command.args(["watch", "--debounce", "50"]);
+        command.args(["watch", "--debounce", "50", "--action", action]);
         if no_daemon {
             command.arg("--no-daemon");
         }
@@ -255,8 +440,9 @@ impl WatchProcess {
         let start = self.stdout.len();
         self.wait_stdout_after(start, "initial watch snapshot", |line| {
             if json {
-                serde_json::from_str::<WatchEventEnvelope>(line)
-                    .is_ok_and(|event| event.event_type == WatchEventType::Snapshot)
+                serde_json::from_str::<Value>(line).is_ok_and(|event| {
+                    event.get("event_type").and_then(Value::as_str) == Some("snapshot")
+                })
             } else {
                 line.contains("initial scan complete")
             }
@@ -331,6 +517,237 @@ fn exercise_fallback_route(home: &Path, no_daemon: bool) {
 }
 
 #[test]
+fn json_fallback_check_and_gate_emit_ordered_action_results_without_daemon_evidence() {
+    let home = tempfile::tempdir().expect("private ANVIL_HOME");
+
+    for (action, expected_exit_code) in [("check", 1), ("gate", 2)] {
+        let (workspace, source) = new_workspace();
+        let mut watch =
+            WatchProcess::spawn_with_action(workspace.path(), home.path(), true, true, action);
+        watch.wait_ready(true);
+
+        let start = watch.stdout.len();
+        save_secret(&source, 0);
+        watch.wait_stdout_after(start, "JSON fallback action_result", |line| {
+            serde_json::from_str::<Value>(line).is_ok_and(|event| {
+                event.get("event_type").and_then(Value::as_str) == Some("action_result")
+                    && event.pointer("/payload/action").and_then(Value::as_str) == Some(action)
+            })
+        });
+        watch.stop();
+
+        let events = watch
+            .stdout
+            .iter()
+            .map(|line| {
+                serde_json::from_str::<Value>(line).unwrap_or_else(|err| {
+                    panic!("stdout must be pure NDJSON: {err}; line={line:?}")
+                })
+            })
+            .collect::<Vec<_>>();
+        let sequences = events
+            .iter()
+            .map(|event| {
+                event
+                    .get("seq")
+                    .and_then(Value::as_u64)
+                    .expect("watch event seq must be a u64")
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            sequences.windows(2).all(|pair| pair[0] < pair[1]),
+            "outer sequence numbers must be unique and follow stdout order for {action}: {sequences:?}"
+        );
+
+        let action_event = events
+            .iter()
+            .skip(start)
+            .find(|event| {
+                event.get("event_type").and_then(Value::as_str) == Some("action_result")
+                    && event.pointer("/payload/action").and_then(Value::as_str) == Some(action)
+            })
+            .unwrap_or_else(|| panic!("missing fallback action_result for {action}"));
+        assert_eq!(
+            action_event.get("event_type").and_then(Value::as_str),
+            Some("action_result")
+        );
+        let result: WatchActionResult = serde_json::from_value(action_event["payload"].clone())
+            .expect("known action_result payload must match the v1 shape");
+        assert_eq!(result.action, action);
+        assert_eq!(result.exit_code, Some(expected_exit_code));
+        assert_eq!(result.error_detail, None);
+        assert_eq!(
+            result.daemon_verdict, None,
+            "fallback result must not imply daemon assurance: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn no_daemon_makes_zero_rpc_calls_to_a_live_daemon_endpoint() {
+    let live_home = tempfile::tempdir().expect("live ANVIL_HOME");
+    let mut daemon = DaemonGuard::spawn(live_home.path());
+    daemon.wait_ready(live_home.path());
+
+    let spy_home = tempfile::tempdir().expect("spy ANVIL_HOME");
+    let mut spy = DaemonRpcSpy::spawn(spy_home.path(), &live_home.path().join("intercept.sock"));
+    let (workspace, source) = new_workspace();
+
+    let preflight = workspace_status_through_spy(&spy.socket, workspace.path());
+    assert!(
+        preflight.get("error").is_none(),
+        "spy must forward a real workspace_status response: {preflight}"
+    );
+    assert!(
+        preflight
+            .pointer("/result/workspace_assurance/state")
+            .and_then(Value::as_str)
+            .is_some(),
+        "spy preflight must receive real daemon assurance: {preflight}"
+    );
+    assert!(
+        spy.accepted_connections() > 0,
+        "preflight must prove accepted-connection observability"
+    );
+    assert!(
+        spy.request_frames() > 0,
+        "preflight must prove NDJSON request-frame observability"
+    );
+    spy.reset_counts();
+
+    let mut watch = WatchProcess::spawn(workspace.path(), spy_home.path(), false, true);
+    watch.wait_ready(false);
+    assert!(
+        watch
+            .stderr
+            .iter()
+            .any(|line| line.contains("scoped fallback")),
+        "--no-daemon must report the scoped fallback: {:?}",
+        watch.stderr
+    );
+    let stdout_start = watch.stdout.len();
+    let stderr_start = watch.stderr.len();
+    save_secret(&source, 0);
+    watch.wait_stdout_after(stdout_start, "fallback secret finding", |line| {
+        line.contains("AWS Key")
+    });
+    watch.wait_stderr_after(stderr_start, "fallback check result", |line| {
+        line.contains("Action 'check' exited with code 1")
+    });
+    watch.stop();
+
+    let barrier = workspace_status_through_spy(&spy.socket, workspace.path());
+    assert!(
+        barrier.get("error").is_none(),
+        "post-stop barrier must receive a real daemon response: {barrier}"
+    );
+    assert!(
+        barrier
+            .pointer("/result/workspace_assurance/state")
+            .and_then(Value::as_str)
+            .is_some(),
+        "post-stop barrier must receive daemon assurance: {barrier}"
+    );
+    let watch_connections = spy
+        .accepted_connections()
+        .checked_sub(1)
+        .expect("post-stop barrier connection must be counted");
+    let watch_frames = spy
+        .request_frames()
+        .checked_sub(1)
+        .expect("post-stop barrier frame must be counted");
+    assert_eq!(
+        watch_connections, 0,
+        "--no-daemon opened the spy before the post-stop barrier"
+    );
+    assert_eq!(
+        watch_frames, 0,
+        "--no-daemon sent an RPC frame before the post-stop barrier"
+    );
+    spy.stop();
+}
+
+#[test]
+fn json_watch_exits_when_consumer_closes_after_triggering_snapshot() {
+    let home = tempfile::tempdir().expect("private ANVIL_HOME");
+    let (workspace, source) = new_workspace();
+    let mut command = Command::new(ANVIL_BIN);
+    command.args([
+        "--no-tui",
+        "--json",
+        "watch",
+        "--debounce",
+        "50",
+        "--no-daemon",
+    ]);
+    configure_private_env(&mut command, home.path());
+    command
+        .current_dir(workspace.path())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    let mut child = command.spawn().expect("spawn JSON watch");
+    let stdout = child.stdout.take().expect("piped JSON watch stdout");
+    let (snapshot_tx, snapshot_rx) = mpsc::channel();
+    let reader = thread::spawn(move || {
+        let mut snapshot_count = 0usize;
+        for line in BufReader::new(stdout).lines() {
+            let line = line.expect("read JSON watch line");
+            let event: Value = serde_json::from_str(&line).expect("watch stdout is NDJSON");
+            if event.get("event_type").and_then(Value::as_str) == Some("snapshot") {
+                snapshot_count += 1;
+                snapshot_tx
+                    .send(snapshot_count)
+                    .expect("report observed snapshot");
+                if snapshot_count == 2 {
+                    break;
+                }
+            }
+        }
+    });
+
+    assert_eq!(
+        snapshot_rx
+            .recv_timeout(WAIT_BUDGET)
+            .expect("initial snapshot within budget"),
+        1
+    );
+    let key = ["AKIA", "QRSTUVWXYZ", "123456"].concat();
+    fs::write(
+        &source,
+        format!(
+            "export const accessKey = \"{key}\";\nexport const padding = \"{}\";\n",
+            "x".repeat(1 << 20)
+        ),
+    )
+    .expect("write slow-enough triggering save");
+    assert_eq!(
+        snapshot_rx
+            .recv_timeout(WAIT_BUDGET)
+            .expect("triggering snapshot within budget"),
+        2
+    );
+    reader.join().expect("close JSON consumer");
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Some(status) = child.try_wait().expect("poll JSON watch") {
+            assert!(
+                status.success(),
+                "BrokenPipe shutdown must be clean: {status}"
+            );
+            break;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("JSON watch did not exit after the action_result consumer closed");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
 fn watch_save_time_routes_remain_family_scoped_and_fallback_safe() {
     let live_home = tempfile::tempdir().expect("live ANVIL_HOME");
     let mut daemon = DaemonGuard::spawn(live_home.path());
@@ -380,30 +797,40 @@ fn watch_save_time_routes_remain_family_scoped_and_fallback_safe() {
         let start = json.stdout.len();
         save_secret(&json_source, iteration);
         json.wait_stdout_after(start, "JSON daemon action_result", |line| {
-            serde_json::from_str::<WatchEventEnvelope>(line)
-                .is_ok_and(|event| event.event_type == WatchEventType::ActionResult)
+            serde_json::from_str::<Value>(line).is_ok_and(|event| {
+                event.get("event_type").and_then(Value::as_str) == Some("action_result")
+            })
         });
         let result = json.stdout[start..]
             .iter()
-            .filter_map(|line| serde_json::from_str::<WatchEventEnvelope>(line).ok())
-            .find_map(|event| match event.payload {
-                WatchEventPayload::ActionResult(result) => Some(result),
-                _ => None,
+            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+            .find(|event| event.get("event_type").and_then(Value::as_str) == Some("action_result"))
+            .map(|event| {
+                serde_json::from_value::<WatchActionResult>(event["payload"].clone())
+                    .expect("known action_result payload must match the v1 shape")
             })
             .expect("matching action_result payload");
         daemon_results.push(result);
     }
     json.stop();
 
-    let envelopes = json
+    let events = json
         .stdout
         .iter()
         .map(|line| {
-            serde_json::from_str::<WatchEventEnvelope>(line)
+            serde_json::from_str::<Value>(line)
                 .unwrap_or_else(|err| panic!("stdout must be pure NDJSON: {err}; line={line:?}"))
         })
         .collect::<Vec<_>>();
-    let sequences = envelopes.iter().map(|event| event.seq).collect::<Vec<_>>();
+    let sequences = events
+        .iter()
+        .map(|event| {
+            event
+                .get("seq")
+                .and_then(Value::as_u64)
+                .expect("watch event seq must be a u64")
+        })
+        .collect::<Vec<_>>();
     assert!(
         sequences.windows(2).all(|pair| pair[0] < pair[1]),
         "outer sequence numbers must be unique and follow stdout order: {sequences:?}"

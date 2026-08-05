@@ -1,8 +1,8 @@
 # Watch Output Contract — `anvil.watch.event.v1`
 
-| Type | Authority     | Owner                                                                                                                   | Status | Freshness                                                                                           |
-| ---- | ------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](../../plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-08-05 against CIB-254 machine-output activation and the daemon save-time verdict |
+| Type | Authority     | Owner                                                                                                                   | Status | Freshness                                                                                               |
+| ---- | ------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](../../plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-08-05 against CIB-283 fallback action-result parity and the daemon save-time verdict |
 
 | Upstream                                                                                                                                          | Downstream                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -69,13 +69,13 @@ Every line on stdout in `--json watch` mode deserialises to:
 }
 ```
 
-| Field            | Type          | Required | Purpose                                                                                                                                                                                                                                                                                                                                        |
-| ---------------- | ------------- | :------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema_version` | string        |   yes    | Outer envelope version. Current: `anvil.watch.event.v1`. Bumps only on breaking changes.                                                                                                                                                                                                                                                       |
-| `seq`            | integer (u64) |   yes    | Unique per-process sequence. Starts at 0 on process start. Producers may emit events from multiple worker threads, so a consumer MAY observe two events with consecutive seqs in either order; what is guaranteed is uniqueness within a process and strictly-increasing minted values. Consumers use it to detect dropped or reordered lines. |
-| `timestamp`      | string        |   yes    | ISO 8601 UTC timestamp ending in `Z`. Second precision in v1 (e.g. `2026-05-14T10:21:33Z`). Producers MAY emit sub-second precision in additive releases; consumers MUST accept both forms.                                                                                                                                                    |
-| `event_type`     | string        |   yes    | Discriminator. v1 known values: `progress`, `snapshot`, `violation`, `error`, `action_result`.                                                                                                                                                                                                                                                 |
-| `payload`        | object        |   yes    | Event-specific payload. Shape depends on `event_type`. Unknown `event_type` values MUST have an object payload so v1 consumers can skip them without parse errors.                                                                                                                                                                             |
+| Field            | Type          | Required | Purpose                                                                                                                                                                                                                                                                                                |
+| ---------------- | ------------- | :------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `schema_version` | string        |   yes    | Outer envelope version. Current: `anvil.watch.event.v1`. Bumps only on breaking changes.                                                                                                                                                                                                               |
+| `seq`            | integer (u64) |   yes    | Unique per-process sequence. Starts at 0 on process start. All stdout producers share the run-scoped allocator and serialised writer, so emitted lines appear in strictly increasing `seq` order. Consumers use gaps to detect dropped lines; unknown event types do not change ordering or tolerance. |
+| `timestamp`      | string        |   yes    | ISO 8601 UTC timestamp ending in `Z`. Second precision in v1 (e.g. `2026-05-14T10:21:33Z`). Producers MAY emit sub-second precision in additive releases; consumers MUST accept both forms.                                                                                                            |
+| `event_type`     | string        |   yes    | Discriminator. v1 known values: `progress`, `snapshot`, `violation`, `error`, `action_result`.                                                                                                                                                                                                         |
+| `payload`        | object        |   yes    | Event-specific payload. Shape depends on `event_type`. Unknown `event_type` values MUST have an object payload so v1 consumers can skip them without parse errors.                                                                                                                                     |
 
 ### Compatibility rule
 
@@ -193,10 +193,11 @@ A producer MUST:
 ### `action_result`
 
 `action_result` is a general additive shape for the observable outcome of a
-dispatched watch action. Its initial CIB-254 producer scope is narrower: watch
-emits it only for daemon-supplied `check` verdicts. Subprocess `check` and
-`gate` outcomes are not re-enveloped in this slice. The required `action` field
-is structurally unique among WOUT-v1 payload variants.
+dispatched watch action. Watch emits it for daemon-supplied `check` verdicts and
+subprocess outcomes from fallback `check` and `gate` actions. Every producer
+uses the same run-scoped emitter, so `action_result` shares one sequence
+allocator and stdout ordering with kernel events. The required `action` field is
+structurally unique among WOUT-v1 payload variants.
 
 ```json
 {
@@ -220,13 +221,17 @@ is structurally unique among WOUT-v1 payload variants.
 }
 ```
 
-| Field            | Type          | Required | Notes                                                                                                                                                           |
-| ---------------- | ------------- | :------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `action`         | string        |   yes    | The dispatched action name. The current producer emits `check`; future additive producers may use values such as `gate`. This is the structurally unique field. |
-| `exit_code`      | integer\|null | optional | The child or action exit code. Omitted when the action did not exit normally, including cancellation or wait failure.                                           |
-| `duration_ms`    | integer (u64) |   yes    | Wall-clock action duration in milliseconds.                                                                                                                     |
-| `error_detail`   | string\|null  | optional | Cause-specific detail when the action could not report a normal exit.                                                                                           |
-| `daemon_verdict` | object\|null  | optional | Structured save-time daemon evidence when the daemon path supplied the action result.                                                                           |
+| Field            | Type          | Required | Notes                                                                                                                 |
+| ---------------- | ------------- | :------: | --------------------------------------------------------------------------------------------------------------------- |
+| `action`         | string        |   yes    | The dispatched action name. Current producers emit `check` or `gate`. This is the structurally unique field.          |
+| `exit_code`      | integer\|null | optional | The child or action exit code. Omitted when the action did not exit normally, including cancellation or wait failure. |
+| `duration_ms`    | integer (u64) |   yes    | Wall-clock action duration in milliseconds.                                                                           |
+| `error_detail`   | string\|null  | optional | Cause-specific detail when the action could not report a normal exit.                                                 |
+| `daemon_verdict` | object\|null  | optional | Structured save-time daemon evidence when the daemon path supplied the action result.                                 |
+
+A subprocess fallback omits `daemon_verdict`. Its absence means the envelope
+reports only the child action outcome: it provides no daemon assurance,
+coverage, or exact daemon check-family attestation.
 
 A present `daemon_verdict` contains:
 

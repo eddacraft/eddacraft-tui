@@ -112,9 +112,9 @@ record the error and expect the watcher to stop.
 
 ### Action result and daemon scope
 
-`action_result` is general enough for dispatched action outcomes, but its
-current producer scope is daemon-supplied `check` verdicts only. Subprocess
-`check` and `gate` outcomes are not re-enveloped. For a daemon result,
+`action_result` reports daemon-supplied `check` verdicts and subprocess outcomes
+from fallback `check` and `gate` actions. These results share the same sequence
+allocator and stdout ordering as the other watch events. For a daemon result,
 `daemon_verdict` exposes the evidence scope instead of hiding it:
 
 ```json
@@ -143,6 +143,10 @@ The daemon verdict's `diagnostics` are canonical `anvil.diagnostic.v1` objects.
 `check_families` is the exact evaluated scope; the live daemon route currently
 reports `["antipattern"]`. It does not attest secret detection or another family
 that is absent from the array.
+
+A fallback subprocess result omits `daemon_verdict`. Its absence means the
+result carries no daemon assurance, coverage, or exact daemon check-family
+attestation.
 
 Do not treat `exit_code: 0` or `finding_count: 0` as a pass when
 `assurance_state` is not `clean` or `coverage` is `partial`. Surface the state
