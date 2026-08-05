@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 213/280  |
+| CIB | —     | In Progress | 214/280  |
 
 ## Purpose
 
@@ -7756,7 +7756,15 @@ CIB-251/255 only.
 
 ### CIB-277: Fresh worktree pre-commit gate is silently absent or opaquely broken
 
-- **Status:** Ready — promoted by the operator 2026-08-05 (membrane checkpoint).
+- **Status:** Merged 2026-08-05 via PR #3583 (`abe6f0cad`, `0f0627bcc`) — both
+  halves closed under GHOOK-005 Option A: the two shims husky writes are now
+  tracked (force-added past its own ignore rule, byte-identical to its
+  installer output), and the hook probes that the runner and lint-staged
+  actually execute before refusing with a cause, a remedy, and the tool's own
+  stderr. `.husky/**` also now classifies as a shell change, so editing the
+  gate runs the fixtures that exercise it. Verified on `origin/main`: a fresh
+  worktree with zero install refuses a malformed commit, where the pre-fix
+  tree committed it silently at exit 0.
 - **Priority:** P2 tooling (a CI-enforced format gate can be bypassed with no
   signal; contributor-facing, not user-facing)
 - **Intent:** `core.hooksPath = .husky/_` is set in the **shared** repo config
@@ -8019,8 +8027,8 @@ CIB-251/255 only.
 
 ### CIB-282: `skill install --json` still emits the Windows verbatim prefix
 
-- **Status:** Draft — filed from the CIB-279 dev-loop run, not self-authorised.
-  Promotion to Ready is an operator call (membrane checkpoint).
+- **Status:** Ready — promoted by the operator 2026-08-05 (membrane checkpoint).
+  Filed from the CIB-279 dev-loop run, not self-authorised.
 - **Priority:** P3 presentation defect on a machine-readable surface (no wrong
   verdict, no data loss; the path is correct, just carrying a prefix no
   consumer wants)
