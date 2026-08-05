@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 215/281  |
+| CIB | —     | In Progress | 215/282  |
 
 ## Purpose
 
@@ -8150,8 +8150,8 @@ CIB-251/255 only.
 
 ### CIB-285: `skill install` error text still carries the Windows verbatim prefix
 
-- **Status:** Draft — filed from the CIB-282 dev-loop run, not self-authorised.
-  Promotion to Ready is an operator call (membrane checkpoint).
+- **Status:** Ready — promoted by the operator 2026-08-05 (membrane
+  checkpoint). Filed from the CIB-282 dev-loop run, not self-authorised.
 - **Priority:** P4 presentation defect on the failure path only (no wrong
   verdict; the path is correct, just carrying a prefix no reader wants, and
   only when something has already gone wrong)
@@ -8197,3 +8197,68 @@ CIB-251/255 only.
   the evidence. Not reproduced on a Windows host; on Unix the prefix is a
   literal substring rather than a parsed prefix, which does not change the
   conclusion.
+
+### CIB-286: the CIB index row's prose duplicates per-item status and goes stale
+
+- **Status:** Draft — filed from the CIB-282/285 bookkeeping runs, not
+  self-authorised. Promotion to Ready is an operator call (membrane
+  checkpoint).
+- **Priority:** P3 planning-hygiene defect (no runtime surface; it makes
+  `plans/index.aps.md` assert item statuses that contradict the module file,
+  which is the one place agents and humans look first)
+- **Intent:** `scripts/aps/index-counts.mjs` maintains the **count** in a
+  module's index cell and nothing else. `findIndexRow` selects the first cell
+  whose trimmed text *starts with* `N/M`, and the rewrite replaces only that
+  leading token — deliberately, because the script's own comment records that
+  rewriting an arbitrary `N/M` on the line would corrupt prose elsewhere in
+  the index. Everything after the count in that cell is opaque to it.
+
+  The CIB row fills that opaque remainder with a hand-written summary that
+  **duplicates per-item status** — `Ready examples include CIB-…`, followed by
+  parenthetical `… Merged; … Proposed; … Draft` lists. So every status flip
+  updates the count automatically and leaves the summary asserting the old
+  state. The module file and the index then disagree inside a single commit.
+- **Non-scope / do not:** Do not change what `N/M` counts or how
+  `index-counts.mjs` derives it — that part is correct and is not the defect.
+  Do not rewrite other modules' hand-curated prose, which carries planned
+  totals that are deliberately not item-derivable (the script already leaves
+  those alone by design).
+- **Expected Outcome:** the index cannot assert a per-item status that
+  contradicts the module file. Three shapes, in rough order of preference:
+  1. **Stop duplicating.** Drop the per-item status lists from the row and
+     keep the dated intake/reconcile narrative, which is genuinely index-level
+     and not derivable. `Per-item status in the module file.` already closes
+     the cell — make that the whole contract.
+  2. **Derive it.** Have `index-counts.mjs` regenerate a delimited status
+     block within the cell, leaving the narrative prose either side untouched.
+     More machinery, and it must not reintroduce the prose-corruption risk the
+     current design avoids.
+  3. **Gate it.** Leave the prose hand-written but add a check that
+     cross-references any `CIB-\d+` status claim in the row against the module
+     file, failing on contradiction. Cheapest to build, but it only catches
+     drift rather than preventing it.
+- **Trap to avoid:** the count and the prose live in the **same table cell**,
+  so a naive fix that rewrites the cell will eat the dated narrative — which
+  is the only record of several intake decisions. Any automated writer must
+  preserve it, and `findIndexRow`'s existing comment documents why the
+  targeting is as careful as it is.
+- **Files:** `scripts/aps/index-counts.mjs` (`findIndexRow` and the index-cell
+  rewrite), `plans/index.aps.md` (the CIB row), possibly a new fixture under
+  `scripts/aps/_test/`
+- **Validation:** flip one item's status in the module file, run
+  `pnpm aps:index`, and confirm the index no longer asserts the old status —
+  by whichever shape is chosen, either because the claim is gone, regenerated,
+  or reported. The dated narrative in the cell must survive unchanged; assert
+  that explicitly, since losing it is the likely failure mode.
+- **Identified From:** observed twice while landing CIB-277/279/282. PR #3586
+  shipped with the row still listing CIB-277 as Ready and CIB-282 as Draft in
+  the same commit that changed both — three separate stale claims, caught in
+  review and fixed in a follow-up commit. PR #3590 avoided it only because the
+  prose was cross-checked against the module file by hand before pushing.
+- **Coordinates with:** CIB-022/025 (index count drift, advisory), the Docs
+  Lint `aps` surface, `plans/aps-rules.md`
+- **Confidence:** high on the mechanism — traced to `findIndexRow` and the
+  leading-token rewrite, with two recorded occurrences. Medium on which of the
+  three shapes is right; that is the design call the item exists to settle,
+  and option 1 changes what the index is *for*, so it wants an operator
+  opinion rather than an implementer's.
