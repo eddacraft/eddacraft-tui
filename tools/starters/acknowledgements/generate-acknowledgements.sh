@@ -734,9 +734,15 @@ while IFS= read -r block_json; do
   # a difference nobody can commit away. Line endings are not part of a
   # licence's meaning, so normalising here keeps the gate honest without
   # altering a single notice.
+  #
+  # Strip only a trailing CR, never every CR byte: a licence text is
+  # reproduced verbatim, so a bare CR inside a line is content and deleting
+  # it would edit the notice — the exact thing this step must not do. The
+  # pattern is written with bash ANSI-C quoting so `sed` receives a literal
+  # CR byte; BSD sed does not interpret a `\r` escape in the pattern.
   normalised="$(mktemp "$working_dir/.generate-acknowledgements.eol.XXXXXX")"
   splice_temps="$splice_temps $normalised"
-  tr -d '\r' < "$driver_output" > "$normalised"
+  sed $'s/\r$//' < "$driver_output" > "$normalised"
   mv "$normalised" "$driver_output"
 
   # Splice driver_output between the two marker LINES located by the same

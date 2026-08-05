@@ -176,7 +176,9 @@ named in the crate source linked from the inventory table.
 
 ### Apache License 2.0
 
-Used by: `miette`
+Used by:
+
+- `miette` 7.6.0
 
 <details>
 <summary>Licence text</summary>
@@ -391,7 +393,9 @@ Used by: `miette`
 
 ### Apache License 2.0
 
-Used by: `eddacraft-tui`
+Used by:
+
+- `eddacraft-tui` 0.5.0
 
 <details>
 <summary>Licence text</summary>
@@ -605,7 +609,10 @@ Used by: `eddacraft-tui`
 
 ### Apache License 2.0
 
-Used by: `moxcms`, `pxfm`
+Used by:
+
+- `moxcms` 0.8.1
+- `pxfm` 0.1.30
 
 <details>
 <summary>Licence text</summary>
@@ -819,7 +826,9 @@ Used by: `moxcms`, `pxfm`
 
 ### Apache License 2.0
 
-Used by: `unicode-linebreak`
+Used by:
+
+- `unicode-linebreak` 0.1.5
 
 <details>
 <summary>Licence text</summary>
@@ -1033,7 +1042,9 @@ Used by: `unicode-linebreak`
 
 ### Apache License 2.0
 
-Used by: `unicode-general-category`
+Used by:
+
+- `unicode-general-category` 1.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -1247,7 +1258,9 @@ Used by: `unicode-general-category`
 
 ### Apache License 2.0
 
-Used by: `self-replace`
+Used by:
+
+- `self-replace` 1.5.0
 
 <details>
 <summary>Licence text</summary>
@@ -1461,7 +1474,9 @@ limitations under the License.
 
 ### Apache License 2.0
 
-Used by: `regorus`
+Used by:
+
+- `regorus` 0.11.0
 
 <details>
 <summary>Licence text</summary>
@@ -1730,7 +1745,12 @@ Some files are licensed Apache-2.0 (LICENSE-2.0.txt).
 
 ### Apache License 2.0
 
-Used by: `miette-derive`, `supports-color`, `supports-hyperlinks`, `supports-unicode`
+Used by:
+
+- `miette-derive` 7.6.0
+- `supports-color` 3.0.2
+- `supports-hyperlinks` 3.2.0
+- `supports-unicode` 3.0.0
 
 <details>
 <summary>Licence text</summary>
@@ -1971,7 +1991,13 @@ limitations under the License.
 
 ### Apache License 2.0 (canonical SPDX text)
 
-Used by: `aws-lc-sys`, `kindling-client`, `kindling-types`, `ryu`, `sync_wrapper`
+Used by:
+
+- `aws-lc-sys` 0.43.0
+- `kindling-client` 0.3.0
+- `kindling-types` 0.3.0
+- `ryu` 1.0.23
+- `sync_wrapper` 1.0.2
 
 <details>
 <summary>Licence text</summary>
@@ -2057,7 +2083,9 @@ limitations under the License.
 
 ### BSD 3-Clause "New" or "Revised" License
 
-Used by: `matchit`
+Used by:
+
+- `matchit` 0.8.4
 
 <details>
 <summary>Licence text</summary>
@@ -2099,7 +2127,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### BSD 3-Clause "New" or "Revised" License
 
-Used by: `subtle`
+Used by:
+
+- `subtle` 2.6.1
 
 <details>
 <summary>Licence text</summary>
@@ -2141,7 +2171,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### BSD 3-Clause "New" or "Revised" License (canonical SPDX text)
 
-Used by: `aws-lc-sys`, `regorus`
+Used by:
+
+- `aws-lc-sys` 0.43.0
+- `regorus` 0.11.0
 
 <details>
 <summary>Licence text</summary>
@@ -2165,7 +2198,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ### Creative Commons Zero v1.0 Universal
 
-Used by: `notify`
+Used by:
+
+- `notify` 8.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -2218,7 +2253,9 @@ For these and/or other purposes and motivations, and without any expectation of 
 
 ### ISC License
 
-Used by: `untrusted`
+Used by:
+
+- `untrusted` 0.9.0
 
 <details>
 <summary>Licence text</summary>
@@ -2244,7 +2281,9 @@ Used by: `untrusted`
 
 ### ISC License
 
-Used by: `inotify-sys`
+Used by:
+
+- `inotify-sys` 0.1.8
 
 <details>
 <summary>Licence text</summary>
@@ -2269,7 +2308,9 @@ THIS SOFTWARE.
 
 ### ISC License
 
-Used by: `inotify`
+Used by:
+
+- `inotify` 0.11.4
 
 <details>
 <summary>Licence text</summary>
@@ -2295,7 +2336,9 @@ THIS SOFTWARE.
 
 ### ISC License
 
-Used by: `rustls-webpki`
+Used by:
+
+- `rustls-webpki` 0.103.13
 
 <details>
 <summary>Licence text</summary>
@@ -2327,7 +2370,10 @@ third-party/chromium/LICENSE.
 
 ### ISC License (canonical SPDX text)
 
-Used by: `aws-lc-rs`, `aws-lc-sys`
+Used by:
+
+- `aws-lc-rs` 1.17.3
+- `aws-lc-sys` 0.43.0
 
 <details>
 <summary>Licence text</summary>
@@ -2348,7 +2394,9 @@ THE SOFTWARE IS PROVIDED "AS IS" AND ISC DISCLAIMS ALL WARRANTIES WITH REGARD TO
 
 ### ISC License
 
-Used by: `is_ci`
+Used by:
+
+- `is_ci` 1.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -2376,7 +2424,9 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.Apache License
 
 ### MIT License
 
-Used by: `msvc_spectre_libs`
+Used by:
+
+- `msvc_spectre_libs` 0.1.3
 
 <details>
 <summary>Licence text</summary>
@@ -2410,7 +2460,9 @@ Used by: `msvc_spectre_libs`
 
 ### MIT License
 
-Used by: `instability`
+Used by:
+
+- `instability` 0.3.13
 
 <details>
 <summary>Licence text</summary>
@@ -2445,7 +2497,11 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `lazy_static`, `rayon-core`, `rayon`
+Used by:
+
+- `lazy_static` 1.5.0
+- `rayon-core` 1.13.0
+- `rayon` 1.12.0
 
 <details>
 <summary>Licence text</summary>
@@ -2483,7 +2539,10 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `core-foundation-sys`, `core-foundation`
+Used by:
+
+- `core-foundation-sys` 0.8.7
+- `core-foundation` 0.10.1
 
 <details>
 <summary>Licence text</summary>
@@ -2521,7 +2580,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hex`
+Used by:
+
+- `hex` 0.4.3
 
 <details>
 <summary>Licence text</summary>
@@ -2554,7 +2615,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `form_urlencoded`
+Used by:
+
+- `form_urlencoded` 1.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -2592,7 +2655,11 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `idna`, `percent-encoding`, `url`
+Used by:
+
+- `idna` 1.1.0
+- `percent-encoding` 2.3.2
+- `url` 2.5.8
 
 <details>
 <summary>Licence text</summary>
@@ -2630,7 +2697,14 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `backtrace`, `cfg-if`, `openssl-probe`, `rustc-demangle`, `socket2`, `wait-timeout`
+Used by:
+
+- `backtrace` 0.3.76
+- `cfg-if` 1.0.4
+- `openssl-probe` 0.2.1
+- `rustc-demangle` 0.1.28
+- `socket2` 0.6.5
+- `wait-timeout` 0.2.1
 
 <details>
 <summary>Licence text</summary>
@@ -2668,7 +2742,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `mio`
+Used by:
+
+- `mio` 1.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -2700,7 +2776,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `errno`
+Used by:
+
+- `errno` 0.3.14
 
 <details>
 <summary>Licence text</summary>
@@ -2738,7 +2816,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `mime`
+Used by:
+
+- `mime` 0.3.17
 
 <details>
 <summary>Licence text</summary>
@@ -2771,7 +2851,23 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `bitflags`, `fraction`, `glob`, `log`, `num-bigint`, `num-bigint`, `num-complex`, `num-integer`, `num-iter`, `num-rational`, `num-traits`, `num`, `regex-automata`, `regex-syntax`, `regex`
+Used by:
+
+- `bitflags` 2.13.1
+- `fraction` 0.15.4
+- `glob` 0.3.4
+- `log` 0.4.33
+- `num-bigint` 0.4.8
+- `num-bigint` 0.5.1
+- `num-complex` 0.4.6
+- `num-integer` 0.1.46
+- `num-iter` 0.1.46
+- `num-rational` 0.4.2
+- `num-traits` 0.2.19
+- `num` 0.4.3
+- `regex-automata` 0.4.18
+- `regex-syntax` 0.8.11
+- `regex` 1.13.1
 
 <details>
 <summary>Licence text</summary>
@@ -2809,7 +2905,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `uuid`
+Used by:
+
+- `uuid` 1.24.0
 
 <details>
 <summary>Licence text</summary>
@@ -2848,7 +2946,10 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `libsqlite3-sys`, `rusqlite`
+Used by:
+
+- `libsqlite3-sys` 0.38.1
+- `rusqlite` 0.40.1
 
 <details>
 <summary>Licence text</summary>
@@ -2880,7 +2981,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `flate2`
+Used by:
+
+- `flate2` 1.1.9
 
 <details>
 <summary>Licence text</summary>
@@ -2918,7 +3021,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hyper`
+Used by:
+
+- `hyper` 1.11.0
 
 <details>
 <summary>Licence text</summary>
@@ -2950,7 +3055,12 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `either`, `itertools`, `itertools`, `petgraph`
+Used by:
+
+- `either` 1.17.0
+- `itertools` 0.14.0
+- `itertools` 0.15.0
+- `petgraph` 0.8.3
 
 <details>
 <summary>Licence text</summary>
@@ -2988,7 +3098,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `tempfile`
+Used by:
+
+- `tempfile` 3.27.0
 
 <details>
 <summary>Licence text</summary>
@@ -3026,7 +3138,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `object`
+Used by:
+
+- `object` 0.37.3
 
 <details>
 <summary>Licence text</summary>
@@ -3064,7 +3178,14 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `fs2`, `gimli`, `heck`, `unicode-segmentation`, `unicode-width`, `unicode-width`
+Used by:
+
+- `fs2` 0.4.3
+- `gimli` 0.32.3
+- `heck` 0.5.0
+- `unicode-segmentation` 1.13.3
+- `unicode-width` 0.1.14
+- `unicode-width` 0.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -3102,7 +3223,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `cobs`
+Used by:
+
+- `cobs` 0.3.0
 
 <details>
 <summary>Licence text</summary>
@@ -3134,7 +3257,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `fallible-iterator`
+Used by:
+
+- `fallible-iterator` 0.3.0
 
 <details>
 <summary>Licence text</summary>
@@ -3166,7 +3291,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `terminal_size`
+Used by:
+
+- `terminal_size` 0.4.4
 
 <details>
 <summary>Licence text</summary>
@@ -3198,7 +3325,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `png`
+Used by:
+
+- `png` 0.18.1
 
 <details>
 <summary>Licence text</summary>
@@ -3236,7 +3365,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `schannel`
+Used by:
+
+- `schannel` 0.1.29
 
 <details>
 <summary>Licence text</summary>
@@ -3256,7 +3387,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### MIT License
 
-Used by: `fixedbitset`
+Used by:
+
+- `fixedbitset` 0.5.7
 
 <details>
 <summary>Licence text</summary>
@@ -3294,7 +3427,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `winapi`
+Used by:
+
+- `winapi` 0.3.9
 
 <details>
 <summary>Licence text</summary>
@@ -3326,7 +3461,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `httparse`, `num_cpus`
+Used by:
+
+- `httparse` 1.10.1
+- `num_cpus` 1.17.0
 
 <details>
 <summary>Licence text</summary>
@@ -3359,7 +3497,15 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `futures-channel`, `futures-core`, `futures-io`, `futures-macro`, `futures-sink`, `futures-task`, `futures-util`
+Used by:
+
+- `futures-channel` 0.3.33
+- `futures-core` 0.3.33
+- `futures-io` 0.3.33
+- `futures-macro` 0.3.33
+- `futures-sink` 0.3.33
+- `futures-task` 0.3.33
+- `futures-util` 0.3.33
 
 <details>
 <summary>Licence text</summary>
@@ -3398,7 +3544,11 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hashbrown`, `hashbrown`, `hashbrown`
+Used by:
+
+- `hashbrown` 0.15.5
+- `hashbrown` 0.16.1
+- `hashbrown` 0.17.1
 
 <details>
 <summary>Licence text</summary>
@@ -3436,7 +3586,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `serde_urlencoded`
+Used by:
+
+- `serde_urlencoded` 0.7.1
 
 <details>
 <summary>Licence text</summary>
@@ -3474,7 +3626,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `utf8parse`
+Used by:
+
+- `utf8parse` 0.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -3512,7 +3666,11 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hyper-rustls`, `rustls-native-certs`, `rustls`
+Used by:
+
+- `hyper-rustls` 0.27.9
+- `rustls-native-certs` 0.8.4
+- `rustls` 0.23.43
 
 <details>
 <summary>Licence text</summary>
@@ -3550,7 +3708,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `httpdate`
+Used by:
+
+- `httpdate` 1.0.3
 
 <details>
 <summary>Licence text</summary>
@@ -3582,7 +3742,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `streaming-iterator`
+Used by:
+
+- `streaming-iterator` 0.1.9
 
 <details>
 <summary>Licence text</summary>
@@ -3614,7 +3776,12 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `lock_api`, `parking_lot`, `parking_lot_core`, `thread_local`
+Used by:
+
+- `lock_api` 0.4.14
+- `parking_lot` 0.12.5
+- `parking_lot_core` 0.9.12
+- `thread_local` 1.1.10
 
 <details>
 <summary>Licence text</summary>
@@ -3652,7 +3819,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `fallible-streaming-iterator`
+Used by:
+
+- `fallible-streaming-iterator` 0.1.9
 
 <details>
 <summary>Licence text</summary>
@@ -3684,7 +3853,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `indexmap`
+Used by:
+
+- `indexmap` 2.14.0
 
 <details>
 <summary>Licence text</summary>
@@ -3722,7 +3893,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `equivalent`
+Used by:
+
+- `equivalent` 1.0.2
 
 <details>
 <summary>Licence text</summary>
@@ -3760,7 +3933,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `addr2line`
+Used by:
+
+- `addr2line` 0.25.1
 
 <details>
 <summary>Licence text</summary>
@@ -3798,7 +3973,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `scopeguard`
+Used by:
+
+- `scopeguard` 1.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -3836,7 +4013,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `reqwest`
+Used by:
+
+- `reqwest` 0.13.4
 
 <details>
 <summary>Licence text</summary>
@@ -3869,7 +4048,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `sha2`
+Used by:
+
+- `sha2` 0.11.0
 
 <details>
 <summary>Licence text</summary>
@@ -3910,7 +4091,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `fnv`
+Used by:
+
+- `fnv` 1.0.7
 
 <details>
 <summary>Licence text</summary>
@@ -3948,7 +4131,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `memoffset`
+Used by:
+
+- `memoffset` 0.9.1
 
 <details>
 <summary>Licence text</summary>
@@ -3979,7 +4164,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `heapless`
+Used by:
+
+- `heapless` 0.7.17
 
 <details>
 <summary>Licence text</summary>
@@ -4017,7 +4204,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `stable_deref_trait`
+Used by:
+
+- `stable_deref_trait` 1.2.1
 
 <details>
 <summary>Licence text</summary>
@@ -4054,7 +4243,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `bytecount`
+Used by:
+
+- `bytecount` 0.6.9
 
 <details>
 <summary>Licence text</summary>
@@ -4086,7 +4277,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `h2`
+Used by:
+
+- `h2` 0.4.15
 
 <details>
 <summary>Licence text</summary>
@@ -4124,7 +4317,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `http`
+Used by:
+
+- `http` 1.5.0
 
 <details>
 <summary>Licence text</summary>
@@ -4162,7 +4357,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `tokio-rustls`
+Used by:
+
+- `tokio-rustls` 0.26.4
 
 <details>
 <summary>Licence text</summary>
@@ -4200,7 +4397,12 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `signal-hook-mio`, `signal-hook-registry`, `signal-hook`, `signal-hook`
+Used by:
+
+- `signal-hook-mio` 0.2.5
+- `signal-hook-registry` 1.4.8
+- `signal-hook` 0.3.18
+- `signal-hook` 0.4.4
 
 <details>
 <summary>Licence text</summary>
@@ -4238,7 +4440,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `digest`
+Used by:
+
+- `digest` 0.11.3
 
 <details>
 <summary>Licence text</summary>
@@ -4277,7 +4481,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `bytes`
+Used by:
+
+- `bytes` 1.12.1
 
 <details>
 <summary>Licence text</summary>
@@ -4315,7 +4521,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hash32`
+Used by:
+
+- `hash32` 0.2.1
 
 <details>
 <summary>Licence text</summary>
@@ -4353,7 +4561,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `smallvec`
+Used by:
+
+- `smallvec` 1.15.2
 
 <details>
 <summary>Licence text</summary>
@@ -4391,7 +4601,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `ahash`
+Used by:
+
+- `ahash` 0.8.12
 
 <details>
 <summary>Licence text</summary>
@@ -4429,7 +4641,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `want`
+Used by:
+
+- `want` 0.3.1
 
 <details>
 <summary>Licence text</summary>
@@ -4462,7 +4676,10 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `dirs-sys`, `dirs`
+Used by:
+
+- `dirs-sys` 0.5.0
+- `dirs` 6.0.0
 
 <details>
 <summary>Licence text</summary>
@@ -4494,7 +4711,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `try-lock`
+Used by:
+
+- `try-lock` 0.2.5
 
 <details>
 <summary>Licence text</summary>
@@ -4528,7 +4747,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `block-buffer`
+Used by:
+
+- `block-buffer` 0.12.1
 
 <details>
 <summary>Licence text</summary>
@@ -4566,7 +4787,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `getrandom`
+Used by:
+
+- `getrandom` 0.3.4
 
 <details>
 <summary>Licence text</summary>
@@ -4605,7 +4828,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `rand_core`
+Used by:
+
+- `rand_core` 0.10.1
 
 <details>
 <summary>Licence text</summary>
@@ -4643,7 +4868,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `zeroize`
+Used by:
+
+- `zeroize` 1.9.0
 
 <details>
 <summary>Licence text</summary>
@@ -4681,7 +4908,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `getrandom`
+Used by:
+
+- `getrandom` 0.4.3
 
 <details>
 <summary>Licence text</summary>
@@ -4720,7 +4949,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `unicode-truncate`
+Used by:
+
+- `unicode-truncate` 2.0.1
 
 <details>
 <summary>Licence text</summary>
@@ -4758,7 +4989,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `postcard`
+Used by:
+
+- `postcard` 1.1.3
 
 <details>
 <summary>Licence text</summary>
@@ -4796,7 +5029,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `slab`
+Used by:
+
+- `slab` 0.4.12
 
 <details>
 <summary>Licence text</summary>
@@ -4834,7 +5069,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `sharded-slab`
+Used by:
+
+- `sharded-slab` 0.1.7
 
 <details>
 <summary>Licence text</summary>
@@ -4866,7 +5103,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `matchers`
+Used by:
+
+- `matchers` 0.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -4898,7 +5137,13 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tracing-attributes`, `tracing-core`, `tracing-serde`, `tracing-subscriber`, `tracing`
+Used by:
+
+- `tracing-attributes` 0.1.31
+- `tracing-core` 0.1.36
+- `tracing-serde` 0.2.0
+- `tracing-subscriber` 0.3.23
+- `tracing` 0.1.44
 
 <details>
 <summary>Licence text</summary>
@@ -4936,7 +5181,11 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `tower-layer`, `tower-service`, `tower`
+Used by:
+
+- `tower-layer` 0.3.3
+- `tower-service` 0.3.3
+- `tower` 0.5.3
 
 <details>
 <summary>Licence text</summary>
@@ -4974,7 +5223,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `axum`
+Used by:
+
+- `axum` 0.8.9
 
 <details>
 <summary>Licence text</summary>
@@ -5012,7 +5263,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `tower-http`
+Used by:
+
+- `tower-http` 0.6.11
 
 <details>
 <summary>Licence text</summary>
@@ -5050,7 +5303,10 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `http-body-util`, `http-body`
+Used by:
+
+- `http-body-util` 0.1.4
+- `http-body` 1.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -5088,7 +5344,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `chacha20`
+Used by:
+
+- `chacha20` 0.10.1
 
 <details>
 <summary>Licence text</summary>
@@ -5126,7 +5384,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `iana-time-zone`
+Used by:
+
+- `iana-time-zone` 0.1.65
 
 <details>
 <summary>Licence text</summary>
@@ -5164,7 +5424,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `document-features`
+Used by:
+
+- `document-features` 0.2.12
 
 <details>
 <summary>Licence text</summary>
@@ -5196,7 +5458,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `litrs`
+Used by:
+
+- `litrs` 1.0.0
 
 <details>
 <summary>Licence text</summary>
@@ -5234,7 +5498,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `cpufeatures`
+Used by:
+
+- `cpufeatures` 0.3.0
 
 <details>
 <summary>Licence text</summary>
@@ -5272,7 +5538,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `const-oid`
+Used by:
+
+- `const-oid` 0.10.2
 
 <details>
 <summary>Licence text</summary>
@@ -5310,7 +5578,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `num_threads`
+Used by:
+
+- `num_threads` 0.1.7
 
 <details>
 <summary>Licence text</summary>
@@ -5342,7 +5612,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `crypto-common`
+Used by:
+
+- `crypto-common` 0.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -5380,7 +5652,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `critical-section`
+Used by:
+
+- `critical-section` 1.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -5418,7 +5692,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hybrid-array`
+Used by:
+
+- `hybrid-array` 0.4.14
 
 <details>
 <summary>Licence text</summary>
@@ -5456,7 +5732,11 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `axoasset`, `axoprocess`, `axotag`
+Used by:
+
+- `axoasset` 2.0.1
+- `axoprocess` 0.2.1
+- `axotag` 0.3.0
 
 <details>
 <summary>Licence text</summary>
@@ -5494,7 +5774,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `rustls-pki-types`
+Used by:
+
+- `rustls-pki-types` 1.15.1
 
 <details>
 <summary>Licence text</summary>
@@ -5532,7 +5814,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `powerfmt`
+Used by:
+
+- `powerfmt` 0.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -5564,7 +5848,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `notify-types`
+Used by:
+
+- `notify-types` 2.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -5602,7 +5888,10 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `bit-set`, `bit-vec`
+Used by:
+
+- `bit-set` 0.8.0
+- `bit-vec` 0.8.0
 
 <details>
 <summary>Licence text</summary>
@@ -5640,7 +5929,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hyper-util`
+Used by:
+
+- `hyper-util` 0.1.20
 
 <details>
 <summary>Licence text</summary>
@@ -5672,7 +5963,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `micromap`
+Used by:
+
+- `micromap` 0.3.0
 
 <details>
 <summary>Licence text</summary>
@@ -5704,7 +5997,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `ratatui-macros`
+Used by:
+
+- `ratatui-macros` 0.7.2
 
 <details>
 <summary>Licence text</summary>
@@ -5737,7 +6032,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `deranged`
+Used by:
+
+- `deranged` 0.5.8
 
 <details>
 <summary>Licence text</summary>
@@ -5769,7 +6066,25 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `anstream`, `anstyle-parse`, `anstyle-query`, `anstyle-wincon`, `anstyle`, `clap`, `clap_builder`, `clap_derive`, `clap_lex`, `colorchoice`, `is_terminal_polyfill`, `once_cell_polyfill`, `serde_spanned`, `toml`, `toml_datetime`, `toml_parser`, `toml_writer`
+Used by:
+
+- `anstream` 1.0.0
+- `anstyle-parse` 1.0.0
+- `anstyle-query` 1.1.5
+- `anstyle-wincon` 3.0.11
+- `anstyle` 1.0.14
+- `clap` 4.6.5
+- `clap_builder` 4.6.5
+- `clap_derive` 4.6.4
+- `clap_lex` 1.1.0
+- `colorchoice` 1.0.5
+- `is_terminal_polyfill` 1.70.2
+- `once_cell_polyfill` 1.70.2
+- `serde_spanned` 1.1.1
+- `toml` 1.1.4+spec-1.1.0
+- `toml_datetime` 1.1.1+spec-1.1.0
+- `toml_parser` 1.1.3+spec-1.1.0
+- `toml_writer` 1.1.2+spec-1.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -5801,7 +6116,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `num-conv`
+Used by:
+
+- `num-conv` 0.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -5833,7 +6150,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `time-core`, `time`
+Used by:
+
+- `time-core` 0.1.9
+- `time` 0.3.55
 
 <details>
 <summary>Licence text</summary>
@@ -5865,7 +6185,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `libc`
+Used by:
+
+- `libc` 0.2.189
 
 <details>
 <summary>Licence text</summary>
@@ -5903,7 +6225,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `idna_adapter`
+Used by:
+
+- `idna_adapter` 1.2.2
 
 <details>
 <summary>Licence text</summary>
@@ -5941,7 +6265,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `synstructure`
+Used by:
+
+- `synstructure` 0.13.2
 
 <details>
 <summary>Licence text</summary>
@@ -5961,7 +6287,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### MIT License
 
-Used by: `ipnet`
+Used by:
+
+- `ipnet` 2.12.1
 
 <details>
 <summary>Licence text</summary>
@@ -5981,7 +6309,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### MIT License
 
-Used by: `rand`
+Used by:
+
+- `rand` 0.10.2
 
 <details>
 <summary>Licence text</summary>
@@ -6020,7 +6350,10 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `zerocopy-derive`, `zerocopy`
+Used by:
+
+- `zerocopy-derive` 0.8.55
+- `zerocopy` 0.8.55
 
 <details>
 <summary>Licence text</summary>
@@ -6059,7 +6392,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `utf8_iter`
+Used by:
+
+- `utf8_iter` 1.0.4
 
 <details>
 <summary>Licence text</summary>
@@ -6097,7 +6432,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `lru`
+Used by:
+
+- `lru` 0.18.2
 
 <details>
 <summary>Licence text</summary>
@@ -6130,7 +6467,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `textwrap`
+Used by:
+
+- `textwrap` 0.16.2
 
 <details>
 <summary>Licence text</summary>
@@ -6164,7 +6503,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `font8x8`
+Used by:
+
+- `font8x8` 0.3.1
 
 <details>
 <summary>Licence text</summary>
@@ -6198,7 +6539,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `smawk`
+Used by:
+
+- `smawk` 0.3.3
 
 <details>
 <summary>Licence text</summary>
@@ -6232,7 +6575,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `static_assertions`
+Used by:
+
+- `static_assertions` 1.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -6266,7 +6611,17 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `darling`, `darling`, `darling`, `darling_core`, `darling_core`, `darling_core`, `darling_macro`, `darling_macro`, `darling_macro`
+Used by:
+
+- `darling` 0.20.11
+- `darling` 0.23.0
+- `darling` 0.24.0
+- `darling_core` 0.20.11
+- `darling_core` 0.23.0
+- `darling_core` 0.24.0
+- `darling_macro` 0.20.11
+- `darling_macro` 0.23.0
+- `darling_macro` 0.24.0
 
 <details>
 <summary>Licence text</summary>
@@ -6300,7 +6655,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `crc32fast`
+Used by:
+
+- `crc32fast` 1.5.0
 
 <details>
 <summary>Licence text</summary>
@@ -6334,7 +6691,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `bytemuck`, `bytemuck_derive`
+Used by:
+
+- `bytemuck` 1.25.2
+- `bytemuck_derive` 1.11.0
 
 <details>
 <summary>Licence text</summary>
@@ -6356,7 +6716,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ### MIT License
 
-Used by: `strum`, `strum_macros`
+Used by:
+
+- `strum` 0.28.0
+- `strum_macros` 0.28.0
 
 <details>
 <summary>Licence text</summary>
@@ -6390,7 +6753,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `email_address`
+Used by:
+
+- `email_address` 0.2.9
 
 <details>
 <summary>Licence text</summary>
@@ -6424,7 +6789,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tokio-macros`
+Used by:
+
+- `tokio-macros` 2.7.2
 
 <details>
 <summary>Licence text</summary>
@@ -6459,7 +6826,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `axum-core`
+Used by:
+
+- `axum-core` 0.5.6
 
 <details>
 <summary>Licence text</summary>
@@ -6498,7 +6867,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `owo-colors`
+Used by:
+
+- `owo-colors` 4.3.0
 
 <details>
 <summary>Licence text</summary>
@@ -6532,7 +6903,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `jsonschema`, `referencing`
+Used by:
+
+- `jsonschema` 0.47.0
+- `referencing` 0.47.0
 
 <details>
 <summary>Licence text</summary>
@@ -6566,7 +6940,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `compact_str`
+Used by:
+
+- `compact_str` 0.9.1
 
 <details>
 <summary>Licence text</summary>
@@ -6600,7 +6976,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `castaway`
+Used by:
+
+- `castaway` 0.2.4
 
 <details>
 <summary>Licence text</summary>
@@ -6634,7 +7012,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `rustls-platform-verifier`
+Used by:
+
+- `rustls-platform-verifier` 0.7.0
 
 <details>
 <summary>Licence text</summary>
@@ -6668,7 +7048,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `matchit`
+Used by:
+
+- `matchit` 0.8.4
 
 <details>
 <summary>Licence text</summary>
@@ -6702,7 +7084,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `outref`
+Used by:
+
+- `outref` 0.5.2
 
 <details>
 <summary>Licence text</summary>
@@ -6735,7 +7119,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `demand`
+Used by:
+
+- `demand` 2.0.5
 
 <details>
 <summary>Licence text</summary>
@@ -6769,7 +7155,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `homedir`
+Used by:
+
+- `homedir` 0.3.6
 
 <details>
 <summary>Licence text</summary>
@@ -6803,7 +7191,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `line-clipping`
+Used by:
+
+- `line-clipping` 0.3.8
 
 <details>
 <summary>Licence text</summary>
@@ -6837,7 +7227,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `fluent-uri`
+Used by:
+
+- `fluent-uri` 0.4.1
 
 <details>
 <summary>Licence text</summary>
@@ -6870,7 +7262,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `convert_case`
+Used by:
+
+- `convert_case` 0.10.0
 
 <details>
 <summary>Licence text</summary>
@@ -6903,7 +7297,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tree-sitter-dart`
+Used by:
+
+- `tree-sitter-dart` 0.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -6937,7 +7333,57 @@ SOFTWARE.
 
 ### MIT License (canonical SPDX text)
 
-Used by: `animate-core`, `animate-macros`, `animate`, `axoupdater`, `backtrace-ext`, `block2`, `chrono`, `dispatch2`, `jsonschema-regex`, `libm`, `minisign-verify`, `num-cmp`, `objc2-encode`, `objc2`, `regorus`, `tree-sitter-cpp`, `tree-sitter-java`, `tree-sitter-kotlin-ng`, `tree-sitter-typescript`, `tree-sitter-zig`, `tui-big-text`, `uuid-simd`, `vsimd`, `windows-collections`, `windows-core`, `windows-core`, `windows-future`, `windows-implement`, `windows-interface`, `windows-link`, `windows-link`, `windows-numerics`, `windows-result`, `windows-result`, `windows-strings`, `windows-strings`, `windows-sys`, `windows-sys`, `windows-sys`, `windows-targets`, `windows-targets`, `windows-threading`, `windows`, `windows_aarch64_msvc`, `windows_aarch64_msvc`, `windows_x86_64_gnu`, `windows_x86_64_gnu`, `windows_x86_64_msvc`, `windows_x86_64_msvc`
+Used by:
+
+- `animate-core` 0.3.0
+- `animate-macros` 0.3.0
+- `animate` 0.3.0
+- `axoupdater` 0.10.0
+- `backtrace-ext` 0.2.1
+- `block2` 0.6.2
+- `chrono` 0.4.45
+- `dispatch2` 0.3.1
+- `jsonschema-regex` 0.47.0
+- `libm` 0.2.16
+- `minisign-verify` 0.2.5
+- `num-cmp` 0.1.0
+- `objc2-encode` 4.1.0
+- `objc2` 0.6.4
+- `regorus` 0.11.0
+- `tree-sitter-cpp` 0.23.4
+- `tree-sitter-java` 0.23.5
+- `tree-sitter-kotlin-ng` 1.1.0
+- `tree-sitter-typescript` 0.23.2
+- `tree-sitter-zig` 1.1.2
+- `tui-big-text` 0.8.8
+- `uuid-simd` 0.8.0
+- `vsimd` 0.8.0
+- `windows-collections` 0.2.0
+- `windows-core` 0.61.2
+- `windows-core` 0.62.2
+- `windows-future` 0.2.1
+- `windows-implement` 0.60.2
+- `windows-interface` 0.59.3
+- `windows-link` 0.1.3
+- `windows-link` 0.2.1
+- `windows-numerics` 0.2.0
+- `windows-result` 0.3.4
+- `windows-result` 0.4.1
+- `windows-strings` 0.4.2
+- `windows-strings` 0.5.1
+- `windows-sys` 0.52.0
+- `windows-sys` 0.60.2
+- `windows-sys` 0.61.2
+- `windows-targets` 0.52.6
+- `windows-targets` 0.53.5
+- `windows-threading` 0.1.0
+- `windows` 0.61.3
+- `windows_aarch64_msvc` 0.52.6
+- `windows_aarch64_msvc` 0.53.1
+- `windows_x86_64_gnu` 0.52.6
+- `windows_x86_64_gnu` 0.53.1
+- `windows_x86_64_msvc` 0.52.6
+- `windows_x86_64_msvc` 0.53.1
 
 <details>
 <summary>Licence text</summary>
@@ -6968,7 +7414,10 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `tokio-util`, `tokio`
+Used by:
+
+- `tokio-util` 0.7.19
+- `tokio` 1.53.1
 
 <details>
 <summary>Licence text</summary>
@@ -7002,7 +7451,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `simd-adler32`
+Used by:
+
+- `simd-adler32` 0.3.10
 
 <details>
 <summary>Licence text</summary>
@@ -7036,7 +7487,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `miniz_oxide`
+Used by:
+
+- `miniz_oxide` 0.8.9
 
 <details>
 <summary>Licence text</summary>
@@ -7074,7 +7527,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `fdeflate`, `image`
+Used by:
+
+- `fdeflate` 0.3.7
+- `image` 0.25.10
 
 <details>
 <summary>Licence text</summary>
@@ -7112,7 +7568,10 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `ident_case`, `widestring`
+Used by:
+
+- `ident_case` 1.0.1
+- `widestring` 1.2.1
 
 <details>
 <summary>Licence text</summary>
@@ -7144,7 +7603,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `crossterm`, `crossterm_winapi`
+Used by:
+
+- `crossterm` 0.29.0
+- `crossterm_winapi` 0.9.1
 
 <details>
 <summary>Licence text</summary>
@@ -7178,7 +7640,40 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `adler2`, `anyhow`, `atomic-waker`, `camino`, `ctrlc`, `displaydoc`, `fastrand`, `indoc`, `itoa`, `linux-raw-sys`, `once_cell`, `pin-project-lite`, `proc-macro2`, `quote`, `ref-cast-impl`, `ref-cast`, `rustix`, `rustversion`, `semver`, `serde`, `serde_core`, `serde_derive`, `serde_json`, `serde_path_to_error`, `serde_yaml`, `syn`, `syn`, `thiserror-impl`, `thiserror`, `unicode-ident`, `unsafe-libyaml`, `zmij`
+Used by:
+
+- `adler2` 2.0.1
+- `anyhow` 1.0.104
+- `atomic-waker` 1.1.2
+- `camino` 1.2.5
+- `ctrlc` 3.5.2
+- `displaydoc` 0.2.7
+- `fastrand` 2.5.0
+- `indoc` 2.0.7
+- `itoa` 1.0.18
+- `linux-raw-sys` 0.12.1
+- `once_cell` 1.21.4
+- `pin-project-lite` 0.2.17
+- `proc-macro2` 1.0.107
+- `quote` 1.0.47
+- `ref-cast-impl` 1.0.26
+- `ref-cast` 1.0.26
+- `rustix` 1.1.4
+- `rustversion` 1.0.23
+- `semver` 1.0.28
+- `serde` 1.0.229
+- `serde_core` 1.0.229
+- `serde_derive` 1.0.229
+- `serde_json` 1.0.151
+- `serde_path_to_error` 0.1.20
+- `serde_yaml` 0.9.34+deprecated
+- `syn` 2.0.119
+- `syn` 3.0.3
+- `thiserror-impl` 2.0.19
+- `thiserror` 2.0.19
+- `unicode-ident` 1.0.24
+- `unsafe-libyaml` 0.2.11
+- `zmij` 1.0.23
 
 <details>
 <summary>Licence text</summary>
@@ -7214,7 +7709,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `allocator-api2`
+Used by:
+
+- `allocator-api2` 0.2.21
 
 <details>
 <summary>Licence text</summary>
@@ -7250,7 +7747,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `winnow`
+Used by:
+
+- `winnow` 1.0.4
 
 <details>
 <summary>Licence text</summary>
@@ -7281,7 +7780,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `encode_unicode`
+Used by:
+
+- `encode_unicode` 1.0.0
 
 <details>
 <summary>Licence text</summary>
@@ -7311,7 +7812,9 @@ SOFTWARE
 
 ### MIT License
 
-Used by: `fancy-regex`
+Used by:
+
+- `fancy-regex` 0.18.0
 
 <details>
 <summary>Licence text</summary>
@@ -7345,7 +7848,10 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `spin`, `spin`
+Used by:
+
+- `spin` 0.12.2
+- `spin` 0.9.9
 
 <details>
 <summary>Licence text</summary>
@@ -7378,7 +7884,11 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tree-sitter-c`, `tree-sitter-go`, `tree-sitter-javascript`
+Used by:
+
+- `tree-sitter-c` 0.24.2
+- `tree-sitter-go` 0.25.0
+- `tree-sitter-javascript` 0.25.0
 
 <details>
 <summary>Licence text</summary>
@@ -7412,7 +7922,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `typenum`
+Used by:
+
+- `typenum` 1.20.1
 
 <details>
 <summary>Licence text</summary>
@@ -7446,7 +7958,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tree-sitter-c-sharp`
+Used by:
+
+- `tree-sitter-c-sharp` 0.23.5
 
 <details>
 <summary>Licence text</summary>
@@ -7480,7 +7994,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `base64`
+Used by:
+
+- `base64` 0.22.1
 
 <details>
 <summary>Licence text</summary>
@@ -7514,7 +8030,16 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `aho-corasick`, `byteorder-lite`, `byteorder`, `globset`, `ignore`, `memchr`, `termcolor`, `walkdir`
+Used by:
+
+- `aho-corasick` 1.1.5
+- `byteorder-lite` 0.1.0
+- `byteorder` 1.5.0
+- `globset` 0.4.20
+- `ignore` 0.4.33
+- `memchr` 2.8.3
+- `termcolor` 1.4.1
+- `walkdir` 2.5.0
 
 <details>
 <summary>Licence text</summary>
@@ -7548,7 +8073,10 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `nix`, `nix`
+Used by:
+
+- `nix` 0.30.1
+- `nix` 0.31.3
 
 <details>
 <summary>Licence text</summary>
@@ -7582,7 +8110,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `strsim`
+Used by:
+
+- `strsim` 0.11.1
 
 <details>
 <summary>Licence text</summary>
@@ -7618,7 +8148,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `fsevent-sys`
+Used by:
+
+- `fsevent-sys` 4.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -7653,7 +8185,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `security-framework-sys`, `security-framework`
+Used by:
+
+- `security-framework-sys` 2.17.0
+- `security-framework` 3.7.0
 
 <details>
 <summary>Licence text</summary>
@@ -7686,7 +8221,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `data-encoding`
+Used by:
+
+- `data-encoding` 2.11.1
 
 <details>
 <summary>Licence text</summary>
@@ -7721,7 +8258,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `aws-lc-sys`
+Used by:
+
+- `aws-lc-sys` 0.43.0
 
 <details>
 <summary>Licence text</summary>
@@ -7756,7 +8295,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `kasuari`
+Used by:
+
+- `kasuari` 0.4.12
 
 <details>
 <summary>Licence text</summary>
@@ -7791,7 +8332,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `derive_more-impl`, `derive_more`
+Used by:
+
+- `derive_more-impl` 2.1.1
+- `derive_more` 2.1.1
 
 <details>
 <summary>Licence text</summary>
@@ -7825,7 +8369,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tree-sitter-python`
+Used by:
+
+- `tree-sitter-python` 0.25.0
 
 <details>
 <summary>Licence text</summary>
@@ -7859,7 +8405,11 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `derive_builder`, `derive_builder_core`, `derive_builder_macro`
+Used by:
+
+- `derive_builder` 0.20.2
+- `derive_builder_core` 0.20.2
+- `derive_builder_macro` 0.20.2
 
 <details>
 <summary>Licence text</summary>
@@ -7893,7 +8443,12 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `ratatui-core`, `ratatui-crossterm`, `ratatui-widgets`, `ratatui`
+Used by:
+
+- `ratatui-core` 0.1.2
+- `ratatui-crossterm` 0.1.2
+- `ratatui-widgets` 0.3.2
+- `ratatui` 0.30.2
 
 <details>
 <summary>Licence text</summary>
@@ -7928,7 +8483,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `same-file`, `winapi-util`
+Used by:
+
+- `same-file` 1.0.6
+- `winapi-util` 0.1.11
 
 <details>
 <summary>Licence text</summary>
@@ -7962,7 +8520,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `console`
+Used by:
+
+- `console` 0.16.4
 
 <details>
 <summary>Licence text</summary>
@@ -7997,7 +8557,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tree-sitter-rust`
+Used by:
+
+- `tree-sitter-rust` 0.24.2
 
 <details>
 <summary>Licence text</summary>
@@ -8031,7 +8593,10 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `tree-sitter-language`, `tree-sitter`
+Used by:
+
+- `tree-sitter-language` 0.1.7
+- `tree-sitter` 0.26.11
 
 <details>
 <summary>Licence text</summary>
@@ -8065,7 +8630,9 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `bstr`
+Used by:
+
+- `bstr` 1.13.0
 
 <details>
 <summary>Licence text</summary>
@@ -8099,7 +8666,9 @@ THE SOFTWARE.
 
 ### MIT License
 
-Used by: `fuzzy-matcher`
+Used by:
+
+- `fuzzy-matcher` 0.3.7
 
 <details>
 <summary>Licence text</summary>
@@ -8133,7 +8702,11 @@ SOFTWARE.
 
 ### MIT License
 
-Used by: `crossbeam-deque`, `crossbeam-epoch`, `crossbeam-utils`
+Used by:
+
+- `crossbeam-deque` 0.8.7
+- `crossbeam-epoch` 0.9.20
+- `crossbeam-utils` 0.8.22
 
 <details>
 <summary>Licence text</summary>
@@ -8173,7 +8746,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT License
 
-Used by: `hashlink`
+Used by:
+
+- `hashlink` 0.12.1
 
 <details>
 <summary>Licence text</summary>
@@ -8211,7 +8786,9 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT No Attribution
 
-Used by: `borrow-or-share`
+Used by:
+
+- `borrow-or-share` 0.2.4
 
 <details>
 <summary>Licence text</summary>
@@ -8241,7 +8818,9 @@ SOFTWARE.
 
 ### MIT No Attribution (canonical SPDX text)
 
-Used by: `dunce`
+Used by:
+
+- `dunce` 1.0.5
 
 <details>
 <summary>Licence text</summary>
@@ -8270,7 +8849,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### Mozilla Public License 2.0
 
-Used by: `option-ext`
+Used by:
+
+- `option-ext` 0.2.0
 
 <details>
 <summary>Licence text</summary>
@@ -8656,7 +9237,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ### Unicode License v3
 
-Used by: `unicode-ident`
+Used by:
+
+- `unicode-ident` 1.0.24
 
 <details>
 <summary>Licence text</summary>
@@ -8708,7 +9291,26 @@ authorization of the copyright holder.
 
 ### Unicode License v3
 
-Used by: `icu_collections`, `icu_locale_core`, `icu_normalizer`, `icu_normalizer_data`, `icu_properties`, `icu_properties_data`, `icu_provider`, `litemap`, `potential_utf`, `tinystr`, `writeable`, `yoke-derive`, `yoke`, `zerofrom-derive`, `zerofrom`, `zerotrie`, `zerovec-derive`, `zerovec`
+Used by:
+
+- `icu_collections` 2.2.0
+- `icu_locale_core` 2.2.0
+- `icu_normalizer` 2.2.0
+- `icu_normalizer_data` 2.2.0
+- `icu_properties` 2.2.0
+- `icu_properties_data` 2.2.0
+- `icu_provider` 2.2.0
+- `litemap` 0.8.2
+- `potential_utf` 0.1.5
+- `tinystr` 0.8.3
+- `writeable` 0.6.3
+- `yoke-derive` 0.8.2
+- `yoke` 0.8.3
+- `zerofrom-derive` 0.1.7
+- `zerofrom` 0.1.8
+- `zerotrie` 0.2.4
+- `zerovec-derive` 0.11.3
+- `zerovec` 0.11.6
 
 <details>
 <summary>Licence text</summary>
@@ -8767,7 +9369,10 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 
 ### zlib License
 
-Used by: `foldhash`, `foldhash`
+Used by:
+
+- `foldhash` 0.1.5
+- `foldhash` 0.2.0
 
 <details>
 <summary>Licence text</summary>

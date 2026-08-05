@@ -38,7 +38,8 @@ file you redistribute, upgrade and regenerate.**
   on retaining _the above copyright notice_, so the generated file did not
   satisfy the terms it asserted. The template now iterates `licenses`, which
   cargo-about keys by distinct licence text, emitting one block per notice and
-  naming the crates that share it.
+  naming the crates that share it, each as `name version` on its own line so the
+  list stays diffable and two versions of the same crate are told apart.
 
   Regenerating will grow the generated block substantially — that growth is the
   attributions that were previously missing.
@@ -55,8 +56,10 @@ file you redistribute, upgrade and regenerate.**
   `.gitattributes` normalises the target to LF — the usual case for `*.md` — the
   checked-out file and the freshly generated block then differed on every run,
   failing `--check` over a difference that could not be committed away. The
-  dispatcher now normalises driver output to LF before splicing. Line endings
-  are not part of a licence's meaning; no notice is altered.
+  dispatcher now normalises driver output to LF before splicing, stripping only
+  a trailing CR so that a bare CR inside a line — which is reproduced content,
+  not a line ending — is preserved. Line endings are not part of a licence's
+  meaning; no notice is altered.
 
 ## [1.1.1] - 2026-08-04
 

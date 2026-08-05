@@ -22,7 +22,11 @@ named in the crate source linked from the inventory table.
 {{#each licenses}}
 ### {{{name}}}{{#unless source_path}} (canonical SPDX text){{/unless}}
 
-Used by: {{#each used_by}}`{{crate.name}}`{{#unless @last}}, {{/unless}}{{/each}}
+Used by:
+
+{{#each used_by}}
+- `{{crate.name}}` {{crate.version}}
+{{/each}}
 
 <details>
 <summary>Licence text</summary>
