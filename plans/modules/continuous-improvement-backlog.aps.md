@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 216/282  |
+| CIB | —     | In Progress | 217/283  |
 
 ## Purpose
 
@@ -8149,8 +8149,16 @@ CIB-251/255 only.
 
 ### CIB-285: `skill install` error text still carries the Windows verbatim prefix
 
-- **Status:** Ready — promoted by the operator 2026-08-05 (membrane
-  checkpoint). Filed from the CIB-282 dev-loop run, not self-authorised.
+- **Status:** Merged 2026-08-05 via PR #3593 (`27da31aee`, `fbf480d7e`) —
+  added `display_path::shown(path)`, a `Display` wrapper, and routed every
+  path-rendering site in `skill.rs` through it. Verified on `origin/main`:
+  zero `.display()` calls remain there, 24 go through the helper. The site
+  count in the Files field below said sixteen, taken from a verification
+  sweep; the real figure was 24. Coverage is one behavioural test plus an
+  `include_str!` source guard — a tripwire for `.display()` and a second
+  `to_string_lossy()`, explicitly **not** a proof of the invariant, since
+  `{:?}` or `.to_str()` would evade it. The same defect class in
+  `skill_state.rs` and `doctor.rs` is tracked as **CIB-287**.
 - **Priority:** P4 presentation defect on the failure path only (no wrong
   verdict; the path is correct, just carrying a prefix no reader wants, and
   only when something has already gone wrong)
@@ -8261,3 +8269,60 @@ CIB-251/255 only.
   three shapes is right; that is the design call the item exists to settle,
   and option 1 changes what the index is *for*, so it wants an operator
   opinion rather than an implementer's.
+
+### CIB-287: `anvil doctor` skill rows still carry the Windows verbatim prefix
+
+- **Status:** Draft — filed from the CIB-285 dev-loop run, not self-authorised.
+  Promotion to Ready is an operator call (membrane checkpoint).
+- **Priority:** P4 presentation defect (no wrong verdict; the path is correct,
+  just carrying a prefix no reader wants). Scoped above CIB-285's failure-only
+  reach because these rows appear on a **normal** `anvil doctor` run, not only
+  when something has gone wrong.
+- **Intent:** CIB-237, CIB-282 and CIB-285 closed the NT-extended `\\?\` leak
+  across `skill install`'s human, `--json` and error surfaces. The managed-skill
+  rows `anvil doctor` prints were not in any of those scopes and still leak,
+  in two places:
+  - `crates/anvil-cli/src/commands/doctor.rs`, `tally_skill_outcomes` — six
+    `report.path.display()` interpolations building the `fresh:` / `dirty:` /
+    `unmanaged:` / `absent:` / `broken:` detail lines, joined into the check's
+    `details` and shown whenever there is more than one row or the check warns
+    or fails.
+  - `crates/anvil-cli/src/commands/skill_state.rs` — five `.display()` calls
+    inside the `SkillInstallOutcome::Broken { reason }` text, which
+    `doctor.rs` then interpolates into the `broken:` row, so a broken skill
+    can leak the prefix twice in one line.
+
+  Reachability was traced rather than assumed: `evaluate_known_skills`
+  (`skill_state.rs`) → `doctor.rs` → `tally_skill_outcomes` → `details`.
+- **Non-scope / do not:** Do not re-litigate the CIB-237 rendering rule. Do
+  not route these through `display_path::render` — they are absolute install
+  destinations that may sit outside any workspace, and relativising them is a
+  different rule. Do not widen to the rest of `doctor.rs`; only the
+  managed-skill rows are in scope, and the file's other `.display()` uses were
+  not audited here.
+- **Expected Outcome:** the skill rows in `anvil doctor` render destinations
+  the same way `skill install` now does, via `display_path::shown`. One helper
+  shared by both commands, so the next surface added does not have to
+  rediscover the rule.
+- **Trap to avoid:** assertions on `Path`/`PathBuf` cannot catch this —
+  `PartialEq` is component-wise and Windows accepts `/`. Assert on the
+  rendered row text. This is the **fifth** item in the family to carry this
+  warning (CIB-237, CIB-279, CIB-282, CIB-285), which is itself the argument
+  for a shared helper over per-site fixes.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs` (`tally_skill_outcomes`),
+  `crates/anvil-cli/src/commands/skill_state.rs` (`Broken { reason }`
+  construction), plus whichever test module covers doctor's skill rows
+- **Validation:** a doctor run whose skill rows name an NT-extended
+  destination emits no `\\?\` in the detail lines; the CIB-285 guard in
+  `skill_install.rs` stays green. Assert on the row string, never on a
+  `PathBuf`. Consider extending the CIB-285 source guard to cover these two
+  files, noting its documented limits.
+- **Identified From:** independent verification of CIB-285 during the dev-loop
+  run that landed PR #3593. The verifier found `skill_state.rs`; the
+  `doctor.rs` half was found while confirming the reachability chain, so the
+  leak is wider than first reported.
+- **Coordinates with:** CIB-237, CIB-279, CIB-282, CIB-285 (all shipped)
+- **Confidence:** high on the mechanism and the call sites — counted in the
+  source on `origin/main` and the print path traced end to end. Not reproduced
+  on a Windows host; on Unix the prefix is a literal substring rather than a
+  parsed prefix, which does not change the conclusion.
