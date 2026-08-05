@@ -85,8 +85,6 @@ Kept only for provenance; not live architecture authority.
   as-builts for present state. Status: Historical
 - [rust-kernel-spec.md](rust-kernel-spec.md) — H1 kernel design intent.
   `kernel-as-built.md` owns "what shipped"
-- [kernel-benchmarking-spec.md](kernel-benchmarking-spec.md) — Criterion +
-  `anvil-bench` methodology (BENCH module Complete 16/16)
 - _Archived 2026-05-23 (DOCGOV-008):_
   [`monorepo-structure.md`](../archive/architecture/monorepo-structure.md)
 - _Archived 2026-08-05:_
@@ -105,6 +103,8 @@ frozen contracts.
 
 - [rust-mcp-server-spec.md](rust-mcp-server-spec.md) — RMCPF / MCP26 Rust MCP
   parity and dual-era protocol (active)
+- [kernel-benchmarking-spec.md](kernel-benchmarking-spec.md) — Criterion +
+  `anvil-bench` methodology (BENCH Complete 16/16; Status: Live)
 - [graph-v2-foundation-spec.md](graph-v2-foundation-spec.md) — frozen Graph v2
   spine (joined graphs, hot-read boundary); GV2 module Complete
 - [graph-context-delivery-spec.md](graph-context-delivery-spec.md) — frozen GCTX

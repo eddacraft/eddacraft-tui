@@ -19,7 +19,7 @@
 - `docs/runbooks/release-runbook.md` — add the scanner-parity preflight gate note absorbed from DOCSYNC.
 - `docs/guides/release-doc-checklist.md` — expand release doc sync coverage.
 - `docs/guides/anvil-rule-authoring.md` — add ReDoS-risk framing for PR-body and commit-message rules.
-- `docs/architecture/rust-architecture-endstate.md` — document rayon pool / `RAYON_NUM_THREADS` behaviour for `anvil-checks`.
+- `docs/archive/architecture/rust-architecture-endstate.md` — document rayon pool / `RAYON_NUM_THREADS` behaviour for `anvil-checks`.
 - `docs/governance/docs-check.baseline.json` — absorb current legacy-document findings after the new surface is active.
 - `plans/modules/documentation-governance.aps.md` — record DOCGOV-006 execution state and closeout.
 - `plans/modules/documentation-sync.aps.md` — keep the absorbed DOCSYNC follow-ups reconciled.
@@ -59,7 +59,7 @@
 - Modify: `docs/runbooks/release-runbook.md`
 - Modify: `docs/guides/release-doc-checklist.md`
 - Modify: `docs/guides/anvil-rule-authoring.md`
-- Modify: `docs/architecture/rust-architecture-endstate.md`
+- Modify: `docs/archive/architecture/rust-architecture-endstate.md`
 
 - [ ] Add freshness/source-reference guidance to templates.
 - [ ] Close the five absorbed DOCSYNC documentation notes.

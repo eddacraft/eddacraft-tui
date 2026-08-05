@@ -3,9 +3,9 @@
 > **Archived 2026-08-05.** Aspirational H1/H2 end-state synthesis (dated 2026-04-03) with module statuses that predate KERN/RSTLAN completion. Superseded for live crate layout by [`rust-architecture-overview.md`](../../architecture/rust-architecture-overview.md) and for shipping truth by [`kernel-as-built.md`](../../architecture/kernel-as-built.md) and other `*-as-built.md` maps.
 
 
-| Type | Authority | Owner | Status | Freshness                                                                                                                                                                                                         |
-| ---- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Derived   | KERN  | Live   | Drift banner added to the illustrative kernel file-tree + eddacraft-tui/tokio claims corrected 2026-07-02 against main `d1fded280`. Last full review 2026-05-22 against `crates/anvil-checks/src/` and DOCGOV-006 |
+| Type | Authority  | Owner | Status   | Freshness                                                                                                                                                      |
+| ---- | ---------- | ----- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Historical | KERN  | Archived | Archived 2026-08-05 to `docs/archive/architecture/`; superseded by rust-architecture-overview.md and kernel-as-built.md. Prior review 2026-07-02 / 2026-05-22 |
 
 | Upstream                                | Downstream                                  |
 | --------------------------------------- | ------------------------------------------- |

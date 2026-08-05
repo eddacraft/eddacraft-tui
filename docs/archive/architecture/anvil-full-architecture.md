@@ -3,9 +3,9 @@
 > **Archived 2026-08-05.** Pre-cutover CURRENT/PROPOSED synthesis (dated 2026-03-13). Superseded for live architecture by [`docs/architecture/overview.md`](../../architecture/overview.md) and the `*-as-built.md` component maps under `docs/architecture/`. Do not treat CURRENT/PROPOSED labels as present-day truth.
 
 
-| Type | Authority | Owner  | Status | Freshness                                        |
-| ---- | --------- | ------ | ------ | ------------------------------------------------ |
-| Spec | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type | Authority  | Owner  | Status   | Freshness                                                                                              |
+| ---- | ---------- | ------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| Spec | Historical | DOCGOV | Archived | Archived 2026-08-05 to `docs/archive/architecture/`; superseded by overview.md and `*-as-built.md` |
 
 | Upstream                                          | Downstream                                                 |
 | ------------------------------------------------- | ---------------------------------------------------------- |

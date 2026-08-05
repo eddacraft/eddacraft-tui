@@ -104,7 +104,7 @@ Alternative: move them to a `docs/runbooks/releases/` subfolder for clarity. Sam
 | Path | Active refs | Note |
 | --- | --- | --- |
 | `docs/architecture/anvil-architecture-evolution.md` | 8 | "Supersedes ADR-011; defines Current → H1 → H2 migration." Evolution is past — Rust kernel landed. But several ADRs and as-built docs still reference it. |
-| `docs/architecture/anvil-full-architecture.md` | 3 | Dated 2026-03-13, "Current vs Proposed End State" reference. Stale by ~2 months. |
+| `docs/archive/architecture/anvil-full-architecture.md` | 3 | Dated 2026-03-13, "Current vs Proposed End State" reference. Stale by ~2 months. |
 | `docs/architecture/rust-architecture-overview.md` | 4 | "Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN, TUI (superseded)". Reference doc, no enforcement role. Status: ungoverned. |
 | `docs/architecture/rust-kernel-spec.md` | 10 | "Proposed — H1 Implementation Target". H1 is done. But referenced from current as-built docs and ADRs. |
 | `docs/architecture/monorepo-structure.md` | 2 | Self-says: "historical monorepo migration plan plus the archived target shape." Strong candidate. |
@@ -147,7 +147,7 @@ Not file-by-file inspected, but flagging the directory: if the "Edda Stack" publ
 
 These showed up in my candidate scan but on inspection are live or near-live. Backfill metadata in DOCGOV-009.
 
-- `docs/architecture/rust-architecture-endstate.md` — already governed (`Status: Live`, freshness anchored).
+- `docs/archive/architecture/rust-architecture-endstate.md` — already governed (`Status: Live`, freshness anchored).
 - `docs/architecture/rust-mcp-server-spec.md` — `Status: Ready`, owner `RMCPF-002` (active module).
 - `docs/architecture/jsts-release-surfaces.md` — already governed, `Status: Live`, freshness 2026-05-20.
 - `docs/architecture/oss-surface.md` — describes the public eddacraft OSS posture. Still authoritative.

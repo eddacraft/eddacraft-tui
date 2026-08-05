@@ -100,7 +100,7 @@ harness) can execute.
 - Fallback path when the daemon is unreachable (stale warning banner,
   no diagnostics, no block). Must fail soft: an editor that can't
   reach the daemon must not crash or refuse to open a file.
-- Update `docs/architecture/anvil-full-architecture.md` to show editor
+- Update `docs/archive/architecture/anvil-full-architecture.md` to show editor
   and MCP as drivers on the daemon in the proposed-end-state diagram.
 
 **Out of scope:**
@@ -327,8 +327,8 @@ define graph schema.
 ### DRVR-005: Architecture doc + ADR supersession cross-links
 
 - **Intent:** The proposed-end-state diagrams in
-  `docs/architecture/anvil-full-architecture.md` and
-  `docs/architecture/rust-architecture-endstate.md` still show napi
+  `docs/archive/architecture/anvil-full-architecture.md` and
+  `docs/archive/architecture/rust-architecture-endstate.md` still show napi
   bindings as the VSCode / MCP integration path. Update to show editor
   and MCP as drivers on the daemon. Add pointers to ADR-030 wherever
   TSRET is referenced.

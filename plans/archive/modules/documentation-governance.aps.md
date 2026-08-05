@@ -255,7 +255,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   `docs/runbooks/release-runbook.md`,
   `docs/guides/release-doc-checklist.md`,
   `docs/guides/anvil-rule-authoring.md`,
-  `docs/architecture/rust-architecture-endstate.md`,
+  `docs/archive/architecture/rust-architecture-endstate.md`,
   `packages/docs-meta/**`,
   `scripts/docs/check-asbuilt-paths.mjs`,
   `scripts/docs/docs-check.test.sh`,

@@ -336,12 +336,12 @@ non-negotiable reason the Rust scanner is the authoritative one.
   (`docs/public/anvil/overview.md`) switched the "13 built-in patterns
   (4 default, 9 opt-in)" bullet + table row to "18 registry-driven rules
   (15 default, 3 opt-in)" and added a **Parallel Scan Engine** row calling
-  out the rayon-driven throughput. `docs/architecture/rust-architecture-endstate.md`
+  out the rayon-driven throughput. `docs/archive/architecture/rust-architecture-endstate.md`
   updated the `anvil-checks` crate map (added `registry_loader.rs`,
   changed `patterns.rs` description to the LazyLock registry wrapper, noted
   `scanner.rs` is rayon-parallel) and added an ADR-026 block under the
   RENG ports table describing the two-engine state, parity harness, and
-  future napi-rs retirement path for the TS scanner. `docs/architecture/anvil-full-architecture.md`
+  future napi-rs retirement path for the TS scanner. `docs/archive/architecture/anvil-full-architecture.md`
   reflected the same change on the Gate Checks table row for
   `AntipatternCheck`. Validation grep confirms no remaining stale
   references to Rust `AP-008..AP-013` outside archived proposal docs and

@@ -654,8 +654,8 @@ convention" section). Concretely:
   still describe a "validation server" or RTVF-style LSP/HTTP
   path; record the supersession of RTVF in the decision log.
 - **Expected Outcome:**
-  `docs/architecture/anvil-full-architecture.md` and
-  `docs/architecture/rust-architecture-endstate.md` show the
+  `docs/archive/architecture/anvil-full-architecture.md` and
+  `docs/archive/architecture/rust-architecture-endstate.md` show the
   mid-edit path as drivers → daemon, sharing the rule registry
   with the save-time path. `plans/decisions/DECISION-LOG.md`
   references RTAI as the realisation of the in-flight

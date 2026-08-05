@@ -247,7 +247,7 @@ Authoritative ADRs: [ADR-026](../../decisions/026-rust-scanner-authoritative.md)
   (`@eddacraft/anvil-core/antipattern`,
   `@eddacraft/anvil-core/suppression`) are removed; any lingering
   type-only exports that other code depends on are moved to
-  `@eddacraft/anvil-contracts`. `docs/architecture/rust-architecture-endstate.md`
+  `@eddacraft/anvil-contracts`. `docs/archive/architecture/rust-architecture-endstate.md`
   and `docs/guides/anvil-rule-authoring.md` updated to describe
   the single-engine state.
 - **Scope:** `packages/anvil/core/src/antipattern/`,
@@ -353,7 +353,7 @@ Authoritative ADRs: [ADR-026](../../decisions/026-rust-scanner-authoritative.md)
 - **M2 / Terminal (TSRET-005, under ADR-033):** TS scanner +
   TS suppression parser deleted; parity harness retired
   (both sides); single-engine state documented in
-  `docs/architecture/rust-architecture-endstate.md` and
+  `docs/archive/architecture/rust-architecture-endstate.md` and
   `docs/guides/anvil-rule-authoring.md`.
 
   *(Pre-ADR-033 wording: "M3 (TSRET-005, via DRVR-003 / DRVR-004)" —
