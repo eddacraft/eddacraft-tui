@@ -995,9 +995,13 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
     }
 }
 
-/// Maximum directory depth for the secret scan walk. Prevents runaway
-/// recursion into deeply nested or symlink-heavy trees.
-const SECRET_SCAN_MAX_DEPTH: usize = 20;
+// CIB-280 removed `SECRET_SCAN_MAX_DEPTH`. It capped only the planless
+// secret walk — the path the pre-commit hook runs — while gate's
+// plan-scoped walk and `anvil audit` both walked unbounded, so a secret
+// nested past 20 levels was reported by audit and passed by the
+// commit-blocking surface. Runaway recursion is prevented by
+// `follow_links(false)`, the ignore-dir prune, and the >= 1 MiB file
+// skip in `run_secret_check`; none of those needs a depth bound.
 
 fn run_check_secret(
     name: &str,
@@ -2109,8 +2113,12 @@ fn raw_secret_path_in_scan_domain(
     {
         return false;
     }
+    // CIB-280: no depth bound. This predicate decides hook provenance for
+    // staged paths and must admit exactly what `secret_scan_files` walks —
+    // a path the walker reaches but this rejects would be reported as a
+    // finding whose provenance says "outside the scan domain".
     if plan_files.is_empty() {
-        return path.split(|byte| *byte == b'/').count() <= SECRET_SCAN_MAX_DEPTH;
+        return true;
     }
     std::str::from_utf8(path)
         .is_ok_and(|path| secret_path_matches_plan_scope(root, Path::new(path), plan_files))
@@ -2159,10 +2167,10 @@ fn secret_path_in_scan_domain(
     skip_extensions: &[String],
 ) -> bool {
     let relative = path.strip_prefix(root).unwrap_or(path);
+    // CIB-280: no depth bound here either — same reason as
+    // `raw_secret_path_in_scan_domain`.
     secret_path_scannable(relative)
         && secret_path_has_allowed_directories(relative)
-        && (plan_files.is_empty() && relative.components().count() <= SECRET_SCAN_MAX_DEPTH
-            || !plan_files.is_empty())
         && secret_path_matches_plan_scope(root, path, plan_files)
         && scan_path_config_eligible(relative, skip_extensions)
 }
@@ -2176,9 +2184,19 @@ fn secret_scan_files(
 
     // SCAN-001: gate-secret discovery uses `ignore::WalkBuilder`. Per-file
     // scans run on the rayon pool inside `run_secret_check` (rolled out as
-    // part of this slice). The depth cap is preserved for full-codebase
-    // scans only; plan-scoped runs must reach explicitly referenced files
-    // regardless of nesting depth.
+    // part of this slice).
+    //
+    // CIB-280: the walk is deliberately unbounded in depth. It previously
+    // capped full-codebase (planless) scans at 20 levels while plan-scoped
+    // runs walked unbounded — and the planless path is the one the
+    // pre-commit hook runs, so a secret nested deeper than the cap was
+    // reported by `anvil audit` and passed by the commit-blocking surface.
+    // The cap's original rationale (RCLI-040: "runaway recursion into
+    // deeply nested or symlink-heavy trees") is covered without it:
+    // `follow_links(false)` below stops symlink cycles, the ignore-dir
+    // prune keeps generated trees out, and `run_secret_check` skips files
+    // >= 1 MiB. Depth is not a proxy for cost worth a silent miss on a
+    // security surface.
     let mut walker_builder = ignore::WalkBuilder::new(root);
     walker_builder
         .follow_links(false)
@@ -2202,9 +2220,6 @@ fn secret_scan_files(
             }
             true
         });
-    if plan_files.is_empty() {
-        walker_builder.max_depth(Some(SECRET_SCAN_MAX_DEPTH));
-    }
     let walker = walker_builder.build();
 
     for entry in walker
@@ -5038,6 +5053,128 @@ mod tests {
         inner: GateArgs,
     }
 
+    /// Build `<root>/lvl00/lvl01/…` `depth` levels deep and drop `name`
+    /// at the bottom. Returns the file path.
+    fn nest_file(root: &Path, depth: usize, name: &str, contents: &str) -> std::path::PathBuf {
+        let mut dir = root.to_path_buf();
+        for i in 0..depth {
+            dir = dir.join(format!("lvl{i:02}"));
+        }
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, contents).unwrap();
+        path
+    }
+
+    /// CIB-280: gate's planless secret walk must reach a `.env` however
+    /// deeply it is nested.
+    ///
+    /// `audit` walks the same tree unbounded, and gate's own plan-scoped
+    /// walk is unbounded too — only the planless path was capped, and
+    /// the planless path is what the pre-commit hook runs. So a secret
+    /// nested past the old cap was flagged by `anvil audit` and passed
+    /// by the commit-blocking surface: audit flagging a file gate
+    /// ignores, which is exactly what the `SECRET_SCAN_EXTS` lock-step
+    /// comment in `audit.rs` warns must never happen.
+    #[test]
+    fn planless_secret_scan_reaches_deeply_nested_env_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let deep = nest_file(
+            tmp.path(),
+            26,
+            ".env",
+            "API_KEY=sk-live-abcdefghijklmnopqrst\n",
+        );
+
+        let files = secret_scan_files(tmp.path(), &std::collections::HashSet::new(), &[]);
+
+        assert!(
+            files.iter().any(|f| std::path::Path::new(f) == deep),
+            "planless walk must reach a `.env` at depth 26; discovered {} file(s): {files:?}",
+            files.len(),
+        );
+    }
+
+    /// The planless and plan-scoped walks must agree on which files
+    /// exist. Before CIB-280 they did not: plan-scoped was unbounded
+    /// while planless stopped at a fixed depth, so one tree produced two
+    /// different file sets depending on how gate was invoked.
+    #[test]
+    fn planless_and_plan_scoped_walks_agree_on_deep_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let deep = nest_file(
+            tmp.path(),
+            26,
+            "config.toml",
+            "token = \"ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\"\n",
+        );
+        let rel = deep
+            .strip_prefix(tmp.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+
+        let planless = secret_scan_files(tmp.path(), &std::collections::HashSet::new(), &[]);
+        let plan_scoped = secret_scan_files(
+            tmp.path(),
+            &std::iter::once(rel).collect::<std::collections::HashSet<_>>(),
+            &[],
+        );
+
+        assert!(
+            plan_scoped.iter().any(|f| std::path::Path::new(f) == deep),
+            "precondition: the plan-scoped walk has always reached deep files"
+        );
+        assert!(
+            planless.iter().any(|f| std::path::Path::new(f) == deep),
+            "planless walk must reach the same deep file the plan-scoped walk does"
+        );
+    }
+
+    /// CIB-280 asked for a guard because nothing coupled the two walks:
+    /// `SECRET_SCAN_EXTS` in `audit.rs` documents that audit and gate must
+    /// scan the same file set, but only the *extension lists* were kept in
+    /// lock-step by comment — the traversals drifted silently, which is how
+    /// the depth cap survived.
+    ///
+    /// This drives both real entry points over one tree and fails if either
+    /// grows a bound the other lacks. It is deliberately depth-heavy: any
+    /// reintroduced `max_depth` on either side breaks it.
+    #[test]
+    fn gate_and_audit_secret_walks_reach_the_same_deep_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let deep = nest_file(
+            tmp.path(),
+            26,
+            ".env",
+            "API_KEY=sk-live-abcdefghijklmnopqrst\n",
+        );
+        let rel = deep.strip_prefix(tmp.path()).unwrap();
+
+        // gate's planless secret discovery
+        let gate_files = secret_scan_files(tmp.path(), &std::collections::HashSet::new(), &[]);
+        let gate_saw = gate_files.iter().any(|f| std::path::Path::new(f) == deep);
+
+        // audit's discovery, through its own public entry point
+        let audit_data = crate::commands::audit::run_audit(tmp.path());
+        let audit_saw = audit_data
+            .issues
+            .iter()
+            .any(|i| std::path::Path::new(&i.file) == rel);
+
+        assert_eq!(
+            gate_saw, audit_saw,
+            "gate and audit must agree on whether a deeply nested `.env` is in \
+             scope — gate saw it: {gate_saw}, audit saw it: {audit_saw}. A \
+             disagreement means one walk grew a bound the other lacks."
+        );
+        assert!(
+            gate_saw,
+            "both surfaces must actually reach the file, not merely agree that \
+             they cannot see it"
+        );
+    }
+
     fn git_for_hook_fixture(root: &Path, args: &[&str]) {
         let output = std::process::Command::new("git")
             .args(args)
@@ -5235,13 +5372,32 @@ mod tests {
         );
         assert!(retained.iter().all(|path| !path.contains(".txt")));
 
-        let too_deep = format!("{}unsafe\n.js", "directory/".repeat(SECRET_SCAN_MAX_DEPTH));
-        assert!(!raw_secret_path_in_scan_domain(
-            tmp.path(),
-            too_deep.as_bytes(),
-            &std::collections::HashSet::new(),
-            &[],
-        ));
+        // CIB-280: depth alone no longer excludes a path from the scan
+        // domain. This one used to be rejected purely for being 20 levels
+        // deep, even though its extension is scannable.
+        let very_deep = format!("{}unsafe\n.js", "directory/".repeat(26));
+        assert!(
+            raw_secret_path_in_scan_domain(
+                tmp.path(),
+                very_deep.as_bytes(),
+                &std::collections::HashSet::new(),
+                &[],
+            ),
+            "a scannable extension stays in domain however deeply nested"
+        );
+
+        // The non-depth exclusions still hold, so the predicate is still
+        // doing work: an ignored directory is out of domain at any depth.
+        let ignored_dir = format!("{}node_modules/source.js", "directory/".repeat(26));
+        assert!(
+            !raw_secret_path_in_scan_domain(
+                tmp.path(),
+                ignored_dir.as_bytes(),
+                &std::collections::HashSet::new(),
+                &[],
+            ),
+            "ignored directories stay out of domain regardless of depth"
+        );
 
         let mut long_path = vec![b'a'; MAX_QUARANTINED_PATH_DISPLAY_BYTES + 128];
         long_path.extend_from_slice(b"\n.js");
@@ -5903,8 +6059,12 @@ mod tests {
         let cases = [
             ("node_modules/source.js".to_string(), "src/source.js", None),
             ("bundle.min.js".to_string(), "bundle.js", None),
+            // CIB-280 removed depth as an exclusion, so the third case is
+            // now an ignored directory nested deeply — it still proves a
+            // rename out of an excluded location is new staged debt, and
+            // it additionally pins that depth no longer does the excluding.
             (
-                format!("{}source.js", "deep/".repeat(SECRET_SCAN_MAX_DEPTH)),
+                format!("{}node_modules/source.js", "deep/".repeat(26)),
                 "source.js",
                 None,
             ),

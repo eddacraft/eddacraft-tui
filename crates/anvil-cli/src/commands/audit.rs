@@ -561,11 +561,13 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
 /// - Audit and gate select the **same file types** — the extension list
 ///   and the `.env*` filename rule are kept in lock-step deliberately
 ///   (see `SECRET_SCAN_EXTS`), and claiming they differ would licence
-///   the drift that issue #1798 fixed. Say "types", not "set": gate's
-///   full-codebase walk caps at `SECRET_SCAN_MAX_DEPTH` and narrows to
-///   plan files when a plan is present, neither of which audit does, so
-///   the two traversals are not identical and asserting set equality
-///   would be the same over-claim in the opposite direction.
+///   the drift that issue #1798 fixed. Still say "types", not "set":
+///   CIB-280 removed gate's planless depth cap, so the two walks now
+///   agree on depth, but `anvil gate <plan>` still narrows to the plan's
+///   `Files:` entries and audit never does. One narrowing mode remains,
+///   so asserting set equality would be the same over-claim in the
+///   opposite direction. The depth half of that agreement is pinned by
+///   `gate_and_audit_secret_walks_reach_the_same_deep_file` in `gate.rs`.
 /// - The full check suite is `anvil gate`, not `anvil check --all` —
 ///   the planless `check` path runs only `PLANLESS_ELIGIBLE_CHECKS`
 ///   (`secret-detection`, `antipattern-scan`), so pointing a reader
