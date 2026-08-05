@@ -1789,17 +1789,26 @@ mod tests {
             save_time_driver_attached: false,
         };
 
-        // Force the "IPC up, PID probe empty" branch by synthesizing the
-        // summary the same way `read_daemon_summary` does when PID fails.
-        let summary = match diag.daemon_attestation.process_reachable() {
-            Some(true) => DaemonSummary::Running {
-                pid: None,
-                uptime: None,
-            },
-            other => panic!("expected Some(true) for Unenforced, got {other:?}"),
-        };
+        assert_eq!(
+            diag.daemon_attestation.process_reachable(),
+            Some(true),
+            "Unenforced must mean process-reachable over IPC"
+        );
+        // Exercise the production path (not only a synthesised summary). When
+        // the PID file is absent, Running carries no pid; when present, pid is
+        // decoration only — either way it must not collapse to NotRunning.
+        let summary = read_daemon_summary(&diag);
+        assert!(
+            matches!(summary, DaemonSummary::Running { .. }),
+            "STATUS-1: Unenforced must report Running, got {summary:?}"
+        );
         let mut snap = legible_test_snapshot(WorktreeClaimState::Unprotected);
-        snap.daemon = summary;
+        // Pin the IPC-up / PID-empty surface so we still assert
+        // "Daemon: running" (not only "Daemon: pid …").
+        snap.daemon = DaemonSummary::Running {
+            pid: None,
+            uptime: None,
+        };
         snap.posture_facts = activation::SharedPostureFacts::from_diagnostic(&diag).fact_lines();
         let rendered = render_plain_legible(&snap);
         assert!(
