@@ -290,7 +290,7 @@ fn validate_index_structure(content: &str, file: &str, issues: &mut Vec<Validati
     }
 
     // Check for module link entries.
-    let link_re = Regex::new(r"\[.*?\]\(.*?\.aps\.md\)").unwrap();
+    let link_re = Regex::new(r"\[[^\]]*\]\([^)\s]*\.aps\.md\)").unwrap();
     let has_module_links = content.lines().any(|line| link_re.is_match(line));
     if content.contains("## Modules") && !has_module_links {
         issues.push(ValidationIssue {
@@ -304,7 +304,10 @@ fn validate_index_structure(content: &str, file: &str, issues: &mut Vec<Validati
 
     // Validate module link paths exist.
     let plan_dir = Path::new(file).parent();
-    let path_re = Regex::new(r"\]\((.*?\.aps\.md)\)").unwrap();
+    // Capture only within one markdown destination: never cross a `)` so a
+    // design-doc link earlier on the line cannot engorge a later `.aps.md`
+    // target (Dave pack-04 VAL-1).
+    let path_re = Regex::new(r"\]\(([^)\s]+\.aps\.md)\)").unwrap();
     for (line_num, line) in content.lines().enumerate() {
         for cap in path_re.captures_iter(line) {
             let link_path = &cap[1];
@@ -863,6 +866,76 @@ mod tests {
         validate_index_structure(content, "plan.aps.md", &mut issues);
         assert!(issues.iter().any(|i| i.rule == "path-safety"));
     }
+
+    #[test]
+    fn design_link_before_module_does_not_overcapture() {
+        // Ordinary APS index style: design doc then module on one line.
+        let content = "## Modules\n\n- [design](../designs/d.md) -> [module 12](./modules/12-x.aps.md)\n";
+        let mut issues = Vec::new();
+        validate_index_structure(content, "plans/index.aps.md", &mut issues);
+        let path_safety: Vec<_> = issues
+            .iter()
+            .filter(|i| i.rule == "path-safety")
+            .collect();
+        assert!(
+            path_safety.is_empty(),
+            "must not flag a clean relative module path when a non-.aps.md link precedes it; got: {path_safety:?}"
+        );
+        // The module target is missing on disk → broken-links, not path-safety,
+        // and the reported path must be the clean module path only.
+        let broken: Vec<_> = issues
+            .iter()
+            .filter(|i| i.rule == "broken-links")
+            .collect();
+        assert_eq!(broken.len(), 1, "got: {broken:?}");
+        assert!(
+            broken[0].message.contains("./modules/12-x.aps.md"),
+            "got: {}",
+            broken[0].message
+        );
+        assert!(
+            !broken[0].message.contains("]("),
+            "over-capture left ]( in path: {}",
+            broken[0].message
+        );
+    }
+
+    #[test]
+    fn two_aps_links_report_separately() {
+        let content =
+            "## Modules\n\n- [a](./modules/a.aps.md) and [b](../../outside/b.aps.md)\n";
+        let mut issues = Vec::new();
+        validate_index_structure(content, "plans/index.aps.md", &mut issues);
+        let path_safety: Vec<_> = issues
+            .iter()
+            .filter(|i| i.rule == "path-safety")
+            .map(|i| i.message.clone())
+            .collect();
+        assert!(
+            path_safety.iter().any(|m| m.contains("../../outside/b.aps.md")),
+            "second-link traversal must still be reported; got: {path_safety:?}"
+        );
+        assert!(
+            path_safety.iter().all(|m| !m.contains("](")),
+            "no over-capture; got: {path_safety:?}"
+        );
+    }
+
+    #[test]
+    fn standalone_escape_still_flagged() {
+        let content = "## Modules\n\n- [escape](../../outside/x.aps.md)\n";
+        let mut issues = Vec::new();
+        validate_index_structure(content, "plans/index.aps.md", &mut issues);
+        assert!(
+            issues.iter().any(|i| {
+                i.rule == "path-safety"
+                    && i.message.contains("../../outside/x.aps.md")
+                    && !i.message.contains("](")
+            }),
+            "got: {issues:?}"
+        );
+    }
+
 
     // ── Clap argument parsing ───────────────────────────────────
 

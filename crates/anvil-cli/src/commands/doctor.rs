@@ -1,5 +1,5 @@
 use std::io::IsTerminal;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anvil_kernel_types::hooks::is_anvil_managed_command;
@@ -206,62 +206,96 @@ fn check_git_repo() -> DiagnosticCheck {
     }
 }
 
-fn check_config_exists() -> DiagnosticCheck {
-    let exists = Path::new(".anvilrc").exists();
+/// Resolve the project config path the same way `anvil config show` does:
+/// `.anvil.<ext>` via [`anvil_config::discover`], then legacy `.anvilrc`.
+///
+/// Presence alone (including a zero-byte file) counts — empty-file rejection
+/// is `config-valid`'s job, matching the historical `.anvilrc`-only probe.
+fn resolve_project_config_path(root: &Path) -> Option<PathBuf> {
+    if let Ok(Some(discovered)) = anvil_config::discover(root, ".anvil") {
+        if discovered.path.is_file() {
+            return Some(discovered.path);
+        }
+    }
+    let rc = root.join(".anvilrc");
+    if rc.is_file() {
+        return Some(rc);
+    }
+    None
+}
 
-    DiagnosticCheck {
-        name: "config-exists".to_string(),
-        category: "Configuration".to_string(),
-        status: if exists {
-            CheckStatus::Pass
-        } else {
-            CheckStatus::Warn
-        },
-        message: if exists {
-            ".anvilrc found".to_string()
-        } else {
-            ".anvilrc not found".to_string()
-        },
-        details: None,
-        auto_fixable: !exists,
-        remediation: if exists {
-            Remediation::default()
-        } else {
-            Remediation {
-                summary: "Create .anvilrc with default configuration.".to_string(),
+fn config_file_label(path: &Path) -> String {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(".anvilrc")
+        .to_string()
+}
+
+fn check_config_exists() -> DiagnosticCheck {
+    check_config_exists_in(Path::new("."))
+}
+
+fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
+    match resolve_project_config_path(root) {
+        Some(path) => {
+            let name = config_file_label(&path);
+            DiagnosticCheck {
+                name: "config-exists".to_string(),
+                category: "Configuration".to_string(),
+                status: CheckStatus::Pass,
+                message: format!("{name} found"),
+                details: None,
+                auto_fixable: false,
+                remediation: Remediation::default(),
+            }
+        }
+        None => DiagnosticCheck {
+            name: "config-exists".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Warn,
+            message: "project config not found (.anvilrc / .anvil.<ext>)".to_string(),
+            details: None,
+            auto_fixable: true,
+            remediation: Remediation {
+                summary: "Create a project config with default configuration.".to_string(),
                 command: Some("anvil init".to_string()),
                 doc_url: None,
-            }
+            },
         },
     }
 }
 
 #[allow(clippy::too_many_lines)] // Each branch is a distinct error shape with its own remediation.
 fn check_config_valid() -> DiagnosticCheck {
-    let path = Path::new(".anvilrc");
+    check_config_valid_in(Path::new("."))
+}
 
-    if !path.exists() {
+#[allow(clippy::too_many_lines)] // Each branch is a distinct error shape with its own remediation.
+fn check_config_valid_in(root: &Path) -> DiagnosticCheck {
+    let Some(path) = resolve_project_config_path(root) else {
         return DiagnosticCheck {
             name: "config-valid".to_string(),
             category: "Configuration".to_string(),
             status: CheckStatus::Skipped,
-            message: "no .anvilrc to validate".to_string(),
+            message: "no project config to validate".to_string(),
             details: None,
             auto_fixable: false,
             remediation: Remediation::default(),
         };
-    }
+    };
 
-    match std::fs::read_to_string(path) {
+    let name = config_file_label(&path);
+
+    match std::fs::read_to_string(&path) {
         Ok(content) if content.trim().is_empty() => DiagnosticCheck {
             name: "config-valid".to_string(),
             category: "Configuration".to_string(),
             status: CheckStatus::Fail,
-            message: ".anvilrc is empty".to_string(),
+            message: format!("{name} is empty"),
             details: None,
             auto_fixable: false,
             remediation: Remediation {
-                summary: "Regenerate .anvilrc with the default configuration.".to_string(),
+                summary: format!("Regenerate {name} with the default configuration."),
                 command: Some("anvil init --force".to_string()),
                 doc_url: None,
             },
@@ -283,7 +317,7 @@ fn check_config_valid() -> DiagnosticCheck {
                     name: "config-valid".to_string(),
                     category: "Configuration".to_string(),
                     status: CheckStatus::Pass,
-                    message: ".anvilrc is valid (JSON/YAML/TOML)".to_string(),
+                    message: format!("{name} is valid (JSON/YAML/TOML)"),
                     details: None,
                     auto_fixable: false,
                     remediation: Remediation::default(),
@@ -320,7 +354,7 @@ fn check_config_valid() -> DiagnosticCheck {
                     name: "config-valid".to_string(),
                     category: "Configuration".to_string(),
                     status: CheckStatus::Fail,
-                    message: "invalid .anvilrc (not valid JSON, YAML, or TOML)".to_string(),
+                    message: format!("invalid {name} (not valid JSON, YAML, or TOML)"),
                     details: Some(detail),
                     auto_fixable: false,
                     remediation: Remediation {
@@ -329,8 +363,9 @@ fn check_config_valid() -> DiagnosticCheck {
                         // any credentials before running it; the alternative
                         // would be shipping a Unix-only `mv -n` command that
                         // does nothing on Windows.
-                        summary: "Back up any credentials inside `.anvilrc`, then regenerate defaults."
-                            .to_string(),
+                        summary: format!(
+                            "Back up any credentials inside `{name}`, then regenerate defaults."
+                        ),
                         command: Some("anvil init --force".to_string()),
                         doc_url: None,
                     },
@@ -341,12 +376,13 @@ fn check_config_valid() -> DiagnosticCheck {
             name: "config-valid".to_string(),
             category: "Configuration".to_string(),
             status: CheckStatus::Fail,
-            message: "failed to read .anvilrc".to_string(),
+            message: format!("failed to read {name}"),
             details: Some(e.to_string()),
             auto_fixable: false,
             remediation: Remediation {
-                summary: "Check filesystem permissions on `.anvilrc` and confirm the file is readable in your shell."
-                    .to_string(),
+                summary: format!(
+                    "Check filesystem permissions on `{name}` and confirm the file is readable in your shell."
+                ),
                 command: None,
                 doc_url: None,
             },
@@ -2097,7 +2133,7 @@ mod tests {
     fn config_exists_in_project_root() {
         let check = check_config_exists();
         assert_eq!(check.name, "config-exists");
-        // Status depends on whether .anvilrc exists
+        // Status depends on whether any project config exists
         assert!(matches!(
             check.status,
             CheckStatus::Pass | CheckStatus::Warn
@@ -2106,11 +2142,57 @@ mod tests {
 
     #[test]
     fn config_valid_skipped_when_missing() {
-        // If .anvilrc doesn't exist, config-valid should be skipped
-        if !Path::new(".anvilrc").exists() {
+        // If no project config exists, config-valid should be skipped
+        if resolve_project_config_path(Path::new(".")).is_none() {
             let check = check_config_valid();
             assert_eq!(check.status, CheckStatus::Skipped);
         }
+    }
+
+    #[test]
+    fn config_exists_recognises_anvil_yaml_only() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".anvil.yaml"),
+            "schemaVersion: 1.0.0\nplanningDir: plans\n",
+        )
+        .unwrap();
+
+        let check = check_config_exists_in(dir.path());
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(
+            check.message.contains(".anvil.yaml"),
+            "doctor must name the detected file; got: {}",
+            check.message
+        );
+        assert!(!check.auto_fixable);
+    }
+
+    #[test]
+    fn config_valid_accepts_anvil_yaml_only() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".anvil.yaml"),
+            "schemaVersion: 1.0.0\nplanningDir: plans\nchecks:\n  - secret-detection\n",
+        )
+        .unwrap();
+
+        let check = check_config_valid_in(dir.path());
+        assert_eq!(check.status, CheckStatus::Pass, "details: {:?}", check.details);
+        assert!(
+            check.message.contains(".anvil.yaml"),
+            "got: {}",
+            check.message
+        );
+    }
+
+    #[test]
+    fn config_exists_warns_when_only_empty_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join(".anvil")).unwrap();
+        let check = check_config_exists_in(dir.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.message.contains("not found"), "got: {}", check.message);
     }
 
     #[test]

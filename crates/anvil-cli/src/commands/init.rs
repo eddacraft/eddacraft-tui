@@ -104,8 +104,12 @@ pub(crate) fn run_in(
     // flow agree on whether a config exists — they previously diverged on
     // zero-byte `.anvilrc` files, leaving onboarding calling `init` and
     // `init` immediately bailing on the empty file it could not see.
-    if anvil_tui::surfaces::onboarding::config_exists_in(root) && !args.force {
-        anyhow::bail!(".anvilrc already exists. Use --force to overwrite.");
+    if let Some(existing) = anvil_tui::surfaces::onboarding::existing_config_name_in(root)
+        && !args.force
+    {
+        // Name the file we actually detected — a repo with only `.anvil.yaml`
+        // must not claim `.anvilrc` already exists (Dave pack-04 CFG-1).
+        anyhow::bail!("{existing} already exists. Use --force to overwrite.");
     }
 
     // A zero-byte `.anvilrc` is treated as "missing" by `config_exists_in`,
@@ -855,6 +859,37 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("already exists"), "got: {err}");
+        assert!(
+            err.contains(".anvilrc"),
+            "refusal should name the existing file, got: {err}"
+        );
+    }
+
+    #[test]
+    fn existing_anvil_yaml_blocks_and_names_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(".anvil.yaml"),
+            "schemaVersion: 1.0.0
+planningDir: plans
+",
+        )
+        .unwrap();
+
+        let args = InitArgs { force: false };
+        let global = no_tui_global();
+        let result = run_in(&args, &global, dir.path(), InitInvocation::Standalone);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains(".anvil.yaml already exists"),
+            "must name .anvil.yaml, not a phantom .anvilrc; got: {err}"
+        );
+        assert!(
+            !err.contains(".anvilrc already exists"),
+            "must not claim .anvilrc exists when only .anvil.yaml is present; got: {err}"
+        );
     }
 
     #[test]
