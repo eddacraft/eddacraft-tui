@@ -33,13 +33,22 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCra
         return;
     }
 
-    let chunks = Layout::vertical([
-        Constraint::Length(10),  // Project panel, including the wrapped security scope
-        Constraint::Ratio(1, 3), // Issues panel
-        Constraint::Ratio(1, 3), // Historical panel
-        Constraint::Ratio(1, 3), // Next steps panel
-    ])
-    .split(area);
+    let panel_constraints = if state.focused_panel == AuditPanel::Issues && state.expanded {
+        [
+            Constraint::Length(10), // Project panel, including the wrapped security scope
+            Constraint::Length(7),  // Selected issue plus all expanded detail lines
+            Constraint::Ratio(1, 2),
+            Constraint::Ratio(1, 2),
+        ]
+    } else {
+        [
+            Constraint::Length(10),  // Project panel, including the wrapped security scope
+            Constraint::Ratio(1, 3), // Issues panel
+            Constraint::Ratio(1, 3), // Historical panel
+            Constraint::Ratio(1, 3), // Next steps panel
+        ]
+    };
+    let chunks = Layout::vertical(panel_constraints).split(area);
 
     render_project_panel(frame, chunks[0], state, theme);
     render_issues_panel(frame, chunks[1], state, theme);
@@ -418,6 +427,37 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    #[test]
+    fn expanded_issue_details_remain_visible_at_80x24() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = super::super::AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        state.selected_item = 1;
+        state.expanded = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(rendered.contains("Severity: Medium"), "{rendered}");
+        assert!(
+            rendered.contains("Auto-fixable: press 'f' to fix"),
+            "{rendered}"
+        );
     }
 
     #[test]
