@@ -115,7 +115,10 @@ pub fn normalise_workspace_relative_path(
     // still retains the anchor evidence that portable validation needs.
     let mut anchor_remainder = raw;
     let mut consumed_current_dir = false;
-    while let Some(without_current_dir) = anchor_remainder.strip_prefix("./") {
+    while let Some(without_current_dir) = anchor_remainder
+        .strip_prefix("./")
+        .or_else(|| anchor_remainder.strip_prefix(".\\"))
+    {
         consumed_current_dir = true;
         anchor_remainder = without_current_dir.trim_start_matches('/');
     }
@@ -483,6 +486,15 @@ mod tests {
     fn host_normalised_filesystem_paths_reject_portable_hazards() {
         for path in [
             r"C:\outside.ts",
+            r".\\server\share\outside.ts",
+            r".\\\server\share\outside.ts",
+            r".\\outside.ts",
+            r".\\?\C:\outside.ts",
+            r".\\\?\C:\outside.ts",
+            r".\\.\pipe\name",
+            r".\\\.\pipe\name",
+            r".\C:\outside.ts",
+            r".\C:relative",
             "./C:/outside.ts",
             "./C:relative",
             r"./\\server\share\outside.ts",

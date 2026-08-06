@@ -516,6 +516,15 @@ mod tests {
 
         for path in [
             r"C:\outside.ts",
+            r".\\server\share\outside.ts",
+            r".\\\server\share\outside.ts",
+            r".\\outside.ts",
+            r".\\?\C:\outside.ts",
+            r".\\\?\C:\outside.ts",
+            r".\\.\pipe\name",
+            r".\\\.\pipe\name",
+            r".\C:\outside.ts",
+            r".\C:relative",
             "./C:/outside.ts",
             "./C:relative",
             r"./\\server\share\outside.ts",
