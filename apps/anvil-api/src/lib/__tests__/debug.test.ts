@@ -126,6 +126,81 @@ describe('debug structured payload redaction (CIB-214)', () => {
       expect(output).toContain(expected);
     }
   });
+
+  // These are the exact object literals the production call sites pass. Hand
+  // picking a "representative" subset is how the first version of this guard
+  // missed that `refreshTokens` (a purge row count) and `hasToken` (a presence
+  // flag) were being destroyed by the credential rule.
+  it('leaves the real cron cleanup payload fully readable', () => {
+    const output = captureDebug('cleanup complete', {
+      deviceCodes: 4,
+      githubDeviceSessions: 12,
+      otpCodes: 3,
+      refreshTokens: 87,
+      broadcastSnapshots: 2,
+      telemetryBeacons: 9,
+    });
+
+    expect(output).not.toContain('[REDACTED]');
+    expect(output).toContain('"refreshTokens":87');
+  });
+
+  it('leaves the real admin revoke and invite payloads fully readable', () => {
+    const revoke = captureDebug('POST /admin/revoke', { hasEmail: true, hasToken: true });
+    expect(revoke).not.toContain('[REDACTED]');
+    expect(revoke).toContain('"hasToken":true');
+
+    const invite = captureDebug('POST /admin/invite', {
+      hasEmail: true,
+      scopes: ['beta'],
+      days: 30,
+      tokenOnly: false,
+      edict: false,
+    });
+    expect(invite).not.toContain('[REDACTED]');
+    expect(invite).toContain('"tokenOnly":false');
+  });
+
+  it('does not let a throwing accessor turn a debug call into a request failure', () => {
+    const hostile = {
+      ok: 1,
+      get boom(): string {
+        throw new Error('getter exploded');
+      },
+    };
+
+    expect(() => captureDebug('driver error context', hostile)).not.toThrow();
+  });
+
+  it('redacts emails and device codes even under an unlisted key name', () => {
+    const output = captureDebug('unexpected context', {
+      recipient: 'victim@example.com',
+      note: 'user code ANVIL-8F3A21BC issued',
+      detail: { username: 'admin@internal.example' },
+    });
+
+    expect(output).not.toContain('victim@example.com');
+    expect(output).not.toContain('ANVIL-8F3A21BC');
+    expect(output).not.toContain('admin@internal.example');
+  });
+
+  it('redacts identifying map and object keys, not just their values', () => {
+    // rate-limit buckets by client IP and waitlist-throttle by email, so the
+    // key is the PII in exactly the structures most likely to be dumped.
+    const fromObject = captureDebug('bucket state', { 'victim@example.com': 3 });
+    const fromMap = captureDebug('bucket state', new Map([['victim@example.com', 3]]));
+
+    expect(fromObject).not.toContain('victim@example.com');
+    expect(fromMap).not.toContain('victim@example.com');
+  });
+
+  it('summarises binary payloads instead of spilling them byte by byte', () => {
+    const output = captureDebug('raw body', { chunk: Buffer.from('ANVIL-8F3A21BC') });
+
+    expect(output).not.toContain('"0":65');
+    expect(output).not.toContain('ANVIL-8F3A21BC');
+    expect(output).toContain('Binary');
+  });
 });
 
 describe('info log redaction (CIB-214)', () => {

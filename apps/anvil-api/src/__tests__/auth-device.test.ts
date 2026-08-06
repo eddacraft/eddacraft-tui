@@ -156,8 +156,10 @@ describe('POST /auth/device/start', () => {
 
   it('never prints the issued device code or the caller email to the debug console', async () => {
     // CIB-214: the device-flow start path mints a credential an operator could
-    // read straight off a log line and use, so it carries the end-to-end proof
-    // that ANVIL_DEBUG console output is redacted.
+    // read straight off a log line and use. This is a call-site regression gate
+    // — it fails if any handler on this route starts passing the code, token,
+    // or email into debug context again. The redaction boundary itself is
+    // covered by src/lib/__tests__/debug.test.ts.
     vi.stubEnv('ANVIL_DEBUG', '1');
     const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.mocked(findUserByEmail).mockResolvedValue(activeUser());

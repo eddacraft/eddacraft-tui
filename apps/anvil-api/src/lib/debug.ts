@@ -24,19 +24,50 @@ function isDebugEnabled(): boolean {
 }
 
 function sanitizeForLog(value: string): string {
-  let sanitized = value.replace(/\b(sk-|ghp_|ghu_)[A-Za-z0-9_-]+/g, '[REDACTED]');
+  let sanitized = value.replace(/\b(sk-|ghp_|ghu_|gho_|ghs_|ghr_)[A-Za-z0-9_-]+/g, '[REDACTED]');
   sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9_.+/=-]+/g, 'Bearer [REDACTED]');
   sanitized = sanitized.replace(/\b[0-9a-fA-F]{40,}\b/g, '[REDACTED]');
+  // Device user codes as minted by `generateUserCode`, and email addresses.
+  // Both are named by CIB-214 and neither is recognisable to the generic
+  // high-entropy rules below, so they need shape rules of their own.
+  sanitized = sanitized.replace(/\bANVIL-[0-9A-F]{8}\b/g, '[REDACTED]');
+  sanitized = sanitized.replace(
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+    '[REDACTED]'
+  );
   sanitized = sanitized.replace(/\b[A-Za-z0-9+/]{20,}={0,3}\b/g, '[REDACTED]');
   return sanitized;
 }
 
 /**
- * Field names whose value is credential-shaped wherever it appears. Matched as
+ * Shapes that identify a person or credential precisely enough to be applied to
+ * a *key* name. Deliberately excludes the generic high-entropy rules used on
+ * values: an ordinary camelCase identifier such as `githubDeviceSessions` is 20
+ * characters of alphanumerics and would trip the base64 heuristic, redacting a
+ * field name that carries no secret at all.
+ */
+const IDENTIFYING_KEY_SHAPES = [
+  /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+  /\bANVIL-[0-9A-F]{8}\b/,
+  /\b(sk-|ghp_|ghu_|gho_|ghs_|ghr_)[A-Za-z0-9_-]+/,
+  /\b\d{1,3}(\.\d{1,3}){3}\b/, // IPv4 — rate-limit buckets are keyed by client IP
+  /^[0-9a-fA-F:]{15,}$/, // IPv6-ish
+  /\b[0-9a-fA-F]{40,}\b/,
+];
+
+/**
+ * Field names that mark a credential when they carry *text*. Matched as
  * substrings of the normalised key, so `pollToken`, `access_token`, and
  * `refreshTokenHash` all resolve through the same rule.
+ *
+ * These apply to string values only. A number or boolean under one of these
+ * names is a counter or a flag, never the credential itself — `refreshTokens:
+ * 87` is a purge row count, and `tokenOnly` / `hasToken` are exactly the
+ * presence flags this module asks call sites to log instead of a secret.
+ * Redacting those would strip real operational context and make the safe
+ * pattern look unsafe.
  */
-const CREDENTIAL_KEY_SUBSTRINGS = [
+const CREDENTIAL_TEXT_KEY_SUBSTRINGS = [
   'token',
   'secret',
   'password',
@@ -53,11 +84,11 @@ const CREDENTIAL_KEY_SUBSTRINGS = [
 ];
 
 /**
- * Field names that identify a credential or a person only as a whole word.
- * These deliberately do NOT match as substrings: `deliveryCode` is an email
- * delivery outcome, `githubDeviceSessions` is a row count, and `authMethod` is
- * operational taxonomy — all three stay readable so ordinary debug context
- * remains useful.
+ * Field names that identify a credential or a person as a whole word, whatever
+ * type they carry — a numeric OTP is still an OTP. These deliberately do NOT
+ * match as substrings: `deliveryCode` is an email delivery outcome,
+ * `githubDeviceSessions` is a row count, and `authMethod` is operational
+ * taxonomy — all three stay readable so ordinary debug context remains useful.
  */
 const CREDENTIAL_KEY_EXACT = new Set([
   'code',
@@ -77,24 +108,31 @@ const CREDENTIAL_KEY_EXACT = new Set([
   'sessionid',
 ]);
 
-function isCredentialKey(key: string): boolean {
+/**
+ * Whether `value` must be dropped because of the name it is filed under.
+ * Type-aware: see `CREDENTIAL_TEXT_KEY_SUBSTRINGS` for why a boolean or a count
+ * under a token-ish name is kept.
+ */
+function isCredentialKey(key: string, value: unknown): boolean {
   const normalised = key.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (CREDENTIAL_KEY_EXACT.has(normalised)) {
     return true;
   }
-  return CREDENTIAL_KEY_SUBSTRINGS.some((needle) => normalised.includes(needle));
+  if (typeof value !== 'string' && typeof value !== 'bigint') {
+    return false;
+  }
+  return CREDENTIAL_TEXT_KEY_SUBSTRINGS.some((needle) => normalised.includes(needle));
 }
 
 /**
- * Recursively redact a structured debug payload.
- *
- * Scalar debug arguments already pass through `sanitizeForLog`; a structured
- * argument used to reach `console.debug` untouched, so a nested device code,
- * email, or token was printed verbatim. This walk applies the same value filter
- * to every nested string, and additionally drops values whose *key* is
- * credential-shaped — a device code or an email address is not recognisable
- * from its value alone, so key awareness is what makes the guarantee hold.
+ * Render a key, dropping it when the key *text* is itself identifying. The
+ * rate-limit and waitlist-throttle buckets are keyed by client IP and email, so
+ * the PII sits in the key in exactly the structures most likely to be dumped.
  */
+function redactKey(key: string): string {
+  return IDENTIFYING_KEY_SHAPES.some((shape) => shape.test(key)) ? '[REDACTED]' : key;
+}
+
 /**
  * Deepest structure rendered before the walk stops. Comfortably above any
  * hand-written debug context in this service, and low enough that a nested
@@ -102,9 +140,28 @@ function isCredentialKey(key: string): boolean {
  */
 const MAX_REDACTION_DEPTH = 8;
 
+/**
+ * Recursively redact a structured debug payload.
+ *
+ * Scalar debug arguments already pass through `sanitizeForLog`; a structured
+ * argument used to reach `console.debug` untouched, so a nested device code,
+ * email, or token was printed verbatim. This walk applies the same value filter
+ * to every nested string and key, and additionally drops values filed under a
+ * credential-shaped name.
+ *
+ * The guarantee is a deny-list, not a proof: `sanitizeForLog` recognises
+ * provider token prefixes, bearer headers, long hex and base64 runs, device
+ * user codes, and email addresses. A novel secret shape under an unlisted key
+ * name would still print, which is why the call sites are expected to pass
+ * operational metadata rather than payloads.
+ */
 function redactStructured(value: unknown, seen: Set<object> = new Set(), depth = 0): unknown {
   if (typeof value === 'string') {
     return sanitizeForLog(value);
+  }
+
+  if (typeof value === 'function') {
+    return '[Function]';
   }
 
   if (value === null || typeof value !== 'object') {
@@ -135,11 +192,24 @@ function redactStructured(value: unknown, seen: Set<object> = new Set(), depth =
     return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toISOString();
   }
 
+  // Binary carries no operator-readable context and an index walk would both
+  // spill its bytes and bury the rest of the line.
+  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
+    seen.delete(value);
+    return `[Binary ${value.byteLength} bytes]`;
+  }
+
+  // Boxed primitives: unwrap so `new String(code)` is filtered like the literal.
+  if (value instanceof String || value instanceof Number || value instanceof Boolean) {
+    seen.delete(value);
+    return redactStructured(value.valueOf(), seen, depth);
+  }
+
   if (value instanceof Map) {
     const entries: Record<string, unknown> = {};
     for (const [key, nested] of value) {
       const name = String(key);
-      entries[name] = isCredentialKey(name)
+      entries[redactKey(name)] = isCredentialKey(name, nested)
         ? '[REDACTED]'
         : redactStructured(nested, seen, depth + 1);
     }
@@ -159,12 +229,47 @@ function redactStructured(value: unknown, seen: Set<object> = new Set(), depth =
     return items;
   }
 
+  // Read through property *descriptors* rather than Object.entries: entries
+  // invokes accessors, and a lazily-computed property on a driver or upstream
+  // error object is free to throw. Logging must never be able to fail the
+  // request that produced it.
   const result: Record<string, unknown> = {};
-  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-    result[key] = isCredentialKey(key) ? '[REDACTED]' : redactStructured(nested, seen, depth + 1);
+  let descriptors: Record<string, PropertyDescriptor>;
+  try {
+    descriptors = Object.getOwnPropertyDescriptors(value);
+  } catch {
+    seen.delete(value);
+    return '[UNREADABLE]';
+  }
+
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (!descriptor.enumerable) {
+      continue;
+    }
+    if (!('value' in descriptor)) {
+      result[redactKey(key)] = '[GETTER]';
+      continue;
+    }
+    const nested = descriptor.value;
+    result[redactKey(key)] = isCredentialKey(key, nested)
+      ? '[REDACTED]'
+      : redactStructured(nested, seen, depth + 1);
   }
   seen.delete(value);
   return result;
+}
+
+/**
+ * `redactStructured` is defensive throughout, but it runs against
+ * caller-supplied objects; a Proxy can throw from traps this code does not
+ * control. Logging degrades to a marker rather than propagating.
+ */
+function safeRedactStructured(value: unknown): unknown {
+  try {
+    return redactStructured(value);
+  } catch {
+    return '[UNREADABLE]';
+  }
 }
 
 function debugLog(namespace: DebugNamespace, message: string, data?: unknown): void {
@@ -186,7 +291,7 @@ function debugLog(namespace: DebugNamespace, message: string, data?: unknown): v
     } else if (typeof data === 'string') {
       console.debug(`${prefix} ${sanitizedMessage}:`, sanitizeForLog(data));
     } else {
-      console.debug(`${prefix} ${sanitizedMessage}:`, redactStructured(data));
+      console.debug(`${prefix} ${sanitizedMessage}:`, safeRedactStructured(data));
     }
   } else {
     console.debug(`${prefix} ${sanitizedMessage}`);
@@ -231,11 +336,11 @@ function infoLog(namespace: DebugNamespace, event: string, fields?: InfoFields):
       if (value === undefined) {
         continue;
       }
-      if (isCredentialKey(key)) {
-        entry[key] = '[REDACTED]';
+      if (isCredentialKey(key, value)) {
+        entry[redactKey(key)] = '[REDACTED]';
         continue;
       }
-      entry[key] = typeof value === 'string' ? sanitizeForLog(value) : value;
+      entry[redactKey(key)] = typeof value === 'string' ? sanitizeForLog(value) : value;
     }
   }
   // Reserved keys are written last so a caller-supplied field can never
