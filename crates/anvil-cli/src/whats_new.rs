@@ -63,9 +63,7 @@ fn post_upgrade_hint_inner(
         return None;
     }
     let marker = root.join(MARKER_REL);
-    let Some(parent) = marker.parent() else {
-        return None;
-    };
+    let parent = marker.parent()?;
     // Never create project directories as a side effect of status (CIB-264).
     // Without a place to persist the marker, do not emit a hint either —
     // same exactly-once contract as gated writes.
