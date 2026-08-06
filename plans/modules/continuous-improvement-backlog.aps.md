@@ -4242,9 +4242,8 @@ archive.
 
 ### CIB-157: Consolidate the three MCP path-safety implementations
 
-- **Status:** In Progress — shared `collect_relative_files` exists in
-  `shared.rs`; local `normalise_relative_path` copies remain in
-  `apply_patch.rs` and `validate_write.rs`.
+- **Status:** Merged 2026-08-06 via PR #3630 (`b9096b6df`) — the remaining
+  `apply_patch.rs` and `validate_write.rs` copies now use the shared helper.
 - **Intent:** `crates/anvil-cli/src/mcp/tools/` now has three independent
   "is this a safe workspace-relative path" checks: `shared.rs`'s
   `Component`-based `collect_relative_files`, `suppress.rs`'s
@@ -4262,12 +4261,13 @@ archive.
   MCP tools call; the misleading `Component::Prefix` cross-platform comment in
   `suppress.rs` corrected or removed. No behavioural change to the currently
   correct verdicts — this is a consolidation/accuracy fix.
-- **Files:** `crates/anvil-cli/src/mcp/tools/{shared.rs,suppress.rs,fix.rs,query_boundary.rs}`.
-- **Validation:** the shared helper carries the union of the current tests
-  (drive/UNC/`..`/NUL/`./`/`//`/backslash); each tool's existing containment
-  and boundary tests stay green; a test pins that Windows-style absolute forms
-  are rejected on the Linux target (guarding against the `Component::Prefix`
-  no-op).
+- **Files:** `crates/anvil-cli/src/mcp/tools/{shared.rs,suppress.rs,fix.rs,query_boundary.rs,apply_patch.rs,validate_write.rs}`.
+- **Validation:** focused shared/apply-patch/validate-write suites passed
+  (17/13/76 tests); `cargo fmt --all -- --check`,
+  `cargo clippy -p eddacraft-anvil --all-targets -- -D warnings`, and all PR
+  #3630 required CI passed, including Rust Tests and Windows MSVC clippy. The
+  shared suite pins portable drive, UNC, device, traversal, NUL, separator, and
+  literal-backslash contracts.
 - **Identified From:** CIB-148 adversarial review, 2026-07-03 (PR #3111).
 - **Coordinates with:** CIB-145 (fix/suppress TOCTOU, in flight — shares these
   files; sequence after it merges to avoid churn), CIB-148 (merged).
