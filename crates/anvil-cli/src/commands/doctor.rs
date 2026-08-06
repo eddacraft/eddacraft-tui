@@ -212,7 +212,7 @@ fn check_git_repo() -> DiagnosticCheck {
 /// Presence alone (including a zero-byte file) counts — empty-file rejection
 /// is `config-valid`'s job, matching the historical `.anvilrc`-only probe.
 ///
-/// I/O errors from `discover` (for example permission-denied on the project
+/// I/O errors from `discover` (e.g. permission-denied on the project
 /// root) are propagated so doctor does not misreport "not found".
 fn resolve_project_config_path(root: &Path) -> std::io::Result<Option<PathBuf>> {
     match anvil_config::discover(root, ".anvil")? {
