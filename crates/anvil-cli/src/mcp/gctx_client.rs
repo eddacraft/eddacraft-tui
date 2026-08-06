@@ -640,7 +640,7 @@ mod windows_tests {
             None,
         );
         runtime
-            .block_on(tokio::time::timeout(Duration::from_secs(1), server_task))
+            .block_on(async { tokio::time::timeout(Duration::from_secs(1), server_task).await })
             .expect("server task joins within deadline")
             .expect("server task joins");
         let response = result.expect("typed graph-stats response");
