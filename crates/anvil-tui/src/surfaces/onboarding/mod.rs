@@ -51,9 +51,10 @@ pub fn config_exists_in(dir: &std::path::Path) -> bool {
 /// Used by `anvil init` so the refusal message names the file that was
 /// actually detected (`.anvil.yaml`, not a phantom `.anvilrc`).
 pub fn existing_config_name_in(dir: &std::path::Path) -> Option<&'static str> {
-    PROJECT_CONFIG_NAMES.iter().copied().find(|name| {
-        std::fs::metadata(dir.join(name)).is_ok_and(|m| m.is_file() && m.len() > 0)
-    })
+    PROJECT_CONFIG_NAMES
+        .iter()
+        .copied()
+        .find(|name| std::fs::metadata(dir.join(name)).is_ok_and(|m| m.is_file() && m.len() > 0))
 }
 
 #[cfg(test)]

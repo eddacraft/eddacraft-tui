@@ -211,17 +211,17 @@ fn check_git_repo() -> DiagnosticCheck {
 ///
 /// Presence alone (including a zero-byte file) counts — empty-file rejection
 /// is `config-valid`'s job, matching the historical `.anvilrc`-only probe.
-fn resolve_project_config_path(root: &Path) -> Option<PathBuf> {
-    if let Ok(Some(discovered)) = anvil_config::discover(root, ".anvil") {
-        if discovered.path.is_file() {
-            return Some(discovered.path);
+///
+/// I/O errors from `discover` (for example permission-denied on the project
+/// root) are propagated so doctor does not misreport "not found".
+fn resolve_project_config_path(root: &Path) -> std::io::Result<Option<PathBuf>> {
+    match anvil_config::discover(root, ".anvil")? {
+        Some(discovered) if discovered.path.is_file() => Ok(Some(discovered.path)),
+        Some(_) | None => {
+            let rc = root.join(".anvilrc");
+            if rc.is_file() { Ok(Some(rc)) } else { Ok(None) }
         }
     }
-    let rc = root.join(".anvilrc");
-    if rc.is_file() {
-        return Some(rc);
-    }
-    None
 }
 
 fn config_file_label(path: &Path) -> String {
@@ -237,7 +237,7 @@ fn check_config_exists() -> DiagnosticCheck {
 
 fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
     match resolve_project_config_path(root) {
-        Some(path) => {
+        Ok(Some(path)) => {
             let name = config_file_label(&path);
             DiagnosticCheck {
                 name: "config-exists".to_string(),
@@ -249,7 +249,7 @@ fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
                 remediation: Remediation::default(),
             }
         }
-        None => DiagnosticCheck {
+        Ok(None) => DiagnosticCheck {
             name: "config-exists".to_string(),
             category: "Configuration".to_string(),
             status: CheckStatus::Warn,
@@ -259,6 +259,21 @@ fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
             remediation: Remediation {
                 summary: "Create a project config with default configuration.".to_string(),
                 command: Some("anvil init".to_string()),
+                doc_url: None,
+            },
+        },
+        Err(e) => DiagnosticCheck {
+            name: "config-exists".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Fail,
+            message: "failed to probe project config".to_string(),
+            details: Some(e.to_string()),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary:
+                    "Check filesystem permissions on the project root and retry `anvil doctor`."
+                        .to_string(),
+                command: None,
                 doc_url: None,
             },
         },
@@ -272,16 +287,36 @@ fn check_config_valid() -> DiagnosticCheck {
 
 #[allow(clippy::too_many_lines)] // Each branch is a distinct error shape with its own remediation.
 fn check_config_valid_in(root: &Path) -> DiagnosticCheck {
-    let Some(path) = resolve_project_config_path(root) else {
-        return DiagnosticCheck {
-            name: "config-valid".to_string(),
-            category: "Configuration".to_string(),
-            status: CheckStatus::Skipped,
-            message: "no project config to validate".to_string(),
-            details: None,
-            auto_fixable: false,
-            remediation: Remediation::default(),
-        };
+    let path = match resolve_project_config_path(root) {
+        Ok(Some(path)) => path,
+        Ok(None) => {
+            return DiagnosticCheck {
+                name: "config-valid".to_string(),
+                category: "Configuration".to_string(),
+                status: CheckStatus::Skipped,
+                message: "no project config to validate".to_string(),
+                details: None,
+                auto_fixable: false,
+                remediation: Remediation::default(),
+            };
+        }
+        Err(e) => {
+            return DiagnosticCheck {
+                name: "config-valid".to_string(),
+                category: "Configuration".to_string(),
+                status: CheckStatus::Fail,
+                message: "failed to probe project config".to_string(),
+                details: Some(e.to_string()),
+                auto_fixable: false,
+                remediation: Remediation {
+                    summary:
+                        "Check filesystem permissions on the project root and retry `anvil doctor`."
+                            .to_string(),
+                    command: None,
+                    doc_url: None,
+                },
+            };
+        }
     };
 
     let name = config_file_label(&path);
@@ -2143,7 +2178,11 @@ mod tests {
     #[test]
     fn config_valid_skipped_when_missing() {
         // If no project config exists, config-valid should be skipped
-        if resolve_project_config_path(Path::new(".")).is_none() {
+        if resolve_project_config_path(Path::new("."))
+            .ok()
+            .flatten()
+            .is_none()
+        {
             let check = check_config_valid();
             assert_eq!(check.status, CheckStatus::Skipped);
         }
@@ -2178,7 +2217,12 @@ mod tests {
         .unwrap();
 
         let check = check_config_valid_in(dir.path());
-        assert_eq!(check.status, CheckStatus::Pass, "details: {:?}", check.details);
+        assert_eq!(
+            check.status,
+            CheckStatus::Pass,
+            "details: {:?}",
+            check.details
+        );
         assert!(
             check.message.contains(".anvil.yaml"),
             "got: {}",
@@ -2192,7 +2236,11 @@ mod tests {
         std::fs::create_dir(dir.path().join(".anvil")).unwrap();
         let check = check_config_exists_in(dir.path());
         assert_eq!(check.status, CheckStatus::Warn);
-        assert!(check.message.contains("not found"), "got: {}", check.message);
+        assert!(
+            check.message.contains("not found"),
+            "got: {}",
+            check.message
+        );
     }
 
     #[test]

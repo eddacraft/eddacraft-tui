@@ -290,7 +290,7 @@ fn validate_index_structure(content: &str, file: &str, issues: &mut Vec<Validati
     }
 
     // Check for module link entries.
-    let link_re = Regex::new(r"\[[^\]]*\]\([^)\s]*\.aps\.md\)").unwrap();
+    let link_re = Regex::new(r"\[[^\]]*\]\([^)\s]*\.aps\.md(?:#[^)\s]*)?\)").unwrap();
     let has_module_links = content.lines().any(|line| link_re.is_match(line));
     if content.contains("## Modules") && !has_module_links {
         issues.push(ValidationIssue {
@@ -307,10 +307,13 @@ fn validate_index_structure(content: &str, file: &str, issues: &mut Vec<Validati
     // Capture only within one markdown destination: never cross a `)` so a
     // design-doc link earlier on the line cannot engorge a later `.aps.md`
     // target (Dave pack-04 VAL-1).
-    let path_re = Regex::new(r"\]\(([^)\s]+\.aps\.md)\)").unwrap();
+    let path_re = Regex::new(r"\]\(([^)\s]+\.aps\.md(?:#[^)\s]*)?)\)").unwrap();
     for (line_num, line) in content.lines().enumerate() {
         for cap in path_re.captures_iter(line) {
-            let link_path = &cap[1];
+            // Drop optional Markdown fragment (#section) before path checks —
+            // fragments are not part of the filesystem target.
+            let raw = &cap[1];
+            let link_path = raw.split_once('#').map_or(raw, |(p, _)| p);
             // Reject absolute paths (cross-platform).
             if Path::new(link_path).is_absolute() {
                 issues.push(ValidationIssue {
@@ -870,23 +873,22 @@ mod tests {
     #[test]
     fn design_link_before_module_does_not_overcapture() {
         // Ordinary APS index style: design doc then module on one line.
-        let content = "## Modules\n\n- [design](../designs/d.md) -> [module 12](./modules/12-x.aps.md)\n";
+        // Hermetic path: use a temp file so a future real module of the same
+        // name cannot flip broken-links vs path-safety expectations.
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join("index.aps.md");
+        let content =
+            "## Modules\n\n- [design](../designs/d.md) -> [module 12](./modules/12-x.aps.md)\n";
         let mut issues = Vec::new();
-        validate_index_structure(content, "plans/index.aps.md", &mut issues);
-        let path_safety: Vec<_> = issues
-            .iter()
-            .filter(|i| i.rule == "path-safety")
-            .collect();
+        validate_index_structure(content, index.to_str().unwrap(), &mut issues);
+        let path_safety: Vec<_> = issues.iter().filter(|i| i.rule == "path-safety").collect();
         assert!(
             path_safety.is_empty(),
             "must not flag a clean relative module path when a non-.aps.md link precedes it; got: {path_safety:?}"
         );
         // The module target is missing on disk → broken-links, not path-safety,
         // and the reported path must be the clean module path only.
-        let broken: Vec<_> = issues
-            .iter()
-            .filter(|i| i.rule == "broken-links")
-            .collect();
+        let broken: Vec<_> = issues.iter().filter(|i| i.rule == "broken-links").collect();
         assert_eq!(broken.len(), 1, "got: {broken:?}");
         assert!(
             broken[0].message.contains("./modules/12-x.aps.md"),
@@ -902,17 +904,20 @@ mod tests {
 
     #[test]
     fn two_aps_links_report_separately() {
-        let content =
-            "## Modules\n\n- [a](./modules/a.aps.md) and [b](../../outside/b.aps.md)\n";
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join("index.aps.md");
+        let content = "## Modules\n\n- [a](./modules/a.aps.md) and [b](../../outside/b.aps.md)\n";
         let mut issues = Vec::new();
-        validate_index_structure(content, "plans/index.aps.md", &mut issues);
+        validate_index_structure(content, index.to_str().unwrap(), &mut issues);
         let path_safety: Vec<_> = issues
             .iter()
             .filter(|i| i.rule == "path-safety")
             .map(|i| i.message.clone())
             .collect();
         assert!(
-            path_safety.iter().any(|m| m.contains("../../outside/b.aps.md")),
+            path_safety
+                .iter()
+                .any(|m| m.contains("../../outside/b.aps.md")),
             "second-link traversal must still be reported; got: {path_safety:?}"
         );
         assert!(
@@ -923,9 +928,11 @@ mod tests {
 
     #[test]
     fn standalone_escape_still_flagged() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join("index.aps.md");
         let content = "## Modules\n\n- [escape](../../outside/x.aps.md)\n";
         let mut issues = Vec::new();
-        validate_index_structure(content, "plans/index.aps.md", &mut issues);
+        validate_index_structure(content, index.to_str().unwrap(), &mut issues);
         assert!(
             issues.iter().any(|i| {
                 i.rule == "path-safety"
@@ -936,6 +943,28 @@ mod tests {
         );
     }
 
+    #[test]
+    fn module_link_with_fragment_is_still_recognised() {
+        let dir = tempfile::tempdir().unwrap();
+        let index = dir.path().join("index.aps.md");
+        // Create the module so broken-links does not fire; fragment is ignored.
+        let modules = dir.path().join("modules");
+        std::fs::create_dir_all(&modules).unwrap();
+        std::fs::write(modules.join("x.aps.md"), "# X\n\n## Tasks\n").unwrap();
+        let content = "## Modules\n\n- [x](./modules/x.aps.md#task-1)\n";
+        let mut issues = Vec::new();
+        validate_index_structure(content, index.to_str().unwrap(), &mut issues);
+        assert!(
+            !issues.iter().any(|i| i.rule == "module-links"),
+            "fragmented .aps.md link must count as a module link; got: {issues:?}"
+        );
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.rule == "broken-links" || i.rule == "path-safety"),
+            "fragmented relative module path must validate cleanly; got: {issues:?}"
+        );
+    }
 
     // ── Clap argument parsing ───────────────────────────────────
 
