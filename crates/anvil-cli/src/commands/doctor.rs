@@ -12,8 +12,9 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::commands::hooks::{
-    HookInterpreterStatus, config_hooks_enabled, hook_interpreter_status,
-    list_config_hook_commands, resolve_file_mode_hook_paths,
+    ConfigHookRuntime, HookInterpreterStatus, config_hook_runtime, config_hooks_enabled,
+    hook_interpreter_status, list_config_hook_commands, min_config_hook_git_label,
+    resolve_file_mode_hook_paths,
 };
 use crate::commands::protection_claim_section;
 use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
@@ -464,6 +465,55 @@ fn check_plans_dir() -> DiagnosticCheck {
     }
 }
 
+
+/// CIB-251: config-mode-only install honesty. Presence of
+/// `hook.<event>.command` is not proof the hook fires — some hosts
+/// (including observed Git 2.55 Windows) install cleanly yet never run
+/// the command. Prefer Warn + fire-not-verified over silent Pass.
+/// File-mode remains the supported default path.
+fn config_mode_only_hooks_check(anvil_managed: bool) -> DiagnosticCheck {
+    let managed = if anvil_managed {
+        ", anvil-managed"
+    } else {
+        ""
+    };
+    let min_git = min_config_hook_git_label();
+    let (message, summary) = match config_hook_runtime() {
+        ConfigHookRuntime::Unsupported => (
+            format!(
+                "pre-commit hook installed (config mode{managed}; will not fire — host Git < {min_git})"
+            ),
+            format!(
+                "Config-mode hooks require Git >= {min_git}. This host is older, so the entries will not run. Install a file-mode hook for reliable L3 protection (`anvil hooks install` without `--config`, or `npx husky init`)."
+            ),
+        ),
+        ConfigHookRuntime::Supported | ConfigHookRuntime::Unknown => (
+            format!(
+                "pre-commit hook installed (config mode{managed}; fire not verified — environment-dependent)"
+            ),
+            format!(
+                "Config-mode hooks are present but doctor does not verify they actually fire. Fire depends on the host Git honouring hook.<event>.command (Git >= {min_git}; some environments still skip them). Prefer file-mode for the default path (`anvil hooks install` without `--config`, or Husky)."
+            ),
+        ),
+    };
+    DiagnosticCheck {
+        name: "hooks-installed".to_string(),
+        category: "Hooks".to_string(),
+        status: CheckStatus::Warn,
+        message,
+        details: None,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary,
+            command: Some("anvil hooks install".to_string()),
+            doc_url: Some(
+                "https://github.com/eddacraft/anvil-001/blob/main/docs/guides/git-hook-compatibility.md"
+                    .to_string(),
+            ),
+        },
+    }
+}
+
 fn check_hooks_installed() -> DiagnosticCheck {
     // GHOOK-004 review: detect file-mode hooks at every location Git
     // would actually consult — `core.hooksPath` override, the resolved
@@ -476,10 +526,11 @@ fn check_hooks_installed() -> DiagnosticCheck {
     let active_file_mode_path = file_mode_paths.iter().find(|p| p.exists()).cloned();
     let file_mode_present = active_file_mode_path.is_some();
 
-    // GHOOK-003: native config-mode hooks (`git config hook.pre-commit.command`)
-    // count as a valid hook source. We list every entry so a user-authored
-    // command that runs `anvil gate` (or any other gate) keeps doctor green
-    // — anvil-managed entries are just one supported flavour.
+    // GHOOK-003 / CIB-251: native config-mode hooks
+    // (`git config hook.pre-commit.command`) count as an installed hook
+    // *source*, but config-mode-only never claims silent Pass — fire is
+    // environment-dependent. File-mode remains the green path. Anvil-managed
+    // and user-authored config entries share the same honesty treatment.
     //
     // `hook.<event>.enabled = false` flips Git's runtime off even when
     // commands are present, so disabled config entries are NOT treated
@@ -527,23 +578,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
     }
 
     if !file_mode_present && config_mode_present {
-        // Config-mode-only install. Always Pass — Git 2.54 runs every
-        // `hook.<event>.command` value, so there is no executable bit to
-        // test and no "not executable" failure mode here.
-        let label = if anvil_config_entry_present {
-            "pre-commit hook installed (config mode, anvil-managed)"
-        } else {
-            "pre-commit hook installed (config mode)"
-        };
-        return DiagnosticCheck {
-            name: "hooks-installed".to_string(),
-            category: "Hooks".to_string(),
-            status: CheckStatus::Pass,
-            message: label.to_string(),
-            details: None,
-            auto_fixable: false,
-            remediation: Remediation::default(),
-        };
+        return config_mode_only_hooks_check(anvil_config_entry_present);
     }
 
     // File-mode hook is present (with or without an additional config-mode
@@ -2862,9 +2897,9 @@ mod tests {
         assert!(status.success());
     }
 
-    /// (a) Config-mode-only repo reports the hook as installed.
+    /// (a) CIB-251: config-mode-only is Warn (fire not verified), not Pass.
     #[test]
-    fn check_hooks_installed_passes_with_config_mode_only() {
+    fn check_hooks_installed_warns_with_config_mode_only() {
         with_tempdir_as_cwd(|dir| {
             if !try_git_init(dir) {
                 eprintln!("skipping: git init unavailable");
@@ -2873,10 +2908,15 @@ mod tests {
             add_config_hook(dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
 
             let check = check_hooks_installed();
-            assert_eq!(check.status, CheckStatus::Pass);
+            assert_eq!(
+                check.status,
+                CheckStatus::Warn,
+                "config-mode-only must not silent-Pass: {}",
+                check.message,
+            );
             assert!(
                 check.message.contains("config mode"),
-                "config-mode pass must say so: {}",
+                "config-mode warn must say so: {}",
                 check.message,
             );
             assert!(
@@ -2884,14 +2924,25 @@ mod tests {
                 "anvil-managed entries must be tagged in the message: {}",
                 check.message,
             );
+            assert!(
+                check.message.contains("fire not verified")
+                    || check.message.contains("will not fire"),
+                "must label fire as unverified or impossible: {}",
+                check.message,
+            );
+            let rem = check.remediation.summary.to_ascii_lowercase();
+            assert!(
+                rem.contains("file-mode") || rem.contains("husky"),
+                "remediation must steer toward file-mode: {}",
+                check.remediation.summary,
+            );
         });
     }
 
-    /// User-authored config-mode entries also pass — anvil should not block
-    /// doctor on the user picking a non-anvil gate. (Pass without the
-    /// "anvil-managed" tag.)
+    /// User-authored config-mode entries get the same honesty treatment —
+    /// installed, not silent green, and not tagged anvil-managed.
     #[test]
-    fn check_hooks_installed_passes_with_user_config_mode_only() {
+    fn check_hooks_installed_warns_with_user_config_mode_only() {
         with_tempdir_as_cwd(|dir| {
             if !try_git_init(dir) {
                 eprintln!("skipping: git init unavailable");
@@ -2900,11 +2951,17 @@ mod tests {
             add_config_hook(dir, "pre-commit", "npm run my-gate");
 
             let check = check_hooks_installed();
-            assert_eq!(check.status, CheckStatus::Pass);
+            assert_eq!(check.status, CheckStatus::Warn);
             assert!(check.message.contains("config mode"));
             assert!(
                 !check.message.contains("anvil-managed"),
                 "user-authored entries must not claim anvil ownership: {}",
+                check.message,
+            );
+            assert!(
+                check.message.contains("fire not verified")
+                    || check.message.contains("will not fire"),
+                "must label fire as unverified or impossible: {}",
                 check.message,
             );
         });

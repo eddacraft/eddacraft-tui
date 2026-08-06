@@ -330,6 +330,43 @@ fn supports_config_hooks(version: (u32, u32, u32)) -> bool {
     (major, minor) >= (MIN_CONFIG_HOOK_GIT_MAJOR, MIN_CONFIG_HOOK_GIT_MINOR)
 }
 
+/// Whether this host's Git can execute config-mode hooks (CIB-251).
+///
+/// Config-mode install records entries in `git config`; whether they *fire*
+/// depends on the host Git (2.54+) and environment. Doctor/status use this
+/// probe for honesty, not as proof that a hook ran.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ConfigHookRuntime {
+    /// Host Git meets the 2.54 floor — config hooks can fire (not verified).
+    Supported,
+    /// Host Git is older than 2.54 — config entries will not fire here.
+    Unsupported,
+    /// Could not determine host Git version.
+    Unknown,
+}
+
+/// Probe host Git for config-mode hook execution support.
+#[must_use]
+pub(crate) fn config_hook_runtime() -> ConfigHookRuntime {
+    match detect_git_version() {
+        Ok(version) if supports_config_hooks(version) => ConfigHookRuntime::Supported,
+        Ok(_) => ConfigHookRuntime::Unsupported,
+        Err(_) => ConfigHookRuntime::Unknown,
+    }
+}
+
+/// True when a status/doctor hook path label is a config-mode row.
+#[must_use]
+pub(crate) fn is_config_mode_hook_path(path: &str) -> bool {
+    path.starts_with("git config hook.")
+}
+
+/// Human label for the minimum Git version that can run config-mode hooks.
+#[must_use]
+pub(crate) fn min_config_hook_git_label() -> String {
+    format!("{MIN_CONFIG_HOOK_GIT_MAJOR}.{MIN_CONFIG_HOOK_GIT_MINOR}")
+}
+
 /// Probe the local `git` binary for its version. Returns the parsed triple
 /// when both the invocation and the parse succeed.
 fn detect_git_version() -> Result<(u32, u32, u32)> {

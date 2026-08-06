@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::activation;
-use crate::commands::hooks::{config_hooks_enabled, list_config_hook_commands};
+use crate::commands::hooks::{config_hooks_enabled, is_config_mode_hook_path, list_config_hook_commands};
 use crate::commands::protection_claim_section;
 use crate::commands::watch_save_time;
 use crate::config_summary::render_rule_mode_summary;
@@ -263,7 +263,13 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
             } else {
                 ""
             };
-            let state = if enabled { "" } else { " (disabled)" };
+            // CIB-251: config-mode rows never claim verified fire. Disabled
+            // stays explicit; enabled-but-unverified is the honest default.
+            let state = if enabled {
+                " (fire not verified)"
+            } else {
+                " (disabled)"
+            };
             let label = format!("git config hook.{event}.command{owner}{state}");
             hooks.push(HookStatus {
                 name: event.to_string(),
@@ -1134,20 +1140,28 @@ fn derive_layers(data: &StatusData, diag: &activation::ActivationDiagnostic) -> 
 }
 
 fn hook_layer_state(data: &StatusData, name: &str) -> LayerState {
+    // CIB-251: only file-mode active hooks claim L3/L4 "on". Config-mode
+    // install proves presence, not fire — report Partial so the grid cannot
+    // contradict a host where hook.<event>.command is ignored.
     let mut any = false;
-    let mut active = false;
+    let mut file_active = false;
     for hook in &data.hooks {
-        if hook.name == name {
-            any = true;
-            if hook.active {
-                active = true;
-            }
+        if hook.name != name {
+            continue;
+        }
+        any = true;
+        // Only non-config (file-mode) active rows claim full "on".
+        if hook.active && !is_config_mode_hook_path(&hook.path) {
+            file_active = true;
         }
     }
-    match (any, active) {
-        (false, _) => LayerState::Off,
-        (true, true) => LayerState::On,
-        (true, false) => LayerState::Partial,
+    if file_active {
+        LayerState::On
+    } else if any {
+        // Present but inactive, or config-mode-only (fire not verified).
+        LayerState::Partial
+    } else {
+        LayerState::Off
     }
 }
 
@@ -2288,8 +2302,60 @@ mod tests {
             "anvil-managed entries must be tagged in the path label, got: {}",
             pre_commit_config[0].path,
         );
+        assert!(
+            pre_commit_config[0].path.contains("(fire not verified)"),
+            "config-mode rows must not claim verified fire, got: {}",
+            pre_commit_config[0].path,
+        );
 
         cleanup(&dir);
+    }
+
+    fn bare_status_data(hooks: Vec<HookStatus>) -> StatusData {
+        StatusData {
+            hooks,
+            profile: ProfileInfo {
+                name: "(no config)".to_string(),
+                checks: Vec::new(),
+                path: ".anvilrc".to_string(),
+            },
+            recent_runs: Vec::new(),
+            update_hint: None,
+            insights_hint: None,
+            whats_new_hint: None,
+        }
+    }
+
+    /// CIB-251: config-mode-only must not flip L3/L4 to On.
+    #[test]
+    fn hook_layer_state_config_mode_only_is_partial() {
+        let data = bare_status_data(vec![HookStatus {
+            name: "pre-commit".to_string(),
+            active: true,
+            path: "git config hook.pre-commit.command (anvil-managed) (fire not verified)"
+                .to_string(),
+        }]);
+        assert_eq!(hook_layer_state(&data, "pre-commit"), LayerState::Partial);
+        assert_eq!(hook_layer_state(&data, "pre-push"), LayerState::Off);
+    }
+
+    /// CIB-251: file-mode active still claims On even when config-mode also present.
+    #[test]
+    fn hook_layer_state_file_mode_active_is_on() {
+        let data = bare_status_data(vec![
+            HookStatus {
+                name: "pre-commit".to_string(),
+                active: true,
+                path: ".husky/pre-commit".to_string(),
+            },
+            HookStatus {
+                name: "pre-commit".to_string(),
+                active: true,
+                path: "git config hook.pre-commit.command (anvil-managed) (fire not verified)"
+                    .to_string(),
+            },
+        ]);
+        assert_eq!(hook_layer_state(&data, "pre-commit"), LayerState::On);
     }
 
     /// (b) File-mode + config-mode both present reports both rows.
