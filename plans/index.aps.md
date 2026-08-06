@@ -592,6 +592,8 @@ Python must hit. Spec §7, §8.1.
 | [lang-rust](./archive/modules/lang-rust.aps.md)         | RSTLAN | Complete | 1     | §8.1 — RSTLAN-001/-002 (#2303) + -004 (#2319) + -005 (Rust boundary enforcement, #2321) Merged; RSTLAN-003 (AST antipattern catalogue — new gate-time `anvil-checks-ast` crate per ADR-071, `rust-reliability` RS-001..005), -007 (`architecture-validate` surface for Rust), and -008 (T3 dogfood: 571 files, 0 panics/parse-skips, 0% FP) Merged 2026-06-05 via PR #2329. Rust passes the T3 checklist + §16.5 #9 FP bar. RSTLAN-006 (`.rs` in default antipattern/drift scan set) Merged 2026-06-04 via PR #2324, reconciled 2026-06-07 — all 8 items Released/Shipped via v0.8.0-beta (2026-06-11), module Complete; archived 2026-06-13. `.clone()`-hot-loop + serde flatten/secret-field deferred to RSTLAN-003b. NBI re-eval complete 2026-06-03; ADR-065 (Rust-native) Accepted. Owner @aneki. (8/8) |
 | [lang-python](./modules/lang-python.aps.md)     | PYLAN  | In Progress | 2     | §8.1 — promoted Draft → In Progress 2026-06-17 on operator direction ("build lang-python first") to unblock GCALL-005. **PYLAN-001/-002** (tree-sitter-python grammar + symbol/import extractor) Merged via #2716; **PYLAN-005** (entry-point detection) Merged via #2731. **PYLAN-006/-008** (import resolver + boundary/architecture-validate surface) Merged via #2732; **PYLAN-003/-004/-007** (`python-reliability` anti-pattern catalogue + `#`-suppression + `.py` drift default-on) Merged via #2734. **PYLAN-009** (T3 dogfood + FP bar) Merged via #2740 — external validation on httpx + rich (~270 `.py`, 0 panics), **0.0% FP < N = 1%** (N accepted by operator 2026-06-18); evidence `plans/reviews/2026-06-18-pylan-009-external-validation.md`. **All 9 items Merged** — Python at T3. Prerequisites LANGTS + RSTLAN both Complete; module stays In Progress until a release tag ships these items (Released/Shipped → Complete), per the APS lifecycle. Open governance housekeeping (non-blocking): name owner, §16.5 #8 re-scoring gate |
 
+| [lang-dotnet-anchor](./modules/lang-dotnet-anchor.aps.md) | DNLAN | Draft | — | §8.1 — **owner-directed promotion of C# / .NET out of the Track 2 tail** under [ADR-118](./decisions/118-csharp-anchor-promotion-t2-t3.md) (**Accepted** 2026-08-06). C# already ships at **T1** via `LANGTAIL-006` (PR #2757); this module owns the **T2/T3 delta only** — `csharp-reliability` catalogue (CS-001..008, `async void` + sync-over-async added on blast radius), `//` suppression coverage, `.cs` drift default-on, `.csproj`/`Program.cs`/`Main` entry points, namespace→file import resolution, boundary enforcement, `architecture-validate` inclusion, and the §16.5 #9 FP bar. **Demand is 0** — the §8.2 "first .NET user" promotion lever has **not** fired; ADR-118 records the override honestly rather than inventing demand. Draft until the Ready Checklist is met (owner, catalogue tier, FP-bar N, resolver strategy). Highest-risk item is DNLAN-005 (namespace→file resolution — C# namespaces are only conventionally folder-aligned, harder than the Rust or Python resolvers). Per §8.1 there are **no partial anchors**: DNLAN-001..004 alone is C#-at-T2 and must be described as such. |
+
 #### Track 2 — Tail T1 wave (single batched sprint)
 
 Bring tail languages to T1 (parsed + symbol graph inclusion) in one sprint.
@@ -607,7 +609,9 @@ Replaces the six per-language placeholder modules (now archived).
 [lang-go](./archive/modules/lang-go.aps.md),
 [lang-java](./archive/modules/lang-java.aps.md),
 [lang-kotlin](./archive/modules/lang-kotlin.aps.md),
-[lang-dotnet](./archive/modules/lang-dotnet.aps.md),
+[lang-dotnet](./archive/modules/lang-dotnet.aps.md) — *stays archived; its T2
+scope is superseded by the active
+[lang-dotnet-anchor](./modules/lang-dotnet-anchor.aps.md) module in Track 1*,
 [lang-c-cpp](./archive/modules/lang-c-cpp.aps.md).
 
 **Cut entirely** (spec §13, no demand):

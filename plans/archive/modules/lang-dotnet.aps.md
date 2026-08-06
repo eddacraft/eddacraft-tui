@@ -5,9 +5,23 @@ Extends Anvil's analysis to C# and .NET codebases.
 See: plans/aps-rules.md
 -->
 
-# .NET Language Support — ARCHIVED
+# .NET Language Support — ARCHIVED (SUPERSEDED by the T2/T3 anchor)
 
-> **Archived 2026-04-22.** Folded into
+> **Superseded 2026-08-06** — C# was **promoted out of the Track 2 tail** to
+> anchor work targeting **T3 (Governed)** by owner direction, via
+> [ADR-118](../../decisions/118-csharp-anchor-promotion-t2-t3.md). The T2/T3
+> scope sketched below is superseded by the active
+> [`lang-dotnet-anchor`](../../modules/lang-dotnet-anchor.aps.md) module, which
+> reuses the `DNLAN` scope. This file is **not** un-archived — it stays the
+> historical record (mirroring how
+> [`lang-zig.aps.md`](./lang-zig.aps.md) was handled under ADR-093).
+>
+> The content below is **regex-era and stale**: it assumes `using`-extraction
+> regexes and an `HTMLCSS-001` prerequisite that has since been archived. C# is
+> now tree-sitter-parsed at T1 (`LANGTAIL-006`, PR #2757), which changes the
+> implementation shape entirely. Read the active module, not this one.
+>
+> **Originally archived 2026-04-22.** Folded into
 > [lang-tail-wave](../../modules/lang-tail-wave.aps.md) per
 > [2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 > §8.2, §17.3 step 2. Demand point: 0; the previous "anchor-shaped" Task
