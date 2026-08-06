@@ -283,6 +283,22 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # DEVENV-010: the root manifest and CONTRIBUTING jointly state the toolchain
+  # floors, and they drifted — `engines` moved to node >=24 / pnpm >=11 while
+  # the onboarding doc still said 22/10, sending a fresh clone into a pnpm that
+  # could not run at all. `contributing-engines-parity.test.sh` guards the
+  # pair, so a change to either side must run it.
+  #
+  # Its own class rather than reusing `shell`: that one also pulls in
+  # `shell-syntax` and an `operations` review, which would land on every
+  # dependency bump including Dependabot's. This adds only the check needed.
+  case "${path}" in
+    package.json | CONTRIBUTING.md)
+      add_unique path_classes 'toolchain-contract'
+      matched=true
+      ;;
+  esac
+
   if [[ "${matched}" == false ]]; then
     add_unique path_classes 'unknown'
     add_unique risk_classes 'unknown'
@@ -345,6 +361,12 @@ for path_class in "${path_classes[@]}"; do
     repo-metadata)
       # Metadata-only changes are reviewed through the surrounding class.
       # They do not require build, test, or format gates by themselves.
+      ;;
+    toolchain-contract)
+      # Only the fixture that compares `engines` with CONTRIBUTING (DEVENV-010).
+      # Deliberately no review requirement: the pair is machine-checkable, so a
+      # human gate would add friction without adding assurance.
+      add_unique required_checks 'script-fixtures'
       ;;
     shell)
       add_unique required_checks 'shell-syntax'

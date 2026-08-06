@@ -15,8 +15,20 @@ get started.
 
 ### Prerequisites
 
-- **Node.js**: >=22.13.0
-- **pnpm**: >=10.20.0
+- **Node.js**: >=24.0.0
+- **pnpm**: >=11.0.0
+- **git**: >=2.54.0
+
+These mirror `engines` in `package.json`, and
+`scripts/ci/contributing-engines-parity.test.sh` fails if the two drift apart.
+Older Node is not merely unsupported: pnpm 11 cannot run on it at all.
+
+**Optional — direnv.** The committed `.envrc` relocates Rust build output to
+`$HOME/.cache/anvil-targets/<worktree>` so it does not fill the mount holding
+your checkout. Install direnv and run `direnv allow` once per worktree, or use
+`wt`, whose post-start does the same. Without either, cargo builds into an
+in-tree `target/` — reclaim one with `cargo clean`. See
+[worktree policy](docs/guides/worktree-policy.md) for the full picture.
 
 ### Setup
 

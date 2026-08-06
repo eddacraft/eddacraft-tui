@@ -44,6 +44,7 @@
     "ci:classify": "bash scripts/ci/classify-changes.sh",
     "test:ci-classify": "bash scripts/ci/classify-changes.test.sh",
     "test:precommit-gate": "bash scripts/ci/precommit-gate-fail-closed.test.sh",
+    "test:contributing-engines": "bash scripts/ci/contributing-engines-parity.test.sh",
     "test:release-publication-token": "bash scripts/release/_test/validate-publication-token.test.sh",
     "test:release-readiness-workflow": "bash scripts/ci/release-readiness-workflow.test.sh",
     "test:ci-resource-budget-workflow": "bash scripts/ci/resource-budget-workflow.test.sh",

@@ -337,6 +337,7 @@ jobs:
         run: |
           pnpm test:ci-classify
           pnpm test:precommit-gate
+          pnpm test:contributing-engines
           pnpm test:ci-cost
           pnpm test:ci-fast-pr
           pnpm test:ci-integration

@@ -94,6 +94,17 @@ assert_json_contains "${hooks}" '.pathClasses | index("shell")' 'husky hook is a
 assert_json_contains "${hooks}" '.requiredChecks | index("script-fixtures")' 'husky hook requires script fixtures'
 assert_json_contains "${hooks}" '.pathClasses | index("unknown") | not' 'husky hook is classified'
 
+# DEVENV-010: engines and CONTRIBUTING state the toolchain floors together and
+# drifted apart. Both sides must run the fixture that compares them — and
+# neither should acquire an operations review for doing so, or every dependency
+# bump would need one.
+for tc_path in package.json CONTRIBUTING.md; do
+  tc=$(run_case "toolchain-${tc_path%%.*}" "${tc_path}")
+  assert_json_contains "${tc}" '.pathClasses | index("toolchain-contract")' "${tc_path} is a toolchain-contract change"
+  assert_json_contains "${tc}" '.requiredChecks | index("script-fixtures")' "${tc_path} requires script fixtures"
+  assert_json_contains "${tc}" '.requiredReviews | index("operations") | not' "${tc_path} needs no operations review"
+done
+
 infra=$(run_case infra infra/pulumi/Pulumi.yaml deploy/cloudformation/template.yml)
 assert_json_contains "${infra}" '.pathClasses | index("infra")' 'infra path class'
 assert_json_contains "${infra}" '.riskClasses | index("infra")' 'infra risk class'

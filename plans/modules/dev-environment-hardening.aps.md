@@ -339,8 +339,14 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-010: a fresh clone cannot reach a working toolchain from the repo alone
 
-- **Status:** Draft — filed after fixing the same problem by hand on one
-  machine, not self-authorised. Promotion to Ready is an operator call.
+- **Status:** In Progress — promoted Draft → Ready by the operator 2026-08-06
+  (membrane checkpoint), then started immediately. **Strand 2 is done** in this
+  PR: `CONTRIBUTING.md` now states node `>=24.0.0`, pnpm `>=11.0.0` and git
+  `>=2.54.0`, matching `engines`, plus the direnv consequence it had omitted;
+  `scripts/ci/contributing-engines-parity.test.sh` fails when the two drift,
+  and a `toolchain-contract` class routes both files to it. **Strands 1 and 3
+  remain** — self-sufficient hooks, and an opt-in bootstrap — so this item is
+  not complete.
 - **Wave:** 1 (hardening — the repo-side counterpart to DEVENV-009)
 - **Intent:** DEVENV-009 records that relocation and eviction fail when direnv
   is absent. That was repaired **on one machine**, in files the repo does not
