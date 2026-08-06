@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 246/296  |
+| CIB | —     | In Progress | 248/296  |
 
 ## Purpose
 
@@ -8562,8 +8562,12 @@ CIB-251/255 only.
 
 ### CIB-292: `Unreachable` meaning claims the editor has *seen* the MCP config
 
-- **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** Merged 2026-08-06 via PR #3653 — merge commit `3d9528d2b`,
+  ancestor-verified. Promoted Draft → Ready by the operator 2026-08-06
+  ("pick up CIB-292 and 293", membrane checkpoint authorising the run),
+  implemented and landed the same day. The retired phrase joined
+  `scripts/docs/retired-claims.mjs` (empty baseline) in the same PR, so
+  reintroduction now fails docs:check.
 - **Priority:** P2 honesty (same class as CIB-256, different attestation arm)
 - **Intent:** `state_explanation`'s `ReadyRestartRequired` +
   `DaemonAttestation::Unreachable` arm
@@ -8593,8 +8597,13 @@ CIB-251/255 only.
 
 ### CIB-293: `needs_action_meaning` infers anvil authorship from entry presence
 
-- **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** Merged 2026-08-06 via PR #3653 — merge commit `3d9528d2b`,
+  ancestor-verified. Promoted Draft → Ready by the operator 2026-08-06
+  (same membrane checkpoint as CIB-292). The CIB-167 pin was re-expressed,
+  not deleted: all three denial-forbidding assertions survive verbatim,
+  presence is pinned per-clause, and a new assertion forbids the
+  authorship claim. The retired phrase joined
+  `scripts/docs/retired-claims.mjs` (empty baseline) in the same PR.
 - **Priority:** P3 honesty (same class as CIB-256, lower blast radius)
 - **Intent:** Three `NeedsAction` arms in
   `crates/anvil-cli/src/activation/render.rs` still open with "anvil has
