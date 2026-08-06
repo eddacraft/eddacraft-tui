@@ -2096,6 +2096,7 @@ fn spawn_mcp_server_without_daemon(runtime_dir: &Path, home_dir: &Path) -> Child
         .env("USERPROFILE", home_dir);
     #[cfg(windows)]
     cmd.env("ANVIL_HOME", home_dir)
+        .env("LOCALAPPDATA", runtime_dir)
         .env("HOME", home_dir)
         .env("USERPROFILE", home_dir);
     cmd.spawn()
