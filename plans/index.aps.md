@@ -39,6 +39,7 @@
 - [Language & Coverage](#language--coverage)
 - [Rust MCP Launch Path](#rust-mcp-launch-path)
 - [Graph Trust Surfaces](#graph-trust-surfaces)
+- [Settings Truth Surface](#settings-truth-surface)
 - [Future](#future)
 - [Dormant: Not Yet Scheduled](#dormant-not-yet-scheduled)
 
@@ -760,6 +761,38 @@ items to Ready in their owning modules.
 Sibling (not in the five-track shortlist; remains demand-pulled after CGBDG):
 [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md)
 (CPTA) under Dormant.
+
+### Settings Truth Surface
+
+Planning intake (2026-08-06) for the operator-supplied `/settings` specification
+v1.1:
+[`plans/specs/2026-08-06-settings-truth-surface.md`](./specs/2026-08-06-settings-truth-surface.md).
+A searchable `/settings` control centre plus an `anvil settings` CLI surface that
+separate **configured**, **resolved** and **evidenced active** state, so Anvil
+can show the gap between declared intent and what the running system proves it
+enforces.
+
+**Not a release claim.** No window, no NBI row, no ADR yet — this band is the
+programme shape only, and does not compete with the active `v0.9.3-beta` honesty
+window. Slices map one-to-one onto modules; `/settings` v0.1 = SETCON + SETINS +
+SETPREF (`Settings | Status | Sources` only — the `Audit` tab ships with SETGOV,
+never before, so the surface cannot imply history it has not observed).
+
+| Module | Scope | Slice | Status | Progress | Programme next |
+| ------ | ----- | ----- | ------ | -------- | -------------- |
+| [settings-truth-contract](./modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | Proposed | 0/11 | Accept the SETCON-001 truth-contract ADR (terminology, runtime-state model, service boundary) and decide the catalogue home crate |
+| [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Proposed | 0/10 | Gated on SETCON-008/-010; open a [CLICT](./modules/cli-command-truth.aps.md) slice before any doc claims `anvil settings` exists |
+| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | Gated on SETINS; introduces the single authorised write path (Class A only) |
+| [settings-governed-changes](./modules/settings-governed-changes.aps.md) | SETGOV | 3 — governed changes and audit | Draft | 0/9 | Post-v0.1; needs the audit-store reuse decision and an approval-authority model with [ORGHIER](./modules/org-policy-hierarchy.aps.md)/[POLLC](./modules/policy-lifecycle.aps.md) |
+| [settings-nl-proposals](./modules/settings-nl-proposals.aps.md) | SETNL | 4 — natural-language proposals | Draft | 0/4 | Horizon; authoring input only, never an authority or mutation path |
+
+Coordinates with [UCFG](./modules/unified-config-format.aps.md) (source
+discovery and file layout), [ORGHIER](./modules/org-policy-hierarchy.aps.md)
+(constraint inputs), [FLAGCAT](./modules/feature-flag-catalogue.aps.md) (flags
+are catalogue entries, not a second registry), and
+[ACTTUI](./modules/activation-tui.aps.md) (shared TUI posture and honesty copy
+pins). `anvil config show` / `validate` remain the low-level compatibility
+interface on the same resolver — nothing here deprecates them.
 
 ### Future
 
