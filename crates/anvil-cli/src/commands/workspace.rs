@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use anvil_intercept::confinement::{self, AdmissionModeFile, MatchKind};
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand, ValueEnum};
+use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::registration::{self, WorktreeRegistration, WorktreeUnregistration};
@@ -115,14 +116,14 @@ struct InstallHookArgs {
     print: bool,
 }
 
-pub fn run(args: &WorkspaceArgs, _global: &GlobalArgs) -> Result<()> {
+pub fn run(args: &WorkspaceArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         WorkspaceCommand::Mode(mode_args) => run_mode(mode_args),
         WorkspaceCommand::Allow(allow_args) => run_allow(allow_args),
         WorkspaceCommand::Deny(deny_args) => run_deny(deny_args),
         WorkspaceCommand::Register(register_args) => run_register(register_args),
         WorkspaceCommand::Unregister(unregister_args) => run_unregister(unregister_args),
-        WorkspaceCommand::List => run_list(),
+        WorkspaceCommand::List => run_list(global.json),
         WorkspaceCommand::InstallHook(install_hook_args) => run_install_hook(install_hook_args),
     }
 }
@@ -357,13 +358,112 @@ fn run_deny(args: &DenyArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_list() -> Result<()> {
+const WORKSPACE_LIST_SCHEMA_VERSION: &str = "anvil.workspace-list.v1";
+
+#[derive(Serialize)]
+struct WorkspaceListOutput {
+    schema_version: &'static str,
+    admission_mode: &'static str,
+    allow_entries: Vec<WorkspaceAllowEntry>,
+    registered_worktrees: RegisteredWorktreesOutput,
+    register_on_start: Vec<RegisterOnStartEntry>,
+}
+
+#[derive(Serialize)]
+struct WorkspaceAllowEntry {
+    path: String,
+    kind: &'static str,
+    live_registered: Option<bool>,
+}
+
+#[derive(Serialize)]
+struct RegisteredWorktreesOutput {
+    availability: RegisteredWorktreeAvailability,
+    entries: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum RegisteredWorktreeAvailability {
+    Available,
+    Unavailable,
+}
+
+#[derive(Serialize)]
+struct RegisterOnStartEntry {
+    path: String,
+    state: RegisterOnStartState,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum RegisterOnStartState {
+    Registered,
+    NotRegistered,
+    Unknown,
+}
+
+fn run_list(json: bool) -> Result<()> {
     let file = confinement::read_config_file().context("read workspace confinement config")?;
 
     // Registry half first (ACTMO-015): the set of durably-registered worktrees,
     // canonicalised so the config half can flag which allow entries are live.
     // Degraded behaviour when the daemon is down: the config half still renders.
     let registered = registered_worktrees();
+
+    if json {
+        let allow_entries = file
+            .allow
+            .iter()
+            .map(|entry| WorkspaceAllowEntry {
+                path: entry.path.to_string_lossy().into_owned(),
+                kind: kind_label(entry.kind),
+                live_registered: match &registered {
+                    RegisteredSet::Known(set) => Some(is_registered(&entry.path, set)),
+                    RegisteredSet::Unavailable => None,
+                },
+            })
+            .collect();
+        let registered_worktrees = match &registered {
+            RegisteredSet::Known(set) => RegisteredWorktreesOutput {
+                availability: RegisteredWorktreeAvailability::Available,
+                entries: set
+                    .iter()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .collect(),
+            },
+            RegisteredSet::Unavailable => RegisteredWorktreesOutput {
+                availability: RegisteredWorktreeAvailability::Unavailable,
+                entries: Vec::new(),
+            },
+        };
+        let register_on_start = file
+            .register_on_start
+            .iter()
+            .map(|path| RegisterOnStartEntry {
+                path: path.to_string_lossy().into_owned(),
+                state: match &registered {
+                    RegisteredSet::Known(set) if is_registered(path, set) => {
+                        RegisterOnStartState::Registered
+                    }
+                    RegisteredSet::Known(_) => RegisterOnStartState::NotRegistered,
+                    RegisteredSet::Unavailable => RegisterOnStartState::Unknown,
+                },
+            })
+            .collect();
+        let output = WorkspaceListOutput {
+            schema_version: WORKSPACE_LIST_SCHEMA_VERSION,
+            admission_mode: mode_label(file.admission),
+            allow_entries,
+            registered_worktrees,
+            register_on_start,
+        };
+        println!(
+            "{}",
+            serde_json::to_string(&output).context("serialise workspace list")?
+        );
+        return Ok(());
+    }
 
     println!("Admission mode: {}", mode_label(file.admission));
     if let Some(disclosure) = admission_disclosure(file.admission) {
