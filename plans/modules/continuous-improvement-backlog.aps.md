@@ -4264,10 +4264,10 @@ archive.
 - **Files:** `crates/anvil-cli/src/mcp/tools/{shared.rs,suppress.rs,fix.rs,query_boundary.rs,apply_patch.rs,validate_write.rs}`.
 - **Validation:** focused shared/apply-patch/validate-write suites passed
   (17/13/76 tests); `cargo fmt --all -- --check`,
-  `cargo clippy -p eddacraft-anvil --all-targets -- -D warnings`, and all PR
-  #3630 required CI passed, including Rust Tests and Windows MSVC clippy. The
-  shared suite pins portable drive, UNC, device, traversal, NUL, separator, and
-  literal-backslash contracts.
+  `cargo clippy -p eddacraft-anvil --all-targets -- -D warnings`, and all
+  required CI checks for PR #3630 passed, including Rust Tests and Windows MSVC
+  clippy. The shared suite pins portable drive, UNC, device, traversal, NUL,
+  separator, and literal-backslash contracts.
 - **Identified From:** CIB-148 adversarial review, 2026-07-03 (PR #3111).
 - **Coordinates with:** CIB-145 (fix/suppress TOCTOU, in flight — shares these
   files; sequence after it merges to avoid churn), CIB-148 (merged).
