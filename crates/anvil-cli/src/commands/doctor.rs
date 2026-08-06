@@ -3293,8 +3293,9 @@ mod tests {
     /// silently shrink the scanned region (Copilot review on PR #3602).
     #[test]
     fn managed_skill_detail_rows_render_paths_through_the_shared_helper() {
-        let source = include_str!("doctor.rs");
+        // Item before any statement — clippy::items_after_statements.
         const PRODUCTION_END: &str = "#[cfg(test)]\nmod tests {";
+        let source = include_str!("doctor.rs");
         let Some((production, _)) = source.split_once(PRODUCTION_END) else {
             panic!(
                 "expected doctor.rs production code to end with {PRODUCTION_END:?}; \

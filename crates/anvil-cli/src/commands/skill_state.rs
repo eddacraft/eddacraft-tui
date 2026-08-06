@@ -561,8 +561,9 @@ mod tests {
     /// silently shrink the scanned region (Copilot review on PR #3602).
     #[test]
     fn skill_state_renders_every_path_through_the_shared_helper() {
-        let source = include_str!("skill_state.rs");
+        // Item before any statement — clippy::items_after_statements.
         const PRODUCTION_END: &str = "#[cfg(test)]\nmod tests {";
+        let source = include_str!("skill_state.rs");
         let Some((production, _)) = source.split_once(PRODUCTION_END) else {
             panic!(
                 "expected skill_state.rs production code to end with {PRODUCTION_END:?}; \
