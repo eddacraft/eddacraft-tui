@@ -2138,7 +2138,14 @@ mod tests {
             // reintroduction ("… for daily save-time cover; add
             // `--watch` for the save-time fallback") would pass while
             // shipping exactly the CIB-260 defect.
-            for clause in line.split([';', '\n']) {
+            //
+            // `.` is a delimiter alongside `;` and newline so the same
+            // evasion cannot arrive as two sentences instead ("… for
+            // daily save-time cover. Add `--watch` …"). Splitting on
+            // `.` also cuts the `https://eddacraft.ai` URL in the
+            // signed-out variant; that is harmless here, because none
+            // of the resulting fragments mention save-time.
+            for clause in line.split(['.', ';', '\n']) {
                 if !clause.contains("save-time") {
                     continue;
                 }
