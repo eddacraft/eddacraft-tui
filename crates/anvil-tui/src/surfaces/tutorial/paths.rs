@@ -379,8 +379,8 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Summary",
-            "You now have architecture enforcement configured. Boundary violations will be surfaced in every commit review via `anvil gate` and during active development via your editor.",
-            "Architecture enforcement is ready. Press enter to finish.",
+            "You defined layers in `.anvil/architecture.yaml` and validated the definition. Boundary checks run when you invoke `anvil check` or `anvil gate` — this walk did not install commit hooks or editor wiring.",
+            "Architecture definition is in place. Press enter to finish.",
         ),
     ]
 }
@@ -464,8 +464,8 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Summary",
-            "Your CI pipeline now runs anvil checks on every push. The gate blocks merges when critical policies are violated, keeping your main branch clean.",
-            "CI integration is configured. Press enter to finish.",
+            "This walk covered hooks, a CI workflow, exit codes, and machine-readable output. Until you install hooks (`anvil hooks install`) and add a workflow that runs `anvil gate`, anvil is not yet checking every push.",
+            "CI wiring steps are ready to apply. Press enter to finish.",
         ),
     ]
 }
@@ -815,6 +815,89 @@ mod tests {
         );
         assert!(steps[4].verify_hint.is_some());
         assert!(steps[5].command.is_none(), "Summary should have no command");
+    }
+
+    /// CIB-259 / TUI-8: path completion copy must not claim configuration the
+    /// walk did not perform. Architecture requires `.anvil/architecture.yaml`
+    /// (verified write) but does not wire gate/editor; CI steps are guidance
+    /// only (hooks + workflow are not verified).
+    #[test]
+    fn architecture_summary_matches_verified_side_effects() {
+        let steps = architecture_steps();
+        let summary = steps.last().expect("architecture summary");
+        assert_eq!(summary.title, "Summary");
+
+        let desc = summary.description.to_lowercase();
+        let instr = summary.instruction.to_lowercase();
+
+        // Must not overclaim present-tense full enforcement / editor wiring.
+        for forbidden in [
+            "you now have architecture enforcement configured",
+            "during active development via your editor",
+            "every commit review",
+        ] {
+            assert!(
+                !desc.contains(forbidden),
+                "architecture summary must not claim {forbidden:?}"
+            );
+            assert!(
+                !instr.contains(forbidden),
+                "architecture instruction must not claim {forbidden:?}"
+            );
+        }
+
+        // Must acknowledge the verified write and that gate/editor are on demand.
+        assert!(
+            summary.description.contains(".anvil/architecture.yaml"),
+            "architecture summary should name the file the walk required"
+        );
+        assert!(
+            desc.contains("anvil check") || desc.contains("anvil gate"),
+            "architecture summary should point at on-demand enforcement commands"
+        );
+        assert!(
+            desc.contains("did not")
+                || desc.contains("not install")
+                || desc.contains("separately")
+                || desc.contains("on demand"),
+            "architecture summary should frame what the walk did not do"
+        );
+    }
+
+    #[test]
+    fn ci_summary_does_not_claim_pipeline_is_live() {
+        let steps = ci_steps();
+        let summary = steps.last().expect("ci summary");
+        assert_eq!(summary.title, "Summary");
+
+        let desc = summary.description.to_lowercase();
+        let instr = summary.instruction.to_lowercase();
+
+        for forbidden in [
+            "your ci pipeline now runs",
+            "now runs anvil checks on every push",
+            "ci integration is configured",
+        ] {
+            assert!(
+                !desc.contains(forbidden),
+                "ci summary must not claim {forbidden:?}"
+            );
+            assert!(
+                !instr.contains(forbidden),
+                "ci instruction must not claim {forbidden:?}"
+            );
+        }
+
+        // Must leave an honest "not yet" / apply-next framing.
+        assert!(
+            desc.contains("until") || desc.contains("not yet") || desc.contains("when you"),
+            "ci summary should make clear pipeline checks are not already live"
+        );
+        assert!(
+            summary.description.contains("anvil hooks install")
+                || summary.description.contains("anvil gate"),
+            "ci summary should name the concrete apply steps"
+        );
     }
 
     /// WOW-001: effects are declared honestly — the steps that write into
