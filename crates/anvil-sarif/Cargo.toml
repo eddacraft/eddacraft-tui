@@ -16,7 +16,7 @@ workspace-hack.workspace = true
 
 [dev-dependencies]
 serde_json = { workspace = true }
-jsonschema = "0.49"
+jsonschema = { workspace = true }
 
 [lints]
 workspace = true

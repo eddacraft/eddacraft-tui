@@ -93,6 +93,12 @@ toml = "1"
 # Chosen over bincode for a formally stable, versioned wire format (no v1/v2
 # wire-incompatibility footgun); pure-Rust, no native build step.
 postcard = { version = "1", features = ["use-std"] }
+# Test-only schema validation (SARIF 2.1.0, OpenAPI components, MCP tool
+# schemas). Centralised here so a bump lands in one place: four crates carry it
+# as a dev-dependency and previously pinned the version independently.
+# Note: `regorus` (pinned `=0.11.0`, below) carries its own `jsonschema` as a
+# normal dependency, so the graph holds two copies until that pin moves.
+jsonschema = "0.49"
 
 # Policy engine (ADR-040 — pinned at a committed minor version)
 # default-features off so the sole consumer (anvil-policy-engine) opts into a
