@@ -73,13 +73,13 @@ fn init_force_post_analysis_scopes_clean_result_to_antipattern_sample() {
         .output()
         .expect("failed to invoke anvil binary");
 
-assert!(
-    output.status.success(),
-    "anvil init exited with {:?}\nstdout: {}\nstderr: {}",
-    output.status,
-    String::from_utf8_lossy(&output.stdout),
-    String::from_utf8_lossy(&output.stderr),
-);
+    assert!(
+        output.status.success(),
+        "anvil init exited with {:?}\nstdout: {}\nstderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
