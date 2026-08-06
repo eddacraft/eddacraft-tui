@@ -7417,7 +7417,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-262: Honour `--json` for `workspace list` and `tutorial` (JSON-1)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3626 (`e8ef0ba29`)
 - **Priority:** P3 contract polish
 - **Intent:** `workspace list --json` returns prose byte-identical to text;
   `tutorial --json` returns prose and suggests dropping `--no-tui` when that
