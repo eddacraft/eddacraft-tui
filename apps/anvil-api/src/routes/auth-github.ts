@@ -143,7 +143,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
       githubId: ghUser.id,
       githubLogin: ghUser.login,
     });
-    debug('created pending user via github oauth', { email: user.email, githubId: ghUser.id });
+    debug('created pending user via github oauth', { userId: user.id, githubId: ghUser.id });
   } else if (didFirstLink) {
     // Audit the moment a GitHub id is bound to a pre-existing active invite —
     // the one path that realises ADR-066's accepted email==account residual
@@ -160,7 +160,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
       githubId: ghUser.id,
       status: user.status,
     });
-    debug('github oauth for non-active user', { email: user.email, status: user.status });
+    debug('github oauth for non-active user', { userId: user.id, status: user.status });
     return c.json({ error: 'Account pending approval' }, 403);
   }
 

@@ -89,7 +89,7 @@ export function adminRateLimit(opts: AdminRateLimitOptions): MiddlewareHandler {
     c.res.headers.set('X-RateLimit-Scope', scope);
 
     if (entry.count > max) {
-      debug('admin rate limit exceeded', { actor, scope, count: entry.count, max });
+      debug('admin rate limit exceeded', { scope, count: entry.count, max });
       c.res.headers.set('Retry-After', String(retryAfterSeconds));
       return c.json(
         {

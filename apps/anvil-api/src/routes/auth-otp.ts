@@ -84,7 +84,9 @@ authOtp.post('/request', zValidator('json', requestSchema), async (c) => {
 
   const delivery = await sendOtpCode(normalised, code);
   if (!delivery.sent) {
-    debug('otp email delivery failed', { code: delivery.code });
+    // `deliveryCode` is the provider's failure class, not the OTP — the name
+    // keeps it clear of the credential-shaped `code` rule (CIB-214).
+    debug('otp email delivery failed', { deliveryCode: delivery.code });
   }
 
   return c.json(SUCCESS_RESPONSE);

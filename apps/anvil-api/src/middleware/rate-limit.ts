@@ -150,7 +150,9 @@ export function rateLimiter(opts?: { windowMs?: number; max?: number }): Middlew
     c.res.headers.set('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
 
     if (entry.count > max) {
-      debug('rate limit exceeded', { ip, count: entry.count, max });
+      // The client IP identifies a person; the counters carry the operational
+      // signal on their own (CIB-214).
+      debug('rate limit exceeded', { count: entry.count, max });
       return c.json({ error: 'Too many requests, please try again later' }, 429);
     }
 

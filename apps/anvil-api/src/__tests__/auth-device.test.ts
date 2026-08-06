@@ -154,6 +154,30 @@ describe('POST /auth/device/start', () => {
     expect(pollTokenHash).toBe(`hash:${body.pollToken}`);
   });
 
+  it('never prints the issued device code or the caller email to the debug console', async () => {
+    // CIB-214: the device-flow start path mints a credential an operator could
+    // read straight off a log line and use, so it carries the end-to-end proof
+    // that ANVIL_DEBUG console output is redacted.
+    vi.stubEnv('ANVIL_DEBUG', '1');
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    vi.mocked(findUserByEmail).mockResolvedValue(activeUser());
+
+    const res = await post('/auth/device/start', { email: 'active@example.com' });
+    const body = await res.json();
+
+    const printed = consoleDebug.mock.calls
+      .flat()
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join('\n');
+
+    expect(consoleDebug).toHaveBeenCalled();
+    expect(printed).not.toContain(body.userCode);
+    expect(printed).not.toContain(body.pollToken);
+    expect(printed).not.toContain('active@example.com');
+
+    vi.unstubAllEnvs();
+  });
+
   it('returns a response shape indistinguishable from the active-user path for unknown emails', async () => {
     // First call: known active user — record the canonical shape.
     vi.mocked(findUserByEmail).mockResolvedValueOnce(activeUser());

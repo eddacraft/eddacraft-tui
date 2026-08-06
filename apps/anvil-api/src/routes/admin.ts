@@ -135,7 +135,7 @@ function resolveAuthMethod(c: {
  */
 admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   const { email, name, notes, days, scopes, tokenOnly, edict } = c.req.valid('json');
-  debug('POST /admin/invite', { email, scopes, days, tokenOnly, edict });
+  debug('POST /admin/invite', { hasEmail: Boolean(email), scopes, days, tokenOnly, edict });
   const sql = getClient();
   const actor = resolveAdminActor(c);
   const authMethod = resolveAuthMethod(c);
@@ -500,7 +500,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     } catch (err) {
       const reason = classifySkip(err);
       const message = err instanceof Error ? err.message : String(err);
-      debug('Batch approve skip', { email: row.email, reason, error: message });
+      debug('Batch approve skip', { reason, error: message });
       skipped.push({ email: row.email, reason, message });
     }
   }
@@ -537,7 +537,7 @@ admin.get('/waitlist', zValidator('query', waitlistListQuerySchema), async (c) =
  */
 admin.get('/audit', zValidator('query', auditListQuerySchema), async (c) => {
   const { action, actor, limit, offset } = c.req.valid('query');
-  debug('GET /admin/audit', { action, actor, limit, offset });
+  debug('GET /admin/audit', { action, hasActor: Boolean(actor), limit, offset });
   const sql = getClient();
 
   const result = await findAuditEntries(sql, { action, actor, limit, offset });

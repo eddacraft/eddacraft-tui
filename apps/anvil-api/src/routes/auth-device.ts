@@ -66,7 +66,9 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
     try {
       if (isValid) {
         await insertDeviceCode(sql, user.id, userCode, pollTokenHash, expiresAt);
-        debug('device code created', { userCode });
+        // The code is the credential the caller activates with — log which
+        // retry produced it, never its value (CIB-214).
+        debug('device code created', { attempt });
       } else {
         // F-C-003: insert a dummy row so /poll behaves identically for inactive
         // or unknown emails — without it, a missing row would let a caller tell
