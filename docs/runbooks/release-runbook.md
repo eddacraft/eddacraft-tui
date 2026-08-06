@@ -1,8 +1,8 @@
 # Anvil Release Runbook
 
-| Type    | Authority     | Owner   | Status | Freshness                                                                                   |
-| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-16 against `docs/policies/release-cadence.md` and `scripts/release/*` |
+| Type    | Authority     | Owner   | Status | Freshness                                                                             |
+| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-08-07 — closeout doctrine (release record + APS advance) per #1712 |
 
 | Upstream                                                           | Downstream                            |
 | ------------------------------------------------------------------ | ------------------------------------- |
@@ -324,35 +324,132 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 
 #### 10. Close Out
 
+Closeout is the **shipped-state join**: the code is already on users' machines
+after verify; this step proves _which_ APS work shipped, keeps `RELEASE-PLAN.md`
+forward-looking, and closes the operator log.
+
+`scripts/release/closeout.sh` only owns the last GitHub hygiene actions. Run the
+steps below **in order** before treating the tag as fully closed.
+
+##### 10a. Publish the release record
+
+Write or update `plans/releases/<tag>.md` and set `lifecycleState` to
+`published` once verification has passed.
+
+**Operator minimum** (the shape used on recent `v0.9.x` cuts — a markdown table
+plus short narrative, not a hand-filled OPMODEL JSON dump):
+
+| Field                              | Source                                               |
+| ---------------------------------- | ---------------------------------------------------- |
+| Tag, Source SHA, Date              | `tag.sh` / annotated tag                             |
+| lifecycleState                     | `published`                                          |
+| Tracking issue                     | prepare metadata                                     |
+| Readiness / release / signing runs | Actions URLs from monitor                            |
+| Private + public release pages     | GitHub release URLs                                  |
+| Verification                       | tracking-issue verification comment from `verify.sh` |
+| Theme + what shipped               | `RELEASE-PLAN.md` window + changelog                 |
+
+**Machine-usable APS list** (required when any APS item should advance):
+
+Include a fenced `json` block that carries `aps.items[]` with at least
+`{ "id": "<WORK-ITEM-ID>" }` per item. That is what
+`scripts/aps/advance-released.mjs` reads — prose bullet lists alone are not
+enough. A fuller OPMODEL-004 record
+([schema](../../plans/specs/2026-05-10-release-record-schema.md)) is welcome
+when tooling emits it; do not block the cut on hand-authoring every schema field
+if the operator table + `aps.items[]` are complete.
+
+Prefer writing the record on the closeout commit (or an immediately prior
+bookkeeping commit on `main`), not only as issue prose.
+
+##### 10b. Advance APS items to Released/Shipped
+
+```bash
+TAG=<version>   # e.g. v0.9.3-beta
+SHA=<promoted-source-sha>
+DATE=$(date -u +%Y-%m-%d)
+RECORD=plans/releases/${TAG}.md
+
+# Preview — writes nothing:
+scripts/aps-cleanup.sh --advance-released \
+  --release-record "$RECORD" \
+  --tag "$TAG" --sha "$SHA" --date "$DATE" --dry-run
+
+# Apply:
+scripts/aps-cleanup.sh --advance-released \
+  --release-record "$RECORD" \
+  --tag "$TAG" --sha "$SHA" --date "$DATE"
+
+node scripts/aps/drift-check.mjs
+```
+
+Each `Merged` item listed in the record becomes
+`Released/Shipped via <tag> (<8char-sha> · <date>)`. Already `Released/Shipped`
+or `Complete` items are skipped. A MISS exits non-zero and writes nothing — fix
+the record or module status, then re-run.
+
+This step does **not** rewrite module `N/M` counters — that is step 11
+(`pnpm aps:index`) after statuses land.
+
+Commit the record + APS status advances together when practical
+(`chore(aps): reconcile <tag> items to Released/Shipped`).
+
+##### 10c. Prune and re-scope `RELEASE-PLAN.md`
+
+Per [`docs/policies/release-cadence.md`](../policies/release-cadence.md):
+
+1. Confirm the durable record lives at `plans/releases/<tag>.md`.
+2. **Prune** the shipped window from `RELEASE-PLAN.md` — that file scopes only
+   the one active window.
+3. **Scope the next window** (theme, claim, cut criteria) or leave a clear
+   placeholder if the next window is not yet chosen.
+
+##### 10d. GitHub hygiene (`closeout.sh`)
+
 ```bash
 bash scripts/release/closeout.sh \
   --version <version> \
   --tag <version> \
   --source-sha <promoted-source-sha> \
   --verification-record <verification-url> \
-  --verification-passed
+  --verification-passed \
+  --tracking-issue <number> \
+  --close-issue \
+  --apply
 ```
 
-This owns:
+Optional: `--cleanup-branch <branch>` when the `stabilisation` strategy used a
+short-lived `release/*` branch.
 
-- release branch cleanup (when `stabilisation` strategy ran)
-- final release issue update
-- release issue closure
+This command owns:
+
+- final release-issue summary comment
+- marking the public GitHub release as latest (when applicable)
+- release tracking-issue closure (`--close-issue`)
+- release branch deletion (`--cleanup-branch`)
+
+It does **not** write the release record, advance APS item statuses, reconcile
+`N/M` counts, or edit `RELEASE-PLAN.md` — complete 10a–10c first, then step 11
+for count reconcile.
 
 There is no back-merge step — `main` is the single integration target.
 
+**Changelog** is not a closeout step. `prepare.sh` already promotes
+`## [Unreleased]` into the versioned section (step 3); do not re-bump
+`CHANGELOG.md` here.
+
 #### 11. Reconcile APS counts
 
-`closeout.sh` does not touch APS state. Do this as a separate step.
+Step 10b advances item `Status:` lines only. Per-module `N/M` progress counts
+are advisory-derived (ADR-053): feature PRs flip only per-item status and
+deliberately do **not** update the aggregate count, so concurrent PRs on a
+shared module do not collide on one cell. The reconcile is a separate
+single-writer pass, and nothing schedules it (**CIB-297**) — so by tag time the
+stored counts are usually stale, and any module archived during closeout freezes
+whatever number it happened to hold.
 
-Per-module `N/M` progress counts are advisory-derived (ADR-053): feature PRs
-flip only per-item `Status:` lines and deliberately do **not** update the
-aggregate count, so that concurrent PRs on a shared module do not collide on one
-cell. The reconcile is a separate single-writer pass, and nothing schedules it
-(**CIB-297**) — so by tag time the stored counts are usually stale, and any
-module archived during closeout freezes whatever number it happened to hold.
-
-Run the reconcile on a bookkeeping branch, never on `main`:
+`closeout.sh` (step 10d) does not touch APS state. Run this count reconcile
+**after** item advance (10b), on a bookkeeping branch, never on `main`:
 
 ```bash
 # from a worktree on a chore/aps-* branch, not the main checkout
@@ -523,10 +620,16 @@ A release is done only when all are true:
 - install site returns 200
 - downstream package-manager state is recorded
 - comms are approved or explicitly skipped
+- `plans/releases/<tag>.md` exists with `lifecycleState: published` and, when
+  APS items shipped, a fenced `aps.items[]` list
+- APS items in that record advanced to `Released/Shipped` (or idempotently
+  skipped) via `scripts/aps-cleanup.sh --advance-released`
+- `RELEASE-PLAN.md` pruned of the shipped window and re-scoped (or explicitly
+  held for the next operator decision)
 - `closeout.sh` completed
 - APS counts reconciled — `drift-check.mjs` reports no drift (step 11)
 - release issue is closed
 
 The tracking issue is an operator log only. Link live verification evidence from
 the issue; do not treat the issue as release authority or shipped-state
-authority.
+authority. Shipped-state authority is the release record plus APS statuses.

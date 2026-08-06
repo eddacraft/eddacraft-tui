@@ -147,7 +147,7 @@
 | [anvil-migrate(1)](../../docs/runbooks/anvil-migrate.md)                                                           | `docs/runbooks/anvil-migrate.md`                    | Runbook | Authoritative | @aneki          | Live   |
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                                   | `docs/runbooks/anvil-run.md`                        | Runbook | Authoritative | @aneki          | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)                     | `docs/runbooks/eddacraft-tui-release.md`            | Runbook | Authoritative | @aneki          | Live   |
-| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)                               | `docs/runbooks/v0.7.0-beta-release-runbook.md`      | Runbook | Authoritative | Release council | Live   |
+| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)                               | `docs/runbooks/v0.7.0-beta-release-runbook.md`      | Runbook | Historical    | Release council | Live   |
 | [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md)                            | `docs/runbooks/v0.7.0-beta-security-note.md`        | Runbook | Authoritative | Release council | Live   |
 
 ## Spec

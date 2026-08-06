@@ -424,7 +424,7 @@
 
 | Document                                                                                | Path                                           | Type    | Authority     | Owner           | Status |
 | --------------------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ------------- | --------------- | ------ |
-| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)    | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
+| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)    | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Historical    | Release council | Live   |
 | [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md) | `docs/runbooks/v0.7.0-beta-security-note.md`   | Runbook | Authoritative | Release council | Live   |
 
 ## SARIFOUT
