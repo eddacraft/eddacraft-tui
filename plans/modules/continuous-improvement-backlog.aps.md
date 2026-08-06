@@ -8598,7 +8598,7 @@ CIB-251/255 only.
 - **Priority:** P3 dogfooding gap (no runtime surface; it means the shipped
   adopter templates have never been exercised against a real repository by
   the project that ships them)
-- **Intent:** None of the 31 workflows on `main` invokes `anvil` against this
+- **Intent:** No workflow in `.github/workflows/` invokes `anvil` against this
   repository — no `anvil gate`, `anvil check`, `anvil hook pre-push`, or
   `anvil audit-chain`. The two adopter-facing templates
   (`crates/anvil-cli/src/templates/anvil-workflow.yml` from MLP-010 and
