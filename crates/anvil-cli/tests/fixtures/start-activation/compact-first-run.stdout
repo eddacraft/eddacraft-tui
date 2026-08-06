@@ -3,6 +3,7 @@ anvil initialised successfully.
   Config:    .anvilrc
   Plans:     plans/
   Checks:    secret-detection, import-boundaries, antipattern-scan
+  Gitignore: .gitignore
 
 First scan
 ────────────────────────────────────────
