@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 229/292  |
+| CIB | —     | In Progress | 230/292  |
 
 ## Purpose
 
@@ -8681,8 +8681,8 @@ CIB-251/255 only.
 
 ### CIB-295: `aps` docs:check surface cannot express a real APS drift failure
 
-- **Status:** Draft — filed from the CIB-278 dev-loop run 2026-08-06, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** Ready — promoted by the operator 2026-08-06 (membrane checkpoint);
+  filed from the CIB-278 dev-loop run the same day.
 - **Priority:** P3 governance-signal gap (advisory by design; the defect is that
   the expectation and the implementation disagree)
 - **Intent:** **CIB-278**'s Validation clause requires that "a real APS drift …
@@ -8725,8 +8725,8 @@ CIB-251/255 only.
 
 ### CIB-296: `adr-integrity.test.sh` case 1 fails on `main`, so its clean-tree baseline is red
 
-- **Status:** Draft — filed from the CIB-278 dev-loop run 2026-08-06, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** Ready — promoted by the operator 2026-08-06 (membrane checkpoint);
+  filed from the CIB-278 dev-loop run the same day.
 - **Priority:** P3 test-suite honesty (a red baseline case masks regressions in
   the path it covers)
 - **Intent:** `bash scripts/docs/adr-integrity.test.sh` reports `1 test case(s)
