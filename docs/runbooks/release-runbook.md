@@ -341,6 +341,45 @@ This owns:
 
 There is no back-merge step — `main` is the single integration target.
 
+#### 11. Reconcile APS counts
+
+`closeout.sh` does not touch APS state. Do this as a separate step.
+
+Per-module `N/M` progress counts are advisory-derived (ADR-053): feature PRs
+flip only per-item `Status:` lines and deliberately do **not** update the
+aggregate count, so that concurrent PRs on a shared module do not collide on one
+cell. The reconcile is a separate single-writer pass, and nothing schedules it
+(**CIB-297**) — so by tag time the stored counts are usually stale, and any
+module archived during closeout freezes whatever number it happened to hold.
+
+Run the reconcile on a bookkeeping branch, never on `main`:
+
+```bash
+# from a worktree on a chore/aps-* branch, not the main checkout
+pnpm aps:index                     # single-writer reconcile; writes by default
+node scripts/aps/drift-check.mjs   # must report: No drift warnings detected.
+```
+
+Then open a `chore/aps-*` PR. Shared multi-writer modules (CIB today) collide on
+the count cell, so arm auto-merge with rebase rather than merging by hand:
+
+```bash
+gh pr merge <pr> --auto --rebase --delete-branch
+```
+
+If a sibling lands first, rebase and re-run `pnpm aps:index` — take the incoming
+side of the count cell and recompute, rather than keeping your own number, or
+you will silently drop the sibling's intake prose from the index row.
+
+Note that `pnpm aps:index:check` reports staleness but **exits 0** by design
+(ADR-053), so a green CI run is not evidence that counts are current. Use
+`drift-check.mjs` as the check that actually fails.
+
+Archiving completed modules is a separate multi-file cascade — `git mv` to
+`plans/archive/modules/` plus the index path in the same change, see
+[`plans/project-context.md`](../../plans/project-context.md) — and belongs in
+its own PR, run **after** this reconcile so the archived counts are true.
+
 ## Daemon Routing Rollout Controls (ADR-075)
 
 From `v0.8.0-beta`, `anvil watch --action check` routes save-time validation
@@ -485,6 +524,7 @@ A release is done only when all are true:
 - downstream package-manager state is recorded
 - comms are approved or explicitly skipped
 - `closeout.sh` completed
+- APS counts reconciled — `drift-check.mjs` reports no drift (step 11)
 - release issue is closed
 
 The tracking issue is an operator log only. Link live verification evidence from
