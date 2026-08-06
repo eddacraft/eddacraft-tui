@@ -78,6 +78,7 @@ mod tests {
         AuditData {
             project_name: "compliance-project".to_string(),
             total_files: 1,
+            security_scope: "test scope".to_string(),
             issues: vec![AuditIssue {
                 severity: IssueSeverity::Low,
                 category: "Quality".to_string(),

@@ -138,6 +138,7 @@ pub struct HistoricalScore {
 pub struct AuditData {
     pub project_name: String,
     pub total_files: usize,
+    pub security_scope: String,
     pub issues: Vec<AuditIssue>,
     pub historical_scores: Vec<HistoricalScore>,
     pub next_steps: Vec<String>,
@@ -361,6 +362,7 @@ mod tests {
         AuditData {
             project_name: "test-project".to_string(),
             total_files: 42,
+            security_scope: "same secret rules; gate adds checks".to_string(),
             issues: vec![
                 AuditIssue {
                     severity: IssueSeverity::Critical,
@@ -527,6 +529,7 @@ mod tests {
         let data = AuditData {
             project_name: "empty".to_string(),
             total_files: 0,
+            security_scope: "test scope".to_string(),
             issues: vec![],
             historical_scores: vec![],
             next_steps: vec![],

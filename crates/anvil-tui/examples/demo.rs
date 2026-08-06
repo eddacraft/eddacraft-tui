@@ -482,6 +482,7 @@ fn mock_audit_data() -> AuditData {
     AuditData {
         project_name: "eddacraft".into(),
         total_files: 142,
+        security_scope: "same secret rules; gate adds checks".into(),
         issues: vec![
             AuditIssue {
                 severity: IssueSeverity::Critical,

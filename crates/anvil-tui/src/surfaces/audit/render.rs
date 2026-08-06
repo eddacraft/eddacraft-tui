@@ -3,7 +3,8 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::{AuditPanel, AuditState, IssueSeverity};
 
@@ -33,10 +34,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCra
     }
 
     let chunks = Layout::vertical([
-        Constraint::Ratio(1, 4), // Project panel
-        Constraint::Ratio(1, 4), // Issues panel
-        Constraint::Ratio(1, 4), // Historical panel
-        Constraint::Ratio(1, 4), // Next steps panel
+        Constraint::Length(10),  // Project panel, including the wrapped security scope
+        Constraint::Ratio(1, 3), // Issues panel
+        Constraint::Ratio(1, 3), // Historical panel
+        Constraint::Ratio(1, 3), // Next steps panel
     ])
     .split(area);
 
@@ -74,6 +75,29 @@ fn severity_colour(severity: IssueSeverity, theme: &EddaCraftTheme) -> ratatui::
     }
 }
 
+fn truncate_with_ellipsis(text: &str, max_width: usize) -> String {
+    if UnicodeWidthStr::width(text) <= max_width {
+        return text.to_string();
+    }
+    if max_width == 0 {
+        return String::new();
+    }
+
+    let target_width = max_width.saturating_sub(UnicodeWidthStr::width("…"));
+    let mut truncated = String::new();
+    let mut width = 0;
+    for ch in text.chars() {
+        let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width + char_width > target_width {
+            break;
+        }
+        truncated.push(ch);
+        width += char_width;
+    }
+    truncated.push('…');
+    truncated
+}
+
 fn render_project_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
     let focused = state.focused_panel == AuditPanel::Project;
     let block = panel_block("Project", focused, theme);
@@ -85,22 +109,26 @@ fn render_project_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme
     let medium = state.data.issue_count_by_severity(IssueSeverity::Medium);
     let low = state.data.issue_count_by_severity(IssueSeverity::Low);
 
+    let file_count = state.data.total_files.to_string();
+    let fixed_summary_width = UnicodeWidthStr::width("Project:  ")
+        + UnicodeWidthStr::width("  Files: ")
+        + UnicodeWidthStr::width(file_count.as_str());
+    let project_name = truncate_with_ellipsis(
+        &state.data.project_name,
+        usize::from(inner.width).saturating_sub(fixed_summary_width),
+    );
+
     let lines = vec![
         Line::from(vec![
             Span::styled("Project:  ", Style::default().fg(theme.muted())),
             Span::styled(
-                &state.data.project_name,
+                project_name,
                 Style::default()
                     .fg(theme.accent())
                     .add_modifier(Modifier::BOLD),
             ),
-        ]),
-        Line::from(vec![
-            Span::styled("Files:    ", Style::default().fg(theme.muted())),
-            Span::styled(
-                format!("{}", state.data.total_files),
-                Style::default().fg(theme.fg()),
-            ),
+            Span::styled("  Files: ", Style::default().fg(theme.muted())),
+            Span::styled(file_count, Style::default().fg(theme.fg())),
         ]),
         Line::from(vec![
             Span::styled("Issues:   ", Style::default().fg(theme.muted())),
@@ -118,9 +146,16 @@ fn render_project_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme
             Span::styled("  ", Style::default()),
             Span::styled(format!("{low} low"), Style::default().fg(theme.muted())),
         ]),
+        Line::from(vec![
+            Span::styled("Security scope: ", Style::default().fg(theme.muted())),
+            Span::styled(&state.data.security_scope, Style::default().fg(theme.fg())),
+        ]),
     ];
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    frame.render_widget(
+        Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false }),
+        inner,
+    );
 }
 
 fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
@@ -331,10 +366,18 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
+    const TEST_SECURITY_SCOPE: &str = "audit covers secrets in source files and configuration, \
+        reporting one entry per match. The broader gate also checks architecture, policy, \
+        dependencies and lint. Counts therefore describe different surfaces and must not be \
+        compared as equivalent safety verdicts. A quiet audit is only a quiet audit; it does not \
+        prove the broader gate would pass. The overview and gate remain different decisions for \
+        operators reviewing the same project.";
+
     fn sample_data() -> super::super::AuditData {
         super::super::AuditData {
             project_name: "test-project".to_string(),
             total_files: 42,
+            security_scope: TEST_SECURITY_SCOPE.to_string(),
             issues: vec![
                 super::super::AuditIssue {
                     severity: IssueSeverity::Critical,
@@ -375,6 +418,82 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    #[test]
+    fn project_panel_renders_security_scope_with_findings() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = super::super::AuditState::new(sample_data());
+        assert!(
+            !state.data.issues.is_empty(),
+            "fixture must contain findings"
+        );
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered_with_borders: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        let rendered: String = rendered_with_borders
+            .chars()
+            .map(|ch| {
+                if "┌┐└┘─│".contains(ch) {
+                    ' '
+                } else {
+                    ch
+                }
+            })
+            .collect();
+        let normalise = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            normalise(&rendered).contains(&normalise(TEST_SECURITY_SCOPE)),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn project_panel_preserves_security_scope_with_long_project_name() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut data = sample_data();
+        data.project_name = "project-name-that-is-deliberately-long-".repeat(4);
+        let state = super::super::AuditState::new(data);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered_with_borders: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        let rendered: String = rendered_with_borders
+            .chars()
+            .map(|ch| {
+                if "┌┐└┘─│".contains(ch) {
+                    ' '
+                } else {
+                    ch
+                }
+            })
+            .collect();
+        let normalise = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            normalise(&rendered).contains(&normalise(TEST_SECURITY_SCOPE)),
+            "{rendered}"
+        );
     }
 
     #[test]
@@ -505,6 +624,7 @@ mod tests {
         let data = super::super::AuditData {
             project_name: "big-project".to_string(),
             total_files: 100,
+            security_scope: TEST_SECURITY_SCOPE.to_string(),
             issues,
             historical_scores: vec![],
             next_steps: vec![],

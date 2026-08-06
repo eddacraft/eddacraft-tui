@@ -53,6 +53,8 @@ impl SarifLog {
 pub struct Run {
     tool: Tool,
     results: Vec<SarifResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<RunProperties>,
 }
 
 impl Run {
@@ -64,8 +66,24 @@ impl Run {
                 driver: Driver::anvil(rules),
             },
             results,
+            properties: None,
         }
     }
+
+    /// Attach the audit security-scope disclosure to this run's property bag.
+    #[must_use]
+    pub fn security_scope(mut self, security_scope: impl Into<String>) -> Self {
+        self.properties = Some(RunProperties {
+            security_scope: security_scope.into(),
+        });
+        self
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RunProperties {
+    security_scope: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,6 +120,8 @@ pub struct ReportingDescriptor {
     #[serde(skip_serializing_if = "Option::is_none")]
     short_description: Option<MultiformatMessageString>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    full_description: Option<MultiformatMessageString>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     help_uri: Option<String>,
     /// SARIF property bag. ADR-071 §9: AST-tier (gate-time) rules carry
     /// `properties.tier = "ast"` so consumers can tell a gate-tier AST rule from
@@ -118,6 +138,7 @@ impl ReportingDescriptor {
         Self {
             id: id.into(),
             short_description: None,
+            full_description: None,
             help_uri: None,
             properties: None,
         }
@@ -127,6 +148,13 @@ impl ReportingDescriptor {
     #[must_use]
     pub fn short_description(mut self, text: impl Into<String>) -> Self {
         self.short_description = Some(MultiformatMessageString { text: text.into() });
+        self
+    }
+
+    /// Attach a visible `fullDescription.text` to the rule.
+    #[must_use]
+    pub fn full_description(mut self, text: impl Into<String>) -> Self {
+        self.full_description = Some(MultiformatMessageString { text: text.into() });
         self
     }
 
@@ -426,6 +454,30 @@ mod tests {
             errors.is_empty(),
             "emitted SARIF should validate against the 2.1.0 schema; errors:\n{}",
             errors.join("\n")
+        );
+    }
+
+    #[test]
+    fn full_description_is_optional_per_reporting_descriptor() {
+        let log = SarifLog::new(Run::new(
+            vec![
+                ReportingDescriptor::new("audit-rule").full_description("audit scope"),
+                ReportingDescriptor::new("generic-rule"),
+            ],
+            Vec::new(),
+        ));
+        let value = serde_json::to_value(log).expect("serialise");
+        let rules = value["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .expect("rules");
+
+        assert_eq!(
+            rules[0]["fullDescription"]["text"], "audit scope",
+            "opted-in descriptors expose their full description"
+        );
+        assert!(
+            rules[1].get("fullDescription").is_none(),
+            "generic descriptors must omit fullDescription"
         );
     }
 

@@ -186,6 +186,7 @@ pub fn run_audit(root: &Path) -> AuditData {
     AuditData {
         project_name,
         total_files,
+        security_scope: SECURITY_SCOPE.to_string(),
         issues,
         historical_scores,
         next_steps,
@@ -600,7 +601,7 @@ fn render_plain(data: &AuditData) -> String {
     // than emitted as one long line — an unbroken paragraph is the
     // shape readers skip, which would defeat the point.
     let _ = writeln!(out, "Security scope:");
-    for line in wrap_scope_note(SECURITY_SCOPE, 76) {
+    for line in wrap_scope_note(&data.security_scope, 76) {
         let _ = writeln!(out, "  {line}");
     }
     let _ = writeln!(out);
@@ -692,7 +693,7 @@ struct AuditOutput {
     /// run different checks rather than infer a discrepancy. Carries
     /// the same text the human output shows. Additive field;
     /// `issues[]` remains canonical.
-    security_scope: &'static str,
+    security_scope: String,
     issues: Vec<IssueOutput>,
     historical_scores: Vec<ScoreOutput>,
     next_steps: Vec<String>,
@@ -855,7 +856,7 @@ fn build_audit_output(data: &AuditData) -> AuditOutput {
     AuditOutput {
         project_name: data.project_name.clone(),
         total_files: data.total_files,
-        security_scope: SECURITY_SCOPE,
+        security_scope: data.security_scope.clone(),
         issues: data
             .issues
             .iter()
@@ -904,9 +905,10 @@ fn build_audit_sarif(data: &AuditData) -> crate::output::sarif::SarifLog {
     let mut rules: BTreeMap<String, sarif::ReportingDescriptor> = BTreeMap::new();
     let mut results = Vec::with_capacity(data.issues.len());
     for issue in &data.issues {
-        rules
-            .entry(issue.category.clone())
-            .or_insert_with(|| sarif::ReportingDescriptor::new(issue.category.clone()));
+        rules.entry(issue.category.clone()).or_insert_with(|| {
+            sarif::ReportingDescriptor::new(issue.category.clone())
+                .full_description(data.security_scope.clone())
+        });
         // Audit uses `line: 0` for whole-file findings (e.g. `.env` files);
         // SARIF `startLine` has `minimum: 1`, so omit the region in that case
         // and point at the artifact only.
@@ -925,7 +927,10 @@ fn build_audit_sarif(data: &AuditData) -> crate::output::sarif::SarifLog {
             ),
         );
     }
-    sarif::SarifLog::new(sarif::Run::new(rules.into_values().collect(), results))
+    sarif::SarifLog::new(
+        sarif::Run::new(rules.into_values().collect(), results)
+            .security_scope(data.security_scope.clone()),
+    )
 }
 
 fn print_json(data: &AuditData) -> anyhow::Result<()> {
@@ -1921,6 +1926,7 @@ mod tests {
         AuditData {
             project_name: "p".to_string(),
             total_files: 10,
+            security_scope: SECURITY_SCOPE.to_string(),
             issues: Vec::new(),
             historical_scores: Vec::new(),
             next_steps: Vec::new(),
@@ -2070,6 +2076,7 @@ mod tests {
         let data = AuditData {
             project_name: "demo".to_string(),
             total_files: 2,
+            security_scope: SECURITY_SCOPE.to_string(),
             issues: vec![
                 issue(IssueSeverity::Critical, "hardcoded-secret", "src/a.ts", 4),
                 issue(IssueSeverity::Medium, "large-file", "src/b.ts", 1),
@@ -2082,6 +2089,22 @@ mod tests {
             next_steps: Vec::new(),
         };
         let value = serde_json::to_value(build_audit_sarif(&data)).expect("serialise");
+
+        assert_eq!(
+            value["runs"][0]["properties"]["securityScope"], SECURITY_SCOPE,
+            "SARIF run metadata must carry the same security scope verbatim"
+        );
+
+        let rules = value["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .expect("rules");
+        assert!(!rules.is_empty(), "fixture must emit audit rules");
+        for rule in rules {
+            assert_eq!(
+                rule["fullDescription"]["text"], SECURITY_SCOPE,
+                "every audit rule must expose the security scope in a visible description"
+            );
+        }
 
         let schema: serde_json::Value =
             serde_json::from_str(anvil_sarif::SARIF_SCHEMA_JSON).expect("schema json");
