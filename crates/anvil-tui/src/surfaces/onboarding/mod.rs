@@ -12,16 +12,16 @@ pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 
 /// Recognised project-config filenames, in probe order.
 ///
-/// `.anvilrc` is what `anvil init` writes. The `.anvil.<ext>` names are
-/// supported hand-authored / migrated layouts (`anvil config show` and
-/// `anvil_config::discover` already recognise them). `.anvil.yml` is
-/// included so this list matches discover precedence.
+/// Order matches `anvil_config::discover` / `anvil config show` for the
+/// `.anvil.<ext>` family (yaml → yml → json → toml), then legacy `.anvilrc`
+/// last. `anvil init` still *writes* `.anvilrc`; this list only decides
+/// presence detection and refusal messaging when any supported file exists.
 const PROJECT_CONFIG_NAMES: &[&str] = &[
-    ".anvilrc",
     ".anvil.yaml",
     ".anvil.yml",
     ".anvil.json",
     ".anvil.toml",
+    ".anvilrc",
 ];
 
 /// Check whether an anvil configuration file already exists in the
@@ -84,6 +84,19 @@ mod tests {
 
         assert!(config_exists_in(tmp.path()));
         assert_eq!(existing_config_name_in(tmp.path()), Some(".anvil.yaml"));
+    }
+
+    #[test]
+    fn existing_config_prefers_anvil_yaml_over_anvilrc() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "schemaVersion: 1.0.0\n").unwrap();
+
+        assert_eq!(
+            existing_config_name_in(tmp.path()),
+            Some(".anvil.yaml"),
+            "must match discover/config-show precedence when both exist"
+        );
     }
 
     #[test]

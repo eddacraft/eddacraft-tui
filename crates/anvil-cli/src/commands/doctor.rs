@@ -226,9 +226,8 @@ fn resolve_project_config_path(root: &Path) -> std::io::Result<Option<PathBuf>> 
 
 fn config_file_label(path: &Path) -> String {
     path.file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or(".anvilrc")
-        .to_string()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
 }
 
 fn check_config_exists() -> DiagnosticCheck {
@@ -2177,15 +2176,15 @@ mod tests {
 
     #[test]
     fn config_valid_skipped_when_missing() {
-        // If no project config exists, config-valid should be skipped
-        if resolve_project_config_path(Path::new("."))
-            .ok()
-            .flatten()
-            .is_none()
-        {
-            let check = check_config_valid();
-            assert_eq!(check.status, CheckStatus::Skipped);
-        }
+        // Hermetic empty dir — do not probe the real workspace root.
+        let dir = tempfile::tempdir().unwrap();
+        let check = check_config_valid_in(dir.path());
+        assert_eq!(check.status, CheckStatus::Skipped);
+        assert!(
+            check.message.contains("no project config"),
+            "got: {}",
+            check.message
+        );
     }
 
     #[test]
