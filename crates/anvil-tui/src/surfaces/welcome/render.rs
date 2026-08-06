@@ -92,10 +92,16 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         LOGO_HEIGHT + 1 + 1 + 2 + menu_height + status_height
     };
 
-    // Centre vertically — at least 1 row gap from header
+    // Centre vertically — at least 1 row gap from the header, but only when
+    // there is slack to spend. CIB-272: flooring the pad at 1 with no slack
+    // pushes the constraint total one row past the area, and ratatui pays for
+    // it by holding the `Min(menu)` menu at full size and shrinking the
+    // fixed-`Length` logo — the same silent brandmark squeeze CIB-179 fixed for
+    // the compact hint. A missing gap row is cosmetic; a clipped logo is not.
     #[allow(clippy::cast_possible_truncation)]
     let content_h = content_height as u16;
-    let top_pad = (area.height.saturating_sub(content_h) / 2).max(1);
+    let slack = area.height.saturating_sub(content_h);
+    let top_pad = if slack == 0 { 0 } else { (slack / 2).max(1) };
     #[allow(clippy::cast_possible_truncation)]
     let menu_h = menu_height as u16;
 
@@ -527,26 +533,102 @@ mod tests {
     /// holds the `Min(menu)` menu at full size and shrinks the `Length(7)`
     /// logo, so an over-eager hint silently degrades the brandmark — the exact
     /// failure mode CIB-179 exists to prevent (regression guard).
+    ///
+    /// CIB-272 widens this into compact mode's *sole* logo-integrity owner
+    /// (full mode's is `full_mode_never_squeezes_logo`). The hint-conditional
+    /// assertion above was blind whenever the hint was withheld, so the
+    /// zero-slack squeeze at e.g. 40x15 — where the top pad used to be floored
+    /// at 1 row it could not afford — passed unnoticed. Once the area is tall
+    /// enough to hold logo + blank + menu (+ status), the brandmark must be
+    /// intact whatever the hint does.
     #[test]
     fn compact_hint_never_squeezes_logo() {
         let theme = EddaCraftTheme;
-        for height in 8u16..=32 {
-            let backend = TestBackend::new(40, height);
-            let mut terminal = Terminal::new(backend).unwrap();
-            let state = WelcomeState::new();
-            terminal
-                .draw(|frame| render(frame, frame.area(), &state, &theme))
-                .unwrap();
+        for status in [None, Some("Ready.".to_string())] {
+            // Status renders as a blank + the message, so it costs 2 rows.
+            let status_h: u16 = if status.is_some() { 2 } else { 0 };
+            let menu_h = u16::try_from(QuickStartOption::ALL.len()).expect("menu fits in u16");
+            // Below this the terminal genuinely cannot seat the compact
+            // content, and something has to give; at or above it the logo is
+            // never what gives.
+            let min_intact = LOGO_HEIGHT_U16 + 1 + menu_h + status_h;
 
-            let text = plain(terminal.backend().buffer());
-            let rows = logo_rows(&text);
-            let hint_shown = text.contains(COMPACT_HINT);
-            assert!(
-                !(hint_shown && rows < LOGO_LINES.len()),
-                "at height {height}: resize hint shown but logo squeezed to \
-                 {rows} rows (expected {}); got:\n{text}",
-                LOGO_LINES.len(),
-            );
+            for height in 8u16..=32 {
+                let backend = TestBackend::new(40, height);
+                let mut terminal = Terminal::new(backend).unwrap();
+                let mut state = WelcomeState::new();
+                state.status_message = status.clone();
+                terminal
+                    .draw(|frame| render(frame, frame.area(), &state, &theme))
+                    .unwrap();
+
+                let text = plain(terminal.backend().buffer());
+                let rows = logo_rows(&text);
+                let hint_shown = text.contains(COMPACT_HINT);
+                let status_label = status.is_some();
+
+                // CIB-179: the hint is never worth a logo row.
+                assert!(
+                    !(hint_shown && rows < LOGO_LINES.len()),
+                    "at 40x{height} (status line: {status_label}): resize hint \
+                     shown but logo squeezed to {rows} rows (expected {}); got:\n{text}",
+                    LOGO_LINES.len(),
+                );
+
+                // CIB-272: and nothing else is either, once the rows exist.
+                if height >= min_intact {
+                    assert_eq!(
+                        rows,
+                        LOGO_LINES.len(),
+                        "at 40x{height} (status line: {status_label}): compact mode \
+                         squeezed the logo to {rows} rows (expected {}) despite \
+                         fitting in {min_intact}; got:\n{text}",
+                        LOGO_LINES.len(),
+                    );
+                }
+            }
+        }
+    }
+
+    /// CIB-272: full mode had no height sweep of its own — CIB-179's guard only
+    /// walks *compact* mode at width 40 — so the brandmark could be squeezed at
+    /// the full-mode boundary without any test noticing. At exactly
+    /// `area.height == content_height` there is no slack for a top pad, and a
+    /// floored 1-row pad pushed the constraint total one row past the area;
+    /// ratatui then held the `Min(menu)` menu at full size and shrank the
+    /// fixed-`Length` logo. This sweeps both status variants across the
+    /// boundary and pins the logo at its intended row count.
+    #[test]
+    fn full_mode_never_squeezes_logo() {
+        let theme = EddaCraftTheme;
+        for status in [None, Some("Ready.".to_string())] {
+            for width in [72u16, 80, 100, 120] {
+                for height in 16u16..=40 {
+                    let backend = TestBackend::new(width, height);
+                    let mut terminal = Terminal::new(backend).unwrap();
+                    let mut state = WelcomeState::new();
+                    state.status_message = status.clone();
+                    terminal
+                        .draw(|frame| render(frame, frame.area(), &state, &theme))
+                        .unwrap();
+
+                    let text = plain(terminal.backend().buffer());
+                    // The tagline is full mode's fingerprint; compact drops it
+                    // and is already covered by CIB-179's sweep.
+                    if !text.contains(TAGLINE) {
+                        continue;
+                    }
+                    let rows = logo_rows(&text);
+                    assert_eq!(
+                        rows,
+                        LOGO_LINES.len(),
+                        "at {width}x{height} (status line: {}): full mode squeezed \
+                         the logo to {rows} rows (expected {}); got:\n{text}",
+                        status.is_some(),
+                        LOGO_LINES.len(),
+                    );
+                }
+            }
         }
     }
 }
