@@ -7867,7 +7867,7 @@ CIB-251/255 only.
 
 ### CIB-278: `docs:check` renders a tooling failure as a content failure
 
-- **Status:** Ready — promoted by the operator 2026-08-05 (membrane checkpoint).
+- **Status:** Merged 2026-08-06 via PR #3633
 - **Priority:** P3 tooling honesty (contributor-facing, not user-facing; the
   failure is loud, only misattributed — no silent bypass, hence below
   **CIB-277**'s P2)
@@ -7928,6 +7928,28 @@ CIB-251/255 only.
 - **Confidence:** high on the mechanism (traced to the exact spawn sites and
   the verdict expression, with the delegated checks proven green directly);
   high that it is contributor-facing only.
+- **As built (2026-08-06, PR #3633):** both Expected Outcome clauses met. The
+  delegates now invoke `node scripts/aps/drift-check.mjs` and `bash
+  scripts/docs/adr-integrity.sh` directly, pinned to the repo root, so the
+  package manager is out of the path entirely; a new
+  `scripts/docs/lib/surface-delegate.mjs` holds the shared taxonomy (0 pass,
+  1 content defect, 2 could not run, signals treated as tooling) and
+  `docs-check.mjs` renders `ERROR (tooling)` with an isolation command. A
+  content defect outranks tooling in the process exit code, so a broken tool
+  cannot mask a real docs failure.
+- **Scope extension (recorded, not silent):** independent verification found
+  that honouring exit 2 downstream only holds if every surface means the same
+  thing by it. Two sites were exiting 2 for plain **content** defects — a
+  missing `RELEASE-PLAN.md` (`check-release-plan.mjs`) and a missing
+  `plans/decisions/` or `DECISION-LOG.md` (`adr-integrity.sh`) — which would
+  have re-created this item's misattribution inverted, telling the contributor
+  who deleted a governed doc that their change was not the cause. Both moved to
+  exit 1, extending the item's **Files** beyond the three originally listed.
+- **Follow-ups filed:** **CIB-295** (the `aps` surface is advisory-only, so this
+  item's "a real APS drift must still produce a genuine surface `FAIL`"
+  validation clause is unsatisfiable — pre-existing, true on `main` too);
+  **CIB-296** (`adr-integrity.test.sh` case 1 fails on `main`, an inherited red
+  baseline found while establishing this item's baseline).
 
 ### CIB-279: Windows path-rendering fixture for the three surfaces CIB-237 left uncovered
 
@@ -8591,6 +8613,7 @@ CIB-251/255 only.
 - **Coordinates with:** CIB-256, CIB-167, CIB-292
 - **Confidence:** medium — the fix is small; the care is in not undoing
   CIB-167.
+
 ### CIB-294: anvil does not run against its own repository in CI
 
 - **Status:** Draft — filed from a 2026-08-06 worktree sweep, not
@@ -8649,3 +8672,85 @@ CIB-251/255 only.
 - **Confidence:** medium — the gap and the failure mode are both verified, but
   the shape (per-PR source build vs reusing an existing job's artefact) is a
   real design call, and blocking behaviour needs an operator decision.
+
+### CIB-295: `aps` docs:check surface cannot express a real APS drift failure
+
+- **Status:** Draft — filed from the CIB-278 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 governance-signal gap (advisory by design; the defect is that
+  the expectation and the implementation disagree)
+- **Intent:** **CIB-278**'s Validation clause requires that "a real APS drift …
+  must still produce a genuine surface `FAIL`". That clause is unsatisfiable as
+  written. `scripts/aps/drift-check.mjs` is advisory by construction: its only
+  `process.exit` calls are the `--help` path (0) and two usage-error paths (2);
+  the result object sets `advisory: true, enforcement: 'none'`, and the
+  GitHub-Actions branch carries the explicit comment "We DO NOT mutate exit code
+  — these remain advisory". Findings therefore always exit 0, so the `aps`
+  docs:check surface can only ever return 0 (regardless of how much drift
+  exists) or 2 (a usage error). Real drift is invisible to `pnpm docs:check`.
+- **Evidence (2026-08-06):** established by code read during the CIB-278
+  independent verification. Reproduces identically on `main` — `package.json`
+  runs the same script for `aps:drift` — so this predates CIB-278 and was
+  neither created nor worsened by it. Not yet exercised against a live drift
+  fixture; that is the first step of any fix.
+- **Scope note (honest):** advisory-only is deliberate under **ADR-002**
+  ("warnings over blocks"). This item does **not** claim drift-check should
+  block. The defect is that `docs:check` presents `pass aps` with the same
+  authority as a surface that genuinely checked something, and that CIB-278's
+  acceptance criterion was written as though it did not.
+- **Expected Outcome:** one of — (a) the `aps` surface reports advisory drift
+  visibly (e.g. a distinct verdict or a finding count in the summary) so drift is
+  discoverable without blocking; or (b) `docs-check.mjs` records that `aps` is
+  advisory-only, and the CIB-278 clause is corrected in the backlog so no future
+  reader treats `pass aps` as evidence of zero drift.
+- **Non-scope / do not:** do not flip `drift-check.mjs` to enforcing — that is an
+  ADR-002 decision, not a docs-tooling one, and would need its own ADR.
+- **Files:** `scripts/aps/drift-check.mjs`, `scripts/docs/check-aps.mjs`,
+  `scripts/docs/docs-check.mjs`
+- **Validation:** introduce a genuine APS drift in a fixture and show the
+  `docs:check` summary visibly changes. Under option (b), show the surface's
+  advisory status is stated where a reader of the summary will see it.
+- **Identified From:** independent verification of the CIB-278 dev-loop run
+  (PR #3633, 2026-08-06).
+- **Coordinates with:** **CIB-278** (the clause originates there), ADR-002
+- **Confidence:** high on the mechanism (traced to the exit sites and the
+  advisory result object); medium on the fix shape — whether to surface advisory
+  drift or correct the expectation is a product call.
+
+### CIB-296: `adr-integrity.test.sh` case 1 fails on `main`, so its clean-tree baseline is red
+
+- **Status:** Draft — filed from the CIB-278 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 test-suite honesty (a red baseline case masks regressions in
+  the path it covers)
+- **Intent:** `bash scripts/docs/adr-integrity.test.sh` reports `1 test case(s)
+  failed` on an untouched `main` checkout. Case 1 ("clean tree exits 0") builds
+  its fixture from two helpers that disagree: `make_adr` creates ADR files named
+  `001-a.md` / `002-b.md`, while `make_log` writes DECISION-LOG links to
+  `<id>-fake.md`. The log therefore cites `001-fake.md` and `002-fake.md`, which
+  the fixture never creates, and `adr-integrity.sh`'s link-target check correctly
+  rejects them. The link-target check was evidently added after the fixture was
+  written and the fixture was never updated.
+- **Evidence (2026-08-06):** reproduced on the pristine `main` checkout with zero
+  local changes — `FAIL: clean tree should exit 0; got: FAIL: DECISION-LOG link
+  target missing: [001](001-fake.md) → 001-fake.md`.
+- **Scope note (honest):** cases 2–4 also grep for their own specific failure
+  message (`duplicate ADR numbers`, `not referenced in DECISION-LOG`, `no ADR
+  file`), so they still prove the condition under test and are **not** vacuous.
+  Only case 1 — which is the one case requiring a wholly clean tree — is broken.
+- **Expected Outcome:** the fixture creates the ADR files it indexes (or indexes
+  the files it creates), so case 1 passes and the suite is green on `main`. A
+  genuine regression in the clean-tree path then becomes distinguishable from
+  this standing failure.
+- **Non-scope / do not:** do not weaken `adr-integrity.sh`'s link-target check to
+  make the fixture pass — the check is correct and the fixture is wrong.
+- **Files:** `scripts/docs/adr-integrity.test.sh`
+- **Validation:** `bash scripts/docs/adr-integrity.test.sh` reports `all cases
+  passed` on a clean checkout of `main`, and still fails when a link target is
+  genuinely removed.
+- **Identified From:** baseline run during the CIB-278 dev-loop (PR #3633,
+  2026-08-06); confirmed inherited, not introduced.
+- **Coordinates with:** **CIB-278** (which touched `adr-integrity.sh`'s exit
+  codes but not this fixture)
+- **Confidence:** high — root cause traced to the two disagreeing fixture
+  helpers, and reproduced on an unmodified checkout.
