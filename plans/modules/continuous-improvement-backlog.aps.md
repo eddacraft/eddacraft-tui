@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 232/292  |
+| CIB | —     | In Progress | 232/293  |
 
 ## Purpose
 
@@ -8760,3 +8760,76 @@ CIB-251/255 only.
   codes but not this fixture)
 - **Confidence:** high — root cause traced to the two disagreeing fixture
   helpers, and reproduced on an unmodified checkout.
+
+### CIB-297: `aps:index:check` is the only `*:check` that cannot fail, and nothing schedules the reconcile it defers to
+
+- **Status:** Draft — filed from the CIB-278/295/296 bookkeeping run 2026-08-06,
+  not self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P4 naming honesty + a process gap (no incorrect artefact ships;
+  the cost is stored counts that rot and readers who misjudge the gate)
+- **Intent:** Two separate but linked observations, neither of which is a defect
+  in `index-counts.mjs` itself:
+  1. **The name implies a gate it deliberately is not.** `aps:index:check`
+     detects stale counts, prints `advisory: APS index counts are stale`, and
+     **exits 0**. That is correct and intentional under **ADR-053** (Accepted) —
+     `index-counts.mjs` records that `--check` "reports freshness drift but exits
+     0 so concurrent same-module PRs do not collide on the aggregate count cell",
+     and the CI step is honestly titled "Report APS index count drift
+     (CIB-022/025 advisory)". The problem is only that it is the **lone**
+     `*:check` script in `package.json` that never fails: `lint:check`,
+     `format:check`, `docs:index:check`, `docs:public:check`, `adr:check`,
+     `release-plan:check` and `docs:check` are all blocking. A reader who knows
+     the convention infers a gate.
+  2. **ADR-053 defers to a reconcile that nothing schedules.** The ADR's model is
+     that feature PRs flip only per-item `Status:` lines and a "single-writer
+     reconcile (`pnpm aps:index`)" refreshes the stored `N/M`. No workflow runs
+     the write mode — `grep` over `.github/workflows/` finds only the `--check`
+     invocation. So the reconcile happens only when a human or agent happens to
+     run it inside an unrelated bookkeeping PR, and until then the stored count
+     is quietly wrong on `main`.
+- **Evidence (2026-08-06):** deterministic repro against `origin/main` — set the
+  CIB module header to a wrong `N/M` and run both tools. `drift-check.mjs`
+  reports two findings (`aps-progress-mismatch`, `aps-index-progress-mismatch`);
+  `index-counts.mjs --check` prints `CIB module header is 229/292 — work items
+  count 232/292` plus the advisory line, and exits **0**. Observed rot during a
+  single day of bookkeeping on this module: the stored count was found stale
+  three separate times (`224/286` against an actual `225/286`, then `229/292`
+  against `230/292`), each absorbed by an unrelated PR that happened to run the
+  reconcile.
+- **Scope note (honest):** this is **not** a request to make the check blocking.
+  ADR-053's reasoning is sound — a blocking aggregate-count gate would collide
+  on exactly the hot cell that shared multi-writer modules like CIB contend on,
+  which is the collision ADR-053 exists to prevent. Nor is it a defect report
+  against `index-counts.mjs`, whose behaviour matches its documented contract.
+- **Non-scope / do not:** do not make `aps:index:check` exit non-zero; do not
+  reintroduce PR-maintained counts (ADR-053 §Decision rejects that); do not add
+  a gate that fails a feature PR for an aggregate it is forbidden to update.
+- **Expected Outcome:** one or both of — (a) rename the script and flag so the
+  name matches the behaviour (e.g. `aps:index:report` / `--report`, keeping
+  `--check` as a deprecated alias), so `*:check` keeps meaning "blocking"
+  repo-wide; (b) schedule the single-writer reconcile ADR-053 assumes — e.g. a
+  low-frequency cron that runs `pnpm aps:index` and opens a bookkeeping PR when
+  the counts move — so drift is bounded rather than waiting for an unrelated PR
+  to absorb it.
+- **Files:** `package.json` (`aps:index:check`), `scripts/aps/index-counts.mjs`
+  (flag name and help), `.github/workflows/ci.yml` (the advisory step), a new or
+  existing scheduled workflow if (b) is taken; **ADR-053** if the reconcile actor
+  is named normatively.
+- **Validation:** under (a), every `*:check` script in `package.json` exits
+  non-zero on failure, and the advisory surface is reachable under a name that
+  does not claim to gate. Under (b), show a deliberately stale count producing a
+  reconcile PR without any human running the command, and show a feature PR
+  touching the module still passes untouched.
+- **Identified From:** CIB-278 bookkeeping and the CIB-295/296 promotion
+  (PRs #3637, #3642, 2026-08-06) — the count was found stale on `main` at the
+  start of both, and the advisory/blocking distinction was misread twice during
+  the run before the ADR-053 rationale was traced.
+- **Coordinates with:** **ADR-053** (advisory counts — the governing decision,
+  not in dispute), **CIB-022/025** (the CI advisory step), **CIB-295** (the same
+  advisory-vs-expectation shape on the `aps` docs:check surface)
+- **Confidence:** high on both observations — the exit-0 is reproduced and its
+  rationale traced to the source comment and ADR-053, the missing scheduled
+  reconcile is a negative `grep` over the workflows, and the rot is three
+  recorded instances in one day. Medium on the fix shape: (a) is cheap and
+  uncontroversial, (b) is a process addition that needs an operator call on
+  cadence and PR noise.
