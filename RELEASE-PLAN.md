@@ -171,12 +171,12 @@ range is internal repo hygiene (invisible to users) or sits in the retiring TS
 workspace (`packages/**`, published nowhere — see CIB-212/213/215, which are
 `Ready` and deliberately **not** promoted for that reason).
 
-| ID          | Item                                                     | Pri | Notes                                            |
-| ----------- | -------------------------------------------------------- | --- | ------------------------------------------------ |
-| **CIB-205** | ACKNOWLEDGEMENTS retains every distinct copyright notice | P1  | PR #3566. Legal-adjacent; also fixes public kit  |
-| **CIB-214** | Redact structured debug payloads in the live API         | P2  | `apps/anvil-api` is deployed product             |
-| **CIB-100** | Windows named-pipe GCTX client transport                 | P2  | Implemented; needs Windows matrix evidence       |
-| **CIB-160** | Portable peer-exe check off Linux                        | P2  | Newly exposed by CIB-252; operator decision made |
+| ID          | Item                                                     | Pri | Notes                                                     |
+| ----------- | -------------------------------------------------------- | --- | --------------------------------------------------------- |
+| **CIB-205** | ACKNOWLEDGEMENTS retains every distinct copyright notice | P1  | PR #3566. Legal-adjacent; also fixes public kit           |
+| **CIB-214** | Redact structured debug payloads in the live API         | P2  | `apps/anvil-api` is deployed product                      |
+| **CIB-100** | Windows named-pipe GCTX client transport                 | P2  | Merged via #3614; native x86_64 Windows round trip passed |
+| **CIB-160** | Portable peer-exe check off Linux                        | P2  | Newly exposed by CIB-252; operator decision made          |
 
 Why each, briefly:
 
@@ -190,8 +190,8 @@ Why each, briefly:
 - **CIB-214** is a deployed-service disclosure gap (device codes, emails,
   token-shaped fields reaching console output under `ANVIL_DEBUG`), `Ready` with
   a concrete file list.
-- **CIB-100** fits the Windows half of the window theme and is already
-  implemented — only native-matrix evidence is outstanding.
+- **CIB-100** is merged via #3614; native x64 MSVC execution proves the
+  owner-only named-pipe GCTX success path and typed response deserialisation.
 - **CIB-160** changed character when **CIB-252** merged (#3552). CIB-252
   correctly replaced `workspace register`'s false success with an explicit
   refusal, and named full portable peer-exe membership as CIB-160's non-scope.
@@ -247,10 +247,11 @@ Why each, briefly:
   requires that the generated file retains every distinct copyright notice, not
   one per licence family. A cut that ships the one-per-family output ships an
   attribution file that does not satisfy the terms it asserts.
-- **CIB-214, CIB-100, CIB-160** validated or explicitly waived with reason —
-  CIB-100 and CIB-160 need native Windows evidence, which is the likeliest
-  waiver of the four. If CIB-160 is waived, the CIB-252 refusal copy must name
-  the working `--persist` path (see promotions section).
+- **CIB-100** native Windows evidence is satisfied by the x64 round-trip
+  regression from PR #3614.
+- **CIB-214** and **CIB-160** validated or explicitly waived with reason —
+  CIB-160 still needs native Windows evidence. If CIB-160 is waived, the CIB-252
+  refusal copy must name the working `--persist` path (see promotions section).
 - Changelog leads with install/update + honesty fixes, not new features.
 - Strategy: **direct** unless readiness forces stabilisation.
 - Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag

@@ -2752,11 +2752,14 @@ archive.
 
 ### CIB-100: Windows named-pipe GCTX client transport
 
-- **Status:** In Progress 2026-06-24 — Windows named-pipe client path implemented in the shared GCTX client; remains open pending a Windows toolchain/matrix check.
+- **Status:** Merged 2026-08-06 via PR #3614 — native
+  `x86_64-pc-windows-msvc` execution passed
+  `windows_gctx_round_trip_deserialises_typed_result`, proving the owner-only
+  named-pipe `graph_stats` round trip and typed response deserialisation;
+  release evidence remains outstanding.
 - **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05). Fits the Windows
-  half of the window theme and the code is already written, so the only
-  outstanding work is native-matrix evidence — which is also the likeliest
-  reason it gets waived at the cut.
+  half of the window theme; the implementation and native transport evidence
+  are now landed, with only release verification outstanding.
 - **Intent:** The GCTX Phase-1 tools (`anvil_search_symbols`,
   `anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`,
   `anvil_find_callers`) degrade to `unavailable` on non-Unix because the GCTX
@@ -2768,16 +2771,20 @@ archive.
   the daemon is running.
 - **Files:** `crates/anvil-cli/src/mcp/gctx_client.rs`,
   `crates/anvil-cli/src/mcp/tools/*.rs`, `crates/anvil-cli/src/mcp/resources/mod.rs`.
-- **Validation:** non-Windows validation: `cargo test -p eddacraft-anvil mcp::`;
-  `cargo clippy -p eddacraft-anvil --all-targets -- -D warnings`. Windows
-  matrix still required: local `cargo check -p eddacraft-anvil --target
-  x86_64-pc-windows-gnu` and `--target x86_64-pc-windows-msvc` attempts were
-  blocked by missing Windows C toolchain components (`x86_64-w64-mingw32-gcc` /
-  `lib.exe`).
+- **Validation:** `cargo fmt --all --check`, focused non-Windows GCTX tests,
+  and Windows GNU all-target clippy passed locally. Native
+  `x86_64-pc-windows-msvc` execution passed
+  `windows_gctx_round_trip_deserialises_typed_result` in
+  [job 92548663211](https://github.com/eddacraft/anvil-001/actions/runs/31080538019/job/92548663211);
+  Windows MSVC all-target clippy passed in
+  [job 92548147989](https://github.com/eddacraft/anvil-001/actions/runs/31080538019/job/92548147989).
+  This records CIB-100 evidence only: the optional Rust workflow remained red
+  on unrelated pre-existing Windows and aarch64 macOS failures, so it is not
+  evidence that the full Cross matrix is green.
 - **Identified From:** GCTX-014 post-merge note; DSV Windows parity split
   (DSV-010/011). Filed 2026-06-22 release-window hygiene.
-- **Confidence:** medium — transport exists for save-time; GCTX projection path is
-  new wiring.
+- **Confidence:** high — the shared transport and native typed owner-only
+  named-pipe round trip are covered.
 
 ### CIB-101: `anvil uninstall --global` cleans the active `ANVIL_HOME` user root
 
