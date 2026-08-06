@@ -23,6 +23,19 @@ tmp_root=$(mktemp -d)
 cleanup() { rm -rf "${tmp_root}"; }
 trap cleanup EXIT
 
+# Husky's runner sources `${XDG_CONFIG_HOME:-$HOME/.config}/husky/init.sh`
+# before every hook. A developer who keeps one — to put a Node or pnpm on PATH
+# for non-interactive shells, say — has it prepend a REAL pnpm ahead of the
+# fake shims these probes install, so the hook runs the real gate and probe 3
+# can never observe the output it asserts on.
+#
+# Point XDG_CONFIG_HOME at an empty directory so the fixture exercises this
+# repo's hook and nothing else. Without it the suite passes on CI (which has no
+# such file) and fails on a configured workstation — the worst way round, since
+# the failure then looks like it belongs to whatever change is under test.
+export XDG_CONFIG_HOME="${tmp_root}/xdg"
+mkdir -p "${XDG_CONFIG_HOME}"
+
 fail() {
   echo "FAIL: $*" >&2
   exit 1
