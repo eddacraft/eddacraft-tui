@@ -1781,7 +1781,7 @@ mod tests {
             let meaning = needs_action_meaning(&d);
             let lower = meaning.to_lowercase();
             assert!(
-                !lower.contains("anvil has written") && !lower.contains("anvil wrote"), // retired-claim-ok: CIB-293
+                !lower.contains("anvil has written") && !lower.contains("anvil wrote"),
                 "NeedsAction meaning for {tier:?} must not claim anvil authored the entry: {meaning}"
             );
             assert!(
@@ -1851,7 +1851,7 @@ mod tests {
             "meaning must acknowledge the MCP entry is present: {meaning}"
         );
         assert!(
-            !lower.contains("anvil has written"), // retired-claim-ok: CIB-293
+            !lower.contains("anvil has written"),
             "meaning must not claim anvil authored the entry: {meaning}"
         );
         assert!(
