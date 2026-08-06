@@ -7,10 +7,11 @@
 # documented setup installed Node 22 — on which pnpm 11 cannot run — and
 # landed straight in the failure the dev-environment module exists to prevent.
 #
-# The drift came from the `engines` side, so this asserts in that direction:
-# every floor `package.json` declares must appear in CONTRIBUTING with the same
-# range. A floor that exists only in the doc is reported too, since that is the
-# same defect mirrored.
+# The assertion is deliberately one-directional: every floor `package.json`
+# declares must appear in CONTRIBUTING with the same range. The reverse is NOT
+# checked, and should not be — CONTRIBUTING legitimately mentions tools
+# `engines` does not govern (direnv, for one), so flagging doc-only entries
+# would report correct documentation as a defect.
 
 set -euo pipefail
 
@@ -49,17 +50,29 @@ while IFS=$'\t' read -r key range; do
   [ -n "${key}" ] || continue
   label=$(label_for "${key}")
 
-  # A prerequisite bullet: `- **Node.js**: >=24.0.0`, tolerant of emphasis and
-  # spacing so the check tracks meaning rather than one exact rendering.
-  if ! grep -qiE "^[[:space:]]*[-*][[:space:]]+\**${label}\**[[:space:]]*:?[[:space:]]*\`?${range//./\\.}" "${contributing}"; then
-    stated=$(grep -iE "^[[:space:]]*[-*][[:space:]]+\**${label}\**[[:space:]]*:" "${contributing}" | head -1 | sed 's/^[[:space:]]*//' || true)
-    if [ -n "${stated}" ]; then
-      echo "FAIL: CONTRIBUTING states a different floor for '${key}'." >&2
-      echo "      engines:      ${range}" >&2
-      echo "      CONTRIBUTING: ${stated}" >&2
-    else
-      echo "FAIL: CONTRIBUTING does not state a floor for '${key}' (engines: ${range})." >&2
-    fi
+  # Locate the prerequisite bullet — `- **Node.js**: >=24.0.0` — tolerating
+  # emphasis and spacing so the check tracks meaning rather than one rendering.
+  # Only the LABEL is matched as a pattern; the label set is fixed and contains
+  # no metacharacters beyond the dot we escape ourselves.
+  line=$(grep -iE "^[[:space:]]*[-*][[:space:]]+\**${label}\**[[:space:]]*:" "${contributing}" | head -1 || true)
+
+  if [ -z "${line}" ]; then
+    echo "FAIL: CONTRIBUTING does not state a floor for '${key}' (engines: ${range})." >&2
+    failures=$((failures + 1))
+    continue
+  fi
+
+  # Compare the ranges as literal strings rather than interpolating one into a
+  # pattern. A semver range is not regex-safe: `||`, `^`, `*`, `+` and `~` are
+  # all valid in a range and all mean something else to ERE, so an alternation
+  # like `>=20 || >=22` would silently match the wrong thing.
+  stated=$(printf '%s' "${line}" |
+    sed -E 's/^[[:space:]]*[-*][[:space:]]+//; s/^[^:]*:[[:space:]]*//; s/`//g; s/[[:space:]]+$//')
+
+  if [ "${stated}" != "${range}" ]; then
+    echo "FAIL: CONTRIBUTING states a different floor for '${key}'." >&2
+    echo "      engines:      ${range}" >&2
+    echo "      CONTRIBUTING: ${stated}" >&2
     failures=$((failures + 1))
   fi
 done <<<"${engines}"
