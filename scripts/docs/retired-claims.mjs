@@ -6,7 +6,7 @@
 // independent multi-item chains of exactly that shape:
 //
 //   - "daily save-time protection": removed from welcome (CIB-260, #3618),
-//     survived in install.sh (CIB-288);
+//     then survived in install.sh until CIB-288;
 //   - the Windows `\\?\` path prefix: CIB-237 → 279 → 282 → 285 → 287,
 //     five items, one defect, one surface at a time.
 //
@@ -48,12 +48,10 @@ export const RETIRED_CLAIMS = [
     // activation start actually performs.
     phrase: 'daily save-time protection',
     retiredBy: 'CIB-260 (#3618)',
-    baseline: [
-      // The post-install banner still sells the retired promise; CIB-288
-      // (Ready) owns both this line and the gated-command ordering beside
-      // it. When CIB-288 lands, delete this entry.
-      { path: 'install.sh', occurrences: 1, owner: 'CIB-288' },
-    ],
+    // No survivors: CIB-288 cleared the last one (the post-install banner in
+    // `install.sh`), so this phrase is now banned outright across the tracked
+    // tree — any reappearance is new spread, not a known one.
+    baseline: [],
   },
 ];
 

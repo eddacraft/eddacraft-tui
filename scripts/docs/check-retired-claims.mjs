@@ -11,7 +11,7 @@
 // Failure modes it exists to close (both observed in this repository):
 //   - survival: the claim is fixed on one surface and ships on in another
 //     ("daily save-time protection": welcome fixed in CIB-260, install.sh
-//     still selling it → CIB-288);
+//     went on selling it until CIB-288);
 //   - reintroduction: a later edit restates the retired claim verbatim on
 //     any surface, which no per-file guard test can see.
 //

@@ -156,10 +156,16 @@ printf "  ${DIM}Structural governance for AI-assisted development${RESET}\n"
 printf "\n"
 printf "%s\n" "$VERSION_LINE"
 printf "\n"
+# CIB-288: `anvil welcome` leads because it is the ungated demo surface
+# (ADR-080) — `start` is in CLI_GATED_COMMANDS, so pointing a brand-new,
+# unauthenticated reader at it first dead-ends at the auth wall. The `start`
+# gloss describes the activation it performs, matching the CIB-260 wording in
+# `welcome.rs`; a bare `anvil start` does not attach save-time coverage, so
+# the banner no longer promises it.
 printf "  Get started:\n"
 printf "    cd your-project/\n"
-printf "    anvil start      ${DIM}daily save-time protection${RESET}\n"
 printf "    anvil welcome    ${DIM}see what Anvil finds in your repo${RESET}\n"
+printf "    anvil start      ${DIM}activate this repo (sign-in required)${RESET}\n"
 printf "\n"
 printf "  Or run anvil --help for all commands.\n"
 printf "  ${DIM}https://docs.eddacraft.ai${RESET}\n"
