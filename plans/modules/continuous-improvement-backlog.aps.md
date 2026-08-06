@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 248/296  |
+| CIB | —     | In Progress | 248/298  |
 
 ## Purpose
 
@@ -8986,3 +8986,80 @@ CIB-251/255 only.
 - **Confidence:** high on the defect and the repair (containment proven by
   comparing dated entries across all three rows before deleting two). Medium
   on the right home for the gate, which is a tooling-placement call.
+
+### CIB-303: Shared target dir bakes dead worktree paths into cached artifacts
+
+- **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 validation honesty (CIB-270 class — a real failure that
+  reads as an environmental flake)
+- **Intent:** `CARGO_TARGET_DIR` is shared across every `anvil-001.<branch>`
+  worktree, and `CARGO_MANIFEST_DIR` is baked in **at compile time**. A crate
+  compiled in a worktree that is later removed leaves an artifact in the shared
+  target dir pointing at a path that no longer exists. Any test that resolves
+  `CARGO_MANIFEST_DIR` at runtime then fails. Observed 2026-08-06:
+  `eddacraft-tui`'s `shell::tests::snapshot_shell_chrome` failed under
+  `cargo test --workspace` with `cargo metadata failed in
+  .../anvil-001.fix-cib-278-.../crates/eddacraft-tui` buried in captured
+  stdout; `insta` then wrote a `.snap.new` into a bogus nested path **outside
+  the repository**, recreating a stray directory tree in `~/Projects/src/`.
+- **Why it matters beyond one test:** running the test alone forces a recompile
+  from the correct path, so it passes. That is the signature of the
+  "fails in the suite, passes in isolation" flake class CIB-270 catalogued — so
+  this defect actively disguises itself as a known-acceptable flake. It is not
+  flaky; it is deterministic given a stale artifact. Worse, the failure text is
+  in captured stdout, which a truncated or `| tail`-piped log discards.
+- **Expected Outcome:** the failure cannot be mistaken for a flake. Options, in
+  rough order of preference:
+  1. **Remove the sharing.** Give each worktree its own target dir (the
+     `.worktrees/*` codex sessions already set `CARGO_TARGET_DIR=./.target` and
+     are immune). Costs disk and cold rebuilds; ends both this and the
+     build-lock contention.
+  2. **Invalidate on removal.** Have the worktree-removal path (`wt` hook)
+     `cargo clean -p` the crates that worktree built, so no artifact outlives
+     its manifest dir.
+  3. **Detect and say so.** A test-harness or CI check that greps for
+     `cargo metadata failed` / the missing-`Cargo.toml` error in test output
+     and reports "stale build artifact, run `cargo clean -p <crate>`" rather
+     than leaving the operator to read it as a snapshot diff.
+- **Non-scope:** the build-lock contention from the same shared dir (annoying,
+  but it is honest — it blocks rather than lying).
+- **Files:** worktree tooling / `wt` hooks, `AGENTS.md` validation section,
+  possibly `.config/cargo` target-dir configuration
+- **Validation:** remove a worktree that compiled a crate, then run the full
+  workspace suite — either it passes, or it names the stale artifact as the
+  cause. A stray directory tree must never be created outside the repository.
+- **Identified From:** CIB-256 dev-loop run; reproduced and root-caused
+  2026-08-06 after a 19-worktree sweep.
+- **Coordinates with:** CIB-270 (recorded environmental baseline), aps-probe
+- **Confidence:** high — root cause proven; `cargo clean -p eddacraft-tui`
+  turned the full workspace suite green (9385 passed, 0 failed).
+
+### CIB-304: Empty `/tmp/.git` debris silently breaks worktree-root tests
+
+- **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 validation honesty (CIB-270 class, narrower blast radius)
+- **Intent:** An empty `/tmp/.git` directory — left behind by any tool that
+  runs `git init` in `/tmp`, and shared by every agent on the box — makes
+  `/tmp` look like a git boundary. Tests that create a tempdir under `/tmp` and
+  assert on the resolved worktree root then fail. Observed 2026-08-06:
+  `eddacraft-anvil-run`'s `context::tests::worktree_root_is_cwd_when_no_git_boundary`
+  failed with `left: "/tmp"`, `right: "/tmp/.tmpMVnNZb"`. The test name asserts
+  "no git boundary", but the environment silently supplied one.
+- **Expected Outcome:** the test does not depend on `/tmp` being free of git
+  debris. Either it creates its tempdir somewhere it controls, or it asserts
+  the precondition (no discoverable `.git` above the tempdir) and skips or
+  fails with a message naming `/tmp/.git` as the cause — so the operator is not
+  left comparing two paths that look arbitrarily different.
+- **Non-scope:** finding which tool creates `/tmp/.git`; the test should be
+  robust regardless of who left it there.
+- **Files:** `crates/anvil-run/src/context.rs` (the test and, if the fix is in
+  production code, `worktree_root` discovery), `AGENTS.md` validation notes
+- **Validation:** with an empty `/tmp/.git` present, the test either passes or
+  fails with a message that names the debris; `rmdir /tmp/.git` is not a
+  prerequisite for a green suite.
+- **Identified From:** CIB-256 dev-loop run; full-workspace suite 2026-08-06.
+- **Coordinates with:** CIB-270, CIB-303
+- **Confidence:** high — reproduced, and `rmdir /tmp/.git` made it pass with
+  nothing else changed.
