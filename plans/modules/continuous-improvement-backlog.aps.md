@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 224/286  |
+| CIB | —     | In Progress | 226/288  |
 
 ## Purpose
 
@@ -7319,11 +7319,12 @@ scanned — with expansion deferred to `v0.9.4`.
   committed goldens carried the duplicate-key collision, confirming it shipped.
   CI green on #3615 (Test 43m pass, Clippy Linux + windows-msvc, Format, Doc,
   Check, Hakari). Blind verifier: pass-with-advisories.
-- **Observed, not yet filed:** the sibling `Unreachable` arm (`render.rs`) still
-  says the editor "has seen" the MCP config — contradicted by the tier docs in
-  `activation/diagnostic.rs` — and `needs_action_meaning` still says "anvil has
-  written the MCP entry". Same authorship-claim class, different state arms,
-  outside this item's scope; both want their own CIB item.
+- **Follow-ups filed:** **CIB-292** (the sibling `Unreachable` arm still says
+  the editor "has seen" the MCP config, contradicted by the tier docs in
+  `activation/diagnostic.rs`) and **CIB-293** (`needs_action_meaning` still says
+  "anvil has written the MCP entry"). Same authorship-claim class, different
+  state arms, outside this item's scope. Both Draft — they need an operator
+  promotion before implementation.
 - **Identified From:** Dave pack-02 START-1.
 - **Coordinates with:** CIB-220..222, CIB-223..225
 - **Confidence:** high.
@@ -8469,3 +8470,64 @@ CIB-251/255 only.
 - **Coordinates with:** CIB-246, CIB-273
 - **Confidence:** medium — cosmetic, but it is the exact class CIB-246 and
   CIB-273 exist to close.
+
+### CIB-292: `Unreachable` meaning claims the editor has *seen* the MCP config
+
+- **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 honesty (same class as CIB-256, different attestation arm)
+- **Intent:** `state_explanation`'s `ReadyRestartRequired` +
+  `DaemonAttestation::Unreachable` arm
+  (`crates/anvil-cli/src/activation/render.rs`) opens with "The editor or agent
+  has **seen** anvil's MCP config". Nothing in the diagnostic proves the client
+  read anything. This state is reached from MCP tier alone, and the tier docs
+  say the opposite: `McpTier::RestartRequired` is defined as "the client **must
+  be restarted before it picks up the entry**"
+  (`crates/anvil-cli/src/activation/diagnostic.rs`). The line renders directly
+  above `mcp: … (pending restart)`, so the output contradicts itself in one
+  block — visible in the committed golden
+  `tests/fixtures/start-activation/verify-ready-restart-required.stdout`.
+- **Expected Outcome:** the `Unreachable` copy describes observed state
+  (an entry is present; the daemon is not answering) without asserting the
+  client has read it — matching the `NotProbed` arm CIB-256 already corrected,
+  so the two arms of the same state stop disagreeing. Recovery guidance
+  (interactive `anvil start`, headless `anvil intercept start --foreground`)
+  is settled by DLIFE-006 and must survive unchanged.
+- **Non-scope:** the daemon-reachability logic itself; this is copy only.
+- **Files:** `crates/anvil-cli/src/activation/render.rs` (`state_explanation`),
+  `crates/anvil-cli/tests/fixtures/start-activation/` goldens
+- **Validation:** a test asserting the `Unreachable` meaning makes no
+  seen/read/attached claim, mirroring the CIB-256 pins; goldens regenerated.
+- **Identified From:** CIB-256 blind verification (PR #3615).
+- **Coordinates with:** CIB-256, CIB-220..222, DLIFE-006
+- **Confidence:** high — the contradiction is in a committed fixture.
+
+### CIB-293: `needs_action_meaning` infers anvil authorship from entry presence
+
+- **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 honesty (same class as CIB-256, lower blast radius)
+- **Intent:** Three `NeedsAction` arms in
+  `crates/anvil-cli/src/activation/render.rs` still open with "anvil has
+  written the MCP entry". Presence is all the probe observes; a hand-written or
+  machine-wide entry yields the same tier, so authorship is inferred rather
+  than known — the exact inference CIB-256 removed from the
+  `ReadyRestartRequired` arm.
+- **Expected Outcome:** the `NeedsAction` copy states the entry is present
+  without naming an author, consistent with the corrected
+  `ReadyRestartRequired` arm.
+- **Blocked on a deliberate decision:** CIB-167 Council added a test that
+  asserts this exact string (`lower.contains("written the mcp entry")` in
+  `render.rs`). That pin exists to stop the copy regressing to "anvil has
+  **not** written an MCP config", which was the CIB-167 bug — the honest middle
+  ("an entry is present") satisfies CIB-167's intent while dropping the
+  authorship claim, but the assertion must be re-expressed rather than deleted,
+  and the rationale recorded so the CIB-167 regression cannot creep back.
+- **Files:** `crates/anvil-cli/src/activation/render.rs`
+  (`needs_action_meaning` and the CIB-167 test)
+- **Validation:** the CIB-167 guarantee still holds (copy never denies a
+  written entry) **and** no arm asserts anvil authored it.
+- **Identified From:** CIB-256 blind verification (PR #3615).
+- **Coordinates with:** CIB-256, CIB-167, CIB-292
+- **Confidence:** medium — the fix is small; the care is in not undoing
+  CIB-167.
