@@ -174,7 +174,9 @@ std::thread_local! {
 /// and converted into a failed demo step. A worker thread name alone does not
 /// establish that invariant.
 pub fn is_autoplay_panic_contained() -> bool {
-    AUTOPLAY_PANIC_CONTAINED.get()
+    AUTOPLAY_PANIC_CONTAINED
+        .try_with(std::cell::Cell::get)
+        .unwrap_or(false)
 }
 
 struct AutoplayPanicContainment {
@@ -183,14 +185,14 @@ struct AutoplayPanicContainment {
 
 impl AutoplayPanicContainment {
     fn enter() -> Self {
-        let previous = AUTOPLAY_PANIC_CONTAINED.replace(true);
+        let previous = AUTOPLAY_PANIC_CONTAINED.with(|contained| contained.replace(true));
         Self { previous }
     }
 }
 
 impl Drop for AutoplayPanicContainment {
     fn drop(&mut self) {
-        AUTOPLAY_PANIC_CONTAINED.set(self.previous);
+        AUTOPLAY_PANIC_CONTAINED.with(|contained| contained.set(self.previous));
     }
 }
 
