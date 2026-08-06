@@ -36,10 +36,16 @@ fn restore_terminal() {
 /// that catches its own panics and reports them as a failed demo step. The TUI
 /// is still live at that point, so restoring the terminal (or printing a
 /// backtrace over the frame) would corrupt the session rather than rescue it.
-/// The hook therefore leaves that thread alone — the containment the old
-/// child-process implementation got for free from piped stderr. The panic text
-/// is not lost: it is carried in the step's `stderr` and shown by the recovery
-/// notice.
+/// The hook therefore skips `restore_terminal` and the previous hook for that
+/// thread — the containment the old child-process implementation got for free
+/// from piped stderr.
+///
+/// CIB-268: suppression must not swallow the diagnostic. The autoplay path
+/// records the panic (message + source location) in a process-local slot and
+/// emits `tracing::error!` (`target = "anvil_cli::tui"`) so operators with a
+/// log sink / `ANVIL_LOG` still see the detail. Step `stderr` from
+/// `catch_unwind` remains the in-TUI recovery channel; this is the durable
+/// diagnostic channel.
 fn install_panic_hook() {
     static INSTALLED: OnceLock<()> = OnceLock::new();
     INSTALLED.get_or_init(|| {
@@ -48,12 +54,73 @@ fn install_panic_hook() {
             if std::thread::current().name()
                 == Some(anvil_tui::surfaces::tutorial::AUTOPLAY_WORKER_THREAD)
             {
+                // Frame stays intact: no restore, no prev (would print).
+                record_autoplay_worker_panic(info);
                 return;
             }
             restore_terminal();
             prev(info);
         }));
     });
+}
+
+/// Last autoplay-worker panic formatted by [`record_autoplay_worker_panic`].
+/// Survives after the panic is caught so developers can inspect it without
+/// relying on a corrupted frame or a truncated recovery notice.
+static LAST_AUTOPLAY_WORKER_PANIC: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&'static str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "<non-string panic payload>".to_string()
+    }
+}
+
+/// Format, store, and log an autoplay-worker panic. Intentionally silent on
+/// stdout/stderr so a live TUI frame is not corrupted (CIB-268).
+fn record_autoplay_worker_panic(info: &std::panic::PanicHookInfo<'_>) {
+    let message = panic_payload_message(info.payload());
+    let location = info.location().map_or_else(
+        || "unknown".to_string(),
+        |loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()),
+    );
+    let detail = format!("autoplay worker panic: {message} at {location}");
+
+    let mut slot = match LAST_AUTOPLAY_WORKER_PANIC.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *slot = Some(detail.clone());
+
+    // Structured fields for JSON sinks; human message for file/console layers.
+    // Never write to stdout/stderr here — that would corrupt a live frame.
+    tracing::error!(
+        target: "anvil_cli::tui",
+        panic_message = %message,
+        panic_location = %location,
+        "{detail}"
+    );
+}
+
+/// Last recorded autoplay-worker panic detail, if any.
+#[cfg(test)]
+pub(crate) fn last_autoplay_worker_panic_for_test() -> Option<String> {
+    match LAST_AUTOPLAY_WORKER_PANIC.lock() {
+        Ok(slot) => slot.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    }
+}
+
+#[cfg(test)]
+fn clear_last_autoplay_worker_panic_for_test() {
+    let mut slot = match LAST_AUTOPLAY_WORKER_PANIC.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *slot = None;
 }
 
 /// RAII guard for the TUI terminal session. Enables raw mode + the alternate
@@ -814,7 +881,47 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    use std::sync::MutexGuard;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// `std::panic::set_hook` is process-wide. Serialise the tests that install
+    /// or exercise the TUI panic hook so parallel libtest threads cannot race
+    /// `take_hook` / `set_hook` (same discipline as `anvil-hook::panic`).
+    static PANIC_HOOK_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Invocations of the previous hook captured by the first
+    /// [`install_panic_hook`] call under test. Shared by the idempotence and
+    /// autoplay-suppression tests.
+    static PREV_HOOK_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    fn lock_panic_hook_tests() -> MutexGuard<'static, ()> {
+        match PANIC_HOOK_TEST_LOCK.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    /// Install the production hook once with a counting previous hook so tests
+    /// can observe whether `prev` ran. Subsequent calls are no-ops
+    /// (`OnceLock`). Must run under [`lock_panic_hook_tests`].
+    ///
+    /// The counting hook **wraps** the existing process hook rather than
+    /// replacing it: `install_panic_hook` captures it as `prev`, so normal
+    /// panics still emit the original diagnostics (Copilot review on #3613).
+    /// Autoplay suppression still returns before `prev`, so the counter stays
+    /// zero on that path.
+    fn ensure_production_hook_with_counting_prev() {
+        static SETUP: OnceLock<()> = OnceLock::new();
+        SETUP.get_or_init(|| {
+            let prev = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                PREV_HOOK_CALLS.fetch_add(1, Ordering::SeqCst);
+                prev(info);
+            }));
+            install_panic_hook();
+        });
+    }
 
     mod map_key_text {
         use super::super::map_key_text;
@@ -884,17 +991,12 @@ mod tests {
     /// triggering a panic inside `catch_unwind`, and asserting the counter
     /// observed exactly one invocation.
     ///
-    /// This is the only test in the binary that touches the panic-hook
-    /// machinery; no other unit test in `crates/anvil-cli/src/` installs a
-    /// hook, so the global state seen here is determined by this test alone.
+    /// Serialised with the autoplay-worker panic test via
+    /// [`lock_panic_hook_tests`]; both share the counting previous hook.
     #[test]
     fn install_panic_hook_does_not_stack_on_repeat_installs() {
-        static PREV_HOOK_CALLS: AtomicUsize = AtomicUsize::new(0);
-
-        let saved = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {
-            PREV_HOOK_CALLS.fetch_add(1, Ordering::SeqCst);
-        }));
+        let _guard = lock_panic_hook_tests();
+        ensure_production_hook_with_counting_prev();
 
         install_panic_hook();
         install_panic_hook();
@@ -911,7 +1013,49 @@ mod tests {
             "previous hook ran {calls} times — `install_panic_hook` re-wrapped on repeat \
              install (expected exactly 1 via the OnceLock guard)"
         );
+    }
 
-        std::panic::set_hook(saved);
+    /// CIB-268: a panic on the autoplay worker thread must not invoke the
+    /// previous hook (which restores the terminal and prints a backtrace —
+    /// either would corrupt a live frame). The detail must still be
+    /// retrievable via the last-panic slot recorded by the suppressed path.
+    #[test]
+    fn autoplay_worker_panic_is_recorded_without_calling_prev_hook() {
+        let _guard = lock_panic_hook_tests();
+        ensure_production_hook_with_counting_prev();
+        clear_last_autoplay_worker_panic_for_test();
+        PREV_HOOK_CALLS.store(0, Ordering::SeqCst);
+
+        let worker = std::thread::Builder::new()
+            .name(anvil_tui::surfaces::tutorial::AUTOPLAY_WORKER_THREAD.to_string())
+            .spawn(|| {
+                // Mirror production: the executor catches the unwind after the
+                // process-wide hook has already run.
+                let _ = std::panic::catch_unwind(|| panic!("cib-268 autoplay probe"));
+            })
+            .expect("spawn autoplay-named worker");
+        worker.join().expect("autoplay worker join");
+
+        let calls = PREV_HOOK_CALLS.load(Ordering::SeqCst);
+        assert_eq!(
+            calls, 0,
+            "previous hook must not run for the autoplay worker (would restore/print \
+             over a live frame); observed {calls} invocation(s)"
+        );
+
+        let recorded = last_autoplay_worker_panic_for_test()
+            .expect("autoplay worker panic detail should be recorded");
+        assert!(
+            recorded.contains("cib-268 autoplay probe"),
+            "recorded detail must include the panic payload, got {recorded:?}"
+        );
+        assert!(
+            recorded.contains("autoplay worker panic:"),
+            "recorded detail must use the autoplay diagnostic prefix, got {recorded:?}"
+        );
+        assert!(
+            recorded.contains(" at "),
+            "recorded detail must include a source location, got {recorded:?}"
+        );
     }
 }
