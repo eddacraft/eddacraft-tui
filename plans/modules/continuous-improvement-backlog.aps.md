@@ -6883,7 +6883,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | WS-1 | net-new trust (false success) | **CIB-252** Merged · coords CIB-160 |
 | STATUS-1 | net-new honesty | **CIB-253** Merged via #3573 |
 | STATUS-2 | absorbed into CIB-235 | CIB-235 pack-02 extension |
-| START-1 | net-new honesty | **CIB-256** Ready P2 |
+| START-1 | net-new honesty | **CIB-256** Merged via #3615 |
 | WATCH-1 | net-new trust (ND caveat) | **CIB-254** Merged via #3577 |
 | INIT-2 | net-new honesty | **CIB-257** Ready P2 |
 | TUI-8 | net-new copy honesty | **CIB-259** Ready P2 |
