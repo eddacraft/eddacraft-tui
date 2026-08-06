@@ -6900,7 +6900,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | JSON-1 | net-new | **CIB-262** Merged via #3626 · coords CIB-240 |
 | PUSH-1 | needs reproduction (plausible only) | **CIB-267** Proposed |
 | INIT-1 | net-new polish | **CIB-263** Ready P3 |
-| INIT-3 | net-new polish | **CIB-257** (with INIT-2) |
+| INIT-3 | net-new polish | **CIB-257** Merged via #3638 (with INIT-2) |
 | WELCOME-1 | net-new polish | **CIB-260** Ready P3 |
 | STATUS-3 | net-new polish | **CIB-264** Ready P3 |
 | PATH-1 | absorbed | CIB-237 |
