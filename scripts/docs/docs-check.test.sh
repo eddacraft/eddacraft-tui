@@ -43,12 +43,12 @@ fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 echo "case 1: orchestrator emits all nine surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
 for surface in metadata tags links public-docs aps adr index-freshness asbuilt-paths release-plan; do
-  if ! grep -qE "^  (pass|FAIL|ERROR \(tooling\))\s+${surface}$" <<<"${out}"; then
+  if ! grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+${surface}$" <<<"${out}"; then
     fail "summary missing surface: ${surface}"
     break
   fi
 done
-if grep -qE "^  (pass|FAIL|ERROR \(tooling\))\s+release-plan$" <<<"${out}"; then
+if grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+release-plan$" <<<"${out}"; then
   pass "all nine surfaces present in summary"
 fi
 
@@ -91,7 +91,7 @@ fi
 # asbuilt-paths — fails without the baseline.
 echo "case 4: --no-baseline surfaces underlying errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
-if echo "${out}" | grep -qE "^  FAIL\s+(metadata|tags|links|asbuilt-paths)$"; then
+if echo "${out}" | grep -qE "^  FAIL[[:space:]]+(metadata|tags|links|asbuilt-paths)$"; then
   pass "without baseline, a baselineable surface with corpus debt fails as expected"
 else
   fail "expected a baselineable surface to FAIL without baseline; tail: $(echo "${out}" | tail -5)"
@@ -283,7 +283,7 @@ echo "case 10: --no-baseline does not crash the index-freshness surface"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
 if echo "${out}" | grep -qE "Unknown option '--no-baseline'|ERR_PARSE_ARGS_UNKNOWN_OPTION"; then
   fail "--no-baseline misrouted to index-freshness; got: $(echo "${out}" | grep -iE 'unknown|ERR_PARSE' | head -1)"
-elif echo "${out}" | grep -qE "^  (pass|FAIL|ERROR \(tooling\))\s+index-freshness$"; then
+elif echo "${out}" | grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+index-freshness$"; then
   pass "--no-baseline run reaches index-freshness without an unknown-option crash"
 else
   fail "index-freshness surface missing from --no-baseline summary; tail: $(echo "${out}" | tail -5)"
@@ -789,9 +789,9 @@ set +e
 out="$(node "${orchestrator}" --root "${taxonomy_root}" --surfaces "${taxonomy_root}/surfaces-tooling.json" 2>&1)"
 status=$?
 set -e
-if echo "${out}" | grep -qE "^  FAIL\s+tooling-surface$"; then
+if echo "${out}" | grep -qE "^  FAIL[[:space:]]+tooling-surface$"; then
   fail "exit-2 surface rendered as a content FAIL; got: $(echo "${out}" | grep tooling-surface | head -2)"
-elif echo "${out}" | grep -qE "^  ERROR \(tooling\)\s+tooling-surface$"; then
+elif echo "${out}" | grep -qE "^  ERROR \(tooling\)[[:space:]]+tooling-surface$"; then
   pass "exit-2 surface renders as ERROR (tooling), not FAIL"
 else
   fail "exit-2 surface missing a tooling verdict; got: $(echo "${out}" | tail -8)"
@@ -827,7 +827,7 @@ set +e
 out="$(node "${orchestrator}" --root "${taxonomy_root}" --surfaces "${taxonomy_root}/surfaces-content.json" 2>&1)"
 status=$?
 set -e
-if echo "${out}" | grep -qE "^  FAIL\s+content-surface$" && [[ "${status}" -eq 1 ]]; then
+if echo "${out}" | grep -qE "^  FAIL[[:space:]]+content-surface$" && [[ "${status}" -eq 1 ]]; then
   pass "content failure still renders FAIL and exits 1"
 else
   fail "content failure regressed (status ${status}); got: $(echo "${out}" | tail -8)"
@@ -881,12 +881,76 @@ set +e
 out="$(cd "${repo_root}" && PATH="${shim_dir}:${PATH}" node "${orchestrator}" 2>&1)"
 status=$?
 set -e
-if echo "${out}" | grep -qE "^  FAIL\s+(aps|adr)$"; then
+if echo "${out}" | grep -qE "^  FAIL[[:space:]]+(aps|adr)$"; then
   fail "broken pnpm still misreported as a content FAIL; got: $(echo "${out}" | tail -14)"
 elif [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "surfaces passed; 0 failed"; then
   pass "orchestrator is fully green with pnpm unusable"
 else
   fail "orchestrator not green with pnpm unusable (status ${status}); got: $(echo "${out}" | tail -14)"
+fi
+
+# Case 19 (CIB-278): honouring exit code 2 downstream only works if every surface
+# means the same thing by it. A missing governed document is a CONTENT defect and
+# must exit 1 — if it exited 2 the orchestrator would tell the contributor who
+# just deleted it that their docs change was not the cause, which is the original
+# misattribution inverted. These lock the two sites that used to exit 2.
+echo "case 19: a missing governed document is a content defect, not a tooling failure"
+release_plan_root="${tmp_root}/release-plan-missing"
+mkdir -p "${release_plan_root}"
+set +e
+out="$(node "${script_dir}/check-release-plan.mjs" --root "${release_plan_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]]; then
+  pass "missing RELEASE-PLAN.md exits 1 (content), not 2 (tooling)"
+else
+  fail "missing RELEASE-PLAN.md should exit 1; got ${status}: ${out}"
+fi
+
+# adr-integrity.sh roots itself at dirname(BASH_SOURCE)/../.., so drive it from a
+# scratch tree with the real script copied in.
+adr_root="${tmp_root}/adr-missing"
+mkdir -p "${adr_root}/scripts/docs" "${adr_root}/plans/decisions"
+cp "${script_dir}/adr-integrity.sh" "${adr_root}/scripts/docs/adr-integrity.sh"
+set +e
+out="$(bash "${adr_root}/scripts/docs/adr-integrity.sh" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]]; then
+  pass "missing DECISION-LOG.md exits 1 (content), not 2 (tooling)"
+else
+  fail "missing DECISION-LOG.md should exit 1; got ${status}: ${out}"
+fi
+rm -rf "${adr_root}/plans/decisions"
+set +e
+out="$(bash "${adr_root}/scripts/docs/adr-integrity.sh" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]]; then
+  pass "missing plans/decisions exits 1 (content), not 2 (tooling)"
+else
+  fail "missing plans/decisions should exit 1; got ${status}: ${out}"
+fi
+
+# And end-to-end: the orchestrator must render that as FAIL, never ERROR (tooling).
+orchestrator_root="${tmp_root}/release-plan-orchestrated"
+mkdir -p "${orchestrator_root}"
+ln -s "${script_dir}" "${orchestrator_root}/scripts-docs"
+cat >"${orchestrator_root}/surfaces.json" <<'EOF'
+[
+  { "name": "release-plan", "script": "scripts-docs/check-release-plan.mjs", "baselineable": false }
+]
+EOF
+set +e
+out="$(node "${orchestrator}" --root "${orchestrator_root}" --surfaces "${orchestrator_root}/surfaces.json" 2>&1)"
+status=$?
+set -e
+if echo "${out}" | grep -qE "^  ERROR \(tooling\)[[:space:]]+release-plan$"; then
+  fail "missing RELEASE-PLAN.md wrongly blamed on tooling; got: $(echo "${out}" | tail -6)"
+elif echo "${out}" | grep -qE "^  FAIL[[:space:]]+release-plan$" && [[ "${status}" -eq 1 ]]; then
+  pass "orchestrator renders a missing governed doc as FAIL and exits 1"
+else
+  fail "missing RELEASE-PLAN.md not rendered as FAIL (status ${status}); got: $(echo "${out}" | tail -6)"
 fi
 
 if [[ "${failures}" -gt 0 ]]; then

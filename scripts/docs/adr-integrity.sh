@@ -2,8 +2,8 @@
 # ADR integrity check: no duplicate numbers, no orphans between files and
 # the DECISION-LOG index, and a printout of the next-available ADR number.
 #
-# Exit 0 on success, 1 on any integrity violation. Stdout is the report;
-# stderr is reserved for runtime errors.
+# Exit 0 on success, 1 on any integrity violation, 2 only when the check could
+# not run at all. Stdout is the report; stderr is reserved for runtime errors.
 
 set -euo pipefail
 
@@ -11,13 +11,18 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 decisions_dir="${repo_root}/plans/decisions"
 log_file="${decisions_dir}/DECISION-LOG.md"
 
+# A missing decisions directory or DECISION-LOG.md is a *content* defect — both
+# are tracked, governed documents, and deleting or renaming one is exactly what a
+# docs change might do. They exit 1 like any other integrity violation. Exit 2 is
+# reserved for "this check could not run", which docs-check reports as a tooling
+# failure rather than blaming the contributor's docs (CIB-278).
 if [[ ! -d "${decisions_dir}" ]]; then
-  echo "error: ${decisions_dir} not found" >&2
-  exit 2
+  echo "FAIL: ${decisions_dir} not found" >&2
+  exit 1
 fi
 if [[ ! -f "${log_file}" ]]; then
-  echo "error: ${log_file} not found" >&2
-  exit 2
+  echo "FAIL: ${log_file} not found" >&2
+  exit 1
 fi
 
 # All ADR files: NNN-*.md or NNN<letter>-*.md. Tolerate an empty/no-match

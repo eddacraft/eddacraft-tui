@@ -16,5 +16,5 @@ runSurfaceDelegate({
   surface: 'aps',
   command: process.execPath,
   args: [resolve(REPO_ROOT, 'scripts/aps/drift-check.mjs')],
-  remedy: 'run `node scripts/aps/drift-check.mjs` directly to see the underlying error.',
+  isolate: 'node scripts/aps/drift-check.mjs',
 });

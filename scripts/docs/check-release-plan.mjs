@@ -37,8 +37,13 @@ let text;
 try {
   text = readFileSync(file, 'utf8');
 } catch (err) {
+  // A missing RELEASE-PLAN.md is a *content* defect — the governed document is
+  // gone — so it exits 1 like any other finding. Only a genuine environment
+  // problem (permissions, an I/O fault) exits 2, which docs-check reserves for
+  // "the check could not run" and reports as a tooling failure (CIB-278).
+  const unreadable = err.code !== 'ENOENT';
   console.error(`[${SURFACE}] cannot read ${file}: ${err.message}`);
-  process.exit(2);
+  process.exit(unreadable ? 2 : 1);
 }
 
 const errors = [];

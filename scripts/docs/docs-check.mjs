@@ -170,8 +170,11 @@ function printSummary(results) {
     else failed += 1;
     process.stdout.write(`  ${VERDICT_LABEL[r.verdict].padEnd(LABEL_WIDTH)} ${r.surface}\n`);
   }
+  // Name the unrunnable count in the tally itself, so `8/9 passed; 0 failed`
+  // does not read as arithmetic that does not add up.
+  const unrunnableTally = unrunnable.length > 0 ? `; ${unrunnable.length} could not run` : '';
   process.stdout.write(
-    `[docs-check] ${passed}/${results.length} surfaces passed; ${failed} failed.\n`
+    `[docs-check] ${passed}/${results.length} surfaces passed; ${failed} failed${unrunnableTally}.\n`
   );
   if (unrunnable.length > 0) {
     // Say plainly that these carry no content signal. The failure mode this

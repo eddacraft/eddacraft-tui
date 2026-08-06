@@ -15,5 +15,5 @@ runSurfaceDelegate({
   surface: 'adr',
   command: 'bash',
   args: [resolve(REPO_ROOT, 'scripts/docs/adr-integrity.sh')],
-  remedy: 'run `bash scripts/docs/adr-integrity.sh` directly to see the underlying error.',
+  isolate: 'bash scripts/docs/adr-integrity.sh',
 });
