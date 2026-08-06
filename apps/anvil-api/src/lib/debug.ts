@@ -60,12 +60,13 @@ const IDENTIFYING_KEY_SHAPES = [
  * substrings of the normalised key, so `pollToken`, `access_token`, and
  * `refreshTokenHash` all resolve through the same rule.
  *
- * These apply to string values only. A number or boolean under one of these
- * names is a counter or a flag, never the credential itself — `refreshTokens:
- * 87` is a purge row count, and `tokenOnly` / `hasToken` are exactly the
- * presence flags this module asks call sites to log instead of a secret.
- * Redacting those would strip real operational context and make the safe
- * pattern look unsafe.
+ * Everything under such a name is dropped except numbers, booleans, and absent
+ * values: those are counters and flags, never the credential itself —
+ * `refreshTokens: 87` is a purge row count, and `tokenOnly` / `hasToken` are
+ * exactly the presence flags this module asks call sites to log instead of a
+ * secret. Redacting those would strip real operational context and make the
+ * safe pattern look unsafe. Strings, objects, arrays, `Map`, and `Set` are all
+ * dropped — a credential nested one level down is still a credential.
  */
 const CREDENTIAL_TEXT_KEY_SUBSTRINGS = [
   'token',
@@ -118,7 +119,15 @@ function isCredentialKey(key: string, value: unknown): boolean {
   if (CREDENTIAL_KEY_EXACT.has(normalised)) {
     return true;
   }
-  if (typeof value !== 'string' && typeof value !== 'bigint') {
+  // Allow-list the safe types rather than deny-list the unsafe ones. Written
+  // the other way round, this also exempted objects, arrays, Map, and Set —
+  // so `{ credentials: { pass: '…' } }` printed verbatim.
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return false;
+  }
+  // A null or absent field carries no secret, and "present but empty" is
+  // itself useful signal.
+  if (value === null || value === undefined) {
     return false;
   }
   return CREDENTIAL_TEXT_KEY_SUBSTRINGS.some((needle) => normalised.includes(needle));
@@ -156,6 +165,21 @@ const MAX_REDACTION_DEPTH = 8;
  * operational metadata rather than payloads.
  */
 function redactStructured(value: unknown, seen: Set<object> = new Set(), depth = 0): unknown {
+  // Contain failures per node, not per line. `instanceof` consults prototype
+  // traps and `.message` / `.getTime()` / `.valueOf()` are all caller-supplied
+  // code, so any single node can throw — but one hostile field must not cost
+  // the operator every other field on the line.
+  try {
+    return redactNode(value, seen, depth);
+  } catch {
+    if (value !== null && typeof value === 'object') {
+      seen.delete(value);
+    }
+    return '[UNREADABLE]';
+  }
+}
+
+function redactNode(value: unknown, seen: Set<object>, depth: number): unknown {
   if (typeof value === 'string') {
     return sanitizeForLog(value);
   }
@@ -184,7 +208,7 @@ function redactStructured(value: unknown, seen: Set<object> = new Set(), depth =
   // away the very detail the operator is reading the log for.
   if (value instanceof Error) {
     seen.delete(value);
-    return { name: value.name, message: sanitizeForLog(value.message) };
+    return { name: sanitizeForLog(value.name), message: sanitizeForLog(value.message) };
   }
 
   if (value instanceof Date) {
@@ -202,16 +226,17 @@ function redactStructured(value: unknown, seen: Set<object> = new Set(), depth =
   // Boxed primitives: unwrap so `new String(code)` is filtered like the literal.
   if (value instanceof String || value instanceof Number || value instanceof Boolean) {
     seen.delete(value);
-    return redactStructured(value.valueOf(), seen, depth);
+    return redactStructured(value.valueOf(), seen, depth + 1);
   }
 
   if (value instanceof Map) {
     const entries: Record<string, unknown> = {};
     for (const [key, nested] of value) {
       const name = String(key);
-      entries[redactKey(name)] = isCredentialKey(name, nested)
+      const rendered = isCredentialKey(name, nested)
         ? '[REDACTED]'
         : redactStructured(nested, seen, depth + 1);
+      assignUnique(entries, redactKey(name), rendered);
     }
     seen.delete(value);
     return entries;
@@ -247,29 +272,34 @@ function redactStructured(value: unknown, seen: Set<object> = new Set(), depth =
       continue;
     }
     if (!('value' in descriptor)) {
-      result[redactKey(key)] = '[GETTER]';
+      assignUnique(result, redactKey(key), '[GETTER]');
       continue;
     }
     const nested = descriptor.value;
-    result[redactKey(key)] = isCredentialKey(key, nested)
+    const rendered = isCredentialKey(key, nested)
       ? '[REDACTED]'
       : redactStructured(nested, seen, depth + 1);
+    assignUnique(result, redactKey(key), rendered);
   }
   seen.delete(value);
   return result;
 }
 
 /**
- * `redactStructured` is defensive throughout, but it runs against
- * caller-supplied objects; a Proxy can throw from traps this code does not
- * control. Logging degrades to a marker rather than propagating.
+ * Assign into `target` without letting two redacted keys silently collide.
+ * Three throttle buckets keyed by email must not render as one entry holding
+ * whichever value happened to come last.
  */
-function safeRedactStructured(value: unknown): unknown {
-  try {
-    return redactStructured(value);
-  } catch {
-    return '[UNREADABLE]';
+function assignUnique(target: Record<string, unknown>, key: string, value: unknown): void {
+  if (!(key in target)) {
+    target[key] = value;
+    return;
   }
+  let suffix = 2;
+  while (`${key}:${suffix}` in target) {
+    suffix += 1;
+  }
+  target[`${key}:${suffix}`] = value;
 }
 
 function debugLog(namespace: DebugNamespace, message: string, data?: unknown): void {
@@ -291,7 +321,7 @@ function debugLog(namespace: DebugNamespace, message: string, data?: unknown): v
     } else if (typeof data === 'string') {
       console.debug(`${prefix} ${sanitizedMessage}:`, sanitizeForLog(data));
     } else {
-      console.debug(`${prefix} ${sanitizedMessage}:`, safeRedactStructured(data));
+      console.debug(`${prefix} ${sanitizedMessage}:`, redactStructured(data));
     }
   } else {
     console.debug(`${prefix} ${sanitizedMessage}`);
@@ -337,10 +367,14 @@ function infoLog(namespace: DebugNamespace, event: string, fields?: InfoFields):
         continue;
       }
       if (isCredentialKey(key, value)) {
-        entry[redactKey(key)] = '[REDACTED]';
+        assignUnique(entry, redactKey(key), '[REDACTED]');
         continue;
       }
-      entry[redactKey(key)] = typeof value === 'string' ? sanitizeForLog(value) : value;
+      assignUnique(
+        entry,
+        redactKey(key),
+        typeof value === 'string' ? sanitizeForLog(value) : value
+      );
     }
   }
   // Reserved keys are written last so a caller-supplied field can never

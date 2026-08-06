@@ -18,6 +18,17 @@ function captureDebug(message: string, data?: unknown): string {
   }
 }
 
+/** The redacted structured argument itself, before console formatting. */
+function capturePayload(message: string, data: unknown): unknown {
+  const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+  try {
+    createDebugger('auth-device')(message, data);
+    return spy.mock.calls[0]?.[1];
+  } finally {
+    spy.mockRestore();
+  }
+}
+
 function inspect(value: unknown): string {
   if (typeof value === 'string') return value;
   try {
@@ -192,6 +203,70 @@ describe('debug structured payload redaction (CIB-214)', () => {
 
     expect(fromObject).not.toContain('victim@example.com');
     expect(fromMap).not.toContain('victim@example.com');
+  });
+
+  // The type-aware key rule exists so counters and flags stay readable. It must
+  // exempt ONLY those: a structured value under a credential name is still a
+  // credential, and writing the guard as "not a string" instead of "is a number
+  // or boolean" silently reopened every one of these.
+  it('redacts structured values filed under a credential key', () => {
+    const object = captureDebug('cfg', { credentials: { user: 'svc', pass: 'hunter2' } });
+    expect(object).not.toContain('hunter2');
+
+    const array = captureDebug('cfg', { tokens: ['plainshortvalue'] });
+    expect(array).not.toContain('plainshortvalue');
+
+    const map = captureDebug('cfg', { apiKeys: new Map([['prod', 'shortkeyvalue']]) });
+    expect(map).not.toContain('shortkeyvalue');
+
+    const set = captureDebug('cfg', { secrets: new Set(['hunter2']) });
+    expect(set).not.toContain('hunter2');
+
+    const nested = captureDebug('cfg', { password: { current: 'hunter2' } });
+    expect(nested).not.toContain('hunter2');
+  });
+
+  it('keeps distinct redacted keys distinct instead of collapsing them', () => {
+    // Three throttle buckets must not render as one entry whose value is
+    // whichever happened to come last — that is specific-but-wrong output.
+    // Asserted on the payload object rather than the rendered line: the
+    // timestamp prefix contains stray digits and would satisfy a text match.
+    const payload = capturePayload('bucket state', {
+      'a@example.com': 1,
+      'b@example.com': 2,
+      'c@example.com': 3,
+    }) as Record<string, unknown>;
+
+    expect(JSON.stringify(payload)).not.toContain('@example.com');
+    expect(Object.keys(payload)).toHaveLength(3);
+    expect(Object.values(payload).sort()).toEqual([1, 2, 3]);
+  });
+
+  it('contains a hostile node without discarding its siblings', () => {
+    const hostile = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          throw new Error('proxy denies');
+        },
+      }
+    );
+
+    const output = captureDebug('mixed context', {
+      usefulA: 'keep-me-A',
+      hostile,
+      usefulC: 'keep-me-C',
+    });
+
+    expect(output).toContain('keep-me-A');
+    expect(output).toContain('keep-me-C');
+  });
+
+  it('filters an error name as well as its message', () => {
+    const err = new Error('inner');
+    err.name = 'ErrFor victim@example.com';
+
+    expect(captureDebug('link failed', { cause: err })).not.toContain('victim@example.com');
   });
 
   it('summarises binary payloads instead of spilling them byte by byte', () => {
