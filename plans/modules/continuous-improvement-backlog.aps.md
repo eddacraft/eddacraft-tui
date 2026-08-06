@@ -8562,8 +8562,8 @@ CIB-251/255 only.
 
 ### CIB-292: `Unreachable` meaning claims the editor has *seen* the MCP config
 
-- **Status:** Merged 2026-08-06 via PR #3653 — merge commit `3d9528d2b`,
-  ancestor-verified. Promoted Draft → Ready by the operator 2026-08-06
+- **Status:** Merged 2026-08-06 via PR #3653 — landed as `3d9528d2b` (rebase merge;
+  ancestor-verified). Promoted Draft → Ready by the operator 2026-08-06
   ("pick up CIB-292 and 293", membrane checkpoint authorising the run),
   implemented and landed the same day. The retired phrase joined
   `scripts/docs/retired-claims.mjs` (empty baseline) in the same PR, so
@@ -8597,8 +8597,8 @@ CIB-251/255 only.
 
 ### CIB-293: `needs_action_meaning` infers anvil authorship from entry presence
 
-- **Status:** Merged 2026-08-06 via PR #3653 — merge commit `3d9528d2b`,
-  ancestor-verified. Promoted Draft → Ready by the operator 2026-08-06
+- **Status:** Merged 2026-08-06 via PR #3653 — landed as `3d9528d2b` (rebase merge;
+  ancestor-verified). Promoted Draft → Ready by the operator 2026-08-06
   (same membrane checkpoint as CIB-292). The CIB-167 pin was re-expressed,
   not deleted: all three denial-forbidding assertions survive verbatim,
   presence is pinned per-clause, and a new assertion forbids the
