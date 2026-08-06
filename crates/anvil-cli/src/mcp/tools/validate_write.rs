@@ -3215,6 +3215,35 @@ mod tests {
         assert_eq!(daemon.seen_path.borrow().as_deref(), Some("src/x.ts"));
     }
 
+    #[test]
+    fn redundant_forward_separators_reach_validate_write_boundary() {
+        let workspace = tempdir().expect("workspace exists");
+
+        for path in [".//src/x.ts", ".//./src/x.ts"] {
+            let daemon = RecordingDaemon {
+                seen_path: RefCell::new(None),
+            };
+            let result = call_with_validation_client(
+                &json!({
+                    "path": path,
+                    "operation": "create",
+                    "proposedContent": "export const value = 1;\n"
+                }),
+                workspace.path(),
+                &daemon,
+                &super::WorkspaceEnforcementResolver,
+            );
+            let payload = parse_payload(&result);
+
+            assert_eq!(
+                payload["decision"], "allow",
+                "path {path:?} should be accepted"
+            );
+            assert_eq!(payload["correlation"]["path"], "src/x.ts");
+            assert_eq!(daemon.seen_path.borrow().as_deref(), Some("src/x.ts"));
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn literal_unix_backslash_reaches_correlation_and_daemon_unchanged() {

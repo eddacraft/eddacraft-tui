@@ -110,13 +110,16 @@ pub fn normalise_workspace_relative_path(
 
     // Dropping leading current-directory segments can expose an anchor that
     // was not at byte zero in the caller's spelling (`./C:/x`, `./\\server`,
-    // `./\root`). Preserve the separators while removing only complete `.`
-    // segments, then apply the full portable anchor predicate again.
-    let mut anchor_normalised = unified.as_str();
-    while let Some(without_current_dir) = anchor_normalised.strip_prefix("./") {
-        anchor_normalised = without_current_dir;
+    // `./\root`). Parse that prefix from the original spelling so redundant
+    // forward separators remain ordinary empty segments, while a backslash
+    // still retains the anchor evidence that portable validation needs.
+    let mut anchor_remainder = raw;
+    let mut consumed_current_dir = false;
+    while let Some(without_current_dir) = anchor_remainder.strip_prefix("./") {
+        consumed_current_dir = true;
+        anchor_remainder = without_current_dir.trim_start_matches('/');
     }
-    if has_portable_anchor(anchor_normalised) {
+    if consumed_current_dir && has_portable_anchor(&anchor_remainder.replace('\\', "/")) {
         return Err(format!("{field} must be a workspace-relative path"));
     }
     let mut segments = Vec::new();
@@ -459,6 +462,21 @@ mod tests {
             ),
             Ok(r"src/a\b.ts".to_string())
         );
+    }
+
+    #[test]
+    fn host_normalised_filesystem_paths_drop_redundant_forward_separators_after_current_dir() {
+        for path in [".//src/x.ts", ".//./src/x.ts"] {
+            assert_eq!(
+                normalise_workspace_relative_path(
+                    "filePath",
+                    path,
+                    WorkspacePathKind::HostFilesystem,
+                ),
+                Ok("src/x.ts".to_string()),
+                "path {path:?} should be accepted"
+            );
+        }
     }
 
     #[test]
