@@ -173,7 +173,6 @@ mod tests {
     }
 
     fn system_time_to_iso_z(t: SystemTime) -> String {
-        let secs = t.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
         // Mirror kernel emitter civil conversion so fixtures match production stamps.
         const SECS_PER_DAY: u64 = 86_400;
         const DAYS_PER_400Y: u64 = 146_097;
@@ -181,6 +180,7 @@ mod tests {
         const DAYS_PER_4Y: u64 = 1_461;
         const DAYS_PER_YEAR: u64 = 365;
 
+        let secs = t.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
         let time_of_day = secs % SECS_PER_DAY;
         let hour = time_of_day / 3600;
         let minute = (time_of_day % 3600) / 60;
