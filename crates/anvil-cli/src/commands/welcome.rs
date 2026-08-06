@@ -1631,8 +1631,18 @@ fn open_docs_message() -> String {
 
 /// UJ-001: the next-step line a welcome exit prints when the reader can
 /// already activate — a plain `anvil start` will run for them.
-const WELCOME_NEXT_STEP_ACTIVATE: &str =
-    "  Next: run `anvil start` for daily save-time protection.";
+///
+/// CIB-260: describe `anvil start` by what it actually does — activate the
+/// repo and report the protection state it reached — not by a save-time
+/// outcome it cannot guarantee. A bare `anvil start` does not attach
+/// save-time coverage to this worktree: the daemon is not started at all in
+/// non-interactive contexts (`daemon_capability_for_start` →
+/// `NoSpawn(NonInteractive)`), and even on the interactive path a freshly
+/// started daemon has not yet admitted this worktree, so the first run —
+/// exactly where welcome hands off — has no driver attached. Save-time is
+/// therefore named only next to `--watch`, the flag that actually asks for
+/// the save-time fallback.
+const WELCOME_NEXT_STEP_ACTIVATE: &str = "  Next: run `anvil start` to activate this repo and see what protection is live; add `--watch` for the save-time fallback.";
 
 /// The next-step line for a signed-out reader. `anvil welcome` is the ungated
 /// demo surface (ADR-080), but `anvil start` is licence-gated — so pointing an
@@ -1641,7 +1651,11 @@ const WELCOME_NEXT_STEP_ACTIVATE: &str =
 /// --verify` probe so the closing copy always leaves the reader something that
 /// actually runs. The `anvil start` mention is preserved so the golden-path
 /// handoff (UJ-001) still reads as a single continuous journey.
-const WELCOME_NEXT_STEP_SIGN_IN: &str = "  Next: sign in with `anvil auth login` (early access: https://eddacraft.ai), then run `anvil start` for daily save-time protection.\n  No sign-in yet? `anvil start --verify` shows your current protection state for free.";
+///
+/// CIB-260: as with [`WELCOME_NEXT_STEP_ACTIVATE`], `anvil start` is
+/// described by the activation it performs rather than by save-time coverage
+/// it does not attach on its own; save-time is named only next to `--watch`.
+const WELCOME_NEXT_STEP_SIGN_IN: &str = "  Next: sign in with `anvil auth login` (early access: https://eddacraft.ai), then run `anvil start` to activate this repo; add `--watch` for the save-time fallback.\n  No sign-in yet? `anvil start --verify` shows your current protection state for free.";
 
 /// Pick the honest next-step copy. `prompts_sign_in` is `true` when a plain
 /// `anvil start` would stop at the auth wall for this reader right now (see
@@ -2087,6 +2101,54 @@ mod tests {
                 line.contains("anvil start"),
                 "the welcome next step must name `anvil start` (prompts_sign_in={prompts_sign_in}), got: {line}",
             );
+        }
+    }
+
+    // CIB-260: `anvil start` ensures a per-user daemon and wires MCP; it does
+    // NOT by itself attach save-time coverage to this worktree, so no variant
+    // may sell save-time protection as the outcome of a bare `anvil start`:
+    //
+    //   * `daemon_capability_for_start` returns `NoSpawn(NonInteractive)` in
+    //     CI / hook / piped contexts and `NoSpawn(OptOut)` under `--no-daemon`
+    //     — the daemon is not started at all on those paths.
+    //   * even on the interactive path, "a freshly *started* daemon has not
+    //     yet admitted this worktree, so it can never promote the protection
+    //     state on its own" (`commands::start`) — which is exactly the
+    //     first-run moment welcome hands off into.
+    //   * `activation::daemon_evidence::worktree_driver_attached` only reads
+    //     as attached on `SaveTimeDriverStatusV1::Attached`; `Failed`,
+    //     `Absent` and `Unknown` are all "not attached".
+    //   * the save-time watch fallback is spawned only when `--watch` is
+    //     passed (`WatchDecision::Spawn`).
+    //
+    // So save-time may be named only alongside the flag that actually asks
+    // for it, never as the guaranteed result of the bare command.
+    #[test]
+    fn welcome_next_step_never_promises_save_time_from_a_bare_start() {
+        for prompts_sign_in in [false, true] {
+            let line = welcome_next_step(prompts_sign_in);
+            assert!(
+                !line.contains("save-time protection"),
+                "the next step must not sell save-time protection as the outcome of \
+                 `anvil start` (prompts_sign_in={prompts_sign_in}), got: {line}",
+            );
+            // Check each clause on its own. A whole-string `contains`
+            // would let the `--watch` clause excuse a bare save-time
+            // promise in a *different* clause — so a reworded
+            // reintroduction ("… for daily save-time cover; add
+            // `--watch` for the save-time fallback") would pass while
+            // shipping exactly the CIB-260 defect.
+            for clause in line.split([';', '\n']) {
+                if !clause.contains("save-time") {
+                    continue;
+                }
+                assert!(
+                    clause.contains("--watch"),
+                    "save-time may only be named in the same clause as `--watch`, \
+                     the flag that actually asks for the fallback \
+                     (prompts_sign_in={prompts_sign_in}), offending clause: {clause:?}",
+                );
+            }
         }
     }
 
