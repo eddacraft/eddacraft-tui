@@ -1,0 +1,193 @@
+#!/usr/bin/env node
+// Surface: retired product claims must not survive or reappear.
+//
+// When an honesty item retires a user-facing claim (see
+// `retired-claims.mjs`), this surface holds the whole tracked tree to that
+// decision: every occurrence of a retired phrase outside the documented
+// historical corpora is a content failure unless it is baselined to the open
+// CIB item that owns it, or marked as deliberate quotation on the line
+// (`retired-claim-ok: CIB-NNN`).
+//
+// Failure modes it exists to close (both observed in this repository):
+//   - survival: the claim is fixed on one surface and ships on in another
+//     ("daily save-time protection": welcome fixed in CIB-260, install.sh
+//     still selling it → CIB-288);
+//   - reintroduction: a later edit restates the retired claim verbatim on
+//     any surface, which no per-file guard test can see.
+//
+// Scan universe: `git ls-files` (tracked files only), so results are
+// deterministic and build output can never be flagged. Fixtures and golden
+// output are deliberately in scope — recorded CLI output is where a
+// reintroduced claim hides longest.
+//
+// Exit codes follow the docs-check taxonomy (CIB-278): 0 clean, 1 content
+// defect, 2 the check could not run (says nothing about the corpus).
+//
+// Wired as a `pnpm docs:check` surface; standalone via
+// `node scripts/docs/check-retired-claims.mjs`.
+
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { resolve, extname, basename } from 'node:path';
+import { parseArgs } from 'node:util';
+import process from 'node:process';
+
+import {
+  RETIRED_CLAIMS,
+  EXCLUDED_PREFIXES,
+  EXCLUDED_FILES,
+  EXCLUDED_EXACT_BASENAMES,
+  EXCLUDED_EXTENSIONS,
+  LINE_MARKER,
+} from './retired-claims.mjs';
+
+const SURFACE = 'retired-claims';
+
+const { values } = parseArgs({
+  options: {
+    root: { type: 'string' },
+  },
+  allowPositionals: false,
+});
+
+const root = resolve(values.root ?? process.cwd());
+
+// ---------------------------------------------------------------------------
+// File list: tracked files only, NUL-delimited so exotic names cannot split.
+// A failure here is an environment problem (not a git repo, git missing), so
+// it exits 2 — the corpus carries no signal either way (CIB-278).
+// ---------------------------------------------------------------------------
+const ls = spawnSync('git', ['ls-files', '-z'], {
+  cwd: root,
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+});
+if (ls.error || ls.status !== 0) {
+  const reason = ls.error?.message ?? (ls.stderr || `git exited ${ls.status}`);
+  console.error(`[${SURFACE}] cannot list tracked files under ${root}: ${reason.trim()}`);
+  process.exit(2);
+}
+
+const files = ls.stdout.split('\0').filter(Boolean).filter(isScanned);
+
+function isScanned(path) {
+  if (EXCLUDED_FILES.includes(path)) return false;
+  if (EXCLUDED_PREFIXES.some((p) => path.startsWith(p))) return false;
+  if (EXCLUDED_EXACT_BASENAMES.includes(basename(path))) return false;
+  if (EXCLUDED_EXTENSIONS.includes(extname(path).toLowerCase())) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Scan. Case-insensitive literal substring per line; the marker exempts a
+// line; binary files (NUL byte) are skipped as unscannable prose.
+// ---------------------------------------------------------------------------
+const needles = RETIRED_CLAIMS.map((claim) => ({
+  claim,
+  lower: claim.phrase.toLowerCase(),
+}));
+
+/** @type {Map<string, Map<string, {line: number, text: string}[]>>} phrase → path → hits */
+const hits = new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
+let scanned = 0;
+let unreadable = 0;
+
+for (const path of files) {
+  let text;
+  try {
+    text = readFileSync(resolve(root, path), 'utf8');
+  } catch {
+    // Racing deletions and permission oddities carry no claim content; count
+    // them so the summary cannot silently shrink the universe.
+    unreadable += 1;
+    continue;
+  }
+  if (text.includes('\u0000')) continue; // binary
+  scanned += 1;
+
+  // Cheap whole-file pre-check before the per-line pass.
+  const lowerText = text.toLowerCase();
+  const present = needles.filter(({ lower }) => lowerText.includes(lower));
+  if (present.length === 0) continue;
+
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (line.includes(LINE_MARKER)) continue;
+    const lowerLine = line.toLowerCase();
+    for (const { claim, lower } of present) {
+      if (!lowerLine.includes(lower)) continue;
+      const byPath = hits.get(claim.phrase);
+      if (!byPath.has(path)) byPath.set(path, []);
+      byPath.get(path).push({ line: i + 1, text: line.trim() });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Judge against baselines.
+// ---------------------------------------------------------------------------
+const errors = [];
+
+for (const { claim } of needles) {
+  const byPath = hits.get(claim.phrase);
+  const baselined = new Map(claim.baseline.map((b) => [b.path, b]));
+
+  for (const [path, found] of byPath) {
+    const entry = baselined.get(path);
+    if (!entry) {
+      for (const hit of found) {
+        errors.push(
+          `${path}:${hit.line}: retired claim "${claim.phrase}" (retired by ${claim.retiredBy})\n` +
+            `    ${hit.text}\n` +
+            `    Do not reintroduce this claim — describe the observed state instead. If this line\n` +
+            `    deliberately quotes the phrase (e.g. a guard test), mark it '${LINE_MARKER} <CIB id>'.`
+        );
+      }
+      continue;
+    }
+    if (found.length !== entry.occurrences) {
+      errors.push(
+        `${path}: retired claim "${claim.phrase}" — baseline expects ${entry.occurrences} ` +
+          `occurrence(s) owned by ${entry.owner}, found ${found.length} ` +
+          `(lines ${found.map((h) => h.line).join(', ')}).\n` +
+          `    More than baselined = the claim is spreading; fix it rather than widening the baseline.\n` +
+          `    Fewer = ${entry.owner} landed; delete the baseline entry in retired-claims.mjs so the\n` +
+          `    phrase becomes fully banned.`
+      );
+    }
+  }
+
+  // A baselined path with zero matches means the owning item landed (or the
+  // file went away). Either way the entry is stale and must be deleted — that
+  // deletion is the moment the claim becomes fully banned, so it must not
+  // rot silently.
+  for (const [path, entry] of baselined) {
+    if (!byPath.has(path)) {
+      errors.push(
+        `${path}: stale baseline for retired claim "${claim.phrase}" — expected ` +
+          `${entry.occurrences} occurrence(s) owned by ${entry.owner}, found none.\n` +
+          `    ${entry.owner} appears to have landed; delete this baseline entry in retired-claims.mjs.`
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Report.
+// ---------------------------------------------------------------------------
+if (errors.length > 0) {
+  for (const error of errors) console.error(`[${SURFACE}] ${error}`);
+  console.error(
+    `[${SURFACE}] summary: ${errors.length} error(s); ` +
+      `${RETIRED_CLAIMS.length} retired claim(s) checked over ${scanned} tracked files.`
+  );
+  process.exit(1);
+}
+
+const unreadableNote = unreadable > 0 ? `; ${unreadable} unreadable file(s) skipped` : '';
+console.log(
+  `[${SURFACE}] ok: ${RETIRED_CLAIMS.length} retired claim(s) checked over ` +
+    `${scanned} tracked files; baselined survivors within bounds${unreadableNote}.`
+);
+process.exit(0);

@@ -79,10 +79,10 @@ fi
 # Case 3: baseline absorbs current errors so the live repo passes.
 echo "case 3: baseline file absorbs current errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-if echo "${out}" | grep -qE "^\[docs-check\] 9/9 surfaces passed"; then
+if echo "${out}" | grep -qE "^\[docs-check\] 10/10 surfaces passed"; then
   pass "live repo passes all nine surfaces under baseline"
 else
-  fail "live repo expected 9/9 passed; got tail: $(echo "${out}" | tail -3)"
+  fail "live repo expected 10/10 passed; got tail: $(echo "${out}" | tail -3)"
 fi
 
 # Case 4: --no-baseline reveals the baselined corpus errors. The metadata surface

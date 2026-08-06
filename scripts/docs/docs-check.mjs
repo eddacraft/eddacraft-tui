@@ -16,6 +16,7 @@
 //   adr               — scripts/docs/check-adr.mjs (delegates to scripts/docs/adr-integrity.sh)
 //   index-freshness   — scripts/docs/check-index-freshness.mjs (real)
 //   asbuilt-paths     — scripts/docs/check-asbuilt-paths.mjs (stub, DOCGOV-006)
+//   retired-claims    — scripts/docs/check-retired-claims.mjs (real)
 //
 // Verdicts (CIB-278): a surface that could not RUN is reported as
 // `ERROR (tooling)`, never as `FAIL`. Collapsing both into `FAIL` told
@@ -60,6 +61,15 @@ const DEFAULT_SURFACES = [
   },
   { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: true },
   { name: 'release-plan', script: 'scripts/docs/check-release-plan.mjs', baselineable: false },
+  {
+    // Tombstone lint: retired product claims must not survive on other
+    // surfaces or be reintroduced (see scripts/docs/retired-claims.mjs).
+    // Carries its own inline baseline (survivors owned by open CIB items),
+    // so it does not participate in docs-check.baseline.json.
+    name: 'retired-claims',
+    script: 'scripts/docs/check-retired-claims.mjs',
+    baselineable: false,
+  },
 ];
 
 // Declared above the top-level runAll()/regenerateBaseline() call below, which

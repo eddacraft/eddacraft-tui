@@ -75,6 +75,7 @@
     "test:adr-integrity": "bash scripts/docs/adr-integrity.test.sh",
     "adr:check": "bash scripts/docs/adr-integrity.sh",
     "release-plan:check": "node scripts/docs/check-release-plan.mjs",
+    "retired-claims:check": "node scripts/docs/check-retired-claims.mjs",
     "predocs:check": "pnpm -s -F @eddacraft/anvil-docs-meta build",
     "predocs:index": "pnpm -s -F @eddacraft/anvil-docs-meta build",
     "docs:index": "node scripts/docs/docs-index.mjs",
