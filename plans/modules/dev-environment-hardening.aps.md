@@ -355,10 +355,11 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
     which pnpm 11 cannot run at all (`ERR_UNKNOWN_BUILTIN_MODULE`). git is not
     mentioned, though `docs/guides/git-hook-compatibility.md` sets a 2.54
     floor. The onboarding path leads directly into the failure.
-  - **No tracked hook sets `CARGO_TARGET_DIR`.** `grep -rn CARGO_TARGET_DIR
-    .husky/` returns nothing. Git runs hooks with the worktree root as cwd, so
-    a hook can compute the relocation itself with no user configuration and no
-    direnv — the one place the repo can fix this unaided. That seam is unused.
+  - **No tracked hook sets `CARGO_TARGET_DIR`.** Searching `.husky/` for that
+    variable returns nothing (`grep -rn CARGO_TARGET_DIR .husky/`). Git runs
+    hooks with the worktree root as cwd, so a hook can compute the relocation
+    itself with no user configuration and no direnv — the one place the repo
+    can fix this unaided. That seam is unused.
   - **No bootstrap for the machine-level pieces.** `scripts/dev/` holds
     worktree tooling (`wt-new.sh`, anchor healing, cleanup) but nothing that
     provisions a toolchain, and `prepare: husky` is the only install-time hook.
