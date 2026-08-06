@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 226/288  |
+| CIB | —     | In Progress | 228/289  |
 
 ## Purpose
 
@@ -8388,6 +8388,66 @@ CIB-251/255 only.
   on a Windows host; on Unix the prefix is a literal substring rather than a
   parsed prefix, which does not change the conclusion.
 
+### CIB-288: install banner promises save-time and leads with a gated command
+
+- **Status:** Ready — promoted by the operator 2026-08-06 (membrane
+  checkpoint), requested during the CIB-260 dev-loop run. Not
+  self-authorised.
+- **Priority:** P3 first-contact honesty. Same defect class as CIB-260 but on
+  the post-install banner, which every new user reads *before* they ever run
+  `anvil welcome` — so the higher-traffic instance outlived the welcome fix (CIB-260 via #3618, now Merged).
+- **Intent:** two defects in the same two-line `Get started:` block of
+  `install.sh` (lines 160–162 on `origin/main`):
+  1. `anvil start      daily save-time protection` makes exactly the claim
+     CIB-260/#3618 removed from welcome. A bare `anvil start` does not attach
+     save-time coverage to the worktree: `daemon_capability_for_start`
+     (`commands/start.rs`) returns `NoSpawn(NonInteractive)` in CI / hook /
+     piped contexts and `NoSpawn(OptOut)` under `--no-daemon`; even on the
+     interactive path a freshly started daemon has not yet admitted the
+     worktree, so `activation::daemon_evidence::worktree_driver_attached`
+     stays false on the first run; and the save-time watch fallback is
+     spawned only when `--watch` is passed.
+  2. The block lists `anvil start` **before** `anvil welcome`, pointing a
+     brand-new, unauthenticated reader at the licence-gated command first.
+     `start` is in `CLI_GATED_COMMANDS` (`feature_flags.rs`) and
+     `skips_auth_for_local_probe` (`main.rs`) exempts only `start --verify` /
+     `status --verify`, so the first suggested command dead-ends at the auth
+     wall. `welcome` is absent from that list — it is the deliberately
+     ungated demo surface (ADR-080). The ordering inverts the intended
+     first-run journey, and it is the same dead-end that
+     `WELCOME_NEXT_STEP_SIGN_IN` exists to route around.
+- **Expected Outcome:** the banner's `anvil start` gloss stops promising
+  save-time protection, and the block either leads with the ungated surface
+  or names the sign-in step. Reuse the CIB-260 wording rather than inventing
+  a third phrasing for the same object.
+- **Non-scope / do not:** do not restate daemon/driver mechanics in the
+  banner — it is a four-word gloss, not a status surface. Do not change
+  installer behaviour, version detection, or the logo block. Do not
+  re-litigate whether `start` should be gated (see
+  `project_cli_licence_gate_beta_intentional`); the gating is intentional for
+  beta and this item is about what the banner *says*.
+- **Files:** `install.sh` (the `Get started:` printf block, lines ~160–162 on
+  `origin/main`)
+- **Validation:** `rg -n 'daily save-time' install.sh` returns nothing; the
+  first suggested command either runs without credentials or the line names
+  the sign-in step. `install.sh` has no test harness, so verify by reading
+  the rendered block — do not claim a guard test that cannot exist.
+- **Trap to avoid:** CIB-260 fixed only
+  `crates/anvil-cli/src/commands/welcome.rs`. Fixing one surface while an
+  identical promise ships on another is what produced this item; re-run the
+  phrase sweep across the tree before closing. At filing time `install.sh:161`
+  was the only remaining occurrence outside `plans/`.
+- **Identified From:** independent verification during the CIB-260 dev-loop
+  run (PR #3618). The verifier flagged the surviving `install.sh` copy as
+  leaving the shipped product self-contradictory; the auth-ordering half was
+  found while confirming the phrase's only remaining occurrence.
+- **Coordinates with:** CIB-260 (the welcome half, PR #3618), ADR-080
+  (welcome is the ungated demo surface), CIB-256 (`start --verify` honesty)
+- **Confidence:** high on both mechanisms — the save-time path is the same
+  one CIB-260 verified end to end, and the gate list and auth exemption were
+  read in `feature_flags.rs` and `main.rs` on `origin/main`. Medium on the
+  right remedy for the ordering, which is a product-framing call for the
+  operator rather than a settled fact.
 ### CIB-289: Onboarding welcome squeezes the logo the same way CIB-272 fixed
 
 - **Status:** Draft — filed from the CIB-272 dev-loop run 2026-08-06, not
