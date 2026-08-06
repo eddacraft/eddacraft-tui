@@ -903,11 +903,19 @@ mod tests {
     /// Install the production hook once with a counting previous hook so tests
     /// can observe whether `prev` ran. Subsequent calls are no-ops
     /// (`OnceLock`). Must run under [`lock_panic_hook_tests`].
+    ///
+    /// The counting hook **wraps** the existing process hook rather than
+    /// replacing it: `install_panic_hook` captures it as `prev`, so normal
+    /// panics still emit the original diagnostics (Copilot review on #3613).
+    /// Autoplay suppression still returns before `prev`, so the counter stays
+    /// zero on that path.
     fn ensure_production_hook_with_counting_prev() {
         static SETUP: OnceLock<()> = OnceLock::new();
         SETUP.get_or_init(|| {
-            std::panic::set_hook(Box::new(|_| {
+            let prev = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
                 PREV_HOOK_CALLS.fetch_add(1, Ordering::SeqCst);
+                prev(info);
             }));
             install_panic_hook();
         });
