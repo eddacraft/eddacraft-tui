@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 245/294  |
+| CIB | —     | In Progress | 246/296  |
 
 ## Purpose
 
@@ -8411,9 +8411,17 @@ CIB-251/255 only.
 
 ### CIB-288: install banner promises save-time and leads with a gated command
 
-- **Status:** Ready — promoted by the operator 2026-08-06 (membrane
-  checkpoint), requested during the CIB-260 dev-loop run. Not
-  self-authorised.
+- **Status:** Merged 2026-08-06 via PR #3650. Both halves shipped: the
+  `daily save-time protection` gloss is gone and the ungated `anvil welcome`
+  now leads the block. The retired-claims baseline entry for `install.sh` was
+  deleted in the same change, so the phrase is banned outright tree-wide.
+  Recorded scope extension beyond the stated Files: this item's Validation
+  clause says `install.sh` has no test harness, but `scripts/install.test.sh`
+  exists — it simply asserted nothing about the banner and was wired into
+  neither `package.json` nor CI, so nothing ran it. The PR added a banner
+  case (both assertions proven RED independently) plus `test:install-sh` and
+  a CI step. That guard is still unreachable for install.sh-only PRs — see
+  **CIB-299**.
 - **Priority:** P3 first-contact honesty. Same defect class as CIB-260 but on
   the post-install banner, which every new user reads *before* they ever run
   `anvil welcome` — so the higher-traffic instance outlived the welcome fix (CIB-260 via #3618, now Merged).
@@ -8875,3 +8883,97 @@ CIB-251/255 only.
   taxonomy).
 - **Confidence:** high — behaviour demonstrated against the live tree in
   all six modes before the PR opened.
+### CIB-299: root `install.sh` is unclassified, so its own guard never runs
+
+- **Status:** Draft — filed from the CIB-288 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 CI targeting (weakens a guard that already exists)
+- **Intent:** `scripts/ci/classify-changes.sh` has no path rule for the
+  repository-root `install.sh`. Classifying it yields `pathClasses:
+  ["unknown"]` with a `unclassified-paths` warning, and `requiredChecks`
+  falls back to `["format","lint","typecheck","unit-tests"]` — notably
+  **without** `shell-syntax` or `script-fixtures`. The `shell` class, which
+  covers `scripts/**/*.sh`, adds both plus an `operations` review.
+  `.github/actions/detect-changes/action.yml:256` derives
+  `script-fixtures-required` from `has_check script-fixtures` on exactly that
+  classification, and `ci.yml` gates the script self-tests on it. So a PR that
+  edits **only** `install.sh` — the precise shape of the CIB-288 defect —
+  skips `pnpm test:install-sh`, the banner guard CIB-288 added. The guard is
+  real (proven RED both ways) but unreachable for its own regression shape;
+  it fires today only because CIB-288 also touched `scripts/**`.
+- **Expected Outcome:** root `install.sh` classifies as `shell` (or a
+  dedicated installer class with at least the same checks), so an
+  install.sh-only PR sets `shell-syntax` and `script-fixtures`. Consider
+  whether `install.ps1` and `tools/starters/**/*.sh` have the same hole.
+- **Non-scope / do not:** do not widen the fallback for *all* unclassified
+  paths — the conservative default is deliberate, and turning `unknown` into
+  "run everything" would undo the CI-cost trim. Name the path, don't loosen
+  the default. Do not re-open whether `install.sh` belongs at the repo root.
+- **Files:** `scripts/ci/classify-changes.sh`,
+  `scripts/ci/classify-changes.test.sh`
+- **Validation:** `bash scripts/ci/classify-changes.sh install.sh` reports a
+  `shell` path class with `shell-syntax` and `script-fixtures` in
+  `requiredChecks` and no `unclassified-paths` warning; a fixture case pins
+  it; `pnpm test:ci-classify` and `pnpm test:ci-workflow-contracts` pass.
+- **Trap to avoid:** the classifier is resolved from a **trusted ref**, not
+  the PR head (CIB-137), so a change to it does not take effect for its own
+  PR. Verify by classification output, not by watching the PR's own check
+  list.
+- **Identified From:** landing CIB-288 (PR #3650). The gap was found while
+  wiring the new banner test into CI and confirming the gate that would run
+  it.
+- **Coordinates with:** CIB-288 (the guard this gap disarms), CIB-137
+  (trusted-ref classifier resolution), the CI-cost trim that made these
+  gates path-targeted in the first place.
+- **Confidence:** high — the classification was run against the live script
+  and the `script-fixtures-required` derivation read end to end in
+  `action.yml` and `ci.yml`.
+
+### CIB-300: merge-conflict markers reached `main` in the APS index unseen
+
+- **Status:** Draft — filed 2026-08-06 alongside the repair, not
+  self-authorised. The **repair** landed with this entry; the **gate** is
+  what needs promotion.
+- **Priority:** P2 planning-truth integrity
+- **Intent:** `plans/index.aps.md` carried two raw diff3 markers on `main`
+  (`||||||| parent of d63947884`, `||||||| parent of 1f6bb5315`, at lines 243
+  and 245), and the `continuous-improvement-backlog` row was **triplicated**
+  with three divergent stored counts — 244/294, 232/292, 232/293. Introduced
+  by `2d7e45825`; the two superseded rows were strict subsets of the
+  surviving one, so no dated entry was lost, but for as long as it sat there
+  the index had three answers to "how much CIB is done". Nothing caught it:
+  only the diff3 *middle* marker survived, so the usual `<<<<<<<`/`>>>>>>>`
+  greps and pre-commit hooks saw nothing; `aps:index:check` is advisory by
+  construction (ADR-053, CIB-297) and reads only the leading `N/M` of the
+  first matching row; `drift-check` and `active-lint` do not look for
+  duplicate module rows; `docs:check` passed 10/10 against the damaged file.
+- **Expected Outcome:** a cheap deterministic gate that fails on (a) any
+  conflict marker — all four forms, `<<<<<<<`, `|||||||`, `=======`,
+  `>>>>>>>`, the middle two being the ones that slipped — in a tracked file,
+  and (b) duplicate module rows in `plans/index.aps.md`. (a) is the general
+  fix and belongs outside `plans/`; (b) is the APS-specific one. `=======`
+  needs care: it is legal Markdown setext underlining, so scope that form to
+  a marker-shaped line (exactly seven characters, or paired with another
+  marker in the same file).
+- **Non-scope / do not:** do not make `aps:index:check` blocking to achieve
+  this — ADR-053 keeps it advisory on purpose so concurrent same-module PRs
+  do not collide on the aggregate cell (CIB-297). A conflict-marker gate is a
+  different, non-colliding check.
+- **Files:** a new `scripts/` check plus its wiring (`docs:check` surface or
+  a standalone `pnpm` script and CI step), and its test.
+- **Validation:** the gate fails on a fixture containing each marker form
+  including a bare `|||||||`, fails on a duplicated index module row, passes
+  on the repaired tree, and does not fire on legitimate setext `=======`
+  underlining in `docs/**`.
+- **Trap to avoid:** the repair kept the **superset** row. Any similar future
+  repair must prove containment before deleting a duplicate, not assume the
+  last-written row is the fullest — here the newest row happened to be the
+  superset, which will not always hold.
+- **Identified From:** reading `plans/index.aps.md` to file CIB-299 during
+  the CIB-288 dev-loop run.
+- **Coordinates with:** CIB-297 (`aps:index:check` advisory-by-design and
+  stored counts rotting on `main`), ADR-053, CIB-278 (docs:check taxonomy —
+  this would be a content defect, exit 1).
+- **Confidence:** high on the defect and the repair (containment proven by
+  comparing dated entries across all three rows before deleting two). Medium
+  on the right home for the gate, which is a tooling-placement call.
