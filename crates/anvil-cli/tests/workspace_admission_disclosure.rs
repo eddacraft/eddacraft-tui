@@ -118,6 +118,26 @@ fn wait_for_registered_worktree(home: &Path, worktree: &str) -> serde_json::Valu
     panic!("registered worktree did not appear; last workspace list: {last}");
 }
 
+fn wait_for_unregistered_worktree(home: &Path, worktree: &str) -> serde_json::Value {
+    let mut last = serde_json::Value::Null;
+    for _ in 0..100 {
+        let output = run_workspace_json(home);
+        if output.status.success()
+            && let Ok(value) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+        {
+            let found = value["registered_worktrees"]["entries"]
+                .as_array()
+                .is_some_and(|entries| entries.iter().any(|entry| entry == worktree));
+            if value["registered_worktrees"]["availability"] == "available" && !found {
+                return value;
+            }
+            last = value;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    panic!("registered worktree did not disappear; last workspace list: {last}");
+}
+
 #[test]
 fn fresh_home_json_list_is_one_structured_document() {
     let home = tempdir().expect("temp home");
@@ -257,6 +277,31 @@ fn live_json_list_preserves_registered_membership() {
             "path": worktree_text,
             "state": "registered",
         }])
+    );
+
+    let (unregistered, unregistration_stdout) =
+        run_workspace(home.path(), &["unregister", worktree_text]);
+    assert!(
+        unregistered && unregistration_stdout.contains("Unregistered"),
+        "live unregister succeeds without dropping persisted intent: {unregistration_stdout}"
+    );
+
+    let value = wait_for_unregistered_worktree(home.path(), worktree_text);
+    assert!(
+        value["allow_entries"].as_array().is_some_and(|entries| {
+            entries
+                .iter()
+                .any(|entry| entry["path"] == worktree_text && entry["live_registered"] == false)
+        }),
+        "allow entry reports that live membership was removed: {value}"
+    );
+    assert_eq!(
+        value["register_on_start"],
+        serde_json::json!([{
+            "path": worktree_text,
+            "state": "not_registered",
+        }]),
+        "non-persistent unregister must retain persisted start-up intent"
     );
 }
 
