@@ -4,9 +4,9 @@
 | -------- | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-07-02 (targeted delta review: all-paths honesty pin closing G-05, Policy-path Rego refresh correcting G-01, editor-name de-hardcode); prior 2026-06-10 (showcase wiring, SCAN-004 provenance, pin sweep) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
-| Upstream                               | Downstream                                                                              |
-| -------------------------------------- | --------------------------------------------------------------------------------------- |
-| `crates/anvil-tui`, `crates/anvil-cli` | anvil tutorial CLI command, welcome surface "Explore the tutorial" entry point (LAUNCH) |
+| Upstream                               | Downstream                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `crates/anvil-tui`, `crates/anvil-cli` | anvil tutorial CLI command, welcome surface "Choose a learning path" entry point (LAUNCH) |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
 > showcase wiring, SCAN-004 provenance, pin sweep) against main `45dd1047a`;
@@ -28,7 +28,7 @@ activation state vocabulary. The TUI as-built
 ([`tui-as-built.md`](./tui-as-built.md)) covers tutorial only at the surface
 level. This doc dives into the multi-file engine — paths, discovery, executor,
 fix, render, showcase, verify, watch_demo, copy invariants — that sits behind
-`anvil tutorial` and the `welcome` "Explore the tutorial" entry point.
+`anvil tutorial` and the `welcome` "Choose a learning path" entry point.
 
 The subsystem is the only non-watch TUI surface that consumes a live event
 channel (the kernel watcher feeds `handle_file_change` for steps with a

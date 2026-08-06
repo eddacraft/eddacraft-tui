@@ -284,7 +284,7 @@ hub flow.
 ### onboarding
 
 First-run flow. Four sub-surfaces — `welcome` (the three-choice selector: Set up
-/ Tutorial / Skip — `onboarding/welcome.rs:5-32`), `hooks` (1331-line hook
+/ Tutorial / Skip — `onboarding/welcome.rs:5-40`), `hooks` (1331-line hook
 manager — Husky / Lefthook / pre-commit / Git config hooks detection,
 `onboarding/hooks.rs:30-60`), `init_complete` (post-init summary), `complete`
 (end-of-onboarding summary). Each implements `Surface` and is launched via
@@ -536,8 +536,8 @@ a clap alias of `welcome`); `wizard` runs the `anvil new` template flow;
 Triggered when `config_exists_in(cwd)` returns false
 (`onboarding/mod.rs:31-35`). Four sub-surfaces:
 
-- `OnboardingWelcomeState` — "Set up this project" / "Explore the tutorial" /
-  "Go to command menu" three-choice selector (`onboarding/welcome.rs:5-32`).
+- `OnboardingWelcomeState` — "Set up this project" / "Choose a learning path" /
+  "Go to command menu" three-choice selector (`onboarding/welcome.rs:5-40`).
 - `HooksState` — hook installation; detects `Husky`, `Lefthook`, `pre-commit`,
   Git 2.54 native config-mode hooks (`onboarding/hooks.rs:30-42`), and
   `is_anvil_managed_command` to avoid duplicate installs.

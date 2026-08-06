@@ -5,7 +5,15 @@ use eddacraft_tui::keyboard::Action;
 pub enum OnboardingChoice {
     /// Configure anvil for your project step by step.
     GuidedSetup,
-    /// Jump straight into the interactive tutorial.
+    /// Open the tutorial path picker.
+    ///
+    /// CIB-273: this entry opens
+    /// [`crate::surfaces::tutorial::PATH_PICKER_TITLE`], the same surface the
+    /// return-visit hub reaches via `QuickStartOption::RunTutorial`, so it is
+    /// named after that constant rather than coining a first-run-only name
+    /// ("Explore the tutorial" was exactly that). CIB-246 fixed the hub half
+    /// and left first run uncovered; both halves are now pinned, so a rename
+    /// on one surface fails a test instead of giving one object two names.
     SkipToTutorial,
     /// Create the first-run marker and exit to the standard welcome menu.
     SkipEntirely,
@@ -17,7 +25,7 @@ impl OnboardingChoice {
     pub fn label(self) -> &'static str {
         match self {
             Self::GuidedSetup => "Set up this project",
-            Self::SkipToTutorial => "Explore the tutorial",
+            Self::SkipToTutorial => "Choose a learning path",
             Self::SkipEntirely => "Go to command menu",
         }
     }
@@ -202,9 +210,31 @@ mod tests {
         assert_eq!(OnboardingChoice::GuidedSetup.label(), "Set up this project");
         assert_eq!(
             OnboardingChoice::SkipToTutorial.label(),
-            "Explore the tutorial"
+            "Choose a learning path"
         );
         assert_eq!(OnboardingChoice::SkipEntirely.label(), "Go to command menu");
+    }
+
+    /// CIB-273 (mirroring CIB-246): first run and the return-visit hub open
+    /// the same picker, so they must not offer two names for it. The hub pin
+    /// is `tutorial_entry_is_named_after_the_path_picker`; this is its
+    /// first-run half, so either surface drifting alone fails here instead of
+    /// in the user's head on their second `anvil start`.
+    #[test]
+    fn onboarding_tutorial_entry_is_named_after_the_path_picker() {
+        use crate::surfaces::tutorial::{PATH_PICKER_TITLE, TutorialPath};
+
+        let label = OnboardingChoice::SkipToTutorial.label();
+        assert!(
+            label.eq_ignore_ascii_case(PATH_PICKER_TITLE),
+            "onboarding tutorial entry {label:?} must name the picker it \
+             opens ({PATH_PICKER_TITLE:?})",
+        );
+        assert!(
+            TutorialPath::from_label(label).is_none(),
+            "onboarding tutorial entry opens the picker, so it must not \
+             shadow a single path label ({label:?})",
+        );
     }
 
     #[test]
