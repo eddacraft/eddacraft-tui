@@ -6897,7 +6897,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | CHECK-1 | net-new domain/scoping | **CIB-255** Merged (same item) |
 | GATE-2 | needs internals; same family | **CIB-255** Merged (observation closed with domain disclosure) |
 | TUI-1 | elevated (pack-03 safety chain) | **Absorbed** into **CIB-250** (former CIB-265 Done) |
-| JSON-1 | net-new | **CIB-262** Ready P3 · coords CIB-240 |
+| JSON-1 | net-new | **CIB-262** Merged via #3626 · coords CIB-240 |
 | PUSH-1 | needs reproduction (plausible only) | **CIB-267** Proposed |
 | INIT-1 | net-new polish | **CIB-263** Ready P3 |
 | INIT-3 | net-new polish | **CIB-257** (with INIT-2) |
